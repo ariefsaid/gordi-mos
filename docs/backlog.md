@@ -30,8 +30,7 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
 - **WALL-1 — First navigation IA for `/mos`.** Being resolved by Phase 0 (P0-1/P0-3).
-- **WALL-2 — User-facing app name.** `Gordi MOS` vs `Management OS` vs other. Decide at the Phase-0
-  gate (mockups need a label in the shell — use "Gordi MOS" as placeholder, flagged).
+- ~~WALL-2 — app name~~ CLOSED → OD-P0-4 ("Gordi MOS", subtitle "Management OS").
 - **WALL-3 — Which kitchen events mirror into MOS first.** Needed before P2-4 spec.
 - **WALL-4 — Daily ops updates: generic from day one vs kitchen/roastery-specific first.** Shapes the
   `ops` schema; needed before P2-3 spec (P0-2's feed mockup should present both framings if cheap).

@@ -60,6 +60,13 @@ content in Indonesian naturally. Mockups use realistic Indonesian update text un
 Managers' weekly/daily review surfaces are desktop-first; ops daily-update submission must work
 well on a phone. One responsive surface, not two optimized apps.
 
+### OD-P0-4 — App name: "Gordi MOS" (closes WALL-2)
+Shell label **Gordi MOS**; "Management OS" as the login subtitle. People will say "MOS".
+
+### OD-P0-5 — URL stays `/mos`; root redirects
+OD-DIR-2 confirmed. `ops.gordi.id/` gets a Caddy redirect → `/mos` until a launcher page is worth
+building; MOS is NOT root-mounted (preserves the path-based umbrella for /kitchen, /roastery, …).
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
