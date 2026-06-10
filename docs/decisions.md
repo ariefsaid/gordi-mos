@@ -67,6 +67,20 @@ Shell label **Gordi MOS**; "Management OS" as the login subtitle. People will sa
 OD-DIR-2 confirmed. `ops.gordi.id/` gets a Caddy redirect → `/mos` until a launcher page is worth
 building; MOS is NOT root-mounted (preserves the path-based umbrella for /kitchen, /roastery, …).
 
+### OD-P0-6 — IA pick: balanced "My Week" home (closes WALL-1)
+`docs/design-mockups/proposal-IA-8-balanced-myweek.html` is the adopted IA: left rail (My Week ·
+Tasks · Updates · Ops), personal "My Week" home with one dominant urgency-grouped task table +
+≤2 one-line strips (weekly update, ops summary). Chosen over IA-1..7 and IA-9 after two density
+redline rounds (IA-1..5 too dense, IA-6/7 too sparse). The home's exact information content is a
+follow-up decision (OD-P0-8 pending); the structure is locked.
+
+### OD-P0-7 — "MOS density mode" ratified into DESIGN.md
+The mid-density calibration is a binding DESIGN.md amendment (composition only — hues/type/radii
+unchanged): single ~1080px primary column, one dominant grouped table (44–48px rows, quiet overline
+group headers), ≤2 auxiliary strips, progressive disclosure for RACI/meta (R-avatar + "+N" on rows;
+full R/A/C/I on detail), due-date coloring overdue/≤3d only. PMO's dense DataTable posture stays for
+full list surfaces (Tasks, Updates, Ops).
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

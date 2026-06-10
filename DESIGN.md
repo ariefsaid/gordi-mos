@@ -357,3 +357,29 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
 - **Focus:** single source of truth — global `:focus-visible` = `2px solid {colors.ring}` (the primary blue) at 2px offset. Every focusable element inherits it.
 - **Semantics in source:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters and the layout switcher, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and section landmarks (`aria-label="Pipeline summary"`). Keep these; they are part of the system.
 - **Keyboard:** tab order follows DOM (rail → header → main); custom checkboxes are `tabindex="0"`. Overlays (popover/toast/tooltip) are non-focus-trapping in the mockup — real implementations must add focus management and `Esc`-to-close (a build-time gap, not a token gap).
+
+---
+
+## MOS density mode (owner-ratified 2026-06-10 — OD-P0-7)
+
+Gordi MOS **diverges from PMO's dense-console composition** on primary/home surfaces. This is a
+composition rule only — every hue, type token, radius, and rule above is unchanged. Calibrated over
+two Phase-0 redline rounds (IA-1..5 "too dense" → IA-6/7 "too sparse" → IA-8 adopted, OD-P0-6).
+Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
+
+### Home / digest surfaces (My Week and any future at-a-glance view)
+- **Single content column ~1080px** (1040–1120) with generous header air; no side asides, no second
+  card column.
+- **One dominant module** per surface: a grouped table — 4 columns max, **44–48px rows**, 8–10 rows
+  visible, group headers as muted overline text + count (never colored bars).
+- **≤2 auxiliary strips** (56–64px, one CTA/link each) for secondary concerns; everything else is a
+  link to its full surface, not a rendered module.
+- **Progressive disclosure:** RACI renders as the R-person avatar + muted "+N" on rows; full
+  R/A/C/I chips live on detail surfaces only. No mono IDs, no double badges, no nav badge-counts,
+  no caption paragraphs on home.
+- **Due dates:** colored only when overdue (destructive) or ≤3 days (warning text); otherwise muted.
+
+### List / detail surfaces (Tasks, Updates, Ops full pages)
+PMO's data-dense DataTable posture stays: sortable columns, functional filters, loading/empty/error
+states. Density mode governs *home*, not the working lists ("Executive vs Data-Dense split" —
+at-a-glance up top, dense where the work happens).

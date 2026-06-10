@@ -12,8 +12,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 - [ ] **P0-2 — Key-screen mockups.** My Tasks list (RACI-visible, filterable) · task detail (RACI
   fields + status + updates) · weekly update write + manager review · daily ops feed (kitchen-mirrored
   events). `docs/design-mockups/mock-<screen>.html`.
-- [ ] **P0-3 — Owner review + pick.** Owner opens mockups in browser, picks IA, redlines screens.
-  Record picks as OD entries in `docs/decisions.md`. **GATE for everything below.**
+- [x] **P0-3 — Owner IA pick.** DONE → OD-P0-6 (IA-8 balanced My Week) after two density redlines
+  (OD-P0-7). Remaining gate items: home information inventory (OD-P0-8 pending) → re-cut the four
+  key-screen mocks to density mode → owner signs off screens.
 
 ## ▶ NEXT — Phase 1: foundation (blocked on P0-3)
 - [ ] P1-1 scaffold `mos-app/` + CI gates + Playwright harness (base path `/mos`).
@@ -29,7 +30,7 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 - [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
-- **WALL-1 — First navigation IA for `/mos`.** Being resolved by Phase 0 (P0-1/P0-3).
+- ~~WALL-1 — first navigation IA~~ CLOSED → OD-P0-6 (balanced My Week, proposal-IA-8) + OD-P0-7 (density mode in DESIGN.md).
 - ~~WALL-2 — app name~~ CLOSED → OD-P0-4 ("Gordi MOS", subtitle "Management OS").
 - **WALL-3 — Which kitchen events mirror into MOS first.** Needed before P2-4 spec.
 - **WALL-4 — Daily ops updates: generic from day one vs kitchen/roastery-specific first.** Shapes the
