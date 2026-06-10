@@ -53,3 +53,6 @@ id_rsa*
 *.keystore
 **/serviceAccount*.json
 secrets.*
+
+# Claude Code local (per-machine) settings — may contain personal tool allowlists
+.claude/settings.local.json
