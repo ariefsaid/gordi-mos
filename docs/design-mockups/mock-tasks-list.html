@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — Tasks (mockup)</title>
+<style>
+  /* All values from DESIGN.md (adopted). Token name noted in comment beside each. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45;            /* typography.body */
+    color: hsl(240 10% 3.9%);                       /* foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);         /* secondary @35% main area */
+    -webkit-font-smoothing: antialiased;
+  }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  /* ---- Neutral thin shell (no side nav — IA chosen separately in P0-1) ---- */
+  .topbar {
+    height: 56px;                                   /* --header-h */
+    background: hsl(0 0% 100%);                      /* background */
+    border-bottom: 1px solid hsl(240 5.9% 90%);     /* border */
+    display: flex; align-items: center; gap: 12px;  /* spacing.3 */
+    padding: 0 20px;                                 /* spacing.5 */
+  }
+  .brand { display: flex; align-items: center; gap: 8px; } /* spacing.2 */
+  .logo {
+    width: 28px; height: 28px; border-radius: 6px;  /* rounded.sm */
+    background: hsl(221.2 83.2% 53.3%);             /* primary */
+    color: hsl(0 0% 98%);                            /* primary-foreground */
+    display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-sub { color: hsl(240 4% 40%); font-size: 12px; margin-left: 2px; } /* muted-foreground */
+  .spacer { flex: 1; }
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar {
+    width: 28px; height: 28px; border-radius: 999px; /* rounded.full */
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); /* primary→violet avatar gradient */
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 600;
+  }
+  .userchip .nm { font-size: 13px; font-weight: 600; }
+  .userchip .rl { font-size: 11px; color: hsl(240 4% 40%); }    /* muted-foreground */
+
+  .page { max-width: 1360px; margin: 0 auto; padding: 20px; } /* desktop ~1360px */
+  .page-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
+  .page-head .count { color: hsl(240 4% 40%); font-size: 13px; }  /* muted-foreground */
+
+  /* ---- Card assembly: toolbar seamed to table ---- */
+  .assembly {
+    background: hsl(0 0% 100%);                      /* card */
+    border: 1px solid hsl(240 5.9% 90%);            /* border */
+    border-radius: 8px;                              /* rounded.md */
+  }
+  .toolbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 12px;
+    border-bottom: 1px solid hsl(240 5.9% 90%);     /* border */
+  }
+  .control {
+    height: 32px; display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 10px; border: 1px solid hsl(240 5.9% 90%);  /* input border */
+    background: hsl(0 0% 100%);                      /* background */
+    border-radius: 8px;                              /* rounded.md */
+    font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer;
+  }
+  .control .lbl { color: hsl(240 4% 40%); }          /* muted-foreground */
+  .control .chev { color: hsl(240 4% 40%); font-size: 10px; }
+  /* segmented Mine / RACI-involved / All */
+  .seg {
+    display: inline-flex; height: 32px; padding: 3px;
+    background: hsl(240 4.8% 95.9%);                 /* secondary track */
+    border-radius: 8px;                              /* rounded.md */
+  }
+  .seg button {
+    border: 0; background: transparent; font: inherit; font-size: 13px;
+    padding: 0 10px; border-radius: 6px;             /* rounded.sm */
+    color: hsl(240 5.9% 10%); cursor: pointer;       /* secondary-foreground */
+  }
+  .seg button.on {
+    background: hsl(0 0% 100%);                       /* background pill */
+    font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); /* pressed lift */
+  }
+  .search-mini {
+    margin-left: auto; height: 32px; display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; /* input */
+    color: hsl(240 4% 40%); font-size: 13px; min-width: 180px;
+  }
+
+  /* ---- Table ---- */
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; height: 38px; padding: 0 12px;
+    font-size: 11.5px; font-weight: 600; line-height: 1.3;
+    letter-spacing: 0.06em; text-transform: uppercase;   /* typography.overline */
+    color: hsl(240 4% 40%);                          /* muted-foreground */
+    border-bottom: 1px solid hsl(240 5.9% 90%);      /* border */
+    white-space: nowrap;
+  }
+  tbody td {
+    height: 54px; padding: 12px;                     /* table-body-cell */
+    border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); /* border @70% */
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: hsl(240 4.8% 95.9% / 0.6); } /* accent @60% row hover */
+  .task-name { font-weight: 500; }
+  .task-bu { display: block; font-size: 12px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+
+  /* status pill = 6px dot + tinted pill, darkened-AA text (Tinted-Status Rule) */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 9px; border-radius: 999px;  /* badge-status */
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } /* primary tint / --status-open-text */
+  .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); }                      /* primary */
+  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); }        /* destructive tint / --status-lost-text */
+  .pill.blocked .dot { background: hsl(0 84.2% 60.2%); }                             /* destructive */
+  .pill.open { background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); }            /* secondary / muted-foreground (neutral) */
+  .pill.open .dot { background: hsl(240 4% 40%); }
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); }       /* success tint / --status-won-text */
+  .pill.done .dot { background: hsl(142 71% 45%); }                                  /* success */
+
+  .due { font-size: 13px; }
+  .due.overdue { color: hsl(0 72% 45%); font-weight: 600; }      /* --status-lost-text (overdue) */
+  .due.soon { color: hsl(22 78% 26%); }                          /* warning-foreground (due soon) */
+
+  /* ---- RACI role badges (PROPOSED NEW TOKENS — see comment block at file end) ---- */
+  .raci { display: inline-flex; gap: 4px; align-items: center; }
+  .rb {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 22px; padding: 0 8px 0 5px; border-radius: 999px;  /* rounded.full */
+    font-size: 12px; font-weight: 500; border: 1px solid transparent;
+  }
+  .rb .role {
+    width: 15px; height: 15px; border-radius: 999px;
+    display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: hsl(0 0% 98%);
+  }
+  .rb .who { color: hsl(240 10% 3.9%); }            /* foreground */
+  /* R = primary (active doer), A = violet (accountable owner), C/I = neutral */
+  .rb.r  { background: hsl(221 83% 53% / 0.10); }   /* PROPOSED --raci-r-bg (primary @10%) */
+  .rb.r  .role { background: hsl(221.2 83.2% 53.3%); }                 /* PROPOSED --raci-r */
+  .rb.a  { background: hsl(262 83% 58% / 0.10); }   /* PROPOSED --raci-a-bg (violet @10%) */
+  .rb.a  .role { background: hsl(262 83% 58%); }                       /* PROPOSED --raci-a */
+  .rb.c  { background: hsl(240 4.8% 95.9%); }       /* PROPOSED --raci-ci-bg (secondary) */
+  .rb.c  .role { background: hsl(240 4% 40%); }                        /* PROPOSED --raci-ci (muted-foreground) */
+  .rb.i  { background: hsl(240 4.8% 95.9%); }       /* PROPOSED --raci-ci-bg */
+  .rb.i  .role { background: hsl(240 4% 40%); }                        /* PROPOSED --raci-ci */
+
+  /* ---- Variant frames (empty + loading) ---- */
+  .variants { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; } /* spacing.6 */
+  .frame {
+    border: 1px dashed hsl(240 5.9% 90%); border-radius: 8px; padding: 12px;
+    background: hsl(0 0% 100% / 0.5);
+  }
+  .frame-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(240 4% 40%); margin-bottom: 8px; }   /* overline / muted-foreground */
+  .mini-assembly { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; overflow: hidden; }
+  /* empty state */
+  .empty { text-align: left; padding: 28px 16px; }
+  .empty h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .empty p { font-size: 13px; color: hsl(240 4% 40%); margin-bottom: 12px; } /* muted-foreground */
+  .btn-primary {
+    height: 32px; padding: 0 12px; border-radius: 8px;       /* button-primary */
+    background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); /* primary / primary-foreground */
+    border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);     /* brand button shadow */
+  }
+  /* loading skeleton */
+  .sk-row { display: flex; align-items: center; gap: 12px; padding: 12px; height: 54px;
+    border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+  .sk { background: hsl(240 4.8% 95.9%); border-radius: 6px; height: 12px; } /* secondary / rounded.sm */
+  .sk.pill { height: 22px; width: 84px; border-radius: 999px; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+  .sk-row .sk { animation: pulse 1.4s ease-in-out infinite; }
+</style>
+</head>
+<body>
+  <!-- NEUTRAL SHELL: slim top bar only; side nav intentionally omitted (IA decided in P0-1) -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">G</div>
+      <span class="brand-name">Gordi MOS</span>
+      <span class="brand-sub">Management OS</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="userchip">
+      <div class="avatar">AR</div>
+      <div><div class="nm">Arief</div><div class="rl">CEO</div></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <h1 class="page-title">Tasks</h1>
+      <span class="count tabular">6 tasks · 1 blocked</span>
+    </div>
+
+    <!-- POPULATED STATE -->
+    <section class="assembly">
+      <div class="toolbar">
+        <button class="control"><span class="lbl">Business unit</span><span>All</span><span class="chev">▾</span></button>
+        <button class="control"><span class="lbl">Status</span><span>Any</span><span class="chev">▾</span></button>
+        <button class="control"><span class="lbl">Person</span><span>Anyone</span><span class="chev">▾</span></button>
+        <div class="seg" role="tablist" aria-label="Ownership filter">
+          <button role="tab" aria-selected="true" class="on">Mine</button>
+          <button role="tab" aria-selected="false">RACI-involved</button>
+          <button role="tab" aria-selected="false">All</button>
+        </div>
+        <div class="search-mini">⌕ Search tasks</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32%">Task</th>
+            <th style="width:12%">Status</th>
+            <th style="width:11%">Due</th>
+            <th>RACI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="task-name">Finalisasi menu seasonal Q3</span><span class="task-bu">Kitchen</span></td>
+            <td><span class="pill inprogress"><span class="dot"></span>In Progress</span></td>
+            <td class="due tabular">19 Jun</td>
+            <td><div class="raci">
+              <span class="rb r"><span class="role">R</span><span class="who">Dina</span></span>
+              <span class="rb a"><span class="role">A</span><span class="who">Arief</span></span>
+              <span class="rb c"><span class="role">C</span><span class="who">Sari</span></span>
+              <span class="rb i"><span class="role">I</span><span class="who">Andi</span></span>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="task-name">Kalibrasi profil roasting Ethiopia Guji</span><span class="task-bu">Roastery</span></td>
+            <td><span class="pill inprogress"><span class="dot"></span>In Progress</span></td>
+            <td class="due soon tabular">13 Jun</td>
+            <td><div class="raci">
+              <span class="rb r"><span class="role">R</span><span class="who">Raka</span></span>
+              <span class="rb a"><span class="role">A</span><span class="who">Raka</span></span>
+              <span class="rb i"><span class="role">I</span><span class="who">Arief</span></span>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="task-name">SOP stock opname mingguan kitchen</span><span class="task-bu">Kitchen</span></td>
+            <td><span class="pill blocked"><span class="dot"></span>Blocked</span></td>
+            <td class="due overdue tabular">12 Jun</td>
+            <td><div class="raci">
+              <span class="rb r"><span class="role">R</span><span class="who">Budi</span></span>
+              <span class="rb a"><span class="role">A</span><span class="who">Dina</span></span>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="task-name">Harga bundling promo kemerdekaan</span><span class="task-bu">Sales &amp; E-Commerce</span></td>
+            <td><span class="pill open"><span class="dot"></span>Open</span></td>
+            <td class="due tabular">24 Jun</td>
+            <td><div class="raci">
+              <span class="rb r"><span class="role">R</span><span class="who">Sari</span></span>
+              <span class="rb a"><span class="role">A</span><span class="who">Arief</span></span>
+              <span class="rb c"><span class="role">C</span><span class="who">Andi</span></span>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="task-name">Rekonsiliasi COGS roastery Mei</span><span class="task-bu">Finance &amp; People</span></td>
+            <td><span class="pill done"><span class="dot"></span>Done</span></td>
+            <td class="due tabular">10 Jun</td>
+            <td><div class="raci">
+              <span class="rb r"><span class="role">R</span><span class="who">Andi</span></span>
+              <span class="rb a"><span class="role">A</span><span class="who">Arief</span></span>
+              <span class="rb i"><span class="role">I</span><span class="who">Raka</span></span>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="task-name">Jadwal training barista batch 2</span><span class="task-bu">Sales &amp; E-Commerce</span></td>
+            <td><span class="pill open"><span class="dot"></span>Open</span></td>
+            <td class="due tabular">17 Jun</td>
+            <td><div class="raci">
+              <span class="rb r"><span class="role">R</span><span class="who">Sari</span></span>
+              <span class="rb a"><span class="role">A</span><span class="who">Sari</span></span>
+              <span class="rb i"><span class="role">I</span><span class="who">Dina</span></span>
+            </div></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- EMPTY + LOADING VARIANTS (smaller framed) -->
+    <div class="variants">
+      <div class="frame">
+        <div class="frame-cap">Empty state — "Mine" filter, no tasks</div>
+        <div class="mini-assembly">
+          <div class="empty">
+            <h3>No tasks assigned to you</h3>
+            <p>When a task names you as R, A, C, or I it shows up here. Create one or switch to “All”.</p>
+            <button class="btn-primary">+ New task</button>
+          </div>
+        </div>
+      </div>
+      <div class="frame">
+        <div class="frame-cap">Loading state — skeleton rows</div>
+        <div class="mini-assembly">
+          <div class="sk-row"><div class="sk" style="width:40%"></div><div class="sk pill"></div><div class="sk" style="width:46px"></div><div class="sk" style="width:120px;margin-left:auto"></div></div>
+          <div class="sk-row"><div class="sk" style="width:52%"></div><div class="sk pill"></div><div class="sk" style="width:46px"></div><div class="sk" style="width:100px;margin-left:auto"></div></div>
+          <div class="sk-row"><div class="sk" style="width:34%"></div><div class="sk pill"></div><div class="sk" style="width:46px"></div><div class="sk" style="width:140px;margin-left:auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<!--
+=================== MOCKUP NOTES — mock-tasks-list.html ===================
+DESIGN.md TOKENS USED (value → token):
+  hsl(0 0% 100%) background/card · hsl(240 10% 3.9%) foreground ·
+  hsl(240 4.8% 95.9%) secondary/muted/accent · hsl(240 4% 40%) muted-foreground ·
+  hsl(240 5.9% 90%) border/input · hsl(221.2 83.2% 53.3%) primary · hsl(0 0% 98%) primary-foreground ·
+  hsl(262 83% 58%) violet · hsl(0 84.2% 60.2%) destructive · hsl(142 71% 45%) success ·
+  hsl(22 78% 26%) warning-foreground ·
+  status-pill darkened-AA text: 221 75% 38% (--status-open-text), 0 72% 45% (--status-lost-text),
+    142 64% 30% (--status-won-text) ·
+  typography: page-title/overline/label/body · rounded sm(6)/md(8)/full(999) ·
+  spacing 2(8)/3(12)/5(20)/6(24) · badge-status(22h) · table-header-cell(38h) · table-body-cell(54h) ·
+  button-primary(32h) + brand button shadow · pressed-lift shadow · avatar blue→violet gradient ·
+  --header-h(56) shell · tabular-nums on due dates + counts.
+
+STATES COVERED: populated (default), empty ("Mine" filter, zero rows), loading (skeleton).
+  Edge: overdue due-date (red), due-soon (amber-brown), Blocked status, A==R person (Raka), tasks with only R+A (no C/I).
+
+PROPOSED NEW TOKENS — RACI role badges (flagged for owner sign-off; IDENTICAL across all 4 mockups):
+  Gap: DESIGN.md has no role-badge vocabulary; RACI v1 (OD-DIR-5) needs R/A/C/I shown densely on
+  lists + detail. Proposal reuses existing palette (NO new hues):
+    --raci-r    = primary       hsl(221.2 83.2% 53.3%)   (Responsible — the active doer; ties to The One Blue, used only as a 15px role chip, not an action)
+    --raci-a    = violet        hsl(262 83% 58%)          (Accountable — single owner; reuses categorical violet, non-interactive)
+    --raci-ci   = muted-foreground hsl(240 4% 40%)        (Consulted / Informed — de-emphasized, neutral)
+    --raci-r-bg = primary @10%  · --raci-a-bg = violet @10% · --raci-ci-bg = secondary
+  Note: R uses primary as a SMALL categorical chip only (≤15px), never as a button — owner to confirm
+  this does not violate The One Blue Rule, or pick an alternate (e.g. R also neutral, only A tinted).
+
+OPEN QUESTIONS:
+  1) RACI badge: confirm R=primary / A=violet, or prefer both neutral with letter-only? (token sign-off)
+  2) Consulted/Informed can be multi-person — show all, or "+N" overflow past 2? (shown inline here)
+  3) Due-date semantics: is "due soon" amber threshold owner-meaningful, or only overdue=red?
+  4) "Mine" default vs "RACI-involved" default on first load — which is the manager's primary view?
+==========================================================================
+-->
+</body>
+</html>

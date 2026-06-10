@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — IA Proposal 3: Feed-First</title>
+<style>
+  /* ============================================================
+     DESIGN.md token values inlined (token NAME in comment).
+     Calm, dense, data-first. Borders define structure, not shadows.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);         /* foreground */
+    background: hsl(0 0% 100%);                                           /* background */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+
+  /* feed-first uses a TOP tab bar instead of a deep rail */
+  .app { display: flex; flex-direction: column; min-height: 100vh; background: hsl(240 4.8% 95.9% / 0.35); } /* secondary/35% */
+
+  /* ---------- Header (brand + top tabs + user) ---------- */
+  .header {
+    height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); /* --header-h / background / border */
+    display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+
+  /* top tabs (peer sections) */
+  .tabs { display: flex; align-items: stretch; gap: 2px; height: 56px; margin-left: 8px; }
+  .tab {
+    display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; height: 56px;
+    font-size: 13.5px; font-weight: 500; color: hsl(240 4% 40%);          /* muted-foreground */
+    text-decoration: none; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab:hover { color: hsl(240 10% 3.9%); }                                /* foreground */
+  .tab.active { color: hsl(240 10% 3.9%); font-weight: 600; border-bottom-color: hsl(221.2 83.2% 53.3%); } /* primary sticky-tab indicator */
+  .tab .count { min-width: 19px; height: 19px; padding: 0 6px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 11px; font-weight: 600; display: grid; place-items: center; } /* secondary / muted-foreground */
+  .tab.active .count { background: hsl(221.2 83.2% 53.3% / 0.15); color: hsl(221.2 83.2% 53.3%); } /* primary/15% + primary */
+  .spacer { flex: 1; }
+  .cmdk { height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); color: hsl(240 4% 40%); font-size: 13px; } /* input / rounded.md */
+  .cmdk .kbd { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; border: 1px solid hsl(240 5.9% 90%); border-radius: 4px; padding: 1px 5px; }
+  .iconbtn { width: 32px; height: 32px; border-radius: 8px; background: transparent; display: grid; place-items: center; position: relative; cursor: pointer; border: 1px solid transparent; }
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); }
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary→violet */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); }
+
+  /* ---------- Page (centered single feed column + aside) ---------- */
+  .page { flex: 1; overflow: auto; padding: 20px; }
+  .wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+  .page-head { display: flex; align-items: flex-end; margin-bottom: 16px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* page-title */
+  .page-sub { font-size: 13px; color: hsl(240 4% 40%); margin-top: 4px; } /* muted-foreground */
+
+  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; } /* card / border / rounded.md */
+
+  /* feed filter toolbar */
+  .feedbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid hsl(240 5.9% 90%); }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; background: hsl(240 4.8% 95.9%); border-radius: 8px; } /* secondary track */
+  .seg button { height: 26px; padding: 0 10px; border: 0; background: transparent; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: hsl(240 4% 40%); cursor: pointer; }
+  .seg button.on { background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.10); } /* pressed lift */
+  .control { height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer; }
+  .control .mut { color: hsl(240 4% 40%); } /* muted-foreground */
+  .ml-auto { margin-left: auto; }
+
+  /* day divider */
+  .day-sep { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
+  .day-sep .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .day-sep .rule { flex: 1; height: 1px; background: hsl(240 5.9% 90%); } /* border */
+
+  /* feed event row */
+  .event { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); } /* border/70% */
+  .event:last-child { border-bottom: 0; }
+  .ev-rail { display: flex; flex-direction: column; align-items: center; flex: none; }
+  .ev-dot { width: 8px; height: 8px; border-radius: 999px; margin-top: 5px; }
+  .ev-dot.kitchen { background: hsl(221.2 83.2% 53.3%); }   /* primary — Kitchen source */
+  .ev-dot.roastery { background: hsl(262 83% 58%); }        /* violet — Roastery source */
+  .ev-line { width: 1px; flex: 1; background: hsl(240 5.9% 90%); margin-top: 4px; } /* border timeline line */
+  .ev-body { flex: 1; min-width: 0; }
+  .ev-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .src { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; } /* source badge */
+  .src.kitchen { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); }  /* primary tint + --status-open-text */
+  .src.roastery { background: hsl(262 83% 58% / 0.14); color: hsl(262 60% 42%); }        /* violet tint + --status-violet-text */
+  .ev-time { font-size: 11.5px; color: hsl(240 4% 40%); margin-left: auto; } /* muted-foreground */
+  .ev-text { font-size: 13.5px; line-height: 1.45; }
+  .ev-by { font-size: 12px; color: hsl(240 4% 40%); margin-top: 3px; } /* muted-foreground */
+  .ev-by .ok { color: hsl(142 64% 30%); font-weight: 600; }      /* --status-won-text — approved */
+  .ev-by .warn { color: hsl(22 78% 26%); font-weight: 600; }      /* warning-foreground — follow-up */
+  .ev-code { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; color: hsl(240 4% 40%); } /* mono — Mono-For-Identifiers */
+
+  /* aside: peer-section jump cards */
+  .aside-card-head { padding: 12px 14px; border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 8px; }
+  .aside-title { font-size: 13px; font-weight: 700; }
+  .aside-title .c { margin-left: auto; font-size: 11px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground */
+  .mini-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); cursor: pointer; } /* border/70% */
+  .mini-row:last-child { border-bottom: 0; }
+  .mini-row:hover { background: hsl(240 4.8% 95.9% / 0.6); } /* accent/60% */
+  .mini-main { flex: 1; min-width: 0; }
+  .mini-title { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+  .mini-meta { font-size: 11px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+
+  /* status pill (compact, used in aside) — Tinted-Status Rule */
+  .pill { display: inline-flex; align-items: center; gap: 5px; height: 18px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 600; } /* badge-status */
+  .pill .pdot { width: 5px; height: 5px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .pdot { background: hsl(221.2 83.2% 53.3%); }
+  .pill.blocked { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .pdot { background: hsl(0 84.2% 60.2%); }
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.open .pdot { background: hsl(43 96% 56%); }
+  .pill.draft { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.draft .pdot { background: hsl(43 96% 56%); }
+  .pill.filed { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.filed .pdot { background: hsl(142 71% 45%); }
+
+  /* RACI mini-badge — PROPOSED NEW TOKENS */
+  .raci { display: inline-flex; gap: 3px; }
+  .raci-role { width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: hsl(0 0% 100%); }
+  .role-R { background: hsl(221.2 83.2% 53.3%); }  /* raci-responsible — primary */
+  .role-A { background: hsl(262 83% 58%); }        /* raci-accountable — violet */
+  .role-C { background: hsl(43 96% 56%); color: hsl(22 78% 26%); } /* raci-consulted — warning */
+  .role-I { background: hsl(240 4% 40%); }         /* raci-informed — muted-foreground */
+  .note { font-size: 11px; color: hsl(240 4% 40%); padding: 10px 16px; } /* muted-foreground */
+  .btn-outline { height: 28px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font-size: 12.5px; font-weight: 600; color: hsl(240 10% 3.9%); cursor: pointer; margin: 10px 14px; } /* button-outline (sm) */
+  .btn-outline:hover { background: hsl(240 4.8% 95.9%); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== HEADER + TOP TABS ===== -->
+  <header class="header">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <a class="tab active" role="tab" aria-selected="true">Daily Ops <span class="count tnum">4</span></a>
+      <a class="tab" role="tab" aria-selected="false">Tasks <span class="count tnum">6</span></a>
+      <a class="tab" role="tab" aria-selected="false">Weekly Updates <span class="count tnum">4</span></a>
+      <a class="tab" role="tab" aria-selected="false">People <span class="count tnum">7</span></a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="cmdk">Search…<span class="kbd">⌘K</span></div>
+    <button class="iconbtn" aria-label="Notifications"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+    <div class="userchip"><div class="avatar">AR</div><div><div class="u-name">Arief</div><div class="u-role">CEO</div></div></div>
+  </header>
+
+  <!-- ===== PAGE: FEED HOME ===== -->
+  <main class="page">
+    <div class="wrap">
+      <!-- FEED COLUMN -->
+      <div>
+        <div class="page-head">
+          <div>
+            <div class="page-title">Daily Ops</div>
+            <div class="page-sub">Live operational activity across Gordi · today 10 Jun 2026</div>
+          </div>
+        </div>
+
+        <section class="card" aria-label="Daily ops feed">
+          <div class="feedbar">
+            <div class="seg" role="tablist">
+              <button class="on" role="tab" aria-selected="true">All sources</button>
+              <button role="tab" aria-selected="false">Kitchen</button>
+              <button role="tab" aria-selected="false">Roastery</button>
+            </div>
+            <div class="control ml-auto"><span class="mut">Today</span> <span class="mut">▾</span></div>
+          </div>
+
+          <div class="day-sep"><span class="lbl">Today · Tue 10 Jun</span><span class="rule"></span></div>
+
+          <div class="event">
+            <div class="ev-rail"><span class="ev-dot kitchen"></span><span class="ev-line"></span></div>
+            <div class="ev-body">
+              <div class="ev-top"><span class="src kitchen">Kitchen</span><span class="ev-time tnum">14:30</span></div>
+              <div class="ev-text">Stock opname mingguan tertunda — menunggu kelengkapan data.</div>
+              <div class="ev-by">Follow-up <span class="warn">Budi Santoso</span> · linked task: <span class="pill blocked"><span class="pdot"></span>Blocked</span></div>
+            </div>
+          </div>
+
+          <div class="event">
+            <div class="ev-rail"><span class="ev-dot roastery"></span><span class="ev-line"></span></div>
+            <div class="ev-body">
+              <div class="ev-top"><span class="src roastery">Roastery</span><span class="ev-time tnum">13:02</span></div>
+              <div class="ev-text">Roast batch Ethiopia Guji <span class="ev-code">#R-882</span> selesai QC.</div>
+              <div class="ev-by">by Raka Wijaya</div>
+            </div>
+          </div>
+
+          <div class="event">
+            <div class="ev-rail"><span class="ev-dot kitchen"></span><span class="ev-line"></span></div>
+            <div class="ev-body">
+              <div class="ev-top"><span class="src kitchen">Kitchen</span><span class="ev-time tnum">11:15</span></div>
+              <div class="ev-text">Penerimaan 25kg green bean Gayo lot <span class="ev-code">#G-114</span>.</div>
+              <div class="ev-by">by Budi Santoso</div>
+            </div>
+          </div>
+
+          <div class="event">
+            <div class="ev-rail"><span class="ev-dot kitchen"></span></div>
+            <div class="ev-body">
+              <div class="ev-top"><span class="src kitchen">Kitchen</span><span class="ev-time tnum">09:40</span></div>
+              <div class="ev-text">42 batch cold brew selesai produksi.</div>
+              <div class="ev-by"><span class="ok">Approved Dina Pratiwi</span></div>
+            </div>
+          </div>
+          <div class="note">loading: skeleton event rows under the day divider · empty: "No ops events today — mirrored from Kitchen &amp; Roastery as they happen" · error: inline retry banner above the feed, day dividers still render.</div>
+        </section>
+      </div>
+
+      <!-- ASIDE: peer sections jump-in -->
+      <aside style="display:flex;flex-direction:column;gap:16px;">
+        <section class="card" aria-label="Tasks needing attention">
+          <div class="aside-card-head"><span class="aside-title">Tasks <span class="c tnum">6 total</span></span></div>
+          <div class="mini-row">
+            <div class="mini-main">
+              <div class="mini-title">SOP stock opname mingguan kitchen</div>
+              <div class="mini-meta">Kitchen · due 12 Jun</div>
+            </div>
+            <span class="pill blocked"><span class="pdot"></span>Blocked</span>
+            <div class="raci"><span class="raci-role role-R">R</span><span class="raci-role role-A">A</span></div>
+          </div>
+          <div class="mini-row">
+            <div class="mini-main">
+              <div class="mini-title">Kalibrasi profil roasting Ethiopia Guji</div>
+              <div class="mini-meta">Roastery · due 13 Jun</div>
+            </div>
+            <span class="pill inprogress"><span class="pdot"></span>In Progress</span>
+            <div class="raci"><span class="raci-role role-R">R</span><span class="raci-role role-A">A</span></div>
+          </div>
+          <div class="mini-row">
+            <div class="mini-main">
+              <div class="mini-title">Harga bundling promo kemerdekaan</div>
+              <div class="mini-meta">Sales &amp; E-Commerce · due 24 Jun</div>
+            </div>
+            <span class="pill open"><span class="pdot"></span>Open</span>
+            <div class="raci"><span class="raci-role role-R">R</span><span class="raci-role role-A">A</span></div>
+          </div>
+          <button class="btn-outline">Open Tasks →</button>
+        </section>
+
+        <section class="card" aria-label="Weekly updates this week">
+          <div class="aside-card-head"><span class="aside-title">Weekly Updates <span class="c">8–14 Jun</span></span></div>
+          <div class="mini-row">
+            <div class="mini-main"><div class="mini-title">Dina Pratiwi</div><div class="mini-meta">Kitchen · filed Tue</div></div>
+            <span class="pill filed"><span class="pdot"></span>Filed</span>
+          </div>
+          <div class="mini-row">
+            <div class="mini-main"><div class="mini-title">Raka Wijaya</div><div class="mini-meta">Roastery · filed Mon</div></div>
+            <span class="pill filed"><span class="pdot"></span>Filed</span>
+          </div>
+          <div class="mini-row">
+            <div class="mini-main"><div class="mini-title">Sari Lestari</div><div class="mini-meta">Sales &amp; E-Comm</div></div>
+            <span class="pill draft"><span class="pdot"></span>Draft</span>
+          </div>
+          <button class="btn-outline">Open Weekly Updates →</button>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<!--
+============================================================
+IA PROPOSAL 3 — Feed-First
+THESIS: The daily ops feed IS home — a chronological, source-badged
+        activity stream mirrored from Kitchen & Roastery. Tasks and
+        Weekly Updates are PEER top-tabs, surfaced as compact "needs
+        attention" jump-cards in the aside. Optimizes for "what just
+        happened on the floor" awareness.
+============================================================
+
+DESIGN.md TOKENS USED:
+  Colors: background, foreground, card, primary, primary-foreground,
+    secondary, muted-foreground, accent, border, input, destructive,
+    warning, warning-foreground, success, violet; status-pill text
+    tokens --status-open-text (221 75% 38%), --status-won-text
+    (142 64% 30%), --status-lost-text (0 72% 45%), --status-violet-text
+    (262 60% 42%).
+  Typography: page-title, body, label, overline, mono (event IDs
+    #R-882/#G-114 — Mono-For-Identifiers Rule); Tabular-Numbers Rule
+    (.tnum on times & counts).
+  Rounded: sm (seg btn), md (cards, controls, cmdk), full (pills,
+    counts, dots, avatars).
+  Spacing: 1–6 scale.
+  Components: --header-h 56px, card, badge-status, button-outline,
+    seg control, cmdk, source badges, avatar gradient, timeline
+    dot+line (violet/primary categorical — per Elevation/timeline use).
+    Top-tab indicator = primary underline (sticky-tab indicator role).
+  Rules honored: One Blue Rule (blue = active tab indicator + tab
+    count; ops source uses primary/violet as CATEGORICAL source hue,
+    NOT as action — see open question), Flat-By-Default, Tinted-Status
+    Rule, Single-Border Rule, Mono-For-Identifiers.
+
+PROPOSED NEW TOKENS (flagged for OWNER SIGN-OFF — identical in all 3 proposals):
+  RACI role-badge color set (MOS gap; PMO had no RACI). Reuses palette:
+    --raci-responsible : 221.2 83.2% 53.3%  (primary)             — "R"
+    --raci-accountable : 262 83% 58%         (violet)              — "A"
+    --raci-consulted   : 43 96% 56%          (warning, text brown) — "C"
+    --raci-informed    : 240 4% 40%          (muted-foreground)    — "I"
+  Here shown as bare 16px role chips (no name) in the dense aside;
+  full name-bearing pill form is used in proposals 1 & 2.
+
+OPEN QUESTIONS FOR OWNER:
+  1. Feed-first assumes ops awareness is the primary daily job. For
+     managers whose job is triage/review (not floor-watching), is the
+     feed the right HOME, or a peer tab under My Week (proposal 2)?
+  2. Source color = primary(Kitchen)/violet(Roastery): as sources grow
+     (Sales, Finance), we'll run out of palette hues fast. Confirm a
+     source-hue strategy (or neutral dot + text label only).
+  3. No persistent left rail here — navigation is top-tabs only. OK for
+     4 sections; doesn't scale to the later full-MOS nav. Confirm this
+     is acceptable for the first slice only.
+  4. RACI role color mapping above — confirm hues, esp. "A"=violet.
+  5. Linking ops events to tasks (shown on the Blocked row) — is that
+     relationship in v1 data, or aspirational? Affects feed schema.
+============================================================
+-->
+</body>
+</html>

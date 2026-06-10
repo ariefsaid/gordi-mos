@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — Weekly update (mockup)</title>
+<style>
+  /* All values from DESIGN.md (adopted). Token name noted in comment beside each. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);  /* body / foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);          /* secondary @35% main area */
+    -webkit-font-smoothing: antialiased;
+  }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  .topbar { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%);
+    display: flex; align-items: center; gap: 12px; padding: 0 20px; }  /* --header-h / background / border */
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%);
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / rounded.sm */
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-sub { color: hsl(240 4% 40%); font-size: 12px; }
+  .spacer { flex: 1; }
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+  .userchip .nm { font-size: 13px; font-weight: 600; }
+  .userchip .rl { font-size: 11px; color: hsl(240 4% 40%); }
+
+  .page { max-width: 1360px; margin: 0 auto; padding: 20px; }
+  .pane-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(240 4% 40%); margin: 8px 0; }          /* overline / muted-foreground */
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }  /* spacing.5 */
+
+  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 16px; } /* card / border / rounded.md / spacing.4 */
+  .card h2 { font-size: 18px; font-weight: 600; line-height: 1.3; }   /* subheading */
+  .week-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px;
+    background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 12px; font-weight: 600; }  /* secondary / muted-foreground / badge-status */
+  .head-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 14px; }
+
+  /* ---- (a) WRITE VIEW ---- */
+  .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(240 4% 40%); margin-bottom: 6px; }     /* overline / muted-foreground */
+  .textarea { border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 10px; min-height: 96px;
+    font-size: 14px; line-height: 1.5; }              /* input border / rounded.md / body */
+  .textarea.filled { color: hsl(240 10% 3.9%); }      /* foreground (ID content) */
+  /* per-task quick references */
+  .task-refs { margin-top: 16px; }
+  .ref-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+  .ref-row:last-child { border-bottom: 0; }
+  .ref-name { font-size: 13px; font-weight: 500; flex: 1; }
+  .ref-bu { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: 999px; font-size: 12px; font-weight: 600; }   /* badge-status */
+  .dot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); }
+  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .dot { background: hsl(0 84.2% 60.2%); }
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .dot { background: hsl(142 71% 45%); }
+  .ref-note { font-size: 12px; color: hsl(240 4% 40%); width: 200px; }  /* muted-foreground */
+
+  /* save/submit footer: BOTH co-located from first paint (IxD lens b) */
+  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid hsl(240 5.9% 90%); }        /* border */
+  .btn { height: 32px; padding: 0 12px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); border: 0;
+    box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); }   /* primary / brand shadow */
+  .btn-outline { background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); border: 1px solid hsl(240 5.9% 90%); } /* background / input */
+  /* quiet save confirmation */
+  .saved-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: hsl(142 64% 30%); margin-left: auto; } /* --status-won-text */
+  .saved-note .dot { background: hsl(142 71% 45%); }  /* success */
+
+  /* ---- (b) MANAGER REVIEW VIEW ---- */
+  .review-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+  .review-row:last-child { border-bottom: 0; }
+  .pa { width: 30px; height: 30px; border-radius: 999px; flex: none;
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+  .rv-name { font-size: 13px; font-weight: 600; }
+  .rv-role { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
+  .rv-excerpt { font-size: 13px; color: hsl(240 4% 40%); margin-top: 2px; }  /* muted-foreground (ID excerpt) */
+  .rv-meta { margin-left: auto; text-align: right; display: flex; align-items: center; gap: 10px; }
+  /* filed / draft / not-started status states */
+  .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; }
+  .st.filed { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .st.filed .dot { background: hsl(142 71% 45%); }    /* success / --status-won-text */
+  .st.draft { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .st.draft .dot { background: hsl(43 96% 56%); }        /* warning tint / warning-foreground */
+  .st.notstarted { background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); } .st.notstarted .dot { background: hsl(240 4% 40%); } /* secondary / muted-foreground */
+  .rv-when { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
+  .review-summary { display: flex; gap: 16px; margin-bottom: 4px; font-size: 13px; color: hsl(240 4% 40%); }
+  .review-summary b { color: hsl(240 10% 3.9%); }         /* foreground */
+</style>
+</head>
+<body>
+  <!-- NEUTRAL SHELL: slim top bar only; no side nav (IA decided in P0-1) -->
+  <header class="topbar">
+    <div class="brand"><div class="logo">G</div><span class="brand-name">Gordi MOS</span><span class="brand-sub">Management OS</span></div>
+    <div class="spacer"></div>
+    <div class="userchip"><div class="avatar">DP</div><div><div class="nm">Dina Pratiwi</div><div class="rl">Kitchen Lead</div></div></div>
+  </header>
+
+  <main class="page">
+    <div class="panes">
+
+      <!-- (a) WRITE VIEW -->
+      <section>
+        <div class="pane-cap">Pane A — My weekly update (write)</div>
+        <div class="card">
+          <div class="head-row">
+            <h2>My weekly update</h2>
+            <span class="week-pill tabular">Week of 8–14 Jun 2026</span>
+          </div>
+
+          <div class="field-label">This week’s summary</div>
+          <div class="textarea filled">Produksi stabil sepanjang minggu, 2 SKU baru cold brew sudah masuk uji rasa internal dan hasilnya positif. Stock opname mingguan sempat tertunda karena Budi handle penerimaan green bean Gayo — follow-up Senin. Tidak ada incident di kitchen.</div>
+
+          <div class="task-refs">
+            <div class="field-label">My tasks this week</div>
+            <div class="ref-row">
+              <span class="ref-name">Finalisasi menu seasonal Q3</span>
+              <span class="pill inprogress"><span class="dot"></span>In Progress</span>
+              <span class="ref-note">2 SKU lolos uji rasa, pastry revisi tekstur</span>
+            </div>
+            <div class="ref-row">
+              <span class="ref-name">SOP stock opname mingguan kitchen</span>
+              <span class="pill blocked"><span class="dot"></span>Blocked</span>
+              <span class="ref-note">Tertunda, follow-up Budi Senin</span>
+            </div>
+          </div>
+
+          <!-- BOTH actions co-located from first paint (IxD lens b); quiet save confirm -->
+          <div class="save-row">
+            <button class="btn btn-outline">Save draft</button>
+            <button class="btn btn-primary">Submit update</button>
+            <span class="saved-note"><span class="dot"></span>Draft saved · 2 min ago</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- (b) MANAGER REVIEW VIEW -->
+      <section>
+        <div class="pane-cap">Pane B — Manager review (Dina reviewing her people)</div>
+        <div class="card">
+          <div class="head-row">
+            <h2>Team updates</h2>
+            <span class="week-pill tabular">Week of 8–14 Jun 2026</span>
+          </div>
+          <div class="review-summary"><span><b>2</b> filed</span><span><b>1</b> draft</span><span><b>1</b> not started</span></div>
+
+          <div class="review-row">
+            <div class="pa">RW</div>
+            <div>
+              <div class="rv-name">Raka Wijaya <span class="rv-role">· Roastery Lead</span></div>
+              <div class="rv-excerpt">Roast batch Ethiopia Guji selesai QC, profil baru siap kalibrasi…</div>
+            </div>
+            <div class="rv-meta"><span class="rv-when tabular">Mon 09:12</span><span class="st filed"><span class="dot"></span>Filed</span></div>
+          </div>
+
+          <div class="review-row">
+            <div class="pa">DP</div>
+            <div>
+              <div class="rv-name">Dina Pratiwi <span class="rv-role">· Kitchen Lead</span></div>
+              <div class="rv-excerpt">Produksi stabil, 2 SKU baru masuk uji rasa…</div>
+            </div>
+            <div class="rv-meta"><span class="rv-when tabular">Tue 14:05</span><span class="st filed"><span class="dot"></span>Filed</span></div>
+          </div>
+
+          <div class="review-row">
+            <div class="pa">SR</div>
+            <div>
+              <div class="rv-name">Sari Lestari <span class="rv-role">· Sales &amp; E-Comm Lead</span></div>
+              <div class="rv-excerpt">Bundling promo kemerdekaan masih draft harga…</div>
+            </div>
+            <div class="rv-meta"><span class="rv-when tabular">—</span><span class="st draft"><span class="dot"></span>Draft</span></div>
+          </div>
+
+          <div class="review-row">
+            <div class="pa" style="background:hsl(240 4.8% 95.9%);color:hsl(240 4% 40%)">BS</div>
+            <div>
+              <div class="rv-name">Budi Santoso <span class="rv-role">· Kitchen ops</span></div>
+              <div class="rv-excerpt" style="font-style:italic">No update yet</div>
+            </div>
+            <div class="rv-meta"><span class="rv-when tabular">—</span><span class="st notstarted"><span class="dot"></span>Not started</span></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+<!--
+=================== MOCKUP NOTES — mock-weekly-update.html ===================
+DESIGN.md TOKENS USED (value → token):
+  hsl(0 0% 100%) background/card · hsl(240 10% 3.9%) foreground · hsl(240 4.8% 95.9%) secondary/accent ·
+  hsl(240 4% 40%) muted-foreground · hsl(240 5.9% 90%) border/input · hsl(221.2 83.2% 53.3%) primary ·
+  hsl(0 0% 98%) primary-foreground · hsl(262 83% 58%) violet · hsl(142 71% 45%) success ·
+  hsl(43 96% 56%) warning · hsl(22 78% 26%) warning-foreground · hsl(0 84.2% 60.2%) destructive ·
+  status-pill text: 221 75% 38% (--status-open-text), 142 64% 30% (--status-won-text), 0 72% 45% (--status-lost-text) ·
+  typography: subheading / overline / body / label · rounded sm/md/full · spacing 4/5 · badge-status(22h) ·
+  button-primary(32h)+brand shadow · button-outline · input · border@70% dividers · avatar blue→violet ·
+  --header-h(56) shell · tabular-nums on dates/counts/times.
+
+IxD / FLOW-NATURALNESS (lens b) — built in:
+  - Save draft + Submit BOTH visible from first paint (co-located, convention bottom-right of form).
+  - Quiet save confirmation ("Draft saved · 2 min ago") — ambient, not a modal/toast interruption.
+  - Per-person review states (Filed / Draft / Not started) give the manager an at-a-glance triage —
+    summary counts up top match the mental model "who still owes me an update".
+
+STATES COVERED:
+  Write pane: filled draft (populated) with quiet "Draft saved" confirm. (Empty = same shell, empty
+    textarea + "Submit" disabled until non-empty — noted, not separately drawn.)
+  Review pane: Filed (success), Draft (warning), Not started (neutral) — all three visible at once.
+  Edge: a person who is both filer (Dina writes) and reviewer (Dina reviews team) — same identity,
+    per-person model per OD-P0-1.
+
+PROPOSED NEW TOKENS — RACI role badges: same single proposal as the other 3 mockups (not used on this
+  screen, but listed for owner sign-off consistency): --raci-r=primary, --raci-a=violet,
+  --raci-ci=muted-foreground, *-bg @10%/secondary. No new hues.
+
+OPEN QUESTIONS:
+  1) Does Submit lock the update (read-only after) or allow edit-after-submit until week closes?
+  2) Should per-task quick references auto-pull the person's tasks, or be free-add only?
+  3) Manager review: does Dina review by business unit (her people) or by explicit reporting line?
+     (OD-P0-1 says "their people" — needs the people→manager mapping confirmed.)
+  4) Should the manager be able to nudge "Not started" people inline (e.g. a Remind action)?
+==========================================================================
+-->
+</body>
+</html>

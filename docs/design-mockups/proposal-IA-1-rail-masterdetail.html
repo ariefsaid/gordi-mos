@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — IA Proposal 1: Rail + Master-Detail</title>
+<style>
+  /* ============================================================
+     DESIGN.md token values inlined (token NAME in comment).
+     Calm, dense, data-first. Borders define structure, not shadows.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45;                                   /* typography.body */
+    color: hsl(240 10% 3.9%);                                             /* foreground */
+    background: hsl(0 0% 100%);                                           /* background */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+  .mono { font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 13px; font-weight: 500; } /* typography.mono */
+
+  /* ---------- App frame ---------- */
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; } /* --rail-w 224px */
+
+  /* ---------- Rail ---------- */
+  .rail {
+    background: hsl(0 0% 100%);                 /* card */
+    border-right: 1px solid hsl(240 5.9% 90%);  /* border */
+    display: flex; flex-direction: column;
+  }
+  .brand {
+    height: 56px;                               /* --header-h */
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 16px;                            /* spacing.4 */
+    border-bottom: 1px solid hsl(240 5.9% 90%); /* border */
+  }
+  .brand .logo {
+    width: 28px; height: 28px; border-radius: 6px; /* rounded.sm */
+    background: hsl(221.2 83.2% 53.3%);            /* primary */
+    color: hsl(0 0% 98%);                          /* primary-foreground */
+    display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  }
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .nav { padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .nav-group-label {
+    font-size: 11px; font-weight: 600; line-height: 1.3; letter-spacing: 0.06em; text-transform: uppercase; /* overline */
+    color: hsl(240 4% 40%);                     /* muted-foreground */
+    padding: 12px 10px 4px;
+  }
+  .nav-item {
+    height: 36px; border-radius: 6px;           /* nav-item / rounded.sm */
+    display: flex; align-items: center; gap: 10px; padding: 0 10px;
+    font-size: 13.5px; font-weight: 500; color: hsl(240 10% 3.9%); /* foreground */
+    text-decoration: none; cursor: pointer;
+  }
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); }  /* accent */
+  .nav-item .ico { width: 17px; height: 17px; flex: none; stroke: currentColor; }
+  .nav-item.active {
+    background: hsl(221.2 83.2% 53.3% / 0.10);   /* primary/10% */
+    color: hsl(221.2 83.2% 53.3%);               /* primary */
+    font-weight: 600;
+  }
+  .nav-item .count {
+    margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
+    border-radius: 999px;                        /* rounded.full */
+    background: hsl(240 4.8% 95.9%);             /* secondary */
+    color: hsl(240 4% 40%);                      /* muted-foreground */
+    font-size: 11px; font-weight: 600; display: grid; place-items: center;
+  }
+  .nav-item.active .count { background: hsl(221.2 83.2% 53.3% / 0.15); color: hsl(221.2 83.2% 53.3%); } /* primary/15% + primary */
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 10px; } /* border */
+
+  /* ---------- Header ---------- */
+  .main { display: flex; flex-direction: column; background: hsl(240 4.8% 95.9% / 0.35); } /* secondary/35% main area */
+  .header {
+    height: 56px;                               /* --header-h */
+    background: hsl(0 0% 100%);                  /* background */
+    border-bottom: 1px solid hsl(240 5.9% 90%);  /* border */
+    display: flex; align-items: center; gap: 12px; padding: 0 20px;
+  }
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; } /* foreground */
+  .crumb .sep { margin: 0 7px; color: hsl(240 4% 40%); }
+  .spacer { flex: 1; }
+  .cmdk {
+    height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
+    border: 1px solid hsl(240 5.9% 90%); border-radius: 8px;  /* input / rounded.md */
+    background: hsl(0 0% 100%); color: hsl(240 4% 40%); font-size: 13px; cursor: text;
+  }
+  .cmdk .kbd {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px;
+    border: 1px solid hsl(240 5.9% 90%); border-radius: 4px; padding: 1px 5px; color: hsl(240 4% 40%);
+  }
+  .iconbtn {
+    width: 32px; height: 32px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; display: grid; place-items: center; position: relative; cursor: pointer;
+  }
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar {
+    width: 28px; height: 28px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); /* primary→violet avatar gradient */
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  }
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ---------- Page ---------- */
+  .page { padding: 20px; flex: 1; overflow: auto; }
+  .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
+  .page-sub { font-size: 13px; color: hsl(240 4% 40%); margin-top: 4px; } /* muted-foreground */
+
+  /* Master-detail split */
+  .split { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+
+  /* Card / table shell */
+  .card {
+    background: hsl(0 0% 100%);                  /* card */
+    border: 1px solid hsl(240 5.9% 90%);         /* border, Flat-By-Default */
+    border-radius: 8px;                          /* rounded.md */
+  }
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-bottom: 1px solid hsl(240 5.9% 90%);  /* border */
+  }
+  .control {
+    height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px;
+    border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%);
+    font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer;
+  }
+  .control .mut { color: hsl(240 4% 40%); } /* muted-foreground */
+  .control:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .search-mini {
+    height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px;
+    border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%);
+    font-size: 13px; color: hsl(240 4% 40%); min-width: 180px;
+  }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; background: hsl(240 4.8% 95.9%); border-radius: 8px; } /* secondary track */
+  .seg button {
+    height: 26px; padding: 0 10px; border: 0; background: transparent; border-radius: 6px;
+    font-size: 12.5px; font-weight: 500; color: hsl(240 4% 40%); cursor: pointer;
+  }
+  .seg button.on {
+    background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); font-weight: 600;
+    box-shadow: 0 1px 2px hsl(240 6% 10% / 0.10); /* pressed/selected lift */
+  }
+  .btn-primary {
+    height: 32px; padding: 0 12px; border: 0; border-radius: 8px;
+    background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%);  /* primary / primary-foreground */
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);        /* brand button shadow */
+  }
+  .ml-auto { margin-left: auto; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; height: 38px; padding: 0 12px;            /* table-header-cell */
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; /* overline */
+    color: hsl(240 4% 40%);                                     /* muted-foreground */
+    border-bottom: 1px solid hsl(240 5.9% 90%);                 /* border */
+    background: hsl(0 0% 100%);                                 /* card */
+  }
+  thead th.num, tbody td.num { text-align: right; }
+  tbody td {
+    height: 54px; padding: 12px;                                /* table-body-cell */
+    border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);           /* border/70% */
+    vertical-align: middle;
+  }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: hsl(240 4.8% 95.9% / 0.6); }     /* accent/60% */
+  tbody tr.selected { background: hsl(221.2 83.2% 53.3% / 0.07); } /* primary/7% selected row */
+  .t-title { font-size: 13.5px; font-weight: 600; }
+  .t-meta { font-size: 12px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+
+  /* Status pill — Tinted-Status Rule (dot + tint + darkened text) */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; } /* badge-status */
+  .pill .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } /* primary tint + --status-open-text */
+  .pill.inprogress .pdot { background: hsl(221.2 83.2% 53.3%); }
+  .pill.blocked { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); }          /* destructive tint + --status-lost-text */
+  .pill.blocked .pdot { background: hsl(0 84.2% 60.2%); }
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); }               /* warning tint + warning-foreground */
+  .pill.open .pdot { background: hsl(43 96% 56%); }
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); }             /* success tint + --status-won-text */
+  .pill.done .pdot { background: hsl(142 71% 45%); }
+
+  /* RACI badges — PROPOSED NEW TOKENS (see comment block) */
+  .raci { display: inline-flex; gap: 4px; align-items: center; }
+  .raci-badge {
+    display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px 0 3px;
+    border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid hsl(240 5.9% 90%); /* border */
+    background: hsl(240 4.8% 95.9% / 0.5);                    /* secondary/50% */
+  }
+  .raci-role {
+    width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center;
+    font-size: 10px; font-weight: 700; color: hsl(0 0% 100%);
+  }
+  /* proposed raci-* role hues (flagged for owner sign-off) */
+  .role-R { background: hsl(221.2 83.2% 53.3%); }  /* raci-responsible — primary */
+  .role-A { background: hsl(262 83% 58%); }        /* raci-accountable — violet */
+  .role-C { background: hsl(43 96% 56%); color: hsl(22 78% 26%); } /* raci-consulted — warning */
+  .role-I { background: hsl(240 4% 40%); }         /* raci-informed — muted-foreground */
+  .raci-name { color: hsl(240 10% 3.9%); }         /* foreground */
+
+  /* Detail panel */
+  .detail .d-head { padding: 16px; border-bottom: 1px solid hsl(240 5.9% 90%); }
+  .detail .d-title { font-size: 18px; font-weight: 600; line-height: 1.3; } /* subheading */
+  .detail .d-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); margin-bottom: 6px; } /* overline / muted-foreground */
+  .kv { display: flex; flex-direction: column; gap: 4px; }
+  .desc { font-size: 13.5px; line-height: 1.5; }
+  .raci-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .note { font-size: 11px; color: hsl(240 4% 40%); margin-top: 8px; } /* muted-foreground */
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== RAIL ===== -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div>
+        <div class="name">Gordi MOS</div>
+        <div class="sub">Management OS</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>My Week</a>
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks<span class="count tnum">6</span></a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Weekly Updates<span class="count tnum">4</span></a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Daily Ops<span class="count tnum">4</span></a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2"/><path d="M16 20a5 5 0 0 1 5-1"/></svg>People<span class="count tnum">7</span></a>
+    </nav>
+    <div class="rail-foot">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <!-- header -->
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>Tasks</b></div>
+      <div class="spacer"></div>
+      <div class="cmdk">Search tasks, people…<span class="kbd">⌘K</span></div>
+      <button class="iconbtn" aria-label="Notifications"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+      <div class="userchip">
+        <div class="avatar">AR</div>
+        <div><div class="u-name">Arief</div><div class="u-role">CEO</div></div>
+      </div>
+    </header>
+
+    <!-- page -->
+    <main class="page">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Tasks</div>
+          <div class="page-sub">Ownership and lightweight RACI across all business units</div>
+        </div>
+        <button class="btn-primary ml-auto">+ New task</button>
+      </div>
+
+      <div class="split">
+        <!-- MASTER: table -->
+        <section class="card" aria-label="Task list">
+          <div class="toolbar">
+            <div class="seg" role="tablist">
+              <button class="on" role="tab" aria-selected="true">All</button>
+              <button role="tab" aria-selected="false">Mine</button>
+              <button role="tab" aria-selected="false">Open</button>
+              <button role="tab" aria-selected="false">Blocked</button>
+            </div>
+            <div class="search-mini">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              Filter…
+            </div>
+            <div class="control ml-auto"><span class="mut">Unit:</span> All <span class="mut">▾</span></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Due</th>
+                <th>Ownership (R / A / C / I)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="selected">
+                <td><div class="t-title">Finalisasi menu seasonal Q3</div><div class="t-meta">Kitchen</div></td>
+                <td><span class="pill inprogress"><span class="pdot"></span>In Progress</span></td>
+                <td class="tnum">19 Jun</td>
+                <td><div class="raci">
+                  <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Dina</span></span>
+                  <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+                  <span class="raci-badge"><span class="raci-role role-C">C</span><span class="raci-name">Sari</span></span>
+                  <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Andi</span></span>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div class="t-title">Kalibrasi profil roasting Ethiopia Guji</div><div class="t-meta">Roastery</div></td>
+                <td><span class="pill inprogress"><span class="pdot"></span>In Progress</span></td>
+                <td class="tnum">13 Jun</td>
+                <td><div class="raci">
+                  <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Raka</span></span>
+                  <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Raka</span></span>
+                  <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Arief</span></span>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div class="t-title">SOP stock opname mingguan kitchen</div><div class="t-meta">Kitchen</div></td>
+                <td><span class="pill blocked"><span class="pdot"></span>Blocked</span></td>
+                <td class="tnum">12 Jun</td>
+                <td><div class="raci">
+                  <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Budi</span></span>
+                  <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Dina</span></span>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div class="t-title">Harga bundling promo kemerdekaan</div><div class="t-meta">Sales &amp; E-Commerce</div></td>
+                <td><span class="pill open"><span class="pdot"></span>Open</span></td>
+                <td class="tnum">24 Jun</td>
+                <td><div class="raci">
+                  <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Sari</span></span>
+                  <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+                  <span class="raci-badge"><span class="raci-role role-C">C</span><span class="raci-name">Andi</span></span>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div class="t-title">Rekonsiliasi COGS roastery Mei</div><div class="t-meta">Finance &amp; People</div></td>
+                <td><span class="pill done"><span class="pdot"></span>Done</span></td>
+                <td class="tnum">10 Jun</td>
+                <td><div class="raci">
+                  <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Andi</span></span>
+                  <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+                  <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Raka</span></span>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div class="t-title">Jadwal training barista batch 2</div><div class="t-meta">Sales &amp; E-Commerce</div></td>
+                <td><span class="pill open"><span class="pdot"></span>Open</span></td>
+                <td class="tnum">17 Jun</td>
+                <td><div class="raci">
+                  <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Sari</span></span>
+                  <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Sari</span></span>
+                  <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Dina</span></span>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- DETAIL: selected task -->
+        <aside class="card detail" aria-label="Task detail">
+          <div class="d-head">
+            <div class="field-label">Kitchen · In Progress</div>
+            <div class="d-title">Finalisasi menu seasonal Q3</div>
+          </div>
+          <div class="d-body">
+            <div class="kv">
+              <div class="field-label">Status</div>
+              <div><span class="pill inprogress"><span class="pdot"></span>In Progress</span></div>
+            </div>
+            <div class="kv">
+              <div class="field-label">Due date</div>
+              <div class="tnum">19 Jun 2026</div>
+            </div>
+            <div class="kv">
+              <div class="field-label">Description</div>
+              <div class="desc">Kurasi 6 SKU musiman, finalisasi resep & costing bersama Finance, target soft-launch akhir Q3.</div>
+            </div>
+            <div class="kv">
+              <div class="field-label">Ownership (RACI)</div>
+              <div class="raci-grid">
+                <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Dina Pratiwi</span></span>
+                <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+                <span class="raci-badge"><span class="raci-role role-C">C</span><span class="raci-name">Sari Lestari</span></span>
+                <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Andi K.</span></span>
+              </div>
+            </div>
+            <div class="note">Selecting a row swaps this panel — one canonical task home, no separate route. (loading: skeleton rows + skeleton detail; empty: "No tasks match" with reset-filter CTA; error: inline retry banner inside the card.)</div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!--
+============================================================
+IA PROPOSAL 1 — Rail + Master-Detail (PMO-like)
+THESIS: Persistent left rail = stable, exhaustive object navigation;
+        each list is a master table with an inline detail panel
+        (one canonical home per entity, PMO DataTable mental model).
+============================================================
+
+DESIGN.md TOKENS USED:
+  Colors: background, foreground, card, card-foreground, primary,
+    primary-foreground, secondary, muted-foreground, accent, border,
+    input, ring, destructive, warning, warning-foreground, success,
+    violet; status-pill text tokens --status-open-text (221 75% 38%),
+    --status-won-text (142 64% 30%), --status-lost-text (0 72% 45%).
+  Typography: page-title, subheading, body, label, overline, mono;
+    Tabular-Numbers Rule (.tnum on due dates + counts).
+  Rounded: sm (nav-item, seg btn), md (cards, controls, inputs),
+    full (pills, count badges, avatars).
+  Spacing: 1–6 scale (4/8/10/12/16/20px gaps & padding).
+  Components: rail/--rail-w 224px, --header-h 56px, nav-item +
+    nav-item-active, card, table-header-cell, table-body-cell,
+    badge-status, button-primary (brand shadow), seg control,
+    cmdk, user chip avatar gradient.
+  Rules honored: One Blue Rule (blue only on active nav + primary
+    btn + focus), Flat-By-Default (borders not shadows), Tinted-Status
+    Rule, Single-Border Rule, No-Pure-Black-Shadow.
+
+PROPOSED NEW TOKENS (flagged for OWNER SIGN-OFF — identical in all 3 proposals):
+  RACI role-badge color set (MOS gap; PMO had no RACI). Reuses existing
+  palette hues, NOT new brand colors:
+    --raci-responsible : 221.2 83.2% 53.3%  (primary blue)   — "R"
+    --raci-accountable : 262 83% 58%         (violet)          — "A"
+    --raci-consulted   : 43 96% 56%          (warning amber)   — "C"  (text 22 78% 26%)
+    --raci-informed    : 240 4% 40%          (muted-foreground)— "I"
+  Rendered as a 16px role chip + person name on a secondary/50% pill
+  with a 1px border. NOTE: "A" on violet may read as an action-ish
+  accent (violet is reserved for non-interactive categorization, which
+  RACI is — acceptable, but owner should confirm). Contrast: white text
+  on primary/violet/muted clears AA; "C" uses warning-foreground brown.
+
+OPEN QUESTIONS FOR OWNER:
+  1. Master-detail vs full-page task detail — does inline panel scale
+     to the longer detail (comments, weekly-update links) later, or do
+     we want a dedicated /tasks/:id route from the start?
+  2. RACI badge density: 4 inline badges per row is dense at 1360px and
+     wraps on narrow. Acceptable, or collapse C/I behind a "+2" chip?
+  3. RACI role color mapping above — confirm hues, esp. "A"=violet.
+  4. "My Week" sits in the rail but is not the landing — confirm Tasks
+     (or My Week) as default route for this IA.
+============================================================
+-->
+</body>
+</html>

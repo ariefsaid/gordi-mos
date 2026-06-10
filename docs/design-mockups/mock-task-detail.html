@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — Task detail (mockup)</title>
+<style>
+  /* All values from DESIGN.md (adopted). Token name noted in comment beside each. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);  /* body / foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);          /* secondary @35% main area */
+    -webkit-font-smoothing: antialiased;
+  }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  .topbar { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%);
+    display: flex; align-items: center; gap: 12px; padding: 0 20px; }  /* --header-h / background / border / spacing.3,5 */
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%);
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / primary-foreground / rounded.sm */
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-sub { color: hsl(240 4% 40%); font-size: 12px; }   /* muted-foreground */
+  .spacer { flex: 1; }
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); /* blue→violet avatar */
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+  .userchip .nm { font-size: 13px; font-weight: 600; }
+  .userchip .rl { font-size: 11px; color: hsl(240 4% 40%); }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .breadcrumb { font-size: 12px; color: hsl(240 4% 40%); margin-bottom: 12px; }  /* muted-foreground */
+  .breadcrumb b { color: hsl(240 10% 3.9%); }                                    /* foreground */
+
+  /* ---- Title row + co-located IxD action bar (lens b) ---- */
+  .head {
+    background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; /* card / border / rounded.md */
+    padding: 16px; margin-bottom: 16px;              /* spacing.4 */
+  }
+  .head-top { display: flex; align-items: flex-start; gap: 16px; }
+  .title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* page-title */
+  .meta { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .meta .item { font-size: 13px; }
+  .meta .k { color: hsl(240 4% 40%); font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; display: block; margin-bottom: 3px; }  /* overline / muted-foreground */
+
+  /* status pill (Tinted-Status Rule) */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: 999px; font-size: 12px; font-weight: 600; }  /* badge-status */
+  .dot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } /* primary tint / --status-open-text */
+  .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); }
+
+  /* IxD bar: co-located primary writes, no forced view change. Convention placement: top-right. */
+  .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn { height: 32px; padding: 0 12px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }       /* 32h / rounded.md */
+  .btn-primary { background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); border: 0;
+    box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); }   /* primary / primary-foreground / brand shadow */
+  .btn-outline { background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); border: 1px solid hsl(240 5.9% 90%); } /* background / foreground / input */
+  /* inline status changer — changes in place, NO navigation */
+  .status-select { position: relative; }
+  .status-trigger { height: 32px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px;
+    background: hsl(0 0% 100%); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .status-trigger .chev { color: hsl(240 4% 40%); font-size: 10px; }
+
+  /* ---- Layout: detail body + RACI sidebar ---- */
+  .grid { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 16px; } /* card / border / rounded.md / spacing.4 */
+  .card + .card { margin-top: 16px; }
+  .card h2 { font-size: 18px; font-weight: 600; line-height: 1.3; margin-bottom: 10px; }   /* subheading */
+  .desc { font-size: 14px; line-height: 1.5; color: hsl(240 10% 3.9%); }                    /* body / foreground (ID content) */
+  .desc p + p { margin-top: 10px; }
+
+  /* RACI editable-looking person fields */
+  .raci-field { margin-bottom: 12px; }
+  .raci-field:last-child { margin-bottom: 0; }
+  .raci-label { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .role-chip { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
+    font-size: 10px; font-weight: 700; color: hsl(0 0% 98%); }   /* PROPOSED raci role tokens — see end */
+  .raci-label .name { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(240 4% 40%); }                                    /* overline / muted-foreground */
+  /* the field itself reads as an editable select */
+  .person-field { height: 36px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px;  /* input border / rounded.md */
+    background: hsl(0 0% 100%); padding: 0 10px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .person-field:hover { background: hsl(240 4.8% 95.9% / 0.6); }  /* accent wash */
+  .person-field .pa { width: 22px; height: 22px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+  .person-field .pn { font-size: 13px; }
+  .person-field .role-meta { font-size: 11px; color: hsl(240 4% 40%); }  /* muted-foreground */
+  .person-field .chev { margin-left: auto; color: hsl(240 4% 40%); font-size: 10px; }
+  .multi { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; min-height: 36px;
+    border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; }
+  .chip-person { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 4px;
+    border-radius: 999px; background: hsl(240 4.8% 95.9%); font-size: 12px; }  /* secondary */
+  .chip-person .pa { width: 16px; height: 16px; font-size: 9px; }
+  .add-person { font-size: 12px; color: hsl(221 75% 38%); cursor: pointer; }   /* link-in-context (--status-open-text) */
+
+  /* ---- Activity / updates thread ---- */
+  .thread .entry { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); } /* border @70% */
+  .thread .entry:last-child { border-bottom: 0; }
+  .thread .pa { width: 26px; height: 26px; border-radius: 999px; flex: none;
+    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
+    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+  .entry .who { font-size: 13px; font-weight: 600; }
+  .entry .when { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
+  .entry .txt { font-size: 14px; margin-top: 3px; line-height: 1.5; }  /* body (ID content) */
+  .entry.event .txt { color: hsl(240 4% 40%); font-style: normal; }
+  .entry-event-tag { font-size: 11px; font-weight: 600; color: hsl(240 4% 40%); }
+  /* comment composer — co-located, visible from first paint */
+  .composer { margin-top: 12px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 10px; }
+  .composer .ta { font-size: 13px; color: hsl(240 4% 40%); }   /* placeholder = muted-foreground */
+  .composer .row { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+  /* quiet save confirmation (post-action feedback, lens b) */
+  .saved-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: hsl(142 64% 30%); margin-left: 8px; } /* --status-won-text */
+  .saved-note .dot { background: hsl(142 71% 45%); }  /* success */
+</style>
+</head>
+<body>
+  <!-- NEUTRAL SHELL: slim top bar only; no side nav (IA decided in P0-1) -->
+  <header class="topbar">
+    <div class="brand"><div class="logo">G</div><span class="brand-name">Gordi MOS</span><span class="brand-sub">Management OS</span></div>
+    <div class="spacer"></div>
+    <div class="userchip"><div class="avatar">DP</div><div><div class="nm">Dina Pratiwi</div><div class="rl">Kitchen Lead</div></div></div>
+  </header>
+
+  <main class="page">
+    <div class="breadcrumb">Tasks › <b>Finalisasi menu seasonal Q3</b></div>
+
+    <section class="head">
+      <div class="head-top">
+        <div>
+          <h1 class="title">Finalisasi menu seasonal Q3</h1>
+          <div class="meta">
+            <div class="item"><span class="k">Status</span><span class="pill inprogress"><span class="dot"></span>In Progress</span></div>
+            <div class="item"><span class="k">Due</span><span class="tabular">19 Jun 2026</span></div>
+            <div class="item"><span class="k">Business unit</span>Kitchen</div>
+          </div>
+        </div>
+        <!-- IxD bar: co-located primary writes; status changes INLINE (no view switch) -->
+        <div class="actions">
+          <div class="status-select">
+            <button class="status-trigger" aria-haspopup="listbox">
+              <span class="pill inprogress"><span class="dot"></span>In Progress</span><span class="chev">▾</span>
+            </button>
+          </div>
+          <button class="btn btn-outline">✓ Mark done</button>
+          <button class="btn btn-primary">+ Post update</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Description</h2>
+          <div class="desc">
+            <p>Finalisasi line-up menu musiman kuartal 3: tiga SKU minuman cold brew varian baru plus satu pastry. Target QC rasa selesai sebelum 15 Jun supaya bisa masuk uji rasa internal minggu berikutnya.</p>
+            <p>Perlu konfirmasi harga jual dari Sales sebelum dikunci. Costing per cup menunggu data green bean lot terbaru dari Roastery.</p>
+          </div>
+        </div>
+
+        <div class="card thread">
+          <h2>Activity &amp; updates</h2>
+          <div class="entry">
+            <div class="pa">DP</div>
+            <div>
+              <span class="who">Dina Pratiwi</span> <span class="when">· 9 Jun, 16:20</span>
+              <div class="txt">Dua SKU cold brew sudah lolos uji rasa internal. Pastry masih revisi tekstur, target readjust besok.</div>
+            </div>
+          </div>
+          <div class="entry event">
+            <div class="pa" style="background:hsl(240 4.8% 95.9%);color:hsl(240 4% 40%)">⟳</div>
+            <div>
+              <span class="entry-event-tag">STATUS CHANGED</span> <span class="when">· 6 Jun, 10:05 · by Dina</span>
+              <div class="txt">Open → In Progress</div>
+            </div>
+          </div>
+          <div class="entry">
+            <div class="pa">SR</div>
+            <div>
+              <span class="who">Sari Lestari</span> <span class="when">· 5 Jun, 11:40</span>
+              <div class="txt">Range harga jual sudah aku kirim ke Dina, tinggal tunggu costing final dari Roastery.</div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="ta">Write an update… (Bahasa Indonesia)</div>
+            <div class="row"><button class="btn btn-primary">Post update</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RACI sidebar: four editable-looking person fields -->
+      <aside>
+        <div class="card">
+          <h2>RACI <span class="saved-note"><span class="dot" style="width:6px;height:6px;border-radius:999px;display:inline-block"></span>Saved</span></h2>
+
+          <div class="raci-field">
+            <div class="raci-label"><span class="role-chip" style="background:hsl(221.2 83.2% 53.3%)">R</span><span class="name">Responsible</span></div>
+            <div class="person-field"><span class="pa">DP</span><span class="pn">Dina Pratiwi</span><span class="role-meta">· Kitchen Lead</span><span class="chev">▾</span></div>
+          </div>
+
+          <div class="raci-field">
+            <div class="raci-label"><span class="role-chip" style="background:hsl(262 83% 58%)">A</span><span class="name">Accountable</span></div>
+            <div class="person-field"><span class="pa">AR</span><span class="pn">Arief</span><span class="role-meta">· CEO</span><span class="chev">▾</span></div>
+          </div>
+
+          <div class="raci-field">
+            <div class="raci-label"><span class="role-chip" style="background:hsl(240 4% 40%)">C</span><span class="name">Consulted</span></div>
+            <div class="multi">
+              <span class="chip-person"><span class="pa">SR</span>Sari Lestari ✕</span>
+              <span class="add-person">+ Add</span>
+            </div>
+          </div>
+
+          <div class="raci-field">
+            <div class="raci-label"><span class="role-chip" style="background:hsl(240 4% 40%)">I</span><span class="name">Informed</span></div>
+            <div class="multi">
+              <span class="chip-person"><span class="pa">AN</span>Andi Kurniawan ✕</span>
+              <span class="add-person">+ Add</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+<!--
+=================== MOCKUP NOTES — mock-task-detail.html ===================
+DESIGN.md TOKENS USED (value → token):
+  hsl(0 0% 100%) background/card · hsl(240 10% 3.9%) foreground · hsl(240 4.8% 95.9%) secondary/accent ·
+  hsl(240 4% 40%) muted-foreground · hsl(240 5.9% 90%) border/input · hsl(221.2 83.2% 53.3%) primary ·
+  hsl(0 0% 98%) primary-foreground · hsl(262 83% 58%) violet · hsl(142 71% 45%) success ·
+  status-pill text 221 75% 38% (--status-open-text), 142 64% 30% (--status-won-text) ·
+  typography: page-title / subheading / overline / body / label · rounded sm(6)/md(8)/full(999) ·
+  spacing 2/3/4 · badge-status(22h) · button-primary(32h)+brand shadow · button-outline · input(field) ·
+  border@70% dividers · avatar blue→violet gradient · --header-h(56) shell · tabular-nums on dates.
+
+IxD / FLOW-NATURALNESS (design-workflow §2.3 lens b) — built in:
+  - Co-located primaries from first paint: "Post update", "Mark done", inline status changer all in the
+    top-right action bar (convention placement) AND a composer at the foot of the thread.
+  - Status change is INLINE (dropdown swaps the pill in place) — NO forced navigation / no view switch.
+  - Post-action feedback: quiet "Saved" note on the RACI card after an edit (not a modal/toast interrupt).
+  - Mental-model labels: R/A/C/I spelled out (Responsible/Accountable/Consulted/Informed), not jargon-only.
+
+STATES COVERED: populated detail. Variants noted (not all drawn): status menu open; "Saved" confirm
+  after RACI edit; multi-person C/I add/remove chips. Edge: A != R (Arief accountable, Dina responsible);
+  single-person vs multi-person fields.
+
+PROPOSED NEW TOKENS — RACI role badges (IDENTICAL proposal across all 4 mockups; owner sign-off):
+  --raci-r = primary hsl(221.2 83.2% 53.3%) · --raci-a = violet hsl(262 83% 58%) ·
+  --raci-ci = muted-foreground hsl(240 4% 40%) · *-bg variants at @10% / secondary.
+  Reuses existing palette only (no new hues). R-chip is a ≤18px categorical chip, not an action —
+  owner to confirm vs The One Blue Rule, or pick R=neutral alternate.
+
+OPEN QUESTIONS:
+  1) Is the activity thread editable-comment + auto status-change events the right model, or comments only?
+  2) Should "Mark done" be a button (shown) or only reachable via the status dropdown (avoid two paths)?
+  3) RACI edits autosave (shown via quiet "Saved") vs explicit Save — owner preference?
+==========================================================================
+-->
+</body>
+</html>
