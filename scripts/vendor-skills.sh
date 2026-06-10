@@ -49,11 +49,17 @@ cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
 
 echo "==> ui-ux-pro-max (nextlevelbuilder) — CORE skills only (skip Gemini generative sub-skills)"
 git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git "$TMP/uupm"
+# Upstream restructured: payload moved from .claude/skills/<s> to src/<s>, and the skill dir uses
+# RELATIVE SYMLINKS (data -> ../../../src/...) that dangle when copied verbatim — cp -RL
+# dereferences them so the vendored copy is self-contained. Old path kept as fallback.
 for s in ui-ux-pro-max design-system ui-styling; do
-  if [ -d "$TMP/uupm/.claude/skills/$s" ]; then
-    rm -rf "${DEST:?}/$s"
-    cp -R "$TMP/uupm/.claude/skills/$s" "$DEST/$s"
-  fi
+  for base in "$TMP/uupm/src/$s" "$TMP/uupm/.claude/skills/$s"; do
+    if [ -d "$base" ]; then
+      rm -rf "${DEST:?}/$s"
+      cp -RL "$base" "$DEST/$s"
+      break
+    fi
+  done
 done
 # NOTE: deliberately NOT vendoring design/banner/slides/brand sub-skills (Gemini-API generative; need GEMINI_API_KEY).
 
