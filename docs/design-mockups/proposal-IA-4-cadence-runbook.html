@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — IA Proposal 4: Cadence Runbook</title>
+<style>
+  /* ============================================================
+     DESIGN.md token VALUES inlined (token NAME in comment).
+     Calm, dense, data-first. Borders define structure, not shadows.
+     One Blue Rule honored: blue only on the active rhythm marker,
+     the one primary CTA, links-in-context, and focus.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);         /* foreground */
+    background: hsl(0 0% 100%);                                           /* background */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+  .mono { font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 13px; font-weight: 500; } /* typography.mono */
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring — global focus */
+
+  /* App frame: rhythm-clock rail + main agenda (NOT an entity-list rail) */
+  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; } /* rail widened from 224 to seat the rhythm clock */
+
+  /* ---------- Rhythm-clock rail ---------- */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / spacing.4 / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / primary-foreground / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+
+  .clock { padding: 14px 14px 8px; }
+  .clock-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); padding: 0 4px 8px; } /* overline / muted-foreground */
+  /* the rhythm timeline: vertical spine of cadence markers, each a jump-anchor */
+  .rhythm { position: relative; padding-left: 6px; }
+  .rhythm::before { content: ""; position: absolute; left: 11px; top: 12px; bottom: 12px; width: 1px; background: hsl(240 5.9% 90%); } /* border — the cadence spine */
+  .marker { position: relative; display: flex; gap: 12px; padding: 7px 8px 7px 0; border-radius: 6px; text-decoration: none; cursor: pointer; } /* nav-item / rounded.sm */
+  .marker:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .marker .pip { width: 11px; height: 11px; border-radius: 999px; flex: none; margin: 4px 0 0 6px; background: hsl(0 0% 100%); border: 2px solid hsl(240 5.9% 90%); z-index: 1; } /* card + border — quiet node */
+  .marker.now .pip { border-color: hsl(221.2 83.2% 53.3%); background: hsl(221.2 83.2% 53.3%); box-shadow: 0 0 0 3px hsl(221.2 83.2% 53.3% / 0.15); } /* primary — the "you are here" node */
+  .marker.done .pip { border-color: hsl(142 71% 45%); background: hsl(142 71% 45%); } /* success — completed ritual */
+  .m-body { min-width: 0; }
+  .m-kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .marker.now .m-kicker { color: hsl(221.2 83.2% 53.3%); } /* primary — current cadence label */
+  .m-label { font-size: 13.5px; font-weight: 600; line-height: 1.25; margin-top: 1px; }
+  .m-sub { font-size: 11.5px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+  .m-count { margin-left: auto; align-self: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; } /* rounded.full / secondary / muted-foreground */
+  .marker.now .m-count { background: hsl(221.2 83.2% 53.3% / 0.15); color: hsl(221.2 83.2% 53.3%); } /* primary/15% + primary */
+
+  .rail-sect { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); padding: 16px 18px 4px; } /* overline / muted-foreground */
+  .nav-item { height: 34px; border-radius: 6px; display: flex; align-items: center; gap: 10px; padding: 0 12px; margin: 0 8px; font-size: 13px; font-weight: 500; color: hsl(240 4% 40%); text-decoration: none; cursor: pointer; } /* nav-item / rounded.sm / muted-foreground (secondary entity nav, de-emphasized) */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); color: hsl(240 10% 3.9%); } /* accent / foreground */
+  .nav-item .ico { width: 16px; height: 16px; flex: none; stroke: currentColor; }
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 8px; } /* border */
+
+  /* ---------- Header ---------- */
+  .main { display: flex; flex-direction: column; background: hsl(240 4.8% 95.9% / 0.35); } /* secondary/35% main area */
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 20px; } /* --header-h / background / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; } /* foreground */
+  .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .cmdk { height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); color: hsl(240 4% 40%); font-size: 13px; cursor: text; } /* input / rounded.md / muted-foreground */
+  .cmdk .kbd { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; border: 1px solid hsl(240 5.9% 90%); border-radius: 4px; padding: 1px 5px; } /* rounded.xs */
+  .iconbtn { width: 32px; height: 32px; border-radius: 8px; background: transparent; display: grid; place-items: center; position: relative; cursor: pointer; border: 1px solid transparent; } /* rounded.md */
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary→violet avatar gradient */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ---------- Page: the agenda ---------- */
+  .page { padding: 20px 24px; flex: 1; overflow: auto; }
+  .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 6px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
+  .page-sub { font-size: 13px; color: hsl(240 4% 40%); margin-top: 4px; } /* muted-foreground */
+  /* readiness summary chips, right of title — the runbook's "is the rhythm on track" line */
+  .rhythm-tally { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .tally { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 999px; background: hsl(0 0% 100%); font-size: 12px; font-weight: 600; } /* card / border / rounded.full */
+  .tally .pdot { width: 7px; height: 7px; border-radius: 999px; }
+  .tally .pdot.ok { background: hsl(142 71% 45%); } /* success */
+  .tally .pdot.warn { background: hsl(43 96% 56%); } /* warning */
+  .tally .pdot.stop { background: hsl(0 84.2% 60.2%); } /* destructive */
+  .tally .tn { color: hsl(240 4% 40%); font-weight: 600; } /* muted-foreground */
+
+  .thesis { font-size: 12px; color: hsl(240 4% 40%); margin: 10px 0 18px; max-width: 78ch; line-height: 1.5; } /* muted-foreground — visible thesis caption */
+  .thesis b { color: hsl(240 10% 3.9%); font-weight: 600; }
+
+  /* ===== Ceremony block: a runnable ritual in the agenda ===== */
+  .ceremony { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; margin-bottom: 16px; } /* card / border / rounded.md / Flat-By-Default */
+  .cer-head { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* border */
+  /* cadence-clock glyph: each ceremony carries its rhythm node + frequency */
+  .cer-node { display: flex; align-items: center; gap: 10px; }
+  .cer-pip { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+  .cer-pip.now { background: hsl(221.2 83.2% 53.3%); box-shadow: 0 0 0 3px hsl(221.2 83.2% 53.3% / 0.15); } /* primary */
+  .cer-pip.next { background: hsl(0 0% 100%); border: 2px solid hsl(240 5.9% 90%); } /* card + border */
+  .cer-titlewrap { min-width: 0; }
+  .cer-freq { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .cer-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
+  /* readiness pill — Tinted-Status Rule (dot + tint + darkened text) */
+  .ready { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; } /* badge-status / rounded.full */
+  .ready .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .ready.green { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .ready.green .pdot { background: hsl(142 71% 45%); } /* success tint + --status-won-text */
+  .ready.amber { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .ready.amber .pdot { background: hsl(43 96% 56%); } /* warning tint + warning-foreground */
+  .ready.red { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } .ready.red .pdot { background: hsl(0 84.2% 60.2%); } /* destructive tint + --status-lost-text */
+  .cer-link { font-size: 12.5px; font-weight: 600; color: hsl(221.2 83.2% 53.3%); text-decoration: none; cursor: pointer; } /* primary — link-in-context */
+
+  /* progress meter (filed N of M, committed N done) — track + fill, Tabular */
+  .meter { display: flex; align-items: center; gap: 10px; }
+  .meter .bar { width: 92px; height: 6px; border-radius: 999px; background: hsl(240 4.8% 95.9%); overflow: hidden; } /* secondary track / rounded.full */
+  .meter .fill { height: 100%; border-radius: 999px; }
+  .meter .fill.green { background: hsl(142 71% 45%); } /* success */
+  .meter .fill.amber { background: hsl(43 96% 56%); } /* warning */
+  .meter .val { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ceremony body rows */
+  .cer-body { padding: 4px 0; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); } /* border/70% */
+  .row:last-child { border-bottom: 0; }
+  .row.click { cursor: pointer; }
+  .row.click:hover { background: hsl(240 4.8% 95.9% / 0.6); } /* accent/60% */
+  .r-main { flex: 1; min-width: 0; }
+  .r-title { font-size: 13.5px; font-weight: 600; }
+  .r-meta { font-size: 12px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+  .r-meta .unit { color: hsl(240 10% 3.9%); font-weight: 500; } /* foreground */
+
+  /* source badge (ops sync) — categorical: Kitchen=primary tint, Roastery=violet tint */
+  .src { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; flex: none; } /* rounded.full */
+  .src.kitchen { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } /* primary tint + --status-open-text */
+  .src.roastery { background: hsl(262 83% 58% / 0.14); color: hsl(262 60% 42%); } /* violet tint + --status-violet-text */
+  .ev-time { font-size: 11.5px; color: hsl(240 4% 40%); flex: none; } /* muted-foreground */
+  .ev-code { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; color: hsl(240 4% 40%); } /* mono — Mono-For-Identifiers */
+  .ev-by .ok { color: hsl(142 64% 30%); font-weight: 600; } /* --status-won-text — approved */
+  .ev-by .warn { color: hsl(22 78% 26%); font-weight: 600; } /* warning-foreground — follow-up */
+
+  /* status pill — Tinted-Status Rule */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; } /* badge-status */
+  .pill .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .pdot { background: hsl(221.2 83.2% 53.3%); } /* primary tint + --status-open-text */
+  .pill.blocked { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .pdot { background: hsl(0 84.2% 60.2%); } /* destructive tint + --status-lost-text */
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.open .pdot { background: hsl(43 96% 56%); } /* warning tint + warning-foreground */
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .pdot { background: hsl(142 71% 45%); } /* success tint + --status-won-text */
+
+  /* due chip */
+  .due { font-size: 12.5px; font-weight: 600; flex: none; } /* tabular inline */
+  .due.soon { color: hsl(22 78% 26%); } /* warning-foreground — due ≤3d */
+  .due.overdue { color: hsl(0 72% 45%); } /* --status-lost-text — overdue */
+  .due.calm { color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* RACI badges — PROPOSED NEW TOKENS (see comment block; identical to IA-1/2/3) */
+  .raci { display: inline-flex; gap: 4px; flex: none; }
+  .raci-badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px 0 3px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid hsl(240 5.9% 90%); background: hsl(240 4.8% 95.9% / 0.5); } /* border / secondary/50% */
+  .raci-role { width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: hsl(0 0% 100%); }
+  .role-R { background: hsl(221.2 83.2% 53.3%); } /* raci-responsible — primary */
+  .role-A { background: hsl(262 83% 58%); } /* raci-accountable — violet */
+  .role-C { background: hsl(43 96% 56%); color: hsl(22 78% 26%); } /* raci-consulted — warning (text warning-foreground) */
+  .role-I { background: hsl(240 4% 40%); } /* raci-informed — muted-foreground */
+  .raci-name { color: hsl(240 10% 3.9%); } /* foreground */
+
+  /* per-person weekly status chip */
+  .miniav { width: 24px; height: 24px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; } /* secondary / muted-foreground */
+  .stat { font-size: 12px; font-weight: 600; flex: none; }
+  .stat.filed { color: hsl(142 64% 30%); } /* --status-won-text */
+  .stat.draft { color: hsl(22 78% 26%); } /* warning-foreground */
+  .stat.none { color: hsl(0 72% 45%); } /* --status-lost-text */
+
+  .btn-primary { height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); } /* primary / primary-foreground / brand button shadow */
+  .btn-outline { height: 30px; padding: 0 11px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font-size: 12.5px; font-weight: 600; color: hsl(240 10% 3.9%); cursor: pointer; } /* button-outline */
+  .btn-outline:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .cer-foot { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-top: 1px solid hsl(240 5.9% 90% / 0.7); } /* border/70% */
+  .foot-note { font-size: 12px; color: hsl(240 4% 40%); margin-left: auto; } /* muted-foreground */
+
+  .note { font-size: 11px; color: hsl(240 4% 40%); line-height: 1.5; padding: 14px 16px 0; border-top: 1px solid hsl(240 5.9% 90%); margin-top: 4px; } /* muted-foreground / border */
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== RHYTHM-CLOCK RAIL (cadence spine, not an entity list) ===== -->
+  <aside class="rail" aria-label="Operating rhythm">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div>
+    </div>
+
+    <div class="clock">
+      <div class="clock-cap">Operating rhythm · Tue 10 Jun</div>
+      <nav class="rhythm" aria-label="Cadence markers">
+        <a class="marker done" aria-label="Daily ops sync, done for the morning">
+          <span class="pip"></span>
+          <span class="m-body">
+            <span class="m-kicker">Daily · 09:00</span>
+            <span class="m-label">Morning ops sync</span>
+            <span class="m-sub">4 events logged today</span>
+          </span>
+        </a>
+        <a class="marker now" aria-current="step" aria-label="This week's review, in progress">
+          <span class="pip"></span>
+          <span class="m-body">
+            <span class="m-kicker">This week · 8–14 Jun</span>
+            <span class="m-label">Weekly review</span>
+            <span class="m-sub">2 of 4 updates filed</span>
+          </span>
+          <span class="m-count tnum">2</span>
+        </a>
+        <a class="marker" aria-label="Task commitments for this week">
+          <span class="pip"></span>
+          <span class="m-body">
+            <span class="m-kicker">This week</span>
+            <span class="m-label">Task commitments</span>
+            <span class="m-sub">1 blocked · 1 overdue</span>
+          </span>
+          <span class="m-count tnum">6</span>
+        </a>
+        <a class="marker" aria-label="Friday update deadline">
+          <span class="pip"></span>
+          <span class="m-body">
+            <span class="m-kicker">Fri 13 Jun</span>
+            <span class="m-label">Updates due</span>
+            <span class="m-sub">Cycle closes 17:00</span>
+          </span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="rail-sect">Browse</div>
+    <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>All tasks</a>
+    <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>All weekly updates</a>
+    <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Ops history</a>
+    <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2"/></svg>People &amp; units</a>
+
+    <div class="rail-foot">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN: the agenda ===== -->
+  <div class="main">
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>Cadence</b></div>
+      <div class="spacer"></div>
+      <div class="cmdk">Search tasks, people, updates…<span class="kbd">⌘K</span></div>
+      <button class="iconbtn" aria-label="Notifications"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+      <div class="userchip"><div class="avatar">AR</div><div><div class="u-name">Arief</div><div class="u-role">CEO</div></div></div>
+    </header>
+
+    <main class="page">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Cadence</div>
+          <div class="page-sub">The week Gordi is running · 8–14 Jun 2026 · today Tue 10 Jun</div>
+        </div>
+        <div class="rhythm-tally" aria-label="Rhythm readiness">
+          <span class="tally"><span class="pdot ok"></span>Daily sync <span class="tn">done</span></span>
+          <span class="tally"><span class="pdot warn"></span>Weekly <span class="tn tnum">2/4 filed</span></span>
+          <span class="tally"><span class="pdot stop"></span>Tasks <span class="tn tnum">1 blocked · 1 overdue</span></span>
+        </div>
+      </div>
+
+      <p class="thesis"><b>IA thesis:</b> the product's structure IS Gordi's operating rhythm. Home is a runbook of the recurring management ceremonies, sequenced daily then weekly, each block showing its readiness so you work the cadence top-to-bottom rather than hunting through entity lists.</p>
+
+      <!-- CEREMONY 1: DAILY OPS SYNC (today's ritual, done) -->
+      <section class="ceremony" aria-label="Daily ops sync">
+        <div class="cer-head">
+          <div class="cer-node">
+            <span class="cer-pip next"></span>
+            <div class="cer-titlewrap">
+              <div class="cer-freq">Daily ritual · 10 Jun</div>
+              <div class="cer-title">Morning ops sync</div>
+            </div>
+          </div>
+          <span class="ready green" style="margin-left:14px;"><span class="pdot"></span>Reviewed</span>
+          <a class="cer-link" style="margin-left:auto;">Ops history →</a>
+        </div>
+        <div class="cer-body">
+          <div class="row click">
+            <span class="src kitchen">Kitchen</span>
+            <div class="r-main"><div class="r-title">42 batch cold brew selesai produksi</div><div class="r-meta"><span class="ev-by"><span class="ok">Approved Dina Pratiwi</span></span></div></div>
+            <span class="ev-time tnum">09:40</span>
+          </div>
+          <div class="row click">
+            <span class="src kitchen">Kitchen</span>
+            <div class="r-main"><div class="r-title">Penerimaan 25kg green bean Gayo lot <span class="ev-code">#G-114</span></div><div class="r-meta">by Budi Santoso</div></div>
+            <span class="ev-time tnum">11:15</span>
+          </div>
+          <div class="row click">
+            <span class="src roastery">Roastery</span>
+            <div class="r-main"><div class="r-title">Roast batch Ethiopia Guji <span class="ev-code">#R-882</span> selesai QC</div><div class="r-meta">by Raka Wijaya</div></div>
+            <span class="ev-time tnum">13:02</span>
+          </div>
+          <div class="row click">
+            <span class="src kitchen">Kitchen</span>
+            <div class="r-main"><div class="r-title">Stock opname mingguan tertunda</div><div class="r-meta"><span class="ev-by">Follow-up <span class="warn">Budi Santoso</span></span> · feeds the blocked task below</div></div>
+            <span class="ev-time tnum">14:30</span>
+          </div>
+        </div>
+        <div class="cer-foot">
+          <span class="ready green" style="height:20px;"><span class="pdot"></span>Nothing needs sign-off</span>
+          <span class="foot-note tnum">4 events · Kitchen 3 · Roastery 1</span>
+        </div>
+      </section>
+
+      <!-- CEREMONY 2: WEEKLY UPDATE CYCLE (this week's ritual, in progress — the "now" node) -->
+      <section class="ceremony" aria-label="Weekly update cycle">
+        <div class="cer-head">
+          <div class="cer-node">
+            <span class="cer-pip now"></span>
+            <div class="cer-titlewrap">
+              <div class="cer-freq">Weekly ritual · closes Fri 17:00</div>
+              <div class="cer-title">Weekly update cycle</div>
+            </div>
+          </div>
+          <span class="ready amber" style="margin-left:14px;"><span class="pdot"></span>2 of 4 filed</span>
+          <div class="meter" style="margin-left:14px;"><div class="bar"><div class="fill amber" style="width:50%"></div></div><span class="val tnum">50%</span></div>
+          <a class="cer-link" style="margin-left:auto;">Review all →</a>
+        </div>
+        <div class="cer-body">
+          <div class="row click">
+            <span class="miniav">DP</span>
+            <div class="r-main"><div class="r-title">Dina Pratiwi <span class="r-meta" style="display:inline;">· <span class="unit">Kitchen Lead</span></span></div><div class="r-meta">Menu seasonal Q3 masuk costing, cold brew lancar; stock opname tertahan.</div></div>
+            <span class="stat filed">Filed Tue</span>
+            <button class="btn-outline">Review</button>
+          </div>
+          <div class="row click">
+            <span class="miniav">RW</span>
+            <div class="r-main"><div class="r-title">Raka Wijaya <span class="r-meta" style="display:inline;">· <span class="unit">Roastery Lead</span></span></div><div class="r-meta">Kalibrasi profil Ethiopia Guji jalan, batch #R-882 lolos QC.</div></div>
+            <span class="stat filed">Filed Mon</span>
+            <button class="btn-outline">Review</button>
+          </div>
+          <div class="row click">
+            <span class="miniav">SL</span>
+            <div class="r-main"><div class="r-title">Sari Lestari <span class="r-meta" style="display:inline;">· <span class="unit">Sales &amp; E-Comm Lead</span></span></div><div class="r-meta">Draft tersimpan: bundling promo kemerdekaan &amp; jadwal training barista.</div></div>
+            <span class="stat draft">Draft</span>
+            <button class="btn-outline">Nudge</button>
+          </div>
+          <div class="row click">
+            <span class="miniav">BS</span>
+            <div class="r-main"><div class="r-title">Budi Santoso <span class="r-meta" style="display:inline;">· <span class="unit">Kitchen ops</span></span></div><div class="r-meta">No update yet this cycle.</div></div>
+            <span class="stat none">Not started</span>
+            <button class="btn-outline">Nudge</button>
+          </div>
+        </div>
+        <div class="cer-foot">
+          <button class="btn-primary">Write my update</button>
+          <span class="foot-note">Your update as A/R owner is not filed · cycle closes Fri 13 Jun 17:00</span>
+        </div>
+      </section>
+
+      <!-- CEREMONY 3: WEEK'S TASK COMMITMENTS (this week's ritual, attention needed) -->
+      <section class="ceremony" aria-label="This week's task commitments">
+        <div class="cer-head">
+          <div class="cer-node">
+            <span class="cer-pip next"></span>
+            <div class="cer-titlewrap">
+              <div class="cer-freq">Weekly ritual · committed work</div>
+              <div class="cer-title">This week's task commitments</div>
+            </div>
+          </div>
+          <span class="ready red" style="margin-left:14px;"><span class="pdot"></span>1 blocked · 1 overdue</span>
+          <a class="cer-link" style="margin-left:auto;">All tasks →</a>
+        </div>
+        <div class="cer-body">
+          <div class="row click">
+            <div class="r-main"><div class="r-title">SOP stock opname mingguan kitchen</div><div class="r-meta"><span class="unit">Kitchen</span></div></div>
+            <span class="pill blocked"><span class="pdot"></span>Blocked</span>
+            <div class="raci">
+              <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Budi</span></span>
+              <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Dina</span></span>
+            </div>
+            <span class="due overdue tnum">Overdue · 12 Jun</span>
+          </div>
+          <div class="row click">
+            <div class="r-main"><div class="r-title">Kalibrasi profil roasting Ethiopia Guji</div><div class="r-meta"><span class="unit">Roastery</span></div></div>
+            <span class="pill inprogress"><span class="pdot"></span>In Progress</span>
+            <div class="raci">
+              <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Raka</span></span>
+              <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Raka</span></span>
+              <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Arief</span></span>
+            </div>
+            <span class="due soon tnum">Due 13 Jun</span>
+          </div>
+          <div class="row click">
+            <div class="r-main"><div class="r-title">Finalisasi menu seasonal Q3</div><div class="r-meta"><span class="unit">Kitchen</span></div></div>
+            <span class="pill inprogress"><span class="pdot"></span>In Progress</span>
+            <div class="raci">
+              <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Dina</span></span>
+              <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+              <span class="raci-badge"><span class="raci-role role-C">C</span><span class="raci-name">Sari</span></span>
+              <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Andi</span></span>
+            </div>
+            <span class="due soon tnum">Due 19 Jun</span>
+          </div>
+          <div class="row click">
+            <div class="r-main"><div class="r-title">Jadwal training barista batch 2</div><div class="r-meta"><span class="unit">Sales &amp; E-Commerce</span></div></div>
+            <span class="pill open"><span class="pdot"></span>Open</span>
+            <div class="raci">
+              <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Sari</span></span>
+              <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Sari</span></span>
+              <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Dina</span></span>
+            </div>
+            <span class="due calm tnum">Due 17 Jun</span>
+          </div>
+          <div class="row click">
+            <div class="r-main"><div class="r-title">Harga bundling promo kemerdekaan</div><div class="r-meta"><span class="unit">Sales &amp; E-Commerce</span></div></div>
+            <span class="pill open"><span class="pdot"></span>Open</span>
+            <div class="raci">
+              <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Sari</span></span>
+              <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+              <span class="raci-badge"><span class="raci-role role-C">C</span><span class="raci-name">Andi</span></span>
+            </div>
+            <span class="due calm tnum">Due 24 Jun</span>
+          </div>
+          <div class="row click">
+            <div class="r-main"><div class="r-title">Rekonsiliasi COGS roastery Mei</div><div class="r-meta"><span class="unit">Finance &amp; People</span></div></div>
+            <span class="pill done"><span class="pdot"></span>Done</span>
+            <div class="raci">
+              <span class="raci-badge"><span class="raci-role role-R">R</span><span class="raci-name">Andi</span></span>
+              <span class="raci-badge"><span class="raci-role role-A">A</span><span class="raci-name">Arief</span></span>
+              <span class="raci-badge"><span class="raci-role role-I">I</span><span class="raci-name">Raka</span></span>
+            </div>
+            <span class="due calm tnum">10 Jun</span>
+          </div>
+        </div>
+        <div class="cer-foot">
+          <button class="btn-outline">+ Commit a task to this week</button>
+          <span class="foot-note tnum">6 committed · 1 done · 1 blocked · 1 overdue</span>
+        </div>
+
+        <div class="note">
+          States · <b>loading:</b> each ceremony renders a header skeleton + 3 skeleton rows; the rhythm rail shows skeleton pips so the cadence shape is legible before data lands.
+          <b>empty:</b> a ceremony with no items keeps its header + readiness pill and shows a one-line ritual prompt — Daily sync "No ops events logged yet today — Kitchen &amp; Roastery mirror in as they happen"; Weekly "Cycle not opened yet — opens Mon"; Tasks "No tasks committed to this week — commit one to start".
+          <b>error:</b> per-ceremony inline retry banner inside that block only; the other ceremonies and the rhythm rail still render (the runbook degrades ceremony-by-ceremony, never blank).
+          <b>edge:</b> non-manager/ops viewer sees the Weekly ceremony collapsed to just their own update row + CTA (no team roster); a fully-on-track week shows all-green readiness pills and the tally line reads "Rhythm on track".
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!--
+============================================================
+IA PROPOSAL 4 — "Cadence Runbook"
+THESIS: The product's STRUCTURE IS Gordi's operating rhythm. Home is a
+        vertical runbook of the recurring management ceremonies, ordered
+        by cadence (daily ritual → weekly ritual → weekly commitments),
+        each a self-contained block showing its READINESS state. A left
+        rhythm-clock rail is the cadence spine (Daily sync · Weekly review
+        · Task commitments · Updates-due), with "you are here" on the
+        current ceremony — NOT an entity-list rail. You run the week
+        top-to-bottom like an agenda, not by hunting entity tables.
+
+STRUCTURALLY DISTINCT FROM 1/2/3:
+  - IA-1 (rail + master-detail): nav is the EXHAUSTIVE ENTITY LIST and
+    each screen is a table+detail of one entity. IA-4's rail is the
+    CADENCE CLOCK; entity lists are demoted to a small "Browse" group.
+  - IA-2 (My Week digest): organized around the PERSON ("what needs ME")
+    — my tasks, my draft, my team. IA-4 is organized around the RITUAL
+    ("is each ceremony ready"): it leads with the team's daily sync and
+    the whole weekly cycle's completion, and Arief's own update is one
+    row inside the weekly ceremony, not the spine.
+  - IA-3 (feed-first): a single CHRONOLOGICAL stream, time-sorted, ops as
+    home. IA-4 is CEREMONY-SEQUENCED and completion-stated: ops is one
+    finished ritual block among peers, not an endless feed; order is by
+    cadence type, not by timestamp.
+
+DESIGN.md TOKENS USED:
+  Colors: background, foreground, card, card-foreground, primary,
+    primary-foreground, secondary, muted-foreground, accent, border,
+    input, ring, destructive, warning, warning-foreground, success,
+    violet; status-pill text tokens --status-open-text (221 75% 38%),
+    --status-won-text (142 64% 30%), --status-lost-text (0 72% 45%),
+    --status-violet-text (262 60% 42%).
+  Typography: page-title, subheading (cer-title scale), body, label,
+    overline (rhythm kickers, freq labels, rail sect), mono (ev-code IDs
+    — Mono-For-Identifiers Rule); Tabular-Numbers Rule (.tnum on times,
+    dates, counts, percentages, meters).
+  Rounded: xs (kbd), sm (nav-item, markers), md (cards/ceremonies,
+    buttons, controls, cmdk), full (pills, counts, dots, pips, meters,
+    avatars, RACI badges, tally chips).
+  Spacing: 1–6 scale (4/8/10/12/16/20/24px gaps & padding).
+  Components: rail (widened to 248px to seat the rhythm clock — a layout
+    choice within the system, see open Q), --header-h 56px, nav-item,
+    card, badge-status, button-primary (brand shadow), button-outline,
+    cmdk, user chip avatar gradient, source badges, progress meter
+    (track=secondary, fill=success/warning per Lifecycle/jbar idiom),
+    timeline pip+spine (categorical primary/success/border per Elevation
+    timeline-dot use).
+  Rules honored: One Blue Rule (blue = current rhythm marker/pip, the one
+    primary CTA "Write my update", links-in-context, focus ring — ≤10%);
+    Flat-By-Default (borders + the secondary/35% main area, zero static
+    shadows; only the brand-button seat + focus); Tinted-Status Rule
+    (every state = 6px dot + tint + darkened text); Single-Border Rule
+    (one border value; regions separated by surface tone + spacing);
+    No-Pure-Black-Shadow; Mono-For-Identifiers; Tabular-Numbers.
+  Anti-slop: borders over shadows, no gratuitous gradients (only the
+    sanctioned avatar gradient), not centered-everything (left-anchored
+    agenda), realistic ID-language Gordi data, dense + calm. No
+    side-stripe borders, no glassmorphism, no hero-metric template.
+
+PROPOSED NEW TOKENS (flagged for OWNER SIGN-OFF — identical set to IA-1/2/3,
+re-proposed here, NOT new brand colors — reuse existing palette hues):
+  RACI role-badge color set (MOS gap; PMO had no RACI):
+    --raci-responsible : 221.2 83.2% 53.3%  (primary blue)        — "R"
+    --raci-accountable : 262 83% 58%         (violet)             — "A"
+    --raci-consulted   : 43 96% 56%          (warning; text brown) — "C"
+    --raci-informed    : 240 4% 40%          (muted-foreground)    — "I"
+  16px role chip + person name on a secondary/50% pill w/ 1px border.
+  Contrast: white text on primary/violet/muted clears AA; "C" uses
+  warning-foreground (22 78% 26%) brown on amber. NOTE: "A"=violet is a
+  CATEGORICAL (non-interactive) use, which RACI is — consistent with the
+  violet reservation, but owner should confirm.
+
+  POSSIBLE second new token (IA-4-specific, flagged): a "readiness" scale
+  for ceremony state (green=ready/done, amber=in-progress/partial,
+  red=behind/blocked). This is NOT a new palette — it maps 1:1 onto
+  success / warning / destructive. Recommend NO new token: reuse the
+  status hues directly. Listed only so the reuse is explicit for sign-off.
+
+OPEN QUESTIONS FOR OWNER:
+  1. Rail width: the rhythm clock reads better at 248px than the system's
+     224px (--rail-w). Accept a wider rail for this IA, or compress the
+     clock to fit 224px?
+  2. Cadence ordering: ceremonies are ordered daily→weekly (rhythm time),
+     NOT by urgency. On a week where tasks are on fire but updates are
+     fine, should a "behind" ceremony float to the top, or does fixed
+     cadence order matter more (predictability vs. triage)? Recommend:
+     fixed order, with the readiness tally line carrying urgency.
+  3. Role fit: this IA centers the TEAM cadence (daily sync, whole weekly
+     cycle). For a pure ops user who only files a daily update, is the
+     full runbook the right home, or do they get a collapsed single-
+     ceremony view? (See edge state.) Recommend: collapsed view by role.
+  4. "Commit a task to this week" implies a task↔week commitment relation
+     that may not exist in first-slice data. Is weekly task scoping in
+     v1, or is this ceremony just "tasks due/active this week" (a query,
+     no new field)? Recommend: a query for v1, real commitment later.
+  5. RACI role color mapping above — confirm hues, esp. "A"=violet.
+  6. Ops→task linkage (the 14:30 stock-opname event "feeds" the blocked
+     task) — is that relation in v1 data or aspirational? (Same question
+     IA-3 raised.) Recommend: show as copy only in v1, real link later.
+============================================================
+-->
+</body>
+</html>

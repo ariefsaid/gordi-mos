@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — IA Proposal 5: Accountability Roster</title>
+<style>
+  /* ============================================================
+     DESIGN.md token VALUES inlined (token NAME in comment).
+     Calm, dense, data-first. Borders define structure, not shadows.
+     One Blue Rule · Tinted-Status Rule · Flat-By-Default · Single-Border.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);         /* foreground */
+    background: hsl(0 0% 100%);                                           /* background */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; } /* --rail-w 224px */
+
+  /* ---------- Rail ---------- */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / border / spacing.4 */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / primary-foreground / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .nav { padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .nav-group-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); padding: 12px 10px 4px; } /* overline / muted-foreground */
+  .nav-item { height: 36px; border-radius: 6px; display: flex; align-items: center; gap: 10px; padding: 0 10px; font-size: 13.5px; font-weight: 500; color: hsl(240 10% 3.9%); text-decoration: none; cursor: pointer; } /* nav-item / rounded.sm / foreground */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item .ico { width: 17px; height: 17px; flex: none; stroke: currentColor; }
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% + primary */
+  .nav-item .count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 11px; font-weight: 600; display: grid; place-items: center; } /* rounded.full / secondary / muted-foreground */
+  .nav-item.active .count { background: hsl(221.2 83.2% 53.3% / 0.15); color: hsl(221.2 83.2% 53.3%); } /* primary/15% + primary */
+  .nav-item .count.alert { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } /* destructive tint + --status-lost-text — gap count */
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 10px; } /* border */
+
+  /* ---------- Header ---------- */
+  .main { display: flex; flex-direction: column; background: hsl(240 4.8% 95.9% / 0.35); } /* secondary/35% main area */
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 20px; } /* --header-h / background / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; } /* foreground */
+  .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .cmdk { height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); color: hsl(240 4% 40%); font-size: 13px; cursor: text; } /* input / rounded.md / muted-foreground */
+  .cmdk .kbd { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; border: 1px solid hsl(240 5.9% 90%); border-radius: 4px; padding: 1px 5px; } /* mono */
+  .iconbtn { width: 32px; height: 32px; border-radius: 8px; background: transparent; display: grid; place-items: center; position: relative; cursor: pointer; border: 1px solid transparent; }
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary→violet avatar gradient */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ---------- Page ---------- */
+  .page { padding: 20px; flex: 1; overflow: auto; }
+  .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* page-title */
+  .page-sub { font-size: 13px; color: hsl(240 4% 40%); margin-top: 4px; } /* muted-foreground */
+  .ml-auto { margin-left: auto; }
+  .btn-primary { height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); } /* primary / primary-foreground / brand button shadow */
+  .btn-outline { height: 32px; padding: 0 12px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font-size: 13px; font-weight: 600; color: hsl(240 10% 3.9%); cursor: pointer; } /* button-outline */
+  .btn-outline:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+
+  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; } /* card / border / rounded.md — Flat-By-Default */
+
+  /* ---------- Accountability-gap banner (the thesis headline) ---------- */
+  .gap-banner { display: flex; align-items: center; gap: 14px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid hsl(0 84.2% 60.2% / 0.30); background: hsl(0 84.2% 60.2% / 0.06); border-radius: 8px; } /* destructive border/bg tint — accountability alert region */
+  .gap-banner .gb-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); flex: none; } /* destructive tint icon tile + --status-lost-text */
+  .gap-banner .gb-txt { font-size: 13.5px; }
+  .gap-banner .gb-txt b { font-weight: 700; }
+  .gap-banner .gb-sub { font-size: 12px; color: hsl(240 4% 40%); margin-top: 1px; } /* muted-foreground */
+  .gap-banner .gb-chips { display: flex; gap: 6px; margin-left: auto; }
+  .gap-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); cursor: pointer; } /* card / border / rounded.full */
+  .gap-chip:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .gap-chip .gc-n { color: hsl(0 72% 45%); } /* --status-lost-text */
+
+  /* ---------- Roster controls ---------- */
+  .roster-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; background: hsl(240 4.8% 95.9%); border-radius: 8px; } /* secondary track / rounded.md */
+  .seg button { height: 26px; padding: 0 10px; border: 0; background: transparent; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: hsl(240 4% 40%); cursor: pointer; } /* rounded.sm / muted-foreground */
+  .seg button.on { background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.10); } /* background pill + foreground + pressed/selected lift */
+  .control { height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer; } /* input shell */
+  .control .mut { color: hsl(240 4% 40%); } /* muted-foreground */
+  .control:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .search-mini { height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font-size: 13px; color: hsl(240 4% 40%); min-width: 180px; } /* input shell / muted-foreground */
+
+  /* ---------- Roster grid (people as the unit of navigation) ---------- */
+  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: start; }
+
+  .person { padding: 0; cursor: pointer; }
+  .person:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); } /* state lift on hover — interactive card */
+  .p-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); } /* border/70% */
+  .p-av { width: 38px; height: 38px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); display: grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; } /* secondary / muted-foreground / rounded.full */
+  .p-id { min-width: 0; flex: 1; }
+  .p-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  .p-role { font-size: 12px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+  /* weekly-update pulse pill (per OD-P0-1 — managers review their people) */
+  .pulse { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; } /* badge-status / rounded.full */
+  .pulse .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .pulse.filed { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pulse.filed .pdot { background: hsl(142 71% 45%); } /* success tint + --status-won-text */
+  .pulse.draft { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pulse.draft .pdot { background: hsl(43 96% 56%); } /* warning tint + warning-foreground */
+  .pulse.none { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } .pulse.none .pdot { background: hsl(0 84.2% 60.2%); } /* destructive tint + --status-lost-text */
+  .pulse.self { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } .pulse.self .pdot { background: hsl(221.2 83.2% 53.3%); } /* primary tint + --status-open-text — your own */
+
+  /* ownership ledger inside a person card */
+  .ledger { padding: 6px 0; }
+  .owns-head { display: flex; align-items: center; gap: 8px; padding: 8px 16px 6px; }
+  .owns-head .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .owns-head .cnt { font-size: 11px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground */
+  .own-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-top: 1px solid hsl(240 5.9% 90% / 0.7); } /* border/70% */
+  .own-role { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: hsl(0 0% 100%); flex: none; } /* RACI role chip — PROPOSED TOKENS */
+  .role-R { background: hsl(221.2 83.2% 53.3%); }  /* --raci-responsible — primary */
+  .role-A { background: hsl(262 83% 58%); }        /* --raci-accountable — violet */
+  .role-C { background: hsl(43 96% 56%); color: hsl(22 78% 26%); } /* --raci-consulted — warning + warning-foreground text */
+  .role-I { background: hsl(240 4% 40%); }         /* --raci-informed — muted-foreground */
+  .own-main { flex: 1; min-width: 0; }
+  .own-title { font-size: 13px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .own-meta { font-size: 11.5px; color: hsl(240 4% 40%); margin-top: 1px; } /* muted-foreground */
+  .own-due { font-size: 12px; font-weight: 600; flex: none; } /* tabular set inline */
+  .own-due.soon { color: hsl(22 78% 26%); }    /* warning-foreground — due ≤3d */
+  .own-due.overdue { color: hsl(0 72% 45%); }  /* --status-lost-text — overdue */
+  .own-due.calm { color: hsl(240 4% 40%); }    /* muted-foreground */
+
+  /* status dot prefix on a task (compact, Tinted-Status Rule essence) */
+  .sdot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
+  .sdot.inprogress { background: hsl(221.2 83.2% 53.3%); } /* primary */
+  .sdot.blocked { background: hsl(0 84.2% 60.2%); }        /* destructive */
+  .sdot.open { background: hsl(43 96% 56%); }              /* warning */
+  .sdot.done { background: hsl(142 71% 45%); }             /* success */
+
+  .p-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid hsl(240 5.9% 90%); } /* border */
+  .load-chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); } /* secondary / muted-foreground — quiet count chip */
+  .load-chip .n { color: hsl(240 10% 3.9%); } /* foreground */
+  .p-foot .open-link { margin-left: auto; font-size: 12.5px; font-weight: 600; color: hsl(221.2 83.2% 53.3%); cursor: pointer; } /* primary link-in-context */
+
+  /* the gap card — a "person-shaped" slot for UNOWNED work, sits first */
+  .person.gap { border-color: hsl(0 84.2% 60.2% / 0.30); } /* destructive tint border — Single-Border exception flagged as open question */
+  .person.gap .p-head { border-bottom-color: hsl(0 84.2% 60.2% / 0.20); }
+  .person.gap .p-av { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } /* destructive tint + --status-lost-text */
+  .gap-reason { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); flex: none; } /* destructive tint + --status-lost-text */
+
+  .legend { display: flex; align-items: center; gap: 16px; margin: 4px 0 0; font-size: 11.5px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .legend .li { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .lk { width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: hsl(0 0% 100%); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== RAIL ===== -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2"/><path d="M16 20a5 5 0 0 1 5-1"/></svg>Accountability<span class="count alert tnum">2</span></a>
+      <div class="nav-group-label">Drill into</div>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks<span class="count tnum">6</span></a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Weekly Updates<span class="count tnum">4</span></a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Daily Ops<span class="count tnum">4</span></a>
+    </nav>
+    <div class="rail-foot">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>Accountability</b></div>
+      <div class="spacer"></div>
+      <div class="cmdk">Search people, tasks…<span class="kbd">⌘K</span></div>
+      <button class="iconbtn" aria-label="Notifications"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+      <div class="userchip"><div class="avatar">AR</div><div><div class="u-name">Arief</div><div class="u-role">CEO</div></div></div>
+    </header>
+
+    <main class="page">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Accountability</div>
+          <div class="page-sub">Who owns what across Gordi — week of 8–14 Jun 2026 · 7 people · 6 tasks</div>
+        </div>
+        <button class="btn-outline ml-auto">Assign owner</button>
+        <button class="btn-primary">+ New task</button>
+      </div>
+
+      <!-- THESIS HEADLINE: accountability gaps surface first -->
+      <div class="gap-banner" role="region" aria-label="Accountability gaps">
+        <div class="gb-ico" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        </div>
+        <div class="gb-txt">
+          <b>2 accountability gaps this week.</b>
+          <div class="gb-sub">1 task has no Accountable owner · 1 weekly update not started by an ops user you manage.</div>
+        </div>
+        <div class="gb-chips">
+          <span class="gap-chip">Tasks missing A <span class="gc-n tnum">1</span></span>
+          <span class="gap-chip">Updates not filed <span class="gc-n tnum">1</span></span>
+        </div>
+      </div>
+
+      <!-- roster controls -->
+      <div class="roster-bar">
+        <div class="seg" role="tablist" aria-label="Roster scope">
+          <button class="on" role="tab" aria-selected="true">Everyone</button>
+          <button role="tab" aria-selected="false">My people</button>
+          <button role="tab" aria-selected="false">Has gaps</button>
+        </div>
+        <div class="search-mini">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          Find a person…
+        </div>
+        <div class="control ml-auto"><span class="mut">Unit:</span> All <span class="mut">▾</span></div>
+        <div class="control"><span class="mut">Sort:</span> Most owned <span class="mut">▾</span></div>
+      </div>
+
+      <div class="legend" aria-hidden="true" style="margin-bottom:12px;">
+        <span class="li"><span class="lk role-R">R</span> Responsible</span>
+        <span class="li"><span class="lk role-A">A</span> Accountable</span>
+        <span class="li"><span class="lk role-C">C</span> Consulted</span>
+        <span class="li"><span class="lk role-I">I</span> Informed</span>
+      </div>
+
+      <!-- ===== ROSTER: people as the unit of navigation ===== -->
+      <div class="roster">
+
+        <!-- GAP SLOT first: unowned / ambiguous work, person-shaped -->
+        <section class="card person gap" aria-label="Unassigned accountability">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">?</div>
+            <div class="p-id">
+              <div class="p-name">Unassigned</div>
+              <div class="p-role">Work with no clear accountable owner</div>
+            </div>
+            <span class="gap-reason">Needs an A</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Missing accountable (A)</span><span class="cnt tnum">1 task</span></div>
+            <div class="own-row">
+              <span class="own-role role-A" style="opacity:.35;border:1px dashed hsl(240 5.9% 90%);background:transparent;color:hsl(240 4% 40%);">A</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot blocked"></span>SOP stock opname mingguan kitchen</div>
+                <div class="own-meta">Kitchen · R: Budi · A: <span style="color:hsl(0 72% 45%);font-weight:600;">unconfirmed (Dina?)</span></div>
+              </div>
+              <div class="own-due overdue tnum">Overdue 12 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="gap-reason">A is implied but not set</span>
+            <span class="open-link">Assign accountable →</span>
+          </div>
+        </section>
+
+        <!-- Arief (you) -->
+        <section class="card person" aria-label="Arief, your roster card">
+          <div class="p-head">
+            <div class="p-av" style="background:linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));color:hsl(0 0% 98%);" aria-hidden="true">AR</div>
+            <div class="p-id">
+              <div class="p-name">Arief <span style="font-size:11px;font-weight:600;color:hsl(240 4% 40%);">· You</span></div>
+              <div class="p-role">CEO</div>
+            </div>
+            <span class="pulse self"><span class="pdot"></span>Your update due Fri</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Accountable for</span><span class="cnt tnum">4 tasks</span></div>
+            <div class="own-row">
+              <span class="own-role role-A" aria-label="Accountable">A</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot inprogress"></span>Finalisasi menu seasonal Q3</div>
+                <div class="own-meta">Kitchen · R: Dina</div>
+              </div>
+              <div class="own-due soon tnum">Due 19 Jun</div>
+            </div>
+            <div class="own-row">
+              <span class="own-role role-A" aria-label="Accountable">A</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot open"></span>Harga bundling promo kemerdekaan</div>
+                <div class="own-meta">Sales &amp; E-Commerce · R: Sari</div>
+              </div>
+              <div class="own-due calm tnum">Due 24 Jun</div>
+            </div>
+            <div class="own-row">
+              <span class="own-role role-A" aria-label="Accountable">A</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot done"></span>Rekonsiliasi COGS roastery Mei</div>
+                <div class="own-meta">Finance &amp; People · R: Andi</div>
+              </div>
+              <div class="own-due calm tnum">Done 10 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">4</span>A</span>
+            <span class="load-chip"><span class="n tnum">1</span>I</span>
+            <span class="open-link">Open Arief →</span>
+          </div>
+        </section>
+
+        <!-- Dina Pratiwi -->
+        <section class="card person" aria-label="Dina Pratiwi, roster card">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">DP</div>
+            <div class="p-id">
+              <div class="p-name">Dina Pratiwi</div>
+              <div class="p-role">Kitchen Lead</div>
+            </div>
+            <span class="pulse filed"><span class="pdot"></span>Filed Tue</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Responsible / accountable for</span><span class="cnt tnum">2 tasks</span></div>
+            <div class="own-row">
+              <span class="own-role role-R" aria-label="Responsible">R</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot inprogress"></span>Finalisasi menu seasonal Q3</div>
+                <div class="own-meta">Kitchen · A: Arief · C: Sari</div>
+              </div>
+              <div class="own-due soon tnum">Due 19 Jun</div>
+            </div>
+            <div class="own-row">
+              <span class="own-role role-A" aria-label="Accountable">A</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot blocked"></span>SOP stock opname mingguan kitchen</div>
+                <div class="own-meta">Kitchen · R: Budi · <span style="color:hsl(0 72% 45%);font-weight:600;">A unconfirmed</span></div>
+              </div>
+              <div class="own-due overdue tnum">Overdue 12 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">1</span>R</span>
+            <span class="load-chip"><span class="n tnum">1</span>A</span>
+            <span class="open-link">Open Dina →</span>
+          </div>
+        </section>
+
+        <!-- Raka Wijaya -->
+        <section class="card person" aria-label="Raka Wijaya, roster card">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">RW</div>
+            <div class="p-id">
+              <div class="p-name">Raka Wijaya</div>
+              <div class="p-role">Roastery Lead</div>
+            </div>
+            <span class="pulse filed"><span class="pdot"></span>Filed Mon</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Responsible / accountable for</span><span class="cnt tnum">1 task</span></div>
+            <div class="own-row">
+              <span class="own-role role-R" aria-label="Responsible and accountable">RA</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot inprogress"></span>Kalibrasi profil roasting Ethiopia Guji</div>
+                <div class="own-meta">Roastery · R+A: Raka · I: Arief</div>
+              </div>
+              <div class="own-due soon tnum">Due 13 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">1</span>R</span>
+            <span class="load-chip"><span class="n tnum">1</span>A</span>
+            <span class="open-link">Open Raka →</span>
+          </div>
+        </section>
+
+        <!-- Sari Lestari -->
+        <section class="card person" aria-label="Sari Lestari, roster card">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">SL</div>
+            <div class="p-id">
+              <div class="p-name">Sari Lestari</div>
+              <div class="p-role">Sales &amp; E-Comm Lead</div>
+            </div>
+            <span class="pulse draft"><span class="pdot"></span>Draft</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Responsible for</span><span class="cnt tnum">2 tasks</span></div>
+            <div class="own-row">
+              <span class="own-role role-R" aria-label="Responsible">R</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot open"></span>Harga bundling promo kemerdekaan</div>
+                <div class="own-meta">Sales &amp; E-Commerce · A: Arief · C: Andi</div>
+              </div>
+              <div class="own-due calm tnum">Due 24 Jun</div>
+            </div>
+            <div class="own-row">
+              <span class="own-role role-R" aria-label="Responsible and accountable">RA</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot open"></span>Jadwal training barista batch 2</div>
+                <div class="own-meta">Sales &amp; E-Commerce · R+A: Sari · I: Dina</div>
+              </div>
+              <div class="own-due soon tnum">Due 17 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">2</span>R</span>
+            <span class="load-chip"><span class="n tnum">1</span>A</span>
+            <span class="open-link">Open Sari →</span>
+          </div>
+        </section>
+
+        <!-- Andi Kurniawan -->
+        <section class="card person" aria-label="Andi Kurniawan, roster card">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">AK</div>
+            <div class="p-id">
+              <div class="p-name">Andi Kurniawan</div>
+              <div class="p-role">Finance &amp; People</div>
+            </div>
+            <span class="pulse none"><span class="pdot"></span>Not started</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Responsible for</span><span class="cnt tnum">1 task</span></div>
+            <div class="own-row">
+              <span class="own-role role-R" aria-label="Responsible">R</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot done"></span>Rekonsiliasi COGS roastery Mei</div>
+                <div class="own-meta">Finance &amp; People · A: Arief · I: Raka</div>
+              </div>
+              <div class="own-due calm tnum">Done 10 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">1</span>R</span>
+            <span class="load-chip"><span class="n tnum">2</span>C/I</span>
+            <span class="open-link">Open Andi →</span>
+          </div>
+        </section>
+
+        <!-- Budi Santoso (ops) -->
+        <section class="card person" aria-label="Budi Santoso, roster card">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">BS</div>
+            <div class="p-id">
+              <div class="p-name">Budi Santoso</div>
+              <div class="p-role">Kitchen ops</div>
+            </div>
+            <span class="pulse none"><span class="pdot"></span>Not started</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Responsible for</span><span class="cnt tnum">1 task</span></div>
+            <div class="own-row">
+              <span class="own-role role-R" aria-label="Responsible">R</span>
+              <div class="own-main">
+                <div class="own-title"><span class="sdot blocked"></span>SOP stock opname mingguan kitchen</div>
+                <div class="own-meta">Kitchen · A: Dina (unconfirmed) · blocked</div>
+              </div>
+              <div class="own-due overdue tnum">Overdue 12 Jun</div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">1</span>R</span>
+            <span class="open-link">Open Budi →</span>
+          </div>
+        </section>
+
+        <!-- Tini Rahma (ops, no tasks — empty-ledger state shown) -->
+        <section class="card person" aria-label="Tini Rahma, roster card">
+          <div class="p-head">
+            <div class="p-av" aria-hidden="true">TR</div>
+            <div class="p-id">
+              <div class="p-name">Tini Rahma</div>
+              <div class="p-role">Roastery ops</div>
+            </div>
+            <span class="pulse none"><span class="pdot"></span>Not started</span>
+          </div>
+          <div class="ledger">
+            <div class="owns-head"><span class="lbl">Responsible / accountable for</span><span class="cnt tnum">0 tasks</span></div>
+            <div class="own-row" style="color:hsl(240 4% 40%);">
+              <span class="own-role role-I" style="background:hsl(240 4.8% 95.9%);color:hsl(240 4% 40%);" aria-hidden="true">–</span>
+              <div class="own-main">
+                <div class="own-title" style="font-weight:500;color:hsl(240 4% 40%);">No owned tasks this week</div>
+                <div class="own-meta">Files daily ops on Roastery floor · update still due Fri</div>
+              </div>
+            </div>
+          </div>
+          <div class="p-foot">
+            <span class="load-chip"><span class="n tnum">0</span>owned</span>
+            <span class="open-link">Open Tini →</span>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<!--
+============================================================
+IA PROPOSAL 5 — Accountability Roster (people-first)
+============================================================
+THESIS (one sentence, shown in the page subtitle + gap banner):
+  The home is a ROSTER OF PEOPLE — each person rendered as an ownership
+  ledger (what they're R/A for, their weekly-update pulse), with a
+  person-shaped "Unassigned" slot and a gap banner that surface where
+  accountability is missing or unclear FIRST — so the first thing you
+  see in MOS is who owns what and where ownership has gone invisible.
+
+WHY THIS IS STRUCTURALLY DISTINCT (not a remix of 1/2/3):
+  - The UNIT OF NAVIGATION is a PERSON, not an entity list (IA-1),
+    not the viewer's own digest (IA-2), not a time-ordered stream (IA-3).
+  - Tasks are NEVER the top-level objects here; they appear only nested
+    INSIDE the person who owns them. You navigate by accountability,
+    then drill to a task — the inverse of IA-1's task-table-first model.
+  - It is multi-person by construction (the whole team at once), unlike
+    IA-2 which centers only "me". It is state-of-ownership, not
+    chronology, unlike IA-3's feed.
+  - The signature object is the "Unassigned / gap" slot: a first-class,
+    person-shaped home for work whose A is missing — the literal
+    embodiment of "ownership went invisible when Notion went dormant".
+
+DESIGN.md TOKENS USED:
+  Colors: background, foreground, card, primary, primary-foreground,
+    secondary, muted-foreground, accent, border, input, ring,
+    destructive, warning, warning-foreground, success, violet;
+    status-pill text tokens --status-open-text (221 75% 38%),
+    --status-won-text (142 64% 30%), --status-lost-text (0 72% 45%).
+  Typography: page-title, body, label, overline; person name uses 15px/700
+    (between subheading and heading — within Inter scale, no new token);
+    Tabular-Numbers Rule (.tnum on every count, due date, load chip).
+  Rounded: sm (nav-item, seg btn), md (cards, controls, gap banner,
+    icon tiles), full (pills, role chips, avatars, count/load chips).
+  Spacing: 1–6 scale (4/8/10/12/16/20 padding & gaps).
+  Components: rail (--rail-w 224px) + nav-item/active, --header-h 56px,
+    card (Flat-By-Default; hover state-lift only), badge-status (pulse
+    pills + load chips), button-primary (brand shadow) + button-outline,
+    seg control (pressed lift), cmdk, search-mini, avatar gradient,
+    overline section labels.
+  Rules honored:
+    - One Blue Rule: blue only on active nav, primary CTA, in-context
+      "Open X →" links, the self-update pulse, and the focus ring —
+      ≤10% of screen. Accountability gaps use DESTRUCTIVE (red), not blue.
+    - Tinted-Status Rule: pulse pills + status dots are tint + darkened
+      text / 6px dot, never solid fills.
+    - Flat-By-Default: every card is border-defined; the only shadow is
+      the hover state-lift on the (clickable) person cards.
+    - Single-Border Rule: ONE border value everywhere — EXCEPT the gap
+      banner + gap card, which tint the border with destructive at low
+      alpha to signal an alert region (flagged below as an open question).
+
+PROPOSED NEW TOKENS (flagged for OWNER SIGN-OFF — consistent with IA-1/2/3):
+  1. RACI role-badge color set (MOS gap; PMO had no RACI). Reuses
+     existing palette hues, NOT new brand colors:
+       --raci-responsible : 221.2 83.2% 53.3%  (primary blue)     — "R"
+       --raci-accountable : 262 83% 58%         (violet)            — "A"
+       --raci-consulted   : 43 96% 56%          (warning amber)     — "C" (text 22 78% 26%)
+       --raci-informed    : 240 4% 40%          (muted-foreground)  — "I"
+     Here the role chip is 18px (vs 16px in IA-1/2) because it leads each
+     ledger row as the primary scan column; a combined "RA" chip is used
+     when one person is both R and A (data canon: Raka, Sari/training).
+     Owner should confirm the RA-combined-chip treatment.
+  2. (Possible) accountability-gap region styling: a destructive-tinted
+     border + 6% bg wash for the gap banner and the "Unassigned" card.
+     This is the ONE place this proposal touches the Single-Border Rule.
+     Alternative that keeps Single-Border intact: use the standard border
+     and lead with the destructive icon tile + red text only. Owner picks.
+
+STATES (loading / empty / error / edge) — notes for the design-plan:
+  - loading: skeleton person cards (avatar circle + 2 text bars in head,
+    2–3 skeleton ledger rows each); gap banner shows a single skeleton bar.
+  - empty (no people): "No people in this org yet — add managers and ops
+    users in Settings." (unlikely in practice; people are seeded.)
+  - empty (a person owns nothing): SHOWN LIVE on Tini Rahma's card — a
+    muted "No owned tasks this week" ledger row, card still renders so
+    her weekly-update pulse stays visible (accountability ≠ task count).
+  - empty (no gaps): gap banner flips to success tint — "All work has a
+    clear accountable owner this week." (calm, not absent.)
+  - error: gap banner becomes an inline retry banner; each person card
+    can independently show a per-card retry footer; the roster still
+    renders the cards that loaded (no whole-page failure).
+  - edge: a person with many owned tasks — ledger caps at ~4 rows then
+    shows a "+3 more →" row into that person's drill page (one canonical
+    person home per person — no list/route overlap).
+
+RESPONSIVE (desktop-first per OD-P0-3):
+  - ≥1200px: 2-col roster grid (shown, ~1360px).
+  - 920–1200px: roster stays 2-col but cards narrow; gap-banner chips wrap.
+  - <920px: rail collapses to hamburger (DESIGN.md mobile rule); roster
+    becomes 1 column; ledger rows keep ≥44px touch targets; "Open X →"
+    becomes the whole-card tap target.
+
+A11y (WCAG-AA):
+  - Contrast: muted-foreground darkened to 40% L clears AA; all status /
+    pulse / RACI text uses the darkened AA text variants; white-on-
+    primary/violet/destructive role chips clear AA. The "C" chip uses
+    warning-foreground brown on amber (AA), matching DESIGN.md.
+  - Focus: global :focus-visible ring (2px primary, 2px offset) on every
+    person card, seg tab, control, chip, and "Open →" link.
+  - Semantics: each person card is a <section aria-label="<name>, roster
+    card">; gap banner is role="region" aria-label="Accountability gaps";
+    seg is role="tablist"/tab/aria-selected; RACI chips carry aria-label
+    ("Responsible", "Accountable", "Responsible and accountable").
+  - Keyboard: tab order rail → header → gap banner → roster controls →
+    person cards in DOM order; each card's primary action is the
+    "Open <person> →" link; the RACI legend is aria-hidden (decorative,
+    meaning is on each chip's aria-label).
+  - Color is never the only signal: every status/pulse carries a text
+    label AND a dot; every RACI chip carries a letter AND an aria-label.
+
+OPEN QUESTIONS FOR OWNER:
+  1. Is "people" the right primary axis for the FIRST slice, given only
+     7 people / 6 tasks? It shines as the team grows; at this size the
+     roster is short. Acceptable, or is it premature vs a task-first home?
+  2. "Unassigned" as a person-shaped card: does a missing-A task belong
+     in a synthetic person slot, or should gaps live ONLY in the top
+     banner (keeping cards strictly real people)? Affects data model.
+  3. Gap detection rule for v1: is "A unconfirmed" a real state (nullable
+     accountable_person_id) or are we inferring it? The canon task "SOP
+     stock opname" lists A: Dina — I rendered it as a confirmable-but-
+     contested A to demo the gap; confirm whether v1 has an "unconfirmed"
+     flag or A is simply present/absent.
+  4. RACI role color mapping (esp. "A"=violet) + the combined "RA" chip —
+     confirm hues and the RA treatment.
+  5. The gap region's destructive-tinted border (the one Single-Border
+     exception). Keep, or fall back to standard border + red icon/text?
+  6. Sort default "Most owned" vs "Has gaps first" — which surfaces the
+     accountability story best on landing?
+============================================================
+-->
+</body>
+</html>
