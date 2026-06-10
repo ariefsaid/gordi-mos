@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — IA Proposal 8: Balanced My Week</title>
+<style>
+  /* ============================================================
+     DESIGN.md token VALUES inlined (token NAME in comment).
+     MID-DENSITY distillation of the "My Week" personal-home thesis
+     (the IA-2 / IA-6 lineage), calibrated to the owner's round-2
+     redline: round 1 (IA-2) was TOO DENSE (2-col digest, badge soup,
+     4 competing cards); round 2 (IA-6) was TOO SPARSE (one ≤840px
+     column, 3 rows, no table structure). This interpolates:
+       • ONE single column ~1080px (wider than IA-6's 840, narrower
+         than IA-2's full split) — generous page-header air KEPT from
+         round 2; NO side aside / second card column.
+       • ONE DOMINANT module: a real grouped TABLE (4 columns, 9 data
+         rows across 3 quiet group headers) — brought BACK from the
+         dense round, but disciplined to exactly 4 columns + 1 pill.
+       • AT MOST 2 compact one-line strips (update status · ops summary).
+     Identity unchanged — same hues, type families, radii.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);         /* foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);                               /* secondary/35% main area */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring — global focus */
+
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; } /* --rail-w 224px */
+
+  /* ---------- Rail: 4 primary items + Settings. No badge counts (round-2 keep). ---------- */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / spacing.4 / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / primary-foreground / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .nav { padding: 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+  .nav-item { height: 38px; border-radius: 6px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 14px; font-weight: 500; color: hsl(240 10% 3.9%); text-decoration: none; cursor: pointer; } /* nav-item / rounded.sm / foreground */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item .ico { width: 18px; height: 18px; flex: none; stroke: currentColor; }
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% + primary */
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 12px; } /* border */
+
+  /* ---------- Header: breadcrumb + user. No ⌘K (round-2 keep: home stays calm). ---------- */
+  .main { display: flex; flex-direction: column; }
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 24px; } /* --header-h / background / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; } /* foreground */
+  .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .iconbtn { width: 32px; height: 32px; border-radius: 8px; background: transparent; display: grid; place-items: center; position: relative; cursor: pointer; border: 1px solid transparent; } /* rounded.md */
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary→violet avatar gradient */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ---------- Page: ONE column ~1080px, generous header air (round-2 keep) ---------- */
+  .page { flex: 1; overflow: auto; padding: 28px 32px 56px; }
+  .col { max-width: 1080px; margin: 0 auto; } /* density-mode: single ~1040–1120px primary surface */
+
+  .page-head { margin-bottom: 22px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
+  .page-sub { font-size: 14px; color: hsl(240 4% 40%); margin-top: 6px; } /* body / muted-foreground */
+
+  /* ===== DOMINANT MODULE: grouped task table ===== */
+  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; margin-bottom: 16px; } /* card / border / rounded.md / spacing.4 / Flat-By-Default */
+  .card-head { display: flex; align-items: baseline; gap: 12px; padding: 16px 20px 14px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* border */
+  .card-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; } /* subheading */
+  .card-q { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground — what this answers */
+  .card-link { margin-left: auto; font-size: 13px; font-weight: 600; color: hsl(221.2 83.2% 53.3%); text-decoration: none; cursor: pointer; } /* primary — link-in-context */
+
+  table.tbl { width: 100%; border-collapse: collapse; }
+  /* Column header row — Overline voice (uppercase, tracked, muted) */
+  .tbl thead th { text-align: left; height: 36px; padding: 0 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); border-bottom: 1px solid hsl(240 5.9% 90%); } /* table-header-cell / overline / muted-foreground / border */
+  .tbl thead th.col-due { text-align: right; }
+
+  /* Quiet collapsible-style group header: muted overline + count, NOT a colored bar */
+  .grp td { padding: 14px 20px 6px; }
+  .grp .ghead { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .grp .gcaret { color: hsl(240 4% 40%); flex: none; } /* muted-foreground */
+  .grp .glabel { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .grp .gcount { font-size: 11px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground */
+  .grp.first td { padding-top: 6px; }
+
+  /* Body rows — 44–48px (the mid-density target; tighter than IA-6's 60px, roomier than nothing) */
+  .tbl tbody tr.trow { cursor: pointer; }
+  .tbl tbody tr.trow td { height: 46px; padding: 0 20px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle; } /* table-body-cell (compacted to 46px) / border/70% */
+  .tbl tbody tr.trow:hover td { background: hsl(240 4.8% 95.9% / 0.6); } /* accent/60% */
+
+  /* Col 1: task title + unit subline */
+  .t-title { font-size: 13.5px; font-weight: 600; line-height: 1.25; }
+  .t-unit { font-size: 12px; color: hsl(240 4% 40%); margin-top: 1px; } /* muted-foreground */
+
+  /* Col 2: ONE status pill — Tinted-Status Rule */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; } /* badge-status / rounded.full */
+  .pill .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .pdot { background: hsl(221.2 83.2% 53.3%); } /* primary tint + --status-open-text */
+  .pill.blocked { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .pdot { background: hsl(0 84.2% 60.2%); } /* destructive tint + --status-lost-text */
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.open .pdot { background: hsl(43 96% 56%); } /* warning tint + warning-foreground */
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .pdot { background: hsl(142 71% 45%); } /* success tint + --status-won-text */
+
+  /* Col 3: owner = the Responsible person, avatar + first name + muted "+N" (RACI collapsed) */
+  .owner { display: flex; align-items: center; gap: 8px; }
+  .ownav { width: 26px; height: 26px; border-radius: 999px; background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none; } /* primary/12% tint + --status-open-text — the Responsible person */
+  .own-name { font-size: 13px; font-weight: 500; }
+  .own-more { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground — "+N" RACI overflow */
+
+  /* Col 4: due date — always present (it's a column now); overdue red, ≤3d amber, else muted */
+  .due { font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; } /* tabular inline */
+  .due.overdue { color: hsl(0 72% 45%); } /* --status-lost-text — overdue */
+  .due.soon { color: hsl(22 78% 26%); } /* warning-foreground — due ≤3 days */
+  .due.calm { color: hsl(240 4% 40%); font-weight: 500; } /* muted-foreground — far-future / done */
+
+  /* ===== AUXILIARY STRIPS (≤2): one-line, 56–64px ===== */
+  .strip { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 0 20px; } /* card / border / rounded.md / one-line strip 56–64px */
+  .strip-pill { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; } /* badge-status */
+  .strip-pill .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .strip-pill.draft { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .strip-pill.draft .pdot { background: hsl(43 96% 56%); } /* warning tint + warning-foreground — not filed */
+  .strip-pill.ok { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .strip-pill.ok .pdot { background: hsl(142 71% 45%); } /* success tint + --status-won-text — on track */
+  .strip-text { flex: 1; min-width: 0; font-size: 14px; } /* body */
+  .strip-text b { font-weight: 600; }
+  .strip-text .calm { color: hsl(240 4% 40%); } /* muted-foreground */
+  .strip-link { font-size: 13px; font-weight: 600; color: hsl(221.2 83.2% 53.3%); text-decoration: none; cursor: pointer; flex: none; } /* primary — link-in-context */
+  .btn-primary { height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); flex: none; } /* primary / primary-foreground / brand button shadow */
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== RAIL ===== -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>My Week</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Updates</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Ops</a>
+    </nav>
+    <div class="rail-foot">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>My Week</b></div>
+      <div class="spacer"></div>
+      <button class="iconbtn" aria-label="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+      <div class="userchip"><div class="avatar">AR</div><div><div class="u-name">Arief</div><div class="u-role">CEO</div></div></div>
+    </header>
+
+    <main class="page">
+      <div class="col">
+        <div class="page-head">
+          <div class="page-title">My Week</div>
+          <div class="page-sub">Week of 8&ndash;14 Jun 2026 &middot; Tue 10 Jun &middot; what needs you, your update, and today on the floor</div>
+        </div>
+
+        <!-- ===== DOMINANT MODULE: grouped task table (9 rows / 3 groups) ===== -->
+        <section class="card" aria-label="My tasks this week">
+          <div class="card-head">
+            <span class="card-title">My tasks</span>
+            <span class="card-q">Off track first, then this week, then in progress</span>
+            <a class="card-link">All tasks &rarr;</a>
+          </div>
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th scope="col">Task</th>
+                <th scope="col">Status</th>
+                <th scope="col">Owner</th>
+                <th scope="col" class="col-due">Due</th>
+              </tr>
+            </thead>
+
+            <!-- GROUP: Overdue -->
+            <tbody>
+              <tr class="grp first"><td colspan="4">
+                <span class="ghead" role="button" aria-expanded="true">
+                  <svg class="gcaret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                  <span class="glabel">Overdue</span><span class="gcount tnum">&middot; 1</span>
+                </span>
+              </td></tr>
+              <tr class="trow">
+                <td><div class="t-title">SOP stock opname mingguan kitchen</div><div class="t-unit">Kitchen</div></td>
+                <td><span class="pill blocked"><span class="pdot"></span>Blocked</span></td>
+                <td><div class="owner"><span class="ownav">BU</span><span class="own-name">Budi</span><span class="own-more">+1</span></div></td>
+                <td class="due overdue tnum">Overdue &middot; 12 Jun</td>
+              </tr>
+            </tbody>
+
+            <!-- GROUP: Due this week -->
+            <tbody>
+              <tr class="grp"><td colspan="4">
+                <span class="ghead" role="button" aria-expanded="true">
+                  <svg class="gcaret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                  <span class="glabel">Due this week</span><span class="gcount tnum">&middot; 3</span>
+                </span>
+              </td></tr>
+              <tr class="trow">
+                <td><div class="t-title">Kalibrasi profil roasting Ethiopia Guji</div><div class="t-unit">Roastery</div></td>
+                <td><span class="pill inprogress"><span class="pdot"></span>In Progress</span></td>
+                <td><div class="owner"><span class="ownav">RW</span><span class="own-name">Raka</span><span class="own-more">+1</span></div></td>
+                <td class="due soon tnum">Fri 13 Jun</td>
+              </tr>
+              <tr class="trow">
+                <td><div class="t-title">Jadwal training barista batch 2</div><div class="t-unit">Sales &amp; E-Commerce</div></td>
+                <td><span class="pill open"><span class="pdot"></span>Open</span></td>
+                <td><div class="owner"><span class="ownav">SL</span><span class="own-name">Sari</span><span class="own-more">+1</span></div></td>
+                <td class="due calm tnum">17 Jun</td>
+              </tr>
+              <tr class="trow">
+                <td><div class="t-title">Finalisasi menu seasonal Q3</div><div class="t-unit">Kitchen</div></td>
+                <td><span class="pill inprogress"><span class="pdot"></span>In Progress</span></td>
+                <td><div class="owner"><span class="ownav">DP</span><span class="own-name">Dina</span><span class="own-more">+2</span></div></td>
+                <td class="due calm tnum">19 Jun</td>
+              </tr>
+            </tbody>
+
+            <!-- GROUP: Later & recently done -->
+            <tbody>
+              <tr class="grp"><td colspan="4">
+                <span class="ghead" role="button" aria-expanded="true">
+                  <svg class="gcaret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                  <span class="glabel">Later &amp; recently done</span><span class="gcount tnum">&middot; 2</span>
+                </span>
+              </td></tr>
+              <tr class="trow">
+                <td><div class="t-title">Harga bundling promo kemerdekaan</div><div class="t-unit">Sales &amp; E-Commerce</div></td>
+                <td><span class="pill open"><span class="pdot"></span>Open</span></td>
+                <td><div class="owner"><span class="ownav">SL</span><span class="own-name">Sari</span><span class="own-more">+1</span></div></td>
+                <td class="due calm tnum">24 Jun</td>
+              </tr>
+              <tr class="trow">
+                <td><div class="t-title">Rekonsiliasi COGS roastery Mei</div><div class="t-unit">Finance &amp; People</div></td>
+                <td><span class="pill done"><span class="pdot"></span>Done</span></td>
+                <td><div class="owner"><span class="ownav">AN</span><span class="own-name">Andi</span><span class="own-more">+1</span></div></td>
+                <td class="due calm tnum">10 Jun</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- ===== AUXILIARY STRIP 1: weekly-update status + the one CTA ===== -->
+        <section class="strip" aria-label="My weekly update">
+          <span class="strip-pill draft"><span class="pdot"></span>Draft &mdash; not filed</span>
+          <span class="strip-text"><b>Your weekly update isn't in yet.</b> <span class="calm">Due Fri 13 Jun &middot; 2 of 4 on your team have filed.</span></span>
+          <a class="strip-link">Review team's &rarr;</a>
+          <button class="btn-primary">Continue draft</button>
+        </section>
+
+        <!-- ===== AUXILIARY STRIP 2: one-line ops summary + link ===== -->
+        <section class="strip" aria-label="Today on the floor">
+          <span class="strip-pill ok"><span class="pdot"></span>All clear</span>
+          <span class="strip-text"><b>4 ops events</b> logged on the floor today. <span class="calm">Nothing waiting on your sign-off; stock-opname follow-up open with Budi.</span></span>
+          <a class="strip-link">Today on Ops &rarr;</a>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!--
+============================================================
+IA PROPOSAL 8 — "Balanced My Week"  (mid-density, round-2 redline)
+THESIS (unchanged from IA-2 / IA-6): the home is a PERSONAL action
+        digest — you open MOS and immediately see what needs YOU. The
+        calibration this round is DENSITY: a single column with ONE
+        dominant grouped task table + two one-line auxiliary strips.
+
+INTERPOLATION — what came BACK from the dense round (IA-2 / IA-4):
+  - A REAL grouped TABLE as the dominant module (4 columns: Task+unit ·
+    Status · Owner · Due), 9 data rows visible across 3 quiet group
+    headers with counts — replaces IA-6's 3 loose ~60px rows. Table
+    structure (thead, aligned columns, a right-aligned Due column) is
+    back so a manager can actually run the week from this screen.
+  - ALL 6 canon tasks are now findable on home (IA-6 showed only 3;
+    this shows all six: stock-opname, Ethiopia Guji, training barista,
+    menu Q3, bundling promo, COGS Mei) — MORE of the data canon than
+    round 2, carried by the table, NOT by added chrome.
+  - Due dates are ALWAYS shown (it's a column now), with the dense
+    round's overdue-red / ≤3d-amber / else-muted coloring.
+  - The ops + weekly-update concerns return as VISIBLE surfaces (IA-6
+    demoted ops to a footer text line) — but as 60px one-line strips,
+    not as the dense round's full rendered cards.
+
+INTERPOLATION — what was KEPT from the sparse round (IA-6 / IA-7):
+  - ONE single content column with generous page-header air; NO side
+    aside, NO second card column (IA-2 had a 1.55fr/1fr split + a
+    right column of two more cards — gone).
+  - Column widened only to ~1080px (IA-6 was 840; IA-2 was full-bleed
+    split) — the calibrated middle.
+  - RACI stays COLLAPSED to one R-avatar + first name + muted "+N";
+    full R/A/C/I deferred to the (not-mocked) task detail. (IA-2/IA-4
+    stacked 2–4 R/A/C/I chips per row — the "badge soup" — removed.)
+  - ONE status pill per row max. NO mono IDs, NO source+type double
+    badges, NO caption paragraphs in the body, NO nav badge counts,
+    NO ⌘K chrome, NO per-card states-note paragraph (states in this
+    comment only).
+  - Auxiliary concerns are compact STRIPS, not card grids; the single
+    primary CTA ("Continue draft") lives on one strip only.
+
+MID-DENSITY BUDGET MET:
+  - Single column ~1080px; generous header air.       [✓]
+  - ONE dominant grouped table, 4 columns, 46px rows,  [✓ 9 data rows
+    grouped under quiet muted-overline+count headers.     in 3 groups]
+  - ≤2 one-line strips (60px): update status w/ CTA;   [✓ exactly 2]
+    one-line ops summary w/ link.
+  - Due always in the Due column; overdue red / ≤3d    [✓]
+    amber / else muted.
+  - RACI collapsed (R-avatar + "+N"); 1 pill/row max.  [✓]
+  - All 6 canon tasks present; no chrome added to       [✓]
+    carry them.
+
+STATES (notes — not rendered, per anti-meta-noise budget):
+  - loading: card-head + thead render; 1 skeleton group header + 3
+    skeleton rows per group; strips show a 60px skeleton bar each. The
+    table shell is legible before data lands.
+  - empty: table shows a single centered "No tasks assigned to you this
+    week — you're clear" row (keeps thead + card-head). Update strip →
+    "Filed Tue ✓ — nothing due"; ops strip → "No ops events logged yet
+    today — Kitchen & Roastery mirror in as they happen".
+  - error: per-surface inline retry — the table shows a one-line retry
+    banner in its body; each strip can fail independently; the page
+    still renders the other surfaces (degrades surface-by-surface).
+  - edge: a fully-clear week collapses the Overdue group to a hidden/0
+    state and the table leads with "Due this week"; a non-manager/ops
+    viewer's update strip reads "File your daily update" and the team
+    "2 of 4 filed" copy is suppressed (no team roster on this home).
+
+RESPONSIVE (notes): locked desktop ~1360px viewport is primary. The
+  ~1080px column centers with side air at 1360px. Below ~1100px the
+  column goes fluid (16–24px gutters). Below the 768px table reflow
+  breakpoint (DESIGN.md DataTable reflow, OD-W4-4) the task table
+  single-renders as a stacked card list (title/activation first, then
+  a Status/Owner/Due dl grid); strips wrap their CTA/link below the
+  text. Rail collapses to a hamburger below 920px.
+
+A11y (WCAG-AA): real <table> with <thead> + scope="col"; group-header
+  carets are role="button" aria-expanded (progressive disclosure is
+  keyboard-operable); tab order rail → header → table rows → strips →
+  CTA; global :focus-visible ring (2px ring, 2px offset) on every
+  focusable; status conveyed by pill TEXT + dot, never color alone;
+  all status pills use darkened-AA text tokens (--status-*-text /
+  warning-foreground) on their light tints; owner avatars carry the
+  person's name beside them (initials not the sole identifier).
+
+DESIGN.md TOKENS USED (identity unchanged — same hues/type/radii):
+  Colors: background, foreground, card, primary, primary-foreground,
+    secondary (via /35% main + /12% owner tint), muted-foreground,
+    accent, border, input, destructive, warning, warning-foreground,
+    success, violet (avatar gradient only); status text tokens
+    --status-open-text (221 75% 38%), --status-won-text (142 64% 30%),
+    --status-lost-text (0 72% 45%), warning-foreground (22 78% 26%).
+  Typography: page-title, subheading (card title), body, label (pills),
+    overline (column headers, group headers, brand sub); Tabular-Numbers
+    Rule (.tnum on due dates, counts).
+  Rounded: sm (nav-item), md (card, strips, button), full (pills,
+    avatars, dots).
+  Spacing: 1–6 scale (6/12/14/16/20/24/28/32px gaps & padding).
+  Components: rail/--rail-w 224px, --header-h 56px, nav-item + active,
+    card, table-header-cell (36px) + table-body-cell (compacted 46px),
+    badge-status, button-primary (brand shadow), avatar gradient.
+  Rules honored: One Blue Rule (blue = active nav, the single primary
+    CTA, links-in-context, the R-owner avatar tint, focus — well under
+    10%); Flat-By-Default (borders + secondary/35% ground, zero static
+    shadow); Tinted-Status Rule (dot + tint + darkened text); Single-
+    Border Rule; Tabular-Numbers. NO mono surfaced (no IDs on home).
+  Anti-slop: borders over shadows, no gratuitous gradients (only the
+    sanctioned avatar gradient), left-anchored work-tool layout (no
+    hero centering), realistic ID-language Gordi data, dense + calm.
+
+PROPOSED NEW TOKENS (flagged for OWNER SIGN-OFF — unchanged from prior
+proposals; NOT new brand colors — reuse existing palette hues):
+  RACI role-badge color set (MOS gap; PMO had no RACI) — only the "R"
+  tint is surfaced here (owner avatar = Responsible, primary/12%);
+  full set applies on the not-mocked detail surface:
+    --raci-responsible : 221.2 83.2% 53.3%  (primary)             — "R"
+    --raci-accountable : 262 83% 58%         (violet)             — "A"
+    --raci-consulted   : 43 96% 56%          (warning; text brown) — "C"
+    --raci-informed    : 240 4% 40%          (muted-foreground)    — "I"
+
+PROPOSED DESIGN.md AMENDMENT — REVISED "MOS density mode" for THIS
+calibration (for OWNER SIGN-OFF — NOT yet written to DESIGN.md):
+  Supersedes the round-2 (IA-6/IA-7) amendment. MOS PRIMARY/HOME
+  surfaces sit at MID density between PMO's dense console and round 2's
+  sparse digest:
+    • SINGLE content column, max-width ~1080px (1040–1120px), with
+      generous (≥24px) page-header air — not a multi-column card grid,
+      and not the ≤840px round-2 column.
+    • ONE DOMINANT grouped TABLE per home: exactly 4 columns
+      (title+subline · status · owner · due), body rows 44–48px,
+      8–10 data rows visible, grouped under quiet collapsible group
+      headers = muted overline label + count (never a colored bar).
+    • AT MOST 2 auxiliary one-line STRIPS (56–64px) for secondary
+      concerns; each carries at most one CTA or one link. Strips, not
+      card grids; never a third rendered module.
+    • Progressive disclosure for RACI + meta: lists show ONE owner
+      avatar (Responsible) + first name + "+N" overflow and ONE status
+      pill; full R/A/C/I, IDs, and source/type detail appear only on a
+      detail surface.
+    • Due dates render in the Due column on every row: overdue = red
+      (--status-lost-text), ≤3 days = amber (warning-foreground), else
+      = plain muted.
+  This is a COMPOSITION rule (how much per surface), not a token/identity
+  change — all hues, type families, and radii unchanged. PMO's dense
+  DataTable posture remains for the full Tasks/Updates LIST surfaces.
+
+OPEN QUESTIONS FOR OWNER:
+  1. Group taxonomy: home groups by URGENCY (Overdue / Due this week /
+     Later & done). Is that the right cut, or group by STATUS (Blocked /
+     In progress / Open) as the dense IA-4 footer tally implied? (Pick
+     one grouping; it becomes the home query.)
+  2. The "Done" task (COGS Mei) sits in "Later & recently done" so all 6
+     canon tasks show. On a real busy week, should Done be hidden from
+     home (open-work focus, per IA-6) — or kept as a recency confirmation?
+  3. Owner column shows the RESPONSIBLE person. Confirm R (not A) is the
+     "who do I chase" identity for the row glance (same Q as IA-6).
+  4. Two strips, fixed order (update then ops). For a pure ops user the
+     update strip would read "file your daily update" and there's no team
+     roster — confirm role-conditional strip copy.
+  5. RACI role color mapping above — confirm hues, esp. "A"=violet.
+============================================================
+-->
+</body>
+</html>
