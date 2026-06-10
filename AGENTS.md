@@ -21,7 +21,10 @@ The **owner** (Arief) talks to the **Director** (the main session). The Director
 Build **one issue at a time**; pause for owner approval at issue boundaries and before any
 push / merge / deploy. Per-issue loop:
 
-1. **Intake** — Director clarifies the issue with the owner.
+1. **Intake** — Director clarifies the issue with the owner. For architecturally-significant issues
+   (schema, auth, cross-cutting), run a `grill-with-docs` session: grill the approach against
+   `CONTEXT.md` (the domain glossary, repo root) + `docs/adr/` + `docs/decisions.md`; resolve terms
+   into `CONTEXT.md` inline. ADR authorship stays with eng-planner (grill proposes, planner writes).
 2. **Spec (SDD)** — `feature-forge` (new behavior) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs); `design-architect` for UI design-plans.
 4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing test).
@@ -63,6 +66,7 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 ## Skill ownership (one owner per concern — avoids collisions)
 | Concern | Owner |
 |---|---|
+| Intake grilling (plan vs domain language) + `CONTEXT.md` glossary | grill-with-docs (`.claude/skills/`) |
 | Reverse-engineer existing code → spec | spec-miner (`.claude/skills/`) |
 | User stories + acceptance criteria | feature-forge (`.claude/skills/`) |
 | Design + task planning | superpowers (brainstorming, writing-plans) |

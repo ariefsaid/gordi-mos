@@ -63,7 +63,14 @@ for s in ui-ux-pro-max design-system ui-styling; do
 done
 # NOTE: deliberately NOT vendoring design/banner/slides/brand sub-skills (Gemini-API generative; need GEMINI_API_KEY).
 
+echo "==> grill-with-docs (mattpocock/skills) — intake grilling + CONTEXT.md glossary steward"
+# Vetted 2026-06-11 at commit 694fa30 (3 prompt-only .md files, no executables). Re-vet on re-vendor.
+git clone --depth 1 --filter=blob:none --sparse https://github.com/mattpocock/skills.git "$TMP/mps"
+git -C "$TMP/mps" sparse-checkout set skills/engineering/grill-with-docs
+rm -rf "${DEST:?}/grill-with-docs"
+cp -R "$TMP/mps/skills/engineering/grill-with-docs" "$DEST/grill-with-docs"
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling grill-with-docs"
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

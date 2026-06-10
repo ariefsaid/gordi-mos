@@ -19,7 +19,8 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 ## ▶ NEXT — Phase 1: foundation (blocked on P0-3)
 - [ ] P1-1 scaffold `mos-app/` + CI gates + Playwright harness (base path `/mos`).
 - [ ] P1-2 Supabase foundation: schemas `shared`/`mos`/`ops`/`integrations`, `shared.people`/roles/
-  business units, RLS + `org_id`, seed, pgTAP harness.
+  business units, RLS + `org_id`, seed, pgTAP harness. **Intake = grill-with-docs session** (owner +
+  Director) against CONTEXT.md + OD-P0-9 before the plan is written.
 - [ ] P1-3 Supabase Auth login + profile + role surface.
 - [ ] P1-4 app shell per picked IA.
 
