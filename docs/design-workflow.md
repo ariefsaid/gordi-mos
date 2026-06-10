@@ -38,6 +38,10 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
 2. **UI-implement** *(`ui-ux-pro-max` `ui-styling` + `build`; `taste` discipline; `impeccable`
    `harden`/`adapt`/`animate`/`clarify` per plan)* — `ui-implementer` builds strictly to tokens + the
    design-plan; all states + responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
+   **Builds to lens (b)'s naturalness invariants up front** (co-located primaries, no needless state
+   transitions, convention placement, post-action feedback, mental-model match — the binding list in
+   `.claude/agents/ui-implementer.md` "IxD / flow-naturalness alignment") and escalates plan-vs-naturalness
+   conflicts instead of building or silently fixing them.
 3. **Design-review — the standing THREE-LENS battery** *(read-only; renders + screenshots the running
    app at the plan's breakpoints)*. Every UI review runs **all three** lenses, each **explicitly
    directed** — a single generic "UX review" prompt reliably hits only the first and misses the other
