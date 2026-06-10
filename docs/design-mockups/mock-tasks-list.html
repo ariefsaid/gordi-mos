@@ -3,9 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gordi MOS — Tasks (mockup)</title>
+<title>Gordi MOS — Tasks (mockup, density-mode re-cut)</title>
 <style>
-  /* All values from DESIGN.md (adopted). Token name noted in comment beside each. */
+  /* All values from DESIGN.md (adopted). Token name noted in comment beside each.
+     RE-CUT to OD-P0-7 density mode: this is a LIST surface, so PMO's data-dense
+     DataTable posture stays (54px rows, sortable columns, functional filters,
+     loading/empty states). Progressive disclosure RULE applied: NO full R/A/C/I
+     chips on rows — the row shows the R-person avatar + name + "+N" overflow only;
+     the full RACI lives on the task-detail surface. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
@@ -15,335 +20,286 @@
     -webkit-font-smoothing: antialiased;
   }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring */
 
-  /* ---- Neutral thin shell (no side nav — IA chosen separately in P0-1) ---- */
-  .topbar {
-    height: 56px;                                   /* --header-h */
-    background: hsl(0 0% 100%);                      /* background */
-    border-bottom: 1px solid hsl(240 5.9% 90%);     /* border */
-    display: flex; align-items: center; gap: 12px;  /* spacing.3 */
-    padding: 0 20px;                                 /* spacing.5 */
-  }
-  .brand { display: flex; align-items: center; gap: 8px; } /* spacing.2 */
-  .logo {
-    width: 28px; height: 28px; border-radius: 6px;  /* rounded.sm */
-    background: hsl(221.2 83.2% 53.3%);             /* primary */
-    color: hsl(0 0% 98%);                            /* primary-foreground */
-    display: grid; place-items: center; font-weight: 700; font-size: 13px;
-  }
-  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
-  .brand-sub { color: hsl(240 4% 40%); font-size: 12px; margin-left: 2px; } /* muted-foreground */
+  /* ---- Rail shell (adopted IA: My Week · Tasks · Updates · Ops) ---- */
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; } /* --rail-w */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .nav { padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .nav-item { height: 38px; border-radius: 6px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 14px; font-weight: 500; color: hsl(240 10% 3.9%); text-decoration: none; cursor: pointer; } /* nav-item / rounded.sm */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item .ico { width: 18px; height: 18px; flex: none; stroke: currentColor; }
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% */
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 12px; }
+
+  .main { display: flex; flex-direction: column; }
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 24px; } /* --header-h / background / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; } .crumb .sep { margin: 0 7px; }
   .spacer { flex: 1; }
   .userchip { display: flex; align-items: center; gap: 8px; }
-  .avatar {
-    width: 28px; height: 28px; border-radius: 999px; /* rounded.full */
-    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); /* primary→violet avatar gradient */
-    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 600;
-  }
-  .userchip .nm { font-size: 13px; font-weight: 600; }
-  .userchip .rl { font-size: 11px; color: hsl(240 4% 40%); }    /* muted-foreground */
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* avatar gradient */
+  .userchip .nm { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .rl { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
 
-  .page { max-width: 1360px; margin: 0 auto; padding: 20px; } /* desktop ~1360px */
+  .page { flex: 1; overflow: auto; padding: 24px 32px 48px; }
+  .col { max-width: 1080px; margin: 0 auto; } /* content column ~1080px (OD-P0-3) */
   .page-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
-  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
-  .page-head .count { color: hsl(240 4% 40%); font-size: 13px; }  /* muted-foreground */
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* page-title */
+  .page-head .count { color: hsl(240 4% 40%); font-size: 13px; } /* muted-foreground */
 
   /* ---- Card assembly: toolbar seamed to table ---- */
-  .assembly {
-    background: hsl(0 0% 100%);                      /* card */
-    border: 1px solid hsl(240 5.9% 90%);            /* border */
-    border-radius: 8px;                              /* rounded.md */
-  }
-  .toolbar {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    padding: 10px 12px;
-    border-bottom: 1px solid hsl(240 5.9% 90%);     /* border */
-  }
-  .control {
-    height: 32px; display: inline-flex; align-items: center; gap: 6px;
-    padding: 0 10px; border: 1px solid hsl(240 5.9% 90%);  /* input border */
-    background: hsl(0 0% 100%);                      /* background */
-    border-radius: 8px;                              /* rounded.md */
-    font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer;
-  }
-  .control .lbl { color: hsl(240 4% 40%); }          /* muted-foreground */
+  .assembly { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; } /* card / border / rounded.md */
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* border */
+  .control { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); background: hsl(0 0% 100%); border-radius: 8px; font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer; } /* input border / rounded.md */
+  .control .lbl { color: hsl(240 4% 40%); } /* muted-foreground */
   .control .chev { color: hsl(240 4% 40%); font-size: 10px; }
   /* segmented Mine / RACI-involved / All */
-  .seg {
-    display: inline-flex; height: 32px; padding: 3px;
-    background: hsl(240 4.8% 95.9%);                 /* secondary track */
-    border-radius: 8px;                              /* rounded.md */
-  }
-  .seg button {
-    border: 0; background: transparent; font: inherit; font-size: 13px;
-    padding: 0 10px; border-radius: 6px;             /* rounded.sm */
-    color: hsl(240 5.9% 10%); cursor: pointer;       /* secondary-foreground */
-  }
-  .seg button.on {
-    background: hsl(0 0% 100%);                       /* background pill */
-    font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); /* pressed lift */
-  }
-  .search-mini {
-    margin-left: auto; height: 32px; display: inline-flex; align-items: center; gap: 6px;
-    padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; /* input */
-    color: hsl(240 4% 40%); font-size: 13px; min-width: 180px;
-  }
+  .seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(240 4.8% 95.9%); border-radius: 8px; } /* secondary track / rounded.md */
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px; border-radius: 6px; color: hsl(240 5.9% 10%); cursor: pointer; } /* rounded.sm / secondary-foreground */
+  .seg button.on { background: hsl(0 0% 100%); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); } /* background pill / pressed lift */
+  .search-mini { margin-left: auto; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; color: hsl(240 4% 40%); font-size: 13px; min-width: 180px; } /* input / muted-foreground */
 
-  /* ---- Table ---- */
-  table { width: 100%; border-collapse: collapse; }
-  thead th {
-    text-align: left; height: 38px; padding: 0 12px;
-    font-size: 11.5px; font-weight: 600; line-height: 1.3;
-    letter-spacing: 0.06em; text-transform: uppercase;   /* typography.overline */
-    color: hsl(240 4% 40%);                          /* muted-foreground */
-    border-bottom: 1px solid hsl(240 5.9% 90%);      /* border */
-    white-space: nowrap;
-  }
-  tbody td {
-    height: 54px; padding: 12px;                     /* table-body-cell */
-    border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); /* border @70% */
-    vertical-align: middle;
-  }
+  /* ---- Table (data-dense: 54px rows) ---- */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  col.c-task { width: 40%; } col.c-status { width: 15%; } col.c-owner { width: 21%; } col.c-due { width: 13%; } col.c-act { width: 11%; }
+  thead th { text-align: left; height: 38px; padding: 0 12px; font-size: 11.5px; font-weight: 600; line-height: 1.3; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); border-bottom: 1px solid hsl(240 5.9% 90%); white-space: nowrap; } /* table-header-cell / overline / muted-foreground / border */
+  /* sortable header: glyph appears on the sorted column; hover darkens to foreground */
+  thead th.sortable { cursor: pointer; }
+  thead th.sortable:hover { color: hsl(240 10% 3.9%); } /* foreground on hover */
+  thead th .sort-aff { font-size: 10px; margin-left: 5px; color: hsl(240 4% 40%); } /* muted-foreground sort glyph */
+  thead th.sorted { color: hsl(240 10% 3.9%); } /* foreground — active sort column */
+  thead th.sorted .sort-aff { color: hsl(221.2 83.2% 53.3%); } /* primary — active sort direction marker */
+  thead th.col-due, thead th.col-act { text-align: right; }
+  tbody td { height: 54px; padding: 0 12px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle; } /* table-body-cell 54px / border @70% */
   tbody tr:last-child td { border-bottom: 0; }
   tbody tr:hover td { background: hsl(240 4.8% 95.9% / 0.6); } /* accent @60% row hover */
-  .task-name { font-weight: 500; }
+  tbody tr { cursor: pointer; }
+  .task-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .task-bu { display: block; font-size: 12px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
 
-  /* status pill = 6px dot + tinted pill, darkened-AA text (Tinted-Status Rule) */
-  .pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    height: 22px; padding: 0 9px; border-radius: 999px;  /* badge-status */
-    font-size: 12px; font-weight: 600; white-space: nowrap;
-  }
+  /* status pill (Tinted-Status Rule) */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; } /* badge-status */
   .dot { width: 6px; height: 6px; border-radius: 999px; }
-  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } /* primary tint / --status-open-text */
-  .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); }                      /* primary */
-  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); }        /* destructive tint / --status-lost-text */
-  .pill.blocked .dot { background: hsl(0 84.2% 60.2%); }                             /* destructive */
-  .pill.open { background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); }            /* secondary / muted-foreground (neutral) */
-  .pill.open .dot { background: hsl(240 4% 40%); }
-  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); }       /* success tint / --status-won-text */
-  .pill.done .dot { background: hsl(142 71% 45%); }                                  /* success */
+  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); } /* primary tint / --status-open-text */
+  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .dot { background: hsl(0 84.2% 60.2%); } /* destructive tint / --status-lost-text */
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.open .dot { background: hsl(43 96% 56%); } /* warning tint / warning-foreground */
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .dot { background: hsl(142 71% 45%); } /* success tint / --status-won-text */
 
-  .due { font-size: 13px; }
-  .due.overdue { color: hsl(0 72% 45%); font-weight: 600; }      /* --status-lost-text (overdue) */
-  .due.soon { color: hsl(22 78% 26%); }                          /* warning-foreground (due soon) */
+  /* Owner = Responsible person only (progressive disclosure — NO full RACI chips on rows) */
+  .owner { display: flex; align-items: center; gap: 8px; }
+  .ownav { width: 26px; height: 26px; border-radius: 999px; background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none; } /* primary/12% tint + --status-open-text — the Responsible person */
+  .own-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .own-more { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); flex: none; } /* muted-foreground — "+N" RACI overflow */
 
-  /* ---- RACI role badges (PROPOSED NEW TOKENS — see comment block at file end) ---- */
-  .raci { display: inline-flex; gap: 4px; align-items: center; }
-  .rb {
-    display: inline-flex; align-items: center; gap: 5px;
-    height: 22px; padding: 0 8px 0 5px; border-radius: 999px;  /* rounded.full */
-    font-size: 12px; font-weight: 500; border: 1px solid transparent;
-  }
-  .rb .role {
-    width: 15px; height: 15px; border-radius: 999px;
-    display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: hsl(0 0% 98%);
-  }
-  .rb .who { color: hsl(240 10% 3.9%); }            /* foreground */
-  /* R = primary (active doer), A = violet (accountable owner), C/I = neutral */
-  .rb.r  { background: hsl(221 83% 53% / 0.10); }   /* PROPOSED --raci-r-bg (primary @10%) */
-  .rb.r  .role { background: hsl(221.2 83.2% 53.3%); }                 /* PROPOSED --raci-r */
-  .rb.a  { background: hsl(262 83% 58% / 0.10); }   /* PROPOSED --raci-a-bg (violet @10%) */
-  .rb.a  .role { background: hsl(262 83% 58%); }                       /* PROPOSED --raci-a */
-  .rb.c  { background: hsl(240 4.8% 95.9%); }       /* PROPOSED --raci-ci-bg (secondary) */
-  .rb.c  .role { background: hsl(240 4% 40%); }                        /* PROPOSED --raci-ci (muted-foreground) */
-  .rb.i  { background: hsl(240 4.8% 95.9%); }       /* PROPOSED --raci-ci-bg */
-  .rb.i  .role { background: hsl(240 4% 40%); }                        /* PROPOSED --raci-ci */
+  .due { font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }
+  .due.overdue { color: hsl(0 72% 45%); } /* --status-lost-text (overdue) */
+  .due.soon { color: hsl(22 78% 26%); } /* warning-foreground (due ≤3 days) */
+  .due.calm { color: hsl(240 4% 40%); font-weight: 500; } /* muted-foreground */
+  .act { font-size: 12px; font-weight: 500; color: hsl(240 4% 40%); text-align: right; white-space: nowrap; } /* muted-foreground — last-activity age */
 
   /* ---- Variant frames (empty + loading) ---- */
   .variants { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; } /* spacing.6 */
-  .frame {
-    border: 1px dashed hsl(240 5.9% 90%); border-radius: 8px; padding: 12px;
-    background: hsl(0 0% 100% / 0.5);
-  }
-  .frame-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-    color: hsl(240 4% 40%); margin-bottom: 8px; }   /* overline / muted-foreground */
+  .frame { border: 1px dashed hsl(240 5.9% 90%); border-radius: 8px; padding: 12px; background: hsl(0 0% 100% / 0.5); }
+  .frame-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); margin-bottom: 8px; } /* overline / muted-foreground */
   .mini-assembly { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; overflow: hidden; }
-  /* empty state */
   .empty { text-align: left; padding: 28px 16px; }
   .empty h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
   .empty p { font-size: 13px; color: hsl(240 4% 40%); margin-bottom: 12px; } /* muted-foreground */
-  .btn-primary {
-    height: 32px; padding: 0 12px; border-radius: 8px;       /* button-primary */
-    background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); /* primary / primary-foreground */
-    border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-    box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);     /* brand button shadow */
-  }
-  /* loading skeleton */
-  .sk-row { display: flex; align-items: center; gap: 12px; padding: 12px; height: 54px;
-    border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+  .btn-primary { height: 32px; padding: 0 12px; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); } /* button-primary / brand shadow */
+  .sk-row { display: flex; align-items: center; gap: 12px; padding: 0 12px; height: 54px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
   .sk { background: hsl(240 4.8% 95.9%); border-radius: 6px; height: 12px; } /* secondary / rounded.sm */
   .sk.pill { height: 22px; width: 84px; border-radius: 999px; }
+  .sk.av { height: 26px; width: 26px; border-radius: 999px; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
   .sk-row .sk { animation: pulse 1.4s ease-in-out infinite; }
 </style>
 </head>
 <body>
-  <!-- NEUTRAL SHELL: slim top bar only; side nav intentionally omitted (IA decided in P0-1) -->
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">G</div>
-      <span class="brand-name">Gordi MOS</span>
-      <span class="brand-sub">Management OS</span>
-    </div>
-    <div class="spacer"></div>
-    <div class="userchip">
-      <div class="avatar">AR</div>
-      <div><div class="nm">Arief</div><div class="rl">CEO</div></div>
-    </div>
-  </header>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="logo">G</div><div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div></div>
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>My Week</a>
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Updates</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Ops</a>
+    </nav>
+    <div class="rail-foot"><a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a></div>
+  </aside>
 
-  <main class="page">
-    <div class="page-head">
-      <h1 class="page-title">Tasks</h1>
-      <span class="count tabular">6 tasks · 1 blocked</span>
-    </div>
+  <div class="main">
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>Tasks</b></div>
+      <div class="spacer"></div>
+      <div class="userchip"><div class="avatar">AR</div><div><div class="nm">Arief</div><div class="rl">CEO</div></div></div>
+    </header>
 
-    <!-- POPULATED STATE -->
-    <section class="assembly">
-      <div class="toolbar">
-        <button class="control"><span class="lbl">Business unit</span><span>All</span><span class="chev">▾</span></button>
-        <button class="control"><span class="lbl">Status</span><span>Any</span><span class="chev">▾</span></button>
-        <button class="control"><span class="lbl">Person</span><span>Anyone</span><span class="chev">▾</span></button>
-        <div class="seg" role="tablist" aria-label="Ownership filter">
-          <button role="tab" aria-selected="true" class="on">Mine</button>
-          <button role="tab" aria-selected="false">RACI-involved</button>
-          <button role="tab" aria-selected="false">All</button>
+    <main class="page">
+      <div class="col">
+        <div class="page-head">
+          <h1 class="page-title">Tasks</h1>
+          <span class="count tabular">6 tasks &middot; 1 blocked &middot; 1 overdue</span>
         </div>
-        <div class="search-mini">⌕ Search tasks</div>
-      </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th style="width:32%">Task</th>
-            <th style="width:12%">Status</th>
-            <th style="width:11%">Due</th>
-            <th>RACI</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="task-name">Finalisasi menu seasonal Q3</span><span class="task-bu">Kitchen</span></td>
-            <td><span class="pill inprogress"><span class="dot"></span>In Progress</span></td>
-            <td class="due tabular">19 Jun</td>
-            <td><div class="raci">
-              <span class="rb r"><span class="role">R</span><span class="who">Dina</span></span>
-              <span class="rb a"><span class="role">A</span><span class="who">Arief</span></span>
-              <span class="rb c"><span class="role">C</span><span class="who">Sari</span></span>
-              <span class="rb i"><span class="role">I</span><span class="who">Andi</span></span>
-            </div></td>
-          </tr>
-          <tr>
-            <td><span class="task-name">Kalibrasi profil roasting Ethiopia Guji</span><span class="task-bu">Roastery</span></td>
-            <td><span class="pill inprogress"><span class="dot"></span>In Progress</span></td>
-            <td class="due soon tabular">13 Jun</td>
-            <td><div class="raci">
-              <span class="rb r"><span class="role">R</span><span class="who">Raka</span></span>
-              <span class="rb a"><span class="role">A</span><span class="who">Raka</span></span>
-              <span class="rb i"><span class="role">I</span><span class="who">Arief</span></span>
-            </div></td>
-          </tr>
-          <tr>
-            <td><span class="task-name">SOP stock opname mingguan kitchen</span><span class="task-bu">Kitchen</span></td>
-            <td><span class="pill blocked"><span class="dot"></span>Blocked</span></td>
-            <td class="due overdue tabular">12 Jun</td>
-            <td><div class="raci">
-              <span class="rb r"><span class="role">R</span><span class="who">Budi</span></span>
-              <span class="rb a"><span class="role">A</span><span class="who">Dina</span></span>
-            </div></td>
-          </tr>
-          <tr>
-            <td><span class="task-name">Harga bundling promo kemerdekaan</span><span class="task-bu">Sales &amp; E-Commerce</span></td>
-            <td><span class="pill open"><span class="dot"></span>Open</span></td>
-            <td class="due tabular">24 Jun</td>
-            <td><div class="raci">
-              <span class="rb r"><span class="role">R</span><span class="who">Sari</span></span>
-              <span class="rb a"><span class="role">A</span><span class="who">Arief</span></span>
-              <span class="rb c"><span class="role">C</span><span class="who">Andi</span></span>
-            </div></td>
-          </tr>
-          <tr>
-            <td><span class="task-name">Rekonsiliasi COGS roastery Mei</span><span class="task-bu">Finance &amp; People</span></td>
-            <td><span class="pill done"><span class="dot"></span>Done</span></td>
-            <td class="due tabular">10 Jun</td>
-            <td><div class="raci">
-              <span class="rb r"><span class="role">R</span><span class="who">Andi</span></span>
-              <span class="rb a"><span class="role">A</span><span class="who">Arief</span></span>
-              <span class="rb i"><span class="role">I</span><span class="who">Raka</span></span>
-            </div></td>
-          </tr>
-          <tr>
-            <td><span class="task-name">Jadwal training barista batch 2</span><span class="task-bu">Sales &amp; E-Commerce</span></td>
-            <td><span class="pill open"><span class="dot"></span>Open</span></td>
-            <td class="due tabular">17 Jun</td>
-            <td><div class="raci">
-              <span class="rb r"><span class="role">R</span><span class="who">Sari</span></span>
-              <span class="rb a"><span class="role">A</span><span class="who">Sari</span></span>
-              <span class="rb i"><span class="role">I</span><span class="who">Dina</span></span>
-            </div></td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+        <!-- POPULATED STATE -->
+        <section class="assembly">
+          <div class="toolbar">
+            <button class="control"><span class="lbl">Business unit</span><span>All</span><span class="chev">&#9662;</span></button>
+            <button class="control"><span class="lbl">Status</span><span>Any</span><span class="chev">&#9662;</span></button>
+            <button class="control"><span class="lbl">Person</span><span>Anyone</span><span class="chev">&#9662;</span></button>
+            <div class="seg" role="tablist" aria-label="Ownership filter">
+              <button role="tab" aria-selected="true" class="on">Mine</button>
+              <button role="tab" aria-selected="false">RACI-involved</button>
+              <button role="tab" aria-selected="false">All</button>
+            </div>
+            <div class="search-mini">&#9906; Search tasks</div>
+          </div>
 
-    <!-- EMPTY + LOADING VARIANTS (smaller framed) -->
-    <div class="variants">
-      <div class="frame">
-        <div class="frame-cap">Empty state — "Mine" filter, no tasks</div>
-        <div class="mini-assembly">
-          <div class="empty">
-            <h3>No tasks assigned to you</h3>
-            <p>When a task names you as R, A, C, or I it shows up here. Create one or switch to “All”.</p>
-            <button class="btn-primary">+ New task</button>
+          <!-- SORTABLE COLUMNS: sorted column shows ▾ and aria-sort; others show a faint inactive glyph -->
+          <table>
+            <colgroup><col class="c-task"><col class="c-status"><col class="c-owner"><col class="c-due"><col class="c-act"></colgroup>
+            <thead>
+              <tr>
+                <th class="sortable" scope="col" aria-sort="none">Task</th>
+                <th class="sortable" scope="col" aria-sort="none">Status</th>
+                <th class="sortable" scope="col" aria-sort="none">Owner</th>
+                <!-- DEFAULT SORT: Due ascending (overdue first). aria-sort="ascending" on this column only. -->
+                <th class="sortable sorted col-due" scope="col" aria-sort="ascending">Due<span class="sort-aff">&#9662;</span></th>
+                <th class="sortable col-act" scope="col" aria-sort="none">Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="task-name">SOP stock opname mingguan kitchen</span><span class="task-bu">Kitchen</span></td>
+                <td><span class="pill blocked"><span class="dot"></span>Blocked</span></td>
+                <td><div class="owner"><span class="ownav">BU</span><span class="own-name">Budi</span><span class="own-more">+1</span></div></td>
+                <td class="due overdue tabular">Overdue &middot; 12 Jun</td>
+                <td class="act tabular">2h</td>
+              </tr>
+              <tr>
+                <td><span class="task-name">Kalibrasi profil roasting Ethiopia Guji</span><span class="task-bu">Roastery</span></td>
+                <td><span class="pill inprogress"><span class="dot"></span>In Progress</span></td>
+                <td><div class="owner"><span class="ownav">RW</span><span class="own-name">Raka</span><span class="own-more">+1</span></div></td>
+                <td class="due soon tabular">Fri 13 Jun</td>
+                <td class="act tabular">5h</td>
+              </tr>
+              <tr>
+                <td><span class="task-name">Jadwal training barista batch 2</span><span class="task-bu">Sales &amp; E-Commerce</span></td>
+                <td><span class="pill open"><span class="dot"></span>Open</span></td>
+                <td><div class="owner"><span class="ownav">SL</span><span class="own-name">Sari</span><span class="own-more">+1</span></div></td>
+                <td class="due calm tabular">17 Jun</td>
+                <td class="act tabular">1d</td>
+              </tr>
+              <tr>
+                <td><span class="task-name">Finalisasi menu seasonal Q3</span><span class="task-bu">Kitchen</span></td>
+                <td><span class="pill inprogress"><span class="dot"></span>In Progress</span></td>
+                <td><div class="owner"><span class="ownav">DP</span><span class="own-name">Dina</span><span class="own-more">+2</span></div></td>
+                <td class="due calm tabular">19 Jun</td>
+                <td class="act tabular">18h</td>
+              </tr>
+              <tr>
+                <td><span class="task-name">Harga bundling promo kemerdekaan</span><span class="task-bu">Sales &amp; E-Commerce</span></td>
+                <td><span class="pill open"><span class="dot"></span>Open</span></td>
+                <td><div class="owner"><span class="ownav">SL</span><span class="own-name">Sari</span><span class="own-more">+1</span></div></td>
+                <td class="due calm tabular">24 Jun</td>
+                <td class="act tabular">3d</td>
+              </tr>
+              <tr>
+                <td><span class="task-name">Rekonsiliasi COGS roastery Mei</span><span class="task-bu">Finance &amp; People</span></td>
+                <td><span class="pill done"><span class="dot"></span>Done</span></td>
+                <td><div class="owner"><span class="ownav">AN</span><span class="own-name">Andi</span><span class="own-more">+1</span></div></td>
+                <td class="due calm tabular">10 Jun</td>
+                <td class="act tabular">4d</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- EMPTY + LOADING VARIANTS (smaller framed) -->
+        <div class="variants">
+          <div class="frame">
+            <div class="frame-cap">Empty state &mdash; "Mine" filter, no tasks</div>
+            <div class="mini-assembly">
+              <div class="empty">
+                <h3>No tasks assigned to you</h3>
+                <p>When a task names you as R, A, C, or I it shows up here. Create one or switch to &ldquo;All&rdquo;.</p>
+                <button class="btn-primary">+ New task</button>
+              </div>
+            </div>
+          </div>
+          <div class="frame">
+            <div class="frame-cap">Loading state &mdash; skeleton rows</div>
+            <div class="mini-assembly">
+              <div class="sk-row"><div class="sk" style="width:36%"></div><div class="sk pill"></div><div class="sk av"></div><div class="sk" style="width:56px;margin-left:auto"></div><div class="sk" style="width:24px"></div></div>
+              <div class="sk-row"><div class="sk" style="width:50%"></div><div class="sk pill"></div><div class="sk av"></div><div class="sk" style="width:56px;margin-left:auto"></div><div class="sk" style="width:24px"></div></div>
+              <div class="sk-row"><div class="sk" style="width:30%"></div><div class="sk pill"></div><div class="sk av"></div><div class="sk" style="width:56px;margin-left:auto"></div><div class="sk" style="width:24px"></div></div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="frame">
-        <div class="frame-cap">Loading state — skeleton rows</div>
-        <div class="mini-assembly">
-          <div class="sk-row"><div class="sk" style="width:40%"></div><div class="sk pill"></div><div class="sk" style="width:46px"></div><div class="sk" style="width:120px;margin-left:auto"></div></div>
-          <div class="sk-row"><div class="sk" style="width:52%"></div><div class="sk pill"></div><div class="sk" style="width:46px"></div><div class="sk" style="width:100px;margin-left:auto"></div></div>
-          <div class="sk-row"><div class="sk" style="width:34%"></div><div class="sk pill"></div><div class="sk" style="width:46px"></div><div class="sk" style="width:140px;margin-left:auto"></div></div>
-        </div>
-      </div>
-    </div>
-  </main>
+    </main>
+  </div>
+</div>
 
 <!--
-=================== MOCKUP NOTES — mock-tasks-list.html ===================
+=================== MOCKUP NOTES — mock-tasks-list.html (density-mode re-cut) ===================
+DELTAS FROM PREVIOUS VERSION:
+  1. RACI COLUMN REMOVED → replaced by an OWNER column (R-person avatar + first name +
+     muted "+N"). Density-mode progressive disclosure: NO full R/A/C/I chip soup on rows
+     (that "badge-soup" lived in the prior list — now it lives ONLY on task-detail). This
+     is the binding density-mode rule for working lists.
+  2. NEW "Activity" column (last-activity age, muted, right-aligned: 2h/5h/1d/18h/3d/4d) —
+     matches the home + detail. Columns now: Task+unit · Status · Owner · Due · Activity.
+  3. SORT AFFORDANCE added on every column header (.sortable). The active sort column shows
+     ▾ + aria-sort="ascending" (default = Due ascending, overdue first); other headers carry
+     aria-sort="none" and reveal a glyph on hover/click. The sort-direction marker is the one
+     primary accent on the header row (Tinted-Status-adjacent — a single blue tick).
+  4. Rows REORDERED to the default Due-ascending sort (overdue → soon → later → done), so the
+     populated table reads as it would actually sort on first paint.
+  5. Shell upgraded from the slim neutral top bar to the ADOPTED rail shell (My Week · Tasks ·
+     Updates · Ops, Tasks active) + ~1080px content column (OD-P0-3) — consistent with the
+     adopted home and the other re-cut screens.
+  6. Loading skeleton updated to the new 5-column shape (added an avatar circle + activity cell).
+
+DENSITY MODE COMPLIANCE: this is a LIST surface, so PMO's data-dense DataTable posture is
+  CORRECT and kept — 54px body rows, sortable columns, three filter controls + the
+  Mine/RACI-involved/All segmented control, loading + empty states. Density mode governs HOME,
+  not the working list; the only density-mode rule that reaches here is progressive disclosure
+  (no full RACI on rows — point 1).
+
 DESIGN.md TOKENS USED (value → token):
-  hsl(0 0% 100%) background/card · hsl(240 10% 3.9%) foreground ·
-  hsl(240 4.8% 95.9%) secondary/muted/accent · hsl(240 4% 40%) muted-foreground ·
-  hsl(240 5.9% 90%) border/input · hsl(221.2 83.2% 53.3%) primary · hsl(0 0% 98%) primary-foreground ·
-  hsl(262 83% 58%) violet · hsl(0 84.2% 60.2%) destructive · hsl(142 71% 45%) success ·
-  hsl(22 78% 26%) warning-foreground ·
+  hsl(0 0% 100%) background/card · hsl(240 10% 3.9%) foreground · hsl(240 4.8% 95.9%) secondary/muted/accent ·
+  hsl(240 4% 40%) muted-foreground · hsl(240 5.9% 90%) border/input · hsl(221.2 83.2% 53.3%) primary ·
+  hsl(0 0% 98%) primary-foreground · hsl(262 83% 58%) violet (avatar gradient) · hsl(0 84.2% 60.2%) destructive ·
+  hsl(43 96% 56%) warning · hsl(22 78% 26%) warning-foreground · hsl(142 71% 45%) success ·
   status-pill darkened-AA text: 221 75% 38% (--status-open-text), 0 72% 45% (--status-lost-text),
     142 64% 30% (--status-won-text) ·
-  typography: page-title/overline/label/body · rounded sm(6)/md(8)/full(999) ·
-  spacing 2(8)/3(12)/5(20)/6(24) · badge-status(22h) · table-header-cell(38h) · table-body-cell(54h) ·
-  button-primary(32h) + brand button shadow · pressed-lift shadow · avatar blue→violet gradient ·
-  --header-h(56) shell · tabular-nums on due dates + counts.
+  typography page-title/overline/label/body · rounded sm(6)/md(8)/full(999) · spacing 2/3/5/6 ·
+  badge-status(22h) · table-header-cell(38h) · table-body-cell(54h) · button-primary(32h)+brand shadow ·
+  pressed-lift shadow (seg "on") · avatar blue→violet gradient · rail/--rail-w(224) · --header-h(56) ·
+  tabular-nums on due dates, activity ages, counts.
 
-STATES COVERED: populated (default), empty ("Mine" filter, zero rows), loading (skeleton).
-  Edge: overdue due-date (red), due-soon (amber-brown), Blocked status, A==R person (Raka), tasks with only R+A (no C/I).
+STATES COVERED: populated (default, Due-ascending sort), empty ("Mine" filter, zero rows),
+  loading (5-col skeleton). Edge: overdue (red), due-soon (amber-brown), Blocked status, Done row,
+  multi-RACI collapsed to "+N".
+  Error (noted, not drawn): inline one-line "Couldn't load tasks — Retry" banner in the table body,
+  thead + toolbar still render so filters stay usable.
 
-PROPOSED NEW TOKENS — RACI role badges (flagged for owner sign-off; IDENTICAL across all 4 mockups):
-  Gap: DESIGN.md has no role-badge vocabulary; RACI v1 (OD-DIR-5) needs R/A/C/I shown densely on
-  lists + detail. Proposal reuses existing palette (NO new hues):
-    --raci-r    = primary       hsl(221.2 83.2% 53.3%)   (Responsible — the active doer; ties to The One Blue, used only as a 15px role chip, not an action)
-    --raci-a    = violet        hsl(262 83% 58%)          (Accountable — single owner; reuses categorical violet, non-interactive)
-    --raci-ci   = muted-foreground hsl(240 4% 40%)        (Consulted / Informed — de-emphasized, neutral)
-    --raci-r-bg = primary @10%  · --raci-a-bg = violet @10% · --raci-ci-bg = secondary
-  Note: R uses primary as a SMALL categorical chip only (≤15px), never as a button — owner to confirm
-  this does not violate The One Blue Rule, or pick an alternate (e.g. R also neutral, only A tinted).
+PROPOSED NEW TOKENS — RACI role badges (flagged for owner sign-off; IDENTICAL across all mockups;
+  now APPLIED only on task-detail, referenced only as the R-tint here):
+    --raci-responsible = primary hsl(221.2 83.2% 53.3%) · --raci-accountable = violet hsl(262 83% 58%) ·
+    --raci-consulted = warning hsl(43 96% 56%) (text brown) · --raci-informed = muted-foreground hsl(240 4% 40%).
+  No new hues — reuses the existing palette.
 
 OPEN QUESTIONS:
-  1) RACI badge: confirm R=primary / A=violet, or prefer both neutral with letter-only? (token sign-off)
-  2) Consulted/Informed can be multi-person — show all, or "+N" overflow past 2? (shown inline here)
-  3) Due-date semantics: is "due soon" amber threshold owner-meaningful, or only overdue=red?
-  4) "Mine" default vs "RACI-involved" default on first load — which is the manager's primary view?
+  1) Sort default: Due-ascending (overdue first) shown — confirm vs Status, or last-Activity?
+  2) "Mine" vs "RACI-involved" as the first-load default for a manager? (segmented default)
+  3) Owner column shows the RESPONSIBLE person — confirm R (not A) is the row's "who do I chase".
+  4) Activity-age definition (last status change / comment / any write) — needs one canonical source.
 ==========================================================================
 -->
 </body>

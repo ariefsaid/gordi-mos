@@ -3,9 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gordi MOS — Weekly update (mockup)</title>
+<title>Gordi MOS — Weekly update (mockup, density-mode re-cut)</title>
 <style>
-  /* All values from DESIGN.md (adopted). Token name noted in comment beside each. */
+  /* All values from DESIGN.md (adopted). Token name noted in comment beside each.
+     RE-CUT to OD-P0-7 density mode: SINGLE ~1080px column. The write pane and the
+     manager-review pane STACK as two framed sections (write first), not the prior
+     1fr/1fr side-by-side. Review list rows ≥56px. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
@@ -14,107 +17,124 @@
     -webkit-font-smoothing: antialiased;
   }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring */
 
-  .topbar { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%);
-    display: flex; align-items: center; gap: 12px; padding: 0 20px; }  /* --header-h / background / border */
-  .brand { display: flex; align-items: center; gap: 8px; }
-  .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%);
-    color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / rounded.sm */
-  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
-  .brand-sub { color: hsl(240 4% 40%); font-size: 12px; }
+  /* ---- Rail shell (adopted IA) ---- */
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; } /* --rail-w */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; }
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .nav { padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .nav-item { height: 38px; border-radius: 6px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 14px; font-weight: 500; color: hsl(240 10% 3.9%); text-decoration: none; cursor: pointer; }
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item .ico { width: 18px; height: 18px; flex: none; stroke: currentColor; }
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% */
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 12px; }
+
+  .main { display: flex; flex-direction: column; }
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 24px; } /* --header-h / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; } .crumb .sep { margin: 0 7px; }
   .spacer { flex: 1; }
   .userchip { display: flex; align-items: center; gap: 8px; }
-  .avatar { width: 28px; height: 28px; border-radius: 999px;
-    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
-  .userchip .nm { font-size: 13px; font-weight: 600; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* avatar gradient */
+  .userchip .nm { font-size: 13px; font-weight: 600; line-height: 1.1; }
   .userchip .rl { font-size: 11px; color: hsl(240 4% 40%); }
 
-  .page { max-width: 1360px; margin: 0 auto; padding: 20px; }
-  .pane-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-    color: hsl(240 4% 40%); margin: 8px 0; }          /* overline / muted-foreground */
-  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }  /* spacing.5 */
+  .page { flex: 1; overflow: auto; padding: 24px 32px 56px; }
+  .col { max-width: 1080px; margin: 0 auto; } /* density-mode SINGLE column ~1080px */
+  .page-head { margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* page-title */
+  .page-sub { font-size: 14px; color: hsl(240 4% 40%); margin-top: 6px; } /* muted-foreground */
 
-  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 16px; } /* card / border / rounded.md / spacing.4 */
-  .card h2 { font-size: 18px; font-weight: 600; line-height: 1.3; }   /* subheading */
-  .week-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px;
-    background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 12px; font-weight: 600; }  /* secondary / muted-foreground / badge-status */
+  .pane-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); margin: 0 4px 8px; } /* overline / muted-foreground */
+  .pane-cap.second { margin-top: 28px; } /* air between the two stacked panes */
+
+  .card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 16px 20px; } /* card / border / rounded.md / spacing.4 */
+  .card h2 { font-size: 18px; font-weight: 600; line-height: 1.3; } /* subheading */
+  .week-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 12px; font-weight: 600; } /* secondary / muted-foreground / badge-status */
   .head-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 14px; }
 
-  /* ---- (a) WRITE VIEW ---- */
-  .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-    color: hsl(240 4% 40%); margin-bottom: 6px; }     /* overline / muted-foreground */
-  .textarea { border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 10px; min-height: 96px;
-    font-size: 14px; line-height: 1.5; }              /* input border / rounded.md / body */
-  .textarea.filled { color: hsl(240 10% 3.9%); }      /* foreground (ID content) */
-  /* per-task quick references */
+  /* ---- (A) WRITE PANE ---- */
+  .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); margin-bottom: 6px; } /* overline / muted-foreground */
+  .textarea { border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 10px; min-height: 96px; font-size: 14px; line-height: 1.5; } /* input border / rounded.md / body */
+  .textarea.filled { color: hsl(240 10% 3.9%); } /* foreground (ID content) */
   .task-refs { margin-top: 16px; }
-  .ref-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+  .ref-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); } /* border @70% */
   .ref-row:last-child { border-bottom: 0; }
-  .ref-name { font-size: 13px; font-weight: 500; flex: 1; }
-  .ref-bu { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
-  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
-    border-radius: 999px; font-size: 12px; font-weight: 600; }   /* badge-status */
+  .ref-name { font-size: 13px; font-weight: 500; flex: 1; min-width: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; } /* badge-status */
   .dot { width: 6px; height: 6px; border-radius: 999px; }
-  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); }
-  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .dot { background: hsl(0 84.2% 60.2%); }
-  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .dot { background: hsl(142 71% 45%); }
-  .ref-note { font-size: 12px; color: hsl(240 4% 40%); width: 200px; }  /* muted-foreground */
+  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .dot { background: hsl(221.2 83.2% 53.3%); } /* primary tint / --status-open-text */
+  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .dot { background: hsl(0 84.2% 60.2%); } /* destructive tint / --status-lost-text */
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .dot { background: hsl(142 71% 45%); } /* success tint / --status-won-text */
+  .ref-note { font-size: 12px; color: hsl(240 4% 40%); width: 240px; flex: none; } /* muted-foreground */
 
   /* save/submit footer: BOTH co-located from first paint (IxD lens b) */
-  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px;
-    border-top: 1px solid hsl(240 5.9% 90%); }        /* border */
+  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid hsl(240 5.9% 90%); } /* border */
   .btn { height: 32px; padding: 0 12px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn-primary { background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); border: 0;
-    box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); }   /* primary / brand shadow */
+  .btn-primary { background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); border: 0; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); } /* primary / brand shadow */
   .btn-outline { background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); border: 1px solid hsl(240 5.9% 90%); } /* background / input */
-  /* quiet save confirmation */
   .saved-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: hsl(142 64% 30%); margin-left: auto; } /* --status-won-text */
-  .saved-note .dot { background: hsl(142 71% 45%); }  /* success */
+  .saved-note .dot { background: hsl(142 71% 45%); } /* success */
 
-  /* ---- (b) MANAGER REVIEW VIEW ---- */
-  .review-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+  /* ---- (B) MANAGER REVIEW PANE — rows ≥56px ---- */
+  .review-summary { display: flex; gap: 16px; margin-bottom: 6px; font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .review-summary b { color: hsl(240 10% 3.9%); } /* foreground */
+  .review-row { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 0; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); } /* ≥56px review rows / border @70% */
   .review-row:last-child { border-bottom: 0; }
-  .pa { width: 30px; height: 30px; border-radius: 999px; flex: none;
-    background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-    color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
-  .rv-name { font-size: 13px; font-weight: 600; }
-  .rv-role { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
-  .rv-excerpt { font-size: 13px; color: hsl(240 4% 40%); margin-top: 2px; }  /* muted-foreground (ID excerpt) */
-  .rv-meta { margin-left: auto; text-align: right; display: flex; align-items: center; gap: 10px; }
-  /* filed / draft / not-started status states */
-  .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px;
-    font-size: 12px; font-weight: 600; }
-  .st.filed { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .st.filed .dot { background: hsl(142 71% 45%); }    /* success / --status-won-text */
-  .st.draft { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .st.draft .dot { background: hsl(43 96% 56%); }        /* warning tint / warning-foreground */
+  .review-row:hover { background: hsl(240 4.8% 95.9% / 0.6); } /* accent @60% */
+  .pa { width: 32px; height: 32px; border-radius: 999px; flex: none; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 600; } /* avatar gradient */
+  .rv-main { min-width: 0; flex: 1; }
+  .rv-name { font-size: 13.5px; font-weight: 600; }
+  .rv-role { font-size: 12px; color: hsl(240 4% 40%); font-weight: 400; } /* muted-foreground */
+  .rv-excerpt { font-size: 13px; color: hsl(240 4% 40%); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* muted-foreground (ID excerpt) */
+  .rv-meta { margin-left: auto; text-align: right; display: flex; align-items: center; gap: 12px; flex: none; }
+  .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; min-width: 96px; justify-content: center; } /* badge-status */
+  .st.filed { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .st.filed .dot { background: hsl(142 71% 45%); } /* success / --status-won-text */
+  .st.draft { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .st.draft .dot { background: hsl(43 96% 56%); } /* warning tint / warning-foreground */
   .st.notstarted { background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); } .st.notstarted .dot { background: hsl(240 4% 40%); } /* secondary / muted-foreground */
-  .rv-when { font-size: 12px; color: hsl(240 4% 40%); }   /* muted-foreground */
-  .review-summary { display: flex; gap: 16px; margin-bottom: 4px; font-size: 13px; color: hsl(240 4% 40%); }
-  .review-summary b { color: hsl(240 10% 3.9%); }         /* foreground */
+  .rv-when { font-size: 12px; color: hsl(240 4% 40%); min-width: 64px; text-align: right; } /* muted-foreground */
 </style>
 </head>
 <body>
-  <!-- NEUTRAL SHELL: slim top bar only; no side nav (IA decided in P0-1) -->
-  <header class="topbar">
-    <div class="brand"><div class="logo">G</div><span class="brand-name">Gordi MOS</span><span class="brand-sub">Management OS</span></div>
-    <div class="spacer"></div>
-    <div class="userchip"><div class="avatar">DP</div><div><div class="nm">Dina Pratiwi</div><div class="rl">Kitchen Lead</div></div></div>
-  </header>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="logo">G</div><div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div></div>
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>My Week</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</a>
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Updates</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Ops</a>
+    </nav>
+    <div class="rail-foot"><a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a></div>
+  </aside>
 
-  <main class="page">
-    <div class="panes">
+  <div class="main">
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>Updates</b></div>
+      <div class="spacer"></div>
+      <div class="userchip"><div class="avatar">DP</div><div><div class="nm">Dina Pratiwi</div><div class="rl">Kitchen Lead</div></div></div>
+    </header>
 
-      <!-- (a) WRITE VIEW -->
-      <section>
-        <div class="pane-cap">Pane A — My weekly update (write)</div>
-        <div class="card">
+    <main class="page">
+      <div class="col">
+        <div class="page-head">
+          <div class="page-title">Weekly update</div>
+          <div class="page-sub">Week of 8&ndash;14 Jun 2026 &middot; due Fri 13 Jun &middot; write yours, then review your team's</div>
+        </div>
+
+        <!-- (A) WRITE PANE — first -->
+        <div class="pane-cap">Write &mdash; my weekly update</div>
+        <section class="card" aria-label="My weekly update">
           <div class="head-row">
             <h2>My weekly update</h2>
-            <span class="week-pill tabular">Week of 8–14 Jun 2026</span>
+            <span class="week-pill tabular">Week of 8&ndash;14 Jun 2026</span>
           </div>
 
-          <div class="field-label">This week’s summary</div>
-          <div class="textarea filled">Produksi stabil sepanjang minggu, 2 SKU baru cold brew sudah masuk uji rasa internal dan hasilnya positif. Stock opname mingguan sempat tertunda karena Budi handle penerimaan green bean Gayo — follow-up Senin. Tidak ada incident di kitchen.</div>
+          <div class="field-label">This week&rsquo;s summary</div>
+          <div class="textarea filled">Produksi stabil sepanjang minggu, 2 SKU baru cold brew sudah masuk uji rasa internal dan hasilnya positif. Stock opname mingguan sempat tertunda karena Budi handle penerimaan green bean Gayo &mdash; follow-up Senin. Tidak ada incident di kitchen.</div>
 
           <div class="task-refs">
             <div class="field-label">My tasks this week</div>
@@ -134,97 +154,114 @@
           <div class="save-row">
             <button class="btn btn-outline">Save draft</button>
             <button class="btn btn-primary">Submit update</button>
-            <span class="saved-note"><span class="dot"></span>Draft saved · 2 min ago</span>
+            <span class="saved-note"><span class="dot"></span>Draft saved &middot; 2 min ago</span>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- (b) MANAGER REVIEW VIEW -->
-      <section>
-        <div class="pane-cap">Pane B — Manager review (Dina reviewing her people)</div>
-        <div class="card">
+        <!-- (B) MANAGER REVIEW PANE — second, stacked -->
+        <div class="pane-cap second">Review &mdash; my team's updates</div>
+        <section class="card" aria-label="Team updates">
           <div class="head-row">
             <h2>Team updates</h2>
-            <span class="week-pill tabular">Week of 8–14 Jun 2026</span>
+            <span class="week-pill tabular">Week of 8&ndash;14 Jun 2026</span>
           </div>
           <div class="review-summary"><span><b>2</b> filed</span><span><b>1</b> draft</span><span><b>1</b> not started</span></div>
 
           <div class="review-row">
             <div class="pa">RW</div>
-            <div>
-              <div class="rv-name">Raka Wijaya <span class="rv-role">· Roastery Lead</span></div>
-              <div class="rv-excerpt">Roast batch Ethiopia Guji selesai QC, profil baru siap kalibrasi…</div>
+            <div class="rv-main">
+              <div class="rv-name">Raka Wijaya <span class="rv-role">&middot; Roastery Lead</span></div>
+              <div class="rv-excerpt">Roast batch Ethiopia Guji selesai QC, profil baru siap kalibrasi&hellip;</div>
             </div>
             <div class="rv-meta"><span class="rv-when tabular">Mon 09:12</span><span class="st filed"><span class="dot"></span>Filed</span></div>
           </div>
 
           <div class="review-row">
-            <div class="pa">DP</div>
-            <div>
-              <div class="rv-name">Dina Pratiwi <span class="rv-role">· Kitchen Lead</span></div>
-              <div class="rv-excerpt">Produksi stabil, 2 SKU baru masuk uji rasa…</div>
+            <div class="pa">SR</div>
+            <div class="rv-main">
+              <div class="rv-name">Sari Lestari <span class="rv-role">&middot; Sales &amp; E-Comm Lead</span></div>
+              <div class="rv-excerpt">Bundling promo kemerdekaan masih draft harga&hellip;</div>
             </div>
-            <div class="rv-meta"><span class="rv-when tabular">Tue 14:05</span><span class="st filed"><span class="dot"></span>Filed</span></div>
+            <div class="rv-meta"><span class="rv-when tabular">&mdash;</span><span class="st draft"><span class="dot"></span>Draft</span></div>
           </div>
 
           <div class="review-row">
-            <div class="pa">SR</div>
-            <div>
-              <div class="rv-name">Sari Lestari <span class="rv-role">· Sales &amp; E-Comm Lead</span></div>
-              <div class="rv-excerpt">Bundling promo kemerdekaan masih draft harga…</div>
+            <div class="pa">TR</div>
+            <div class="rv-main">
+              <div class="rv-name">Tini Rahma <span class="rv-role">&middot; Kitchen ops</span></div>
+              <div class="rv-excerpt">Stock opname mingguan + penerimaan green bean Gayo&hellip;</div>
             </div>
-            <div class="rv-meta"><span class="rv-when tabular">—</span><span class="st draft"><span class="dot"></span>Draft</span></div>
+            <div class="rv-meta"><span class="rv-when tabular">Tue 08:30</span><span class="st filed"><span class="dot"></span>Filed</span></div>
           </div>
 
           <div class="review-row">
             <div class="pa" style="background:hsl(240 4.8% 95.9%);color:hsl(240 4% 40%)">BS</div>
-            <div>
-              <div class="rv-name">Budi Santoso <span class="rv-role">· Kitchen ops</span></div>
+            <div class="rv-main">
+              <div class="rv-name">Budi Santoso <span class="rv-role">&middot; Kitchen ops</span></div>
               <div class="rv-excerpt" style="font-style:italic">No update yet</div>
             </div>
-            <div class="rv-meta"><span class="rv-when tabular">—</span><span class="st notstarted"><span class="dot"></span>Not started</span></div>
+            <div class="rv-meta"><span class="rv-when tabular">&mdash;</span><span class="st notstarted"><span class="dot"></span>Not started</span></div>
           </div>
-        </div>
-      </section>
-
-    </div>
-  </main>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
 
 <!--
-=================== MOCKUP NOTES — mock-weekly-update.html ===================
+=================== MOCKUP NOTES — mock-weekly-update.html (density-mode re-cut) ===================
+DELTAS FROM PREVIOUS VERSION:
+  1. LAYOUT: the prior 1fr/1fr side-by-side panes are GONE. Now a SINGLE ~1080px column
+     (density-mode composition) with the two panes STACKED as framed sections, WRITE FIRST
+     ("write yours, then review your team's"), review second. Quiet overline pane captions
+     instead of the old "Pane A / Pane B" framing labels.
+  2. Review rows are now ≥56px (min-height 60px) — was ~50px. Avatar bumped to 32px to seat
+     the taller row; per-person Filed/Draft/Not-started states retained.
+  3. Review roster updated to DINA's people (per the brief's review-pane canon): Raka (Filed),
+     Sari (Draft), Tini Rahma (Filed — newly added per the brief), Budi (Not started). Dina is
+     the reviewer here, so she's no longer a row in her own review list.
+  4. Shell upgraded to the ADOPTED rail (Updates active) + breadcrumb, consistent with the
+     home + list + detail re-cuts.
+
+DENSITY MODE COMPLIANCE: single column, panes stacked (no second card column). This is an
+  Updates working surface — the review list keeps a scannable triage posture; the density rule
+  applied is the single-column composition + the "write first" ordering.
+
+IxD / FLOW-NATURALNESS (lens b) — built in:
+  - Save draft + Submit BOTH visible from first paint (co-located, bottom of the write card).
+  - Quiet save confirmation ("Draft saved · 2 min ago") — ambient, not a modal/toast interrupt.
+  - Per-person review states (Filed / Draft / Not started) + summary counts give the manager an
+    at-a-glance "who still owes me an update" triage.
+
 DESIGN.md TOKENS USED (value → token):
   hsl(0 0% 100%) background/card · hsl(240 10% 3.9%) foreground · hsl(240 4.8% 95.9%) secondary/accent ·
   hsl(240 4% 40%) muted-foreground · hsl(240 5.9% 90%) border/input · hsl(221.2 83.2% 53.3%) primary ·
-  hsl(0 0% 98%) primary-foreground · hsl(262 83% 58%) violet · hsl(142 71% 45%) success ·
+  hsl(0 0% 98%) primary-foreground · hsl(262 83% 58%) violet (avatar gradient) · hsl(142 71% 45%) success ·
   hsl(43 96% 56%) warning · hsl(22 78% 26%) warning-foreground · hsl(0 84.2% 60.2%) destructive ·
-  status-pill text: 221 75% 38% (--status-open-text), 142 64% 30% (--status-won-text), 0 72% 45% (--status-lost-text) ·
-  typography: subheading / overline / body / label · rounded sm/md/full · spacing 4/5 · badge-status(22h) ·
-  button-primary(32h)+brand shadow · button-outline · input · border@70% dividers · avatar blue→violet ·
-  --header-h(56) shell · tabular-nums on dates/counts/times.
-
-IxD / FLOW-NATURALNESS (lens b) — built in:
-  - Save draft + Submit BOTH visible from first paint (co-located, convention bottom-right of form).
-  - Quiet save confirmation ("Draft saved · 2 min ago") — ambient, not a modal/toast interruption.
-  - Per-person review states (Filed / Draft / Not started) give the manager an at-a-glance triage —
-    summary counts up top match the mental model "who still owes me an update".
+  status text 221 75% 38% (--status-open-text), 142 64% 30% (--status-won-text), 0 72% 45% (--status-lost-text) ·
+  typography page-title / subheading / overline / body / label · rounded sm/md/full · spacing 4/5 ·
+  badge-status(22h) · button-primary(32h)+brand shadow · button-outline · input · border@70% dividers ·
+  avatar blue→violet · rail/--rail-w(224) · --header-h(56) · tabular-nums on dates/counts/times.
 
 STATES COVERED:
   Write pane: filled draft (populated) with quiet "Draft saved" confirm. (Empty = same shell, empty
     textarea + "Submit" disabled until non-empty — noted, not separately drawn.)
-  Review pane: Filed (success), Draft (warning), Not started (neutral) — all three visible at once.
-  Edge: a person who is both filer (Dina writes) and reviewer (Dina reviews team) — same identity,
-    per-person model per OD-P0-1.
+  Review pane: Filed (success), Draft (warning), Not started (neutral) — all three present.
+  Edge: a person who is both filer (Dina writes) and reviewer (Dina reviews her people) — same identity,
+    per OD-P0-1. Loading (noted): write textarea + review rows render as skeletons; counts hidden until
+    loaded. Error (noted): review list can fail with an inline "Couldn't load team updates — Retry" while
+    the write pane stays usable (degrades pane-by-pane).
 
-PROPOSED NEW TOKENS — RACI role badges: same single proposal as the other 3 mockups (not used on this
-  screen, but listed for owner sign-off consistency): --raci-r=primary, --raci-a=violet,
-  --raci-ci=muted-foreground, *-bg @10%/secondary. No new hues.
+PROPOSED NEW TOKENS — RACI role badges: same single proposal as the other mockups (not used on this
+  screen): --raci-responsible=primary, --raci-accountable=violet, --raci-consulted/-informed=
+  muted-foreground; tints @10%/secondary. No new hues.
 
 OPEN QUESTIONS:
-  1) Does Submit lock the update (read-only after) or allow edit-after-submit until week closes?
-  2) Should per-task quick references auto-pull the person's tasks, or be free-add only?
-  3) Manager review: does Dina review by business unit (her people) or by explicit reporting line?
-     (OD-P0-1 says "their people" — needs the people→manager mapping confirmed.)
-  4) Should the manager be able to nudge "Not started" people inline (e.g. a Remind action)?
+  1) Does Submit lock the update (read-only after) or allow edit-after-submit until the week closes?
+  2) Per-task quick references: auto-pull the person's tasks, or free-add only?
+  3) Manager review scope: Dina reviews by explicit reporting line (manager_id) — confirm the
+     people→manager mapping (OD-P0-1 says "their people").
+  4) Should the manager nudge a "Not started" person inline (a Remind action on the row)?
 ==========================================================================
 -->
 </body>
