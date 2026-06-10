@@ -373,7 +373,9 @@ Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
 - **One dominant module** per surface: a grouped table — 4 columns max, **44–48px rows**, 8–10 rows
   visible, group headers as muted overline text + count (never colored bars).
 - **≤2 auxiliary strips** (56–64px, one CTA/link each) for secondary concerns; everything else is a
-  link to its full surface, not a rendered module.
+  link to its full surface, not a rendered module. **One ratified exception (OD-P0-8):** users with
+  direct reports get a third, role-conditional compact team module (filed-status + overdue count per
+  person) after the strips.
 - **Progressive disclosure:** RACI renders as the R-person avatar + muted "+N" on rows; full
   R/A/C/I chips live on detail surfaces only. No mono IDs, no double badges, no nav badge-counts,
   no caption paragraphs on home.

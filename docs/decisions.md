@@ -81,6 +81,16 @@ group headers), ≤2 auxiliary strips, progressive disclosure for RACI/meta (R-a
 full R/A/C/I on detail), due-date coloring overdue/≤3d only. PMO's dense DataTable posture stays for
 full list surfaces (Tasks, Updates, Ops).
 
+### OD-P0-8 — My Week home information inventory (LOCKED 2026-06-10)
+- **Task scope:** tasks where the viewer is **R or A**.
+- **Row fields:** title + business-unit subline · status pill · owner (R-avatar + name + "+N") ·
+  due date · **last-activity age** (muted, e.g. "3h" / "4d").
+- **Manager view:** users with direct reports get a **third role-conditional module** — a compact
+  team list (each person: filed-status for the week + overdue-task count). Ratified exception to
+  the ≤2-module budget (DESIGN.md density mode updated).
+- **Ops strip:** event count + needs-me flag (amber when something waits on the viewer); no event
+  preview text.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
