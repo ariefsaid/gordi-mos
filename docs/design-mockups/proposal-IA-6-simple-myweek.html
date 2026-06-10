@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — IA Proposal 6: Simple My Week</title>
+<style>
+  /* ============================================================
+     DESIGN.md token VALUES inlined (token NAME in comment).
+     SIMPLIFIED distillation of IA-2 ("My Week" personal home) at
+     ~1/3 the density. Identity unchanged — same hues, type families,
+     radii. The change is COMPOSITION (less per screen), not aesthetic.
+     Whitespace is the feature.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);         /* foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);                               /* secondary/35% main area */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring — global focus */
+
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; } /* --rail-w 224px */
+
+  /* ---------- Rail: 4 items, no badge counts, no groups ---------- */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / spacing.4 / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / primary-foreground / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); } /* overline / muted-foreground */
+  .nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .nav-item { height: 40px; border-radius: 6px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 14px; font-weight: 500; color: hsl(240 10% 3.9%); text-decoration: none; cursor: pointer; } /* nav-item / rounded.sm / foreground (roomier than 36px base — density mode) */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item .ico { width: 18px; height: 18px; flex: none; stroke: currentColor; }
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% + primary */
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 12px; } /* border */
+
+  /* ---------- Header: brand + user only. No ⌘K, no breadcrumb on home. ---------- */
+  .main { display: flex; flex-direction: column; }
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 24px; } /* --header-h / background / border */
+  .spacer { flex: 1; }
+  .iconbtn { width: 32px; height: 32px; border-radius: 8px; background: transparent; display: grid; place-items: center; position: relative; cursor: pointer; border: 1px solid transparent; } /* rounded.md */
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .iconbtn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary→violet avatar gradient */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ---------- Page: ONE centered column, max 840px, generous margins ---------- */
+  .page { flex: 1; overflow: auto; padding: 40px 24px 64px; }
+  .col { max-width: 840px; margin: 0 auto; } /* density-mode: single ≤840px primary surface */
+
+  .page-head { margin-bottom: 32px; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
+  .page-sub { font-size: 14px; color: hsl(240 4% 40%); margin-top: 6px; } /* body / muted-foreground */
+
+  /* Module: a calm bordered surface. Max 2 per screen. */
+  .module { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; margin-bottom: 24px; } /* card / border / rounded.md / spacing.6 / Flat-By-Default */
+  .mod-head { display: flex; align-items: baseline; gap: 12px; padding: 20px 24px 16px; } /* spacing.5/6 — generous */
+  .mod-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; } /* subheading */
+  .mod-q { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground — the question this module answers */
+  .mod-link { margin-left: auto; font-size: 13px; font-weight: 600; color: hsl(221.2 83.2% 53.3%); text-decoration: none; cursor: pointer; } /* primary — link-in-context */
+
+  /* Rows: ≥56px, airy padding ---------- */
+  .row { display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 14px 24px; border-top: 1px solid hsl(240 5.9% 90% / 0.7); cursor: pointer; } /* border/70% / spacing.4/6 / ≥56px row */
+  .row:hover { background: hsl(240 4.8% 95.9% / 0.6); } /* accent/60% */
+  .r-main { flex: 1; min-width: 0; }
+  .r-title { font-size: 14px; font-weight: 600; line-height: 1.4; } /* body weight-600 */
+  .r-meta { font-size: 13px; color: hsl(240 4% 40%); margin-top: 3px; } /* muted-foreground */
+
+  /* ONE avatar = the R person, + muted overflow. Full R/A/C/I on detail only. */
+  .owner { display: flex; align-items: center; gap: 7px; flex: none; }
+  .ownav { width: 28px; height: 28px; border-radius: 999px; background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary/12% tint + --status-open-text — the Responsible person */
+  .ownmore { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground — "+N" overflow */
+
+  /* ONE pill max per row — Tinted-Status Rule */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; } /* badge-status (24px, slightly roomier) / rounded.full */
+  .pill .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.inprogress { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .pdot { background: hsl(221.2 83.2% 53.3%); } /* primary tint + --status-open-text */
+  .pill.blocked { background: hsl(0 84.2% 60.2% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .pdot { background: hsl(0 84.2% 60.2%); } /* destructive tint + --status-lost-text */
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.open .pdot { background: hsl(43 96% 56%); } /* warning tint + warning-foreground */
+
+  /* Due date — only when ≤7 days or overdue. Otherwise omitted entirely. */
+  .due { font-size: 13px; font-weight: 600; flex: none; min-width: 88px; text-align: right; } /* tabular inline */
+  .due.overdue { color: hsl(0 72% 45%); } /* --status-lost-text */
+  .due.soon { color: hsl(22 78% 26%); } /* warning-foreground — ≤7d */
+
+  /* Weekly-update strip: one quiet row answering "is my update filed?" */
+  .wu { display: flex; align-items: center; gap: 16px; padding: 20px 24px; } /* spacing.5/6 */
+  .wu-state { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } /* warning tint pill — draft/not-filed */
+  .wu-state .pdot { width: 6px; height: 6px; border-radius: 999px; background: hsl(43 96% 56%); } /* warning */
+  .wu-text { flex: 1; min-width: 0; font-size: 14px; } /* body */
+  .wu-text b { font-weight: 600; }
+  .wu-text .calm { color: hsl(240 4% 40%); } /* muted-foreground */
+  .btn-primary { height: 36px; padding: 0 16px; border: 0; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); flex: none; } /* primary / primary-foreground / brand button shadow (roomier 36px — density mode) */
+
+  /* Quiet footer line — a link, not a rendered module */
+  .footline { max-width: 840px; margin: 8px auto 0; padding: 8px 24px; font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .footline a { color: hsl(221.2 83.2% 53.3%); text-decoration: none; font-weight: 600; } /* primary link-in-context */
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== RAIL: exactly 4 items, no counts ===== -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Updates</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Ops</a>
+    </nav>
+    <div class="rail-foot">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <header class="header">
+      <div class="spacer"></div>
+      <button class="iconbtn" aria-label="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+      <div class="userchip"><div class="avatar">AR</div><div><div class="u-name">Arief</div><div class="u-role">CEO</div></div></div>
+    </header>
+
+    <main class="page">
+      <div class="col">
+        <div class="page-head">
+          <div class="page-title">My Week</div>
+          <div class="page-sub">Week of 8–14 Jun 2026. Here's what needs you.</div>
+        </div>
+
+        <!-- MODULE 1: "What needs me?" — my tasks, ≤5 rows -->
+        <section class="module" aria-label="My tasks">
+          <div class="mod-head">
+            <span class="mod-title">What needs me</span>
+            <span class="mod-q">Your tasks, off track first</span>
+            <a class="mod-link">View all →</a>
+          </div>
+          <div class="row">
+            <div class="r-main">
+              <div class="r-title">SOP stock opname mingguan kitchen</div>
+              <div class="r-meta">Kitchen</div>
+            </div>
+            <span class="pill blocked"><span class="pdot"></span>Blocked</span>
+            <div class="owner"><span class="ownav">BU</span><span class="ownmore">+1</span></div>
+            <span class="due overdue tnum">Overdue</span>
+          </div>
+          <div class="row">
+            <div class="r-main">
+              <div class="r-title">Kalibrasi profil roasting Ethiopia Guji</div>
+              <div class="r-meta">Roastery</div>
+            </div>
+            <span class="pill inprogress"><span class="pdot"></span>In Progress</span>
+            <div class="owner"><span class="ownav">RW</span><span class="ownmore">+1</span></div>
+            <span class="due soon tnum">Fri 13 Jun</span>
+          </div>
+          <div class="row">
+            <div class="r-main">
+              <div class="r-title">Finalisasi menu seasonal Q3</div>
+              <div class="r-meta">Kitchen</div>
+            </div>
+            <span class="pill inprogress"><span class="pdot"></span>In Progress</span>
+            <div class="owner"><span class="ownav">DP</span><span class="ownmore">+2</span></div>
+            <span class="due tnum">&nbsp;</span>
+          </div>
+        </section>
+
+        <!-- MODULE 2: "Is my update filed?" — one quiet strip -->
+        <section class="module" aria-label="My weekly update">
+          <div class="mod-head">
+            <span class="mod-title">My update</span>
+            <span class="mod-q">This week's, due Fri 13 Jun</span>
+            <a class="mod-link">All updates →</a>
+          </div>
+          <div class="wu">
+            <span class="wu-state"><span class="pdot"></span>Draft — not filed</span>
+            <span class="wu-text"><b>Not filed yet.</b> <span class="calm">2 of 4 on your team have filed.</span></span>
+            <button class="btn-primary">Continue draft</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Quiet footer line: the third concern is a LINK, not a module -->
+      <p class="footline">4 ops events logged on the floor today · <a>See today on Ops →</a></p>
+    </main>
+  </div>
+</div>
+
+<!--
+============================================================
+IA PROPOSAL 6 — "Simple My Week"  (radical simplification of IA-2)
+THESIS (unchanged from IA-2): the home is a PERSONAL action digest —
+        you open MOS and immediately see what needs YOU. The redline
+        change is DENSITY: one centered column, two modules, lots of air.
+        Whitespace is the feature; an empty-feeling screen is correct.
+
+DE-DENSIFICATION DELTAS vs IA-2 (proposal-IA-2-myweek-home.html):
+  - LAYOUT: 2-column digest (1.55fr/1fr, 4 stacked cards) → ONE centered
+    column, max-width 840px, 40px top / generous margins.
+  - MODULES: 4 cards (My tasks, My weekly update, Team this week,
+    Today on the floor) → 2 modules (What needs me · My update). "Team
+    this week" + "Today on the floor" are GONE as rendered modules;
+    today's ops survives as a single quiet footer LINE (link, not module).
+  - NAV: 5 items WITH count badges (Tasks 6 / Updates 4 / Ops 4 /
+    People 7) + a "Workspaces" group label → 4 items (Home · Tasks ·
+    Updates · Ops), NO counts, no group label. People nav dropped from
+    home nav (reachable elsewhere).
+  - CHROME: breadcrumb (Gordi MOS › My Week) + ⌘K cmdk field both
+    REMOVED from the home header. Header = notifications + user only.
+  - ROWS: task rows ~48px with 2-line meta (unit + inline status pill IN
+    the meta line) → ≥60px rows, status as ONE standalone pill, unit on
+    its own muted line. Max 3 rows shown before "View all →" (budget ≤5).
+  - RACI: per-row stack of up to 2–4 R/A/C/I badges (role chip + name) →
+    ONE avatar = the Responsible person + a muted "+N" overflow. Full
+    R/A/C/I chips deferred to the (not-mocked) task-detail surface.
+  - DUE DATES: every row carried a due date (incl. far-future "Due 24
+    Jun", and a "Done 10 Jun" row) → due shown ONLY when overdue or ≤7
+    days; the done row and far-future rows are dropped from the home set;
+    the far-future "menu Q3" row shows NO due value (blank).
+  - STATUS: "Done" pill variant removed from home (home is about open
+    work). 4 pill variants → 3 in use (blocked / in-progress / open).
+  - META-NOISE CUT: the per-card states-note paragraph in the page body
+    (".note") is REMOVED from the page and lives only in this comment.
+    Source/type double-chips on ops rows are gone (ops is a single line).
+
+DESIGN.md TOKENS USED (identity unchanged — same hues/type/radii):
+  Colors: background, foreground, card, primary, primary-foreground,
+    secondary (via /35% main + /50% tints), muted-foreground, accent,
+    border, input, destructive, warning, warning-foreground, violet
+    (avatar gradient only); status text tokens --status-open-text
+    (221 75% 38%), --status-lost-text (0 72% 45%), warning-foreground
+    (22 78% 26%).
+  Typography: page-title, subheading (module titles), body, label
+    (pills), overline (brand sub); Tabular-Numbers Rule (.tnum on due).
+  Rounded: sm (nav-item), md (modules, button), full (pills, avatars).
+  Spacing: 4/16/20/24/32px from the 1–6 scale, used at the LARGER steps.
+  Components: rail/--rail-w 224px, --header-h 56px, nav-item + active,
+    card, badge-status, button-primary (brand shadow), avatar gradient.
+  Rules honored: One Blue Rule (blue = active nav, the single primary CTA,
+    links, the R-owner avatar tint, focus — well under 10%), Flat-By-
+    Default (borders + secondary/35% ground, zero static shadow), Tinted-
+    Status Rule, Single-Border Rule.
+
+PROPOSED DESIGN.md AMENDMENT (for OWNER SIGN-OFF — NOT yet written to DESIGN.md):
+  Add a "MOS density mode" note to §5/§6. MOS PRIMARY/HOME surfaces
+  diverge from PMO's "dense console" posture (PMO tables stay dense):
+    • Primary read/home surfaces are a SINGLE centered column, max-width
+      ~840px, with generous (≥32px) page margins — not multi-column card
+      grids.
+    • Home/digest rows are ROOMIER than the 54px table row: ≥56px, airy
+      padding from the larger spacing steps.
+    • At most 2 rendered modules per home screen; every additional concern
+      is a LINK (footer line / nav), never a third rendered module.
+    • Progressive disclosure for RACI + meta: lists show ONE owner avatar
+      (Responsible) + "+N" overflow and ONE status pill; full R/A/C/I and
+      secondary meta appear only on a detail surface.
+    • Due dates render only when overdue or ≤7 days; otherwise omitted.
+  This is a COMPOSITION rule (how much per surface), not a token/identity
+  change — all hues, type families, and radii are unchanged. PMO's dense
+  DataTable posture is preserved for the Tasks/Updates LIST surfaces.
+
+OPEN QUESTIONS FOR OWNER:
+  1. Is "My Week" / "Home" the right default landing for ALL roles, or do
+     pure ops users (who mainly file a daily update) land on Ops instead?
+  2. With "Team this week" gone from home, where does a manager's
+     review-my-people's-updates job live — inside Updates, or as a 3rd
+     module for manager roles only (would break the max-2 rule — flag)?
+  3. Today's-ops-as-footer-line: enough presence, or does it need to be a
+     (tiny) module so it's not missed? (IA-7 makes ops the FIRST row —
+     contrast the two.)
+  4. RACI single-avatar = Responsible person. Confirm R (not A) is the
+     right "who do I chase" identity for the row glance.
+  5. Density budget: confirm ≤5 rows + "View all" and the ≤840px column
+     feel right at the locked 1360px viewport (lots of side margin).
+============================================================
+-->
+</body>
+</html>
