@@ -46,4 +46,20 @@ scaffold/spec/build work. Owner picks before any app code. (LOCKED 2026-06-10, t
 
 ---
 
+## OD-P0 — Phase-0 intake (LOCKED 2026-06-10, this session)
+
+### OD-P0-1 — Weekly updates are per person
+Every manager + selected ops user files one weekly update; managers review their people's.
+(Unit-level rollups deferred until usage shows the shape.)
+
+### OD-P0-2 — Language: EN chrome, ID content
+English labels/nav/buttons (matches PMO/kitchen conventions, no i18n work); people write update
+content in Indonesian naturally. Mockups use realistic Indonesian update text under English chrome.
+
+### OD-P0-3 — Desktop-first, mobile-usable
+Managers' weekly/daily review surfaces are desktop-first; ops daily-update submission must work
+well on a phone. One responsive surface, not two optimized apps.
+
+---
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
