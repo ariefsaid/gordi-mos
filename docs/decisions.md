@@ -91,6 +91,34 @@ full list surfaces (Tasks, Updates, Ops).
 - **Ops strip:** event count + needs-me flag (amber when something waits on the viewer); no event
   preview text.
 
+### OD-P0-9 — Open questions resolved by inference from the Notion Management OS schema
+(Owner-directed 2026-06-10: "infer from the notion previous database setup". Source:
+wiki "Notion Management OS" + `sources/260420-notion-management-os-schema.md`.)
+
+- **(a) Reporting line is ROLE-based, not person-based.** Notion modeled it as
+  `Roles.Reports to / Subordinate` (self-relation) with People→Role; a person's team was derived
+  via the role chain ("Role Supervised", "# Subordinate" rollups). MOS mirrors it:
+  `shared.roles.reports_to_role_id`; `shared.people.role_id`; a manager's team = holders of roles
+  reporting to their role. (Phase 1.2 schema already plans people/roles/business-units — same shape.)
+- **(b) Activity age = last any-write.** Notion leaned on `Last edited time` (any property write).
+  MOS: `mos.tasks.last_activity_at` touched by status change, comment, field/RACI edit — one
+  canonical timestamp for home/list/detail.
+- **(c) Team-module row → that person's weekly update;** their overdue count → their filtered task
+  list. (Heritage: Notion People rows were per-person dashboards — update stream + task stats. A
+  full person page is the post-MVP descendant; not first slice.)
+- **(d) RACI v1 maps onto the old Tasks fields.** Notion Tasks carried exactly two person
+  relations: `Assigned to` (→ R) and `Supervisor` (→ A). RACI-as-fields is therefore the familiar
+  model with C/I added — validates OD-DIR-5. Chip colors stay the working default (R=primary,
+  A=violet, C/I=neutral) — pure-UI call, nothing to inherit.
+
+**Context notes (for Phase-2 specs, not binding now):**
+- Old `Project Updates` were **project-keyed** (+ Updated By + Week Ending). OD-P0-1 (person-keyed)
+  stands as the deliberate change; per-task references inside a person's update bridge the two.
+- Old task status vocabulary — [Not started, Doing, In Progress, Waiting Internal, Waiting External,
+  Waiting Approval, Postponed, Done, Cancelled] — input for the P2-1 status-enum decision
+  (mock's Open/In Progress/Blocked/Done is the simplified working set; "Blocked" ≈ the Waiting-*
+  family).
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
