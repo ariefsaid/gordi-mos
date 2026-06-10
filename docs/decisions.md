@@ -121,4 +121,40 @@ wiki "Notion Management OS" + `sources/260420-notion-management-os-schema.md`.)
 
 ---
 
+## OD-P1 — Supabase foundation (LOCKED 2026-06-11, grill-with-docs session #1)
+
+### OD-P1-1 — Org seam: orgs table + JWT-claim default
+`shared.orgs` seeded with one row (Gordi). `org_id` NOT NULL + FK on every business table, stamped
+server-side from the session's JWT claim — client-unspoofable (PMO pattern). Multi-org later = add rows.
+
+### OD-P1-2 — Person-first auth link
+`shared.people` exists independently of login; optional unique `user_id` → `auth.users`, filled when
+someone is provisioned. People are RACI-referenceable before they can log in.
+
+### OD-P1-3 — Day-one read posture: FIXED targeted matrix (not an engine)
+Three hardcoded RLS rule-sets, each provable in pgTAP:
+- **Tasks: org-readable** (cross-unit visibility is the product); writes gated by R/A/manager.
+- **Weekly updates: upward-only** — author + their manager chain (union over all held roles) + CEO.
+- **Ops events: org-readable**; writes = mirror service + unit members' manual adds.
+A configurable role→permission ENGINE is explicitly post-MVP. (Grill sharpened the owner's initial
+"role-matrix from day one" to exactly this.)
+
+### OD-P1-4 — Time: Asia/Jakarta, Mon–Sun week
+Store UTC timestamptz; business day/week boundaries computed in WIB. Weekly update due Fri 17:00 WIB.
+
+### OD-P1-5 — Real business units (5)
+Cafe Ops – General · Kitchen and Bar · Roastery · Sales – CRM · Finance and People.
+(Mockup canon stays fictional dev data.)
+
+### OD-P1-6 — Seed privacy (repo is public)
+Committed seed = structure (units, role tree) + fictional dev people for local/test. Real
+names/emails enter ONLY via an uncommitted, gitignored deploy-time seed.
+
+### OD-P1-7 — Multi-role people; union manager chain
+`person_roles` junction (a person may hold several roles). Manager relationships are the UNION over
+all held roles: dual-hats appear in all their managers' team modules; any of those managers reviews
+their single weekly update.
+
+---
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

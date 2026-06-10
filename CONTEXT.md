@@ -13,8 +13,9 @@ slice (no projects/objectives yet).
 _Avoid_: action item, to-do, work item, ticket
 
 **Business Unit**:
-One of Gordi's operating areas — Kitchen, Roastery, Sales & E-Commerce, Finance & People. Every
-task and person belongs to one.
+One of Gordi's operating areas — Cafe Ops – General, Kitchen and Bar, Roastery, Sales – CRM,
+Finance and People. Every task and person belongs to one. (Mockups use a fictional 4-unit canon;
+the real five are what gets seeded.)
 _Avoid_: team, department, division
 
 **Blocked**:
@@ -62,7 +63,16 @@ A task's last-any-write timestamp (status change, comment, field/RACI edit) show
 ("3h", "4d"). Notion heritage: "Last edited time".
 _Avoid_: last touched, updated at (in UI copy)
 
+**Week**:
+Monday–Sunday in Asia/Jakarta time; the weekly update for a week is due Friday 17:00 WIB.
+_Avoid_: sprint, cycle
+
 ## People & structure
+
+**Org**:
+The tenant container; Gordi is the only row for now. Every business row belongs to exactly one org
+— the seam that lets future apps/tenants share the stack.
+_Avoid_: company, workspace, tenant (in UI copy)
 
 **Person**:
 Anyone in `shared.people` — managers and selected ops users in the first slice. Identity is shared
@@ -70,13 +80,15 @@ across MOS and future ops apps.
 _Avoid_: user (except in auth contexts), employee, member
 
 **Role**:
-A named position a person holds; roles form the reporting line via reports-to between roles.
-Notion heritage: Roles DB with "Reports to / Subordinate".
+A named position; a person may hold several roles at once. Roles form the reporting line via
+reports-to between roles. Notion heritage: Roles DB with "Reports to / Subordinate".
 _Avoid_: job title (as a field), position
 
 **Manager**:
-A person whose role has subordinate roles with current holders; sees the team module and reviews
-their people's weekly updates. Derived from the role chain, never a flag on the person.
+A person any of whose roles has subordinate roles with current holders; sees the team module and
+reviews their people's weekly updates. Derived from the role chain, never a flag on the person.
+A dual-hat person appears in ALL their managers' teams (union), and any of those managers may
+review their one weekly update.
 _Avoid_: supervisor, lead (except inside role names like "Kitchen Lead")
 
 ## Surfaces
