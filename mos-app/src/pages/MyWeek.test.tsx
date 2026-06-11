@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { AuthState } from '../auth/context'
 
 vi.mock('../auth/useAuth')
 import { useAuth } from '../auth/useAuth'
 
-// Mock weeklyUpdates data layer for strip wiring (AC-050, AC-051)
+// Mock weeklyUpdates data layer for strip wiring (AC-050, AC-051) + team module (RI-CROSS)
 vi.mock('../lib/db/weeklyUpdates', () => ({
   getMyUpdate:     vi.fn(),
   upsertDraft:     vi.fn(),
@@ -16,8 +17,16 @@ vi.mock('../lib/db/weeklyUpdates', () => ({
   removeLine:      vi.fn(),
   listTeamUpdates: vi.fn(),
 }))
-import { getMyUpdate } from '../lib/db/weeklyUpdates'
+import { getMyUpdate, listTeamUpdates } from '../lib/db/weeklyUpdates'
 const mockGetMyUpdate = vi.mocked(getMyUpdate)
+const mockListTeamUpdates = vi.mocked(listTeamUpdates)
+
+// Mock team.ts roster resolution for the My Week team module (RI-CROSS)
+vi.mock('../lib/db/team', () => ({
+  getTeamForManager: vi.fn(),
+}))
+import { getTeamForManager } from '../lib/db/team'
+const mockGetTeamForManager = vi.mocked(getTeamForManager)
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -50,7 +59,7 @@ const managerViewer = {
 // FIX-4: async renderMyWeek — wraps render + flush inside act() so the
 // getMyUpdate mock-resolved promise settles within act and no "not wrapped
 // in act()" warnings are emitted (the async state update is now inside act).
-async function renderMyWeek(auth = nonManagerViewer) {
+async function renderMyWeek(auth: AuthState = nonManagerViewer) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
@@ -66,10 +75,31 @@ async function renderMyWeek(auth = nonManagerViewer) {
   return utils
 }
 
+const managerViewerWithRoles = {
+  status: 'authenticated' as const,
+  viewer: {
+    person: nonManagerViewer.viewer.person,
+    isManager: true,
+    roles: [{
+      id: 'role-001',
+      org_id: '10000000-0000-0000-0000-000000000001',
+      business_unit_id: null,
+      name: 'GM Café',
+      reports_to_role_id: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }],
+  },
+  signOut: vi.fn(),
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   // Default: no update for this week (keeps existing tests stable)
   mockGetMyUpdate.mockResolvedValue(null)
+  // Default team mocks: empty roster + empty updates
+  mockGetTeamForManager.mockResolvedValue([])
+  mockListTeamUpdates.mockResolvedValue([])
 })
 
 // AC-011: My Week task-table frame (empty)
@@ -151,12 +181,11 @@ describe('AC-012: Empty strips', () => {
 
 // AC-013: Team module is manager-conditional
 describe('AC-013: Team module manager-conditional', () => {
-  it('(a) shows team module for manager viewers', async () => {
+  it('(a) shows team module overline for manager viewers', async () => {
     await renderMyWeek(managerViewer)
     // The overline label starts with "Your team"
     const overline = screen.getAllByText(/Your team/i)
     expect(overline.length).toBeGreaterThan(0)
-    expect(screen.getByText('Nothing from your team yet.')).toBeInTheDocument()
   })
 
   it('(b) hides team module for non-manager viewers', async () => {
@@ -164,7 +193,6 @@ describe('AC-013: Team module manager-conditional', () => {
     // No team overline at all
     const matches = screen.queryAllByText(/Your team/i)
     expect(matches).toHaveLength(0)
-    expect(screen.queryByText('Nothing from your team yet.')).toBeNull()
   })
 })
 
@@ -347,5 +375,114 @@ describe('AC-051: My Week strip — Submitted state', () => {
     await renderMyWeek()
     await waitFor(() => screen.getByRole('link', { name: /view update/i }))
     expect(screen.getByRole('link', { name: /view update/i }).getAttribute('href')).toBe('/updates')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-M1: Submitted sentence — period is NOT a gap-separated flex child
+// The "." must sit flush against the TimingChip with no CSS gap between them.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-M1: Submitted sentence — period not gap-separated flex child', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue({
+      update: {
+        id: 'upd-1', org_id: 'org', person_id: '40000000-0000-0000-0000-000000000001',
+        week_start: '2026-06-08', summary: 'Done', status: 'submitted',
+        submitted_at: '2026-06-12T08:00:00Z',
+        created_by: '40000000-0000-0000-0000-000000000001',
+        created_at: '2026-06-10T08:00:00Z', updated_at: '2026-06-10T08:00:00Z',
+      },
+      items: [],
+    })
+    mockGetTeamForManager.mockResolvedValue([])
+    mockListTeamUpdates.mockResolvedValue([])
+  })
+
+  it('the period "." is not a flex child of the gap container that wraps "Submitted" + TimingChip', async () => {
+    const { container } = await renderMyWeek()
+    // Wait for submitted state to be fully rendered
+    await waitFor(() => expect(screen.getByText(/on time/i)).toBeInTheDocument())
+
+    // Find the sentence container inside the weekly update strip
+    const strip = container.querySelector('[aria-label="My weekly update"]')
+    expect(strip).toBeTruthy()
+
+    // The sentence flex container (if any) should NOT have the period as a direct flex child.
+    // Walk up from "." text nodes: the period must NOT be a child of an element with gap styling
+    // (i.e. gap > 0) that is also a flex container AND a sibling of the TimingChip.
+    const allSpans = Array.from(strip!.querySelectorAll('span'))
+    // Find the period span (text content = ".")
+    const periodSpan = allSpans.find(s => s.textContent === '.')
+    // The period MUST exist (it's still in the sentence)
+    expect(periodSpan).toBeTruthy()
+    // Its direct parent must NOT have gap styling applied with a flex sibling set
+    // (i.e. the parent should not be the "Submitted + chip + ." inline-flex with gap)
+    const parent = periodSpan!.parentElement!
+    const parentStyle = window.getComputedStyle(parent)
+    // If parent is inline-flex/flex with gap, the period is a gap-separated child — that's the bug.
+    // After the fix: the period is a text sibling after the flex container, NOT inside it.
+    const isFlexWithGap = (parentStyle.display === 'flex' || parentStyle.display === 'inline-flex')
+      && parentStyle.gap !== '0px' && parentStyle.gap !== '' && parentStyle.gap !== 'normal'
+    // After fix: period should not be inside a gapped flex container
+    expect(isFlexWithGap).toBe(false)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-CROSS: My Week team module reflects same listTeamUpdates state as review pane
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-CROSS: Team module wired to listTeamUpdates — cross-surface consistency', () => {
+  const teamRoster = [
+    { person_id: 'p-001', full_name: 'Budi Santoso', role_label: 'Barista' },
+  ]
+
+  it('shows "Filed" for a report who has filed this week', async () => {
+    mockGetTeamForManager.mockResolvedValue(teamRoster)
+    mockListTeamUpdates.mockResolvedValue([
+      {
+        person_id: 'p-001', full_name: 'Budi Santoso', role_label: 'Barista',
+        state: 'filed', summary_excerpt: 'All good', submitted_at: '2026-06-13T04:00:00Z',
+      },
+    ])
+    await renderMyWeek(managerViewerWithRoles)
+    await waitFor(() => expect(screen.getByText('Budi Santoso')).toBeInTheDocument())
+    // The status pill should show "Filed" — same label as the review pane's StatePill
+    expect(screen.getByText('Filed')).toBeInTheDocument()
+  })
+
+  it('shows "Not started" for a report who has not filed this week', async () => {
+    mockGetTeamForManager.mockResolvedValue(teamRoster)
+    mockListTeamUpdates.mockResolvedValue([
+      {
+        person_id: 'p-001', full_name: 'Budi Santoso', role_label: 'Barista',
+        state: 'not_started', summary_excerpt: null, submitted_at: null,
+      },
+    ])
+    await renderMyWeek(managerViewerWithRoles)
+    await waitFor(() => expect(screen.getByText('Budi Santoso')).toBeInTheDocument())
+    expect(screen.getByText('Not started')).toBeInTheDocument()
+  })
+
+  it('shows "Draft" for a report with a draft this week', async () => {
+    mockGetTeamForManager.mockResolvedValue(teamRoster)
+    mockListTeamUpdates.mockResolvedValue([
+      {
+        person_id: 'p-001', full_name: 'Budi Santoso', role_label: 'Barista',
+        state: 'draft', summary_excerpt: 'WIP', submitted_at: null,
+      },
+    ])
+    await renderMyWeek(managerViewerWithRoles)
+    await waitFor(() => expect(screen.getByText('Budi Santoso')).toBeInTheDocument())
+    expect(screen.getByText('Draft')).toBeInTheDocument()
+  })
+
+  it('shows empty-team copy when no direct reports are returned', async () => {
+    mockGetTeamForManager.mockResolvedValue([])
+    mockListTeamUpdates.mockResolvedValue([])
+    await renderMyWeek(managerViewerWithRoles)
+    await waitFor(() =>
+      expect(screen.getByText(/no direct reports/i)).toBeInTheDocument()
+    )
   })
 })

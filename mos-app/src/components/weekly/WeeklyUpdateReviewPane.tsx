@@ -33,8 +33,8 @@ function formatSubmitTime(submittedAt: string): string {
   })
 }
 
-// ── State pill (§3.3) ──────────────────────────────────────────────────────────
-function StatePill({ state }: { state: TeamUpdateRow['state'] }) {
+// ── State pill (§3.3) — exported for reuse in My Week team module ──────────────
+export function StatePill({ state }: { state: TeamUpdateRow['state'] }) {
   const cls = state === 'filed'
     ? 'wup-state-filed'
     : state === 'draft'

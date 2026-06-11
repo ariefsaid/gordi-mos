@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import PageFrame from '../shell/PageFrame'
 import PageHead from '../shell/PageHead'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { weekLabel, weekStartISO } from '../lib/week'
-import { getMyUpdate } from '../lib/db/weeklyUpdates'
+import { getMyUpdate, listTeamUpdates } from '../lib/db/weeklyUpdates'
 import type { MyUpdate } from '../lib/db/weeklyUpdates.types'
+import type { TeamMember } from '../lib/db/weeklyUpdates'
+import type { TeamUpdateRow } from '../lib/db/weeklyUpdates.types'
+import { getTeamForManager } from '../lib/db/team'
 import TimingChip from '../components/weekly/TimingChip'
+import { StatePill } from '../components/weekly/WeeklyUpdateReviewPane'
 
 export default function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
@@ -43,6 +47,34 @@ export default function MyWeek() {
   // Derive strip state
   const stripStatus = myUpdate?.update.status ?? null
   const submittedAt = myUpdate?.update.submitted_at ?? null
+
+  // ── Team module state (FR-017, OD-P0-8 — wired for managers only) ─────────────
+  const isManager      = viewer?.isManager ?? false
+  const viewerRoleIds  = viewer?.roles?.map((r: { id: string }) => r.id) ?? []
+
+  const [teamLoad,  setTeamLoad]  = useState<'loading' | 'ready' | 'error'>('loading')
+  const [teamRows,  setTeamRows]  = useState<TeamUpdateRow[]>([])
+
+  const loadTeam = useCallback(async () => {
+    if (!isManager) return
+    try {
+      const roster: TeamMember[] = viewerRoleIds.length > 0
+        ? await getTeamForManager(viewerRoleIds)
+        : []
+      const rows = await listTeamUpdates(weekStart, roster)
+      setTeamRows(rows)
+      setTeamLoad('ready')
+    } catch {
+      setTeamLoad('error')
+    }
+  // viewerRoleIds is an array — serialize to avoid spurious re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManager, weekStart, JSON.stringify(viewerRoleIds)])
+
+  useEffect(() => {
+    if (!isManager) return
+    loadTeam()
+  }, [isManager, loadTeam])
 
   return (
     <PageFrame>
@@ -174,7 +206,7 @@ export default function MyWeek() {
         </section>
 
         {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) ===== */}
-        {viewer?.isManager && (
+        {isManager && (
           <>
             <p
               className="text-muted-foreground font-semibold uppercase"
@@ -182,14 +214,11 @@ export default function MyWeek() {
             >
               Your team — Week of {wib.rangeShort}
             </p>
-            <div className="bg-card border border-border rounded-md">
-              <div
-                className="flex items-center text-muted-foreground"
-                style={{ height: 46, padding: '0 20px', fontSize: 13 }}
-              >
-                Nothing from your team yet.
-              </div>
-            </div>
+            <TeamModule
+              loadState={teamLoad}
+              rows={teamRows}
+              onRetry={loadTeam}
+            />
           </>
         )}
     </PageFrame>
@@ -258,15 +287,17 @@ function WeeklyUpdateStrip({
   let linkLabel: string
 
   if (isSubmitted && submittedAt) {
-    // "Submitted " + TimingChip — period attached directly inside the chip's wrapper
-    // M1 fix: no orphan ". " after the chip; the period is part of the inline sentence,
-    // not a floating text node after the chip's right padding.
+    // "Submitted " + TimingChip + "." — the period must sit flush after the chip with NO gap.
+    // Fix M1: wrap only "Submitted" + TimingChip in the inline-flex (gap applies between them),
+    // then append "." as a plain text node sibling OUTSIDE the gapped flex container.
     sentence = (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        Submitted
-        <TimingChip submittedAt={submittedAt} weekStart={weekStart} />
+      <>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          Submitted
+          <TimingChip submittedAt={submittedAt} weekStart={weekStart} />
+        </span>
         <span>.</span>
-      </span>
+      </>
     )
     linkLabel = 'View update →'
   } else if (isDraft) {
@@ -315,5 +346,107 @@ function WeeklyUpdateStrip({
         {linkLabel}
       </Link>
     </section>
+  )
+}
+
+// ── Team module (My Week manager card, FR-017, OD-P0-8) ─────────────────────
+// Shows each direct report's weekly-update status for the current week,
+// sourced from the same listTeamUpdates call the review pane uses (RI-CROSS).
+interface TeamModuleProps {
+  loadState: 'loading' | 'ready' | 'error'
+  rows: TeamUpdateRow[]
+  onRetry: () => void
+}
+
+function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
+  if (loadState === 'loading') {
+    return (
+      <div
+        className="bg-card border border-border rounded-md"
+        aria-label="Team weekly updates"
+        aria-busy="true"
+      >
+        <div
+          className="flex items-center text-muted-foreground"
+          style={{ height: 46, padding: '0 20px', fontSize: 13 }}
+        >
+          Loading…
+        </div>
+      </div>
+    )
+  }
+
+  if (loadState === 'error') {
+    return (
+      <div
+        className="bg-card border border-border rounded-md"
+        aria-label="Team weekly updates"
+      >
+        <div
+          className="flex items-center gap-3 text-muted-foreground"
+          style={{ minHeight: 46, padding: '12px 20px', fontSize: 13 }}
+        >
+          <span>Couldn't load team updates.</span>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="font-semibold text-primary"
+            style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Ready state
+  if (rows.length === 0) {
+    return (
+      <div
+        className="bg-card border border-border rounded-md"
+        aria-label="Team weekly updates"
+      >
+        <div
+          className="flex items-center text-muted-foreground"
+          style={{ height: 46, padding: '0 20px', fontSize: 13 }}
+        >
+          No direct reports found.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="bg-card border border-border rounded-md"
+      aria-label="Team weekly updates"
+    >
+      <ul role="list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {rows.map((row, i) => (
+          <li
+            key={row.person_id}
+            className="flex items-center gap-3"
+            style={{
+              padding: '10px 20px',
+              borderBottom: i < rows.length - 1 ? '1px solid hsl(240 5.9% 90%)' : undefined,
+              fontSize: 14,
+            }}
+          >
+            {/* Name + role */}
+            <span className="flex-1 min-w-0">
+              <span className="font-medium text-foreground">{row.full_name}</span>
+              {row.role_label && (
+                <span className="text-muted-foreground" style={{ fontSize: 12, marginLeft: 6 }}>
+                  {row.role_label}
+                </span>
+              )}
+            </span>
+            {/* Weekly update status pill — same StatePill as review pane (RI-CROSS) */}
+            <StatePill state={row.state} />
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
