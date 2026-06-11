@@ -28,3 +28,7 @@ coverage
 playwright-report
 test-results
 .tmp
+
+# Local env (never committed)
+.env
+.env.e2e
