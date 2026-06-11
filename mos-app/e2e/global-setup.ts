@@ -173,6 +173,16 @@ export default async function globalSetup() {
   )
   console.log('[global-setup] ensured MANAGER and VIEWER person_roles rows exist (idempotent)')
 
+  // ── Clear mos.weekly_updates for P2-2 e2e journeys (idempotent clean slate) ──
+  // Each e2e run starts with no weekly updates so write→submit→review journeys are deterministic.
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
+    DELETE FROM mos.weekly_update_items
+     WHERE org_id = '10000000-0000-0000-0000-000000000001';
+    DELETE FROM mos.weekly_updates
+     WHERE org_id = '10000000-0000-0000-0000-000000000001';
+  `)
+  console.log('[global-setup] cleared mos.weekly_updates for e2e org')
+
   // ── Seed mos.tasks for P2-1c e2e journeys ──────────────────────────────────
   // Deterministic: delete all mos.tasks for the Gordi e2e org, then seed fixed rows.
   // (service_role bypasses RLS via postgres; the org_id is fixed in seed.sql.)
