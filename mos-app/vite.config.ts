@@ -46,6 +46,9 @@ export default defineConfig({
         'src/pages/OpsPage.tsx',
         'src/pages/NotFoundPage.tsx',
         'src/shell/**',
+        // P2-2b: weekly update components
+        'src/components/weekly/**',
+        'src/components/tasks/**',
       ],
       exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },

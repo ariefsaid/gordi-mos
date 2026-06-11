@@ -45,18 +45,15 @@ describe('AC-007: Section empty shells', () => {
     expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
-  it('UpdatesPage: title "Updates", empty headline, explainer, no phase wording', () => {
+  it('UpdatesPage: title "Weekly update" heading is present, no phase wording (P2-2b replaces placeholder)', () => {
+    // P2-2b: UpdatesPage is now the live write-pane; placeholder copy is gone.
     render(
       <MemoryRouter>
         <UpdatesPage />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Updates' })).toBeInTheDocument()
-    expect(screen.getByText('No weekly updates yet.')).toBeInTheDocument()
-    expect(
-      screen.getByText('Weekly updates from you and your team will show up here.'),
-    ).toBeInTheDocument()
-    expect(document.body.textContent).not.toMatch(/phase|roadmap|coming soon|Phase 2/i)
+    expect(screen.getByRole('heading', { name: 'Weekly update' })).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
   it('OpsPage: title "Ops", empty headline, explainer, no phase wording', () => {
@@ -126,13 +123,13 @@ describe('AC-004: Document title per section page', () => {
     expect(document.title).toBe('Tasks — Gordi MOS')
   })
 
-  it('UpdatesPage sets document.title to "Updates — Gordi MOS"', () => {
+  it('UpdatesPage sets document.title to "Weekly update — Gordi MOS" (P2-2b page title)', () => {
     render(
       <MemoryRouter>
         <UpdatesPage />
       </MemoryRouter>,
     )
-    expect(document.title).toBe('Updates — Gordi MOS')
+    expect(document.title).toBe('Weekly update — Gordi MOS')
   })
 
   it('OpsPage sets document.title to "Ops — Gordi MOS"', () => {

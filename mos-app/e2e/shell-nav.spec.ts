@@ -44,13 +44,15 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 
   // --- Navigate to Updates ---
+  // P2-2b: page title is now "Weekly update — Gordi MOS"; real write pane replaces placeholder.
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }).click()
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Updates — Gordi MOS')
+  await expect(page).toHaveTitle('Weekly update — Gordi MOS')
   await expect(page.locator('header b:text("Updates")')).toBeVisible()
   const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' })
   await expect(updatesLink).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByText('No weekly updates yet.')).toBeVisible()
+  // Real write pane is rendered (aria-label from WeeklyUpdateWritePane section)
+  await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
 
   // --- Navigate to Ops ---
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Ops' }).click()
@@ -67,9 +69,9 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
   await page.reload()
 
-  // After reload: all three signals should still resolve to Updates
+  // After reload: all three signals should still resolve to Updates (P2-2b title update)
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Updates — Gordi MOS')
+  await expect(page).toHaveTitle('Weekly update — Gordi MOS')
   await expect(page.locator('header b:text("Updates")')).toBeVisible()
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }),
