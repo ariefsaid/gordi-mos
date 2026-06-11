@@ -381,6 +381,16 @@ Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
   no caption paragraphs on home.
 - **Due dates:** colored only when overdue (destructive) or ≤3 days (warning text); otherwise muted.
 
+### RACI role chips (added 2026-06-11, OD-P2 — reuse existing hues, no new brand)
+RACI ownership renders as small role chips, all from the existing palette:
+- `--raci-responsible` = `primary` (blue) — R, the doer; mirrors the list R-avatar tint.
+- `--raci-accountable` = `violet` — A, the single owner (categorical use of violet, allowed).
+- `--raci-consulted` / `--raci-informed` = `muted-foreground` on `secondary` — C and I, quiet.
+Chip = ≤16px role glyph + person name on a tinted pill (10–12% bg + darkened text, the standard
+tinted-status pattern). On list rows only the R person shows (avatar + "+N"); the full R/A/C/I set
+appears on the task detail surface. The R chip's small categorical use of the brand blue is within
+The One Blue Rule budget (it is never an action).
+
 ### List / detail surfaces (Tasks, Updates, Ops full pages)
 PMO's data-dense DataTable posture stays: sortable columns, functional filters, loading/empty/error
 states. Density mode governs *home*, not the working lists ("Executive vs Data-Dense split" —
