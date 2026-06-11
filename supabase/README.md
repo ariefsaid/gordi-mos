@@ -50,6 +50,9 @@ Secrets are fetched at deploy time via the host tool `op-get.sh <item> <vault> <
 `docs/environments.md` for the pattern). Committed coordinates (NOT secret):
 `supabase/op.resend.env`. Never copy the key into a file in this repo.
 
+**Smoke-tested 2026-06-11:** send-only key verified live — POST /emails as `Gordi Admin
+<admin@gordi.id>` to Resend's sandbox (`delivered@resend.dev`) returned 200 (id 79432513…). The
+key is restricted to sending (401 on /domains) — correct scope.
 Sanity check after deploy: trigger a password-reset from the prod login page and confirm delivery +
-that the link lands on `https://ops.gordi.id/mos/recovery`. Rate limits: Resend free tier (~3k/mo,
+that the link lands on `https://ops.gordi.id/mos/recovery` (proves the SMTP path specifically). Rate limits: Resend free tier (~3k/mo,
 100/day) is ~10× MOS's worst case.
