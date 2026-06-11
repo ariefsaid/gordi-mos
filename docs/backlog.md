@@ -54,7 +54,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-2a schema + upward-only RLS + data layer + week.ts — PR #8 (first non-org-readable entity;
     author-only write, submit-lock; security audit found+fixed a Critical — _test_seed_role_tree
     PUBLIC-EXECUTE RPC; CI definer-revoke lint added). 120 pgTAP · 282 unit.
-  - [ ] P2-2b write pane (summary + update lines w/ ProgressMarker, Save draft/Submit/Reopen).
+  - [x] P2-2b write pane + ProgressMarker — PR #9 (summary + update lines w/ progress marker,
+    Save draft/Submit/Reopen, submitted-locked, on-time/late; 3-lens caught a transparent-Submit
+    Critical unit tests missed → fixed). 337 unit · 9 e2e. (CI: excluded flaky edge-runtime.)
   - [ ] P2-2c manager review pane + My Week strip wiring + 2 e2e.
 - [ ] P2-3 daily ops updates feed (manual entry first).
 - [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
@@ -83,6 +85,10 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   tests 14/16 onto the new `mos._test_seed_role_tree()` helper (one role-tree definition org-wide) ·
   lift `mos()` schema-client + `throwOnError` wrapper into a shared `db/mosClient.ts` when a 3rd mos
   data-layer file lands · optional `wibMondayUTC(now)` DRY across week.ts pure fns.
+- **P2-2b polish deferrals (non-blocking):** extract a shared `<TintPill variant>` primitive — the
+  3rd tinted-pill now exists (ProgressMarker.css ≈ StatusPill.css ≈ TimingChip inline) · migrate the
+  write-pane inline-style blocks to co-located CSS (consistency w/ tasks/ pattern) · marker-picker
+  popover up-flip when near the bottom of the list.
 
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
