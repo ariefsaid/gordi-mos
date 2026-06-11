@@ -1,11 +1,12 @@
 // TDD: UpdatesPage — write pane states, validation, mutations (PR-b, AC-031..038, AC-030 timing signal)
+// Review pane (PR-c, AC-040..046), My Week strip (AC-050..051)
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '../auth/context'
 import { AuthContext } from '../auth/context'
 import type { PeopleRow, RolesRow } from '../lib/database.types'
-import type { MyUpdate } from '../lib/db/weeklyUpdates.types'
+import type { MyUpdate, TeamUpdateRow } from '../lib/db/weeklyUpdates.types'
 
 // ── Mock the data layer ───────────────────────────────────────────────────────
 vi.mock('../lib/db/weeklyUpdates', () => ({
@@ -19,15 +20,27 @@ vi.mock('../lib/db/weeklyUpdates', () => ({
   listTeamUpdates: vi.fn(),
 }))
 
+// ── Mock directory (for team roster in review pane) ──────────────────────────
+vi.mock('../lib/db/directory', () => ({
+  getPeople: vi.fn(),
+  getBusinessUnits: vi.fn(),
+}))
+
+// ── Mock team loader (for UpdatesPage team roster) ────────────────────────────
+vi.mock('../lib/db/team', () => ({
+  getTeamForManager: vi.fn().mockResolvedValue([]),
+}))
+
 import {
-  getMyUpdate, upsertDraft, submit, reopen,
+  getMyUpdate, upsertDraft, submit, reopen, listTeamUpdates,
 } from '../lib/db/weeklyUpdates'
 import UpdatesPage from './UpdatesPage'
 
-const mockGetMyUpdate  = vi.mocked(getMyUpdate)
-const mockUpsertDraft  = vi.mocked(upsertDraft)
-const mockSubmit       = vi.mocked(submit)
-const mockReopen       = vi.mocked(reopen)
+const mockGetMyUpdate    = vi.mocked(getMyUpdate)
+const mockUpsertDraft    = vi.mocked(upsertDraft)
+const mockSubmit         = vi.mocked(submit)
+const mockReopen         = vi.mocked(reopen)
+const mockListTeamUpdates = vi.mocked(listTeamUpdates)
 
 // ── Viewer fixtures ───────────────────────────────────────────────────────────
 const VIEWER_ID = 'viewer-person-id'
@@ -415,11 +428,12 @@ describe('UpdatesPage — page structure (§1 design-plan)', () => {
     expect(screen.queryByLabelText(/team updates/i)).toBeNull()
   })
 
-  it('review pane placeholder IS present for manager (§3 seam for PR-c)', async () => {
+  it('review pane IS rendered for manager (§3, FR-030 — PR-c replaces placeholder)', async () => {
+    mockListTeamUpdates.mockResolvedValue([])
     renderPage(managerState) // isManager: true
     await waitFor(() => screen.getByLabelText(/my weekly update/i))
-    // Manager sees review section caption or placeholder
-    expect(screen.getByTestId('review-pane-placeholder')).toBeTruthy()
+    // Manager sees review pane section
+    expect(screen.getByLabelText(/team updates/i)).toBeTruthy()
   })
 })
 
@@ -476,6 +490,208 @@ describe('UpdatesPage write pane — locked view reflects locally-added lines (F
     await waitFor(() => expect(screen.getByRole('button', { name: /reopen/i })).toBeTruthy())
     const staticRows = screen.getAllByTestId('update-line-row-static')
     expect(staticRows.some(r => r.textContent?.includes('Brand new line added locally'))).toBe(true)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PR-c: Manager review pane (AC-040..046)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Review pane team roster (AC-040, AC-041) ──────────────────────────────────
+const TEAM_MIXED: TeamUpdateRow[] = [
+  { person_id: 'p1', full_name: 'Raka Wijaya',   role_label: 'Roastery Lead', state: 'filed',       summary_excerpt: 'Produksi stabil', submitted_at: '2026-06-12T08:00:00Z' },  // on time
+  { person_id: 'p2', full_name: 'Siti Aminah',   role_label: 'Sales Lead',    state: 'draft',       summary_excerpt: 'Masih draft',     submitted_at: null },
+  { person_id: 'p3', full_name: 'Budi Santoso',  role_label: 'Ops Staff',     state: 'not_started', summary_excerpt: null,              submitted_at: null },
+]
+
+const TEAM_ALL_NOT_STARTED: TeamUpdateRow[] = [
+  { person_id: 'p1', full_name: 'Raka Wijaya',  role_label: 'Roastery Lead', state: 'not_started', summary_excerpt: null, submitted_at: null },
+  { person_id: 'p2', full_name: 'Siti Aminah',  role_label: 'Sales Lead',    state: 'not_started', summary_excerpt: null, submitted_at: null },
+]
+
+describe('UpdatesPage review pane — roster rows (AC-040)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+    mockListTeamUpdates.mockResolvedValue(TEAM_MIXED)
+  })
+
+  it('renders one row per team person with name, role, and state pill (AC-040)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByText('Raka Wijaya')).toBeTruthy()
+    expect(screen.getByText('Siti Aminah')).toBeTruthy()
+    expect(screen.getByText('Budi Santoso')).toBeTruthy()
+  })
+
+  it('roster shows summary excerpt for filed rows, "No update yet" for not-started (AC-040)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByText('Produksi stabil')).toBeTruthy()
+    expect(screen.getAllByText(/no update yet/i).length).toBeGreaterThan(0)
+  })
+
+  it('filed → Filed pill, draft → Draft pill, none → Not started pill (AC-041)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByText('Filed')).toBeTruthy()
+    expect(screen.getByText('Draft')).toBeTruthy()
+    expect(screen.getByText('Not started')).toBeTruthy()
+  })
+
+  it('summary counts match the roster states (AC-041)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    // Expect counts region: "1 filed · 1 draft · 1 not started"
+    const countsEl = screen.getByTestId('review-counts')
+    expect(countsEl.textContent).toMatch(/1/)
+    expect(countsEl.textContent).toMatch(/filed/i)
+    expect(countsEl.textContent).toMatch(/draft/i)
+    expect(countsEl.textContent).toMatch(/not started/i)
+  })
+})
+
+describe('UpdatesPage review pane — on-time / late signal (AC-042)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+  })
+
+  it('filed row with on-time submit shows "on time" signal (AC-042)', async () => {
+    // Raka filed Fri 15:00 WIB (08:00Z) for week 2026-06-08 — on time
+    mockListTeamUpdates.mockResolvedValue([
+      { person_id: 'p1', full_name: 'Raka Wijaya', role_label: 'Lead', state: 'filed',
+        summary_excerpt: 'Test', submitted_at: '2026-06-12T08:00:00Z' },
+    ])
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByText(/on time/i)).toBeTruthy()
+  })
+
+  it('filed row with late submit shows "late" signal (AC-042)', async () => {
+    // Filed Saturday 12:00 WIB = 05:00Z — late
+    mockListTeamUpdates.mockResolvedValue([
+      { person_id: 'p1', full_name: 'Raka Wijaya', role_label: 'Lead', state: 'filed',
+        summary_excerpt: 'Test', submitted_at: '2026-06-13T05:00:00Z' },
+    ])
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByText(/late/i)).toBeTruthy()
+  })
+})
+
+describe('UpdatesPage review pane — read-only (AC-043)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+    mockListTeamUpdates.mockResolvedValue(TEAM_MIXED)
+  })
+
+  it('no edit, acknowledge, or comment affordances in the review pane (AC-043)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    // No inputs, no textareas, no acknowledge/comment buttons in the review section
+    const reviewSection = screen.getByLabelText(/team updates/i)
+    expect(reviewSection.querySelector('input')).toBeNull()
+    expect(reviewSection.querySelector('textarea')).toBeNull()
+    expect(reviewSection.querySelector('[aria-label*="comment" i]')).toBeNull()
+    expect(reviewSection.querySelector('[aria-label*="acknowledge" i]')).toBeNull()
+  })
+})
+
+describe('UpdatesPage review pane — prior-week navigation (AC-044)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+    mockListTeamUpdates.mockResolvedValue(TEAM_MIXED)
+  })
+
+  it('prev-week button is present with accessible label (AC-044)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByRole('button', { name: /previous week/i })).toBeTruthy()
+  })
+
+  it('next-week button is disabled at current week (AC-044)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    const nextBtn = screen.getByRole('button', { name: /next week/i })
+    const isDisabled = nextBtn.hasAttribute('disabled') || nextBtn.getAttribute('aria-disabled') === 'true'
+    expect(isDisabled).toBe(true)
+  })
+
+  it('clicking previous week changes the displayed week (AC-044)', async () => {
+    renderPage(managerState)
+    // Wait for initial render to complete
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    // Capture the initial week pill text
+    const reviewSection = screen.getByLabelText(/team updates/i)
+    const initialWeekPillText = reviewSection.querySelector('.tabular-nums')?.textContent ?? ''
+    // Click previous week
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /previous week/i }))
+    })
+    // The next-week button should now be enabled (no longer at current week)
+    await waitFor(() => {
+      const nextBtn = screen.getByRole('button', { name: /next week/i })
+      const isDisabled = nextBtn.hasAttribute('disabled') || nextBtn.getAttribute('aria-disabled') === 'true'
+      expect(isDisabled).toBe(false)
+    })
+    // The week pill should show a different (earlier) week
+    const newWeekPillText = reviewSection.querySelector('.tabular-nums')?.textContent ?? ''
+    expect(newWeekPillText).not.toBe(initialWeekPillText)
+  })
+})
+
+describe('UpdatesPage review pane — empty team / all not-started (AC-045)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+    mockListTeamUpdates.mockResolvedValue(TEAM_ALL_NOT_STARTED)
+  })
+
+  it('all rows show Not started; counts "0 filed · 0 draft · 2 not started" (AC-045)', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    const countsEl = screen.getByTestId('review-counts')
+    // 0 filed, 0 draft, 2 not started
+    expect(countsEl.textContent).toMatch(/0/)
+    expect(countsEl.textContent).toMatch(/not started/i)
+    const notStartedPills = screen.getAllByText('Not started')
+    expect(notStartedPills).toHaveLength(2)
+  })
+})
+
+describe('UpdatesPage review pane — error state (AC-046)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(DRAFT_UPDATE)
+    mockListTeamUpdates.mockRejectedValue(new Error('network error'))
+  })
+
+  it('shows inline error + Retry for review pane; write pane stays usable (AC-046)', async () => {
+    renderPage(managerState)
+    // Write pane loads successfully
+    await waitFor(() => screen.getByDisplayValue('Produksi stabil minggu ini'))
+    // Review pane shows error
+    await waitFor(() => screen.getByText(/couldn't load team updates/i))
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+    // Write pane still usable
+    expect(screen.getByDisplayValue('Produksi stabil minggu ini')).toBeTruthy()
+  })
+})
+
+describe('UpdatesPage review pane — loading skeleton (AC-040)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+    mockListTeamUpdates.mockReturnValue(new Promise(() => {})) // never resolves
+  })
+
+  it('shows loading skeleton while listTeamUpdates is pending', async () => {
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    expect(screen.getByTestId('review-pane-skeleton')).toBeTruthy()
   })
 })
 

@@ -1,0 +1,234 @@
+/* WeeklyUpdateReviewPane — design-plan §3.
+   Token-only styling (DESIGN.md). Responsive: <768px meta wraps to second row.
+   Reduced-motion: no transitions. */
+
+/* Roster row: ≥60px, hover wash */
+.wup-review-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 0;
+  cursor: pointer;
+  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); /* border @70% */
+}
+.wup-review-row:last-child {
+  border-bottom: 0;
+}
+.wup-review-row:hover {
+  background: hsl(240 4.8% 95.9% / 0.6); /* accent @60% */
+  border-radius: 4px;
+}
+
+/* Avatar 32px circle — primary→violet gradient */
+.wup-review-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  flex: none;
+  background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
+  color: hsl(0 0% 98%);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Main section: name + role + excerpt */
+.wup-review-main {
+  flex: 1;
+  min-width: 0;
+}
+.wup-review-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: hsl(240 10% 3.9%);
+}
+.wup-review-role {
+  font-size: 12px;
+  color: hsl(240 4% 40%);
+  font-weight: 400;
+}
+.wup-review-excerpt {
+  font-size: 13px;
+  color: hsl(240 4% 40%);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wup-review-excerpt-empty {
+  font-style: italic;
+  color: hsl(240 4% 40%);
+}
+
+/* Meta: time + state pill (right-aligned desktop, wraps on mobile) */
+.wup-review-meta {
+  margin-left: auto;
+  text-align: right;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.wup-review-time {
+  font-size: 12px;
+  color: hsl(240 4% 40%);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: right;
+}
+
+/* State pills (§3.3) — badge-status shell + dot */
+.wup-state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 96px;
+  justify-content: center;
+}
+.wup-state-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.wup-state-filed {
+  background: hsl(142 71% 45% / 0.14);
+  color: hsl(142 64% 30%);
+}
+.wup-state-filed .wup-state-pill-dot {
+  background: hsl(142 71% 45%);
+}
+.wup-state-draft {
+  background: hsl(43 96% 56% / 0.18);
+  color: hsl(22 78% 26%);
+}
+.wup-state-draft .wup-state-pill-dot {
+  background: hsl(43 96% 56%);
+}
+.wup-state-notstarted {
+  background: hsl(240 4.8% 95.9%);
+  color: hsl(240 4% 40%);
+}
+.wup-state-notstarted .wup-state-pill-dot {
+  background: hsl(240 4% 40%);
+}
+
+/* On-time / late timing chip (reuses write-pane §2.5 tokens) */
+.wup-timing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.wup-timing-ontime {
+  background: hsl(142 71% 45% / 0.14);
+  color: hsl(142 64% 30%);
+}
+.wup-timing-ontime .wup-timing-dot {
+  background: hsl(142 71% 45%);
+}
+.wup-timing-late {
+  background: hsl(43 96% 56% / 0.18);
+  color: hsl(22 78% 26%);
+}
+.wup-timing-late .wup-timing-dot {
+  background: hsl(43 96% 56%);
+}
+.wup-timing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+/* Week nav in card head */
+.wup-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.wup-week-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: hsl(240 4% 40%);
+  font-size: 16px;
+  min-height: 44px; /* ≥44px touch target */
+  min-width: 44px;
+}
+.wup-week-nav-btn:hover:not(:disabled) {
+  background: hsl(240 4.8% 95.9%);
+}
+.wup-week-nav-btn:disabled,
+.wup-week-nav-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Summary counts bar */
+.wup-review-counts {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: hsl(240 4% 40%);
+}
+.wup-review-counts b {
+  color: hsl(240 10% 3.9%);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Skeleton rows */
+.wup-review-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 0;
+  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+}
+.wup-review-skeleton:last-child { border-bottom: 0; }
+.wup-review-skeleton-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: hsl(240 4.8% 95.9%);
+  flex: none;
+}
+.wup-review-skeleton-line {
+  border-radius: 4px;
+  background: hsl(240 4.8% 95.9%);
+}
+
+/* Responsive: <768px meta wraps to second row under main */
+@media (max-width: 767px) {
+  .wup-review-row {
+    flex-wrap: wrap;
+  }
+  .wup-review-meta {
+    margin-left: 0;
+    text-align: left;
+    padding-left: 44px; /* indent under avatar */
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

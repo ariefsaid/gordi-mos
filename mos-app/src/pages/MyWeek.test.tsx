@@ -1,9 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../auth/useAuth')
 import { useAuth } from '../auth/useAuth'
+
+// Mock weeklyUpdates data layer for strip wiring (AC-050, AC-051)
+vi.mock('../lib/db/weeklyUpdates', () => ({
+  getMyUpdate:     vi.fn(),
+  upsertDraft:     vi.fn(),
+  submit:          vi.fn(),
+  reopen:          vi.fn(),
+  addLine:         vi.fn(),
+  updateLine:      vi.fn(),
+  removeLine:      vi.fn(),
+  listTeamUpdates: vi.fn(),
+}))
+import { getMyUpdate } from '../lib/db/weeklyUpdates'
+const mockGetMyUpdate = vi.mocked(getMyUpdate)
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -44,6 +58,8 @@ function renderMyWeek(auth = nonManagerViewer) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default: no update for this week (keeps existing tests stable)
+  mockGetMyUpdate.mockResolvedValue(null)
 })
 
 // AC-011: My Week task-table frame (empty)
@@ -93,14 +109,14 @@ describe('AC-011: Empty task-table frame', () => {
 
 // AC-012: Empty strips link to their surfaces
 describe('AC-012: Empty strips', () => {
-  it('update strip shows no-update copy with Due Fri phrase and link to /updates', () => {
+  it('update strip shows no-update copy with Due Fri phrase and link to /updates', async () => {
     renderMyWeek()
-    expect(
-      screen.getByText('No weekly update for this week yet.'),
-    ).toBeInTheDocument()
+    // Wait for getMyUpdate to resolve (null = no update)
+    await waitFor(() => expect(screen.getByText('No weekly update for this week yet.')).toBeInTheDocument())
     // "Due Fri" substring present in the explainer
     expect(screen.getByText(/Due Fri /)).toBeInTheDocument()
-    const link = screen.getByRole('link', { name: /Open Updates/i })
+    // Strip links to /updates (link label changed from "Open Updates" to "Write update" per design-plan §6)
+    const link = screen.getByRole('link', { name: /write update|open updates/i })
     expect(link.getAttribute('href')).toBe('/updates')
   })
 
@@ -209,5 +225,125 @@ describe('AC-010: My Week head WIB week math', () => {
     const subtitle = screen.getByText(/Week of/)
     expect(subtitle.textContent).toContain('Week of 8–14 Jun 2026')
     expect(subtitle.textContent).toContain('Mon 8 Jun')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AC-050: strip "No update" state
+// AC-051: strip Draft / Submitted + on-time/late states
+// ══════════════════════════════════════════════════════════════════════════════
+describe('AC-050: My Week strip — No update state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+  })
+
+  it('strip shows "No update" pill and "No weekly update for this week yet" when no row (AC-050)', async () => {
+    renderMyWeek()
+    // After loading resolves, the No update state shows
+    await waitFor(() => {
+      const strip = document.querySelector('[aria-label="My weekly update"]')
+      expect(strip?.textContent).toMatch(/no update/i)
+    })
+    expect(screen.getByText(/No weekly update for this week yet/i)).toBeTruthy()
+  })
+
+  it('strip shows "Due Fri" and "Write update" link when no row (AC-050)', async () => {
+    renderMyWeek()
+    await waitFor(() => screen.getByText(/No weekly update for this week yet/i))
+    expect(screen.getByText(/Due Fri/i)).toBeTruthy()
+    const link = screen.getByRole('link', { name: /write update/i })
+    expect(link.getAttribute('href')).toBe('/updates')
+  })
+})
+
+describe('AC-051: My Week strip — Draft state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue({
+      update: {
+        id: 'upd-1', org_id: 'org', person_id: '40000000-0000-0000-0000-000000000001',
+        week_start: '2026-06-08', summary: 'In progress', status: 'draft', submitted_at: null,
+        created_by: '40000000-0000-0000-0000-000000000001',
+        created_at: '2026-06-10T08:00:00Z', updated_at: '2026-06-10T08:00:00Z',
+      },
+      items: [],
+    })
+  })
+
+  it('strip shows "Draft" pill and "Draft — not filed yet" when draft exists (AC-051)', async () => {
+    renderMyWeek()
+    await waitFor(() => {
+      expect(screen.getByText(/Draft — not filed yet/i)).toBeTruthy()
+    })
+    // Draft pill present
+    const strip = document.querySelector('[aria-label="My weekly update"]')
+    expect(strip?.textContent).toMatch(/Draft/i)
+  })
+
+  it('strip shows "Continue draft" link when draft (AC-051)', async () => {
+    renderMyWeek()
+    await waitFor(() => screen.getByText(/Draft — not filed yet/i))
+    const link = screen.getByRole('link', { name: /continue draft/i })
+    expect(link.getAttribute('href')).toBe('/updates')
+  })
+})
+
+describe('AC-051: My Week strip — Submitted state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('strip shows "Submitted" pill and on-time indicator (AC-051)', async () => {
+    mockGetMyUpdate.mockResolvedValue({
+      update: {
+        id: 'upd-1', org_id: 'org', person_id: '40000000-0000-0000-0000-000000000001',
+        week_start: '2026-06-08', summary: 'Done', status: 'submitted',
+        submitted_at: '2026-06-12T08:00:00Z', // Fri 15:00 WIB — on time
+        created_by: '40000000-0000-0000-0000-000000000001',
+        created_at: '2026-06-10T08:00:00Z', updated_at: '2026-06-10T08:00:00Z',
+      },
+      items: [],
+    })
+    renderMyWeek()
+    await waitFor(() => {
+      const strip = document.querySelector('[aria-label="My weekly update"]')
+      expect(strip?.textContent).toMatch(/Submitted/i)
+    })
+    // on time signal
+    expect(screen.getByText(/on time/i)).toBeTruthy()
+  })
+
+  it('strip shows "late" indicator when submitted after Fri 17:00 WIB (AC-051)', async () => {
+    mockGetMyUpdate.mockResolvedValue({
+      update: {
+        id: 'upd-1', org_id: 'org', person_id: '40000000-0000-0000-0000-000000000001',
+        week_start: '2026-06-08', summary: 'Done', status: 'submitted',
+        submitted_at: '2026-06-13T05:00:00Z', // Sat 12:00 WIB — late
+        created_by: '40000000-0000-0000-0000-000000000001',
+        created_at: '2026-06-10T08:00:00Z', updated_at: '2026-06-10T08:00:00Z',
+      },
+      items: [],
+    })
+    renderMyWeek()
+    await waitFor(() => {
+      expect(screen.getByText(/late/i)).toBeTruthy()
+    })
+  })
+
+  it('strip shows "View update" link when submitted (AC-051)', async () => {
+    mockGetMyUpdate.mockResolvedValue({
+      update: {
+        id: 'upd-1', org_id: 'org', person_id: '40000000-0000-0000-0000-000000000001',
+        week_start: '2026-06-08', summary: 'Done', status: 'submitted',
+        submitted_at: '2026-06-12T08:00:00Z',
+        created_by: '40000000-0000-0000-0000-000000000001',
+        created_at: '2026-06-10T08:00:00Z', updated_at: '2026-06-10T08:00:00Z',
+      },
+      items: [],
+    })
+    renderMyWeek()
+    await waitFor(() => screen.getByRole('link', { name: /view update/i }))
+    expect(screen.getByRole('link', { name: /view update/i }).getAttribute('href')).toBe('/updates')
   })
 })

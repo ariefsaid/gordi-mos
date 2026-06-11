@@ -1,13 +1,17 @@
 // UpdatesPage — /updates route.
-// Hosts the write pane (PR-b) and a placeholder seam for the review pane (PR-c).
-// Design authority: docs/plans/2026-06-12-weekly-updates-design.md §1, §2.
-// AC-031..038 owned by WeeklyUpdateWritePane. Review pane (AC-040..046) in PR-c.
+// Hosts the write pane (PR-b) and the manager review pane (PR-c).
+// Design authority: docs/plans/2026-06-12-weekly-updates-design.md §1, §2, §3.
+// AC-031..038 owned by WeeklyUpdateWritePane. Review pane AC-040..046 here + WeeklyUpdateReviewPane.
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../auth/useAuth'
 import PageFrame from '../shell/PageFrame'
 import PageHead from '../shell/PageHead'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { weekLabel, weekStartISO } from '../lib/week'
 import WeeklyUpdateWritePane from '../components/weekly/WeeklyUpdateWritePane'
+import WeeklyUpdateReviewPane from '../components/weekly/WeeklyUpdateReviewPane'
+import { getTeamForManager } from '../lib/db/team'
+import type { TeamMember } from '../lib/db/weeklyUpdates'
 
 export default function UpdatesPage() {
   useDocumentTitle('Weekly update — Gordi MOS')
@@ -17,8 +21,31 @@ export default function UpdatesPage() {
   const isManager = viewer?.isManager ?? false
 
   const now = new Date()
-  const wib = weekLabel(now)
-  const weekStart = weekStartISO(now, 0)
+  const currentWeekStart = weekStartISO(now, 0)
+
+  // Shared selected week (write pane navigates by review pane for manager, §3.5)
+  const [weekStart, setWeekStart] = useState(currentWeekStart)
+
+  // Team roster for the review pane (lazy-loaded for managers only)
+  const [team, setTeam] = useState<TeamMember[]>([])
+
+  const viewerRoleIds = viewer?.roles.map(r => r.id) ?? []
+
+  const loadTeam = useCallback(async () => {
+    if (!isManager || viewerRoleIds.length === 0) return
+    try {
+      const result = await getTeamForManager(viewerRoleIds)
+      setTeam(result)
+    } catch {
+      // Non-fatal: review pane will show empty team. listTeamUpdates is the authoritative load.
+      setTeam([])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManager, JSON.stringify(viewerRoleIds)])
+
+  useEffect(() => { loadTeam() }, [loadTeam])
+
+  const wib = weekLabel(new Date(weekStart + 'T00:00:00+07:00'))
 
   // Page subtitle (§1.1 design-plan): full for managers, short for non-managers
   const subtitle = isManager
@@ -63,7 +90,7 @@ export default function UpdatesPage() {
         </section>
       )}
 
-      {/* Review pane (PR-c seam — manager only) */}
+      {/* Review pane (PR-c) — manager conditional (§3, FR-030) */}
       {isManager && (
         <>
           <p
@@ -76,17 +103,12 @@ export default function UpdatesPage() {
           >
             Review — my team&rsquo;s updates
           </p>
-          {/* PR-c placeholder — will be replaced by WeeklyUpdateReviewPane */}
-          <section
-            aria-label="Team updates"
-            data-testid="review-pane-placeholder"
-            className="bg-card border border-border rounded-md"
-            style={{ padding: '16px 20px', minHeight: 80 }}
-          >
-            <div style={{ fontSize: 14, color: 'hsl(240 4% 40%)' }}>
-              Team updates — review pane loads in PR-c.
-            </div>
-          </section>
+          <WeeklyUpdateReviewPane
+            team={team}
+            weekStart={weekStart}
+            onWeekChange={setWeekStart}
+            currentWeekStart={currentWeekStart}
+          />
         </>
       )}
     </PageFrame>
