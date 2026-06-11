@@ -6,7 +6,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { listTeamUpdates, type TeamMember } from '../../lib/db/weeklyUpdates'
 import type { TeamUpdateRow } from '../../lib/db/weeklyUpdates.types'
-import { weekLabel, weekStartISO, weeklyUpdateTiming } from '../../lib/week'
+import { weekLabel, weekStartISO } from '../../lib/week'
+import TimingChip from './TimingChip'
 import './WeeklyUpdateReviewPane.css'
 
 // ── Initials helper ────────────────────────────────────────────────────────────
@@ -24,18 +25,6 @@ function formatSubmitTime(submittedAt: string): string {
     minute: '2-digit',
     timeZone: 'Asia/Jakarta',
   })
-}
-
-// ── TimingChip (§2.5, §3.2) ───────────────────────────────────────────────────
-function TimingChip({ submittedAt, weekStart }: { submittedAt: string; weekStart: string }) {
-  const timing = weeklyUpdateTiming(submittedAt, weekStart)
-  const onTime = timing === 'on-time'
-  return (
-    <span className={`wup-timing-chip ${onTime ? 'wup-timing-ontime' : 'wup-timing-late'}`}>
-      <span className="wup-timing-dot" aria-hidden="true" />
-      {onTime ? 'on time' : 'late'}
-    </span>
-  )
 }
 
 // ── State pill (§3.3) ──────────────────────────────────────────────────────────
@@ -135,12 +124,12 @@ export default function WeeklyUpdateReviewPane({
   const [rows, setRows]       = useState<TeamUpdateRow[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'error' | 'ready'>('loading')
 
-  // Track weekOffset relative to current week for navigation (§3.5)
-  // Derive offset from weekStart vs currentWeekStart
-  const currentWeekMs   = new Date(currentWeekStart).getTime()
-  const selectedWeekMs  = new Date(weekStart).getTime()
-  const weekOffsetDays  = Math.round((selectedWeekMs - currentWeekMs) / (7 * 24 * 3600 * 1000))
-  const atCurrentWeek   = weekOffsetDays >= 0
+  // Track weekOffset (week-count) relative to current week for navigation (§3.5)
+  // Derive offset from weekStart vs currentWeekStart — counts whole weeks, not days
+  const currentWeekMs  = new Date(currentWeekStart).getTime()
+  const selectedWeekMs = new Date(weekStart).getTime()
+  const weekOffset     = Math.round((selectedWeekMs - currentWeekMs) / (7 * 24 * 3600 * 1000))
+  const atCurrentWeek  = weekOffset >= 0
 
   const load = useCallback(async () => {
     setLoadState('loading')
@@ -158,16 +147,16 @@ export default function WeeklyUpdateReviewPane({
   // Week nav (§3.5) — relative to current week
   const handlePrevWeek = useCallback(() => {
     const now = new Date()
-    const newWeekStart = weekStartISO(now, weekOffsetDays - 1)
+    const newWeekStart = weekStartISO(now, weekOffset - 1)
     onWeekChange(newWeekStart)
-  }, [weekOffsetDays, onWeekChange])
+  }, [weekOffset, onWeekChange])
 
   const handleNextWeek = useCallback(() => {
     if (atCurrentWeek) return
     const now = new Date()
-    const newWeekStart = weekStartISO(now, weekOffsetDays + 1)
+    const newWeekStart = weekStartISO(now, weekOffset + 1)
     onWeekChange(newWeekStart)
-  }, [atCurrentWeek, weekOffsetDays, onWeekChange])
+  }, [atCurrentWeek, weekOffset, onWeekChange])
 
   // Derive the week label for the head row pill (using the selected weekStart)
   const selectedWeekDate = new Date(weekStart + 'T00:00:00+07:00')
