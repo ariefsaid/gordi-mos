@@ -95,6 +95,35 @@ export function weekLabel(now: Date): WeekLabel {
 }
 
 /**
+ * Monday (in WIB) of the week containing `now`, offset by `offsetWeeks`, as a bare 'YYYY-MM-DD'.
+ * The week_start key for a weekly update (OD-P2-13, FR-003). Pure fixed-offset arithmetic — no
+ * host-timezone leak (NFR-004). offsetWeeks=-1 → prior week's Monday.
+ */
+export function weekStartISO(now: Date, offsetWeeks = 0): string {
+  const { year, month, day, jsDay } = wibParts(now)
+  const dow = toMonBased(jsDay) // Mon=0…Sun=6
+  const todayWibMidnightUTC = new Date(Date.UTC(year, month - 1, day) - WIB_OFFSET_MS)
+  const mondayUTC = addDays(todayWibMidnightUTC, -dow + offsetWeeks * 7)
+  const m = wibParts(mondayUTC)
+  const mm = String(m.month).padStart(2, '0')
+  const dd = String(m.day).padStart(2, '0')
+  return `${m.year}-${mm}-${dd}`
+}
+
+export type WeeklyUpdateTiming = 'on-time' | 'late'
+
+/**
+ * On-time iff `submittedAt` ≤ the Friday 17:00 WIB of `weekStart`'s week, else late (OD-P2-14).
+ * `weekStart` is the Monday (WIB) 'YYYY-MM-DD'; Friday 17:00 WIB = Monday + 4 days at 17:00 WIB =
+ * 10:00:00Z. Pure — no host-tz leak. Signal only (never a gate).
+ */
+export function weeklyUpdateTiming(submittedAt: string, weekStart: string): WeeklyUpdateTiming {
+  const [y, mo, d] = weekStart.split('-').map(Number)
+  const fridayDueUTC = Date.UTC(y, mo - 1, d + 4, 17, 0, 0) - WIB_OFFSET_MS
+  return new Date(submittedAt).getTime() <= fridayDueUTC ? 'on-time' : 'late'
+}
+
+/**
  * Returns the label for the Friday of the current WIB week, e.g. "Fri 13 Jun".
  * Used by the weekly-update strip due-date (OQ1: current-week Friday, not next).
  */
