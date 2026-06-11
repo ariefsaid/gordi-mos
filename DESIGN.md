@@ -391,6 +391,17 @@ tinted-status pattern). On list rows only the R person shows (avatar + "+N"); th
 appears on the task detail surface. The R chip's small categorical use of the brand blue is within
 The One Blue Rule budget (it is never an action).
 
+### Progress-marker pills (added 2026-06-12, OD-P2-10 — reuse existing hues, no new brand)
+Weekly-update **update lines** carry a progress marker — distinct from a task's Status (self-reported
+achievement cue, not the task's real state). Three values, all from the existing palette via the
+Tinted-Status pattern (10–14% tint + darkened AA text + dot):
+- **In progress** = `primary/12%` bg + `--status-open-text` + `primary` dot.
+- **Blocked** = `destructive/12%` bg + `--status-lost-text` + `destructive` dot.
+- **Done** = `success/14%` bg + `--status-won-text` + `success` dot.
+Note the vocabulary/semantics differ from the task `StatusPill` (which maps Open→amber over 4 values);
+keep them as separate components. **Late** (a weekly update filed after the Friday 17:00 WIB due) is
+shown in **warning/amber** (caution — filing is allowed, OD-P2-14), never destructive/red.
+
 ### List / detail surfaces (Tasks, Updates, Ops full pages)
 PMO's data-dense DataTable posture stays: sortable columns, functional filters, loading/empty/error
 states. Density mode governs *home*, not the working lists ("Executive vs Data-Dense split" —
