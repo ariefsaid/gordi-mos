@@ -8,9 +8,26 @@ OS constellation (see `docs/decisions.md` OD-P0-9).
 ## Work
 
 **Task**:
-The smallest unit of owned work; always carries R and A people. The only work entity in the first
-slice (no projects/objectives yet).
+The unit of owned work and the **cascade-bridgeable unit** — always carries R and A people, a
+business unit, and a status. The only first-slice work entity; it is what will later link UP to an
+Output/Objective (additive seam, ADR-0003), so the cascade grows in without reshaping the task.
 _Avoid_: action item, to-do, work item, ticket
+
+**Checklist item** (a.k.a. subtask):
+A lightweight step under a task — a label + done flag + order, nothing more. It has NO RACI, status,
+business unit, or due of its own, and does NOT bridge into the cascade (only its parent Task does).
+Distinct from a Task; "subtask" in conversation means this, not a nested task.
+_Avoid_: subtask (as a second full task), sub-item
+
+**Status** (of a task):
+One of **Open · In Progress · Blocked · Done**. "Decided not to do" is expressed by archiving, not a
+status. ("Blocked" subsumes the old Notion Waiting-* family — see below.)
+_Avoid_: state, stage
+
+**Archived** (a task):
+Soft-removed via an `archived_at` timestamp — hidden from default lists, still findable by filter,
+reversible. Replaces hard deletion entirely; no task row is ever destroyed.
+_Avoid_: deleted, closed, cancelled (as a verb for this)
 
 **Business Unit**:
 One of Gordi's operating areas — Cafe Ops – General, Kitchen and Bar, Roastery, Sales – CRM,

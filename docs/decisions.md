@@ -168,6 +168,59 @@ admin UI is post-MVP.
 Authenticated user with no linked `shared.people` row sees a blocked screen ("account not set up —
 contact Arief"); no auto-created directory rows (consistent with closing audit M1's pre-claim seam).
 
+## OD-P2 — Tasks + lightweight RACI (LOCKED 2026-06-11, grill-with-docs session #2)
+
+Feature: P2-1, the core `mos.tasks` entity. Anchored to the IA-8 task-list + task-detail mockups,
+OD-DIR-5 (RACI as fields), OD-P0-8/9, OD-P1-3 (read posture) / OD-P1-7 (union manager chain).
+
+### OD-P2-1 — Status: lean 4 as text + CHECK
+`status` is **Open · In Progress · Blocked · Done**, stored as `text` + a `CHECK` constraint (not a
+PG enum) so the allowed set is cheap to add/rename/remove later. Default `Open`. "Cancelled / decided
+not to do" = archive, not a status. "Blocked" subsumes Notion's Waiting-Internal/External/Approval.
+
+### OD-P2-2 — Create: any member; creator auto-fills R+A; required = Title + BU
+Any org member creates a task (flat, Notion-like). On create, **both** `responsible_person_id` and
+`accountable_person_id` default to the creator (both editable on the form). Required to create:
+**Title + Business Unit**. BU defaults to the creator's **primary role's** business unit (earliest-
+assigned role, the AS-2 rule; dual-hats get a deterministic default, editable). Due date, description,
+C/I, checklist all optional.
+
+### OD-P2-3 — Edit gated to R/A/manager; soft-archive to A/manager; no hard delete
+**Edit** (fields/status/RACI) allowed for: R, A, or a manager-of-(R or A) via the union chain
+(OD-P1-7). **Archive** (`archived_at`, reversible, no reason required): A or a manager only. **No one
+hard-deletes** a task. All provable in pgTAP.
+
+### OD-P2-4 — A may equal R
+No separation-of-duties constraint: the Accountable person may also be the Responsible person (common
+for solo work, e.g. the mockup's roasting-calibration task R=Raka A=Raka).
+
+### OD-P2-5 — C/I as uuid[] arrays
+`consulted_person_ids uuid[]` and `informed_person_ids uuid[]` are array columns on the task (matches
+OD-DIR-5 wording). "Tasks I'm C/I on" = array-contains. R and A stay single FK columns.
+
+### OD-P2-6 — Due date is a plain DATE; overdue computed in WIB
+`due_date date` (no time-of-day). Overdue = `due_date < (today in Asia/Jakarta)`. ≤3 days = soon
+(amber). Consistent with OD-P1-4 week semantics; matches the mockup's date-only display.
+
+### OD-P2-7 — Subtasks are lightweight checklist items (NOT nested tasks)
+A subtask = a `mos.task_checklist_items` row (`task_id`, `label`, `is_done`, `position`, timestamps) —
+no RACI/status/BU/due of its own, does not bridge into the cascade. There is **no** `parent_task_id`
+self-relation on tasks. Checklist items archive trivially with their task (no cascade-archive question).
+
+### OD-P2-8 — Activity: change-events in P2-1; comments deferred to P2-1b
+P2-1 logs **auto change-events** (status change, RACI/field edits) to a task activity log that drives
+`last_activity_at` (OD-P0-9b). Free-text **comments** are a tight fast-follow issue (P2-1b), same
+detail page — not in this slice.
+
+### OD-P2-9 — Task is the cascade-bridgeable unit; upward link deferred (ADR-0003)
+The Task is the unit that will later contribute UP to an Output/Objective. That bridge is an
+**additive nullable FK** added to `mos.tasks` when the higher-cascade tables ship — it is NOT built
+now, and the higher layers stay deferred (OD-DIR-7 upheld). Forward-migration path fixed in ADR-0003
+so the cascade grows in without reshaping the task. (Grill reconciled an in-session tension: subtasks
+landed as checklist items, so cascade bridging lives at the task, not a nested-task tree.)
+
+---
+
 ### OD-P1-11 — Production email: Resend (LOCKED 2026-06-11)
 Auth email (magic links, invites, password resets) sends via the owner's existing **Resend**
 account over SMTP. Sender: `Gordi Admin <admin@gordi.id>` (existing alias of the owner's account).
