@@ -23,8 +23,11 @@ export default function UpdatesPage() {
   const now = new Date()
   const currentWeekStart = weekStartISO(now, 0)
 
-  // Shared selected week (write pane navigates by review pane for manager, §3.5)
-  const [weekStart, setWeekStart] = useState(currentWeekStart)
+  // C1 fix (design-review): write pane = ALWAYS current week (never moves with review nav).
+  // Review pane has its own independent week navigation (§3.5, "latter" model).
+  // The write pane always loads/shows the author's OWN update for THIS week — even when
+  // a manager is reviewing a prior week for their team. Both are useful at once.
+  const [reviewWeekStart, setReviewWeekStart] = useState(currentWeekStart)
 
   // Team roster for the review pane (lazy-loaded for managers only)
   const [team, setTeam] = useState<TeamMember[]>([])
@@ -45,7 +48,8 @@ export default function UpdatesPage() {
 
   useEffect(() => { loadTeam() }, [loadTeam])
 
-  const wib = weekLabel(new Date(weekStart + 'T00:00:00+07:00'))
+  // Page subtitle uses currentWeekStart (the write pane's week) per §1.1 design-plan
+  const wib = weekLabel(new Date(currentWeekStart + 'T00:00:00+07:00'))
 
   // Page subtitle (§1.1 design-plan): full for managers, short for non-managers
   const subtitle = isManager
@@ -72,12 +76,12 @@ export default function UpdatesPage() {
         Write — my weekly update
       </p>
 
-      {/* Write pane (PR-b) */}
+      {/* Write pane (PR-b) — always loads current week (C1 fix: not review weekStart) */}
       {personId ? (
         <WeeklyUpdateWritePane
           personId={personId}
           createdBy={createdBy}
-          weekStart={weekStart}
+          weekStart={currentWeekStart}
         />
       ) : (
         // Not yet authenticated — render an accessible waiting card
@@ -105,8 +109,8 @@ export default function UpdatesPage() {
           </p>
           <WeeklyUpdateReviewPane
             team={team}
-            weekStart={weekStart}
-            onWeekChange={setWeekStart}
+            weekStart={reviewWeekStart}
+            onWeekChange={setReviewWeekStart}
             currentWeekStart={currentWeekStart}
           />
         </>

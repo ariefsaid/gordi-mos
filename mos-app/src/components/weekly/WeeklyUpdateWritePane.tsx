@@ -2,7 +2,7 @@
 // Design authority: docs/plans/2026-06-12-weekly-updates-design.md §2 + signed mock pane A.
 // All states: loading skeleton / error+Retry / empty / draft-with-content / submitted-locked.
 // AC-031..038, FR-010/012/013/014/015/016/017/018/019.
-import { useState, useEffect, useCallback, useId, useRef } from 'react'
+import { useState, useEffect, useCallback, useId, useRef, type MutableRefObject } from 'react'
 import { formatAge } from '../tasks/taskFormatters'
 import './WeeklyUpdateWritePane.css'
 import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
@@ -169,8 +169,9 @@ interface WeeklyUpdateWritePaneProps {
 }
 
 export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: WeeklyUpdateWritePaneProps) {
-  const now = new Date()
-  const wib = weekLabel(now)
+  // C1 fix: derive the week label from the weekStart prop (not new Date()), so the pill
+  // always reflects the week whose data is loaded — never desyncs from the prop.
+  const wib = weekLabel(new Date(weekStart + 'T00:00:00+07:00'))
   const summaryId = useId()
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -190,12 +191,25 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
   const [savedAt, setSavedAt]     = useState<Date | null>(null)
   const [saveError, setSaveError]  = useState<string | null>(null)
   const liveRef = useRef<HTMLDivElement>(null)
+  // I1: 3s client-side timeout ref
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null) as MutableRefObject<ReturnType<typeof setTimeout> | null>
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoadState('loading')
+
+    // I1: 3s timeout — if the query hangs, surface the error faster
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    let timedOut = false
+    timeoutRef.current = setTimeout(() => {
+      timedOut = true
+      setLoadState('error')
+    }, 3000)
+
     try {
       const result = await getMyUpdate(personId, weekStart)
+      if (timedOut) return
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (result) {
         setSummary(result.update.summary)
         setStatus(result.update.status)
@@ -217,11 +231,19 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
       }
       setLoadState('ready')
     } catch {
-      setLoadState('error')
+      if (!timedOut) {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        setLoadState('error')
+      }
     }
   }, [personId, weekStart])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [load])
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const isLocked       = status === 'submitted'
