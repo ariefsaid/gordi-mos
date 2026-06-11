@@ -1,0 +1,10 @@
+-- supabase/seed.production.sql  (COPY this .example to seed.production.sql at deploy time; that file is GITIGNORED)
+-- Real Gordi people + real auth links. NEVER commit this file (public repo, OD-P1-6).
+-- Applied manually against the deployed stack, not by `db reset`. Real names/emails go here ONLY.
+--
+-- insert into shared.people (org_id, user_id, full_name, email) values
+--   ('10000000-0000-0000-0000-000000000001', '<auth.users uuid>', '<Real Name>', '<real@gordi.id>')
+-- on conflict do nothing;
+--
+-- insert into shared.person_roles (org_id, person_id, role_id) values
+--   ('10000000-0000-0000-0000-000000000001', '<person uuid>', '<role uuid>');
