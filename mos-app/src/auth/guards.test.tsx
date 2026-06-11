@@ -179,4 +179,23 @@ describe('RedirectIfAuthed', () => {
 
     expect(screen.getByTestId('login-page')).toBeInTheDocument()
   })
+
+  it('orphan on /login → redirected to home (prevents race-trap where auth resolves after unauthenticated redirect)', () => {
+    mockUseAuth.mockReturnValue({ status: 'orphan', signOut: vi.fn() })
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    // Orphan is authenticated — redirect them to / so ProtectedRoute shows OrphanScreen
+    expect(screen.getByTestId('home-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
 })

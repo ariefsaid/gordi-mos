@@ -31,3 +31,4 @@ test-results
 
 # Local env (never committed)
 .env
+.env.e2e

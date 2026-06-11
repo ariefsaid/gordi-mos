@@ -25,5 +25,12 @@ export default defineConfig({
     },
     // Keep Playwright's e2e specs out of the Vitest run.
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/auth/**', 'src/lib/db/**', 'src/lib/supabase.ts', 'src/pages/LoginPage.tsx', 'src/pages/RecoveryPage.tsx', 'src/pages/Home.tsx'],
+      exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
+      thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },
+    },
   },
 })

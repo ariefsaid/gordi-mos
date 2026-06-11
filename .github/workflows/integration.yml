@@ -22,6 +22,50 @@ jobs:
       - name: pgTAP suite
         run: supabase test db
 
+      # ── E2E against the live stack ────────────────────────────────────────────
+      # e2e lives here (not verify.yml) because journeys need auth + DB (T-027).
+      # Inject local anon/service_role keys from `supabase status -o env` so they
+      # are never hard-coded; the local keys are well-known dev constants anyway.
+
+      - name: Export Supabase env to GITHUB_ENV
+        run: |
+          supabase status -o env 2>/dev/null | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' >> "$GITHUB_ENV" || true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mos-app/package-lock.json
+
+      - name: Install app dependencies
+        working-directory: mos-app
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('mos-app/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: mos-app
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: mos-app
+        run: npx playwright install-deps chromium
+
+      - name: E2E tests (live stack)
+        working-directory: mos-app
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:55321
+          VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+        run: npx playwright test
+
       - name: Stop stack
         if: always()
         run: supabase stop
