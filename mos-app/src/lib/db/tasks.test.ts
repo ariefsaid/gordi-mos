@@ -11,7 +11,7 @@ import {
   listTasks, getTask, createTask,
   updateTaskStatus, updateTaskFields, updateTaskRaci,
   archiveTask, unarchiveTask,
-  addChecklistItem, toggleChecklistItem, reorderChecklistItem,
+  addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
 } from './tasks'
 import { supabase } from '../supabase'
 
@@ -27,6 +27,7 @@ interface Recorder {
   eqs: Array<[string, unknown]>
   inserts: unknown[]
   updates: unknown[]
+  deletes: string[]
   orders: Array<[string, unknown]>
 }
 
@@ -46,6 +47,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
     builder.insert = vi.fn((rows: unknown) => { rec.inserts.push(rows); return builder })
     builder.update = vi.fn((patch: unknown) => { rec.updates.push(patch); return builder })
+    builder.delete = vi.fn(() => { rec.deletes.push(table); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
@@ -60,7 +62,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], orders: [] }
+  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [], orders: [] }
 }
 
 const TASK_ID = '00000000-0000-0000-0000-00000000a000'
@@ -347,5 +349,27 @@ describe('checklist mutations', () => {
       task_checklist_items: [{ data: null, error: { message: 'item boom' } }],
     }, rec) as never)
     await expect(addChecklistItem(TASK_ID, 'X', 0, ACTOR)).rejects.toThrow(/item boom/)
+  })
+
+  it('deleteChecklistItem deletes the item then logs a field_edited event', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      task_checklist_items: [{ data: null, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+    await deleteChecklistItem('item-1', TASK_ID, ACTOR)
+    expect(rec.deletes).toContain('task_checklist_items')
+    expect(rec.eqs).toContainEqual(['id', 'item-1'])
+    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
+    expect((rec.inserts[0] as Record<string, unknown>).actor_person_id).toBe(ACTOR)
+    noOrgId(rec)
+  })
+
+  it('deleteChecklistItem throws if the delete errors', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      task_checklist_items: [{ data: null, error: { message: 'delete boom' } }],
+    }, rec) as never)
+    await expect(deleteChecklistItem('item-1', TASK_ID, ACTOR)).rejects.toThrow(/delete boom/)
   })
 })

@@ -719,24 +719,6 @@ export default function TasksPage() {
           color: hsl(var(--muted-foreground)); margin-top: 2px;
         }
 
-        /* ── Status pills (Tinted-Status Rule from DESIGN.md) ── */
-        .pill {
-          display: inline-flex; align-items: center; gap: 6px;
-          height: 22px; padding: 0 9px; border-radius: 999px;
-          font-size: 12px; font-weight: 600; white-space: nowrap;
-        }
-        .dot {
-          width: 6px; height: 6px; border-radius: 999px; flex: none;
-        }
-        .pill-inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); }
-        .pill-inprogress .dot { background: hsl(221.2 83.2% 53.3%); }
-        .pill-blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); }
-        .pill-blocked .dot { background: hsl(0 84.2% 60.2%); }
-        .pill-open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); }
-        .pill-open .dot { background: hsl(43 96% 56%); }
-        .pill-done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); }
-        .pill-done .dot { background: hsl(142 71% 45%); }
-
         /* ── Owner cell ── */
         .owner { display: flex; align-items: center; gap: 8px; }
         .ownav {

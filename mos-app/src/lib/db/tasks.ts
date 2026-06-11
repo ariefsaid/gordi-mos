@@ -195,3 +195,13 @@ export async function reorderChecklistItem(itemId: string, position: number): Pr
     .update({ position }).eq('id', itemId)
   if (error) throw new Error(`reorderChecklistItem failed — ${error.message}`)
 }
+
+/** Delete a checklist item, then log a `field_edited` event (FR-041). */
+export async function deleteChecklistItem(
+  itemId: string, taskId: string, actor: string,
+): Promise<void> {
+  const { error } = await mos().from('task_checklist_items')
+    .delete().eq('id', itemId)
+  if (error) throw new Error(`deleteChecklistItem failed — ${error.message}`)
+  await logEvent(taskId, actor, 'field_edited')
+}
