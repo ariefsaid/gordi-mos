@@ -24,6 +24,12 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 - [ ] P1-3 Supabase Auth login + profile + role surface.
 - [ ] P1-4 app shell per picked IA.
 
+## Security-audit deferrals (from P1-2 audit, 2026-06-11 — neither blocks ship)
+- **L4:** no acyclicity constraint on `shared.roles.reports_to_role_id` (evaluation is cycle-safe via
+  UNION; data integrity by convention) → add CHECK/trigger when role-editing UI ships (Phase 2+).
+- **L5:** local-dev `config.toml` has `enable_signup=true` + weak password floor → the ris-dev
+  production deploy issue (P3-1) MUST disable open signup (invite-only) + harden password config.
+
 ## ▶ LATER — Phase 2: first slice (blocked on Phase 1)
 - [ ] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5).
 - [ ] P2-2 weekly updates (write + manager review).
