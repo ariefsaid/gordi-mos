@@ -25,7 +25,10 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 - [x] P1-3 Auth — DONE, PR #3 merged: login (password+magic link), session, viewer/isManager,
   guards, orphan fail-closed, recovery flow (audit-L1 fix + e2e rotation proof). 59 unit (95% cov,
   gate live) · 7 e2e · 47 pgTAP. AC-006 amended (action-specific neutral copy).
-- [ ] P1-4 app shell per picked IA.
+- [x] P1-4 App shell — DONE, PR #4 merged: IA-8 rail/header/sections, My Week empty composition,
+  mobile drawer, manager-conditional team module (e2e-proven w/ MANAGER fixture). 128 unit · 6
+  curated e2e journeys (pyramid enforced: smoke deleted, AC-005b demoted) · 47 pgTAP. Local stack
+  re-ported 55xxx→44xxx (macOS ghost reservation).
 
 ## Security-audit deferrals (from P1-2 audit, 2026-06-11 — neither blocks ship)
 - **L4:** no acyclicity constraint on `shared.roles.reports_to_role_id` (evaluation is cycle-safe via
