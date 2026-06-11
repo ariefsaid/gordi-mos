@@ -1,9 +1,9 @@
 // Mailpit/inbucket helper for retrieving magic-link and recovery emails in e2e tests.
-// Local Supabase stack uses mailpit at :55324.
+// Local Supabase stack uses mailpit at :44324.
 // Verified endpoint: GET /api/v1/messages → { messages: [...] } (mailpit v2 API shape).
 // If this 404s, fall back to inbucket's /api/v1/mailbox/<addr>.
 
-const MAILPIT_BASE = process.env.MAILPIT_URL ?? 'http://127.0.0.1:55324'
+const MAILPIT_BASE = process.env.MAILPIT_URL ?? 'http://127.0.0.1:44324'
 
 interface MailpitMessage {
   ID: string

@@ -10,7 +10,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { VIEWER, ORPHAN, RECOVERY_VIEWER } from './fixtures/users'
+import { VIEWER, ORPHAN, RECOVERY_VIEWER, MANAGER } from './fixtures/users'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -135,4 +135,40 @@ export default async function globalSetup() {
     `UPDATE shared.people SET user_id = '${recoveryUid}' WHERE id = '${RECOVERY_VIEWER.personId}'`,
   )
   console.log(`[global-setup] linked RECOVERY_VIEWER uid to person ${RECOVERY_VIEWER.personId}`)
+
+  // ── MANAGER (e2e.manager@example.test → linked to Dewi Director person row) ──
+  // Dewi Director holds the Managing Director role; Cahya (VIEWER) holds roles that report to it.
+  // Ensures MANAGER resolves isManager=true for the team-module e2e assertion.
+  // Idempotent: delete-then-create.
+  await deleteUserByEmail(adminClient, MANAGER.email)
+  const { data: managerData, error: managerErr } = await adminClient.auth.admin.createUser({
+    email: MANAGER.email,
+    password: MANAGER.password,
+    email_confirm: true,
+  })
+  if (managerErr) throw new Error(`[global-setup] createUser MANAGER failed: ${managerErr.message}`)
+  const managerUid = managerData.user.id
+  console.log(`[global-setup] created MANAGER user: ${MANAGER.email} (uid=${managerUid})`)
+
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `UPDATE shared.people SET user_id = '${managerUid}' WHERE id = '${MANAGER.personId}'`,
+  )
+  console.log(`[global-setup] linked MANAGER uid to person ${MANAGER.personId}`)
+
+  // Ensure VIEWER's person (Cahya Cafe) holds their roles so Dewi's isManager resolves correctly.
+  // The person_roles rows are seeded by supabase/seed.sql; this is an idempotent guard to ensure
+  // the junction rows exist even if seed ran before person rows had UUIDs set.
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.person_roles (org_id, person_id, role_id)
+     VALUES
+       ('10000000-0000-0000-0000-000000000001','${MANAGER.personId}','30000000-0000-0000-0000-000000000000'),
+       ('10000000-0000-0000-0000-000000000001','${VIEWER.personId}','30000000-0000-0000-0000-000000000001'),
+       ('10000000-0000-0000-0000-000000000001','${VIEWER.personId}','30000000-0000-0000-0000-000000000004')
+     ON CONFLICT (person_id, role_id) DO NOTHING`,
+  )
+  console.log('[global-setup] ensured MANAGER and VIEWER person_roles rows exist (idempotent)')
 }

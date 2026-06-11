@@ -52,11 +52,12 @@ export async function resolveViewer(userId: string): Promise<ViewerResult> {
     return { person: null, roles: [], isManager: false }
   }
 
-  // 2. Fetch the person's held role_ids (no org_id filter — RLS scopes it)
+  // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
   const { data: personRoles, error: prError } = await supabase
     .from('person_roles')
-    .select('role_id')
+    .select('role_id, created_at')
     .eq('person_id', person.id)
+    .order('created_at', { ascending: true })
 
   if (prError) {
     throw new Error(`resolveViewer: person_roles read failed — ${prError.message}`)
@@ -86,7 +87,18 @@ export async function resolveViewer(userId: string): Promise<ViewerResult> {
   const roles = allRoles ?? []
   const heldRoleIds = new Set((allPersonRoles ?? []).map((pr) => pr.role_id))
 
-  const viewerRoles = roles.filter((r) => viewerRoleIds.includes(r.id))
+  // Sort viewer roles to match the created_at order from person_roles (FR-007).
+  // Treat missing created_at as equal/stable (R1 defensive sort — existing mocks omit it).
+  const viewerRoles = roles
+    .filter((r) => viewerRoleIds.includes(r.id))
+    .sort((a, b) => {
+      const idxA = viewerRoleIds.indexOf(a.id)
+      const idxB = viewerRoleIds.indexOf(b.id)
+      // indexOf returns -1 if not found — treat as last (defensive)
+      const safeA = idxA === -1 ? Number.MAX_SAFE_INTEGER : idxA
+      const safeB = idxB === -1 ? Number.MAX_SAFE_INTEGER : idxB
+      return safeA - safeB
+    })
 
   return {
     person,

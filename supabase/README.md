@@ -5,10 +5,10 @@ One self-hosted Supabase stack serves MOS + future Gordi ops apps, separated by 
 ris-dev production deployment is a later issue.
 
 > **Local ports (deviation).** This stack's `config.toml` ports are remapped **+1000** from the
-> Supabase defaults (api 55321 · db 55322 · studio 55323 · mailpit 55324 · analytics 55327 ·
-> pooler 55329 · shadow 55320) so it can run **alongside the pmo-portal local stack**, which holds
+> Supabase defaults (api 44321 · db 44322 · studio 44323 · mailpit 44324 · analytics 44327 ·
+> pooler 44329 · shadow 44320) so it can run **alongside the pmo-portal local stack**, which holds
 > the default ports. The local DB URL is therefore
-> `postgresql://postgres:postgres@127.0.0.1:55322/postgres`.
+> `postgresql://postgres:postgres@127.0.0.1:44322/postgres`.
 
 ## Layout
 - `config.toml` — local stack config. `[api].schemas` exposes `shared`; the custom access token hook

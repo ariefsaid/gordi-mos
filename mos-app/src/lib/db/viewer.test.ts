@@ -86,6 +86,8 @@ describe('resolveViewer', () => {
         eqCalls.push([col, val])
         return personRolesChain
       }),
+      // T-013: .order('created_at') is now called on this chain (FR-007)
+      order: vi.fn().mockReturnThis(),
       then: (resolve: (v: unknown) => unknown) =>
         Promise.resolve({ data: [{ role_id: ROLE_A_ID }, { role_id: ROLE_B_ID }], error: null }).then(resolve),
     }

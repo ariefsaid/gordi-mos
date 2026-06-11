@@ -127,7 +127,7 @@ When they sign in,
 Then they see the blocked screen ("contact Arief"), no app navigation, and sign-out returns them to
 `/mos/login` (FR-016, OD-P1-10).
 
-**AC-004 — Magic-link journey** *(e2e, via mailpit :55324)*
+**AC-004 — Magic-link journey** *(e2e, via mailpit :44324)*
 Given a provisioned Person with a linked auth user,
 When they request a magic link, the neutral confirmation appears, and they open the link from the
 local mail catcher,
@@ -157,6 +157,11 @@ Then the submit control is disabled and a loading indicator shows; it re-enables
 Given a resolved authenticated session,
 When the router renders `/mos/login`,
 Then the user is redirected to the app home (FR-011).
+
+**AC-005b — Authenticated user on /recovery guard** *(unit)*
+Given a resolved authenticated (non-recovering) session,
+When the router renders `/mos/recovery`,
+Then the user is redirected to the app home and the set-password form is not shown (FR-011, symmetric guard).
 
 **AC-009 — No protected flash while resolving** *(unit)*
 Given session state still resolving,
@@ -235,3 +240,4 @@ items raised.
 ---
 
 AC-006 amended 2026-06-11 (Director ratification of design-plan copy; no-enumeration invariant unchanged).
+AC-005b moved 2026-06-11 from e2e to unit (pyramid demotion: guard behavior is fully testable in RTL without a browser; owning test: guards.test.tsx "AC-005b: authenticated user on /recovery → redirected to home"). AC-004 port updated to :44324 (post port-move). smoke.spec.ts deleted (unauthenticated load→login covered by auth-password-login; static title absorbed into shell-nav AC-001).

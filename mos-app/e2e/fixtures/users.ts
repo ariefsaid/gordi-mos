@@ -7,8 +7,14 @@ export const VIEWER = {
   personId: '40000000-0000-0000-0000-000000000001', // Cahya Cafe (dual-hat seed)
 }
 
-// Used for future manager-surface e2e (P1-4 team module)
-export const MANAGER_TARGET_PERSON = '40000000-0000-0000-0000-000000000004' // Sari Sales (under Cahya's Sales Lead)
+// MANAGER: Dewi Director holds the Managing Director role (30000000-...-0000).
+// Cahya Cafe (VIEWER) holds Cafe Ops Lead + Sales Lead, both of which report_to the MD role.
+// → Dewi is isManager=true via deriveIsManager (held subordinate exists).
+export const MANAGER = {
+  email: 'e2e.manager@example.test',
+  password: 'e2e-password-123',
+  personId: '40000000-0000-0000-0000-000000000000', // Dewi Director (MD role holder)
+}
 
 export const ORPHAN = {
   email: 'e2e.orphan@example.test',

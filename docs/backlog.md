@@ -49,6 +49,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 - **WALL-4 — Daily ops updates: generic from day one vs kitchen/roastery-specific first.** Shapes the
   `ops` schema; needed before P2-3 spec (P0-2's feed mockup should present both framings if cheap).
 
+## Polish / follow-ups
+- UserChip menu: add outside-click dismissal (standard popover behavior; Esc-only today) — from P1-4 quality review.
+
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
 roastery app · ESB write-back visibility · shared UI package extraction.

@@ -1,4 +1,4 @@
-// AC-004: Magic-link journey (mailpit :55324)
+// AC-004: Magic-link journey (mailpit :44324)
 // Given a provisioned Person with a linked auth user,
 // When they request a magic link, the neutral confirmation appears, and they open the link from
 // the local mail catcher,
@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test'
 import { VIEWER } from './fixtures/users'
 import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
 
-test('AC-004: magic-link journey (mailpit :55324)', async ({ page }) => {
+test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
   // Clear inbox to avoid stale mail from prior tests
   await clearMailpit()
 
@@ -29,6 +29,6 @@ test('AC-004: magic-link journey (mailpit :55324)', async ({ page }) => {
   // Navigate to the magic link — Supabase processes it and redirects to the app
   await page.goto(magicUrl)
 
-  // Goal-oracle: home shows viewer's full name (Cahya Cafe)
-  await expect(page.getByRole('heading', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 15_000 })
+  // Goal-oracle: home shows viewer's full name in the user chip (Cahya Cafe)
+  await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 15_000 })
 })

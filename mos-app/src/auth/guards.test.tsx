@@ -261,4 +261,41 @@ describe('RedirectIfAuthed', () => {
     expect(screen.getByTestId('home-page')).toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
+
+  it('AC-005b: authenticated user on /recovery → redirected to home, set-password form NOT shown', () => {
+    // Guard must NOT let an already-authenticated (non-recovering) user see the set-password form.
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1',
+          org_id: 'o1',
+          user_id: 'u1',
+          full_name: 'Test User',
+          email: null,
+          archived_at: null,
+          created_at: '',
+          updated_at: '',
+        },
+        roles: [],
+        isManager: false,
+      },
+      signOut: vi.fn(),
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/recovery']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/recovery" element={<RecoveryForm />} />
+          </Route>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    // Authenticated → home, recovery form must NOT render
+    expect(screen.getByTestId('home-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('recovery-form')).not.toBeInTheDocument()
+  })
 })
