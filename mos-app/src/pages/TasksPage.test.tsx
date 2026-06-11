@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TaskListRow } from '../lib/db/tasks.types'
 import type { AuthState } from '../auth/context'
 import { AuthContext } from '../auth/context'
@@ -78,12 +78,22 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   }
 }
 
+// ── Location spy helper ───────────────────────────────────────────────────────
+let _capturedLocation: ReturnType<typeof useLocation> | null = null
+
+function LocationCapture() {
+  _capturedLocation = useLocation()
+  return null
+}
+
 // ── Render helper ─────────────────────────────────────────────────────────────
 function renderPage(auth: AuthState = authedState) {
+  _capturedLocation = null
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/tasks']}>
         <TasksPage />
+        <LocationCapture />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -487,5 +497,48 @@ describe('a11y — aria roles and labels', () => {
     await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
     const link = screen.getByRole('link', { name: /\+ new task/i })
     expect(link.getAttribute('href')).toContain('/tasks/new')
+  })
+})
+
+// ── Fix-1: row-click SPA navigation (no full reload, no hardcoded basename) ────
+describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
+  it('clicking desktop row navigates via router to /tasks/:id (no window.location change)', async () => {
+    const task = makeTask({ id: 'task-nav-1', title: 'Nav test task' })
+    mockListTasks.mockResolvedValue([task])
+    renderPage()
+
+    await waitFor(() => screen.getByText('Nav test task'))
+
+    // Click the <tr> row (not the inner Link)
+    const rows = document.querySelectorAll('tbody tr.task-row')
+    expect(rows.length).toBeGreaterThan(0)
+    fireEvent.click(rows[0])
+
+    await waitFor(() => {
+      // Router location should update to /tasks/task-nav-1 in-SPA
+      expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-1')
+    })
+
+    // window.location.href must NOT contain the hardcoded /mos/ basename
+    // (in jsdom this stays at initial; we assert it's still the test origin, not '/mos/tasks/...')
+    expect(window.location.href).not.toContain('/mos/tasks/')
+  })
+
+  it('clicking mobile card navigates via router to /tasks/:id', async () => {
+    stubMatchMedia(false) // narrow
+    const task = makeTask({ id: 'task-nav-2', title: 'Mobile nav task' })
+    mockListTasks.mockResolvedValue([task])
+    renderPage()
+
+    await waitFor(() => screen.getByText('Mobile nav task'))
+
+    // Click the card link directly (it wraps the whole card)
+    const cardLink = document.querySelector('.task-card-link') as HTMLAnchorElement
+    expect(cardLink).toBeTruthy()
+    fireEvent.click(cardLink)
+
+    await waitFor(() => {
+      expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-2')
+    })
   })
 })

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import PageFrame from '../shell/PageFrame'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { useIsDesktop } from '../shell/useIsDesktop'
@@ -9,69 +9,14 @@ import type { TaskListFilters } from '../lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '../lib/db/tasks.types'
 import { dueStatus } from '../lib/dueStatus'
 import { raciMember, raciOwner } from '../lib/raciMember'
+import { StatusPill } from '../components/tasks/StatusPill'
+import { OwnerCell } from '../components/tasks/OwnerCell'
+import { formatAge, formatDate, otherRaciCount } from '../components/tasks/taskFormatters'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
 type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
 type SortDir = 'ascending' | 'descending'
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Format a duration between two ISO timestamps into a compact age string (e.g. "2h", "3d"). */
-function formatAge(isoDate: string, now: Date): string {
-  const ms = now.getTime() - new Date(isoDate).getTime()
-  const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
-  const days = Math.floor(hours / 24)
-  return `${days}d`
-}
-
-/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun". */
-function formatDate(d: string): string {
-  const [y, m, day] = d.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, day))
-  return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-}
-
-/** Collect unique persons (A + C + I) that are NOT the responsible person; returns count. */
-function otherRaciCount(task: TaskListRow): number {
-  const r = task.responsible_person_id
-  const seen = new Set<string>()
-  if (task.accountable_person_id !== r) seen.add(task.accountable_person_id)
-  for (const id of task.consulted_person_ids) if (id !== r) seen.add(id)
-  for (const id of task.informed_person_ids) if (id !== r) seen.add(id)
-  return seen.size
-}
-
-/** Get first name from full_name. */
-function firstName(fullName: string): string {
-  return fullName.split(' ')[0] ?? fullName
-}
-
-/** Get initials (up to 2) from full_name. */
-function initials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/)
-  return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
-}
-
-// ── Status pill ───────────────────────────────────────────────────────────────
-type StatusPillProps = { status: TaskStatus }
-function StatusPill({ status }: StatusPillProps) {
-  const classes: Record<TaskStatus, string> = {
-    'In Progress': 'pill-inprogress',
-    'Blocked':     'pill-blocked',
-    'Open':        'pill-open',
-    'Done':        'pill-done',
-  }
-  return (
-    <span className={`pill ${classes[status]}`}>
-      <span className="dot" />
-      {status}
-    </span>
-  )
-}
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
 function SkeletonRow() {
@@ -124,11 +69,7 @@ function TaskCard({ task, now }: TaskRowProps) {
         <dl className="task-card-meta">
           <dt className="sr-only">Owner</dt>
           <dd>
-            <div className="owner">
-              <span className="ownav" aria-hidden="true">{initials(rName)}</span>
-              <span className="own-name">{firstName(rName)}</span>
-              {n > 0 && <span className="own-more">+{n}</span>}
-            </div>
+            <OwnerCell fullName={rName} otherCount={n} />
           </dd>
           <dt className="sr-only">Due</dt>
           <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
@@ -140,37 +81,11 @@ function TaskCard({ task, now }: TaskRowProps) {
   )
 }
 
-// ── BU options from loaded tasks ──────────────────────────────────────────────
-function uniqueBUs(tasks: TaskListRow[]): { id: string; name: string }[] {
-  const seen = new Map<string, string>()
-  for (const t of tasks) {
-    if (t.business_unit) seen.set(t.business_unit.id, t.business_unit.name)
-  }
-  return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
-}
-
-function uniquePersons(tasks: TaskListRow[]): { id: string; name: string }[] {
-  const seen = new Map<string, string>()
-  for (const t of tasks) {
-    if (t.responsible) seen.set(t.responsible.id, t.responsible.full_name)
-    if (t.accountable) seen.set(t.accountable.id, t.accountable.full_name)
-    for (const id of t.consulted_person_ids) seen.set(id, id)
-    for (const id of t.informed_person_ids) seen.set(id, id)
-  }
-  return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
-}
-
-// ── Summary stats for the count line ─────────────────────────────────────────
-function summaryStats(tasks: TaskListRow[], now: Date) {
-  const blocked = tasks.filter(t => t.status === 'Blocked').length
-  const overdue = tasks.filter(t => dueStatus(t.due_date, now) === 'overdue').length
-  return { total: tasks.length, blocked, overdue }
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 export default function TasksPage() {
   useDocumentTitle('Tasks — Gordi MOS')
   const isDesktop = useIsDesktop()
+  const navigate = useNavigate()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
@@ -193,7 +108,8 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const now = new Date()
+  // Stable "now" snapshot — refreshes when a new data set loads (avoids per-render drift)
+  const now = useMemo(() => new Date(), [allTasks]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Data load ────────────────────────────────────────────────────────────
   const load = useCallback(() => {
@@ -221,7 +137,7 @@ export default function TasksPage() {
   }, [load])
 
   // ── Client-side filtering ────────────────────────────────────────────────
-  const visibleTasks = allTasks.filter(t => {
+  const visibleTasks = useMemo(() => allTasks.filter(t => {
     // Segment filter
     if (segment === 'mine' && viewerId && !raciOwner(t, viewerId)) return false
     if (segment === 'raci' && viewerId && !raciMember(t, viewerId)) return false
@@ -230,10 +146,10 @@ export default function TasksPage() {
     // Search text filter
     if (searchText && !t.title.toLowerCase().includes(searchText.toLowerCase())) return false
     return true
-  })
+  }), [allTasks, segment, viewerId, personFilter, searchText])
 
   // ── Client-side sort (server pre-sorts by due; re-sort if user changes) ──
-  const sortedTasks = [...visibleTasks].sort((a, b) => {
+  const sortedTasks = useMemo(() => [...visibleTasks].sort((a, b) => {
     let cmp = 0
     if (sortCol === 'due') {
       if (!a.due_date && !b.due_date) cmp = 0
@@ -252,7 +168,7 @@ export default function TasksPage() {
       cmp = an.localeCompare(bn)
     }
     return sortDir === 'ascending' ? cmp : -cmp
-  })
+  }), [visibleTasks, sortCol, sortDir])
 
   function handleSort(col: SortCol) {
     if (sortCol === col) {
@@ -264,11 +180,33 @@ export default function TasksPage() {
   }
 
   // ── BU + person options (derived from all loaded tasks) ──────────────────
-  const buOptions = uniqueBUs(allTasks)
-  const personOptions = uniquePersons(allTasks)
+  // TODO(P2-1c): resolve C/I-only display names when the people directory loads
+  const buOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const t of allTasks) {
+      if (t.business_unit) seen.set(t.business_unit.id, t.business_unit.name)
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+  }, [allTasks])
+
+  const personOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const t of allTasks) {
+      if (t.responsible) seen.set(t.responsible.id, t.responsible.full_name)
+      if (t.accountable) seen.set(t.accountable.id, t.accountable.full_name)
+      // C/I-only persons fall back to id as name until the people directory loads (P2-1c)
+      for (const id of t.consulted_person_ids) seen.set(id, id)
+      for (const id of t.informed_person_ids) seen.set(id, id)
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+  }, [allTasks])
 
   // ── Stats ────────────────────────────────────────────────────────────────
-  const stats = summaryStats(sortedTasks, now)
+  const stats = useMemo(() => {
+    const blocked = sortedTasks.filter(t => t.status === 'Blocked').length
+    const overdue = sortedTasks.filter(t => dueStatus(t.due_date, now) === 'overdue').length
+    return { total: sortedTasks.length, blocked, overdue }
+  }, [sortedTasks, now])
 
   // ── Empty state copy keyed to active context ─────────────────────────────
   function emptyTitle(): string {
@@ -549,52 +487,46 @@ export default function TasksPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedTasks.map(task => (
-                  <tr
-                    key={task.id}
-                    className="task-row"
-                    onClick={() => { window.location.href = `/mos/tasks/${task.id}` }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td className="td-main">
-                      <Link
-                        to={`/tasks/${task.id}`}
-                        className="task-row-link"
-                        tabIndex={0}
-                      >
-                        <span className="task-name">{task.title}</span>
-                        <span className="task-bu">{task.business_unit?.name ?? ''}</span>
-                      </Link>
-                    </td>
-                    <td className="td-cell">
-                      <StatusPill status={task.status} />
-                    </td>
-                    <td className="td-cell">
-                      <div className="owner">
-                        <span className="ownav" aria-hidden="true">
-                          {initials(task.responsible?.full_name ?? '')}
-                        </span>
-                        <span className="own-name">{firstName(task.responsible?.full_name ?? '')}</span>
-                        {otherRaciCount(task) > 0 && (
-                          <span className="own-more">+{otherRaciCount(task)}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className={`td-right tabular-nums ${
-                      dueStatus(task.due_date, now) === 'overdue' ? 'due-overdue' :
-                      dueStatus(task.due_date, now) === 'soon' ? 'due-soon' : 'due-calm'
-                    }`}>
-                      {task.due_date
-                        ? (dueStatus(task.due_date, now) === 'overdue'
-                          ? `Overdue · ${formatDate(task.due_date)}`
-                          : formatDate(task.due_date))
-                        : '—'}
-                    </td>
-                    <td className="td-right tabular-nums act">
-                      {formatAge(task.last_activity_at, now)}
-                    </td>
-                  </tr>
-                ))}
+                {sortedTasks.map(task => {
+                  const ds = dueStatus(task.due_date, now)
+                  const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
+                  const dueText = task.due_date
+                    ? (ds === 'overdue' ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
+                    : '—'
+                  return (
+                    <tr
+                      key={task.id}
+                      className="task-row"
+                      onClick={() => navigate(`/tasks/${task.id}`)}
+                    >
+                      <td className="td-main">
+                        <Link
+                          to={`/tasks/${task.id}`}
+                          className="task-row-link"
+                          tabIndex={0}
+                        >
+                          <span className="task-name">{task.title}</span>
+                          <span className="task-bu">{task.business_unit?.name ?? ''}</span>
+                        </Link>
+                      </td>
+                      <td className="td-cell">
+                        <StatusPill status={task.status} />
+                      </td>
+                      <td className="td-cell">
+                        <OwnerCell
+                          fullName={task.responsible?.full_name ?? ''}
+                          otherCount={otherRaciCount(task)}
+                        />
+                      </td>
+                      <td className={`td-right tabular-nums ${dueClass}`}>
+                        {dueText}
+                      </td>
+                      <td className="td-right tabular-nums act">
+                        {formatAge(task.last_activity_at, now)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </>
@@ -724,6 +656,7 @@ export default function TasksPage() {
           border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
           vertical-align: middle; text-align: right;
         }
+        .task-row { cursor: pointer; }
         .task-row:last-child td { border-bottom: none; }
         .task-row:hover td { background: hsl(240 4.8% 95.9% / 0.6); }
         .task-row-link {
