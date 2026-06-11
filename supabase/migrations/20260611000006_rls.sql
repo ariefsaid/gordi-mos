@@ -6,13 +6,15 @@
 -- Base table privileges. RLS is a FILTER, not a GRANT: Postgres checks the base
 -- privilege FIRST, then applies policies. Without these grants every authenticated
 -- read errors "permission denied" before any policy is evaluated. Grant SELECT on the
--- whole directory; grant INSERT on people only (the narrow spoof-proof write surface,
--- T-015b) — the WITH CHECK policy still blocks foreign-org inserts. service_role bypasses
--- RLS entirely and keeps its implicit grants.
+-- whole directory ONLY. There is NO standing INSERT/UPDATE/DELETE grant for authenticated on any
+-- directory table this issue: the app has no people-write feature yet, so a standing write surface
+-- (even one fenced by a WITH CHECK policy) is attack surface with no caller (security audit M1). The
+-- org_id-spoof property is proven WITHOUT a standing grant — the spoof test (06_org_id_spoof.sql)
+-- creates the grant + WITH CHECK policy inside its own rolled-back transaction. service_role bypasses
+-- RLS entirely and keeps its implicit grants (the only real write path: server-side seeds/admin).
 ----------------------------------------------------------------------
 grant select on shared.orgs, shared.business_units, shared.roles, shared.people, shared.person_roles
   to authenticated;
-grant insert on shared.people to authenticated;
 
 ----------------------------------------------------------------------
 -- orgs: the tenant itself. Readable by its own members; no org_id column (ADR-0001 D8).
@@ -64,11 +66,8 @@ create policy person_roles_select_org on shared.person_roles
   using (org_id = shared.current_org_id());
 
 ----------------------------------------------------------------------
--- The org_id-spoof proof surface: an INSERT policy for authenticated on people that enforces
--- WITH CHECK (org_id = current_org_id()). This is intentionally a NARROW, provable surface for this
--- issue (T-015b) — it does NOT open a real app write path (the app has no people-write feature yet),
--- it proves that even WHEN a write policy exists, a client cannot stamp a foreign org_id (OD-P1-1).
+-- NO standing INSERT policy on people for authenticated (security audit M1). The org_id-spoof
+-- property — that even with a write policy a client cannot stamp a foreign org_id — is proven in
+-- 06_org_id_spoof.sql, which grants INSERT + creates the WITH CHECK (org_id = current_org_id())
+-- policy INSIDE its rolled-back test transaction. Nothing about that surface persists in the schema.
 ----------------------------------------------------------------------
-create policy people_insert_own_org on shared.people
-  for insert to authenticated
-  with check (org_id = shared.current_org_id());
