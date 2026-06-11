@@ -292,3 +292,124 @@ describe('LoginPage — credentials form', () => {
     })
   })
 })
+
+// ── fix-2 ── Email client-validation (design-plan §3 + §5) ──────────────────
+
+describe('LoginPage — email client-validation (fix-2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('empty email on sign-in shows inline field error + no auth call', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    // Leave email blank, type password, click Sign in
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
+    })
+    expect(vi.mocked((await import('../lib/supabase')).supabase.auth.signInWithPassword)).not.toHaveBeenCalled()
+  })
+
+  it('invalid email on sign-in shows destructive border (aria-invalid)', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'notanemail')
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+
+    await waitFor(() => {
+      const emailInput = screen.getByLabelText('Email')
+      expect(emailInput).toHaveAttribute('aria-invalid', 'true')
+    })
+  })
+
+  it('invalid email on magic-link shows field error + no auth call', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    // Leave email blank
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
+    })
+    expect(vi.mocked((await import('../lib/supabase')).supabase.auth.signInWithOtp)).not.toHaveBeenCalled()
+  })
+
+  it('invalid email on forgot-password shows field error + no auth call', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    // Leave email blank
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
+    })
+    expect(vi.mocked((await import('../lib/supabase')).supabase.auth.resetPasswordForEmail)).not.toHaveBeenCalled()
+  })
+
+  it('invalid email field has aria-describedby pointing to the error message', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+
+    await waitFor(() => {
+      const emailInput = screen.getByLabelText('Email')
+      const describedBy = emailInput.getAttribute('aria-describedby')
+      expect(describedBy).toBeTruthy()
+      const errorEl = document.getElementById(describedBy!)
+      expect(errorEl).not.toBeNull()
+      expect(errorEl!.textContent).toMatch(/enter a valid email address/i)
+    })
+  })
+})
+
+// ── fix-3 ── "Forgot password?" touch target ≥44px (design-plan §4) ─────────
+
+describe('LoginPage — forgot-password touch target (fix-3)', () => {
+  it('"Forgot password?" button has min-height class matching magic-link ≥44px treatment', () => {
+    render(<LoginPage />)
+    const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
+    const magicBtn = screen.getByRole('button', { name: /email me a sign-in link/i })
+
+    // Both should carry the touch-target min-height treatment
+    // Magic-link already has inline minHeight:44 or class; forgot-password must match
+    const forgotStyle = window.getComputedStyle(forgotBtn)
+    const magicStyle = window.getComputedStyle(magicBtn)
+
+    // Assert that the forgot button has at least min-height set (via class or inline)
+    const forgotMinH = forgotBtn.style.minHeight || forgotStyle.minHeight
+    const magicMinH = magicBtn.style.minHeight || magicStyle.minHeight
+
+    // Both must have a 44px min-height
+    expect(forgotMinH).toBe('44px')
+    expect(magicMinH).toBe('44px')
+  })
+})
+
+// ── fix-4 ── Tab order: Email → Password → Forgot → Sign in → Magic-link ────
+
+describe('LoginPage — tab order (fix-4)', () => {
+  it('DOM order follows design-plan §5: Email → Password → Forgot → Sign in → magic-link', () => {
+    render(<LoginPage />)
+
+    const email = screen.getByLabelText('Email')
+    const password = screen.getByLabelText('Password')
+    const forgot = screen.getByRole('button', { name: /forgot password/i })
+    const signIn = screen.getByRole('button', { name: /^sign in$/i })
+    const magicLink = screen.getByRole('button', { name: /email me a sign-in link/i })
+
+    // Use DOM position (compareDocumentPosition) to verify order
+    expect(email.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(password.compareDocumentPosition(forgot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(forgot.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(signIn.compareDocumentPosition(magicLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})

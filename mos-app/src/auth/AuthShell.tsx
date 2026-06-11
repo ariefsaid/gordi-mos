@@ -6,7 +6,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"
-      className={['animate-spin', className].filter(Boolean).join(' ')}
+      className={['motion-safe:animate-spin', className].filter(Boolean).join(' ')}
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 16 16"

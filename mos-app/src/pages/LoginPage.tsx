@@ -8,6 +8,7 @@ const ERR_CREDENTIAL = 'Invalid email or password.'
 const ERR_RATE_LIMIT = 'Too many attempts — try again in a minute.'
 const ERR_NETWORK = "Couldn't reach the server — try again."
 const ERR_EXPIRED_LINK = 'That link has expired — request a new one.'
+const ERR_EMAIL_INVALID = 'Enter a valid email address.'
 
 type Mode = 'credentials' | 'magic-confirm' | 'reset-confirm'
 
@@ -32,16 +33,23 @@ function mapAuthError(error: unknown): string {
   return ERR_CREDENTIAL
 }
 
+// Simple RFC-5322-inspired email check (same pattern used by most browsers)
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const emailId = useId()
   const passwordId = useId()
   const errorId = useId()
+  const emailErrorId = useId()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<Mode>('credentials')
   const [error, setError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [loading, setLoading] = useState<'sign-in' | 'magic' | 'reset' | null>(null)
 
   // Check for expired-link URL param on mount (design-plan §3 expired-link notice)
@@ -64,9 +72,20 @@ export default function LoginPage() {
 
   const isDisabled = loading !== null
 
+  // fix-2: validate email client-side before any auth call
+  function validateEmail(): boolean {
+    if (!email.trim() || !isValidEmail(email)) {
+      setEmailError(ERR_EMAIL_INVALID)
+      return false
+    }
+    setEmailError('')
+    return true
+  }
+
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    if (!validateEmail()) return
     setLoading('sign-in')
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
@@ -84,6 +103,7 @@ export default function LoginPage() {
 
   async function handleMagicLink() {
     setError('')
+    if (!validateEmail()) return
     setLoading('magic')
     try {
       await supabase.auth.signInWithOtp({
@@ -101,6 +121,7 @@ export default function LoginPage() {
 
   async function handleForgotPassword() {
     setError('')
+    if (!validateEmail()) return
     setLoading('reset')
     try {
       await supabase.auth.resetPasswordForEmail(email)
@@ -235,47 +256,44 @@ export default function LoginPage() {
               autoComplete="email"
               placeholder="you@gordi.id"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (emailError) setEmailError('')
+              }}
               disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-md px-2.5"
+              aria-invalid={emailError ? 'true' : undefined}
+              aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
+              className="w-full bg-background text-foreground rounded-md px-2.5 border"
               style={{
                 height: 32,
                 fontSize: 14,
+                borderColor: emailError ? 'hsl(var(--destructive))' : 'hsl(var(--input))',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
-              aria-describedby={error ? errorId : undefined}
             />
+            {/* fix-2: inline field error below email input */}
+            {emailError && (
+              <p
+                id={emailErrorId}
+                className="mt-1"
+                style={{ fontSize: 12, color: 'hsl(var(--destructive))' }}
+              >
+                {emailError}
+              </p>
+            )}
           </div>
 
-          {/* Password field with "Forgot password?" */}
+          {/* Password field — design-plan §1 layout: label on its own row, field below */}
+          {/* fix-4: "Forgot password?" moved OUT of the label row, placed AFTER the password field */}
           <div className="mb-5">
-            <div className="flex items-center justify-between mb-1">
-              <label
-                htmlFor={passwordId}
-                className="text-foreground font-semibold"
-                style={{ fontSize: 12 }}
-              >
-                Password
-              </label>
-              {/* Forgot password — primary-text link, quiet tertiary affordance */}
-              <button
-                type="button"
-                className="text-primary font-medium hover:underline focus-visible:underline"
-                style={{ fontSize: 12 }}
-                disabled={isDisabled}
-                onClick={handleForgotPassword}
-              >
-                {loading === 'reset' ? (
-                  <span className="flex items-center gap-1">
-                    <Spinner />
-                    Sending…
-                  </span>
-                ) : (
-                  'Forgot password?'
-                )}
-              </button>
-            </div>
+            <label
+              htmlFor={passwordId}
+              className="block text-foreground font-semibold mb-1"
+              style={{ fontSize: 12 }}
+            >
+              Password
+            </label>
             <input
               id={passwordId}
               type="password"
@@ -292,6 +310,31 @@ export default function LoginPage() {
               }}
               aria-describedby={error ? errorId : undefined}
             />
+            {/* fix-4: Forgot password link AFTER the password field (DOM order = tab order) */}
+            {/* fix-3: same min-height:44px touch-target treatment as magic-link */}
+            <div className="flex justify-end mt-1">
+              <button
+                type="button"
+                className="text-primary font-medium hover:underline focus-visible:underline"
+                style={{
+                  fontSize: 12,
+                  minHeight: 44,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+                disabled={isDisabled}
+                onClick={handleForgotPassword}
+              >
+                {loading === 'reset' ? (
+                  <span className="flex items-center gap-1">
+                    <Spinner />
+                    Sending…
+                  </span>
+                ) : (
+                  'Forgot password?'
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Primary submit — the ONE filled primary button (One Blue Rule) */}
@@ -335,7 +378,7 @@ export default function LoginPage() {
           className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
           style={{
             fontSize: 14,
-            minHeight: 44, // touch target ≥44px (design-plan §4)
+            minHeight: 44, // fix-3 / touch target ≥44px (design-plan §4)
             opacity: (isDisabled && loading !== 'magic') ? 0.5 : 1,
             cursor: isDisabled ? 'not-allowed' : undefined,
           }}
