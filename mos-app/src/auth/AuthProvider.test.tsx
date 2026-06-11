@@ -22,6 +22,7 @@ import { useAuth } from './useAuth'
 import { supabase } from '../lib/supabase'
 import { resolveViewer } from '../lib/db/viewer'
 import type { PeopleRow, RolesRow } from '../lib/database.types'
+import type { Session } from '@supabase/supabase-js'
 
 const mockGetSession = vi.mocked(supabase.auth.getSession)
 const mockOnAuthStateChange = vi.mocked(supabase.auth.onAuthStateChange)
@@ -55,6 +56,9 @@ function AuthConsumer() {
       )}
       {auth.status === 'orphan' && (
         <button onClick={() => auth.signOut()}>Sign out orphan</button>
+      )}
+      {auth.status === 'recovering' && (
+        <button onClick={() => auth.clearRecovering()}>Clear recovering</button>
       )}
     </div>
   )
@@ -118,6 +122,81 @@ describe('AuthProvider', () => {
     })
 
     expect(screen.getByTestId('status').textContent).toBe('orphan')
+  })
+
+  it('PASSWORD_RECOVERY event → status recovering', async () => {
+    // Setup: getSession resolves no session initially (recovery link provides session via event)
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((cb) => {
+      capturedCallback = cb
+      return {
+        data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+      } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+
+    await act(async () => {
+      render(
+        <AuthProvider>
+          <AuthConsumer />
+        </AuthProvider>,
+      )
+    })
+
+    // Fire PASSWORD_RECOVERY event (simulates Supabase consuming the recovery link)
+    await act(async () => {
+      capturedCallback!('PASSWORD_RECOVERY', {
+        user: { id: 'auth-user-001' },
+      } as Partial<Session> as Session)
+    })
+
+    expect(screen.getByTestId('status').textContent).toBe('recovering')
+  })
+
+  it('recovering → clearRecovering → transitions to authenticated', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false })
+
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((cb) => {
+      capturedCallback = cb
+      return {
+        data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+      } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+
+    await act(async () => {
+      render(
+        <AuthProvider>
+          <AuthConsumer />
+        </AuthProvider>,
+      )
+    })
+
+    await act(async () => {
+      capturedCallback!('PASSWORD_RECOVERY', {
+        user: { id: 'auth-user-001' },
+      } as Partial<Session> as Session)
+    })
+
+    expect(screen.getByTestId('status').textContent).toBe('recovering')
+
+    // Simulate success: RecoveryPage calls clearRecovering after updateUser succeeds
+    await act(async () => {
+      screen.getByRole('button', { name: 'Clear recovering' }).click()
+    })
+
+    // After clearRecovering, resolves viewer and transitions to authenticated
+    await act(async () => {})
+
+    expect(screen.getByTestId('status').textContent).toBe('authenticated')
   })
 
   it('signOut calls supabase.auth.signOut and transitions to unauthenticated', async () => {

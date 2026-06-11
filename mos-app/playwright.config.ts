@@ -29,6 +29,7 @@ const e2eEnv = loadEnvFile(resolve(__dir, '.env.e2e'))
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false, // auth journeys share state via admin-API setup; run serially
+  workers: 1, // all spec files share mailpit + auth state; must run one-at-a-time
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: 'html',

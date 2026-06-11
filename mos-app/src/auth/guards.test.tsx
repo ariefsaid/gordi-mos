@@ -29,6 +29,10 @@ function OrphanMarker() {
   return <div data-testid="orphan-screen">Orphan</div>
 }
 
+function RecoveryForm() {
+  return <div data-testid="recovery-form">Set new password</div>
+}
+
 describe('ProtectedRoute', () => {
   it('AC-009: ProtectedRoute renders neutral loading, not protected content, while status===loading', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' })
@@ -88,6 +92,25 @@ describe('ProtectedRoute', () => {
       </MemoryRouter>,
     )
 
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+  })
+
+  it('recovering on a protected route → redirected to /recovery (not shown protected content)', () => {
+    mockUseAuth.mockReturnValue({ status: 'recovering', clearRecovering: vi.fn() })
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<ProtectedContent />} />
+          </Route>
+          <Route path="/recovery" element={<RecoveryForm />} />
+          <Route path="/login" element={<LoginPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('recovery-form')).toBeInTheDocument()
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
   })
 
@@ -160,6 +183,46 @@ describe('RedirectIfAuthed', () => {
 
     // Should redirect to home, login form absent
     expect(screen.getByTestId('home-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
+
+  it('recovering on /recovery → renders recovery form (NOT redirected to home)', () => {
+    mockUseAuth.mockReturnValue({ status: 'recovering', clearRecovering: vi.fn() })
+
+    render(
+      <MemoryRouter initialEntries={['/recovery']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/recovery" element={<RecoveryForm />} />
+          </Route>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    // Must show recovery form, NOT bounce to home
+    expect(screen.getByTestId('recovery-form')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+  })
+
+  it('recovering on a non-recovery route (e.g. /login) → redirected to /recovery', () => {
+    mockUseAuth.mockReturnValue({ status: 'recovering', clearRecovering: vi.fn() })
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/recovery" element={<RecoveryForm />} />
+          </Route>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    // recovering on /login → sent to /recovery to set password
+    expect(screen.getByTestId('recovery-form')).toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 

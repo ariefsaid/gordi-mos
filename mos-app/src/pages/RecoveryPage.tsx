@@ -2,12 +2,14 @@ import { useState, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '../auth/AuthShell'
+import { useAuth } from '../auth/useAuth'
 
 const ERR_MISMATCH = "Passwords don't match."
 const ERR_EXPIRED = 'That link has expired — request a new one.'
 
 export default function RecoveryPage() {
   const navigate = useNavigate()
+  const auth = useAuth()
   const newPasswordId = useId()
   const confirmPasswordId = useId()
   const mismatchErrorId = useId()
@@ -40,6 +42,10 @@ export default function RecoveryPage() {
         // Any error from updateUser on a recovery link = expired/invalid link
         setExpired(true)
       } else {
+        // Clear the recovering flag so AuthProvider can resolve the viewer (audit L1 fix).
+        if (auth.status === 'recovering') {
+          auth.clearRecovering()
+        }
         navigate('/', { replace: true })
       }
     } catch {

@@ -10,7 +10,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { VIEWER, ORPHAN } from './fixtures/users'
+import { VIEWER, ORPHAN, RECOVERY_VIEWER } from './fixtures/users'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -115,4 +115,24 @@ export default async function globalSetup() {
   })
   if (orphanErr) throw new Error(`[global-setup] createUser ORPHAN failed: ${orphanErr.message}`)
   console.log(`[global-setup] created ORPHAN user: ${ORPHAN.email} (no people link)`)
+
+  // ── RECOVERY_VIEWER (e2e.recovery@example.test → linked to Sari Sales person row) ──
+  // Dedicated fixture for AC-005 recovery journey — password rotation in that test will NOT
+  // affect VIEWER, keeping auth-password-login and auth-signout-back stable.
+  await deleteUserByEmail(adminClient, RECOVERY_VIEWER.email)
+  const { data: recoveryData, error: recoveryErr } = await adminClient.auth.admin.createUser({
+    email: RECOVERY_VIEWER.email,
+    password: RECOVERY_VIEWER.password,
+    email_confirm: true,
+  })
+  if (recoveryErr) throw new Error(`[global-setup] createUser RECOVERY_VIEWER failed: ${recoveryErr.message}`)
+  const recoveryUid = recoveryData.user.id
+  console.log(`[global-setup] created RECOVERY_VIEWER user: ${RECOVERY_VIEWER.email} (uid=${recoveryUid})`)
+
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `UPDATE shared.people SET user_id = '${recoveryUid}' WHERE id = '${RECOVERY_VIEWER.personId}'`,
+  )
+  console.log(`[global-setup] linked RECOVERY_VIEWER uid to person ${RECOVERY_VIEWER.personId}`)
 }

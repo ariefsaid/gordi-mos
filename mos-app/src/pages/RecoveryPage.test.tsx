@@ -18,6 +18,12 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
+// Mock useAuth for clearRecovering tests
+const mockClearRecovering = vi.fn()
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({ status: 'recovering', clearRecovering: mockClearRecovering }),
+}))
+
 import RecoveryPage from './RecoveryPage'
 import { supabase } from '../lib/supabase'
 
@@ -27,6 +33,7 @@ describe('RecoveryPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    mockClearRecovering.mockClear()
   })
 
   // FR-005: form renders a labelled new-password input
@@ -102,6 +109,29 @@ describe('RecoveryPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/that link has expired/i)).toBeInTheDocument()
     })
+  })
+
+  it('FR-005: recovery success — calls clearRecovering before navigating home', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: {} as unknown as import('@supabase/supabase-js').User },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'newpassword123')
+    await user.type(screen.getByLabelText('Confirm password'), 'newpassword123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(mockClearRecovering).toHaveBeenCalledOnce()
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+    })
+    // clearRecovering must be called before or alongside navigate
+    const clearOrder = mockClearRecovering.mock.invocationCallOrder[0]
+    const navOrder = mockNavigate.mock.invocationCallOrder[0]
+    expect(clearOrder).toBeLessThanOrEqual(navOrder)
   })
 
   it('FR-005: loading state — save button disabled + loading indicator while in flight', async () => {

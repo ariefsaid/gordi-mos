@@ -15,3 +15,12 @@ export const ORPHAN = {
   password: 'e2e-password-123',
   // no people link — user_id stays NULL → no person_id claim → orphan screen
 }
+
+// Dedicated fixture for the password-recovery e2e journey (AC-005).
+// Uses a separate person row (Sari Sales) so that password rotation in the test does NOT
+// affect VIEWER's password, keeping auth-password-login and auth-signout-back stable.
+export const RECOVERY_VIEWER = {
+  email: 'e2e.recovery@example.test',
+  password: 'e2e-password-123',
+  personId: '40000000-0000-0000-0000-000000000004', // Sari Sales (available seed person)
+}

@@ -124,7 +124,10 @@ export default function LoginPage() {
     if (!validateEmail()) return
     setLoading('reset')
     try {
-      await supabase.auth.resetPasswordForEmail(email)
+      // redirectTo ensures the recovery link lands on /recovery so the PASSWORD_RECOVERY
+      // event is handled while the router is at the correct path (audit L1 fix).
+      const redirectTo = `${window.location.origin}/mos/recovery`
+      await supabase.auth.resetPasswordForEmail(email, { redirectTo })
       // Always show neutral confirmation (no enumeration — AC-006)
       setMode('reset-confirm')
     } catch {
