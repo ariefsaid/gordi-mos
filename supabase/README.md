@@ -29,3 +29,27 @@ deployed stack. The committed seed stays fictional.
 - `supabase start` — boot the local stack (Docker).
 - `supabase db reset` — drop, re-apply all migrations, re-run `seed.sql` (the reversibility contract).
 - `supabase test db` — run the pgTAP suite.
+
+## Production email (Resend) — OD-P1-11
+
+Local dev uses **Mailpit** (`:44324`); nothing below applies locally. The production GoTrue must
+send real mail (magic links, invites, password resets) through **Resend** via SMTP:
+
+| GoTrue env var | Value |
+|---|---|
+| `GOTRUE_SMTP_HOST` | `smtp.resend.com` |
+| `GOTRUE_SMTP_PORT` | `465` (implicit TLS; `587` STARTTLS also works) |
+| `GOTRUE_SMTP_USER` | `resend` (literal) |
+| `GOTRUE_SMTP_PASS` | a Resend API key (`re_…`) — secret, NEVER committed |
+| `GOTRUE_SMTP_ADMIN_EMAIL` | `mos@gordi.id` (the From address) |
+| `GOTRUE_SMTP_SENDER_NAME` | `Gordi MOS` |
+
+One-time owner steps (Resend dashboard):
+1. **Domains → Add domain** `gordi.id` (or a subdomain for reputation isolation) → add the
+   SPF/DKIM DNS records Resend shows to gordi.id DNS → wait for Verified.
+2. **API keys → Create** a sending-only key scoped to that domain → store it in the ris-dev prod
+   env (alongside the other stack secrets), not in this repo.
+
+Sanity check after deploy: trigger a password-reset from the prod login page and confirm delivery +
+that the link lands on `https://ops.gordi.id/mos/recovery`. Rate limits: Resend free tier (~3k/mo,
+100/day) is ~10× MOS's worst case.

@@ -168,6 +168,12 @@ admin UI is post-MVP.
 Authenticated user with no linked `shared.people` row sees a blocked screen ("account not set up —
 contact Arief"); no auto-created directory rows (consistent with closing audit M1's pre-claim seam).
 
+### OD-P1-11 — Production email: Resend (LOCKED 2026-06-11)
+Auth email (magic links, invites, password resets) sends via the owner's existing **Resend**
+account over SMTP. Sender: `Gordi MOS <mos@gordi.id>` (owner may rename; subdomain isolation like
+`mail.gordi.id` optional). Local dev keeps Mailpit — no real sends outside prod. Password login
+works independently of SMTP, so email is never login-blocking.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
