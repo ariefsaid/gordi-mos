@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../auth/useAuth')
@@ -47,13 +47,23 @@ const managerViewer = {
   viewer: { ...nonManagerViewer.viewer, isManager: true },
 }
 
-function renderMyWeek(auth = nonManagerViewer) {
+// FIX-4: async renderMyWeek — wraps render + flush inside act() so the
+// getMyUpdate mock-resolved promise settles within act and no "not wrapped
+// in act()" warnings are emitted (the async state update is now inside act).
+async function renderMyWeek(auth = nonManagerViewer) {
   mockUseAuth.mockReturnValue(auth)
-  return render(
-    <MemoryRouter>
-      <MyWeek />
-    </MemoryRouter>,
-  )
+  let utils!: ReturnType<typeof render>
+  await act(async () => {
+    utils = render(
+      <MemoryRouter>
+        <MyWeek />
+      </MemoryRouter>,
+    )
+    // Flush the mock-resolved getMyUpdate Promise so the stripLoad state
+    // update (loading → ready / error) is processed inside act().
+    await Promise.resolve()
+  })
+  return utils
 }
 
 beforeEach(() => {
@@ -64,27 +74,27 @@ beforeEach(() => {
 
 // AC-011: My Week task-table frame (empty)
 describe('AC-011: Empty task-table frame', () => {
-  it('shows "My tasks" card head', () => {
-    renderMyWeek()
+  it('shows "My tasks" card head', async () => {
+    await renderMyWeek()
     expect(screen.getByText('My tasks')).toBeInTheDocument()
   })
 
-  it('shows subtitle "Where you\'re Responsible or Accountable · off track first"', () => {
-    renderMyWeek()
+  it('shows subtitle "Where you\'re Responsible or Accountable · off track first"', async () => {
+    await renderMyWeek()
     expect(
       screen.getByText("Where you're Responsible or Accountable · off track first"),
     ).toBeInTheDocument()
   })
 
-  it('has "All tasks →" link targeting /tasks', () => {
-    renderMyWeek()
+  it('has "All tasks →" link targeting /tasks', async () => {
+    await renderMyWeek()
     const link = screen.getByRole('link', { name: /All tasks/i })
     expect(link).toBeInTheDocument()
     expect(link.getAttribute('href')).toBe('/tasks')
   })
 
-  it('renders the 5 column headers: Task / Status / Owner / Due / Activity', () => {
-    renderMyWeek()
+  it('renders the 5 column headers: Task / Status / Owner / Due / Activity', async () => {
+    await renderMyWeek()
     const headers = screen.getAllByRole('columnheader')
     const headerTexts = headers.map((h) => h.textContent?.trim())
     expect(headerTexts).toContain('Task')
@@ -95,8 +105,8 @@ describe('AC-011: Empty task-table frame', () => {
     expect(headers).toHaveLength(5)
   })
 
-  it('shows empty row copy with no group headers', () => {
-    renderMyWeek()
+  it('shows empty row copy with no group headers', async () => {
+    await renderMyWeek()
     expect(
       screen.getByText("No tasks where you're R or A this week — you're clear."),
     ).toBeInTheDocument()
@@ -110,8 +120,8 @@ describe('AC-011: Empty task-table frame', () => {
 // AC-012: Empty strips link to their surfaces
 describe('AC-012: Empty strips', () => {
   it('update strip shows no-update copy with Due Fri phrase and link to /updates', async () => {
-    renderMyWeek()
-    // Wait for getMyUpdate to resolve (null = no update)
+    await renderMyWeek()
+    // After renderMyWeek resolves, the no-update state is already shown
     await waitFor(() => expect(screen.getByText('No weekly update for this week yet.')).toBeInTheDocument())
     // "Due Fri" substring present in the explainer
     expect(screen.getByText(/Due Fri /)).toBeInTheDocument()
@@ -120,8 +130,8 @@ describe('AC-012: Empty strips', () => {
     expect(link.getAttribute('href')).toBe('/updates')
   })
 
-  it('ops strip shows no-ops copy and link to /ops', () => {
-    renderMyWeek()
+  it('ops strip shows no-ops copy and link to /ops', async () => {
+    await renderMyWeek()
     expect(
       screen.getByText('No ops events logged today.'),
     ).toBeInTheDocument()
@@ -129,8 +139,8 @@ describe('AC-012: Empty strips', () => {
     expect(link.getAttribute('href')).toBe('/ops')
   })
 
-  it('no amber/needs-me state in the empty strips', () => {
-    renderMyWeek()
+  it('no amber/needs-me state in the empty strips', async () => {
+    await renderMyWeek()
     // No amber draft pill element in the strips
     const container = document.body
     expect(container.querySelector('.strip-pill.draft')).toBeNull()
@@ -141,16 +151,16 @@ describe('AC-012: Empty strips', () => {
 
 // AC-013: Team module is manager-conditional
 describe('AC-013: Team module manager-conditional', () => {
-  it('(a) shows team module for manager viewers', () => {
-    renderMyWeek(managerViewer)
+  it('(a) shows team module for manager viewers', async () => {
+    await renderMyWeek(managerViewer)
     // The overline label starts with "Your team"
     const overline = screen.getAllByText(/Your team/i)
     expect(overline.length).toBeGreaterThan(0)
     expect(screen.getByText('Nothing from your team yet.')).toBeInTheDocument()
   })
 
-  it('(b) hides team module for non-manager viewers', () => {
-    renderMyWeek(nonManagerViewer)
+  it('(b) hides team module for non-manager viewers', async () => {
+    await renderMyWeek(nonManagerViewer)
     // No team overline at all
     const matches = screen.queryAllByText(/Your team/i)
     expect(matches).toHaveLength(0)
@@ -160,22 +170,22 @@ describe('AC-013: Team module manager-conditional', () => {
 
 // FIX-1: Mobile strip reflow — strips have flex-wrap and text element has min-width
 describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
-  it('weekly-update strip container has flex-wrap class (not fixed row)', () => {
-    const { container } = renderMyWeek()
+  it('weekly-update strip container has flex-wrap class (not fixed row)', async () => {
+    const { container } = await renderMyWeek()
     const updateSection = container.querySelector('[aria-label="My weekly update"]')
     expect(updateSection).toBeTruthy()
     expect(updateSection!.className).toMatch(/flex-wrap/)
   })
 
-  it('ops strip container has flex-wrap class (not fixed row)', () => {
-    const { container } = renderMyWeek()
+  it('ops strip container has flex-wrap class (not fixed row)', async () => {
+    const { container } = await renderMyWeek()
     const opsSection = container.querySelector('[aria-label="Today on the floor"]')
     expect(opsSection).toBeTruthy()
     expect(opsSection!.className).toMatch(/flex-wrap/)
   })
 
-  it('weekly-update strip text element has a min-w class preventing width starvation', () => {
-    const { container } = renderMyWeek()
+  it('weekly-update strip text element has a min-w class preventing width starvation', async () => {
+    const { container } = await renderMyWeek()
     const updateSection = container.querySelector('[aria-label="My weekly update"]')
     // The flex-1 text span should have min-w to prevent it collapsing word-per-word
     const textEl = updateSection!.querySelector('.flex-1')
@@ -186,15 +196,15 @@ describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
 
 // FIX-2: Card-head reflow — allows wrap, title never breaks mid-phrase
 describe('FIX-2: Card-head reflow — structural layout guards', () => {
-  it('card head container has flex-wrap class', () => {
-    const { container } = renderMyWeek()
+  it('card head container has flex-wrap class', async () => {
+    const { container } = await renderMyWeek()
     const cardHead = container.querySelector('[aria-label="My tasks this week"] div')
     expect(cardHead).toBeTruthy()
     expect(cardHead!.className).toMatch(/flex-wrap/)
   })
 
-  it('"My tasks" title has whitespace-nowrap to prevent mid-phrase break', () => {
-    const { container } = renderMyWeek()
+  it('"My tasks" title has whitespace-nowrap to prevent mid-phrase break', async () => {
+    const { container } = await renderMyWeek()
     const titleEl = container.querySelector('[aria-label="My tasks this week"] div span:first-child')
     expect(titleEl).toBeTruthy()
     expect(titleEl!.className).toMatch(/whitespace-nowrap/)
@@ -210,18 +220,18 @@ describe('AC-010: My Week head WIB week math', () => {
     vi.useRealTimers()
   })
 
-  it('(a) Wed 10 Jun 2026 12:00 WIB: subtitle contains correct week range and today', () => {
+  it('(a) Wed 10 Jun 2026 12:00 WIB: subtitle contains correct week range and today', async () => {
     vi.setSystemTime(new Date('2026-06-10T05:00:00Z'))
-    renderMyWeek()
+    await renderMyWeek()
     const subtitle = screen.getByText(/Week of/)
     expect(subtitle.textContent).toContain('Week of 8–14 Jun 2026')
     expect(subtitle.textContent).toContain('Wed 10 Jun')
     expect(subtitle.textContent).toContain('what needs you, your update, and today on the floor')
   })
 
-  it('(b) Mon boundary: 2026-06-08T16:30:00Z = Mon 8 Jun 00:30 WIB', () => {
+  it('(b) Mon boundary: 2026-06-08T16:30:00Z = Mon 8 Jun 00:30 WIB', async () => {
     vi.setSystemTime(new Date('2026-06-08T16:30:00Z'))
-    renderMyWeek()
+    await renderMyWeek()
     const subtitle = screen.getByText(/Week of/)
     expect(subtitle.textContent).toContain('Week of 8–14 Jun 2026')
     expect(subtitle.textContent).toContain('Mon 8 Jun')
@@ -239,17 +249,15 @@ describe('AC-050: My Week strip — No update state', () => {
   })
 
   it('strip shows "No update" pill and "No weekly update for this week yet" when no row (AC-050)', async () => {
-    renderMyWeek()
-    // After loading resolves, the No update state shows
-    await waitFor(() => {
-      const strip = document.querySelector('[aria-label="My weekly update"]')
-      expect(strip?.textContent).toMatch(/no update/i)
-    })
+    await renderMyWeek()
+    // getMyUpdate resolved null inside act — state is already ready
+    const strip = document.querySelector('[aria-label="My weekly update"]')
+    expect(strip?.textContent).toMatch(/no update/i)
     expect(screen.getByText(/No weekly update for this week yet/i)).toBeTruthy()
   })
 
   it('strip shows "Due Fri" and "Write update" link when no row (AC-050)', async () => {
-    renderMyWeek()
+    await renderMyWeek()
     await waitFor(() => screen.getByText(/No weekly update for this week yet/i))
     expect(screen.getByText(/Due Fri/i)).toBeTruthy()
     const link = screen.getByRole('link', { name: /write update/i })
@@ -272,17 +280,15 @@ describe('AC-051: My Week strip — Draft state', () => {
   })
 
   it('strip shows "Draft" pill and "Draft — not filed yet" when draft exists (AC-051)', async () => {
-    renderMyWeek()
-    await waitFor(() => {
-      expect(screen.getByText(/Draft — not filed yet/i)).toBeTruthy()
-    })
-    // Draft pill present
+    await renderMyWeek()
+    // Draft state is fully rendered after act flushes the mock promise
+    expect(screen.getByText(/Draft — not filed yet/i)).toBeTruthy()
     const strip = document.querySelector('[aria-label="My weekly update"]')
     expect(strip?.textContent).toMatch(/Draft/i)
   })
 
   it('strip shows "Continue draft" link when draft (AC-051)', async () => {
-    renderMyWeek()
+    await renderMyWeek()
     await waitFor(() => screen.getByText(/Draft — not filed yet/i))
     const link = screen.getByRole('link', { name: /continue draft/i })
     expect(link.getAttribute('href')).toBe('/updates')
@@ -305,11 +311,9 @@ describe('AC-051: My Week strip — Submitted state', () => {
       },
       items: [],
     })
-    renderMyWeek()
-    await waitFor(() => {
-      const strip = document.querySelector('[aria-label="My weekly update"]')
-      expect(strip?.textContent).toMatch(/Submitted/i)
-    })
+    await renderMyWeek()
+    const strip = document.querySelector('[aria-label="My weekly update"]')
+    expect(strip?.textContent).toMatch(/Submitted/i)
     // on time signal
     expect(screen.getByText(/on time/i)).toBeTruthy()
   })
@@ -325,10 +329,8 @@ describe('AC-051: My Week strip — Submitted state', () => {
       },
       items: [],
     })
-    renderMyWeek()
-    await waitFor(() => {
-      expect(screen.getByText(/late/i)).toBeTruthy()
-    })
+    await renderMyWeek()
+    expect(screen.getByText(/late/i)).toBeTruthy()
   })
 
   it('strip shows "View update" link when submitted (AC-051)', async () => {
@@ -342,7 +344,7 @@ describe('AC-051: My Week strip — Submitted state', () => {
       },
       items: [],
     })
-    renderMyWeek()
+    await renderMyWeek()
     await waitFor(() => screen.getByRole('link', { name: /view update/i }))
     expect(screen.getByRole('link', { name: /view update/i }).getAttribute('href')).toBe('/updates')
   })
