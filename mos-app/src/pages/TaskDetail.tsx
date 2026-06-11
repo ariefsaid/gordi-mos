@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import PageFrame from '../shell/PageFrame'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { useAuth } from '../auth/useAuth'
-import { getTask, updateTaskStatus, updateTaskRaci, addChecklistItem, toggleChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
+import { getTask, updateTaskStatus, updateTaskRaci, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
 import type { TaskDetail as TaskDetailData } from '../lib/db/tasks'
 import type { TaskListRow, TaskStatus, ChecklistItemRow, TaskEventRow } from '../lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
@@ -302,8 +302,10 @@ type ChecklistCardProps = {
   viewerId: string
   onAdd: (label: string) => void
   onToggle: (id: string, isDone: boolean) => void
+  onReorder: (id: string, direction: 'up' | 'down') => void
+  onDelete: (id: string) => void
 }
-function ChecklistCard({ items, canEdit: editable, onAdd, onToggle }: ChecklistCardProps) {
+function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete }: ChecklistCardProps) {
   const [draft, setDraft] = useState('')
   const done = items.filter(i => i.is_done).length
 
@@ -328,7 +330,7 @@ function ChecklistCard({ items, canEdit: editable, onAdd, onToggle }: ChecklistC
       )}
 
       <ul className="checklist-list">
-        {items.map(item => (
+        {items.map((item, idx) => (
           <li key={item.id} className="checklist-item">
             <input
               type="checkbox"
@@ -347,6 +349,30 @@ function ChecklistCard({ items, canEdit: editable, onAdd, onToggle }: ChecklistC
             >
               {item.label}
             </label>
+            {editable && (
+              <div className="checklist-controls">
+                <button
+                  type="button"
+                  className="checklist-ctrl-btn"
+                  aria-label={`Move up ${item.label}`}
+                  disabled={idx === 0}
+                  onClick={() => onReorder(item.id, 'up')}
+                >▲</button>
+                <button
+                  type="button"
+                  className="checklist-ctrl-btn"
+                  aria-label={`Move down ${item.label}`}
+                  disabled={idx === items.length - 1}
+                  onClick={() => onReorder(item.id, 'down')}
+                >▼</button>
+                <button
+                  type="button"
+                  className="checklist-ctrl-btn checklist-ctrl-delete"
+                  aria-label={`Delete checklist item ${item.label}`}
+                  onClick={() => onDelete(item.id)}
+                >×</button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -550,6 +576,41 @@ export default function TaskDetail() {
     }
   }
 
+  // ── Checklist reorder ────────────────────────────────────────────────────
+  async function handleReorder(itemId: string, direction: 'up' | 'down') {
+    const idx = localChecklist.findIndex(i => i.id === itemId)
+    if (idx < 0) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= localChecklist.length) return
+
+    const prev = localChecklist
+    // Optimistic: swap positions in the array
+    const next = [...localChecklist]
+    const swapId = next[swapIdx].id
+    ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+    // Re-stamp positions to match array order
+    const reindexed = next.map((item, i) => ({ ...item, position: i }))
+    setLocalChecklist(reindexed)
+    try {
+      await reorderChecklistItem(itemId, swapIdx)
+      await reorderChecklistItem(swapId, idx)
+    } catch {
+      setLocalChecklist(prev)
+    }
+  }
+
+  // ── Checklist delete ─────────────────────────────────────────────────────
+  async function handleDeleteChecklist(itemId: string) {
+    if (!localTask) return
+    const prev = localChecklist
+    setLocalChecklist(p => p.filter(i => i.id !== itemId))
+    try {
+      await deleteChecklistItem(itemId, localTask.id, viewerId)
+    } catch {
+      setLocalChecklist(prev)
+    }
+  }
+
   // ── Archive/unarchive ────────────────────────────────────────────────────
   const [showConfirm, setShowConfirm] = useState(false)
   async function handleArchive() {
@@ -683,6 +744,8 @@ export default function TaskDetail() {
         viewerId={viewerId}
         onAdd={handleAddChecklist}
         onToggle={handleToggle}
+        onReorder={handleReorder}
+        onDelete={handleDeleteChecklist}
       />
 
       {/* Activity card */}
@@ -920,6 +983,17 @@ export default function TaskDetail() {
         }
         .checklist-add-input::placeholder { color: hsl(var(--muted-foreground)); }
         .checklist-add-input:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        .checklist-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
+        .checklist-ctrl-btn {
+          width: 24px; height: 24px; border: 0; background: transparent;
+          color: hsl(var(--muted-foreground)); cursor: pointer; font-size: 12px;
+          display: grid; place-items: center; border-radius: 4px;
+          line-height: 1;
+        }
+        .checklist-ctrl-btn:hover:not(:disabled) { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+        .checklist-ctrl-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        .checklist-ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .checklist-ctrl-delete:hover:not(:disabled) { color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.08); }
 
         /* ── Activity thread ── */
         .thread { display: flex; flex-direction: column; }

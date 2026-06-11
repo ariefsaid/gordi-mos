@@ -7,7 +7,7 @@ import { createTask } from '../lib/db/tasks'
 import type { CreateTaskInput } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '../lib/db/directory'
-import { initials } from '../components/tasks/taskFormatters'
+
 
 // ── Create form component ─────────────────────────────────────────────────────
 export default function TaskCreate() {
@@ -17,7 +17,6 @@ export default function TaskCreate() {
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
-  const viewerName = auth.status === 'authenticated' ? auth.viewer.person.full_name : ''
   // Primary-role BU: first role's business_unit_id (ordered by created_at asc from resolveViewer)
   const primaryRoleBU = auth.status === 'authenticated'
     ? (auth.viewer.roles[0]?.business_unit_id ?? '')
@@ -25,7 +24,7 @@ export default function TaskCreate() {
 
   // Directory
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
-  const [, setPeopleDirectory] = useState<PersonOption[]>([])
+  const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
 
   useEffect(() => {
@@ -39,8 +38,8 @@ export default function TaskCreate() {
   // ── Form state ────────────────────────────────────────────────────────────
   const [title, setTitle] = useState('')
   const [businessUnitId, setBusinessUnitId] = useState(primaryRoleBU)
-  const [responsiblePersonId] = useState(viewerId)
-  const [accountablePersonId] = useState(viewerId)
+  const [responsiblePersonId, setResponsiblePersonId] = useState(viewerId)
+  const [accountablePersonId, setAccountablePersonId] = useState(viewerId)
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
 
@@ -171,32 +170,52 @@ export default function TaskCreate() {
             )}
           </div>
 
-          {/* Responsible (R) — pre-filled, read-only display in P2-1 */}
+          {/* Responsible (R) — pre-filled to creator, editable */}
           <div className="tc-field">
-            <label className="tc-label">Responsible (R)</label>
-            <div
-              className="tc-person-display"
-              data-testid="responsible-person"
-              aria-label={`Responsible: ${viewerName}`}
-            >
-              <span className="tc-person-av" aria-hidden="true">{initials(viewerName)}</span>
-              <span className="tc-person-name">{viewerName}</span>
-              <span className="tc-person-hint">(you — creator)</span>
-            </div>
+            <label htmlFor="task-responsible" className="tc-label">
+              Responsible (R) <span aria-hidden="true" className="tc-required">*</span>
+            </label>
+            {dirLoading ? (
+              <div className="tc-loading-field">Loading…</div>
+            ) : (
+              <select
+                id="task-responsible"
+                className="tc-select"
+                value={responsiblePersonId}
+                onChange={e => setResponsiblePersonId(e.target.value)}
+                disabled={submitting}
+                aria-label="Responsible (R)"
+                aria-required="true"
+              >
+                {peopleDirectory.map(p => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
-          {/* Accountable (A) — pre-filled */}
+          {/* Accountable (A) — pre-filled to creator, editable */}
           <div className="tc-field">
-            <label className="tc-label">Accountable (A)</label>
-            <div
-              className="tc-person-display"
-              data-testid="accountable-person"
-              aria-label={`Accountable: ${viewerName}`}
-            >
-              <span className="tc-person-av tc-person-av-a" aria-hidden="true">{initials(viewerName)}</span>
-              <span className="tc-person-name">{viewerName}</span>
-              <span className="tc-person-hint">(you — creator)</span>
-            </div>
+            <label htmlFor="task-accountable" className="tc-label">
+              Accountable (A) <span aria-hidden="true" className="tc-required">*</span>
+            </label>
+            {dirLoading ? (
+              <div className="tc-loading-field">Loading…</div>
+            ) : (
+              <select
+                id="task-accountable"
+                className="tc-select"
+                value={accountablePersonId}
+                onChange={e => setAccountablePersonId(e.target.value)}
+                disabled={submitting}
+                aria-label="Accountable (A)"
+                aria-required="true"
+              >
+                {peopleDirectory.map(p => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Due date (optional) */}
@@ -287,21 +306,6 @@ export default function TaskCreate() {
           height: 36px; display: flex; align-items: center;
           font-size: 13px; color: hsl(var(--muted-foreground));
         }
-
-        .tc-person-display {
-          height: 36px; display: flex; align-items: center; gap: 8px;
-          padding: 0 12px; border: 1px solid hsl(var(--input));
-          border-radius: 8px; background: hsl(var(--secondary));
-        }
-        .tc-person-av {
-          width: 22px; height: 22px; border-radius: 999px; flex: none;
-          background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-          color: hsl(0 0% 98%); display: grid; place-items: center;
-          font-size: 10px; font-weight: 700;
-        }
-        .tc-person-av-a { background: linear-gradient(135deg, hsl(262 83% 58%), hsl(221.2 83.2% 53.3%)); }
-        .tc-person-name { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
-        .tc-person-hint { font-size: 12px; color: hsl(var(--muted-foreground)); }
 
         .tc-actions {
           display: flex; justify-content: flex-end; gap: 8px;

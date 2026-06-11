@@ -15,6 +15,7 @@ vi.mock('../lib/db/tasks', () => ({
   addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(),
   reorderChecklistItem: vi.fn(),
+  deleteChecklistItem: vi.fn(),
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
 }))
@@ -31,7 +32,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
   }
 })
 
-import { getTask, updateTaskStatus, updateTaskRaci, addChecklistItem, toggleChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
+import { getTask, updateTaskStatus, updateTaskRaci, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
 import TaskDetail from './TaskDetail'
 
@@ -40,6 +41,8 @@ const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockUpdateTaskRaci = vi.mocked(updateTaskRaci)
 const mockAddChecklistItem = vi.mocked(addChecklistItem)
 const mockToggleChecklistItem = vi.mocked(toggleChecklistItem)
+const mockReorderChecklistItem = vi.mocked(reorderChecklistItem)
+const mockDeleteChecklistItem = vi.mocked(deleteChecklistItem)
 const mockArchiveTask = vi.mocked(archiveTask)
 const mockUnarchiveTask = vi.mocked(unarchiveTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
@@ -144,6 +147,8 @@ beforeEach(() => {
   mockUpdateTaskRaci.mockResolvedValue()
   mockAddChecklistItem.mockResolvedValue()
   mockToggleChecklistItem.mockResolvedValue()
+  mockReorderChecklistItem.mockResolvedValue()
+  mockDeleteChecklistItem.mockResolvedValue()
   mockArchiveTask.mockResolvedValue()
   mockUnarchiveTask.mockResolvedValue()
 })
@@ -335,6 +340,63 @@ describe('AC-074 — checklist add / toggle', () => {
     await waitFor(() => {
       expect(mockToggleChecklistItem).toHaveBeenCalledWith('item-0', true, 'task-abc', VIEWER_ID)
     })
+  })
+
+  it('AC-074 reorder — move-down button calls reorderChecklistItem with swapped positions', async () => {
+    const checklist = makeChecklist([
+      { id: 'item-0', label: 'Step A', position: 0 },
+      { id: 'item-1', label: 'Step B', position: 1 },
+    ])
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
+    renderDetail()
+    await waitFor(() => screen.getByText('Step A'))
+
+    // Move "Step A" down (move-down button on the first item)
+    const moveDownBtns = screen.getAllByRole('button', { name: /move down/i })
+    fireEvent.click(moveDownBtns[0])
+
+    await waitFor(() => {
+      // item-0 moves to position 1, item-1 moves to position 0
+      expect(mockReorderChecklistItem).toHaveBeenCalledWith('item-0', 1)
+      expect(mockReorderChecklistItem).toHaveBeenCalledWith('item-1', 0)
+    })
+  })
+
+  it('AC-074 reorder — move-up button calls reorderChecklistItem with swapped positions', async () => {
+    const checklist = makeChecklist([
+      { id: 'item-0', label: 'Step A', position: 0 },
+      { id: 'item-1', label: 'Step B', position: 1 },
+    ])
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
+    renderDetail()
+    await waitFor(() => screen.getByText('Step B'))
+
+    // Move "Step B" up — use the specific aria-label on its move-up button
+    const moveUpStepB = screen.getByRole('button', { name: /move up step b/i })
+    fireEvent.click(moveUpStepB)
+
+    await waitFor(() => {
+      expect(mockReorderChecklistItem).toHaveBeenCalledWith('item-1', 0)
+      expect(mockReorderChecklistItem).toHaveBeenCalledWith('item-0', 1)
+    })
+  })
+
+  it('AC-074 delete — × button calls deleteChecklistItem, item removed optimistically', async () => {
+    const checklist = makeChecklist([
+      { id: 'item-0', label: 'Remove me', position: 0 },
+    ])
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
+    renderDetail()
+    await waitFor(() => screen.getByText('Remove me'))
+
+    const deleteBtn = screen.getByRole('button', { name: /delete checklist item remove me/i })
+    fireEvent.click(deleteBtn)
+
+    await waitFor(() => {
+      expect(mockDeleteChecklistItem).toHaveBeenCalledWith('item-0', 'task-abc', VIEWER_ID)
+    })
+    // Item removed from DOM optimistically
+    expect(screen.queryByText('Remove me')).toBeNull()
   })
 })
 

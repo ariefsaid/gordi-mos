@@ -87,16 +87,50 @@ describe('AC-080 — create form prefills', () => {
       expect(buSelect.value).toBe('bu-1')
     })
 
-    // R and A person displays show the viewer's name
-    const rField = screen.getByTestId('responsible-person')
-    expect(rField.textContent).toMatch(/cahya cafe/i)
+    // R and A selects are present and pre-filled to creator
+    const rSelect = screen.getByLabelText(/^responsible \(r\)/i) as HTMLSelectElement
+    expect(rSelect.value).toBe(VIEWER_ID)
 
-    const aField = screen.getByTestId('accountable-person')
-    expect(aField.textContent).toMatch(/cahya cafe/i)
+    const aSelect = screen.getByLabelText(/^accountable \(a\)/i) as HTMLSelectElement
+    expect(aSelect.value).toBe(VIEWER_ID)
 
     // BU field is editable (not disabled)
     const buSelect = screen.getByLabelText(/business unit/i)
     expect(buSelect).not.toBeDisabled()
+
+    // R and A fields are also not disabled
+    expect(rSelect).not.toBeDisabled()
+    expect(aSelect).not.toBeDisabled()
+  })
+
+  it('AC-080 — R and A are changeable; chosen ids reach createTask', async () => {
+    renderCreate()
+
+    // Wait for directory to load
+    await waitFor(() => screen.getByLabelText(/^responsible \(r\)/i))
+
+    // Change R to "Other Person"
+    const rSelect = screen.getByLabelText(/^responsible \(r\)/i) as HTMLSelectElement
+    fireEvent.change(rSelect, { target: { value: 'other-id' } })
+    expect(rSelect.value).toBe('other-id')
+
+    // Change A to "Other Person" as well (A may equal R — no constraint)
+    const aSelect = screen.getByLabelText(/^accountable \(a\)/i) as HTMLSelectElement
+    fireEvent.change(aSelect, { target: { value: 'other-id' } })
+    expect(aSelect.value).toBe('other-id')
+
+    // Submit the form with title filled
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with changed R/A' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+
+    await waitFor(() => {
+      expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Task with changed R/A',
+        responsiblePersonId: 'other-id',
+        accountablePersonId: 'other-id',
+        createdBy: VIEWER_ID,
+      }))
+    })
   })
 })
 
