@@ -7,6 +7,8 @@ import { useAuth } from '../auth/useAuth'
 import { listTasks } from '../lib/db/tasks'
 import type { TaskListFilters } from '../lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '../lib/db/tasks.types'
+import { getBusinessUnits, getPeople } from '../lib/db/directory'
+import type { BusinessUnitOption, PersonOption } from '../lib/db/directory'
 import { dueStatus } from '../lib/dueStatus'
 import { raciMember, raciOwner } from '../lib/raciMember'
 import { StatusPill } from '../components/tasks/StatusPill'
@@ -42,11 +44,14 @@ function SkeletonRow() {
 }
 
 // ── Task card (mobile card list) ──────────────────────────────────────────────
-type TaskRowProps = { task: TaskListRow; now: Date }
-function TaskCard({ task, now }: TaskRowProps) {
+type TaskCardProps = {
+  task: TaskListRow
+  now: Date
+  buName: string
+  rName: string
+}
+function TaskCard({ task, now, buName, rName }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
-  const buName = task.business_unit?.name ?? ''
-  const rName = task.responsible?.full_name ?? ''
   const age = formatAge(task.last_activity_at, now)
   const n = otherRaciCount(task)
 
@@ -105,13 +110,28 @@ export default function TasksPage() {
 
   // ── Data state ───────────────────────────────────────────────────────────
   const [allTasks, setAllTasks] = useState<TaskListRow[]>([])
+  const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
+  const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Stable "now" snapshot — refreshes when a new data set loads (avoids per-render drift)
   const now = useMemo(() => new Date(), [allTasks]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Data load ────────────────────────────────────────────────────────────
+  // ── Directory lookup maps (id → display name) ────────────────────────────
+  const buMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const bu of busDirectory) m.set(bu.id, bu.name)
+    return m
+  }, [busDirectory])
+
+  const personMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of peopleDirectory) m.set(p.id, p.full_name)
+    return m
+  }, [peopleDirectory])
+
+  // ── Data load — tasks + directory in parallel ────────────────────────────
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
@@ -122,8 +142,18 @@ export default function TasksPage() {
     }
 
     let cancelled = false
-    listTasks(filters).then(rows => {
-      if (!cancelled) { setAllTasks(rows); setLoading(false) }
+
+    Promise.all([
+      listTasks(filters),
+      getBusinessUnits(),
+      getPeople(),
+    ]).then(([rows, bus, people]) => {
+      if (!cancelled) {
+        setAllTasks(rows)
+        setBusDirectory(bus)
+        setPeopleDirectory(people)
+        setLoading(false)
+      }
     }).catch((err: Error) => {
       if (!cancelled) { setError(err.message); setLoading(false) }
     })
@@ -163,12 +193,12 @@ export default function TasksPage() {
     } else if (sortCol === 'status') {
       cmp = a.status.localeCompare(b.status)
     } else if (sortCol === 'owner') {
-      const an = a.responsible?.full_name ?? ''
-      const bn = b.responsible?.full_name ?? ''
+      const an = personMap.get(a.responsible_person_id) ?? ''
+      const bn = personMap.get(b.responsible_person_id) ?? ''
       cmp = an.localeCompare(bn)
     }
     return sortDir === 'ascending' ? cmp : -cmp
-  }), [visibleTasks, sortCol, sortDir])
+  }), [visibleTasks, sortCol, sortDir, personMap])
 
   function handleSort(col: SortCol) {
     if (sortCol === col) {
@@ -179,34 +209,18 @@ export default function TasksPage() {
     }
   }
 
-  // ── BU + person options (derived from all loaded tasks) ──────────────────
-  // TODO(P2-1c): resolve C/I-only display names when the people directory loads
-  const buOptions = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const t of allTasks) {
-      if (t.business_unit) seen.set(t.business_unit.id, t.business_unit.name)
-    }
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
-  }, [allTasks])
+  // ── BU + person options from directory (Fix C1: stable under status-narrowing — I1) ──
+  // Directory is loaded once per data load and is independent of the row set.
+  const buOptions = useMemo(() => busDirectory, [busDirectory])
+  const personOptions = useMemo(() => peopleDirectory, [peopleDirectory])
 
-  const personOptions = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const t of allTasks) {
-      if (t.responsible) seen.set(t.responsible.id, t.responsible.full_name)
-      if (t.accountable) seen.set(t.accountable.id, t.accountable.full_name)
-      // C/I-only persons fall back to id as name until the people directory loads (P2-1c)
-      for (const id of t.consulted_person_ids) seen.set(id, id)
-      for (const id of t.informed_person_ids) seen.set(id, id)
-    }
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
-  }, [allTasks])
-
-  // ── Stats ────────────────────────────────────────────────────────────────
+  // ── Stats — suppressed in error state (Fix M2) ───────────────────────────
   const stats = useMemo(() => {
+    if (error) return null
     const blocked = sortedTasks.filter(t => t.status === 'Blocked').length
     const overdue = sortedTasks.filter(t => dueStatus(t.due_date, now) === 'overdue').length
     return { total: sortedTasks.length, blocked, overdue }
-  }, [sortedTasks, now])
+  }, [sortedTasks, now, error])
 
   // ── Empty state copy keyed to active context ─────────────────────────────
   function emptyTitle(): string {
@@ -239,9 +253,10 @@ export default function TasksPage() {
       <div className="page-head-row">
         <h1 className="tasks-page-title">Tasks</h1>
         <span className="tasks-count-line tabular-nums">
-          {stats.total} task{stats.total !== 1 ? 's' : ''}
-          {stats.blocked > 0 && ` · ${stats.blocked} blocked`}
-          {stats.overdue > 0 && ` · ${stats.overdue} overdue`}
+          {stats === null
+            ? '—'
+            : `${stats.total} task${stats.total !== 1 ? 's' : ''}${stats.blocked > 0 ? ` · ${stats.blocked} blocked` : ''}${stats.overdue > 0 ? ` · ${stats.overdue} overdue` : ''}`
+          }
         </span>
       </div>
 
@@ -302,7 +317,7 @@ export default function TasksPage() {
             >
               <option value="">Anyone</option>
               {personOptions.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
             </select>
             <span className="ctrl-chev" aria-hidden="true">▾</span>
@@ -493,6 +508,8 @@ export default function TasksPage() {
                   const dueText = task.due_date
                     ? (ds === 'overdue' ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
                     : '—'
+                  const buName = buMap.get(task.business_unit_id) ?? ''
+                  const rName = personMap.get(task.responsible_person_id) ?? ''
                   return (
                     <tr
                       key={task.id}
@@ -506,7 +523,7 @@ export default function TasksPage() {
                           tabIndex={0}
                         >
                           <span className="task-name">{task.title}</span>
-                          <span className="task-bu">{task.business_unit?.name ?? ''}</span>
+                          <span className="task-bu">{buName}</span>
                         </Link>
                       </td>
                       <td className="td-cell">
@@ -514,7 +531,7 @@ export default function TasksPage() {
                       </td>
                       <td className="td-cell">
                         <OwnerCell
-                          fullName={task.responsible?.full_name ?? ''}
+                          fullName={rName}
                           otherCount={otherRaciCount(task)}
                         />
                       </td>
@@ -541,7 +558,12 @@ export default function TasksPage() {
             <div className="card-list" role="list">
               {sortedTasks.map(task => (
                 <div key={task.id} role="listitem">
-                  <TaskCard task={task} now={now} />
+                  <TaskCard
+                    task={task}
+                    now={now}
+                    buName={buMap.get(task.business_unit_id) ?? ''}
+                    rName={personMap.get(task.responsible_person_id) ?? ''}
+                  />
                 </div>
               ))}
             </div>

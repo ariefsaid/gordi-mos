@@ -10,10 +10,17 @@ import type { PeopleRow, RolesRow } from '../lib/database.types'
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
 }))
+vi.mock('../lib/db/directory', () => ({
+  getBusinessUnits: vi.fn(),
+  getPeople: vi.fn(),
+}))
 
 import { listTasks } from '../lib/db/tasks'
+import { getBusinessUnits, getPeople } from '../lib/db/directory'
 import TasksPage from './TasksPage'
 const mockListTasks = vi.mocked(listTasks)
+const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
+const mockGetPeople = vi.mocked(getPeople)
 
 // ── Stub matchMedia for useIsDesktop (desktop path by default) ──────────────
 function stubMatchMedia(matches: boolean) {
@@ -57,7 +64,7 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
-// ── Task fixtures ─────────────────────────────────────────────────────────────
+// ── Task fixtures (raw rows — no embedded objects, Fix C1) ────────────────────
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Default task',
@@ -71,9 +78,6 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     archived_at: null, created_by: VIEWER_ID,
     created_at: '2026-06-11T00:00:00Z',
     updated_at: '2026-06-11T00:00:00Z',
-    business_unit: { id: 'bu-1', name: 'Kitchen' },
-    responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
-    accountable: { id: VIEWER_ID, full_name: 'Arief Said' },
     ...overrides,
   }
 }
@@ -99,9 +103,25 @@ function renderPage(auth: AuthState = authedState) {
   )
 }
 
+// Default directory stubs (override per test as needed)
+const DEFAULT_BUS = [
+  { id: 'bu-1', name: 'Kitchen' },
+  { id: 'bu-ops', name: 'Ops Unit' },
+  { id: 'bu-kitchen', name: 'Kitchen BU' },
+  { id: 'bu-roastery', name: 'Roastery BU' },
+]
+const DEFAULT_PEOPLE = [
+  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: OTHER_ID,  full_name: 'Budi Setiawan' },
+  { id: C_PERSON,  full_name: 'Consulted Person' },
+  { id: I_PERSON,  full_name: 'Informed Person' },
+]
+
 beforeEach(() => {
   vi.clearAllMocks()
   stubMatchMedia(true) // desktop by default
+  mockGetBusinessUnits.mockResolvedValue(DEFAULT_BUS)
+  mockGetPeople.mockResolvedValue(DEFAULT_PEOPLE)
 })
 
 // ── T-030: AC-067 — loading / error / empty states ─────────────────────────
@@ -146,12 +166,13 @@ describe('AC-067 — TasksPage states (loading, error, empty)', () => {
 // ── T-031: AC-060 — row content (title+BU, status, owner, due, activity) ───
 describe('AC-060 — row renders title, BU, status, owner, due, activity', () => {
   it('AC-060: renders title, BU subline, status pill, responsible name, and activity age', async () => {
-    // Use a last_activity_at well in the past so age shows days (no clock mock needed)
+    // Fix C1: names resolved from directory. task only carries IDs.
+    // bu-ops is in DEFAULT_BUS as 'Ops Unit', VIEWER_ID is in DEFAULT_PEOPLE as 'Arief Said'.
     const task = makeTask({
       title: 'SOP stock opname mingguan',
-      business_unit: { id: 'bu-ops', name: 'Ops Unit' },
+      business_unit_id: 'bu-ops',
       status: 'In Progress',
-      responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
+      responsible_person_id: VIEWER_ID,
       last_activity_at: '2020-01-01T00:00:00Z', // very old → shows days
       due_date: '2099-12-31',
     })
@@ -162,14 +183,15 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
     expect(screen.getAllByText('Ops Unit')[0]).toBeTruthy()
     // Status pill (not the select option)
     expect(screen.getAllByText('In Progress').find(el => el.closest('.pill'))).toBeTruthy()
-    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // first name only
+    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // first name only from directory
     // Activity age rendered as some unit (d/h/m)
     expect(document.querySelector('.act')).toBeTruthy()
   })
 
   it('AC-060: shows "+N" overflow when Accountable / Consulted / Informed differ from R', async () => {
+    // Fix C1: no embedded objects — raw IDs only; +N count via otherRaciCount on raw fields
     const task = makeTask({
-      responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
+      responsible_person_id: VIEWER_ID,
       accountable_person_id: OTHER_ID,
       consulted_person_ids: [C_PERSON],
       informed_person_ids: [I_PERSON],
@@ -239,23 +261,20 @@ describe('AC-061 — due-cell colouring (overdue/soon/calm via dueStatus)', () =
 // ── T-033: AC-063 — BU / Status / Person filters ────────────────────────────
 describe('AC-063 — filters: Business Unit, Status, Person', () => {
   // Both tasks are assigned to VIEWER_ID so they pass the default "Mine" segment filter
+  // Fix C1: no embedded objects — BU/person names come from directory (DEFAULT_BUS/DEFAULT_PEOPLE)
   const taskKitchen = makeTask({
     id: 'task-kitchen', title: 'Kitchen task',
     business_unit_id: 'bu-kitchen',
-    business_unit: { id: 'bu-kitchen', name: 'Kitchen BU' },
     status: 'Open',
     responsible_person_id: VIEWER_ID,
     accountable_person_id: VIEWER_ID,
-    responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
   })
   const taskRoastery = makeTask({
     id: 'task-roastery', title: 'Roastery task',
     business_unit_id: 'bu-roastery',
-    business_unit: { id: 'bu-roastery', name: 'Roastery BU' },
     status: 'Blocked',
     responsible_person_id: VIEWER_ID,
     accountable_person_id: VIEWER_ID,
-    responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
   })
 
   it('AC-063: BU filter — selecting a BU shows only matching BU tasks', async () => {
@@ -298,21 +317,19 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
   it('AC-063: Person filter — selecting a person shows tasks where they are in any RACI role', async () => {
     // Use "All" segment so all tasks load visibly regardless of RACI role
     // Tasks: viewer is R on first, viewer is C on second, neither on third
+    // Fix C1: no embedded objects
     const taskViewerR = makeTask({
       id: 'task-viewer-r', title: 'Viewer is R',
       responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID,
-      responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
     })
     const taskViewerC = makeTask({
       id: 'task-viewer-c', title: 'Viewer is C',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
       consulted_person_ids: [VIEWER_ID],
-      responsible: { id: OTHER_ID, full_name: 'Budi Setiawan' },
     })
     const taskUnrelated = makeTask({
       id: 'task-unrelated', title: 'Not viewer task',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
-      responsible: { id: OTHER_ID, full_name: 'Budi Setiawan' },
     })
     mockListTasks.mockResolvedValue([taskViewerR, taskViewerC, taskUnrelated])
     renderPage()
@@ -335,24 +352,22 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
 
 // ── T-034: AC-064 — Mine / RACI-involved / All segmented control ─────────────
 describe('AC-064 — segmented control: Mine / RACI-involved / All', () => {
+  // Fix C1: no embedded objects
   const taskMine = makeTask({
     id: 'mine', title: 'My task',
     responsible_person_id: VIEWER_ID,
     accountable_person_id: VIEWER_ID,
-    responsible: { id: VIEWER_ID, full_name: 'Arief Said' },
   })
   const taskConsulted = makeTask({
     id: 'consulted', title: 'Consulted task',
     responsible_person_id: OTHER_ID,
     accountable_person_id: OTHER_ID,
     consulted_person_ids: [VIEWER_ID],
-    responsible: { id: OTHER_ID, full_name: 'Budi Setiawan' },
   })
   const taskUnrelated = makeTask({
     id: 'unrelated', title: 'Unrelated task',
     responsible_person_id: OTHER_ID,
     accountable_person_id: OTHER_ID,
-    responsible: { id: OTHER_ID, full_name: 'Budi Setiawan' },
   })
 
   beforeEach(() => {
@@ -540,5 +555,107 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
     await waitFor(() => {
       expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-2')
     })
+  })
+})
+
+// ── Fix C1: directory-sourced options (I1 regression — options stable under status narrowing) ──
+describe('Fix C1 — directory-sourced BU + Person filter options', () => {
+  it('AC-C1-I1: BU dropdown options come from directory and remain stable when status filter narrows rows', async () => {
+    // I1 regression: when status filter narrowed rows, buOptions derived from rows disappeared.
+    // Fix: options come from directory, not from loaded row set.
+    // Initial load: both BUs; after status filter, only Kitchen rows remain.
+    const taskKitchen = makeTask({
+      id: 'tk', title: 'Kitchen task', business_unit_id: 'bu-kitchen',
+      responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID, status: 'Open',
+    })
+    const taskRoastery = makeTask({
+      id: 'tr', title: 'Roastery task', business_unit_id: 'bu-roastery',
+      responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID, status: 'Blocked',
+    })
+    mockListTasks.mockResolvedValueOnce([taskKitchen, taskRoastery])
+    mockListTasks.mockResolvedValueOnce([taskKitchen]) // after status=Open filter
+    renderPage()
+    await waitFor(() => screen.getByText('Roastery task'))
+
+    // Both BU options present before filtering (from directory DEFAULT_BUS)
+    const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
+    const optsBefore = Array.from(buSelect.options).map(o => o.text)
+    expect(optsBefore).toContain('Kitchen BU')
+    expect(optsBefore).toContain('Roastery BU')
+
+    // Apply status filter — only Kitchen tasks remain in the list
+    fireEvent.change(screen.getByLabelText(/^status$/i), { target: { value: 'Open' } })
+    await waitFor(() => expect(screen.queryByText('Roastery task')).toBeNull())
+
+    // BU options STILL contain both BUs (from directory, not from rows)
+    const optsAfter = Array.from(buSelect.options).map(o => o.text)
+    expect(optsAfter).toContain('Kitchen BU')
+    expect(optsAfter).toContain('Roastery BU')
+  })
+
+  it('AC-C1-person: Person dropdown options come from directory (all people, not just R/A on loaded rows)', async () => {
+    // People with only C/I roles previously showed raw UUIDs; now from directory they show full_name.
+    const task = makeTask({
+      id: 't1', title: 'Task with CI',
+      responsible_person_id: VIEWER_ID, accountable_person_id: OTHER_ID,
+      consulted_person_ids: [C_PERSON], informed_person_ids: [I_PERSON],
+    })
+    mockListTasks.mockResolvedValue([task])
+    renderPage()
+    await waitFor(() => screen.getByText('Task with CI'))
+
+    const personSelect = screen.getByLabelText(/^person$/i) as HTMLSelectElement
+    const opts = Array.from(personSelect.options).map(o => o.text)
+    // All people from directory are present — including C/I-only people with real names
+    expect(opts).toContain('Arief Said')
+    expect(opts).toContain('Budi Setiawan')
+    expect(opts).toContain('Consulted Person')
+    expect(opts).toContain('Informed Person')
+    // Must NOT show raw UUIDs as display names
+    expect(opts.some(o => o === C_PERSON)).toBe(false)
+    expect(opts.some(o => o === I_PERSON)).toBe(false)
+  })
+})
+
+// ── Fix M2: error state suppresses task count ─────────────────────────────────
+describe('Fix M2 — task count suppressed in error state', () => {
+  it('AC-M2: count line shows "—" (not "0 tasks") when error banner is shown', async () => {
+    mockListTasks.mockRejectedValue(new Error('boom'))
+    renderPage()
+    await waitFor(() => screen.getByRole('alert'))
+
+    // Count line must not show "0 tasks" — it should show "—"
+    const countLine = document.querySelector('.tasks-count-line')
+    expect(countLine?.textContent).not.toMatch(/0 task/)
+    expect(countLine?.textContent).toContain('—')
+  })
+
+  it('AC-M2: count line shows correct count once data loads successfully', async () => {
+    mockListTasks.mockResolvedValue([makeTask(), makeTask({ id: 'task-2', title: 'Task 2' })])
+    renderPage()
+    await waitFor(() => screen.getByText('Default task'))
+    // count shows the correct value
+    const countLine = document.querySelector('.tasks-count-line')
+    // In "Mine" segment default, both tasks are by VIEWER_ID so both appear
+    expect(countLine?.textContent).toMatch(/2 tasks/)
+  })
+})
+
+// ── Fix C1: directory error state ─────────────────────────────────────────────
+describe('Fix C1 — directory error shows error banner', () => {
+  it('AC-C1-direrr: when getBusinessUnits rejects, shows error banner', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockGetBusinessUnits.mockRejectedValue(new Error('directory down'))
+    renderPage()
+    await waitFor(() => screen.getByRole('alert'))
+    expect(screen.getByText(/directory down/i)).toBeTruthy()
+  })
+
+  it('AC-C1-direrr2: when getPeople rejects, shows error banner', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockGetPeople.mockRejectedValue(new Error('people unavailable'))
+    renderPage()
+    await waitFor(() => screen.getByRole('alert'))
+    expect(screen.getByText(/people unavailable/i)).toBeTruthy()
   })
 })
