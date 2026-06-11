@@ -33,6 +33,7 @@ export default defineConfig({
         'src/lib/db/**',
         'src/lib/supabase.ts',
         'src/lib/week.ts',
+        'src/lib/dueStatus.ts',
         'src/pages/LoginPage.tsx',
         'src/pages/RecoveryPage.tsx',
         'src/pages/MyWeek.tsx',
