@@ -23,10 +23,7 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
       ) {
         ;(this.addEventListenerCallbacks as EventListenerOrEventListenerObject[]).push(cb)
       },
-      removeEventListener: function (
-        _type: string,
-        _cb: EventListenerOrEventListenerObject,
-      ) {},
+      removeEventListener: function () {},
       dispatchEvent: () => false,
     }),
   })

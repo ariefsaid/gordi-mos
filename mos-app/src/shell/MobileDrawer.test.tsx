@@ -31,21 +31,6 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-// Harness: Header (contains hamburger at narrow) + MobileDrawer + location probe
-function DrawerHarness() {
-  const [drawerOpen, setDrawerOpen] = vi.fn().mockReturnValue(false)
-    ? (() => {
-        // Can't use hooks inside vi.fn() — use a proper pattern
-        const [open, setOpen] = [false, vi.fn()]
-        return [open, setOpen] as const
-      })()
-    : [false, vi.fn()]
-
-  // Can't do that — use the actual React component pattern
-  return null
-}
-
-// Use a proper React harness component
 import { useState, useRef } from 'react'
 
 function TestHarness() {
