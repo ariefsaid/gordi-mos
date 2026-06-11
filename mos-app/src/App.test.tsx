@@ -1,7 +1,5 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
-
 // Mock supabase so App can load without real env (already set in vite.config.ts test.env)
 vi.mock('./lib/supabase', () => ({
   supabase: {

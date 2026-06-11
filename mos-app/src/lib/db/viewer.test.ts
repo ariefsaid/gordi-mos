@@ -18,7 +18,6 @@ const mockFrom = vi.mocked(supabase.from)
 
 // Type helper: cast a mock object to the postgrest chain type.
 // Tests are intentionally partial mocks — we use unknown intermediate cast as permitted in tests.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function asChain(obj: unknown): ReturnType<typeof supabase.from> {
   return obj as ReturnType<typeof supabase.from>
 }
