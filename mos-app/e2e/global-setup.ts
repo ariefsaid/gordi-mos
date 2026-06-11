@@ -11,6 +11,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { VIEWER, ORPHAN, RECOVERY_VIEWER, MANAGER } from './fixtures/users'
+import { TASKS } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -171,4 +172,38 @@ export default async function globalSetup() {
      ON CONFLICT (person_id, role_id) DO NOTHING`,
   )
   console.log('[global-setup] ensured MANAGER and VIEWER person_roles rows exist (idempotent)')
+
+  // ── Seed mos.tasks for P2-1c e2e journeys ──────────────────────────────────
+  // Deterministic: delete all mos.tasks for the Gordi e2e org, then seed fixed rows.
+  // (service_role bypasses RLS via postgres; the org_id is fixed in seed.sql.)
+  const orgId = TASKS.VIEWER_ACCOUNTABLE.orgId
+
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
+    DELETE FROM mos.task_events         WHERE org_id = '${orgId}';
+    DELETE FROM mos.task_checklist_items WHERE org_id = '${orgId}';
+    DELETE FROM mos.tasks               WHERE org_id = '${orgId}';
+  `)
+  console.log('[global-setup] cleared mos.tasks for e2e org')
+
+  const t = TASKS.VIEWER_ACCOUNTABLE
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
+    INSERT INTO mos.tasks (
+      id, org_id, title, business_unit_id, status,
+      responsible_person_id, accountable_person_id,
+      consulted_person_ids, informed_person_ids,
+      description, due_date, created_by
+    ) VALUES (
+      '${t.id}', '${t.orgId}', '${t.title}', '${t.businessUnitId}', 'Open',
+      '${t.responsiblePersonId}', '${t.accountablePersonId}',
+      '{}', '{}',
+      'Seeded for e2e archive journey (AC-091).', NULL, '${t.responsiblePersonId}'
+    )
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO mos.task_events (org_id, task_id, actor_person_id, event_type)
+    VALUES (
+      '${t.orgId}', '${t.id}', '${t.responsiblePersonId}', 'created'
+    );
+  `)
+  console.log(`[global-setup] seeded VIEWER_ACCOUNTABLE task (id=${t.id})`)
 }
