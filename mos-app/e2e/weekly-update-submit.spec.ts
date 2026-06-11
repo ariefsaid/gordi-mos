@@ -66,8 +66,8 @@ test('AC-090: author writes, submits → strip shows Submitted, manager sees Fil
   const reviewPane = page.locator('[aria-label="Team updates"]')
   await expect(reviewPane).toBeVisible({ timeout: 10_000 })
 
-  // Wait for "Filed" pill to appear (the update is visible to the manager)
-  await expect(reviewPane.getByText('Filed')).toBeVisible({ timeout: 15_000 })
+  // Wait for "Filed" pill to appear (exact: true to avoid matching "N filed" counts span)
+  await expect(reviewPane.getByText('Filed', { exact: true })).toBeVisible({ timeout: 15_000 })
 
   // The summary excerpt should be visible in the roster
   // (excerpt is the first part of the summary)

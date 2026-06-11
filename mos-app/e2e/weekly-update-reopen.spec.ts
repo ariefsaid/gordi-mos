@@ -66,8 +66,8 @@ test('AC-091: reopen → edit → resubmit, updated content visible to manager',
   const reviewPane = page.locator('[aria-label="Team updates"]')
   await expect(reviewPane).toBeVisible({ timeout: 10_000 })
 
-  // Wait for Filed pill (same person+week update, now with edited content)
-  await expect(reviewPane.getByText('Filed')).toBeVisible({ timeout: 15_000 })
+  // Wait for Filed pill (exact: true to avoid matching "N filed" counts span)
+  await expect(reviewPane.getByText('Filed', { exact: true })).toBeVisible({ timeout: 15_000 })
 
   // The EDITED summary excerpt should be visible (not the initial one)
   await expect(reviewPane.getByText(/Revisi final/i)).toBeVisible({ timeout: 5_000 })
