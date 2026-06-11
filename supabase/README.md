@@ -42,7 +42,7 @@ send real mail (magic links, invites, password resets) through **Resend** via SM
 | `GOTRUE_SMTP_USER` | `resend` (literal) |
 | `GOTRUE_SMTP_PASS` | a Resend API key (`re_…`) — secret, NEVER committed |
 | `GOTRUE_SMTP_ADMIN_EMAIL` | `admin@gordi.id` (the From address — owner's alias) |
-| `GOTRUE_SMTP_SENDER_NAME` | `Gordi MOS` |
+| `GOTRUE_SMTP_SENDER_NAME` | `Gordi Admin` |
 
 Status (2026-06-11): domain **verified** in Resend; API key stored in **1Password vault `AS`**.
 Secrets are fetched at deploy time via the host tool `op-get.sh <item> <vault> <field>`
