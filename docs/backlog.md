@@ -50,7 +50,12 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-1c task detail + checklist + create + archive — PR #7 (inline status, editable R/A/C/I,
     checklist add/toggle/reorder/delete, activity log, archive/unarchive, read-only non-editor,
     loading/not-found/archived states). 252 unit · 9 e2e. **P2-1 COMPLETE.**
-- [ ] P2-2 weekly updates (write + manager review).
+- [~] P2-2 weekly updates (write + manager review) — IN PROGRESS (3-PR split, grill #3 → OD-P2-10..14):
+  - [x] P2-2a schema + upward-only RLS + data layer + week.ts — PR #8 (first non-org-readable entity;
+    author-only write, submit-lock; security audit found+fixed a Critical — _test_seed_role_tree
+    PUBLIC-EXECUTE RPC; CI definer-revoke lint added). 120 pgTAP · 282 unit.
+  - [ ] P2-2b write pane (summary + update lines w/ ProgressMarker, Save draft/Submit/Reopen).
+  - [ ] P2-2c manager review pane + My Week strip wiring + 2 e2e.
 - [ ] P2-3 daily ops updates feed (manual entry first).
 - [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
 
@@ -74,6 +79,10 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   role-chip picker (consistency) · extract a shared `<PersonField>`/`<PersonAvatar>` primitive when a
   3rd consumer appears (P2-2 weekly updates likely) · generalize `ConfirmArchive` → reusable
   `ConfirmDialog` for future destructive flows · `PersonPicker` empty state when all excluded.
+- **P2-2a quality deferrals (non-blocking, from code-quality review):** migrate pgTAP fixtures in
+  tests 14/16 onto the new `mos._test_seed_role_tree()` helper (one role-tree definition org-wide) ·
+  lift `mos()` schema-client + `throwOnError` wrapper into a shared `db/mosClient.ts` when a 3rd mos
+  data-layer file lands · optional `wibMondayUTC(now)` DRY across week.ts pure fns.
 
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
