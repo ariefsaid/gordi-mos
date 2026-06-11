@@ -41,14 +41,14 @@ send real mail (magic links, invites, password resets) through **Resend** via SM
 | `GOTRUE_SMTP_PORT` | `465` (implicit TLS; `587` STARTTLS also works) |
 | `GOTRUE_SMTP_USER` | `resend` (literal) |
 | `GOTRUE_SMTP_PASS` | a Resend API key (`re_…`) — secret, NEVER committed |
-| `GOTRUE_SMTP_ADMIN_EMAIL` | `mos@gordi.id` (the From address) |
+| `GOTRUE_SMTP_ADMIN_EMAIL` | `admin@gordi.id` (the From address — owner's alias) |
 | `GOTRUE_SMTP_SENDER_NAME` | `Gordi MOS` |
 
-One-time owner steps (Resend dashboard):
-1. **Domains → Add domain** `gordi.id` (or a subdomain for reputation isolation) → add the
-   SPF/DKIM DNS records Resend shows to gordi.id DNS → wait for Verified.
-2. **API keys → Create** a sending-only key scoped to that domain → store it in the ris-dev prod
-   env (alongside the other stack secrets), not in this repo.
+Status (2026-06-11): domain **verified** in Resend; API key stored in **1Password vault `AS`**.
+Secrets are fetched at deploy time via the host tool `op-get.sh <item> <vault> <field>`
+(`~/.local/bin/op-get.sh`; loads the service-account token itself — see PMO
+`docs/environments.md` for the pattern). Committed coordinates (NOT secret):
+`supabase/op.resend.env`. Never copy the key into a file in this repo.
 
 Sanity check after deploy: trigger a password-reset from the prod login page and confirm delivery +
 that the link lands on `https://ops.gordi.id/mos/recovery`. Rate limits: Resend free tier (~3k/mo,

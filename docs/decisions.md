@@ -170,9 +170,10 @@ contact Arief"); no auto-created directory rows (consistent with closing audit M
 
 ### OD-P1-11 — Production email: Resend (LOCKED 2026-06-11)
 Auth email (magic links, invites, password resets) sends via the owner's existing **Resend**
-account over SMTP. Sender: `Gordi MOS <mos@gordi.id>` (owner may rename; subdomain isolation like
-`mail.gordi.id` optional). Local dev keeps Mailpit — no real sends outside prod. Password login
-works independently of SMTP, so email is never login-blocking.
+account over SMTP. Sender: `Gordi MOS <admin@gordi.id>` (existing alias of the owner's account).
+Domain gordi.id verified in Resend (2026-06-11); API key in 1Password vault `AS`, fetched via
+`op-get.sh` at deploy time (coordinates committed in `supabase/op.resend.env`). Local dev keeps
+Mailpit — no real sends outside prod. Password login works independently of SMTP.
 
 ---
 
