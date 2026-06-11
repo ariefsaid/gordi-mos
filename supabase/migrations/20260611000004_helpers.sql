@@ -6,6 +6,7 @@ create or replace function shared.current_org_id()
 returns uuid
 language sql
 stable
+set search_path = ''
 as $$
   select nullif(
     current_setting('request.jwt.claims', true)::jsonb ->> 'org_id',
@@ -19,6 +20,7 @@ create or replace function shared.current_person_id()
 returns uuid
 language sql
 stable
+set search_path = ''
 as $$
   select nullif(
     current_setting('request.jwt.claims', true)::jsonb ->> 'person_id',
@@ -32,6 +34,7 @@ create or replace function shared.is_org_member()
 returns boolean
 language sql
 stable
+set search_path = ''
 as $$
   select shared.current_org_id() is not null
 $$;
@@ -43,6 +46,7 @@ create or replace function shared.is_manager_of(target_person_id uuid)
 returns boolean
 language sql
 stable
+set search_path = ''
 as $$
   with recursive
   -- every role the target currently holds
@@ -56,7 +60,10 @@ as $$
     select r.id, r.reports_to_role_id
     from shared.roles r
     join target_roles tr on tr.role_id = r.id
-    union all
+    -- UNION (not UNION ALL): roles form a FINITE set, and a cyclic reports_to_role_id graph is
+    -- insertable today (self-FK, no acyclicity constraint). UNION dedupes the working set so the
+    -- recursion terminates on cycles instead of looping forever inside RLS evaluation.
+    union
     select parent.id, parent.reports_to_role_id
     from shared.roles parent
     join ancestor_roles a on a.reports_to_role_id = parent.id

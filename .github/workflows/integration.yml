@@ -14,7 +14,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.104.0
 
       - name: Start local Supabase stack (applies migrations + seed)
         run: supabase db start

@@ -33,6 +33,9 @@ create table shared.roles (
   unique (org_id, name)
 );
 comment on column shared.roles.reports_to_role_id is 'Self-FK: this role reports to that role. Manager chain derives from this (OD-P0-9a).';
+-- Index the reporting self-FK: is_manager_of walks reports_to_role_id upward recursively on every
+-- manager-scoped RLS check, so this lookup is hot.
+create index roles_reports_to_role_idx on shared.roles (reports_to_role_id);
 
 -- People (OD-P1-2): exist independent of login; optional unique auth link; soft-archive.
 create table shared.people (
