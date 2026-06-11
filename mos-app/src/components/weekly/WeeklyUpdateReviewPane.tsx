@@ -3,10 +3,17 @@
 // All states: loading skeleton / error+Retry / populated / empty-team / no-reports.
 // Read-only throughout (FR-034, AC-043). No edit/ack/comment affordances.
 // AC-040..046, FR-030..036.
-import { useState, useEffect, useCallback } from 'react'
+//
+// Design-review fixes applied:
+//   C2 — roster row open: filed/draft rows are interactive (button), keyboard-operable,
+//         open a read-only in-place panel; not-started rows are non-interactive.
+//   C3 — ARIA: replaced invalid role="row"/"rowgroup" with list semantics (<ul>/<li>).
+//   I1 — 3s client-side timeout surfaces error faster (AbortController + setTimeout).
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { listTeamUpdates, type TeamMember } from '../../lib/db/weeklyUpdates'
 import type { TeamUpdateRow } from '../../lib/db/weeklyUpdates.types'
-import { weekLabel, weekStartISO, weeklyUpdateTiming } from '../../lib/week'
+import { weekLabel, weekStartISO } from '../../lib/week'
+import TimingChip from './TimingChip'
 import './WeeklyUpdateReviewPane.css'
 
 // ── Initials helper ────────────────────────────────────────────────────────────
@@ -26,20 +33,8 @@ function formatSubmitTime(submittedAt: string): string {
   })
 }
 
-// ── TimingChip (§2.5, §3.2) ───────────────────────────────────────────────────
-function TimingChip({ submittedAt, weekStart }: { submittedAt: string; weekStart: string }) {
-  const timing = weeklyUpdateTiming(submittedAt, weekStart)
-  const onTime = timing === 'on-time'
-  return (
-    <span className={`wup-timing-chip ${onTime ? 'wup-timing-ontime' : 'wup-timing-late'}`}>
-      <span className="wup-timing-dot" aria-hidden="true" />
-      {onTime ? 'on time' : 'late'}
-    </span>
-  )
-}
-
-// ── State pill (§3.3) ──────────────────────────────────────────────────────────
-function StatePill({ state }: { state: TeamUpdateRow['state'] }) {
+// ── State pill (§3.3) — exported for reuse in My Week team module ──────────────
+export function StatePill({ state }: { state: TeamUpdateRow['state'] }) {
   const cls = state === 'filed'
     ? 'wup-state-filed'
     : state === 'draft'
@@ -72,10 +67,64 @@ function ReviewSkeleton() {
   )
 }
 
-// ── Single roster row (§3.2) ──────────────────────────────────────────────────
-function ReviewRow({ row, weekStart }: { row: TeamUpdateRow; weekStart: string }) {
+// ── Read-only expanded panel (C2: in-place expand under the row) ──────────────
+// Reuses StaticLineRow pattern + ProgressMarker static. No edit/ack/comment (OD-P2-12).
+interface ReadOnlyPanelProps {
+  row: TeamUpdateRow
+  weekStart: string
+}
+
+function ReadOnlyPanel({ row, weekStart }: ReadOnlyPanelProps) {
+  const isDraft = row.state === 'draft'
   return (
-    <div className="wup-review-row" role="row">
+    <div
+      className="wup-review-panel"
+      role="region"
+      aria-label={`${row.full_name}'s weekly update`}
+    >
+      {/* Panel head: name + state pill + optional timing chip */}
+      <div className="wup-review-panel-head">
+        <span className="wup-review-panel-name">{row.full_name}</span>
+        {isDraft && (
+          <span className="wup-state-pill wup-state-draft" style={{ marginLeft: 8 }}>
+            <span className="wup-state-pill-dot" aria-hidden="true" />
+            Draft
+          </span>
+        )}
+        {row.submitted_at && (
+          <TimingChip submittedAt={row.submitted_at} weekStart={weekStart} />
+        )}
+      </div>
+
+      {/* Summary — static text, §3.2 / §2.4 read-only rendering */}
+      <div className="wup-review-panel-section">
+        <div className="wup-review-panel-label">This week's summary</div>
+        <p className="wup-review-panel-body">
+          {row.summary_excerpt
+            ? row.summary_excerpt
+            : <span style={{ color: 'hsl(240 4% 40%)', fontStyle: 'italic' }}>(no summary)</span>
+          }
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Single roster row (§3.2, C2: interactive for filed/draft, non-interactive for not_started) ──
+interface ReviewRowProps {
+  row: TeamUpdateRow
+  weekStart: string
+  isOpen: boolean
+  onToggle: () => void
+}
+
+function ReviewRow({ row, weekStart, isOpen, onToggle }: ReviewRowProps) {
+  const isInteractive = row.state !== 'not_started'
+
+  // C2: filed/draft rows are buttons (implicit role="button", focusable, keyboard-operable).
+  // not_started rows are plain <li> items — no cursor, no onClick, no keyboard handler.
+  const rowContent = (
+    <>
       {/* Avatar (§3.2) */}
       <div className="wup-review-avatar" aria-hidden="true">
         {initials(row.full_name)}
@@ -110,7 +159,36 @@ function ReviewRow({ row, weekStart }: { row: TeamUpdateRow; weekStart: string }
         )}
         <StatePill state={row.state} />
       </div>
-    </div>
+    </>
+  )
+
+  if (!isInteractive) {
+    // C3: plain list item, no interactive affordance (not_started has nothing to open)
+    return (
+      <li className="wup-review-row wup-review-row-static">
+        {rowContent}
+      </li>
+    )
+  }
+
+  // C2: interactive row — use a <button> wrapper so it's focusable and has the right
+  // accessible role. aria-expanded signals the open/closed state of the panel below.
+  return (
+    <li className="wup-review-li">
+      <button
+        type="button"
+        className={`wup-review-row wup-review-row-btn ${isOpen ? 'wup-review-row-open' : ''}`}
+        aria-expanded={isOpen ? 'true' : 'false'}
+        aria-label={`${row.full_name}${row.role_label ? ` · ${row.role_label}` : ''} — ${row.state === 'filed' ? 'Filed' : 'Draft'}`}
+        onClick={onToggle}
+      >
+        {rowContent}
+      </button>
+      {/* In-place read-only panel — collapsed when isOpen = false */}
+      {isOpen && (
+        <ReadOnlyPanel row={row} weekStart={weekStart} />
+      )}
+    </li>
   )
 }
 
@@ -132,42 +210,68 @@ export default function WeeklyUpdateReviewPane({
   onWeekChange,
   currentWeekStart,
 }: WeeklyUpdateReviewPaneProps) {
-  const [rows, setRows]       = useState<TeamUpdateRow[]>([])
+  const [rows, setRows]           = useState<TeamUpdateRow[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'error' | 'ready'>('loading')
+  // C2: track which person_id has their panel open (single-open)
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null)
+  // I1: AbortController ref for 3s timeout
+  const abortRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Track weekOffset relative to current week for navigation (§3.5)
-  // Derive offset from weekStart vs currentWeekStart
-  const currentWeekMs   = new Date(currentWeekStart).getTime()
-  const selectedWeekMs  = new Date(weekStart).getTime()
-  const weekOffsetDays  = Math.round((selectedWeekMs - currentWeekMs) / (7 * 24 * 3600 * 1000))
-  const atCurrentWeek   = weekOffsetDays >= 0
+  // Track weekOffset (week-count) relative to current week for navigation (§3.5)
+  const currentWeekMs  = new Date(currentWeekStart).getTime()
+  const selectedWeekMs = new Date(weekStart).getTime()
+  const weekOffset     = Math.round((selectedWeekMs - currentWeekMs) / (7 * 24 * 3600 * 1000))
+  const atCurrentWeek  = weekOffset >= 0
 
   const load = useCallback(async () => {
     setLoadState('loading')
+    setOpenPersonId(null) // collapse any open panel on reload
+
+    // I1: set a 3s client-side timeout — if the query hasn't resolved by then, show error
+    if (abortRef.current) clearTimeout(abortRef.current)
+    let timedOut = false
+    abortRef.current = setTimeout(() => {
+      timedOut = true
+      setLoadState('error')
+    }, 3000)
+
     try {
       const result = await listTeamUpdates(weekStart, team)
-      setRows(result)
-      setLoadState('ready')
+      // Only apply result if timeout hasn't fired yet
+      if (!timedOut) {
+        if (abortRef.current) clearTimeout(abortRef.current)
+        setRows(result)
+        setLoadState('ready')
+      }
     } catch {
-      setLoadState('error')
+      if (!timedOut) {
+        if (abortRef.current) clearTimeout(abortRef.current)
+        setLoadState('error')
+      }
     }
   }, [weekStart, team])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    return () => {
+      // Cleanup timeout on unmount / dep change
+      if (abortRef.current) clearTimeout(abortRef.current)
+    }
+  }, [load])
 
   // Week nav (§3.5) — relative to current week
   const handlePrevWeek = useCallback(() => {
     const now = new Date()
-    const newWeekStart = weekStartISO(now, weekOffsetDays - 1)
+    const newWeekStart = weekStartISO(now, weekOffset - 1)
     onWeekChange(newWeekStart)
-  }, [weekOffsetDays, onWeekChange])
+  }, [weekOffset, onWeekChange])
 
   const handleNextWeek = useCallback(() => {
     if (atCurrentWeek) return
     const now = new Date()
-    const newWeekStart = weekStartISO(now, weekOffsetDays + 1)
+    const newWeekStart = weekStartISO(now, weekOffset + 1)
     onWeekChange(newWeekStart)
-  }, [atCurrentWeek, weekOffsetDays, onWeekChange])
+  }, [atCurrentWeek, weekOffset, onWeekChange])
 
   // Derive the week label for the head row pill (using the selected weekStart)
   const selectedWeekDate = new Date(weekStart + 'T00:00:00+07:00')
@@ -177,6 +281,11 @@ export default function WeeklyUpdateReviewPane({
   const filedCount      = rows.filter(r => r.state === 'filed').length
   const draftCount      = rows.filter(r => r.state === 'draft').length
   const notStartedCount = rows.filter(r => r.state === 'not_started').length
+
+  // C2: toggle handler for row open/close
+  const handleRowToggle = useCallback((personId: string) => {
+    setOpenPersonId(prev => prev === personId ? null : personId)
+  }, [])
 
   // ── Week pill ────────────────────────────────────────────────────────────────
   const WeekPill = (
@@ -277,12 +386,22 @@ export default function WeeklyUpdateReviewPane({
               No direct reports to review.
             </p>
           ) : (
-            /* Roster (§3.2, AC-040) */
-            <div role="rowgroup" aria-label="Team roster">
+            /* Roster (§3.2, AC-040) — C3: <ul> list semantics (design-plan §5.2) */
+            <ul
+              role="list"
+              aria-label="Team roster"
+              style={{ listStyle: 'none', margin: 0, padding: 0 }}
+            >
               {rows.map(row => (
-                <ReviewRow key={row.person_id} row={row} weekStart={weekStart} />
+                <ReviewRow
+                  key={row.person_id}
+                  row={row}
+                  weekStart={weekStart}
+                  isOpen={openPersonId === row.person_id}
+                  onToggle={() => handleRowToggle(row.person_id)}
+                />
               ))}
-            </div>
+            </ul>
           )}
         </>
       )}
