@@ -258,11 +258,15 @@ function WeeklyUpdateStrip({
   let linkLabel: string
 
   if (isSubmitted && submittedAt) {
-    // "Submitted " + TimingChip (on-time/late pill with shared tokens)
+    // "Submitted " + TimingChip — period attached directly inside the chip's wrapper
+    // M1 fix: no orphan ". " after the chip; the period is part of the inline sentence,
+    // not a floating text node after the chip's right padding.
     sentence = (
-      <>Submitted{' '}
-        <TimingChip submittedAt={submittedAt} weekStart={weekStart} />.
-      </>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        Submitted
+        <TimingChip submittedAt={submittedAt} weekStart={weekStart} />
+        <span>.</span>
+      </span>
     )
     linkLabel = 'View update →'
   } else if (isDraft) {
