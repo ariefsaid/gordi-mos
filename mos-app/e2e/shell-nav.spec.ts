@@ -9,15 +9,21 @@ import { VIEWER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
+  // --- Pre-login: static HTML title is present on the login page ---
+  await page.goto('login')
+  await expect(page).toHaveURL(/\/login/)
+  await expect(page).toHaveTitle('Gordi MOS — Management OS')
+
   // --- Setup: sign in and land on My Week ---
   await loginAs(page, VIEWER.email, VIEWER.password)
 
   // My Week: URL, title, breadcrumb, aria-current, empty state
   await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
   await expect(page).toHaveURL(/\/$|\/mos\/?$/)
-  const title1 = await page.title()
-  expect(title1).toBe('My Week — Gordi MOS')
-  await expect(page.getByText('Gordi MOS')).toBeVisible()
+  // Use toHaveTitle for auto-retry (document.title is set by a React effect, not sync with URL)
+  await expect(page).toHaveTitle('My Week — Gordi MOS')
+  // Breadcrumb "Gordi MOS" prefix — scoped to banner to avoid collision with rail logo
+  await expect(page.getByRole('banner').getByText('Gordi MOS')).toBeVisible()
   // Breadcrumb section part
   await expect(page.locator('header b:text("My Week")')).toBeVisible()
   // Rail active item
@@ -27,7 +33,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Navigate to Tasks ---
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' }).click()
   await expect(page).toHaveURL(/\/tasks$/, { timeout: 5_000 })
-  expect(await page.title()).toBe('Tasks — Gordi MOS')
+  await expect(page).toHaveTitle('Tasks — Gordi MOS')
   await expect(page.locator('header b:text("Tasks")')).toBeVisible()
   const tasksLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' })
   await expect(tasksLink).toHaveAttribute('aria-current', 'page')
@@ -36,7 +42,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Navigate to Updates ---
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }).click()
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  expect(await page.title()).toBe('Updates — Gordi MOS')
+  await expect(page).toHaveTitle('Updates — Gordi MOS')
   await expect(page.locator('header b:text("Updates")')).toBeVisible()
   const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' })
   await expect(updatesLink).toHaveAttribute('aria-current', 'page')
@@ -45,7 +51,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Navigate to Ops ---
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Ops' }).click()
   await expect(page).toHaveURL(/\/ops$/, { timeout: 5_000 })
-  expect(await page.title()).toBe('Ops — Gordi MOS')
+  await expect(page).toHaveTitle('Ops — Gordi MOS')
   await expect(page.locator('header b:text("Ops")')).toBeVisible()
   const opsLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Ops' })
   await expect(opsLink).toHaveAttribute('aria-current', 'page')
@@ -59,7 +65,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   // After reload: all three signals should still resolve to Updates
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  expect(await page.title()).toBe('Updates — Gordi MOS')
+  await expect(page).toHaveTitle('Updates — Gordi MOS')
   await expect(page.locator('header b:text("Updates")')).toBeVisible()
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }),

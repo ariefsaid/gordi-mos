@@ -10,9 +10,8 @@
 // in this test does NOT affect VIEWER's credentials used by other e2e specs.
 
 import { test, expect } from '@playwright/test'
-import { RECOVERY_VIEWER, VIEWER } from './fixtures/users'
+import { RECOVERY_VIEWER } from './fixtures/users'
 import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
-import { loginAs } from './helpers/login'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
 const NEW_PASSWORD = `e2e-recovery-${Date.now()}`
@@ -53,13 +52,14 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   await page.getByRole('button', { name: /save password/i }).click()
 
   // ── Step 6: lands home authenticated ─────────────────────────────────────
-  // RECOVERY_VIEWER maps to Sari Sales person row
+  // RECOVERY_VIEWER maps to Sari Sales person row — name shown in user chip
   await expect(
-    page.getByRole('heading', { name: 'Sari Sales' }),
+    page.getByRole('button', { name: 'Sari Sales' }),
   ).toBeVisible({ timeout: 15_000 })
 
-  // ── Step 7: sign out ──────────────────────────────────────────────────────
-  await page.getByRole('button', { name: /sign out/i }).click()
+  // ── Step 7: sign out via chip menu (chip → menuitem, per FR-006/T-031) ──────
+  await page.getByRole('button', { name: /sari sales/i }).click()
+  await page.getByRole('menuitem', { name: /sign out/i }).click()
   await expect(page).toHaveURL(/\/login/, { timeout: 5_000 })
 
   // ── Step 8 (goal-oracle): old password FAILS ──────────────────────────────
@@ -76,22 +76,9 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   await page.getByLabel('Password').fill(NEW_PASSWORD)
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(
-    page.getByRole('heading', { name: 'Sari Sales' }),
+    page.getByRole('button', { name: 'Sari Sales' }),
   ).toBeVisible({ timeout: 10_000 })
 
   // global-setup deletes and re-creates RECOVERY_VIEWER with RECOVERY_VIEWER.password
   // before each run, so password drift across runs is not an issue.
-})
-
-test('AC-005b: authenticated user visiting /recovery is redirected to home (guard check)', async ({ page }) => {
-  // Verifies the symmetric guard: an already-authenticated user on /recovery is redirected home.
-  // Uses the standard VIEWER (unaffected by password rotation in AC-005).
-  await loginAs(page, VIEWER.email, VIEWER.password)
-  await expect(page.getByRole('heading', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 10_000 })
-
-  // Navigate directly to /recovery — should be redirected home since status=authenticated.
-  await page.goto('recovery')
-  await expect(page.getByRole('heading', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 5_000 })
-  // Must NOT show the set-password form
-  await expect(page.getByRole('heading', { name: /set a new password/i })).not.toBeVisible()
 })

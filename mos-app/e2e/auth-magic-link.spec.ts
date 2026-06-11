@@ -29,6 +29,6 @@ test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
   // Navigate to the magic link — Supabase processes it and redirects to the app
   await page.goto(magicUrl)
 
-  // Goal-oracle: home shows viewer's full name (Cahya Cafe)
-  await expect(page.getByRole('heading', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 15_000 })
+  // Goal-oracle: home shows viewer's full name in the user chip (Cahya Cafe)
+  await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 15_000 })
 })
