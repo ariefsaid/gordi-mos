@@ -47,8 +47,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-1a schema + RLS + data layer — PR #5 (mos.tasks, archive-gate, 41 pgTAP; security clean).
   - [x] P2-1b Tasks list page — PR #6 (filters, RACI rows, directory-resolved names, archived
     treatment, 768px reflow; 3-lens caught + fixed cross-schema embed bug). 220 unit · 7 e2e.
-  - [ ] P2-1c task detail + checklist + create form + archive flow + curated e2e (create→list→detail
-    →status; archive→leaves-list). Reuse extracted StatusPill/OwnerCell/taskFormatters.
+  - [x] P2-1c task detail + checklist + create + archive — PR #7 (inline status, editable R/A/C/I,
+    checklist add/toggle/reorder/delete, activity log, archive/unarchive, read-only non-editor,
+    loading/not-found/archived states). 252 unit · 9 e2e. **P2-1 COMPLETE.**
 - [ ] P2-2 weekly updates (write + manager review).
 - [ ] P2-3 daily ops updates feed (manual entry first).
 - [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
@@ -69,6 +70,10 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   SECURITY DEFINER RPC. · `as unknown as` casts on the two PostgREST-embed reads in `tasks.ts` → optional
   boundary `assertTaskListRow` if the hand-synced `mos` types ever drift.
 - UserChip menu: add outside-click dismissal (standard popover behavior; Esc-only today) — from P1-4 quality review.
+- **P2-1c polish deferrals (non-blocking):** create-form R/A use native `<select>` not the detail
+  role-chip picker (consistency) · extract a shared `<PersonField>`/`<PersonAvatar>` primitive when a
+  3rd consumer appears (P2-2 weekly updates likely) · generalize `ConfirmArchive` → reusable
+  `ConfirmDialog` for future destructive flows · `PersonPicker` empty state when all excluded.
 
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
