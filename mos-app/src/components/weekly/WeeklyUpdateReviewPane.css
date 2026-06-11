@@ -2,6 +2,15 @@
    Token-only styling (DESIGN.md). Responsive: <768px meta wraps to second row.
    Reduced-motion: no transitions. */
 
+/* C3: list item wrappers — no bullets, no indent */
+.wup-review-li {
+  list-style: none;
+  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+}
+.wup-review-li:last-child {
+  border-bottom: 0;
+}
+
 /* Roster row: ≥60px, hover wash */
 .wup-review-row {
   display: flex;
@@ -9,15 +18,38 @@
   gap: 12px;
   min-height: 60px;
   padding: 8px 0;
+  width: 100%;
+}
+
+/* C2: interactive row (filed/draft) rendered as a button */
+.wup-review-row-btn {
+  background: none;
+  border: none;
   cursor: pointer;
-  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); /* border @70% */
-}
-.wup-review-row:last-child {
-  border-bottom: 0;
-}
-.wup-review-row:hover {
-  background: hsl(240 4.8% 95.9% / 0.6); /* accent @60% */
+  text-align: left;
+  font-family: inherit;
   border-radius: 4px;
+  transition: background 80ms;
+}
+.wup-review-row-btn:hover {
+  background: hsl(240 4.8% 95.9% / 0.6); /* accent @60% */
+}
+.wup-review-row-btn:focus-visible {
+  outline: 2px solid hsl(221.2 83.2% 53.3%); /* ring */
+  outline-offset: 2px;
+}
+.wup-review-row-open {
+  background: hsl(240 4.8% 95.9% / 0.4);
+}
+
+/* C2: non-interactive (not_started) — plain static row */
+.wup-review-row-static {
+  list-style: none;
+  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+  cursor: default;
+}
+.wup-review-row-static:last-child {
+  border-bottom: 0;
 }
 
 /* Avatar 32px circle — primary→violet gradient */
@@ -187,6 +219,44 @@
   background: hsl(240 4.8% 95.9%);
 }
 
+/* C2: read-only expanded panel (in-place under the row) */
+.wup-review-panel {
+  padding: 12px 12px 14px 44px; /* indent under avatar width */
+  border-top: 1px solid hsl(240 5.9% 90% / 0.5);
+  background: hsl(240 4.8% 95.9% / 0.35);
+  border-radius: 0 0 4px 4px;
+}
+.wup-review-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.wup-review-panel-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: hsl(240 10% 3.9%); /* foreground */
+}
+.wup-review-panel-section {
+  margin-bottom: 10px;
+}
+.wup-review-panel-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(240 4% 40%); /* muted-foreground */
+  margin-bottom: 4px;
+}
+.wup-review-panel-body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: hsl(240 10% 3.9%); /* foreground */
+  white-space: pre-wrap;
+  margin: 0;
+}
+
 /* Responsive: <768px meta wraps to second row under main */
 @media (max-width: 767px) {
   .wup-review-row {
@@ -198,5 +268,8 @@
     padding-left: 44px; /* indent under avatar */
     width: 100%;
     justify-content: flex-start;
+  }
+  .wup-review-panel {
+    padding-left: 12px; /* no indent on narrow viewports */
   }
 }
