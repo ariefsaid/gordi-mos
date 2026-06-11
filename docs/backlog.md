@@ -85,6 +85,10 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   tests 14/16 onto the new `mos._test_seed_role_tree()` helper (one role-tree definition org-wide) ·
   lift `mos()` schema-client + `throwOnError` wrapper into a shared `db/mosClient.ts` when a 3rd mos
   data-layer file lands · optional `wibMondayUTC(now)` DRY across week.ts pure fns.
+- **P2-2c — transitive / CEO-org-wide review roster** (deferred, Director-decided 2026-06-12): the
+  review pane roster lists DIRECT reports (FR-030 amended). Revisit when the org grows past 2 levels
+  or the CEO wants an org-wide weekly-update roster — make `team.ts` resolve the transitive subtree
+  (mirror `is_manager_of`) or add a `mos.my_team_person_ids()` RPC. Moot today (flat org).
 - **P2-2b polish deferrals (non-blocking):** extract a shared `<TintPill variant>` primitive — the
   3rd tinted-pill now exists (ProgressMarker.css ≈ StatusPill.css ≈ TimingChip inline) · migrate the
   write-pane inline-style blocks to co-located CSS (consistency w/ tasks/ pattern) · marker-picker

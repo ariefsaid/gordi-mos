@@ -201,8 +201,13 @@ permitted for any `week_start`, past or present (OD-P2-14). On-time vs late is a
 
 ### Manager review surface — read-only (OD-P2-12)
 - **FR-030** The system shall present a **manager review** surface listing, for a selected `week_start`,
-  every person in the manager's team — the people whose roles report up to (any of) the manager's roles
-  via the union chain (`is_manager_of` from the manager's side) (OD-P2-12, OD-P1-7).
+  every person in the manager's team — **the manager's direct reports** (people whose role's
+  `reports_to_role_id` is one of the manager's roles). NOTE (amended 2026-06-12, Director): the
+  review-pane *roster* is **direct reports** (the "your manager reviews yours" cadence; matches the
+  My Week team module, OD-P0-8). The `is_manager_of` union chain (OD-P1-7) is the RLS **read ceiling** —
+  a grand-manager / the CEO is still *authorized* to open any update below them — but the roster itself
+  lists direct reports. For the flat 2-level Gordi org these coincide; a transitive / CEO-org-wide
+  roster view is backlogged for when the org exceeds two levels. (OD-P2-12, OD-P0-8.)
 - **FR-031** The system shall render each review row with the person's name + role, an excerpt of their
   update summary (or "No update yet" when none), a submit time, and a **state pill**: **Filed** (update
   exists, submitted), **Draft** (exists, draft), or **Not started** (no row for that person+week)
