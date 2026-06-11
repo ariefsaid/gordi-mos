@@ -155,6 +155,19 @@ names/emails enter ONLY via an uncommitted, gitignored deploy-time seed.
 all held roles: dual-hats appear in all their managers' team modules; any of those managers reviews
 their single weekly update.
 
+### OD-P1-8 — Login: password + magic link ("Both")
+Supabase Auth email+password AND magic-link sign-in are both offered on the one login screen.
+Password reset via email. (LOCKED 2026-06-11.)
+
+### OD-P1-9 — Provisioning: admin-invite only
+No self-registration (`enable_signup` off in prod per audit L5). Admin creates the person in the
+directory and triggers a Supabase invite email; v1 invite mechanics may be CLI/dashboard — an
+admin UI is post-MVP.
+
+### OD-P1-10 — Orphan login fails closed
+Authenticated user with no linked `shared.people` row sees a blocked screen ("account not set up —
+contact Arief"); no auto-created directory rows (consistent with closing audit M1's pre-claim seam).
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
