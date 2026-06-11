@@ -92,3 +92,10 @@ read-only, OD-P2-12). Lines get a DELETE grant + author+draft policy (line remov
 - A future task↔update FK is additive (a nullable `task_id` on the line), no posture change.
 - The mechanism split (RLS for the line lock, trigger for the summary lock) is asymmetric by
   necessity (D3) — documented here so it is not "simplified" into one mechanism later.
+
+### Performance accept
+The line SELECT policy evaluates `can_read_weekly_update` (→ recursive `shared.is_manager_of`) once
+per candidate row. **Acceptable at first-slice team sizes** (~15 people; a review roster is a handful
+of rows, and `roles_reports_to_role_idx` + the `person_roles` indexes back the recursion). Revisit
+only if review rosters reach the hundreds — options then: a materialized/cached manager-chain, a
+`STABLE` per-statement memoization, or denormalizing the readable-by set. Not warranted now.
