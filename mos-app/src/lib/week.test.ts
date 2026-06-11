@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { weekLabel, fridayLabel } from './week'
+import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming } from './week'
 import type { WeekLabel } from './week'
 
 // AC-010: WIB week math — tests the pure weekLabel utility.
@@ -52,6 +52,67 @@ describe('AC-010: weekLabel cross-month and cross-year ranges', () => {
     const now = new Date('2026-06-10T05:00:00Z')
     const result = weekLabel(now)
     expect(result.range).toBe('8–14 Jun 2026')
+  })
+})
+
+// AC-030: weekStartISO returns the WIB Monday 'YYYY-MM-DD' of the week containing `now`,
+// offset by N weeks. Pure fixed-offset arithmetic — no host-tz leak.
+describe('AC-030: weekStartISO WIB Monday', () => {
+  // Jun 2026: Mon=8, Sun=14. Week of 8–14 Jun → Monday '2026-06-08'.
+  it('(a) Wed 10 Jun 2026 12:00 WIB → 2026-06-08', () => {
+    expect(weekStartISO(new Date('2026-06-10T05:00:00Z'))).toBe('2026-06-08')
+  })
+  it('(b) Mon 8 Jun 00:00 WIB boundary (2026-06-07T17:00:00Z) → 2026-06-08', () => {
+    // 2026-06-07T17:00:00Z + 7h = 2026-06-08T00:00 WIB = Mon 8 Jun WIB
+    expect(weekStartISO(new Date('2026-06-07T17:00:00Z'))).toBe('2026-06-08')
+  })
+  it('(c) Sun 14 Jun 23:59 WIB (2026-06-14T16:59:00Z) → still 2026-06-08', () => {
+    expect(weekStartISO(new Date('2026-06-14T16:59:00Z'))).toBe('2026-06-08')
+  })
+  it('(d) UTC instant straddling WIB midnight: 2026-06-08T16:30:00Z = Mon 23:30 WIB → 2026-06-08', () => {
+    expect(weekStartISO(new Date('2026-06-08T16:30:00Z'))).toBe('2026-06-08')
+  })
+  it('(e) offsetWeeks=-1 → prior Monday 2026-06-01', () => {
+    expect(weekStartISO(new Date('2026-06-10T05:00:00Z'), -1)).toBe('2026-06-01')
+  })
+  it('(f) cross-month: Wed 1 Jul 2026 12:00 WIB → Monday 2026-06-29', () => {
+    expect(weekStartISO(new Date('2026-07-01T05:00:00Z'))).toBe('2026-06-29')
+  })
+  it('(g) cross-year: Thu 1 Jan 2026 12:00 WIB → Monday 2025-12-29', () => {
+    expect(weekStartISO(new Date('2026-01-01T05:00:00Z'))).toBe('2025-12-29')
+  })
+  it('(h) host-tz guard: value identical regardless of process.env.TZ', () => {
+    const saved = process.env.TZ
+    try {
+      process.env.TZ = 'America/Los_Angeles'
+      expect(weekStartISO(new Date('2026-06-10T05:00:00Z'))).toBe('2026-06-08')
+      process.env.TZ = 'Pacific/Kiritimati'
+      expect(weekStartISO(new Date('2026-06-10T05:00:00Z'))).toBe('2026-06-08')
+    } finally {
+      process.env.TZ = saved
+    }
+  })
+})
+
+// AC-031b: weeklyUpdateTiming compares submitted_at against the week's Friday 17:00 WIB.
+// Friday 17:00 WIB of a Monday weekStart = Monday + 4 days at 17:00 WIB = 10:00:00Z.
+describe('AC-031b: weeklyUpdateTiming on-time vs late', () => {
+  // Week of 8–14 Jun 2026: Friday = 12 Jun; 17:00 WIB = 2026-06-12T10:00:00Z.
+  it('on-time when submitted before the Friday 17:00 WIB due', () => {
+    expect(weeklyUpdateTiming('2026-06-12T09:59:59Z', '2026-06-08')).toBe('on-time')
+  })
+  it('on-time exactly at the 17:00:00 WIB boundary', () => {
+    expect(weeklyUpdateTiming('2026-06-12T10:00:00Z', '2026-06-08')).toBe('on-time')
+  })
+  it('late one second after the due instant', () => {
+    expect(weeklyUpdateTiming('2026-06-12T10:00:01Z', '2026-06-08')).toBe('late')
+  })
+  it('a Saturday submit is late', () => {
+    expect(weeklyUpdateTiming('2026-06-13T03:00:00Z', '2026-06-08')).toBe('late')
+  })
+  it('cross-year week: weekStart 2025-12-29 → Friday 2 Jan 2026 17:00 WIB (2026-01-02T10:00:00Z)', () => {
+    expect(weeklyUpdateTiming('2026-01-02T10:00:00Z', '2025-12-29')).toBe('on-time')
+    expect(weeklyUpdateTiming('2026-01-02T10:00:01Z', '2025-12-29')).toBe('late')
   })
 })
 
