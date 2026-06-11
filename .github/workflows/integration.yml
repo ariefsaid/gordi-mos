@@ -17,7 +17,9 @@ jobs:
           version: 2.104.0
 
       - name: Start local Supabase stack (applies migrations + seed)
-        run: supabase db start
+        # Full `supabase start` (not `db start`): e2e needs auth/API/mailpit, and
+        # `supabase status -o env` only emits keys when the full stack is up.
+        run: supabase start
 
       - name: pgTAP suite
         run: supabase test db
@@ -28,8 +30,10 @@ jobs:
       # are never hard-coded; the local keys are well-known dev constants anyway.
 
       - name: Export Supabase env to GITHUB_ENV
+        # No `|| true`: if the keys are missing we want THIS step to fail, not e2e.
         run: |
-          supabase status -o env 2>/dev/null | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' >> "$GITHUB_ENV" || true
+          supabase status -o env | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' >> "$GITHUB_ENV"
+          grep -q '^SERVICE_ROLE_KEY=' "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
