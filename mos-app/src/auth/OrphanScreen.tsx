@@ -1,4 +1,5 @@
 import { useAuth } from './useAuth'
+import { AuthShell, AuthCard } from './AuthShell'
 
 // FR-016: authenticated user with no linked people row sees this blocked screen.
 // The only action is sign-out — no nav, no directory read/write (OD-P1-10).
@@ -8,37 +9,9 @@ export function OrphanScreen() {
   const signOut = auth.status === 'orphan' ? auth.signOut : undefined
 
   return (
-    <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-4">
-      {/* Brand block — same as AuthShell (they did authenticate, product frame is honest) */}
-      <div className="w-full max-w-[360px] mb-6 flex items-center gap-2">
-        <div
-          className="flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-bold select-none"
-          style={{ width: 28, height: 28, fontSize: 14, letterSpacing: '-0.01em' }}
-          aria-hidden="true"
-        >
-          G
-        </div>
-        <div className="flex flex-col leading-none">
-          <span
-            className="text-foreground font-bold"
-            style={{ fontSize: 14, letterSpacing: '-0.01em' }}
-          >
-            Gordi MOS
-          </span>
-          <span
-            className="text-muted-foreground font-semibold uppercase tracking-[0.06em]"
-            style={{ fontSize: 11 }}
-          >
-            Management OS
-          </span>
-        </div>
-      </div>
-
+    <AuthShell>
       {/* Card — border-only, flat-by-default */}
-      <div
-        className="w-full max-w-[360px] bg-card border border-border rounded-md"
-        style={{ padding: 24 }}
-      >
+      <AuthCard>
         {/* Status icon tile — warning/18% tint (not destructive; "not set up yet," not user error) */}
         <div
           className="flex items-center justify-center rounded-full mb-4 mx-auto"
@@ -81,12 +54,7 @@ export function OrphanScreen() {
         >
           Sign out
         </button>
-      </div>
-
-      {/* Foot contact line */}
-      <p className="mt-6 text-muted-foreground text-center" style={{ fontSize: 13 }}>
-        Trouble signing in? Contact Arief.
-      </p>
-    </div>
+      </AuthCard>
+    </AuthShell>
   )
 }

@@ -143,8 +143,10 @@ Then the rendered error message is the identical generic string in both (FR-006)
 **AC-006 — Neutral magic-link/reset confirmation** *(unit)*
 Given an email address with no account,
 When a magic link (and, separately, a password reset) is requested,
-Then the neutral "check your email" confirmation renders, identical to the existing-account case
-(FR-003/005).
+Then the action-specific neutral confirmation renders — "Check your email for a sign-in link." for
+magic-link, "Check your email to reset your password." for reset — identical to the existing-account
+case (no-enumeration invariant: confirmation copy is chosen by the user's own action, never by
+account existence) (FR-003/005).
 
 **AC-007 — In-flight loading state** *(unit)*
 Given an auth request that has not yet settled,
@@ -198,7 +200,8 @@ claim-parsing proof in `supabase/tests/08_claim_parsing.sql` if already covered.
 | Condition | Surface | User message (EN chrome, OD-P0-2) |
 |---|---|---|
 | Wrong password or unknown email (password form) | inline on form | "Invalid email or password." |
-| Magic-link / reset requested, any email | inline confirmation | "Check your email for a link." (neutral, FR-003/005) |
+| Magic-link requested, any email | inline confirmation | "Check your email for a sign-in link." (neutral, no enumeration, FR-003) |
+| Password reset requested, any email | inline confirmation | "Check your email to reset your password." (neutral, no enumeration, FR-005) |
 | Expired / already-used magic or recovery link | login screen notice | "That link has expired — request a new one." |
 | Supabase rate limit (429) | inline on form | "Too many attempts — try again in a minute." |
 | Network / server failure | inline on form | "Couldn't reach the server — try again." |
@@ -228,3 +231,7 @@ claim-parsing proof in `supabase/tests/08_claim_parsing.sql` if already covered.
 None — all business rules locked by OD-P1-8 (both login methods), OD-P1-9 (admin-invite only),
 OD-P1-10 (orphan fails closed), OD-P0-2/4 (chrome language, naming). No new `[OWNER-DECISION]`
 items raised.
+
+---
+
+AC-006 amended 2026-06-11 (Director ratification of design-plan copy; no-enumeration invariant unchanged).

@@ -1,88 +1,10 @@
 import { useState, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { AuthShell, AuthCard, Spinner } from '../auth/AuthShell'
 
 const ERR_MISMATCH = "Passwords don't match."
 const ERR_EXPIRED = 'That link has expired — request a new one.'
-
-// Inline spinner — aria-hidden; button label carries meaning
-function Spinner({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={['animate-spin', className].filter(Boolean).join(' ')}
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 16 16"
-      width="14"
-      height="14"
-    >
-      <circle
-        cx="8"
-        cy="8"
-        r="6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeOpacity="0.25"
-      />
-      <path
-        d="M14 8a6 6 0 0 1-6 6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-// Shared auth shell — centered viewport + brand block
-function AuthShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-4">
-      {/* Brand block */}
-      <div className="w-full max-w-[360px] mb-6 flex items-center gap-2">
-        <div
-          className="flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-bold select-none"
-          style={{ width: 28, height: 28, fontSize: 14, letterSpacing: '-0.01em' }}
-          aria-hidden="true"
-        >
-          G
-        </div>
-        <div className="flex flex-col leading-none">
-          <span
-            className="text-foreground font-bold"
-            style={{ fontSize: 14, letterSpacing: '-0.01em' }}
-          >
-            Gordi MOS
-          </span>
-          <span
-            className="text-muted-foreground font-semibold uppercase tracking-[0.06em]"
-            style={{ fontSize: 11 }}
-          >
-            Management OS
-          </span>
-        </div>
-      </div>
-
-      {children}
-
-      <p className="mt-6 text-muted-foreground text-center" style={{ fontSize: 13 }}>
-        Trouble signing in? Contact Arief.
-      </p>
-    </div>
-  )
-}
-
-function AuthCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="w-full max-w-[360px] bg-card border border-border rounded-md"
-      style={{ padding: 24 }}
-    >
-      {children}
-    </div>
-  )
-}
 
 export default function RecoveryPage() {
   const navigate = useNavigate()

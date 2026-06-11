@@ -46,6 +46,8 @@ export async function resolveViewer(userId: string): Promise<ViewerResult> {
     .maybeSingle()
 
   if (personError || person === null) {
+    // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
+    if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
     return { person: null, roles: [], isManager: false }
   }
@@ -69,8 +71,9 @@ export async function resolveViewer(userId: string): Promise<ViewerResult> {
     throw new Error(`resolveViewer: roles read failed — ${rolesError.message}`)
   }
 
-  // 4. Build the set of held role_ids (roles with ≥1 current holder) from person_roles
-  //    We need all person_roles to find which roles are held by anyone.
+  // 4. Build the set of held role_ids (roles with ≥1 current holder) from person_roles.
+  //    Known O(org) read — acceptable at ~15 people. P1-4+ optimization: push isManager
+  //    derivation to a DB view/RPC to avoid reading the full junction table client-side.
   const { data: allPersonRoles, error: allPrError } = await supabase
     .from('person_roles')
     .select('role_id')
