@@ -3,6 +3,8 @@
 // All states: loading skeleton / error+Retry / empty / draft-with-content / submitted-locked.
 // AC-031..038, FR-010/012/013/014/015/016/017/018/019.
 import { useState, useEffect, useCallback, useId, useRef } from 'react'
+import { formatAge } from '../tasks/taskFormatters'
+import './WeeklyUpdateWritePane.css'
 import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
 import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdate } from '../../lib/db/weeklyUpdates'
 import { weekLabel, weeklyUpdateTiming } from '../../lib/week'
@@ -22,20 +24,13 @@ function makeDraftLine(position: number): DraftLine {
 }
 
 // Skeleton placeholder — matches final card height to avoid layout shift (§5.1)
+// I3 fix: uses .wup-skeleton-block CSS class which has @keyframes wup-pulse + reduced-motion support.
 function WritePaneSkeleton() {
   return (
     <div data-testid="write-pane-skeleton" aria-hidden="true">
-      <div style={{
-        background: 'hsl(240 4.8% 95.9%)', borderRadius: 8,
-        minHeight: 96, marginBottom: 12,
-        animation: 'pulse 1.5s ease-in-out infinite',
-      }} />
+      <div className="wup-skeleton-block" style={{ minHeight: 96, marginBottom: 12 }} />
       {[1, 2].map(i => (
-        <div key={i} style={{
-          background: 'hsl(240 4.8% 95.9%)', borderRadius: 8,
-          height: 40, marginBottom: 8,
-          animation: 'pulse 1.5s ease-in-out infinite',
-        }} />
+        <div key={i} className="wup-skeleton-block" style={{ height: 40, marginBottom: 8 }} />
       ))}
     </div>
   )
@@ -126,7 +121,9 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
         </svg>
       </button>
 
-      {/* Line text input — inline edit (§2.2) */}
+      {/* Line text input — inline edit (§2.2)
+          I1 fix: wup-line-input class applies flex-basis:100% at <768px so text occupies
+          full-width row 1 while handle/marker/remove wrap to row 2 (flexWrap:wrap on parent). */}
       <input
         ref={inputRef}
         type="text"
@@ -134,8 +131,9 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
         onChange={e => onChange(line.localId, { label: e.target.value })}
         placeholder="Tulis update line…"
         aria-label="Update line text"
+        className="wup-line-input"
         style={{
-          flex: 1, minWidth: 0,
+          flex: '1 1 100%', minWidth: 0,
           border: 'none', background: 'transparent',
           fontSize: 14, color: 'hsl(240 10% 3.9%)', /* foreground */
           fontFamily: 'inherit',
@@ -216,6 +214,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
   // Save/submit busy + confirm
   const [saving, setSaving]       = useState(false)
   const [saveConfirm, setSaveConfirm] = useState(false)
+  const [savedAt, setSavedAt]     = useState<Date | null>(null)
   const [saveError, setSaveError]  = useState<string | null>(null)
   const liveRef = useRef<HTMLDivElement>(null)
 
@@ -316,6 +315,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
         lines: buildLinesPayload(),
       })
       setUpdateId(id)
+      setSavedAt(new Date())
       setSaveConfirm(true)
       // Clear confirm after 5s
       setTimeout(() => setSaveConfirm(false), 5000)
@@ -630,7 +630,10 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             Save draft
           </button>
 
-          {/* Submit update (§2.3, AC-033) */}
+          {/* Submit update (§2.3, AC-033)
+              C1 fix: use ONE backgroundColor key only — removing the conflicting `background`
+              shorthand that React was clobbering. Enabled = primary token; disabled = primary
+              token at opacity:0.5 (visual dim, not a separate color). */}
           <button
             type="button"
             onClick={handleSubmit}
@@ -639,8 +642,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             aria-busy={saving ? 'true' : undefined}
             style={{
               height: 32, padding: '0 12px', borderRadius: 8, border: 0,
-              background: submitDisabled || saving ? undefined : 'hsl(221.2 83.2% 53.3%)', /* primary */
-              backgroundColor: submitDisabled || saving ? 'hsl(221.2 83.2% 53.3%)' : undefined,
+              backgroundColor: 'hsl(221.2 83.2% 53.3%)', /* primary — always set, opacity dims when disabled */
               color: 'hsl(0 0% 98%)', /* primary-foreground */
               cursor: submitDisabled || saving ? 'not-allowed' : 'pointer',
               opacity: submitDisabled || saving ? 0.5 : 1,
@@ -652,7 +654,8 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             Submit update
           </button>
 
-          {/* Quiet save confirm — aria-live polite, ambient (AC-035) */}
+          {/* Quiet save confirm — aria-live polite, ambient (AC-035)
+              M1 fix: "Draft saved · 2 min ago" relative time suffix (§2.3 plan). */}
           <div
             ref={liveRef}
             aria-live="polite"
@@ -663,7 +666,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(142 64% 30%)' }}>
                 {/* --status-won-text */}
                 <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(142 71% 45%)', flexShrink: 0 }} />
-                Draft saved
+                Draft saved{savedAt ? ` · ${formatAge(savedAt.toISOString(), new Date())} ago` : ''}
               </span>
             )}
           </div>

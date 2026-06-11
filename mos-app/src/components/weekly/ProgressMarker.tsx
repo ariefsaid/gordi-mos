@@ -113,7 +113,7 @@ export function ProgressMarkerPicker({
   }
 
   return (
-    <div className="pm-picker-anchor">
+    <div className="pm-picker-anchor" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>
       <button
         ref={triggerRef}
         type="button"
@@ -122,6 +122,7 @@ export function ProgressMarkerPicker({
         aria-haspopup="listbox"
         aria-expanded={open ? 'true' : 'false'}
         onClick={handleTriggerClick}
+        style={{ minHeight: 44 }}
       >
         <span className="pm-dot" aria-hidden="true" />
         {label}
