@@ -56,6 +56,13 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   `ops` schema; needed before P2-3 spec (P0-2's feed mockup should present both framings if cheap).
 
 ## Polish / follow-ups
+
+- **P2-1a quality deferrals (from retroactive code-quality review, 2026-06-11 — non-blocking):**
+  pgTAP fixture duplication across tests 13–16 → extract a `mos._test_seed_role_tree()` helper (or
+  `tests/_fixtures.sql`) so the role-tree exists once. · `getTask` does 3 serial round-trips → parallelize
+  the independent checklist+events reads (`Promise.all`) when TanStack lands, or fold into a future
+  SECURITY DEFINER RPC. · `as unknown as` casts on the two PostgREST-embed reads in `tasks.ts` → optional
+  boundary `assertTaskListRow` if the hand-synced `mos` types ever drift.
 - UserChip menu: add outside-click dismissal (standard popover behavior; Esc-only today) — from P1-4 quality review.
 
 ## Deferred (post-MVP — see roadmap "Post-MVP")
