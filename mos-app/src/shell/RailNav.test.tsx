@@ -87,6 +87,34 @@ describe('AC-003: Active nav per route', () => {
   })
 })
 
+// FIX-5: Settings is reachable by AT — tabindex 0, aria-disabled, no-op on activation
+describe('FIX-5: Settings reachable by assistive technology', () => {
+  it('Settings element has tabIndex=0 so it is in tab order', () => {
+    renderRailNav('/tasks')
+    const settings = screen.getByText('Settings').closest('[aria-disabled]') as HTMLElement | null
+    expect(settings).toBeTruthy()
+    expect(settings!.tabIndex).toBe(0)
+  })
+
+  it('Settings element has aria-label or accessible name that includes "Settings" and "coming soon"', () => {
+    renderRailNav('/tasks')
+    const settings = screen.getByText('Settings').closest('[aria-disabled]') as HTMLElement | null
+    expect(settings).toBeTruthy()
+    // aria-label should mention "Settings — coming soon" for AT announcement
+    const ariaLabel = settings!.getAttribute('aria-label') ?? settings!.getAttribute('title') ?? ''
+    expect(ariaLabel.toLowerCase()).toMatch(/settings.*coming soon|coming soon.*settings/i)
+  })
+
+  it('pressing Enter on Settings does not navigate', async () => {
+    const user = userEvent.setup()
+    renderRailNav('/tasks')
+    const settings = screen.getByText('Settings').closest('[aria-disabled]') as HTMLElement
+    settings.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByTestId('location').textContent).toBe('/tasks')
+  })
+})
+
 // AC-015: every nav SVG is aria-hidden
 describe('AC-015: Nav icon semantics', () => {
   it('all SVGs inside the nav have aria-hidden=true', () => {

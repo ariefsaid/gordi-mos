@@ -142,6 +142,49 @@ describe('AC-013: Team module manager-conditional', () => {
   })
 })
 
+// FIX-1: Mobile strip reflow — strips have flex-wrap and text element has min-width
+describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
+  it('weekly-update strip container has flex-wrap class (not fixed row)', () => {
+    const { container } = renderMyWeek()
+    const updateSection = container.querySelector('[aria-label="My weekly update"]')
+    expect(updateSection).toBeTruthy()
+    expect(updateSection!.className).toMatch(/flex-wrap/)
+  })
+
+  it('ops strip container has flex-wrap class (not fixed row)', () => {
+    const { container } = renderMyWeek()
+    const opsSection = container.querySelector('[aria-label="Today on the floor"]')
+    expect(opsSection).toBeTruthy()
+    expect(opsSection!.className).toMatch(/flex-wrap/)
+  })
+
+  it('weekly-update strip text element has a min-w class preventing width starvation', () => {
+    const { container } = renderMyWeek()
+    const updateSection = container.querySelector('[aria-label="My weekly update"]')
+    // The flex-1 text span should have min-w to prevent it collapsing word-per-word
+    const textEl = updateSection!.querySelector('.flex-1')
+    expect(textEl).toBeTruthy()
+    expect(textEl!.className).toMatch(/min-w-\[/)
+  })
+})
+
+// FIX-2: Card-head reflow — allows wrap, title never breaks mid-phrase
+describe('FIX-2: Card-head reflow — structural layout guards', () => {
+  it('card head container has flex-wrap class', () => {
+    const { container } = renderMyWeek()
+    const cardHead = container.querySelector('[aria-label="My tasks this week"] div')
+    expect(cardHead).toBeTruthy()
+    expect(cardHead!.className).toMatch(/flex-wrap/)
+  })
+
+  it('"My tasks" title has whitespace-nowrap to prevent mid-phrase break', () => {
+    const { container } = renderMyWeek()
+    const titleEl = container.querySelector('[aria-label="My tasks this week"] div span:first-child')
+    expect(titleEl).toBeTruthy()
+    expect(titleEl!.className).toMatch(/whitespace-nowrap/)
+  })
+})
+
 // AC-010: WIB week math at the page level
 describe('AC-010: My Week head WIB week math', () => {
   beforeEach(() => {

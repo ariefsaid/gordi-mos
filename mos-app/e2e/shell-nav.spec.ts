@@ -3,9 +3,11 @@
 // When they navigate via the rail to Tasks, then Updates, then Ops, and finally reload on /updates,
 // Then at each section: URL, document.title, breadcrumb, aria-current nav item, and empty-state headline
 // all match, and the reload lands back on Updates with all three signals intact (FR-002/003/005/008/010/011).
+//
+// Extended: AC-013 e2e — MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8).
 
 import { test, expect } from '@playwright/test'
-import { VIEWER } from './fixtures/users'
+import { VIEWER, MANAGER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
@@ -70,4 +72,23 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }),
   ).toHaveAttribute('aria-current', 'page')
+})
+
+// AC-013 e2e: MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8)
+test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page }) => {
+  // ── MANAGER: signs in → My Week should show "Your team" overline ──
+  await loginAs(page, MANAGER.email, MANAGER.password)
+  await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
+  // The team-module overline is a <p> element starting with "Your team —"
+  await expect(page.locator('p').filter({ hasText: /^Your team —/ })).toBeVisible({ timeout: 5_000 })
+
+  // Sign out: open the user chip menu first, then click "Sign out" menu item
+  await page.getByRole('button', { name: 'Dewi Director' }).click()
+  await page.getByRole('menuitem', { name: /sign out/i }).click()
+  await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
+
+  // ── VIEWER: signs in → My Week should NOT show "Your team" overline ──
+  await loginAs(page, VIEWER.email, VIEWER.password)
+  await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('p').filter({ hasText: /^Your team —/ })).not.toBeVisible()
 })

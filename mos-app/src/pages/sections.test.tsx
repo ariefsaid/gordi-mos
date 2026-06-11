@@ -50,6 +50,42 @@ describe('AC-007: Section empty shells', () => {
   })
 })
 
+// FIX-3: Empty states are NOT text-centered (left-aligned per mockup anti-slop note)
+describe('FIX-3: Empty state containers are left-aligned (not text-center)', () => {
+  it('TasksPage empty container does NOT have text-center class', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <TasksPage />
+      </MemoryRouter>,
+    )
+    const emptyDiv = container.querySelector('.bg-card.border.border-border.rounded-md')
+    expect(emptyDiv).toBeTruthy()
+    expect(emptyDiv!.className).not.toMatch(/text-center/)
+  })
+
+  it('UpdatesPage empty container does NOT have text-center class', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <UpdatesPage />
+      </MemoryRouter>,
+    )
+    const emptyDiv = container.querySelector('.bg-card.border.border-border.rounded-md')
+    expect(emptyDiv).toBeTruthy()
+    expect(emptyDiv!.className).not.toMatch(/text-center/)
+  })
+
+  it('OpsPage empty container does NOT have text-center class', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <OpsPage />
+      </MemoryRouter>,
+    )
+    const emptyDiv = container.querySelector('.bg-card.border.border-border.rounded-md')
+    expect(emptyDiv).toBeTruthy()
+    expect(emptyDiv!.className).not.toMatch(/text-center/)
+  })
+})
+
 // AC-004 title portion: section pages set document.title
 describe('AC-004: Document title per section page', () => {
   it('TasksPage sets document.title to "Tasks — Gordi MOS"', () => {

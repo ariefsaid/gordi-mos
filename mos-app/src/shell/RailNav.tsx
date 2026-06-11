@@ -60,12 +60,19 @@ export default function RailNav({ onNavigate }: RailNavProps) {
       </nav>
 
       {/* Settings stub — visible but disabled (DESIGN.md proposed disabled, AS-1) */}
+      {/* tabIndex=0 + aria-disabled keeps it in tab order and announces its disabled state to AT */}
       <div className="border-t border-border p-3">
         <span
           role="link"
           aria-disabled="true"
+          aria-label="Settings — coming soon"
           title="Settings — coming soon"
-          className="flex items-center gap-[11px] rounded-sm px-3 text-sm font-medium text-foreground opacity-50 cursor-not-allowed pointer-events-none"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') e.preventDefault()
+          }}
+          onClick={(e) => e.preventDefault()}
+          className="flex items-center gap-[11px] rounded-sm px-3 text-sm font-medium text-foreground opacity-50 cursor-not-allowed"
           style={{ height: 38 }}
         >
           <SettingsIcon />

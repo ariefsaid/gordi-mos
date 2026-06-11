@@ -27,10 +27,10 @@ export default function MyWeek() {
         >
           {/* Card head */}
           <div
-            className="flex items-baseline gap-3 border-b border-border"
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border"
             style={{ padding: '16px 20px 14px' }}
           >
-            <span className="font-semibold text-foreground" style={{ fontSize: 18, letterSpacing: '-0.01em' }}>
+            <span className="font-semibold text-foreground whitespace-nowrap" style={{ fontSize: 18, letterSpacing: '-0.01em' }}>
               My tasks
             </span>
             <span className="text-muted-foreground" style={{ fontSize: 13 }}>
@@ -113,8 +113,8 @@ export default function MyWeek() {
 
         {/* ===== Auxiliary strip 1: weekly update ===== */}
         <section
-          className="bg-card border border-border rounded-md flex items-center gap-4 mb-3"
-          style={{ minHeight: 60, padding: '0 20px' }}
+          className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
+          style={{ minHeight: 60, padding: '12px 20px' }}
           aria-label="My weekly update"
         >
           {/* Neutral pill */}
@@ -124,13 +124,13 @@ export default function MyWeek() {
           >
             No update
           </span>
-          <span className="flex-1 min-w-0" style={{ fontSize: 14 }}>
+          <span className="flex-1 min-w-[160px]" style={{ fontSize: 14 }}>
             No weekly update for this week yet.{' '}
             <span className="text-muted-foreground">Due Fri {wib.fridayShort}</span>
           </span>
           <Link
             to="/updates"
-            className="font-semibold text-primary no-underline flex-none"
+            className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
             style={{ fontSize: 13 }}
           >
             Open Updates →
@@ -139,8 +139,8 @@ export default function MyWeek() {
 
         {/* ===== Auxiliary strip 2: ops ===== */}
         <section
-          className="bg-card border border-border rounded-md flex items-center gap-4 mb-3"
-          style={{ minHeight: 60, padding: '0 20px' }}
+          className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
+          style={{ minHeight: 60, padding: '12px 20px' }}
           aria-label="Today on the floor"
         >
           {/* Neutral pill */}
@@ -150,12 +150,12 @@ export default function MyWeek() {
           >
             0 events
           </span>
-          <span className="flex-1 min-w-0" style={{ fontSize: 14 }}>
+          <span className="flex-1 min-w-[160px]" style={{ fontSize: 14 }}>
             No ops events logged today.
           </span>
           <Link
             to="/ops"
-            className="font-semibold text-primary no-underline flex-none"
+            className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
             style={{ fontSize: 13 }}
           >
             Today on Ops →

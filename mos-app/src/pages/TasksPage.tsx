@@ -8,7 +8,7 @@ export default function TasksPage() {
   return (
     <PageFrame>
       <PageHead title="Tasks" />
-      <div className="bg-card border border-border rounded-md p-8 text-center">
+      <div className="bg-card border border-border rounded-md p-8">
         <p className="font-semibold text-foreground" style={{ fontSize: 14 }}>
           No tasks yet.
         </p>

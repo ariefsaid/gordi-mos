@@ -8,7 +8,7 @@ export default function UpdatesPage() {
   return (
     <PageFrame>
       <PageHead title="Updates" />
-      <div className="bg-card border border-border rounded-md p-8 text-center">
+      <div className="bg-card border border-border rounded-md p-8">
         <p className="font-semibold text-foreground" style={{ fontSize: 14 }}>
           No weekly updates yet.
         </p>

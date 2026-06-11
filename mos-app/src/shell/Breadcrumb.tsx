@@ -8,9 +8,11 @@ export default function Breadcrumb() {
   return (
     <span style={{ fontSize: 13 }}>
       <span className="text-muted-foreground">Gordi MOS</span>
-      <span className="mx-[7px]" aria-hidden="true">›</span>
       {section && (
-        <b className="text-foreground font-semibold">{section.label}</b>
+        <>
+          <span className="mx-[7px]" aria-hidden="true">›</span>
+          <b className="text-foreground font-semibold">{section.label}</b>
+        </>
       )}
     </span>
   )
