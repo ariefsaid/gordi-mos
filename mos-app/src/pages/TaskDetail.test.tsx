@@ -214,7 +214,10 @@ describe('AC-070 — detail page renders task fields', () => {
 // ── AC-071: inline status change ──────────────────────────────────────────────
 describe('AC-071 — inline status change', () => {
   it('updates pill in place (no navigation) and calls updateTaskStatus', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    // First getTask call: initial load (Open); second call (after mutation): updated task (In Progress)
+    mockGetTask
+      .mockResolvedValueOnce({ task: makeTask({ status: 'Open' }), checklist: [], events: [] })
+      .mockResolvedValueOnce({ task: makeTask({ status: 'In Progress' }), checklist: [], events: [] })
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
@@ -231,7 +234,7 @@ describe('AC-071 — inline status change', () => {
     })
 
     // Pill should now show "In Progress" without navigation
-    expect(screen.getByText('In Progress')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('In Progress')).toBeTruthy())
   })
 })
 

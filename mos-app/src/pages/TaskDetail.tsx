@@ -524,17 +524,23 @@ export default function TaskDetail() {
     setLocalTask(t => t ? { ...t, status: newStatus } : t)
     try {
       await updateTaskStatus(localTask.id, oldStatus, newStatus, viewerId)
-      // Refresh events without resetting localTask status (keep optimistic)
-      // Use getTask directly to update events, then restore optimistic status
+      // Accept server state wholesale — it already has the new status + fresh events
       const refreshed = await getTask(localTask.id)
       setData(refreshed)
+      setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
-      // Preserve the optimistic status across the refresh
-      setLocalTask(t => t ? { ...t, status: newStatus } : t)
     } catch {
       // Revert on error
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
     }
+  }
+
+  // ── Shared: refetch events after any mutation ────────────────────────────
+  async function refetchEvents(taskId: string) {
+    try {
+      const refreshed = await getTask(taskId)
+      setData(refreshed)
+    } catch { /* non-critical — stale events are acceptable */ }
   }
 
   // ── RACI change ──────────────────────────────────────────────────────────
@@ -544,6 +550,7 @@ export default function TaskDetail() {
     setLocalTask(t => t ? { ...t, ...patch } : t)
     try {
       await updateTaskRaci(localTask.id, patch, viewerId)
+      await refetchEvents(localTask.id)
     } catch {
       setLocalTask(prev)
     }
@@ -553,16 +560,19 @@ export default function TaskDetail() {
   async function handleAddChecklist(label: string) {
     if (!localTask) return
     const position = localChecklist.length
+    // Optimistic add
+    const newItem: ChecklistItemRow = {
+      id: `optimistic-${Date.now()}`, org_id: '', task_id: localTask.id,
+      label, is_done: false, position,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }
+    setLocalChecklist(prev => [...prev, newItem])
     try {
       await addChecklistItem(localTask.id, label, position, viewerId)
-      // Optimistic add
-      const newItem: ChecklistItemRow = {
-        id: `optimistic-${Date.now()}`, org_id: '', task_id: localTask.id,
-        label, is_done: false, position,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }
-      setLocalChecklist(prev => [...prev, newItem])
-    } catch { /* surface error later */ }
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
+    }
   }
 
   // ── Checklist toggle ─────────────────────────────────────────────────────
@@ -571,6 +581,7 @@ export default function TaskDetail() {
     setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: isDone } : i))
     try {
       await toggleChecklistItem(itemId, isDone, localTask.id, viewerId)
+      await refetchEvents(localTask.id)
     } catch {
       setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: !isDone } : i))
     }
@@ -594,6 +605,7 @@ export default function TaskDetail() {
     try {
       await reorderChecklistItem(itemId, swapIdx)
       await reorderChecklistItem(swapId, idx)
+      // Reorder has no event (FR-042) — no refetch needed
     } catch {
       setLocalChecklist(prev)
     }
@@ -606,6 +618,7 @@ export default function TaskDetail() {
     setLocalChecklist(p => p.filter(i => i.id !== itemId))
     try {
       await deleteChecklistItem(itemId, localTask.id, viewerId)
+      await refetchEvents(localTask.id)
     } catch {
       setLocalChecklist(prev)
     }
@@ -1033,17 +1046,6 @@ export default function TaskDetail() {
         }
         .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
-        /* ── Status pill reuse (pulled from TasksPage tokens) ── */
-        .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-        .dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
-        .pill-inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); }
-        .pill-inprogress .dot { background: hsl(221.2 83.2% 53.3%); }
-        .pill-blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); }
-        .pill-blocked .dot { background: hsl(0 84.2% 60.2%); }
-        .pill-open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); }
-        .pill-open .dot { background: hsl(43 96% 56%); }
-        .pill-done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); }
-        .pill-done .dot { background: hsl(142 71% 45%); }
       `}</style>
     </PageFrame>
   )

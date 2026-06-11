@@ -1,4 +1,5 @@
 import type { TaskStatus } from '../../lib/db/tasks.types'
+import './StatusPill.css'
 
 export type { TaskStatus }
 
