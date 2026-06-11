@@ -1,0 +1,39 @@
+/* TimingChip — on-time / late pill (FIX-5, shared across consumers).
+   Tokens: success/14% + --status-won-text; warning/18% + warning-foreground.
+   Reduced-motion: no transitions. */
+
+.timing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* on-time: success/14% tint + --status-won-text */
+.timing-chip-ontime {
+  background: hsl(142 71% 45% / 0.14);
+  color: hsl(142 64% 30%);
+}
+.timing-chip-ontime .timing-chip-dot {
+  background: hsl(142 71% 45%);
+}
+
+/* late: warning/18% tint + warning-foreground */
+.timing-chip-late {
+  background: hsl(43 96% 56% / 0.18);
+  color: hsl(22 78% 26%);
+}
+.timing-chip-late .timing-chip-dot {
+  background: hsl(43 96% 56%);
+}
+
+.timing-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}

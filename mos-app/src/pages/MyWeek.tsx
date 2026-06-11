@@ -4,9 +4,10 @@ import { useAuth } from '../auth/useAuth'
 import PageFrame from '../shell/PageFrame'
 import PageHead from '../shell/PageHead'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
-import { weekLabel, weekStartISO, weeklyUpdateTiming } from '../lib/week'
+import { weekLabel, weekStartISO } from '../lib/week'
 import { getMyUpdate } from '../lib/db/weeklyUpdates'
 import type { MyUpdate } from '../lib/db/weeklyUpdates.types'
+import TimingChip from '../components/weekly/TimingChip'
 
 export default function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
@@ -220,12 +221,6 @@ function WeeklyUpdateStrip({
   const isSubmitted = !isLoading && !isError && stripStatus === 'submitted'
   const isDraft     = !isLoading && !isError && stripStatus === 'draft'
 
-  // On-time/late signal
-  const timing = isSubmitted && submittedAt
-    ? weeklyUpdateTiming(submittedAt, weekStart)
-    : null
-  const onTime = timing === 'on-time'
-
   // Pill config (§6 design-plan table)
   let pillContent: React.ReactNode
   let pillStyle: React.CSSProperties = {}
@@ -262,14 +257,11 @@ function WeeklyUpdateStrip({
   let sentence: React.ReactNode
   let linkLabel: string
 
-  if (isSubmitted && timing) {
-    // "Submitted on time." or "Submitted late."
-    const lateStyle: React.CSSProperties = onTime
-      ? { color: 'hsl(142 64% 30%)' }
-      : { color: 'hsl(22 78% 26%)' } // warning-foreground for late
+  if (isSubmitted && submittedAt) {
+    // "Submitted " + TimingChip (on-time/late pill with shared tokens)
     sentence = (
       <>Submitted{' '}
-        <span style={lateStyle}>{onTime ? 'on time' : 'late'}</span>.
+        <TimingChip submittedAt={submittedAt} weekStart={weekStart} />.
       </>
     )
     linkLabel = 'View update →'

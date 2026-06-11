@@ -120,38 +120,6 @@
   background: hsl(240 4% 40%);
 }
 
-/* On-time / late timing chip (reuses write-pane §2.5 tokens) */
-.wup-timing-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.wup-timing-ontime {
-  background: hsl(142 71% 45% / 0.14);
-  color: hsl(142 64% 30%);
-}
-.wup-timing-ontime .wup-timing-dot {
-  background: hsl(142 71% 45%);
-}
-.wup-timing-late {
-  background: hsl(43 96% 56% / 0.18);
-  color: hsl(22 78% 26%);
-}
-.wup-timing-late .wup-timing-dot {
-  background: hsl(43 96% 56%);
-}
-.wup-timing-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-}
-
 /* Week nav in card head */
 .wup-week-nav {
   display: flex;

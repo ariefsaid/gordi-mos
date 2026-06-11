@@ -7,8 +7,9 @@ import { formatAge } from '../tasks/taskFormatters'
 import './WeeklyUpdateWritePane.css'
 import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
 import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdate } from '../../lib/db/weeklyUpdates'
-import { weekLabel, weeklyUpdateTiming } from '../../lib/week'
+import { weekLabel } from '../../lib/week'
 import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
+import TimingChip from './TimingChip'
 
 // ── Local item shape (draft lines before persist) ────────────────────────────
 interface DraftLine {
@@ -33,34 +34,6 @@ function WritePaneSkeleton() {
         <div key={i} className="wup-skeleton-block" style={{ height: 40, marginBottom: 8 }} />
       ))}
     </div>
-  )
-}
-
-// ── TimingChip — on-time / late signal (§2.5 design-plan) ───────────────────
-function TimingChip({ submittedAt, weekStart }: { submittedAt: string; weekStart: string }) {
-  const timing = weeklyUpdateTiming(submittedAt, weekStart)
-  const onTime = timing === 'on-time'
-  // on-time: success/14% bg + --status-won-text; late: warning/18% bg + warning-foreground
-  const style: React.CSSProperties = onTime
-    ? { background: 'hsl(142 71% 45% / 0.14)', color: 'hsl(142 64% 30%)' }  // success/14% / --status-won-text
-    : { background: 'hsl(43 96% 56% / 0.18)', color: 'hsl(22 78% 26%)' }    // warning/18% / warning-foreground
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        height: 22, padding: '0 9px', borderRadius: 999,
-        fontSize: 12, fontWeight: 600, ...style,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 6, height: 6, borderRadius: 999, flexShrink: 0,
-          background: onTime ? 'hsl(142 71% 45%)' : 'hsl(43 96% 56%)',
-        }}
-      />
-      {onTime ? 'on time' : 'late'}
-    </span>
   )
 }
 
