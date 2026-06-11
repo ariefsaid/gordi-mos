@@ -1,7 +1,7 @@
 // AC-001: Cross-section navigation journey (shell-level, P1-4)
 // Given a provisioned signed-in viewer on My Week,
 // When they navigate via the rail to Tasks, then Updates, then Ops, and finally reload on /updates,
-// Then at each section: URL, document.title, breadcrumb, aria-current nav item, and empty-state headline
+// Then at each section: URL, document.title, breadcrumb, aria-current nav item, and surface-rendered signal
 // all match, and the reload lands back on Updates with all three signals intact (FR-002/003/005/008/010/011).
 //
 // Extended: AC-013 e2e — MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8).
@@ -39,7 +39,9 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page.locator('header b:text("Tasks")')).toBeVisible()
   const tasksLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' })
   await expect(tasksLink).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByText('No tasks yet.')).toBeVisible()
+  // The ownership-filter tablist is always present in the TasksPage toolbar,
+  // regardless of data (populated, empty, loading) — proves the real Tasks surface rendered.
+  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 
   // --- Navigate to Updates ---
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }).click()

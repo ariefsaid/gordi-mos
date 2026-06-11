@@ -4,6 +4,7 @@ import { RedirectIfAuthed } from './auth/RedirectIfAuthed'
 import AppShell from './shell/AppShell'
 import MyWeek from './pages/MyWeek'
 import TasksPage from './pages/TasksPage'
+import TaskNewPlaceholder from './pages/TaskNewPlaceholder'
 import UpdatesPage from './pages/UpdatesPage'
 import OpsPage from './pages/OpsPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -17,7 +18,9 @@ import RecoveryPage from './pages/RecoveryPage'
 // / (ProtectedRoute gate) — authenticated viewers only
 //   AppShell (layout route — rail + header + drawer, persistent across nav)
 //     /           → MyWeek (index)
-//     /tasks      → TasksPage
+//     /tasks      → TasksPage (list)
+//     /tasks/new  → TaskNewPlaceholder (P2-1b route; form internals ship in P2-1c)
+//     /tasks/:id  → TaskDetail (P2-1c — not yet wired; route added in P2-1c)
 //     /updates    → UpdatesPage
 //     /ops        → OpsPage
 //     *           → NotFoundPage (catch-all)
@@ -40,6 +43,7 @@ export const routeConfig = [
         children: [
           { index: true, element: <MyWeek /> },
           { path: 'tasks', element: <TasksPage /> },
+          { path: 'tasks/new', element: <TaskNewPlaceholder /> },
           { path: 'updates', element: <UpdatesPage /> },
           { path: 'ops', element: <OpsPage /> },
           { path: '*', element: <NotFoundPage /> },

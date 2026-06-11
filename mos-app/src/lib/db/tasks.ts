@@ -16,27 +16,30 @@ import type {
 
 const mos = () => supabase.schema('mos')
 
-// Embedded select resolving BU + Responsible + Accountable display names (snake_case, consumed directly).
-const LIST_SELECT =
-  '*,' +
-  'business_unit:business_units(id,name),' +
-  'responsible:people!responsible_person_id(id,full_name),' +
-  'accountable:people!accountable_person_id(id,full_name)'
+// Raw mos.tasks columns only — no cross-schema FK embeds.
+// PostgREST CANNOT FK-embed across schemas (mos→shared) under the mos profile (PGRST200).
+// Display-name resolution is client-side via directory.ts (Fix C1).
+const LIST_SELECT = '*'
 
 export interface TaskListFilters {
   businessUnitId?: string
   status?: TaskStatus
-  personId?: string
+  // NOTE: personId is NOT sent to the server as a query filter. The server only knows
+  // responsible_person_id; RACI membership (R/A/C/I) is a client-side predicate applied
+  // over the org-readable set after load. Keeping this field here for API surface consistency
+  // but it is handled entirely by raciMember() + caller-side filtering.
+  // Use responsiblePersonId if you need a server-side responsible-only filter (e.g. future perf).
   includeArchived?: boolean
 }
 
-/** List tasks with optional filters (FR-024), active-only by default (FR-025), due asc (FR-026). */
+/** List tasks with BU/status/archived filters (FR-024/025/026). Person-membership is
+ * client-side via raciMember() — the full org set is loaded (org-readable; ~15 people / dozens
+ * of tasks at Gordi scale). BU + status + archived are server-side for server-side sorting. */
 export async function listTasks(f: TaskListFilters = {}): Promise<TaskListRow[]> {
   let q = mos().from('tasks').select(LIST_SELECT)
   if (!f.includeArchived) q = q.is('archived_at', null)
   if (f.businessUnitId) q = q.eq('business_unit_id', f.businessUnitId)
   if (f.status) q = q.eq('status', f.status)
-  if (f.personId) q = q.eq('responsible_person_id', f.personId)
   q = q.order('due_date', { ascending: true, nullsFirst: false })
   const { data, error } = await q
   if (error) throw new Error(`listTasks failed — ${error.message}`)
