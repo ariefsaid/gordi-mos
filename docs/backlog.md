@@ -22,14 +22,19 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   41 assertions, ADR-0001, OD-P1-1..7 via grill session #1; security audit no-High/Critical, M1/M2/L3
   fixed. Coverage gate re-deferred to P1-3 (first real app logic).
 
-- [ ] P1-3 Supabase Auth login + profile + role surface.
+- [x] P1-3 Auth — DONE, PR #3 merged: login (password+magic link), session, viewer/isManager,
+  guards, orphan fail-closed, recovery flow (audit-L1 fix + e2e rotation proof). 59 unit (95% cov,
+  gate live) · 7 e2e · 47 pgTAP. AC-006 amended (action-specific neutral copy).
 - [ ] P1-4 app shell per picked IA.
 
 ## Security-audit deferrals (from P1-2 audit, 2026-06-11 — neither blocks ship)
 - **L4:** no acyclicity constraint on `shared.roles.reports_to_role_id` (evaluation is cycle-safe via
   UNION; data integrity by convention) → add CHECK/trigger when role-editing UI ships (Phase 2+).
-- **L5:** local-dev `config.toml` has `enable_signup=true` + weak password floor → the ris-dev
-  production deploy issue (P3-1) MUST disable open signup (invite-only) + harden password config.
+- **L5 (extended by P1-3 audit):** the ris-dev production deploy issue (P3-1) MUST: disable open
+  signup both keys (`enable_signup=false`; verify with a live self-signup probe expecting 422),
+  consider the before_user_created hook as domain allowlist, raise password policy (≥8 +
+  lower_upper_letters_digits), set session `timebox` (~24h) + `inactivity_timeout` (bounds stolen
+  localStorage refresh tokens), keep CSP tight.
 
 ## ▶ LATER — Phase 2: first slice (blocked on Phase 1)
 - [ ] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5).
