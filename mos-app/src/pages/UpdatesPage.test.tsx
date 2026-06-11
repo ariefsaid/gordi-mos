@@ -437,3 +437,67 @@ describe('UpdatesPage write pane — week navigation (T-052)', () => {
     expect(weekPill.textContent).toMatch(/week of/i)
   })
 })
+
+// ── FIX 1: locked view derives from local state (single source of truth) ──────
+describe('UpdatesPage write pane — locked view reflects locally-added lines (FIX-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Start from a draft with NO lines
+    mockGetMyUpdate.mockResolvedValue({
+      update: {
+        id: 'upd-new', org_id: 'org', person_id: VIEWER_ID,
+        week_start: '2026-06-08', summary: 'Starting summary',
+        status: 'draft', submitted_at: null,
+        created_by: VIEWER_ID,
+        created_at: '2026-06-10T08:00:00Z', updated_at: '2026-06-10T08:00:00Z',
+      },
+      items: [],
+    })
+    mockUpsertDraft.mockResolvedValue('upd-new')
+    mockSubmit.mockResolvedValue(undefined)
+  })
+
+  it('newly added line is visible in the locked read-only view after submit (FIX-1)', async () => {
+    renderPage()
+    await waitFor(() => screen.getByRole('button', { name: /add line/i }))
+
+    // Add a new line
+    fireEvent.click(screen.getByRole('button', { name: /add line/i }))
+    await waitFor(() => screen.getAllByTestId('update-line-row'))
+    const lineInput = screen.getByRole('textbox', { name: /update line text/i })
+    fireEvent.change(lineInput, { target: { value: 'Brand new line added locally' } })
+
+    // Submit
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit update/i }))
+    })
+
+    // After submit the locked view must show the new line (FIX-1: single source of truth)
+    await waitFor(() => expect(screen.getByRole('button', { name: /reopen/i })).toBeTruthy())
+    const staticRows = screen.getAllByTestId('update-line-row-static')
+    expect(staticRows.some(r => r.textContent?.includes('Brand new line added locally'))).toBe(true)
+  })
+})
+
+// ── FIX 3: Reopen busy-guard ───────────────────────────────────────────────────
+describe('UpdatesPage write pane — Reopen busy-guard (FIX-3)', () => {
+  it('Reopen button is disabled while a reopen call is in-flight (FIX-3)', async () => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(SUBMITTED_UPDATE)
+    // Reopen never resolves during this test — stays busy
+    mockReopen.mockReturnValue(new Promise(() => {}))
+
+    renderPage()
+    await waitFor(() => screen.getByRole('button', { name: /reopen/i }))
+
+    // Click reopen — it goes in-flight
+    fireEvent.click(screen.getByRole('button', { name: /reopen/i }))
+
+    // While in-flight the button must be disabled (native or aria-disabled)
+    await waitFor(() => {
+      const btn = screen.getByRole('button', { name: /reopen/i })
+      const isDisabled = btn.hasAttribute('disabled') || btn.getAttribute('aria-disabled') === 'true'
+      expect(isDisabled).toBe(true)
+    })
+  })
+})

@@ -3,7 +3,7 @@
 // All states: loading skeleton / error+Retry / empty / draft-with-content / submitted-locked.
 // AC-031..038, FR-010/012/013/014/015/016/017/018/019.
 import { useState, useEffect, useCallback, useId, useRef } from 'react'
-import type { MyUpdate, WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
+import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
 import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdate } from '../../lib/db/weeklyUpdates'
 import { weekLabel, weeklyUpdateTiming } from '../../lib/week'
 import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
@@ -205,7 +205,6 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
   // ── State ────────────────────────────────────────────────────────────────
   type LoadState = 'loading' | 'error' | 'ready'
   const [loadState, setLoadState]     = useState<LoadState>('loading')
-  const [dbUpdate, setDbUpdate]       = useState<MyUpdate | null>(null)
 
   // Local editable state (draft)
   const [summary, setSummary]     = useState('')
@@ -225,7 +224,6 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     setLoadState('loading')
     try {
       const result = await getMyUpdate(personId, weekStart)
-      setDbUpdate(result)
       if (result) {
         setSummary(result.update.summary)
         setStatus(result.update.status)
@@ -294,6 +292,16 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     })
   }, [])
 
+  // ── Shared payload builder ────────────────────────────────────────────────
+  const buildLinesPayload = useCallback(() =>
+    lines.map(l => ({
+      id: l.id,
+      label: l.label,
+      progress: l.progress,
+      position: l.position,
+    }))
+  , [lines])
+
   // ── Save draft (AC-035) ───────────────────────────────────────────────────
   const handleSaveDraft = useCallback(async () => {
     setSaving(true)
@@ -305,12 +313,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
         weekStart,
         createdBy,
         summary,
-        lines: lines.map(l => ({
-          id: l.id,
-          label: l.label,
-          progress: l.progress,
-          position: l.position,
-        })),
+        lines: buildLinesPayload(),
       })
       setUpdateId(id)
       setSaveConfirm(true)
@@ -321,28 +324,24 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     } finally {
       setSaving(false)
     }
-  }, [updateId, personId, weekStart, createdBy, summary, lines])
+  }, [updateId, personId, weekStart, createdBy, summary, buildLinesPayload])
 
-  // ── Submit (AC-036) ───────────────────────────────────────────────────────
+  // ── Submit (AC-036) — unified handler for both new + existing update ──────
   const handleSubmit = useCallback(async () => {
-    if (submitDisabled || saving || !updateId) return
+    if (submitDisabled || saving) return
     setSaving(true)
     setSaveError(null)
     try {
-      // Ensure latest draft is saved first (in case the user hasn't saved yet)
+      // Upsert with current updateId (undefined = new, existing id = update)
       const id = await upsertDraft({
         id: updateId,
         personId,
         weekStart,
         createdBy,
         summary,
-        lines: lines.map(l => ({
-          id: l.id,
-          label: l.label,
-          progress: l.progress,
-          position: l.position,
-        })),
+        lines: buildLinesPayload(),
       })
+      setUpdateId(id)
       await submitUpdate(id)
       setStatus('submitted')
       // Optimistically set submitted_at to now for timing chip
@@ -352,49 +351,23 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     } finally {
       setSaving(false)
     }
-  }, [submitDisabled, saving, updateId, personId, weekStart, createdBy, summary, lines])
-
-  // Submit when update doesn't exist yet (new upsert + submit)
-  const handleSubmitNew = useCallback(async () => {
-    if (submitDisabled || saving) return
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const id = await upsertDraft({
-        id: undefined,
-        personId,
-        weekStart,
-        createdBy,
-        summary,
-        lines: lines.map(l => ({
-          id: l.id,
-          label: l.label,
-          progress: l.progress,
-          position: l.position,
-        })),
-      })
-      setUpdateId(id)
-      await submitUpdate(id)
-      setStatus('submitted')
-      setSubmittedAt(new Date().toISOString())
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Submit failed')
-    } finally {
-      setSaving(false)
-    }
-  }, [submitDisabled, saving, personId, weekStart, createdBy, summary, lines])
+  }, [submitDisabled, saving, updateId, personId, weekStart, createdBy, summary, buildLinesPayload])
 
   // ── Reopen (AC-037) ───────────────────────────────────────────────────────
   const handleReopen = useCallback(async () => {
-    if (!updateId) return
+    if (!updateId || saving) return
+    setSaving(true)
+    setSaveError(null)
     try {
       await reopenUpdate(updateId)
       setStatus('draft')
       setSubmittedAt(null)
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Reopen failed')
+    } finally {
+      setSaving(false)
     }
-  }, [updateId])
+  }, [updateId, saving])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -496,14 +469,18 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           </p>
         </div>
 
-        {/* Update lines — read-only (AC-031) */}
-        {(dbUpdate?.items ?? lines.map(l => ({ ...l, id: l.localId, org_id: '', weekly_update_id: '', created_at: '', updated_at: '' }))).length > 0 && (
+        {/* Update lines — read-only; derived from local state (single source of truth, FIX-1) */}
+        {lines.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(240 4% 40%)', marginBottom: 8 }}>
               Update lines
             </div>
-            {(dbUpdate?.items ?? []).map((item, i, arr) => (
-              <StaticLineRow key={item.id} item={item} isLast={i === arr.length - 1} />
+            {lines.map((l, i) => (
+              <StaticLineRow
+                key={l.localId}
+                item={{ id: l.localId, org_id: '', weekly_update_id: '', label: l.label, progress: l.progress, position: l.position, created_at: '', updated_at: '' }}
+                isLast={i === lines.length - 1}
+              />
             ))}
           </div>
         )}
@@ -513,12 +490,15 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           <button
             type="button"
             onClick={handleReopen}
+            disabled={saving}
+            aria-busy={saving ? 'true' : undefined}
             style={{
               height: 32, padding: '0 12px', borderRadius: 8,
               border: '1px solid hsl(240 5.9% 90%)',
-              background: 'hsl(0 0% 100%)', cursor: 'pointer',
+              background: 'hsl(0 0% 100%)', cursor: saving ? 'not-allowed' : 'pointer',
               fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
               color: 'hsl(240 10% 3.9%)',
+              opacity: saving ? 0.5 : 1,
             }}
           >
             Reopen to edit
@@ -653,7 +633,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           {/* Submit update (§2.3, AC-033) */}
           <button
             type="button"
-            onClick={updateId ? handleSubmit : handleSubmitNew}
+            onClick={handleSubmit}
             disabled={saving}
             aria-disabled={submitDisabled || saving ? 'true' : 'false'}
             aria-busy={saving ? 'true' : undefined}
