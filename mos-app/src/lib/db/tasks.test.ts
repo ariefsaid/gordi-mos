@@ -107,13 +107,17 @@ describe('listTasks', () => {
     noOrgId(rec)
   })
 
-  it('applies businessUnitId / status / personId filters and includeArchived', async () => {
+  it('applies businessUnitId / status / includeArchived server-side; does NOT send a personId filter', async () => {
+    // Director ruling: personId / RACI-membership filtering is client-side (raciMember predicate).
+    // The server only receives BU + status + archived — never responsible_person_id as a filter.
+    // The old test pinned the narrow R-only behavior; this rewrite reflects the correct contract.
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, rec) as never)
-    await listTasks({ businessUnitId: 'bu', status: 'Blocked', personId: 'p1', includeArchived: true })
+    await listTasks({ businessUnitId: 'bu', status: 'Blocked', includeArchived: true })
     expect(rec.eqs).toContainEqual(['business_unit_id', 'bu'])
     expect(rec.eqs).toContainEqual(['status', 'Blocked'])
-    expect(rec.eqs).toContainEqual(['responsible_person_id', 'p1'])
+    // personId is NOT a server filter — must never appear as responsible_person_id eq
+    expect(rec.eqs.find(([c]) => c === 'responsible_person_id')).toBeUndefined()
     // includeArchived → no archived_at filter
     expect(rec.eqs.find(([c]) => c === 'archived_at')).toBeUndefined()
   })

@@ -26,17 +26,22 @@ const LIST_SELECT =
 export interface TaskListFilters {
   businessUnitId?: string
   status?: TaskStatus
-  personId?: string
+  // NOTE: personId is NOT sent to the server as a query filter. The server only knows
+  // responsible_person_id; RACI membership (R/A/C/I) is a client-side predicate applied
+  // over the org-readable set after load. Keeping this field here for API surface consistency
+  // but it is handled entirely by raciMember() + caller-side filtering.
+  // Use responsiblePersonId if you need a server-side responsible-only filter (e.g. future perf).
   includeArchived?: boolean
 }
 
-/** List tasks with optional filters (FR-024), active-only by default (FR-025), due asc (FR-026). */
+/** List tasks with BU/status/archived filters (FR-024/025/026). Person-membership is
+ * client-side via raciMember() — the full org set is loaded (org-readable; ~15 people / dozens
+ * of tasks at Gordi scale). BU + status + archived are server-side for server-side sorting. */
 export async function listTasks(f: TaskListFilters = {}): Promise<TaskListRow[]> {
   let q = mos().from('tasks').select(LIST_SELECT)
   if (!f.includeArchived) q = q.is('archived_at', null)
   if (f.businessUnitId) q = q.eq('business_unit_id', f.businessUnitId)
   if (f.status) q = q.eq('status', f.status)
-  if (f.personId) q = q.eq('responsible_person_id', f.personId)
   q = q.order('due_date', { ascending: true, nullsFirst: false })
   const { data, error } = await q
   if (error) throw new Error(`listTasks failed — ${error.message}`)
