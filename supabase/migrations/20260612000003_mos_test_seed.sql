@@ -72,4 +72,9 @@ end;
 $$;
 comment on function mos._test_seed_role_tree() is 'TEST-ONLY fixture (SECURITY DEFINER): seeds the WU-A/WU-B role tree for the weekly-update pgTAP suite. Call only inside a begin;...rollback; transaction.';
 
+-- Lock execution to postgres/service_role only — public default grant would expose this as a
+-- reachable PostgREST RPC (mos is in api.schemas), letting any authenticated user bypass RLS
+-- and write arbitrary orgs/people/roles into the shared directory (audit Critical, 2026-06-11).
+revoke execute on function mos._test_seed_role_tree() from public, anon, authenticated;
+
 -- DOWN: drop function mos._test_seed_role_tree();

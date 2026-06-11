@@ -21,6 +21,27 @@ jobs:
         # `supabase status -o env` only emits keys when the full stack is up.
         run: supabase start
 
+      - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
+        # Defense-in-depth: prevents a recurrence of the _test_seed_role_tree audit Critical
+        # (2026-06-11) where a SECURITY DEFINER function was reachable via PostgREST because
+        # it lacked an explicit REVOKE. Each file with 'security definer' must contain a
+        # matching 'revoke execute on function' in the same file.
+        run: |
+          failed=0
+          for f in supabase/migrations/*.sql; do
+            if grep -qi 'security definer' "$f"; then
+              if ! grep -qi 'revoke execute on function' "$f"; then
+                echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
+                failed=1
+              fi
+            fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;' after each SECURITY DEFINER function definition." >&2
+            exit 1
+          fi
+          echo "Lint OK: all SECURITY DEFINER migrations have revoke."
+
       - name: pgTAP suite
         run: supabase test db
 

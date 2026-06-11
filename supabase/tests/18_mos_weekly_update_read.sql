@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(11);
 
 -- THE security crux (OD-P1-3): weekly updates are UPWARD-ONLY readable — author OR up-chain manager,
 -- never peers, never downward, never cross-org. Asserted by visible-count per session.
@@ -60,6 +60,20 @@ select is((select count(*)::int from mos.weekly_updates where id='00000000-0000-
 -- AC-004b: that same M2 (Lead2Holder) is NOT a manager of the plain Author -> denied (negative control).
 select is((select count(*)::int from mos.weekly_updates where id='00000000-0000-0000-0000-00000000c001'),
   0, 'AC-004: a non-chain lead (Lead2Holder) cannot read the plain author''s update');
+
+-- AC-SEC-001: _test_seed_role_tree is SECURITY DEFINER — assert it is locked to postgres/service_role
+-- only and is NOT callable by authenticated or anon (revoked in 20260612000003_mos_test_seed.sql).
+-- Before fix: has_function_privilege('authenticated','mos._test_seed_role_tree()','EXECUTE') was TRUE
+-- (postgres grants EXECUTE to PUBLIC by default, and authenticated inherits from public).
+-- After fix: FALSE for both authenticated and anon.
+select ok(
+  not has_function_privilege('authenticated', 'mos._test_seed_role_tree()', 'EXECUTE'),
+  'AC-SEC-001: authenticated role CANNOT execute mos._test_seed_role_tree() (PostgREST lockdown)'
+);
+select ok(
+  not has_function_privilege('anon', 'mos._test_seed_role_tree()', 'EXECUTE'),
+  'AC-SEC-001: anon role CANNOT execute mos._test_seed_role_tree() (PostgREST lockdown)'
+);
 
 reset role;
 select * from finish();
