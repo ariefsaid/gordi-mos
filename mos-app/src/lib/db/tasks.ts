@@ -16,12 +16,10 @@ import type {
 
 const mos = () => supabase.schema('mos')
 
-// Embedded select resolving BU + Responsible + Accountable display names (snake_case, consumed directly).
-const LIST_SELECT =
-  '*,' +
-  'business_unit:business_units(id,name),' +
-  'responsible:people!responsible_person_id(id,full_name),' +
-  'accountable:people!accountable_person_id(id,full_name)'
+// Raw mos.tasks columns only — no cross-schema FK embeds.
+// PostgREST CANNOT FK-embed across schemas (mos→shared) under the mos profile (PGRST200).
+// Display-name resolution is client-side via directory.ts (Fix C1).
+const LIST_SELECT = '*'
 
 export interface TaskListFilters {
   businessUnitId?: string

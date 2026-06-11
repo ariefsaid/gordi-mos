@@ -43,9 +43,7 @@ export interface TaskEventRow {
   to_value: string | null
   created_at: string
 }
-// List/detail joined shapes (R/A/BU names resolved via embedded selects — snake_case, consumed directly).
-export interface TaskListRow extends TaskRow {
-  business_unit: { id: string; name: string } | null
-  responsible: { id: string; full_name: string } | null
-  accountable: { id: string; full_name: string } | null
-}
+// Raw mos.tasks row — no cross-schema embeds (PostgREST PGRST200 across schema boundary).
+// R/A/BU display names are resolved client-side from the shared directory (directory.ts).
+// Fix C1: dropped business_unit / responsible / accountable embedded objects.
+export type TaskListRow = TaskRow

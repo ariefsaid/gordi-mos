@@ -66,15 +66,13 @@ function freshRec(): Recorder {
 const TASK_ID = '00000000-0000-0000-0000-00000000a000'
 const ACTOR = '40000000-0000-0000-0000-000000000001'
 
+// Fix C1: TaskListRow is now TaskRow (raw columns only — no cross-schema embeds).
 const sampleTask: TaskListRow = {
   id: TASK_ID, org_id: 'org', title: 'T', business_unit_id: 'bu', status: 'Open',
   responsible_person_id: ACTOR, accountable_person_id: ACTOR,
   consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
   last_activity_at: '2026-06-10T00:00:00Z', archived_at: null, created_by: ACTOR,
   created_at: '2026-06-10T00:00:00Z', updated_at: '2026-06-10T00:00:00Z',
-  business_unit: { id: 'bu', name: 'Cafe' },
-  responsible: { id: ACTOR, full_name: 'Cahya' },
-  accountable: { id: ACTOR, full_name: 'Cahya' },
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -90,17 +88,20 @@ function noOrgId(rec: Recorder) {
 
 // ── listTasks ───────────────────────────────────────────────────────────────
 describe('listTasks', () => {
-  it('embeds BU/R/A names, defaults to active-only + due asc, never sends org_id', async () => {
+  it('AC-C1: returns raw task rows (no cross-schema embeds), active-only + due asc, never sends org_id', async () => {
+    // Fix C1: LIST_SELECT is now '*' only — no BU/R/A embedded selects (PGRST200 across schemas).
+    // Display-name resolution is client-side via directory.ts.
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [sampleTask], error: null }] }, rec) as never)
 
     const rows = await listTasks()
     expect(rows).toEqual([sampleTask])
     expect(rec.fromTables).toContain('tasks')
+    // Raw select — must NOT contain cross-schema embed syntax
     const sel = rec.selects.join(' ')
-    expect(sel).toContain('business_unit:business_units(id,name)')
-    expect(sel).toContain('responsible:people!responsible_person_id(id,full_name)')
-    expect(sel).toContain('accountable:people!accountable_person_id(id,full_name)')
+    expect(sel).not.toContain('business_unit:business_units')
+    expect(sel).not.toContain('responsible:people')
+    expect(sel).not.toContain('accountable:people')
     // active-only by default (archived_at is null) and due_date ascending
     expect(rec.eqs).toContainEqual(['archived_at', null])
     expect(rec.orders[0][0]).toBe('due_date')
