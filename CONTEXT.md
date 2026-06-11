@@ -59,10 +59,28 @@ _Avoid_: watcher, CC, stakeholder
 ## Cadence
 
 **Weekly Update**:
-A person-keyed summary of one person's week, due Friday; managers review their people's. A
-deliberate change from Notion's project-keyed "Project Updates" — per-task references inside a
-weekly update bridge the two.
+A person-keyed recap of one person's week — a free-text summary plus a list of update lines. Keyed by
+(person, week). Everyone files one (incl. top-of-chain, who has no reviewer); a manager reads their
+reports' (upward-only — author + manager chain, OD-P1-3) and files their own upward. Person-keyed is a
+deliberate change from Notion's project-keyed "Project Updates".
 _Avoid_: project update, status report, check-in
+
+**Update line**:
+One free-text row inside a weekly update — what was worked on — carrying a **progress marker**. It is
+NOT linked to a Task (deliberate: a weekly recap is narrative + self-reported progress, not
+task-tracking). Distinct from a Task and from a Checklist item.
+_Avoid_: task (a line is not a task), entry
+
+**Progress marker**:
+The done/achieved cue on an update line — **Done · In progress · Blocked**. Distinct from a task's
+**Status** (an update line has no Status; it is self-reported, not the task's real state).
+_Avoid_: status (reserve that for tasks)
+
+**Submitted** / **Draft** (a weekly update):
+A weekly update is **Draft** (editable) until the author **Submits** it, which locks it read-only (the
+stable thing a manager reviews). The author may **Reopen** a submitted update back to Draft, edit, and
+re-Submit. Filing after the Friday due / week close is allowed ("filed late") — weeks never hard-lock.
+_Avoid_: filed (as the status name — say Submitted), published, locked
 
 **Ops Event**:
 One typed, source-badged operational happening (production, receiving, QC, follow-up…) mirrored

@@ -168,6 +168,40 @@ admin UI is post-MVP.
 Authenticated user with no linked `shared.people` row sees a blocked screen ("account not set up —
 contact Arief"); no auto-created directory rows (consistent with closing audit M1's pre-claim seam).
 
+## OD-P2-WU — Weekly updates (LOCKED 2026-06-11, grill-with-docs session #3)
+
+Feature P2-2, the `mos.weekly_updates` entity. Anchored to mock-weekly-update.html, OD-P0-1
+(per-person), OD-P0-9 (person-keyed change from Notion project-keyed), OD-P1-3 (upward-only read) /
+OD-P1-4 (Mon–Sun WIB week) / OD-P1-7 (union manager chain).
+
+### OD-P2-10 — Content: summary text + free-text update lines (no task FK)
+A weekly update has a free-text `summary` plus a list of **update lines** (a `mos.weekly_update_items`
+child table). Each line = free text + a **progress marker** (Done / In progress / Blocked) for the
+"what we've achieved" visual cue. Lines are NOT foreign-keyed to `mos.tasks` — deliberate: a weekly
+recap is narrative + self-reported progress, not task-tracking; speed over linkage. (The task↔update
+bridge can be added later as an additive nullable FK if usage demands, like ADR-0003's task cascade seam.)
+
+### OD-P2-11 — Lifecycle: Draft → Submitted (Submit locks; Reopen to revise)
+`status` is **draft | submitted**. Submit makes the update read-only (the stable artifact the manager
+reviews). The author may **Reopen** → draft → edit → re-Submit. No hard immutability (a typo is fixable).
+
+### OD-P2-12 — Manager review is READ-ONLY (v1)
+A manager reads their reports' updates (upward-only per OD-P1-3: author + anyone up the manager chain).
+No acknowledgement, no comment captured in v1. Managers are themselves authors — they file their own
+update upward. (Acknowledge / comment can come later, like task comments deferred from P2-1.)
+
+### OD-P2-13 — Week key: (person, week_start Monday WIB); one per person per week
+Keyed by `week_start` = that week's Monday in Asia/Jakarta (OD-P1-4; reuse src/lib/week.ts).
+`UNIQUE(org_id, person_id, week_start)` — exactly one weekly update per person per week.
+
+### OD-P2-14 — Everyone files; late filing allowed; reminders deferred
+Every person files their own update, including top-of-chain (who has no reviewer — files for
+self-cadence/visibility). Late filing is allowed and weeks never hard-lock; the Friday due drives only
+an **on-time vs late SIGNAL** (filed/draft/not-started shown in the manager review pane + the My Week
+strip). Email/push **reminders are deferred** to a later notification issue — no SMTP dependency in P2-2.
+
+---
+
 ## OD-P2 — Tasks + lightweight RACI (LOCKED 2026-06-11, grill-with-docs session #2)
 
 Feature: P2-1, the core `mos.tasks` entity. Anchored to the IA-8 task-list + task-detail mockups,
