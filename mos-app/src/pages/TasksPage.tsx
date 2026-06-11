@@ -54,6 +54,7 @@ function TaskCard({ task, now, buName, rName }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
   const age = formatAge(task.last_activity_at, now)
   const n = otherRaciCount(task)
+  const isArchived = task.archived_at != null
 
   const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
@@ -67,7 +68,8 @@ function TaskCard({ task, now, buName, rName }: TaskCardProps) {
     >
       <Link to={`/tasks/${task.id}`} className="task-card-link">
         <div className="task-card-head">
-          <span className="task-name">{task.title}</span>
+          {isArchived && <span className="archived-tag">Archived</span>}
+          <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
@@ -155,7 +157,11 @@ export default function TasksPage() {
         setLoading(false)
       }
     }).catch((err: Error) => {
-      if (!cancelled) { setError(err.message); setLoading(false) }
+      if (!cancelled) {
+        console.error('[TasksPage] load failed:', err)
+        setError('load-failed')
+        setLoading(false)
+      }
     })
 
     return () => { cancelled = true }
@@ -419,7 +425,7 @@ export default function TasksPage() {
             className="error-banner"
           >
             <span className="error-text">
-              Couldn&apos;t load tasks — {error}
+              Couldn&apos;t load tasks
             </span>
             <button
               type="button"
@@ -510,6 +516,7 @@ export default function TasksPage() {
                     : '—'
                   const buName = buMap.get(task.business_unit_id) ?? ''
                   const rName = personMap.get(task.responsible_person_id) ?? ''
+                  const isArchived = task.archived_at != null
                   return (
                     <tr
                       key={task.id}
@@ -522,7 +529,10 @@ export default function TasksPage() {
                           className="task-row-link"
                           tabIndex={0}
                         >
-                          <span className="task-name">{task.title}</span>
+                          <span className="task-title-line">
+                            {isArchived && <span className="archived-tag">Archived</span>}
+                            <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
+                          </span>
                           <span className="task-bu">{buName}</span>
                         </Link>
                       </td>
@@ -677,6 +687,7 @@ export default function TasksPage() {
           height: 54px; padding: 0 12px;
           border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
           vertical-align: middle; text-align: right;
+          white-space: nowrap;
         }
         .task-row { cursor: pointer; }
         .task-row:last-child td { border-bottom: none; }
@@ -685,10 +696,23 @@ export default function TasksPage() {
           display: block; text-decoration: none; color: inherit;
         }
         .task-row-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+        .task-title-line {
+          display: flex; align-items: center; gap: 6px;
+          overflow: hidden;
+        }
         .task-name {
           font-weight: 600; font-size: 13.5px;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-          display: block; color: hsl(var(--foreground));
+          display: block; color: hsl(var(--foreground)); min-width: 0;
+        }
+        .task-name-archived {
+          font-weight: 500; color: hsl(var(--muted-foreground));
+        }
+        .archived-tag {
+          display: inline-flex; align-items: center;
+          height: 18px; padding: 0 6px; border-radius: 4px;
+          background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+          font-size: 11px; font-weight: 500; white-space: nowrap; flex: none;
         }
         .task-bu {
           display: block; font-size: 12px;

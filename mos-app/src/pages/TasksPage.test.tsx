@@ -643,19 +643,127 @@ describe('Fix M2 — task count suppressed in error state', () => {
 
 // ── Fix C1: directory error state ─────────────────────────────────────────────
 describe('Fix C1 — directory error shows error banner', () => {
-  it('AC-C1-direrr: when getBusinessUnits rejects, shows error banner', async () => {
+  it('AC-C1-direrr: when getBusinessUnits rejects, shows friendly error banner (not raw error)', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     mockGetBusinessUnits.mockRejectedValue(new Error('directory down'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    expect(screen.getByText(/directory down/i)).toBeTruthy()
+    // Must show the friendly message, not the raw error string
+    expect(screen.getByText(/couldn't load tasks/i)).toBeTruthy()
+    expect(screen.queryByText(/directory down/i)).toBeNull()
   })
 
-  it('AC-C1-direrr2: when getPeople rejects, shows error banner', async () => {
+  it('AC-C1-direrr2: when getPeople rejects, shows friendly error banner (not raw error)', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     mockGetPeople.mockRejectedValue(new Error('people unavailable'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    expect(screen.getByText(/people unavailable/i)).toBeTruthy()
+    // Must show the friendly message, not the raw error string
+    expect(screen.getByText(/couldn't load tasks/i)).toBeTruthy()
+    expect(screen.queryByText(/people unavailable/i)).toBeNull()
+  })
+})
+
+// ── Fix DR-1: archived row treatment ──────────────────────────────────────────
+describe('archived row treatment — "Archived" chip + muted title', () => {
+  it('DR-1a: desktop — archived task row renders "Archived" tag and muted title; live row does not', async () => {
+    stubMatchMedia(true) // desktop
+    const archived = makeTask({
+      id: 'arch-1', title: 'Archived task',
+      archived_at: '2026-06-01T00:00:00Z',
+      responsible_person_id: VIEWER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
+    const live = makeTask({
+      id: 'live-1', title: 'Live task',
+      archived_at: null,
+      responsible_person_id: VIEWER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
+    // Use "All" segment so both tasks are visible
+    mockListTasks.mockResolvedValue([archived, live])
+    renderPage()
+
+    // Switch to "All" so archived row is visible
+    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+
+    // Toggle show archived
+    const toggle = screen.getByRole('checkbox', { name: /show archived/i })
+    fireEvent.click(toggle)
+
+    await waitFor(() => screen.getByText('Archived task'))
+
+    // Archived row: "Archived" chip present
+    const archivedChips = document.querySelectorAll('.archived-tag')
+    expect(archivedChips.length).toBeGreaterThan(0)
+
+    // Archived row title: has muted styling (task-name-archived class)
+    const archivedTitle = document.querySelector('.task-name-archived')
+    expect(archivedTitle).toBeTruthy()
+    expect(archivedTitle?.textContent).toBe('Archived task')
+
+    // Live row: no archived chip, no muted title
+    const liveRows = Array.from(document.querySelectorAll('tbody tr.task-row'))
+    const liveRow = liveRows.find(r => r.textContent?.includes('Live task'))
+    expect(liveRow?.querySelector('.archived-tag')).toBeNull()
+    expect(liveRow?.querySelector('.task-name-archived')).toBeNull()
+  })
+
+  it('DR-1b: mobile — archived TaskCard renders "Archived" tag and muted title; live card does not', async () => {
+    stubMatchMedia(false) // mobile
+    const archived = makeTask({
+      id: 'arch-mob', title: 'Archived mobile task',
+      archived_at: '2026-06-01T00:00:00Z',
+      responsible_person_id: VIEWER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
+    const live = makeTask({
+      id: 'live-mob', title: 'Live mobile task',
+      archived_at: null,
+      responsible_person_id: VIEWER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
+    mockListTasks.mockResolvedValue([archived, live])
+    renderPage()
+
+    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /show archived/i }))
+
+    await waitFor(() => screen.getByText('Archived mobile task'))
+
+    // Archived card: "Archived" chip present
+    const archivedCards = document.querySelectorAll('[data-testid="task-card"]')
+    const archivedCard = Array.from(archivedCards).find(c => c.textContent?.includes('Archived mobile task'))
+    expect(archivedCard?.querySelector('.archived-tag')).toBeTruthy()
+    expect(archivedCard?.querySelector('.task-name-archived')).toBeTruthy()
+
+    // Live card: no archived chip
+    const liveCard = Array.from(archivedCards).find(c => c.textContent?.includes('Live mobile task'))
+    expect(liveCard?.querySelector('.archived-tag')).toBeNull()
+    expect(liveCard?.querySelector('.task-name-archived')).toBeNull()
+  })
+})
+
+// ── Fix DR-2: error banner shows only friendly copy ───────────────────────────
+describe('DR-2 — error banner shows only friendly copy, not raw error message', () => {
+  it('DR-2a: error banner text is exactly "Couldn\'t load tasks" without appended raw error', async () => {
+    mockListTasks.mockRejectedValue(new Error('listTasks failed — forced error'))
+    renderPage()
+    await waitFor(() => screen.getByRole('alert'))
+    const banner = screen.getByRole('alert')
+    // Should contain the friendly message
+    expect(banner.textContent).toMatch(/couldn't load tasks/i)
+    // Must NOT expose the internal error string
+    expect(banner.textContent).not.toContain('listTasks failed')
+    expect(banner.textContent).not.toContain('forced error')
+  })
+
+  it('DR-2b: Retry button is present alongside the friendly message', async () => {
+    mockListTasks.mockRejectedValue(new Error('network timeout'))
+    renderPage()
+    await waitFor(() => screen.getByRole('alert'))
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
   })
 })
