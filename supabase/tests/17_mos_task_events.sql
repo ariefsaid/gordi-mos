@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(4);
+select plan(5);
 
 -- Task with R(d1) as the session person; the AFTER-INSERT trigger on task_events bumps
 -- tasks.last_activity_at to the event's created_at (§3.4, one canonical clock).
@@ -60,6 +60,12 @@ select throws_ok($$
   insert into mos.task_events (task_id, actor_person_id, event_type)
   values ('00000000-0000-0000-0000-0000000c3001','00000000-0000-0000-0000-0000000000d2','field_edited')
 $$, '42501', null, 'AC-050: event actor_person_id must equal the session person (no spoofed actor)');
+
+-- AC-052: authenticated must NOT have UPDATE privilege on mos.task_events (append-only audit log).
+select ok(
+  not has_table_privilege('authenticated', 'mos.task_events', 'UPDATE'),
+  'AC-052: authenticated role has no UPDATE privilege on mos.task_events (immutable audit)'
+);
 
 reset role;
 select * from finish();

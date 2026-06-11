@@ -3,7 +3,7 @@
 -- anywhere (NFR-002, FR-053): hard delete is structurally impossible for the app tier.
 grant select, insert, update on mos.tasks                to authenticated;
 grant select, insert, update on mos.task_checklist_items to authenticated;
-grant select, insert, update on mos.task_events          to authenticated;
+grant select, insert          on mos.task_events          to authenticated; -- append-only: no UPDATE (audit L1, immutability privilege-enforced)
 
 -- can_edit_task(task_id): the edit predicate (R OR A OR mgr-of-R OR mgr-of-A), org-scoped.
 -- Reused by the tasks UPDATE policy and the child-table write policies (D3).
