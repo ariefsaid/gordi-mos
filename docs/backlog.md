@@ -37,7 +37,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   signup both keys (`enable_signup=false`; verify with a live self-signup probe expecting 422),
   consider the before_user_created hook as domain allowlist, raise password policy (≥8 +
   lower_upper_letters_digits), set session `timebox` (~24h) + `inactivity_timeout` (bounds stolen
-  localStorage refresh tokens), keep CSP tight.
+  localStorage refresh tokens), keep CSP tight. ALSO: configure prod SMTP (GoTrue sends nothing
+  without it — magic links/invites/resets dead until wired; recommendation: Resend + SPF/DKIM on
+  gordi.id; password login works without SMTP).
 
 ## ▶ LATER — Phase 2: first slice (blocked on Phase 1)
 - [ ] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5).
