@@ -57,7 +57,11 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-2b write pane + ProgressMarker — PR #9 (summary + update lines w/ progress marker,
     Save draft/Submit/Reopen, submitted-locked, on-time/late; 3-lens caught a transparent-Submit
     Critical unit tests missed → fixed). 337 unit · 9 e2e. (CI: excluded flaky edge-runtime.)
-  - [ ] P2-2c manager review pane + My Week strip wiring + 2 e2e.
+  - [x] P2-2c manager review pane + My Week strip + team-module wiring + 2 e2e — PR #9-base + PR #10
+    (review roster, read-only row-open per-person update, prior-week nav, filed/draft/not-started +
+    on-time/late, My Week strip + team module wired to listTeamUpdates). **P2-2 COMPLETE.**
+    NOTE: base P2-2c was accidentally pushed direct to main (git-hygiene slip); PR #10 rolled forward
+    the bypassed review — 3-lens caught 3 Criticals incl. unimplemented FR-031 row-open. 396 unit · 11 e2e.
 - [ ] P2-3 daily ops updates feed (manual entry first).
 - [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
 
@@ -77,6 +81,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   SECURITY DEFINER RPC. · `as unknown as` casts on the two PostgREST-embed reads in `tasks.ts` → optional
   boundary `assertTaskListRow` if the hand-synced `mos` types ever drift.
 - UserChip menu: add outside-click dismissal (standard popover behavior; Esc-only today) — from P1-4 quality review.
+- **auth-recovery.spec.ts e2e flake** (pre-existing since P1-3): intermittent mailpit timing failure
+  under full-suite load; passes in isolation + in CI. Stabilize (poll mailpit w/ retry, or isolate the
+  recovery mailbox) so it can't mask a real regression.
 - **P2-1c polish deferrals (non-blocking):** create-form R/A use native `<select>` not the detail
   role-chip picker (consistency) · extract a shared `<PersonField>`/`<PersonAvatar>` primitive when a
   3rd consumer appears (P2-2 weekly updates likely) · generalize `ConfirmArchive` → reusable
