@@ -1,9 +1,10 @@
+import './TaskDetail.css'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import PageFrame from '../shell/PageFrame'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { useAuth } from '../auth/useAuth'
-import { getTask, updateTaskStatus, updateTaskRaci, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
+import { getTask, updateTaskStatus, updateTaskRaci, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
 import type { TaskDetail as TaskDetailData } from '../lib/db/tasks'
 import type { TaskListRow, TaskStatus, ChecklistItemRow, TaskEventRow } from '../lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
@@ -13,7 +14,6 @@ import { formatAge, formatDate, initials } from '../components/tasks/taskFormatt
 
 // ── Permission helpers (optimistic UX gate; DB is authority) ────────────────
 // Mirrors mos.can_edit_task: viewer is R, A, or any manager.
-// Manager arm is broad (viewer.isManager) — DB rejects if not manager-of-specific-R/A.
 function canEdit(task: TaskListRow, viewerId: string, isManager: boolean): boolean {
   return (
     task.responsible_person_id === viewerId ||
@@ -141,10 +141,14 @@ type RaciCardProps = {
   canEdit: boolean
   viewerId: string
   onRaciChange: (patch: Partial<Pick<TaskListRow, 'consulted_person_ids' | 'informed_person_ids'>>) => void
+  onRaChange: (patch: Partial<Pick<TaskListRow, 'responsible_person_id' | 'accountable_person_id'>>) => void
 }
-function RaciCard({ task, people, canEdit: editable, onRaciChange }: RaciCardProps) {
+function RaciCard({ task, people, canEdit: editable, onRaciChange, onRaChange }: RaciCardProps) {
   const [showCPicker, setShowCPicker] = useState(false)
   const [showIPicker, setShowIPicker] = useState(false)
+  // I2: R/A pickers
+  const [showRPicker, setShowRPicker] = useState(false)
+  const [showAPicker, setShowAPicker] = useState(false)
 
   function personName(id: string) {
     return people.find(p => p.id === id)?.full_name ?? id
@@ -174,7 +178,7 @@ function RaciCard({ task, people, canEdit: editable, onRaciChange }: RaciCardPro
     <section className="card" aria-label="RACI">
       <h2 className="card-h2">RACI</h2>
       <div className="raci-grid">
-        {/* Responsible */}
+        {/* Responsible — I2: editable picker for editors */}
         <div className="raci-field">
           <div className="raci-label">
             <span className="role-chip role-chip-r">
@@ -182,13 +186,37 @@ function RaciCard({ task, people, canEdit: editable, onRaciChange }: RaciCardPro
               Responsible
             </span>
           </div>
-          <div className="person-field" aria-label={`Responsible: ${rName}`}>
-            <span className="person-av" aria-hidden="true">{initials(rName)}</span>
-            <span className="person-name">{rName}</span>
-          </div>
+          {editable ? (
+            <>
+              <button
+                type="button"
+                className="person-field-btn"
+                aria-label="Change Responsible"
+                aria-haspopup="listbox"
+                aria-expanded={showRPicker}
+                onClick={() => setShowRPicker(o => !o)}
+              >
+                <span className="person-av" aria-hidden="true">{initials(rName)}</span>
+                <span className="person-name">{rName}</span>
+                <span className="person-field-edit-hint" aria-hidden="true">▾</span>
+              </button>
+              {showRPicker && (
+                <PersonPicker
+                  people={people}
+                  onSelect={id => onRaChange({ responsible_person_id: id })}
+                  onClose={() => setShowRPicker(false)}
+                />
+              )}
+            </>
+          ) : (
+            <div className="person-field" aria-label={`Responsible: ${rName}`}>
+              <span className="person-av" aria-hidden="true">{initials(rName)}</span>
+              <span className="person-name">{rName}</span>
+            </div>
+          )}
         </div>
 
-        {/* Accountable */}
+        {/* Accountable — I2: editable picker for editors */}
         <div className="raci-field">
           <div className="raci-label">
             <span className="role-chip role-chip-a">
@@ -196,10 +224,34 @@ function RaciCard({ task, people, canEdit: editable, onRaciChange }: RaciCardPro
               Accountable
             </span>
           </div>
-          <div className="person-field" aria-label={`Accountable: ${aName}`}>
-            <span className="person-av person-av-a" aria-hidden="true">{initials(aName)}</span>
-            <span className="person-name">{aName}</span>
-          </div>
+          {editable ? (
+            <>
+              <button
+                type="button"
+                className="person-field-btn"
+                aria-label="Change Accountable"
+                aria-haspopup="listbox"
+                aria-expanded={showAPicker}
+                onClick={() => setShowAPicker(o => !o)}
+              >
+                <span className="person-av person-av-a" aria-hidden="true">{initials(aName)}</span>
+                <span className="person-name">{aName}</span>
+                <span className="person-field-edit-hint" aria-hidden="true">▾</span>
+              </button>
+              {showAPicker && (
+                <PersonPicker
+                  people={people}
+                  onSelect={id => onRaChange({ accountable_person_id: id })}
+                  onClose={() => setShowAPicker(false)}
+                />
+              )}
+            </>
+          ) : (
+            <div className="person-field" aria-label={`Accountable: ${aName}`}>
+              <span className="person-av person-av-a" aria-hidden="true">{initials(aName)}</span>
+              <span className="person-name">{aName}</span>
+            </div>
+          )}
         </div>
 
         {/* Consulted */}
@@ -506,10 +558,13 @@ export default function TaskDetail() {
   }, [busDirectory])
 
   // ── Permission ───────────────────────────────────────────────────────────
-  const editable = useMemo(() => localTask
-    ? canEdit(localTask, viewerId, isManager)
-    : false,
-  [localTask, viewerId, isManager])
+  // M2: archived task is read-only except Unarchive — treat as non-editor
+  const isArchived = localTask?.archived_at != null
+
+  const editable = useMemo(() => {
+    if (isArchived) return false // M2: archived suppresses all edit affordances
+    return localTask ? canEdit(localTask, viewerId, isManager) : false
+  }, [localTask, viewerId, isManager, isArchived])
 
   const archiveable = useMemo(() => localTask
     ? canArchive(localTask, viewerId, isManager)
@@ -520,17 +575,14 @@ export default function TaskDetail() {
   async function handleStatusChange(newStatus: TaskStatus) {
     if (!localTask) return
     const oldStatus = localTask.status
-    // Optimistic update (inline, no navigation — FR-031)
     setLocalTask(t => t ? { ...t, status: newStatus } : t)
     try {
       await updateTaskStatus(localTask.id, oldStatus, newStatus, viewerId)
-      // Accept server state wholesale — it already has the new status + fresh events
       const refreshed = await getTask(localTask.id)
       setData(refreshed)
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
     } catch {
-      // Revert on error
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
     }
   }
@@ -543,7 +595,7 @@ export default function TaskDetail() {
     } catch { /* non-critical — stale events are acceptable */ }
   }
 
-  // ── RACI change ──────────────────────────────────────────────────────────
+  // ── RACI C/I change ──────────────────────────────────────────────────────
   async function handleRaciChange(patch: Partial<Pick<TaskListRow, 'consulted_person_ids' | 'informed_person_ids'>>) {
     if (!localTask) return
     const prev = { ...localTask }
@@ -556,11 +608,23 @@ export default function TaskDetail() {
     }
   }
 
+  // ── RACI R/A change (I2) ─────────────────────────────────────────────────
+  async function handleRaChange(patch: Partial<Pick<TaskListRow, 'responsible_person_id' | 'accountable_person_id'>>) {
+    if (!localTask) return
+    const prev = { ...localTask }
+    setLocalTask(t => t ? { ...t, ...patch } : t)
+    try {
+      await updateTaskFields(localTask.id, patch, viewerId)
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalTask(prev)
+    }
+  }
+
   // ── Checklist add ────────────────────────────────────────────────────────
   async function handleAddChecklist(label: string) {
     if (!localTask) return
     const position = localChecklist.length
-    // Optimistic add
     const newItem: ChecklistItemRow = {
       id: `optimistic-${Date.now()}`, org_id: '', task_id: localTask.id,
       label, is_done: false, position,
@@ -595,17 +659,14 @@ export default function TaskDetail() {
     if (swapIdx < 0 || swapIdx >= localChecklist.length) return
 
     const prev = localChecklist
-    // Optimistic: swap positions in the array
     const next = [...localChecklist]
     const swapId = next[swapIdx].id
     ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
-    // Re-stamp positions to match array order
     const reindexed = next.map((item, i) => ({ ...item, position: i }))
     setLocalChecklist(reindexed)
     try {
       await reorderChecklistItem(itemId, swapIdx)
       await reorderChecklistItem(swapId, idx)
-      // Reorder has no event (FR-042) — no refetch needed
     } catch {
       setLocalChecklist(prev)
     }
@@ -643,6 +704,8 @@ export default function TaskDetail() {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
+  // C1 fix: early-returns are now BELOW the CSS import (top of file), so all
+  // classes (.sk, .not-found-title, .btn-outline-link) are defined before mount.
   if (loading) return <PageFrame><DetailSkeleton /></PageFrame>
 
   if (notFound || !localTask) {
@@ -659,7 +722,6 @@ export default function TaskDetail() {
 
   const task = localTask
   const buName = buMap.get(task.business_unit_id) ?? task.business_unit_id
-  const isArchived = task.archived_at != null
   const events = data?.events ?? []
 
   return (
@@ -685,6 +747,7 @@ export default function TaskDetail() {
 
       {/* Head card */}
       <div className="card head-card">
+        {/* I1: actions-cluster stacks below title at <768px via CSS media query in TaskDetail.css */}
         <div className="head-top">
           <div className="head-title-block">
             <h1 className="task-title">{task.title}</h1>
@@ -740,13 +803,14 @@ export default function TaskDetail() {
         }
       </section>
 
-      {/* RACI card */}
+      {/* RACI card — I2: R/A now editable for editors */}
       <RaciCard
         task={task}
         people={peopleDirectory}
         canEdit={editable}
         viewerId={viewerId}
         onRaciChange={handleRaciChange}
+        onRaChange={handleRaChange}
       />
 
       {/* Checklist card */}
@@ -775,278 +839,6 @@ export default function TaskDetail() {
           onCancel={() => setShowConfirm(false)}
         />
       )}
-
-      <style>{`
-        /* ── Breadcrumb ── */
-        .breadcrumb { font-size: 13px; color: hsl(var(--muted-foreground)); margin-bottom: 12px; }
-        .breadcrumb-link { color: hsl(var(--muted-foreground)); text-decoration: none; }
-        .breadcrumb-link:hover { color: hsl(var(--foreground)); }
-        .breadcrumb-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .breadcrumb-sep { margin: 0 6px; }
-        .breadcrumb-current { color: hsl(var(--foreground)); font-weight: 500; }
-
-        /* ── Archived banner ── */
-        .archived-banner {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 10px 16px; margin-bottom: 12px;
-          background: hsl(var(--secondary)); border: 1px solid hsl(var(--border));
-          border-radius: 8px; font-size: 13px; color: hsl(var(--muted-foreground));
-        }
-
-        /* ── Head card ── */
-        .head-card {
-          background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-          border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
-        }
-        .head-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-        .head-title-block { flex: 1; min-width: 0; }
-        .task-title {
-          font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em;
-          color: hsl(var(--foreground));
-        }
-        .actions-cluster {
-          display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
-        }
-
-        /* ── Status trigger ── */
-        .status-trigger-wrap { position: relative; }
-        .status-trigger {
-          height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input));
-          border-radius: 8px; background: hsl(var(--background)); font: inherit;
-          font-size: 13px; cursor: pointer; display: inline-flex; align-items: center;
-          gap: 8px; color: hsl(var(--foreground));
-        }
-        .status-trigger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .trigger-chev { color: hsl(var(--muted-foreground)); font-size: 10px; }
-        .status-popover {
-          position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
-          background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-          border-radius: 8px; padding: 4px; min-width: 140px;
-          box-shadow: 0 4px 16px hsl(240 10% 3.9% / 0.10);
-        }
-        .status-option {
-          padding: 6px 8px; border-radius: 6px; cursor: pointer;
-          display: flex; align-items: center;
-        }
-        .status-option:hover, .status-option:focus-visible { background: hsl(var(--accent)); }
-        .status-option:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
-        .status-option-active { background: hsl(var(--accent)); }
-
-        /* ── Btn styles ── */
-        .btn-ghost {
-          height: 32px; padding: 0 12px; border-radius: 8px; border: 0;
-          background: transparent; font: inherit; font-size: 13px; font-weight: 500;
-          color: hsl(var(--muted-foreground)); cursor: pointer;
-        }
-        .btn-ghost:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
-        .btn-ghost:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .btn-outline-sm {
-          height: 28px; padding: 0 10px; border-radius: 6px;
-          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-          font: inherit; font-size: 12px; cursor: pointer; color: hsl(var(--foreground));
-        }
-        .btn-outline-link {
-          display: inline-flex; align-items: center;
-          height: 32px; padding: 0 12px; border-radius: 8px;
-          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-          font-size: 13px; font-weight: 600; color: hsl(var(--foreground));
-          text-decoration: none;
-        }
-        .btn-outline-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-
-        /* ── Archive confirm ── */
-        .confirm-overlay {
-          position: fixed; inset: 0; background: hsl(240 10% 3.9% / 0.45);
-          display: grid; place-items: center; z-index: 100;
-        }
-        .confirm-box {
-          background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-          border-radius: 10px; padding: 20px 24px; max-width: 360px; width: 90%;
-          box-shadow: 0 8px 32px hsl(240 10% 3.9% / 0.18);
-        }
-        .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
-        .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-        .confirm-cancel {
-          height: 32px; padding: 0 12px; border-radius: 8px;
-          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-          font: inherit; font-size: 13px; cursor: pointer;
-        }
-        .btn-archive {
-          height: 32px; padding: 0 12px; border-radius: 8px; border: 0;
-          background: hsl(var(--destructive)); color: hsl(0 0% 98%);
-          font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-        }
-        .btn-archive:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-
-        /* ── Meta row ── */
-        .meta-row { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
-        .meta-item { display: flex; flex-direction: column; gap: 2px; }
-        .meta-label {
-          font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-          text-transform: uppercase; color: hsl(var(--muted-foreground));
-        }
-        .meta-value { font-size: 13px; color: hsl(var(--foreground)); }
-
-        /* ── Generic card ── */
-        .card {
-          background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-          border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
-        }
-        .card-h2 {
-          font-size: 18px; font-weight: 600; line-height: 1.3; margin-bottom: 12px;
-          display: flex; align-items: center; gap: 10px; color: hsl(var(--foreground));
-        }
-
-        /* ── Description ── */
-        .desc-body { font-size: 14px; line-height: 1.5; color: hsl(var(--foreground)); }
-        .empty-substate { font-size: 13px; color: hsl(var(--muted-foreground)); }
-
-        /* ── RACI ── */
-        .raci-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
-        @media (max-width: 767px) { .raci-grid { grid-template-columns: 1fr; } }
-        .raci-field { min-width: 0; }
-        .raci-label { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .role-chip {
-          display: inline-flex; align-items: center; gap: 6px;
-          height: 20px; padding: 0 9px 0 7px; border-radius: 999px;
-          font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
-        }
-        .role-marker {
-          width: 15px; height: 15px; border-radius: 999px; display: grid;
-          place-items: center; font-size: 9.5px; font-weight: 700; color: hsl(0 0% 98%);
-        }
-        .role-chip-r { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221 75% 38%); }
-        .role-chip-r .role-marker { background: hsl(221.2 83.2% 53.3%); }
-        .role-chip-a { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); }
-        .role-chip-a .role-marker { background: hsl(262 83% 58%); }
-        .role-chip-ci { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
-        .role-marker-ci { background: hsl(var(--muted-foreground)); }
-        .person-field {
-          height: 36px; border: 1px solid hsl(var(--input)); border-radius: 8px;
-          background: hsl(var(--background)); padding: 0 10px;
-          display: flex; align-items: center; gap: 8px;
-        }
-        .person-av {
-          width: 22px; height: 22px; border-radius: 999px; flex: none;
-          background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-          color: hsl(0 0% 98%); display: grid; place-items: center;
-          font-size: 10px; font-weight: 700;
-        }
-        .person-av-a {
-          background: linear-gradient(135deg, hsl(262 83% 58%), hsl(221.2 83.2% 53.3%));
-        }
-        .person-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .multi-field {
-          display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-          padding: 6px 8px; min-height: 36px; border: 1px solid hsl(var(--input));
-          border-radius: 8px; background: hsl(var(--background));
-        }
-        .chip-person {
-          display: inline-flex; align-items: center; gap: 5px; height: 24px;
-          padding: 0 8px 0 4px; border-radius: 999px;
-          background: hsl(var(--secondary)); font-size: 12px;
-        }
-        .chip-av {
-          width: 16px; height: 16px; font-size: 9px;
-        }
-        .chip-remove {
-          border: 0; background: transparent; color: hsl(var(--muted-foreground));
-          cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
-          display: flex; align-items: center;
-        }
-        .chip-remove:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .add-person-btn {
-          border: 0; background: transparent; font-size: 12px;
-          color: hsl(221 75% 38%); cursor: pointer; padding: 2px 4px;
-        }
-        .add-person-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-
-        /* ── Person picker ── */
-        .person-picker {
-          position: absolute; z-index: 50; background: hsl(var(--card));
-          border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 4px;
-          min-width: 200px; max-height: 200px; overflow-y: auto;
-          box-shadow: 0 4px 16px hsl(240 10% 3.9% / 0.10);
-        }
-        .person-picker-option {
-          display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-          border-radius: 6px; cursor: pointer; font-size: 13px;
-        }
-        .person-picker-option:hover, .person-picker-option:focus-visible {
-          background: hsl(var(--accent));
-        }
-        .person-picker-option:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
-
-        /* ── Checklist ── */
-        .checklist-count { font-size: 13px; font-weight: 400; color: hsl(var(--muted-foreground)); }
-        .checklist-list { list-style: none; padding: 0; margin: 0 0 8px; }
-        .checklist-item {
-          display: flex; align-items: center; gap: 10px;
-          min-height: 36px; padding: 4px 0;
-          border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
-        }
-        .checklist-item:last-child { border-bottom: none; }
-        .checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
-        .checklist-label { font-size: 14px; flex: 1; cursor: pointer; }
-        .checklist-done { color: hsl(var(--muted-foreground)); text-decoration: line-through; }
-        .checklist-add-input {
-          width: 100%; border: 0; outline: none; background: transparent;
-          font: inherit; font-size: 13px; color: hsl(var(--muted-foreground));
-          padding: 6px 0; border-top: 1px solid hsl(var(--border));
-        }
-        .checklist-add-input::placeholder { color: hsl(var(--muted-foreground)); }
-        .checklist-add-input:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .checklist-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
-        .checklist-ctrl-btn {
-          width: 24px; height: 24px; border: 0; background: transparent;
-          color: hsl(var(--muted-foreground)); cursor: pointer; font-size: 12px;
-          display: grid; place-items: center; border-radius: 4px;
-          line-height: 1;
-        }
-        .checklist-ctrl-btn:hover:not(:disabled) { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
-        .checklist-ctrl-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .checklist-ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .checklist-ctrl-delete:hover:not(:disabled) { color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.08); }
-
-        /* ── Activity thread ── */
-        .thread { display: flex; flex-direction: column; }
-        .event-entry {
-          display: flex; gap: 10px; padding: 10px 0;
-          border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
-        }
-        .event-entry:last-child { border-bottom: none; }
-        .event-av {
-          width: 26px; height: 26px; border-radius: 999px; flex: none;
-          background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-          color: hsl(0 0% 98%); display: grid; place-items: center;
-          font-size: 10px; font-weight: 700;
-        }
-        .event-body { flex: 1; min-width: 0; }
-        .event-who { font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); margin-right: 6px; }
-        .event-when { font-size: 12px; color: hsl(var(--muted-foreground)); }
-        .event-label { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
-
-        /* ── Not found ── */
-        .not-found-panel { padding: 48px 0; }
-        .not-found-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: hsl(var(--foreground)); }
-        .not-found-copy { font-size: 14px; color: hsl(var(--muted-foreground)); margin-bottom: 16px; }
-
-        /* ── Loading skeleton ── */
-        .sk-block { margin-bottom: 16px; }
-        .sk {
-          background: hsl(var(--secondary)); border-radius: 6px; display: block;
-          animation: sk-pulse 1.4s ease-in-out infinite;
-        }
-        @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-
-        /* ── Utility ── */
-        .sr-only {
-          position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-          overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
-        }
-        .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
-
-      `}</style>
     </PageFrame>
   )
 }

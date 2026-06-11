@@ -12,6 +12,7 @@ vi.mock('../lib/db/tasks', () => ({
   getTask: vi.fn(),
   updateTaskStatus: vi.fn(),
   updateTaskRaci: vi.fn(),
+  updateTaskFields: vi.fn(),
   addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(),
   reorderChecklistItem: vi.fn(),
@@ -32,13 +33,14 @@ vi.mock('react-router-dom', async (importOriginal) => {
   }
 })
 
-import { getTask, updateTaskStatus, updateTaskRaci, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
+import { getTask, updateTaskStatus, updateTaskRaci, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
 import TaskDetail from './TaskDetail'
 
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockUpdateTaskRaci = vi.mocked(updateTaskRaci)
+const mockUpdateTaskFields = vi.mocked(updateTaskFields)
 const mockAddChecklistItem = vi.mocked(addChecklistItem)
 const mockToggleChecklistItem = vi.mocked(toggleChecklistItem)
 const mockReorderChecklistItem = vi.mocked(reorderChecklistItem)
@@ -151,6 +153,7 @@ beforeEach(() => {
   mockDeleteChecklistItem.mockResolvedValue()
   mockArchiveTask.mockResolvedValue()
   mockUnarchiveTask.mockResolvedValue()
+  mockUpdateTaskFields.mockResolvedValue()
 })
 
 // ── AC-070: detail page renders all task fields ───────────────────────────────
@@ -477,5 +480,193 @@ describe('T-047 — archive control on detail', () => {
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
     expect(screen.getByRole('button', { name: /archive task/i })).toBeTruthy()
+  })
+})
+
+// ── RIC-1: loading state renders VISIBLE skeleton ────────────────────────────
+describe('RIC-1 — loading state renders styled skeleton', () => {
+  it('renders skeleton element with sk class present in loading branch', () => {
+    mockGetTask.mockReturnValue(new Promise(() => {})) // never resolves
+    renderDetail()
+    // The skeleton must be present with aria-busy
+    const busyEl = screen.getByRole('status')
+    expect(busyEl).toBeTruthy()
+    // aria-busy container must be in the DOM
+    const busyContainer = document.querySelector('[aria-busy="true"]')
+    expect(busyContainer).toBeTruthy()
+    // The .sk blocks must be present — they only have styles when the CSS is hoisted
+    const skBlocks = document.querySelectorAll('.sk')
+    expect(skBlocks.length).toBeGreaterThan(0)
+    // The .sk-block wrapper must be present
+    expect(document.querySelector('.sk-block')).toBeTruthy()
+  })
+})
+
+// ── RIC-2: not-found state renders styled panel + link ───────────────────────
+describe('RIC-2 — not-found state renders styled panel', () => {
+  it('renders not-found panel with styled classes and a back link', async () => {
+    mockGetTask.mockRejectedValue(new Error('getTask failed — PGRST116'))
+    renderDetail()
+    await waitFor(() => {
+      expect(screen.getByText(/task not found/i)).toBeTruthy()
+    })
+    // not-found-panel class must be present
+    expect(document.querySelector('.not-found-panel')).toBeTruthy()
+    // not-found-title class must be present
+    expect(document.querySelector('.not-found-title')).toBeTruthy()
+    // btn-outline-link (styled back link) must be present
+    expect(document.querySelector('.btn-outline-link')).toBeTruthy()
+    // The back link must point to /tasks
+    const link = screen.getByRole('link', { name: /all tasks/i })
+    expect(link).toBeTruthy()
+  })
+})
+
+// ── RIC-3: non-editor sees no edit affordances ───────────────────────────────
+describe('RIC-3 — non-editor read-only regression guard', () => {
+  it('non-editor sees no status trigger, no archive, no RACI add, no checklist input', async () => {
+    const task = makeTask({
+      responsible_person_id: OTHER_ID,
+      accountable_person_id: OTHER_ID,
+    })
+    const nonEditorAuth: AuthState = {
+      status: 'authenticated',
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+      signOut: async () => {},
+    }
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderDetail(nonEditorAuth)
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+
+    expect(screen.queryByRole('button', { name: /change status/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /archive/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /add/i })).toBeNull()
+    expect(screen.queryByPlaceholderText(/add a step/i)).toBeNull()
+  })
+})
+
+// ── I2: R and A editable via person pickers ──────────────────────────────────
+describe('I2 — R and A editable on detail page', () => {
+  const R_PERSON = OTHER_ID // Use OTHER_ID as the initial R
+  const A_PERSON = OTHER_ID // same for initial A
+
+  it('editor can change Responsible via picker — dispatches updateTaskFields with new R id', async () => {
+    const task = makeTask({
+      responsible_person_id: R_PERSON,
+      accountable_person_id: A_PERSON,
+    })
+    // Editor is the manager
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    mockGetTask.mockResolvedValueOnce({ task, checklist: [], events: [] })
+    mockGetTask
+      .mockResolvedValueOnce({ task, checklist: [], events: [] })
+      .mockResolvedValue({ task: { ...task, responsible_person_id: VIEWER_ID }, checklist: [], events: [] })
+    renderDetail(managerState)
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+
+    // Should see an editable R picker button
+    const changeRBtn = screen.getByRole('button', { name: /change responsible/i })
+    expect(changeRBtn).toBeTruthy()
+    fireEvent.click(changeRBtn)
+
+    // Picker opens — select Cahya Cafe (VIEWER_ID)
+    const option = screen.getByRole('option', { name: 'Cahya Cafe' })
+    fireEvent.click(option)
+
+    await waitFor(() => {
+      expect(mockUpdateTaskFields).toHaveBeenCalledWith(
+        'task-abc',
+        expect.objectContaining({ responsible_person_id: VIEWER_ID }),
+        'manager-id',
+      )
+    })
+  })
+
+  it('editor can change Accountable via picker — dispatches updateTaskFields with new A id', async () => {
+    const task = makeTask({
+      responsible_person_id: R_PERSON,
+      accountable_person_id: A_PERSON,
+    })
+    mockGetTask
+      .mockResolvedValueOnce({ task, checklist: [], events: [] })
+      .mockResolvedValue({ task: { ...task, accountable_person_id: VIEWER_ID }, checklist: [], events: [] })
+    renderDetail(managerState)
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+
+    const changeABtn = screen.getByRole('button', { name: /change accountable/i })
+    expect(changeABtn).toBeTruthy()
+    fireEvent.click(changeABtn)
+
+    const option = screen.getByRole('option', { name: 'Cahya Cafe' })
+    fireEvent.click(option)
+
+    await waitFor(() => {
+      expect(mockUpdateTaskFields).toHaveBeenCalledWith(
+        'task-abc',
+        expect.objectContaining({ accountable_person_id: VIEWER_ID }),
+        'manager-id',
+      )
+    })
+  })
+
+  it('non-editor sees static R/A display (no picker button)', async () => {
+    const task = makeTask({
+      responsible_person_id: OTHER_ID,
+      accountable_person_id: OTHER_ID,
+    })
+    const nonEditorAuth: AuthState = {
+      status: 'authenticated',
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+      signOut: async () => {},
+    }
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderDetail(nonEditorAuth)
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+
+    expect(screen.queryByRole('button', { name: /change responsible/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /change accountable/i })).toBeNull()
+    // The person names should still be visible statically
+    expect(screen.getAllByText('Other Person').length).toBeGreaterThan(0)
+  })
+})
+
+// ── M2: archived task is read-only except Unarchive ─────────────────────────
+describe('M2 — archived task is read-only except Unarchive', () => {
+  it('archived task shows no status trigger, no RACI pickers, no checklist add', async () => {
+    // Viewer is A (would normally be an editor + archiver)
+    const task = makeTask({
+      archived_at: '2026-06-11T10:00:00Z',
+      responsible_person_id: VIEWER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderDetail()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+
+    // No status change trigger
+    expect(screen.queryByRole('button', { name: /change status/i })).toBeNull()
+
+    // No RACI add buttons
+    expect(screen.queryByRole('button', { name: /add/i })).toBeNull()
+
+    // No checklist add input
+    expect(screen.queryByPlaceholderText(/add a step/i)).toBeNull()
+
+    // No R/A change picker buttons
+    expect(screen.queryByRole('button', { name: /change responsible/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /change accountable/i })).toBeNull()
+  })
+
+  it('archived task still shows Unarchive button for A/manager', async () => {
+    const task = makeTask({
+      archived_at: '2026-06-11T10:00:00Z',
+      responsible_person_id: VIEWER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderDetail()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+
+    expect(screen.getByRole('button', { name: /unarchive/i })).toBeTruthy()
   })
 })
