@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import PageFrame from '../shell/PageFrame'
 import PageHead from '../shell/PageHead'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
-import { weekLabel, fridayLabel } from '../lib/week'
+import { weekLabel } from '../lib/week'
 
 export default function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
@@ -12,13 +13,11 @@ export default function MyWeek() {
 
   const now = new Date()
   const wib = weekLabel(now)
-  const friday = fridayLabel(now)
 
   const subtitle = `Week of ${wib.range} · ${wib.today} · what needs you, your update, and today on the floor`
 
   return (
-    <main className="overflow-auto" style={{ padding: '28px 32px 56px' }}>
-      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+    <PageFrame>
         <PageHead title="My Week" subtitle={subtitle} />
 
         {/* ===== Dominant module: task-table card ===== */}
@@ -127,7 +126,7 @@ export default function MyWeek() {
           </span>
           <span className="flex-1 min-w-0" style={{ fontSize: 14 }}>
             No weekly update for this week yet.{' '}
-            <span className="text-muted-foreground">Due Fri {friday.replace('Fri ', '')}</span>
+            <span className="text-muted-foreground">Due Fri {wib.fridayShort}</span>
           </span>
           <Link
             to="/updates"
@@ -170,7 +169,7 @@ export default function MyWeek() {
               className="text-muted-foreground font-semibold uppercase"
               style={{ fontSize: 11, letterSpacing: '0.06em', margin: '22px 4px 8px' }}
             >
-              Your team — Week of {wib.range.split(' ').slice(0, -1).join(' ')}
+              Your team — Week of {wib.rangeShort}
             </p>
             <div className="bg-card border border-border rounded-md">
               <div
@@ -182,7 +181,6 @@ export default function MyWeek() {
             </div>
           </>
         )}
-      </div>
-    </main>
+    </PageFrame>
   )
 }

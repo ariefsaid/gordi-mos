@@ -32,6 +32,29 @@ describe('AC-010: weekLabel WIB week math', () => {
   })
 })
 
+// AC-010 cross-boundary: cross-month and cross-year week ranges
+describe('AC-010: weekLabel cross-month and cross-year ranges', () => {
+  it('(d) cross-month: Mon 29 Jun – Sun 5 Jul 2026 → range "29 Jun – 5 Jul 2026"', () => {
+    // 2026-06-29T05:00:00Z = Mon 29 Jun 12:00 WIB
+    const now = new Date('2026-06-29T05:00:00Z')
+    const result = weekLabel(now)
+    expect(result.range).toBe('29 Jun – 5 Jul 2026')
+  })
+
+  it('(e) cross-year: Mon 29 Dec 2025 – Sun 4 Jan 2026 → range "29 Dec 2025 – 4 Jan 2026"', () => {
+    // 2025-12-29T05:00:00Z = Mon 29 Dec 2025 12:00 WIB
+    const now = new Date('2025-12-29T05:00:00Z')
+    const result = weekLabel(now)
+    expect(result.range).toBe('29 Dec 2025 – 4 Jan 2026')
+  })
+
+  it('(f) same-month week remains unchanged: "8–14 Jun 2026"', () => {
+    const now = new Date('2026-06-10T05:00:00Z')
+    const result = weekLabel(now)
+    expect(result.range).toBe('8–14 Jun 2026')
+  })
+})
+
 describe('fridayLabel WIB week Friday', () => {
   // Jun 2026 calendar: Mon=8, Tue=9, Wed=10, Thu=11, Fri=12, Sat=13, Sun=14.
   // The mockup strip shows "Fri 13 Jun" which is a typo (13 is Saturday).

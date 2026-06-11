@@ -2,8 +2,10 @@
 // Uses a fixed +7h offset arithmetic so no host-timezone leakage (NFR-005).
 
 export interface WeekLabel {
-  range: string // e.g. "8–14 Jun 2026"
-  today: string // e.g. "Wed 10 Jun"
+  range: string      // e.g. "8–14 Jun 2026" or "29 Jun – 5 Jul 2026" or "29 Dec 2025 – 4 Jan 2026"
+  rangeShort: string // same without the year, e.g. "8–14 Jun" or "29 Jun – 5 Jul"
+  today: string      // e.g. "Wed 10 Jun"
+  fridayShort: string // e.g. "12 Jun" (bare date, no "Fri " prefix)
 }
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -61,13 +63,35 @@ export function weekLabel(now: Date): WeekLabel {
   const mon = wibParts(mondayUTC)
   const sun = wibParts(sundayUTC)
 
-  // Format range: "<d1>–<d2> <Mon> <YYYY>" (same month/year — guaranteed by Mon–Sun span)
-  const range = `${mon.day}–${sun.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year}`
+  // Format range: same-month → "8–14 Jun 2026"; cross-month → "29 Jun – 5 Jul 2026";
+  // cross-year → "29 Dec 2025 – 4 Jan 2026"
+  const sameMonth = mon.month === sun.month
+  const sameYear  = mon.year  === sun.year
+  let range: string
+  let rangeShort: string
+  if (sameMonth) {
+    // Both endpoints share month (and year)
+    range      = `${mon.day}–${sun.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year}`
+    rangeShort = `${mon.day}–${sun.day} ${SHORT_MONTH[mon.month - 1]}`
+  } else if (sameYear) {
+    // Cross-month, same year: show month on each side, year once at end
+    range      = `${mon.day} ${SHORT_MONTH[mon.month - 1]} – ${sun.day} ${SHORT_MONTH[sun.month - 1]} ${sun.year}`
+    rangeShort = `${mon.day} ${SHORT_MONTH[mon.month - 1]} – ${sun.day} ${SHORT_MONTH[sun.month - 1]}`
+  } else {
+    // Cross-year: show month+year on each side
+    range      = `${mon.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year} – ${sun.day} ${SHORT_MONTH[sun.month - 1]} ${sun.year}`
+    rangeShort = `${mon.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year} – ${sun.day} ${SHORT_MONTH[sun.month - 1]}`
+  }
 
   // Format today: "<Ddd> <d> <Mon>"
   const today = `${SHORT_DAY[jsDay]} ${day} ${SHORT_MONTH[month - 1]}`
 
-  return { range, today }
+  // Compute Friday of this week for the update-strip due label
+  const fridayUTC  = addDays(todayWibMidnightUTC, 4 - dow)
+  const fri        = wibParts(fridayUTC)
+  const fridayShort = `${fri.day} ${SHORT_MONTH[fri.month - 1]}`
+
+  return { range, rangeShort, today, fridayShort }
 }
 
 /**

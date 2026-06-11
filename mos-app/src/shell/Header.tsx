@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import Breadcrumb from './Breadcrumb'
 import UserChip from './UserChip'
 import { useIsNarrow } from './useIsNarrow'
@@ -13,11 +13,11 @@ export default function Header({ onOpenDrawer, onRegisterHamburgerFocus }: Heade
   const isNarrow = useIsNarrow()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
 
-  // Register focus function with parent so drawer can return focus on close
-  // Called on every render — stable because hamburgerRef.current is stable
-  if (onRegisterHamburgerFocus) {
-    onRegisterHamburgerFocus(() => hamburgerRef.current?.focus())
-  }
+  // Register focus function with parent so drawer can return focus on close.
+  // Runs once on mount (and whenever the callback identity changes) — no render side-effect.
+  useEffect(() => {
+    onRegisterHamburgerFocus?.(() => hamburgerRef.current?.focus())
+  }, [onRegisterHamburgerFocus])
 
   return (
     <header
