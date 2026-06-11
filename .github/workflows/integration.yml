@@ -1,0 +1,27 @@
+name: integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack (applies migrations + seed)
+        run: supabase db start
+
+      - name: pgTAP suite
+        run: supabase test db
+
+      - name: Stop stack
+        if: always()
+        run: supabase stop
