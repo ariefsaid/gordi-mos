@@ -873,8 +873,15 @@ the inverse direction negative).
 
 ### T-015b — pgTAP: `org_id` spoof attempt fails
 
-Create `supabase/tests/06_org_id_spoof.sql`. Proves the `WITH CHECK (org_id = current_org_id())` on the
-`people_insert_own_org` policy rejects a client trying to stamp a foreign `org_id` (OD-P1-1).
+Create `supabase/tests/06_org_id_spoof.sql`. Proves the `WITH CHECK (org_id = current_org_id())`
+rejects a client trying to stamp a foreign `org_id` (OD-P1-1).
+
+> **Security-audit update (M1).** The standing `grant insert on shared.people to authenticated` and the
+> `people_insert_own_org` policy were REMOVED from `20260611000006_rls.sql` — a permanent write surface
+> with no app caller is needless attack surface. `06_org_id_spoof.sql` now creates the grant + WITH CHECK
+> policy INSIDE its own `begin;…rollback;` transaction (nothing persists), and proves: (1) `authenticated`
+> has NO standing INSERT privilege (`has_table_privilege` = false), (2) defaulted insert succeeds,
+> (3) foreign-org insert fails `42501`, (4) explicit-NULL org insert fails `42501`. Now **4 assertions**.
 
 ```sql
 begin;
@@ -908,7 +915,16 @@ rollback;
 ```bash
 cd /Users/ariefsaid/Coding/gordi-mos && supabase test db
 ```
-Expect `06_org_id_spoof.sql .. ok` (2 assertions).
+Expect `06_org_id_spoof.sql .. ok` (4 assertions, per the M1 update above).
+
+### Security-audit pgTAP additions (M2, L3)
+
+- `supabase/tests/08_claim_parsing.sql` (**9 assertions**) — M2: `current_org_id()`/`current_person_id()`
+  FAIL CLOSED (return NULL, no raise) on empty-string, non-UUID, and malformed-JSON claims; happy path
+  with a valid claim still resolves. Backed by the new `shared._claim_uuid(text)` helper.
+- `supabase/tests/09_claim_consistency.sql` (**2 assertions**) — L3: a viewer claiming `org_id` = Org A
+  with a `person_id` belonging to Org B gets `is_manager_of` = false (cross-org `person_id` matches no
+  in-org `person_roles` under RLS → fails closed). Invariant comment added to `is_manager_of`.
 
 ### T-016 — Committed dev seed (`supabase/seed.sql`)
 
@@ -1123,7 +1139,8 @@ cd /Users/ariefsaid/Coding/gordi-mos && \
 
 The **doubled `db reset`** is the idempotency check: a second clean re-apply from zero must succeed
 identically (no migration depends on prior state, seeds are `on conflict do nothing`). `supabase test
-db` must report **all seven** test files green:
+db` must report **all ten** test files green (07 role-cycle guard + 08 claim-parsing + 09 claim-
+consistency added since the original draft):
 
 ```
 00_schemas.sql ............... ok
@@ -1133,10 +1150,13 @@ db` must report **all seven** test files green:
 04_multi_role.sql ............ ok
 05_is_manager_of_dualhat.sql . ok
 06_org_id_spoof.sql .......... ok
+07_role_cycle.sql ............ ok
+08_claim_parsing.sql ......... ok
+09_claim_consistency.sql ..... ok
 ```
 
-**Verify:** terminal prints `ALL DB GATES PASS` and the pgTAP summary shows 7/7 files passing with
-**0 failed**. Cross-check no object leaked into `public`:
+**Verify:** terminal prints `ALL DB GATES PASS` and the pgTAP summary shows 10/10 files (Tests=41)
+passing with **0 failed**. Cross-check no object leaked into `public`:
 
 ```bash
 cd /Users/ariefsaid/Coding/gordi-mos && \

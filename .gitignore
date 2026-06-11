@@ -54,5 +54,9 @@ id_rsa*
 **/serviceAccount*.json
 secrets.*
 
+# Supabase deploy-time real-people seed — NEVER commit (public repo, OD-P1-6).
+# The .example template IS committed; the filled-in real file is not.
+supabase/seed.production.sql
+
 # Claude Code local (per-machine) settings — may contain personal tool allowlists
 .claude/settings.local.json
