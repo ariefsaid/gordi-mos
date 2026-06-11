@@ -43,7 +43,12 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   works without SMTP.
 
 ## ▶ LATER — Phase 2: first slice (blocked on Phase 1)
-- [ ] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5).
+- [~] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5) — IN PROGRESS (3-PR split):
+  - [x] P2-1a schema + RLS + data layer — PR #5 (mos.tasks, archive-gate, 41 pgTAP; security clean).
+  - [x] P2-1b Tasks list page — PR #6 (filters, RACI rows, directory-resolved names, archived
+    treatment, 768px reflow; 3-lens caught + fixed cross-schema embed bug). 220 unit · 7 e2e.
+  - [ ] P2-1c task detail + checklist + create form + archive flow + curated e2e (create→list→detail
+    →status; archive→leaves-list). Reuse extracted StatusPill/OwnerCell/taskFormatters.
 - [ ] P2-2 weekly updates (write + manager review).
 - [ ] P2-3 daily ops updates feed (manual entry first).
 - [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
