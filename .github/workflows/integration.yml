@@ -19,7 +19,10 @@ jobs:
       - name: Start local Supabase stack (applies migrations + seed)
         # Full `supabase start` (not `db start`): e2e needs auth/API/mailpit, and
         # `supabase status -o env` only emits keys when the full stack is up.
-        run: supabase start
+        # `-x edge-runtime`: MOS ships no edge functions, and the edge-runtime
+        # container intermittently 502s on its health check (flaked PR #9 CI +
+        # locally) — excluding it removes a flaky dependency we never use.
+        run: supabase start -x edge-runtime
 
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
         # Defense-in-depth: prevents a recurrence of the _test_seed_role_tree audit Critical

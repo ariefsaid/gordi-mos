@@ -1,0 +1,35 @@
+/* WeeklyUpdateWritePane — co-located styles.
+   Token contract: all values use DESIGN.md CSS var tokens — no raw hex/px literals.
+   Covers: skeleton animation, mobile line-row reflow. */
+
+/* ── Skeleton shimmer animation (I3) ─────────────────────────────────────────
+   Mirrors the sk-pulse pattern in TaskDetail.css but scoped here to avoid
+   cross-file dependency. prefers-reduced-motion: no animation when reduced. */
+@keyframes wup-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+.wup-skeleton-block {
+  background: hsl(var(--secondary));
+  border-radius: 8px;
+  animation: wup-pulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wup-skeleton-block {
+    animation: none;
+  }
+}
+
+/* ── Editable line-row: mobile reflow (I1) ────────────────────────────────────
+   At <768px the text input should take a full-width first row; handle + marker +
+   remove wrap to a second row. The LineRow container already has flexWrap:wrap
+   via inline style; below we give the text input flex-basis:100% so it claims
+   row 1 alone, then the controls (flexShrink:0, no basis) wrap to row 2.       */
+@media (max-width: 767px) {
+  .wup-line-input {
+    flex-basis: 100%;
+    order: -1; /* always first so controls naturally wrap after */
+  }
+}
