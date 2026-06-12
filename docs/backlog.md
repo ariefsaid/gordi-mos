@@ -3,10 +3,11 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
-> **NEXT SESSION: read `docs/STATUS.md` first.** Current focus: complete P2-3b+c on branch
-> `fix/ops-log-followups` (a pi run was killed mid-fix by the app RAM crash — half-applied WIP commit
-> `26ac988`). Then code-quality + 3-lens + PR + merge. Two git-hygiene slips this session — NEVER
-> `git push origin HEAD:main` from a feature branch.
+> **NEXT SESSION: read `docs/STATUS.md` first.** P2-3 (Daily Log) is **COMPLETE** on branch
+> `fix/ops-log-followups` (6 commits, gates green, e2e live) — pending **PR + merge**. After merge the
+> **first-slice MVP is feature-complete**; the only remaining gap to a usable product is **P3-1
+> production deploy** (owner-gated). Earlier git-hygiene slips — NEVER `git push origin HEAD:main` from a
+> feature branch; feature code = branch → PR → merge.
 
 ## ▶ NOW — Phase 0: frontend mockups
 - [ ] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
@@ -67,16 +68,17 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
     on-time/late, My Week strip + team module wired to listTeamUpdates). **P2-2 COMPLETE.**
     NOTE: base P2-2c was accidentally pushed direct to main (git-hygiene slip); PR #10 rolled forward
     the bypassed review — 3-lens caught 3 Criticals incl. unimplemented FR-031 row-open. 396 unit · 11 e2e.
-- [~] P2-3 Ops Log (daily ops feed, manual entry) — IN PROGRESS (3-PR split, grill → OD-P2-15..19):
+- [x] P2-3 Daily Log (daily ops feed, manual entry) — **COMPLETE** (3-PR split, grill → OD-P2-15..19;
+  surface renamed "Ops Log" → "Daily Log" by owner 2026-06-12, OD-P2-15 amended):
   - [x] P2-3a schema + org-read RLS + data layer + wibDayRange — PR #11 (ops.log_entries, first
     ops-schema exposure; security audit found+fixed a High (created_by mutable) + Medium (cross-org
     refs) via a guard trigger). 152 pgTAP · 411 unit.
-  - [~] P2-3b+c Ops Log feed page + add form + My Week strip + 2 e2e — BUILT, on main (commits
-    f1440bf/1646370/0ec3fce) but via a git-hygiene slip (HEAD:main push); CI green. spec-review ❌:
-    EDIT affordance missing, linked-task picker missing (FR-045/AC-072), AC-067 phone test bent.
-    code-quality + 3-lens NEVER ran. Roll-forward branch `fix/ops-log-followups` has WIP `26ac988`
-    (a pi run killed by the app RAM crash — half-applied, unverified). **See docs/STATUS.md for the
-    exact next step.** Completing this finishes P2-3.
+  - [x] P2-3b+c Daily Log feed + add/edit form + linked-task picker + My Week strip + 2 e2e —
+    completed on `fix/ops-log-followups` after recovering a killed-pi WIP + two bypassed reviews:
+    `842cee6` route + editLogEntry camel→snake fix · `d9b3c20` spec+quality reviews (gpt-5.4) → TZ-bug
+    fix + AC-067 un-bent + proof gaps · `45ba4cf` 3-lens design review (pi) → action-cluster overflow +
+    44px phone targets + clear-filters + archived-calm · `633e368`/`6ab1bd1` Daily Log rename + strip
+    verb fix. 460 unit · e2e AC-090/091 live · all gates green. **Pending PR + merge.**
 - [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
