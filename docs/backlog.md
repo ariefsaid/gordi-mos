@@ -3,6 +3,11 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
+> **NEXT SESSION: read `docs/STATUS.md` first.** Current focus: complete P2-3b+c on branch
+> `fix/ops-log-followups` (a pi run was killed mid-fix by the app RAM crash — half-applied WIP commit
+> `26ac988`). Then code-quality + 3-lens + PR + merge. Two git-hygiene slips this session — NEVER
+> `git push origin HEAD:main` from a feature branch.
+
 ## ▶ NOW — Phase 0: frontend mockups
 - [ ] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
   (`docs/design-mockups/proposal-IA-<n>-<slug>.html`). Candidate shapes to explore: (a) left-rail +
@@ -66,8 +71,12 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-3a schema + org-read RLS + data layer + wibDayRange — PR #11 (ops.log_entries, first
     ops-schema exposure; security audit found+fixed a High (created_by mutable) + Medium (cross-org
     refs) via a guard trigger). 152 pgTAP · 411 unit.
-  - [ ] P2-3b Ops Log feed page + "+ Add log entry" form.
-  - [ ] P2-3c My Week ops-strip wiring + 2 e2e (may fold into b).
+  - [~] P2-3b+c Ops Log feed page + add form + My Week strip + 2 e2e — BUILT, on main (commits
+    f1440bf/1646370/0ec3fce) but via a git-hygiene slip (HEAD:main push); CI green. spec-review ❌:
+    EDIT affordance missing, linked-task picker missing (FR-045/AC-072), AC-067 phone test bent.
+    code-quality + 3-lens NEVER ran. Roll-forward branch `fix/ops-log-followups` has WIP `26ac988`
+    (a pi run killed by the app RAM crash — half-applied, unverified). **See docs/STATUS.md for the
+    exact next step.** Completing this finishes P2-3.
 - [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)

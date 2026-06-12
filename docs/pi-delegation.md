@@ -80,6 +80,32 @@ Use it in design-review / qa dispatches and in ui-implementer self-checks:
 - The owner-approval artifact (design-workflow §2.5, §3) is still produced/curated by the Director — pi
   screenshots feed it, they don't replace the gate.
 
+### 3b. Dispatch mechanics — background, never block or poll (Claude Code harness)
+
+- Launch EVERY pi dispatch with **`Bash(run_in_background: true)`** + a generous `timeout` +
+  `< /dev/null`, and **redirect output to a file**: `pi … "$brief" </dev/null > /tmp/pi-<id>.log 2>&1`.
+  The tool returns immediately with a task id; **your turn ends and your context is freed.**
+- The harness sends a **`<task-notification>`** when the command exits and **re-invokes you**. On that
+  wake, **Read the output FILE once** (tail it / grep the sentinel + load-bearing claims), then verify.
+- ❌ **Foreground Bash** — ties up the turn for the whole run, burns context.
+- ❌ **Polling loops** — repeatedly `TaskOutput`/`Read`-ing the run while it's live. This pulls large
+  output into the context window and grows the app's RAM. Do NOT use `TaskOutput` to watch a pi run;
+  wait for the notification, then read the file ONCE.
+
+### 3c. Resource isolation — pi is a CHILD of the Claude app (RAM + crash survival)
+
+A `Bash(run_in_background)` pi dispatch is spawned **inside the Claude-app process tree**:
+- pi's **model inference is remote** (z.ai/OpenAI) — zero local RAM. But pi's own process, **retained
+  background-task output buffers, and any screenshots read into context** grow the app's RAM over a long
+  session (the transcript itself also grows). The app has crashed past ~20 GB.
+- Because pi is a child of the app, **a Claude-app crash kills the in-flight pi run** → half-applied
+  edits (`git diff` before trusting anything; re-dispatch as a COMPLETION round, never a blind retry).
+- **Levers when local RAM is the binding constraint:** (1) redirect pi stdout to a file and tail the
+  FILE — never hold a full run's output in context; (2) verify UI by grep/DOM/a11y-tree assertions and
+  let the vision pass open image files only when a visual judgment is actually due (don't read every
+  screenshot into context); (3) for heavy-toolchain runs (Docker `db reset`, full e2e) when session RAM
+  is already high, prefer a git-worktree-isolated dispatch so a crash can't corrupt the primary checkout.
+
 ## 4. Brief structure — the quality lever
 
 pi agents see NOTHING of your session. The brief must stand alone:
