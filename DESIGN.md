@@ -402,6 +402,20 @@ Note the vocabulary/semantics differ from the task `StatusPill` (which maps Open
 keep them as separate components. **Late** (a weekly update filed after the Friday 17:00 WIB due) is
 shown in **warning/amber** (caution — filing is allowed, OD-P2-14), never destructive/red.
 
+### Ops Log tokens (added 2026-06-12, OD-P2-15..19 — reuse existing hues, no new brand)
+The Ops Log feed (`/ops`) renders log entries with:
+- **Source badge** (the business unit): calm, NOT a per-unit rainbow — only the two ops-writing units
+  tint, everything else neutral. Kitchen and Bar = `primary/10%` + `--status-open-text`; Roastery =
+  `violet/12%` + `--status-violet-text`; all other units = neutral `badge-status` (`secondary` +
+  `muted-foreground`).
+- **Type** (production/receiving/qc/follow_up/other): quiet **muted-foreground label text**, not a
+  filled chip (per the signed mockup).
+- **Needs attention**: row treatment = `warning/7%` fill + a 2px `warning` left rule; the My Week
+  ops-strip amber = `warning/18%` + `warning-foreground` + `warning` dot (the same warning/amber family
+  as the late TimingChip — late/attention is amber, never destructive/red). The 2px left rule is the
+  one deliberate, owner-approved exception to the anti-slop side-stripe ban: it is state-bearing,
+  minimal, and always paired with the fill tint + text, never color-alone (WCAG 1.4.1).
+
 ### List / detail surfaces (Tasks, Updates, Ops full pages)
 PMO's data-dense DataTable posture stays: sortable columns, functional filters, loading/empty/error
 states. Density mode governs *home*, not the working lists ("Executive vs Data-Dense split" —
