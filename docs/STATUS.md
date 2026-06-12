@@ -11,7 +11,7 @@ Pairs with `docs/backlog.md` (full task list) + `docs/decisions.md` (locked OD-*
 - **P2-3a Ops Log schema** — #11 (`ops.log_entries`, org-read RLS, guard trigger from the audit High/Medium).
 - **pi delegation adopted** — `docs/pi-delegation.md` + agent-browser skill + charter wiring (committed straight to main).
 
-## ✅ P2-3b+c (Daily Log feed + add/edit form + My Week strip) — COMPLETE (pending PR/merge)
+## ✅ P2-3b+c (Daily Log feed + add/edit form + My Week strip) — COMPLETE (merged to main)
 **First-slice MVP feature set is now functionally complete.** Branch `fix/ops-log-followups` (6 commits),
 all gates green (typecheck 0 · lint 0 · **460** unit · build OK), **e2e AC-090/091 pass live**. How it finished
 (2026-06-12, after a killed-pi WIP + two bypassed reviews were recovered):
@@ -29,9 +29,8 @@ all gates green (typecheck 0 · lint 0 · **460** unit · build OK), **e2e AC-09
   reviewed). Amended OD-P2-15. Internal seams (`ops` schema, `/ops` route, `ops.log_entries`, `opsLog`)
   stay terse-internal (OD-DIR-3).
 
-### NEXT STEP — release P2-3, then the MVP is feature-complete
-Push `fix/ops-log-followups` → PR against main → merge → sync main + delete branch. After that the only
-remaining gap to a usable product is **P3-1 production deploy** (ris-dev, owner-gated): the L5 hardening
+### NEXT STEP — MVP is feature-complete; only P3-1 production deploy remains
+After P2-3 merge, the only remaining gap to a usable product is **P3-1 production deploy** (ris-dev, owner-gated): the L5 hardening
 (disable open signup + 422 probe, password policy, session timebox, prod Resend SMTP, tight CSP). P2-4
 (kitchen→ops mirror) stays owner-deferred; WALL-3/WALL-4 only matter when P2-4 resumes.
 

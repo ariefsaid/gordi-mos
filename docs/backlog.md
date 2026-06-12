@@ -73,12 +73,13 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-3a schema + org-read RLS + data layer + wibDayRange — PR #11 (ops.log_entries, first
     ops-schema exposure; security audit found+fixed a High (created_by mutable) + Medium (cross-org
     refs) via a guard trigger). 152 pgTAP · 411 unit.
+<<<<<<< HEAD
   - [x] P2-3b+c Daily Log feed + add/edit form + linked-task picker + My Week strip + 2 e2e —
-    completed on `fix/ops-log-followups` after recovering a killed-pi WIP + two bypassed reviews:
+    **COMPLETE** (merged PR #12). Recovered a killed-pi WIP + two bypassed reviews:
     `842cee6` route + editLogEntry camel→snake fix · `d9b3c20` spec+quality reviews (gpt-5.4) → TZ-bug
     fix + AC-067 un-bent + proof gaps · `45ba4cf` 3-lens design review (pi) → action-cluster overflow +
     44px phone targets + clear-filters + archived-calm · `633e368`/`6ab1bd1` Daily Log rename + strip
-    verb fix. 460 unit · e2e AC-090/091 live · all gates green. **Pending PR + merge.**
+    verb fix. 460 unit · e2e AC-090/091 live · all gates green.
 - [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
