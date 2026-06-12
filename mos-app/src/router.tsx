@@ -24,7 +24,9 @@ import RecoveryPage from './pages/RecoveryPage'
 //     /tasks/new  → TaskCreate (P2-1c create form)
 //     /tasks/:taskId → TaskDetail (P2-1c detail)
 //     /updates    → UpdatesPage
-//     /ops        → OpsPage
+//     /ops        → OpsPage (daily ops feed)
+//     /ops/new    → OpsAddForm (add log entry)
+//     /ops/:id/edit → OpsAddForm (edit log entry, pre-filled)
 //     *           → NotFoundPage (catch-all)
 //
 // basename: '/mos' matches the Caddy/Vite base (OD-P0-5).
@@ -50,6 +52,7 @@ export const routeConfig = [
           { path: 'updates', element: <UpdatesPage /> },
           { path: 'ops', element: <OpsPage /> },
           { path: 'ops/new', element: <OpsAddForm /> },
+          { path: 'ops/:id/edit', element: <OpsAddForm /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },
