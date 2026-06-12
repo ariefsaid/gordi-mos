@@ -63,14 +63,15 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
     NOTE: base P2-2c was accidentally pushed direct to main (git-hygiene slip); PR #10 rolled forward
     the bypassed review — 3-lens caught 3 Criticals incl. unimplemented FR-031 row-open. 396 unit · 11 e2e.
 - [ ] P2-3 daily ops updates feed (manual entry first).
-- [ ] P2-4 kitchen → `ops` mirror (blocked on WALL-3).
+- [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
 - ~~WALL-1 — first navigation IA~~ CLOSED → OD-P0-6 (balanced My Week, proposal-IA-8) + OD-P0-7 (density mode in DESIGN.md).
 - ~~WALL-2 — app name~~ CLOSED → OD-P0-4 ("Gordi MOS", subtitle "Management OS").
 - **WALL-3 — Which kitchen events mirror into MOS first.** Needed before P2-4 spec.
-- **WALL-4 — Daily ops updates: generic from day one vs kitchen/roastery-specific first.** Shapes the
-  `ops` schema; needed before P2-3 spec (P0-2's feed mockup should present both framings if cheap).
+- **WALL-4 — Daily ops updates: generic vs kitchen-specific `ops` schema.** LOW-stakes until P2-4: with
+  P2-4 deferred + P2-3 manual-entry-only, no external writer is locked to the schema, so it's cheap to
+  change before any integration. Director recommendation = generic typed events; confirm at P2-3 resume.
 
 ## Polish / follow-ups
 
