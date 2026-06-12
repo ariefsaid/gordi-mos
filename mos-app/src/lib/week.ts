@@ -110,6 +110,20 @@ export function weekStartISO(now: Date, offsetWeeks = 0): string {
   return `${m.year}-${mm}-${dd}`
 }
 
+/**
+ * Half-open UTC range [startISO, endISO) for the WIB (Asia/Jakarta) calendar day containing `now`.
+ * Pure fixed-offset arithmetic — no host-timezone leak (NFR-005, OD-P1-4). Basis for the My Week
+ * ops-strip "today" window (OD-P0-8).
+ */
+export function wibDayRange(now: Date): { startISO: string; endISO: string } {
+  const { year, month, day } = wibParts(now)
+  const startUTC = Date.UTC(year, month - 1, day) - WIB_OFFSET_MS
+  return {
+    startISO: new Date(startUTC).toISOString(),
+    endISO: new Date(startUTC + 24 * 60 * 60 * 1000).toISOString(),
+  }
+}
+
 export type WeeklyUpdateTiming = 'on-time' | 'late'
 
 /**
