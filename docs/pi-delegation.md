@@ -113,6 +113,7 @@ A `Bash(run_in_background)` pi dispatch is spawned **inside the Claude-app proce
   let the vision pass open image files only when a visual judgment is actually due (don't read every
   screenshot into context); (3) for heavy-toolchain runs (Docker `db reset`, full e2e) when session RAM
   is already high, prefer a git-worktree-isolated dispatch so a crash can't corrupt the primary checkout.
+  See `docs/environments.md` "Local stack hygiene" for the canonical cleanup runbook (RAM/disk release, Docker prune patterns, worktree lifecycle).
 
 ## 4. Brief structure — the quality lever
 
