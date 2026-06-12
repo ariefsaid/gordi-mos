@@ -11,7 +11,7 @@ test('AC-090: add a log entry → it appears in the feed with source badge + typ
   // ── 1. Login as VIEWER ─────────────────────────────────────────────────────
   await loginAs(page, VIEWER.email, VIEWER.password)
 
-  // ── 2. Navigate to Daily ops feed ──────────────────────────────────────────
+  // ── 2. Navigate to the Daily Log ──────────────────────────────────────────
   await page.goto('ops')
   await page.waitForURL(/\/ops$/)
 
