@@ -89,7 +89,7 @@ describe('AC-007: Section empty shells', () => {
     expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
-  it('OpsPage: title "Daily ops feed" heading is present, no phase wording (P2-3b replaces placeholder)', () => {
+  it('OpsPage: title "Daily Log" heading is present, no phase wording (P2-3b replaces placeholder)', () => {
     // OpsPage is now the live feed page (P2-3b); placeholder copy is gone.
     // It starts loading — the heading is visible immediately.
     render(
@@ -97,7 +97,7 @@ describe('AC-007: Section empty shells', () => {
         <OpsPage />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Daily ops feed' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Daily Log' })).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/phase|roadmap|coming soon|Phase 2/i)
     // Must not contain old placeholder text
     expect(document.body.textContent).not.toMatch(/No ops events yet/)
@@ -166,12 +166,12 @@ describe('AC-004: Document title per section page', () => {
     expect(document.title).toBe('Weekly update — Gordi MOS')
   })
 
-  it('OpsPage sets document.title to "Daily ops feed — Gordi MOS" (P2-3b)', () => {
+  it('OpsPage sets document.title to "Daily Log — Gordi MOS" (P2-3b)', () => {
     render(
       <MemoryRouter>
         <OpsPage />
       </MemoryRouter>,
     )
-    expect(document.title).toBe('Daily ops feed — Gordi MOS')
+    expect(document.title).toBe('Daily Log — Gordi MOS')
   })
 })

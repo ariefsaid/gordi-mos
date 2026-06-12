@@ -1,4 +1,4 @@
-// OpsPage — Daily ops feed (P2-3b, FR-030..037/039, AC-060..067)
+// OpsPage — Daily Log (P2-3b, FR-030..037/039, AC-060..067)
 // Design authority: docs/plans/2026-06-12-ops-log-design.md + DESIGN.md tokens.
 // Data: listLogEntries (ops schema, RLS-scoped), getBusinessUnits (directory),
 //       getTaskTitlesByIds (client-side linked-task resolution, NFR-006).
@@ -225,7 +225,7 @@ function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, i
 
 // ── Main OpsPage ──────────────────────────────────────────────────────────────
 export default function OpsPage() {
-  useDocumentTitle('Daily ops feed — Gordi MOS')
+  useDocumentTitle('Daily Log — Gordi MOS')
   const isDesktop = useIsDesktop()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -356,14 +356,14 @@ export default function OpsPage() {
   return (
     <PageFrame>
       <div className="ops-page-head">
-        <h1 className="ops-page-title">Daily ops feed</h1>
+        <h1 className="ops-page-title">Daily Log</h1>
         <span className="ops-count-line tabular-nums">
           {wib.today}{countLabel}
         </span>
       </div>
 
       {/* Card assembly: toolbar seamed to feed */}
-      <section className="ops-assembly" aria-label="Daily ops feed">
+      <section className="ops-assembly" aria-label="Daily Log">
 
         {/* Toolbar */}
         <div className="ops-toolbar" role="search">
@@ -434,8 +434,8 @@ export default function OpsPage() {
         {/* Feed body — loading / error / empty / populated */}
         {loadState === 'loading' ? (
           <div aria-busy="true">
-            <span className="sr-only" role="status">Loading the Ops Log</span>
-            <ul className="ops-feed" aria-label="Ops Log" aria-busy="true" role="list">
+            <span className="sr-only" role="status">Loading the Daily Log</span>
+            <ul className="ops-feed" aria-label="Daily Log" aria-busy="true" role="list">
               <OpsSkeletonRow />
               <OpsSkeletonRow />
               <OpsSkeletonRow />
@@ -445,7 +445,7 @@ export default function OpsPage() {
         ) : loadState === 'error' ? (
           <div role="alert" className="ops-error-banner">
             <span className="ops-error-text">
-              Couldn&apos;t load the Ops Log
+              Couldn&apos;t load the Daily Log
             </span>
             <button type="button" className="ops-retry-btn" onClick={load}>
               Retry
@@ -467,7 +467,7 @@ export default function OpsPage() {
         ) : (
           <ul
             className="ops-feed"
-            aria-label="Ops Log"
+            aria-label="Daily Log"
             role="list"
           >
             {entries.map(entry => (

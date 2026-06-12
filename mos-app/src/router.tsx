@@ -24,7 +24,7 @@ import RecoveryPage from './pages/RecoveryPage'
 //     /tasks/new  → TaskCreate (P2-1c create form)
 //     /tasks/:taskId → TaskDetail (P2-1c detail)
 //     /updates    → UpdatesPage
-//     /ops        → OpsPage (daily ops feed)
+//     /ops        → OpsPage (Daily Log)
 //     /ops/new    → OpsAddForm (add log entry)
 //     /ops/:id/edit → OpsAddForm (edit log entry, pre-filled)
 //     *           → NotFoundPage (catch-all)

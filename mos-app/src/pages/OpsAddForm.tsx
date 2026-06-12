@@ -146,7 +146,7 @@ export default function OpsAddForm() {
           <p className="tc-error-msg">
             The log entry you&apos;re trying to edit doesn&apos;t exist or you don&apos;t have access to it.
           </p>
-          <Link to="/ops" className="tc-btn-cancel">Back to Ops Log</Link>
+          <Link to="/ops" className="tc-btn-cancel">Back to Daily Log</Link>
         </div>
       </PageFrame>
     )
@@ -166,7 +166,7 @@ export default function OpsAddForm() {
     <PageFrame>
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" className="tc-breadcrumb">
-        <Link to="/ops" className="tc-breadcrumb-link">Daily ops feed</Link>
+        <Link to="/ops" className="tc-breadcrumb-link">Daily Log</Link>
         <span className="tc-breadcrumb-sep" aria-hidden="true"> / </span>
         <span className="tc-breadcrumb-current">{isEditMode ? 'Edit log entry' : 'Add log entry'}</span>
       </nav>

@@ -384,7 +384,7 @@ describe('AC-066: feed empty/loading/error states', () => {
     mockListLogEntries.mockRejectedValue(new Error('network error'))
     await renderOps()
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/Couldn't load the Ops Log/i),
+      expect(screen.getByRole('alert')).toHaveTextContent(/Couldn't load the Daily Log/i),
     )
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
@@ -494,7 +494,7 @@ describe('AC-067: phone reflow with 44px add target', () => {
   it('the feed has proper ARIA list structure', async () => {
     await renderOps()
     await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
-    expect(screen.getByRole('list', { name: /ops log/i })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: /daily log/i })).toBeInTheDocument()
   })
 })
 

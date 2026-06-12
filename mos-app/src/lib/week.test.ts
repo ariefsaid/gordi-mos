@@ -151,7 +151,7 @@ describe('AC-050: wibDayRange returns the half-open WIB-day UTC range with no ho
   })
 })
 
-// Ops Log add/edit form datetime-local helpers — WIB wall-clock ⇄ UTC ISO.
+// Daily Log add/edit form datetime-local helpers — WIB wall-clock ⇄ UTC ISO.
 // Must be host-timezone-independent (NFR-005): the same string maps to the same
 // UTC instant on a UTC laptop, a WIB laptop, or a CI runner.
 describe('WIB datetime-local form helpers', () => {
