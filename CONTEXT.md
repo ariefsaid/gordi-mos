@@ -82,15 +82,17 @@ stable thing a manager reviews). The author may **Reopen** a submitted update ba
 re-Submit. Filing after the Friday due / week close is allowed ("filed late") — weeks never hard-lock.
 _Avoid_: filed (as the status name — say Submitted), published, locked
 
-**Ops Event**:
-One typed, source-badged operational happening (production, receiving, QC, follow-up…) mirrored
-from an ops app (kitchen, future roastery) or manually added. The chronological surface for a day
-is the Daily Ops feed.
-_Avoid_: activity, log entry, daily update (as the row noun)
+**Log entry** (the **Ops Log**):
+A record that something *happened* on the floor — past-tense and factual: a typed (production ·
+receiving · QC · follow-up · other), business-unit-badged operational happening, manually added now
+and mirrored from ops apps (kitchen, future roastery) later. It is NOT work-to-do (that's a Task) —
+no owner / RACI / status, just *when it occurred*. The chronological surface is the **Ops Log** (the
+`/ops` feed). A log entry may carry **needs attention** and link to a Task (the follow-up seam).
+_Avoid_: event (collides with cafe events — cuppings, workshops, bookings), activity, daily update, ticket
 
 **Needs attention**:
-The amber state on an ops event or strip meaning something waits on the viewer (sign-off,
-follow-up). Mock rule: a follow-up linked to a Blocked task.
+The amber state on a log entry or strip meaning something waits on the viewer (sign-off,
+follow-up). Set explicitly on a log entry; often a follow-up linked to a Blocked task.
 _Avoid_: alert, warning, flagged
 
 **Activity**:

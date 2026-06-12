@@ -168,6 +168,40 @@ admin UI is post-MVP.
 Authenticated user with no linked `shared.people` row sees a blocked screen ("account not set up —
 contact Arief"); no auto-created directory rows (consistent with closing audit M1's pre-claim seam).
 
+## OD-P2-OPS — Ops Log (daily ops, P2-3) — LOCKED 2026-06-12, schema-confirmed with owner
+
+Feature P2-3, the `ops.log_entries` entity (generic typed log, manual entry; kitchen/roastery mirror
+deferred to P2-4). Anchored to mock-daily-ops-feed.html, OD-P0-8 (My Week ops strip), OD-P1-3 (read),
+WALL-4 (generic, low-stakes until an external writer exists).
+
+### OD-P2-15 — Naming: "Log entry" / "Ops Log" (NOT "event")
+The row is a **Log entry**; the surface is the **Ops Log** (`/ops`). "Event" is avoided — it collides
+with Gordi's cafe events (cuppings, workshops, bookings). Table: `ops.log_entries`.
+
+### OD-P2-16 — A Log entry is a past-tense FLOOR RECORD, distinct from a Task
+A record that something happened: no owner/RACI/status (it's done), just `occurred_at`. High-frequency
+floor visibility, vs Tasks = the few deliberate forward commitments. They touch only at the
+`needs_attention` + `linked_task_id` follow-up seam. (Separate table, separate concept — see CONTEXT.md.)
+
+### OD-P2-17 — Source = business_unit + origin marker
+`business_unit_id` carries the badge (Kitchen and Bar / Roastery / …); a separate `origin` text+CHECK
+(`manual` | `kitchen_app` | `roastery_app`, default `manual`) marks who wrote it. P2-3 = all `manual`;
+future mirrors set `origin` with no schema change.
+
+### OD-P2-18 — Typed + needs-attention + optional task link
+`event_type` text+CHECK (`production`|`receiving`|`qc`|`follow_up`|`other`, default `other`, extensible).
+`needs_attention` boolean (author-set, drives the My Week ops-strip amber). `linked_task_id` nullable
+FK → `mos.tasks` (the "follow-up about that blocked task" thread; name resolved client-side, no
+cross-schema embed). `occurred_at` timestamptz default now, **editable** (log a 9am happening at noon).
+
+### OD-P2-19 — Lifecycle + RLS: edit-own + soft-archive; org-read, any-member manual-add
+Edit-own (author or manager-of-author, reuse `is_manager_of`/the can_edit_task pattern); **soft-archive**
+via `archived_at` (reversible, hidden from feed); **no hard delete**. RLS: **org-readable** (floor
+visibility, OD-P1-3 — contrast weekly-updates' upward-only); **insert** by any org member (org_id +
+created_by stamped server-side); edit/archive gated to author-or-manager; cross-org blocked.
+
+---
+
 ## OD-P2-WU — Weekly updates (LOCKED 2026-06-11, grill-with-docs session #3)
 
 Feature P2-2, the `mos.weekly_updates` entity. Anchored to mock-weekly-update.html, OD-P0-1
