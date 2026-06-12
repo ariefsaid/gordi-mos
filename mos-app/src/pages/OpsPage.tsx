@@ -127,6 +127,7 @@ interface OpsLogRowProps {
 function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, isArchiving }: OpsLogRowProps) {
   const isArchived = entry.archived_at != null
   const wibTime = toWibTime(entry.occurred_at)
+  const editLink = `/ops/${entry.id}/edit`
 
   const rowProps = {
     className: `ops-row${entry.needs_attention ? ' ops-row--attn' : ''}${isArchived ? ' ops-row--archived' : ''}`,
@@ -194,16 +195,26 @@ function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, i
         </div>
       )}
       {canEdit && (
-        <button
-          type="button"
-          className="ops-archive-btn"
-          aria-label={isArchived ? 'Unarchive' : 'Archive'}
-          onClick={() => onArchive(entry.id, !isArchived)}
-          disabled={isArchiving}
-          title={isArchived ? 'Unarchive' : 'Archive'}
-        >
-          {isArchived ? '↩' : '⋯'}
-        </button>
+        <div className="ops-row-actions">
+          <Link
+            to={editLink}
+            className="ops-edit-btn"
+            aria-label="Edit"
+            title="Edit"
+          >
+            Edit
+          </Link>
+          <button
+            type="button"
+            className="ops-archive-btn"
+            aria-label={isArchived ? 'Unarchive' : 'Archive'}
+            onClick={() => onArchive(entry.id, !isArchived)}
+            disabled={isArchiving}
+            title={isArchived ? 'Unarchive' : 'Archive'}
+          >
+            {isArchived ? '↩' : 'Archive'}
+          </button>
+        </div>
       )}
     </li>
   )
@@ -644,20 +655,35 @@ export default function OpsPage() {
           font-size: 11px; font-weight: 500; white-space: nowrap; flex: none;
         }
 
+        /* ── Row actions (edit + archive) ── */
+        .ops-row-actions {
+          position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+          display: flex; gap: 4px; opacity: 0; transition: opacity 0.1s;
+        }
+        .ops-row:hover .ops-row-actions { opacity: 1; }
+        @media (max-width: 767px) {
+          .ops-row-actions { opacity: 1; }
+        }
+
+        .ops-edit-btn {
+          height: 28px; padding: 0 10px; border-radius: 6px;
+          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
+          font-size: 12px; font-weight: 500; color: hsl(var(--foreground)); cursor: pointer;
+          text-decoration: none; display: inline-flex; align-items: center;
+        }
+        .ops-edit-btn:focus-visible {
+          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+        }
+        .ops-edit-btn:hover { background: hsl(var(--accent)); }
+
         /* ── Archive button (ghost ⋯, 32px, reveal on hover / always phone) ── */
         .ops-archive-btn {
-          position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
           width: 32px; height: 32px; border-radius: 8px;
           border: 0; background: transparent; color: hsl(var(--muted-foreground));
-          font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-          opacity: 0; transition: opacity 0.1s;
-        }
-        .ops-row:hover .ops-archive-btn { opacity: 1; }
-        @media (max-width: 767px) {
-          .ops-archive-btn { opacity: 1; }
+          font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
         }
         .ops-archive-btn:focus-visible {
-          outline: 2px solid hsl(var(--ring)); outline-offset: 2px; opacity: 1;
+          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
         }
         .ops-archive-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
 

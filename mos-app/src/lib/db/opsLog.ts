@@ -98,3 +98,10 @@ export async function getTodayOpsSummary(now: Date = new Date()): Promise<TodayO
   const rows = (data ?? []) as { needs_attention: boolean }[]
   return { count: rows.length, needsAttention: rows.some((r) => r.needs_attention) }
 }
+
+/** Get a single log entry by id (for edit mode pre-fill) */
+export async function getLogEntry(id: string): Promise<LogEntryRow> {
+  const { data, error } = await ops().from('log_entries').select('*').eq('id', id).single()
+  if (error) throw new Error(`getLogEntry failed — ${error.message}`)
+  return data as unknown as LogEntryRow
+}

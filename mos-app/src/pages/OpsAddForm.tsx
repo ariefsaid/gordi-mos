@@ -1,18 +1,20 @@
-// OpsAddForm — /ops/new: Add log entry form (P2-3b, FR-040..047, AC-070..073)
+// OpsAddForm — /ops/new: Add/Edit log entry form (P2-3b, FR-040..047, AC-070..073)
 // Design authority: docs/plans/2026-06-12-ops-log-design.md §5 + DESIGN.md tokens.
 // Field grammar mirrors TaskCreate.tsx (.tc-field, .tc-label, .tc-input etc.).
 // Dispatches CreateLogEntryInput — never sends org_id/created_by (NFR-002).
+// Supports both create mode and edit mode (/:id/edit route).
 
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useParams } from 'react-router-dom'
 import PageFrame from '../shell/PageFrame'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { useAuth } from '../auth/useAuth'
-import { addLogEntry } from '../lib/db/opsLog'
-import type { CreateLogEntryInput } from '../lib/db/opsLog'
+import { addLogEntry, editLogEntry, getLogEntry } from '../lib/db/opsLog'
 import type { LogEventType } from '../lib/db/opsLog.types'
-import { getBusinessUnits, getPeople } from '../lib/db/directory'
-import type { BusinessUnitOption, PersonOption } from '../lib/db/directory'
+import { getBusinessUnits } from '../lib/db/directory'
+import type { BusinessUnitOption } from '../lib/db/directory'
+import { listTasks } from '../lib/db/tasks'
+import type { TaskListRow } from '../lib/db/tasks.types'
 
 // Format a Date for a datetime-local input value (WIB offset, no host-tz leak)
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -34,7 +36,9 @@ function datetimeLocalToUTCISO(local: string): string {
 }
 
 export default function OpsAddForm() {
-  useDocumentTitle('Add log entry — Gordi MOS')
+  const { id: entryId } = useParams<{ id: string }>()
+  const isEditMode = !!entryId
+  useDocumentTitle(isEditMode ? 'Edit log entry — Gordi MOS' : 'Add log entry — Gordi MOS')
   const navigate = useNavigate()
   const auth = useAuth()
 
@@ -45,18 +49,42 @@ export default function OpsAddForm() {
 
   // ── Directory ────────────────────────────────────────────────────────────
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
-  const [taskDirectory, setTaskDirectory] = useState<PersonOption[]>([]) // reuse PersonOption shape for tasks
+  const [taskDirectory, setTaskDirectory] = useState<TaskListRow[]>([])
   const [dirLoading, setDirLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([getBusinessUnits(), getPeople()]).then(([bus]) => {
+    Promise.all([getBusinessUnits(), listTasks({ includeArchived: false })]).then(([bus, tasks]) => {
       setBusDirectory(bus)
-      // Task list for linked-task picker: lazy — defer to a tasks query; for now skip
-      // (the spec allows a simple select over existing mos.tasks)
-      setTaskDirectory([])
+      setTaskDirectory(tasks)
       setDirLoading(false)
     }).catch(() => setDirLoading(false))
   }, [])
+
+  // ── Load entry for edit mode ────────────────────────────────────────────────
+  const [editLoading, setEditLoading] = useState(isEditMode)
+  const [entryNotFound, setEntryNotFound] = useState(false)
+
+  useEffect(() => {
+    if (!isEditMode) {
+      setEditLoading(false)
+      return
+    }
+    getLogEntry(entryId!)
+      .then(entry => {
+        setBusinessUnitId(entry.business_unit_id)
+        setEventType(entry.event_type)
+        setTitle(entry.title)
+        setDetail(entry.detail ?? '')
+        setOccurredAt(toDatetimeLocalWIB(new Date(entry.occurred_at)))
+        setNeedsAttention(entry.needs_attention)
+        setLinkedTaskId(entry.linked_task_id ?? '')
+        setEditLoading(false)
+      })
+      .catch(() => {
+        setEntryNotFound(true)
+        setEditLoading(false)
+      })
+  }, [isEditMode, entryId])
 
   // ── Form state ────────────────────────────────────────────────────────────
   const [businessUnitId, setBusinessUnitId] = useState(primaryRoleBU)
@@ -65,7 +93,7 @@ export default function OpsAddForm() {
   const [detail, setDetail] = useState('')
   const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocalWIB(new Date()))
   const [needsAttention, setNeedsAttention] = useState(false)
-  const [linkedTaskId] = useState<string>('') // optional; kept for future linked-task picker
+  const [linkedTaskId, setLinkedTaskId] = useState<string>('') // optional linked-task picker
 
   // Sync BU once directory + auth loads
   useEffect(() => {
@@ -104,7 +132,7 @@ export default function OpsAddForm() {
     setSubmitting(true)
     setSubmitError('')
     try {
-      const input: CreateLogEntryInput = {
+      const payload = {
         businessUnitId,
         eventType,
         title: title.trim(),
@@ -113,12 +141,43 @@ export default function OpsAddForm() {
         needsAttention,
         linkedTaskId: linkedTaskId || null,
       }
-      await addLogEntry(input)
+
+      if (isEditMode) {
+        await editLogEntry(entryId!, payload)
+      } else {
+        await addLogEntry(payload)
+      }
       navigate('/ops', { replace: false })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong')
       setSubmitting(false)
     }
+  }
+
+  if (entryNotFound) {
+    return (
+      <PageFrame>
+        <div className="tc-page-head">
+          <h1 className="tc-page-title">Log entry not found</h1>
+        </div>
+        <div className="tc-card">
+          <p className="tc-error-msg">
+            The log entry you&apos;re trying to edit doesn&apos;t exist or you don&apos;t have access to it.
+          </p>
+          <Link to="/ops" className="tc-btn-cancel">Back to Ops Log</Link>
+        </div>
+      </PageFrame>
+    )
+  }
+
+  if (editLoading || dirLoading) {
+    return (
+      <PageFrame>
+        <div className="tc-page-head">
+          <h1 className="tc-page-title">Loading…</h1>
+        </div>
+      </PageFrame>
+    )
   }
 
   return (
@@ -127,18 +186,18 @@ export default function OpsAddForm() {
       <nav aria-label="Breadcrumb" className="tc-breadcrumb">
         <Link to="/ops" className="tc-breadcrumb-link">Daily ops feed</Link>
         <span className="tc-breadcrumb-sep" aria-hidden="true"> / </span>
-        <span className="tc-breadcrumb-current">Add log entry</span>
+        <span className="tc-breadcrumb-current">{isEditMode ? 'Edit log entry' : 'Add log entry'}</span>
       </nav>
 
       <div className="tc-page-head">
-        <h1 className="tc-page-title">Add log entry</h1>
+        <h1 className="tc-page-title">{isEditMode ? 'Edit log entry' : 'Add log entry'}</h1>
       </div>
 
       <div className="tc-card">
         <form
           onSubmit={handleSubmit}
           noValidate
-          aria-label="Add log entry"
+          aria-label={isEditMode ? 'Edit log entry' : 'Add log entry'}
           role="form"
         >
           {submitError && (
@@ -271,20 +330,27 @@ export default function OpsAddForm() {
             </label>
           </div>
 
-          {/* Hidden: linked task (future picker; not shown in P2-3) */}
-          {taskDirectory.length > 0 && (
-            <div className="tc-field">
-              <label htmlFor="ops-linked-task" className="tc-label">Linked task</label>
+          {/* Linked task (optional; FR-045) */}
+          <div className="tc-field">
+            <label htmlFor="ops-linked-task" className="tc-label">Linked task</label>
+            {dirLoading ? (
+              <div className="tc-loading-field">Loading…</div>
+            ) : (
               <select
                 id="ops-linked-task"
                 className="tc-select"
+                value={linkedTaskId}
+                onChange={e => setLinkedTaskId(e.target.value)}
                 disabled={submitting}
                 aria-label="Linked task"
               >
                 <option value="">None</option>
+                {taskDirectory && taskDirectory.map(task => (
+                  <option key={task.id} value={task.id}>{task.title}</option>
+                ))}
               </select>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Actions */}
           <div className="tc-actions">
@@ -295,7 +361,7 @@ export default function OpsAddForm() {
               disabled={!isValid || submitting}
               aria-busy={submitting}
             >
-              {submitting ? 'Adding…' : 'Add log entry'}
+              {submitting ? (isEditMode ? 'Saving…' : 'Adding…') : (isEditMode ? 'Save changes' : 'Add log entry')}
             </button>
           </div>
         </form>
@@ -358,6 +424,10 @@ export default function OpsAddForm() {
         /* Needs-attention amber hint text (§3.3 — warning-foreground, AA contrast) */
         .ops-attn-hint {
           font-size: 12px; color: hsl(22 78% 26%); /* warning-foreground */
+        }
+
+        .tc-error-msg {
+          font-size: 14px; color: hsl(var(--foreground)); margin-bottom: 16px;
         }
 
         .tc-actions {
