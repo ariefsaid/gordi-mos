@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming } from './week'
+import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange } from './week'
 import type { WeekLabel } from './week'
 
 // AC-010: WIB week math — tests the pure weekLabel utility.
@@ -123,5 +123,30 @@ describe('fridayLabel WIB week Friday', () => {
   it('returns Fri 12 Jun for the week of 8–14 Jun 2026', () => {
     const now = new Date('2026-06-10T05:00:00Z') // Wed 10 Jun WIB
     expect(fridayLabel(now)).toBe('Fri 12 Jun')
+  })
+})
+
+describe('AC-050: wibDayRange returns the half-open WIB-day UTC range with no host-tz leak', () => {
+  // Jun 2026: WIB midnight 12 Jun = 2026-06-11T17:00:00Z; WIB midnight 13 Jun = 2026-06-12T17:00:00Z.
+  it('mid-day instant resolves to its WIB calendar day', () => {
+    // 2026-06-12T03:00:00Z = 10:00 WIB, 12 Jun
+    expect(wibDayRange(new Date('2026-06-12T03:00:00Z'))).toEqual({
+      startISO: '2026-06-11T17:00:00.000Z',
+      endISO: '2026-06-12T17:00:00.000Z',
+    })
+  })
+  it('WIB-midnight boundary belongs to the new day', () => {
+    // 2026-06-11T17:00:00Z = 00:00 WIB, 12 Jun
+    expect(wibDayRange(new Date('2026-06-11T17:00:00Z'))).toEqual({
+      startISO: '2026-06-11T17:00:00.000Z',
+      endISO: '2026-06-12T17:00:00.000Z',
+    })
+  })
+  it('the instant just before WIB midnight belongs to the prior day', () => {
+    // 2026-06-11T16:59:59Z = 23:59:59 WIB, 11 Jun
+    expect(wibDayRange(new Date('2026-06-11T16:59:59Z'))).toEqual({
+      startISO: '2026-06-10T17:00:00.000Z',
+      endISO: '2026-06-11T17:00:00.000Z',
+    })
   })
 })
