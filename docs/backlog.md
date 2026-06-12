@@ -3,26 +3,25 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
-> **NEXT SESSION: read `docs/STATUS.md` first.** P2-3 (Daily Log) is **COMPLETE** on branch
-> `fix/ops-log-followups` (6 commits, gates green, e2e live) — pending **PR + merge**. After merge the
-> **first-slice MVP is feature-complete**; the only remaining gap to a usable product is **P3-1
-> production deploy** (owner-gated). Earlier git-hygiene slips — NEVER `git push origin HEAD:main` from a
-> feature branch; feature code = branch → PR → merge.
+> **NEXT SESSION: read `docs/STATUS.md` first.** P2-3 (Daily Log) is **MERGED** (PR #12, `main@67b059d`;
+> marker-fix `0b4a42b`). **The first-slice MVP is now feature-complete** (tasks+RACI · weekly updates ·
+> Daily Log). The single remaining gap to a *usable* product is **▶ P3-1 production deploy** (ris-dev,
+> owner-gated) — see "Phase 3" below. P2-4 stays owner-deferred. Git-hygiene: NEVER `git push origin
+> HEAD:main` from a feature branch; rebase onto latest main before merging; feature code = branch → PR → merge.
 
-## ▶ NOW — Phase 0: frontend mockups
-- [ ] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
+## ✅ Phase 0 — frontend mockups (DONE)
+- [x] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
   (`docs/design-mockups/proposal-IA-<n>-<slug>.html`). Candidate shapes to explore: (a) left-rail +
   master-detail (PMO-like), (b) "My week" home-first (tasks + updates due on one landing surface),
   (c) feed-first (daily ops feed as home, tasks/updates as tabs). Each shows shell + nav + one
   populated screen, realistic Gordi data. Resolves WALL-1 into concrete options.
-- [ ] **P0-2 — Key-screen mockups.** My Tasks list (RACI-visible, filterable) · task detail (RACI
-  fields + status + updates) · weekly update write + manager review · daily ops feed (kitchen-mirrored
-  events). `docs/design-mockups/mock-<screen>.html`.
+- [x] **P0-2 — Key-screen mockups.** My Tasks list · task detail · weekly update write + manager review ·
+  daily ops feed. `docs/design-mockups/mock-<screen>.html` built; superseded by the shipped app (Phase 2).
 - [x] **P0-3 — Owner IA pick.** DONE → OD-P0-6 (IA-8 balanced My Week) after two density redlines
   (OD-P0-7). Remaining gate items: home information inventory (OD-P0-8 pending) → re-cut the four
   key-screen mocks to density mode → owner signs off screens.
 
-## ▶ NEXT — Phase 1: foundation (blocked on P0-3)
+## ✅ Phase 1 — foundation (DONE)
 - [x] P1-1 scaffold `mos-app/` + CI gates + Playwright harness — DONE, PR #1 merged (main@baafdc4).
 - [x] P1-2 Supabase foundation — DONE, PR #2 merged (main@4f9ce7f): 6 migrations, 10 pgTAP files /
   41 assertions, ADR-0001, OD-P1-1..7 via grill session #1; security audit no-High/Critical, M1/M2/L3
@@ -48,15 +47,15 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   Resend dashboard (SPF/DKIM DNS records) + provisions an API key into the prod env. Password login
   works without SMTP.
 
-## ▶ LATER — Phase 2: first slice (blocked on Phase 1)
-- [~] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5) — IN PROGRESS (3-PR split):
+## ✅ Phase 2 — first slice (DONE; P2-4 owner-deferred)
+- [x] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5) — COMPLETE (3-PR split):
   - [x] P2-1a schema + RLS + data layer — PR #5 (mos.tasks, archive-gate, 41 pgTAP; security clean).
   - [x] P2-1b Tasks list page — PR #6 (filters, RACI rows, directory-resolved names, archived
     treatment, 768px reflow; 3-lens caught + fixed cross-schema embed bug). 220 unit · 7 e2e.
   - [x] P2-1c task detail + checklist + create + archive — PR #7 (inline status, editable R/A/C/I,
     checklist add/toggle/reorder/delete, activity log, archive/unarchive, read-only non-editor,
     loading/not-found/archived states). 252 unit · 9 e2e. **P2-1 COMPLETE.**
-- [~] P2-2 weekly updates (write + manager review) — IN PROGRESS (3-PR split, grill #3 → OD-P2-10..14):
+- [x] P2-2 weekly updates (write + manager review) — COMPLETE (3-PR split, grill #3 → OD-P2-10..14):
   - [x] P2-2a schema + upward-only RLS + data layer + week.ts — PR #8 (first non-org-readable entity;
     author-only write, submit-lock; security audit found+fixed a Critical — _test_seed_role_tree
     PUBLIC-EXECUTE RPC; CI definer-revoke lint added). 120 pgTAP · 282 unit.
@@ -80,6 +79,14 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
     44px phone targets + clear-filters + archived-calm · `633e368`/`6ab1bd1` Daily Log rename + strip
     verb fix. 460 unit · e2e AC-090/091 live · all gates green.
 - [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
+
+## ▶ NOW — Phase 3: production deploy (the only gap to a usable product)
+- [ ] **P3-1 — ris-dev production deploy** to `https://ops.gordi.id/mos` (self-hosted Supabase + Caddy at `/mos`).
+  **Owner-gated** (irreversible infra). Runbook: `docs/environments.md` (§Production deploy) + `supabase/README.md`
+  (§Production email). Hardening before exposure (the **L5 checklist**, detailed under "Security-audit deferrals"
+  below): disable open signup both keys + live 422 self-signup probe · password policy (≥8, mixed) · session
+  `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
+  vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
 - ~~WALL-1 — first navigation IA~~ CLOSED → OD-P0-6 (balanced My Week, proposal-IA-8) + OD-P0-7 (density mode in DESIGN.md).

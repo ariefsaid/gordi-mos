@@ -4,7 +4,7 @@ Phasing to MVP, optimized for speed-to-daily-use. Source of product truth: `docs
 One issue at a time per the Director loop (`docs/director-playbook.md`). Each phase ends at an
 **owner gate**.
 
-## Phase 0 — Frontend mockups (CURRENT)
+## Phase 0 — Frontend mockups (DONE)
 Goal: lock the IA and the look of the first slice on paper before any code. Static HTML only
 (`docs/design-mockups/`), to the adopted `DESIGN.md` tokens. Full procedure:
 `docs/design-workflow.md` §1.
@@ -14,7 +14,7 @@ Goal: lock the IA and the look of the first slice on paper before any code. Stat
 - **0.3** Owner picks IA + signs off screens; picks recorded in `docs/decisions.md`.
 - **Gate:** owner sign-off on mockups. Also decide here: user-facing app name (brief open question).
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation (DONE)
 Goal: a deployable empty shell with real auth and the schema seams.
 - **1.1** Scaffold `mos-app/` (React 19 + Vite + TS + react-router-dom 7, base path `/mos`),
   CI gates (typecheck / lint / unit / build), Playwright harness.
@@ -24,19 +24,19 @@ Goal: a deployable empty shell with real auth and the schema seams.
 - **1.4** App shell per the picked IA mockup (nav, routing, empty states).
 - **Gate:** owner logs in at a preview URL and sees the shell with their own name/role.
 
-## Phase 2 — First slice (the MVP)
+## Phase 2 — First slice (the MVP) (DONE — feature-complete 2026-06-12; 2.4 owner-deferred)
 Goal: daily/weekly management workflow usable by managers + selected ops users.
 - **2.1** Tasks + ownership + lightweight RACI (fields, not matrix — locked): CRUD, list with
   RACI/owner/status filters, task detail. The core entity.
 - **2.2** Weekly updates: write (per person/area), review surface for managers, week-keyed.
-- **2.3** Daily ops updates: the `ops` feed surface; manual entry first.
+- **2.3** Daily Log (daily ops): the `/ops` feed surface; manual entry first. (Surface named "Daily Log", OD-P2-15.)
 - **2.4** Kitchen mirror: approved kitchen activity → `ops` daily updates (read-only mirror;
   kitchen app untouched). Needs owner decision on which events first (THE WALL).
 - **Gate:** owner + 1–2 managers run a real week in it (tasks owned, weekly updates filed, daily
   feed populated).
 
-## Phase 3 — Rollout & hardening
-- **3.1** Production deploy to `ops.gordi.id/mos` on ris-dev (Caddy path-route; owner-approved).
+## Phase 3 — Rollout & hardening (CURRENT)
+- **3.1** Production deploy to `ops.gordi.id/mos` on ris-dev (Caddy path-route; owner-approved). Runbook: `docs/environments.md`.
 - **3.2** Onboard managers + selected ops users; collect friction → Human-UX loop
   (`docs/design-workflow.md` §3).
 - **3.3** Hardening: security audit pass on auth/RLS across schemas, backups confirmed, monitoring.
