@@ -73,7 +73,6 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   - [x] P2-3a schema + org-read RLS + data layer + wibDayRange — PR #11 (ops.log_entries, first
     ops-schema exposure; security audit found+fixed a High (created_by mutable) + Medium (cross-org
     refs) via a guard trigger). 152 pgTAP · 411 unit.
-<<<<<<< HEAD
   - [x] P2-3b+c Daily Log feed + add/edit form + linked-task picker + My Week strip + 2 e2e —
     **COMPLETE** (merged PR #12). Recovered a killed-pi WIP + two bypassed reviews:
     `842cee6` route + editLogEntry camel→snake fix · `d9b3c20` spec+quality reviews (gpt-5.4) → TZ-bug
