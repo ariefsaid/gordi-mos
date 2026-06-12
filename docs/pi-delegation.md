@@ -33,6 +33,8 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback **only when BOTH z.ai AND OpenAI are rate-limited** — keeps the loop moving rather than stalling on a 429 | best-effort |
 
+OpenRouter slugs (confirmed live 2026-06-12): Nemotron 3 Ultra (free) = `nvidia/nemotron-3-ultra-550b-a55b:free`; Nex N2 Pro (free) = `nex-agi/nex-n2-pro:free`. Both reachable via `--provider openrouter`.
+
 The agent's own `model:` frontmatter is IGNORED under pi (pi uses `--model`); route by this table.
 **Fallback (owner rule):** z.ai limit → use `gpt-5.4`; OpenAI limit → use GLM; **BOTH rate-limited →
 the OpenRouter free models** (owner directive 2026-06-12): try **Nemotron 3 Ultra (free)** first, then
