@@ -62,7 +62,12 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
     on-time/late, My Week strip + team module wired to listTeamUpdates). **P2-2 COMPLETE.**
     NOTE: base P2-2c was accidentally pushed direct to main (git-hygiene slip); PR #10 rolled forward
     the bypassed review — 3-lens caught 3 Criticals incl. unimplemented FR-031 row-open. 396 unit · 11 e2e.
-- [ ] P2-3 daily ops updates feed (manual entry first).
+- [~] P2-3 Ops Log (daily ops feed, manual entry) — IN PROGRESS (3-PR split, grill → OD-P2-15..19):
+  - [x] P2-3a schema + org-read RLS + data layer + wibDayRange — PR #11 (ops.log_entries, first
+    ops-schema exposure; security audit found+fixed a High (created_by mutable) + Medium (cross-org
+    refs) via a guard trigger). 152 pgTAP · 411 unit.
+  - [ ] P2-3b Ops Log feed page + "+ Add log entry" form.
+  - [ ] P2-3c My Week ops-strip wiring + 2 e2e (may fold into b).
 - [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
@@ -91,8 +96,17 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   `ConfirmDialog` for future destructive flows · `PersonPicker` empty state when all excluded.
 - **P2-2a quality deferrals (non-blocking, from code-quality review):** migrate pgTAP fixtures in
   tests 14/16 onto the new `mos._test_seed_role_tree()` helper (one role-tree definition org-wide) ·
-  lift `mos()` schema-client + `throwOnError` wrapper into a shared `db/mosClient.ts` when a 3rd mos
-  data-layer file lands · optional `wibMondayUTC(now)` DRY across week.ts pure fns.
+  **(broadened by P2-3a)** lift the `schema(name)` client + `throwOnError(label,{data,error})` wrapper
+  (now hand-repeated across tasks.ts/weeklyUpdates.ts/opsLog.ts, ~20 call-sites, 2 schemas) into a
+  schema-agnostic `db/client.ts` — do it at the first `ops` UI consumer (P2-3b) with both schemas in
+  view · optional `wibMondayUTC(now)` DRY across week.ts pure fns.
+- **mos.tasks cross-org `business_unit_id` (security Medium twin, from P2-3a audit):** `mos.tasks`
+  accepts a foreign-org `business_unit_id` (existence-only FK, no org-match) — the same gap P2-3a
+  closed on `ops.log_entries`. Pre-existing, UUIDv4-throttled, single-tenant-today (not a regression).
+  Close it with a same-org ref guard mirroring `ops._guard_log_entry` when next touching mos.tasks.
+- **P2-3a scale-only:** the feed filter indexes are `(org_id, col)` but the feed sorts `occurred_at
+  desc` — a `(org_id, business_unit_id, occurred_at desc)` composite would help only at large row
+  counts. Immaterial at Gordi scale; revisit if the Ops Log grows large.
 - **P2-2c — transitive / CEO-org-wide review roster** (deferred, Director-decided 2026-06-12): the
   review pane roster lists DIRECT reports (FR-030 amended). Revisit when the org grows past 2 levels
   or the CEO wants an org-wide weekly-update roster — make `team.ts` resolve the transitive subtree
