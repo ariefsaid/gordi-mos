@@ -180,7 +180,7 @@ describe('AC-012: Empty strips', () => {
     await waitFor(() =>
       expect(screen.getByText(/No log entries on the floor today\./i)).toBeInTheDocument(),
     )
-    const link = screen.getByRole('link', { name: /Today on Ops/i })
+    const link = screen.getByRole('link', { name: /Open the Daily Log/i })
     expect(link.getAttribute('href')).toBe('/ops')
   })
 
@@ -223,7 +223,7 @@ describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
   it('ops strip container has flex-wrap class (not fixed row)', async () => {
     const { container } = await renderMyWeek()
     const opsSection = container.querySelector('[aria-label="Today on the floor"]') ??
-                       container.querySelector('[aria-label="Today on Ops"]')
+                       container.querySelector('[aria-label="Today on the Daily Log"]')
     expect(opsSection).toBeTruthy()
     expect(opsSection!.className).toMatch(/flex-wrap/)
   })
@@ -519,7 +519,7 @@ describe('AC-080: ops strip shows today count, neutral', () => {
     // Sentence mentions log entries
     expect(screen.getByText(/3 log entries on the floor today/i)).toBeInTheDocument()
     // Link to /ops
-    const link = screen.getByRole('link', { name: /Today on Ops/i })
+    const link = screen.getByRole('link', { name: /Open the Daily Log/i })
     expect(link.getAttribute('href')).toBe('/ops')
   })
 
@@ -536,7 +536,7 @@ describe('AC-080: ops strip shows today count, neutral', () => {
     mockGetTodayOpsSummary.mockResolvedValue({ count: 1, needsAttention: false })
     await renderMyWeek()
     await waitFor(() => expect(screen.getByText(/1 today/i)).toBeInTheDocument())
-    const link = screen.getByRole('link', { name: /Today on Ops/i })
+    const link = screen.getByRole('link', { name: /Open the Daily Log/i })
     expect(link.getAttribute('href')).toBe('/ops')
   })
 })
@@ -550,8 +550,8 @@ describe('AC-081: ops strip amber when a needs-attention entry is open', () => {
     )
     // Sentence must include "needs attention" signal
     expect(screen.getByText(/something needs attention/i)).toBeInTheDocument()
-    // Link label changes to "Review on Ops"
-    expect(screen.getByRole('link', { name: /Review on Ops/i })).toBeInTheDocument()
+    // Link label changes to "See what needs attention"
+    expect(screen.getByRole('link', { name: /See what needs attention/i })).toBeInTheDocument()
     // data-attn or amber class on the pill (visual check via data attr)
     const pill = document.querySelector('[data-ops-attn="true"]')
     expect(pill).not.toBeNull()
@@ -568,7 +568,7 @@ describe('AC-082: ops strip degrades pane-by-pane', () => {
       expect(screen.getByText(/Couldn't load today's ops/i)).toBeInTheDocument(),
     )
     // Retry button present in ops strip
-    const opsSection = document.querySelector('[aria-label="Today on Ops"]')
+    const opsSection = document.querySelector('[aria-label="Today on the Daily Log"]')
     expect(opsSection).toBeTruthy()
     // Weekly update strip still rendered (not affected by ops error)
     expect(screen.getByText(/No weekly update for this week yet/i)).toBeInTheDocument()
@@ -585,7 +585,7 @@ describe('AC-082: ops strip degrades pane-by-pane', () => {
     )
     // Ops strip section (role=region) is present with loading state
     await waitFor(() => {
-      const opsSection = screen.queryByRole('region', { name: 'Today on Ops' })
+      const opsSection = screen.queryByRole('region', { name: 'Today on the Daily Log' })
       expect(opsSection).toBeTruthy()
     })
   })
