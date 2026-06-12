@@ -18,7 +18,6 @@ import { addLogEntry, editLogEntry, getLogEntry } from '../lib/db/opsLog'
 
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
-  getPeople: vi.fn(),
 }))
 import { getBusinessUnits } from '../lib/db/directory'
 

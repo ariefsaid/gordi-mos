@@ -15,25 +15,7 @@ import { getBusinessUnits } from '../lib/db/directory'
 import type { BusinessUnitOption } from '../lib/db/directory'
 import { listTasks } from '../lib/db/tasks'
 import type { TaskListRow } from '../lib/db/tasks.types'
-
-// Format a Date for a datetime-local input value (WIB offset, no host-tz leak)
-const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-function toDatetimeLocalWIB(d: Date): string {
-  const wib = new Date(d.getTime() + WIB_OFFSET_MS)
-  // yyyy-MM-ddTHH:mm
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return (
-    `${wib.getUTCFullYear()}-${pad(wib.getUTCMonth() + 1)}-${pad(wib.getUTCDate())}` +
-    `T${pad(wib.getUTCHours())}:${pad(wib.getUTCMinutes())}`
-  )
-}
-
-// Convert datetime-local string (WIB local) → UTC ISO
-function datetimeLocalToUTCISO(local: string): string {
-  // datetime-local is WIB, so subtract 7h to get UTC
-  const asUTC = new Date(local).getTime() - WIB_OFFSET_MS
-  return new Date(asUTC).toISOString()
-}
+import { toWibInputValue, wibInputToUTCISO } from '../lib/week'
 
 export default function OpsAddForm() {
   const { id: entryId } = useParams<{ id: string }>()
@@ -75,7 +57,7 @@ export default function OpsAddForm() {
         setEventType(entry.event_type)
         setTitle(entry.title)
         setDetail(entry.detail ?? '')
-        setOccurredAt(toDatetimeLocalWIB(new Date(entry.occurred_at)))
+        setOccurredAt(toWibInputValue(new Date(entry.occurred_at)))
         setNeedsAttention(entry.needs_attention)
         setLinkedTaskId(entry.linked_task_id ?? '')
         setEditLoading(false)
@@ -91,7 +73,7 @@ export default function OpsAddForm() {
   const [eventType, setEventType] = useState<LogEventType>('other')
   const [title, setTitle] = useState('')
   const [detail, setDetail] = useState('')
-  const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocalWIB(new Date()))
+  const [occurredAt, setOccurredAt] = useState(() => toWibInputValue(new Date()))
   const [needsAttention, setNeedsAttention] = useState(false)
   const [linkedTaskId, setLinkedTaskId] = useState<string>('') // optional linked-task picker
 
@@ -137,7 +119,7 @@ export default function OpsAddForm() {
         eventType,
         title: title.trim(),
         detail: detail.trim() || null,
-        occurredAt: datetimeLocalToUTCISO(occurredAt),
+        occurredAt: wibInputToUTCISO(occurredAt),
         needsAttention,
         linkedTaskId: linkedTaskId || null,
       }
@@ -211,26 +193,22 @@ export default function OpsAddForm() {
             <label htmlFor="ops-bu" className="tc-label">
               Business unit <span aria-hidden="true" className="tc-required">*</span>
             </label>
-            {dirLoading ? (
-              <div className="tc-loading-field">Loading…</div>
-            ) : (
-              <select
-                id="ops-bu"
-                className={`tc-select${buError ? ' tc-input-error' : ''}`}
-                value={businessUnitId}
-                onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
-                aria-required="true"
-                aria-invalid={buError ? 'true' : undefined}
-                aria-describedby={buError ? 'ops-bu-err' : undefined}
-                disabled={submitting}
-                aria-label="Business unit"
-              >
-                <option value="">Select business unit…</option>
-                {busDirectory.map(bu => (
-                  <option key={bu.id} value={bu.id}>{bu.name}</option>
-                ))}
-              </select>
-            )}
+            <select
+              id="ops-bu"
+              className={`tc-select${buError ? ' tc-input-error' : ''}`}
+              value={businessUnitId}
+              onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
+              aria-required="true"
+              aria-invalid={buError ? 'true' : undefined}
+              aria-describedby={buError ? 'ops-bu-err' : undefined}
+              disabled={submitting}
+              aria-label="Business unit"
+            >
+              <option value="">Select business unit…</option>
+              {busDirectory.map(bu => (
+                <option key={bu.id} value={bu.id}>{bu.name}</option>
+              ))}
+            </select>
             {buError && (
               <span id="ops-bu-err" role="alert" className="tc-field-error">{buError}</span>
             )}
@@ -333,23 +311,19 @@ export default function OpsAddForm() {
           {/* Linked task (optional; FR-045) */}
           <div className="tc-field">
             <label htmlFor="ops-linked-task" className="tc-label">Linked task</label>
-            {dirLoading ? (
-              <div className="tc-loading-field">Loading…</div>
-            ) : (
-              <select
-                id="ops-linked-task"
-                className="tc-select"
-                value={linkedTaskId}
-                onChange={e => setLinkedTaskId(e.target.value)}
-                disabled={submitting}
-                aria-label="Linked task"
-              >
-                <option value="">None</option>
-                {taskDirectory && taskDirectory.map(task => (
-                  <option key={task.id} value={task.id}>{task.title}</option>
-                ))}
-              </select>
-            )}
+            <select
+              id="ops-linked-task"
+              className="tc-select"
+              value={linkedTaskId}
+              onChange={e => setLinkedTaskId(e.target.value)}
+              disabled={submitting}
+              aria-label="Linked task"
+            >
+              <option value="">None</option>
+              {taskDirectory.map(task => (
+                <option key={task.id} value={task.id}>{task.title}</option>
+              ))}
+            </select>
           </div>
 
           {/* Actions */}
@@ -415,11 +389,6 @@ export default function OpsAddForm() {
         .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
 
         .tc-field-error { font-size: 12px; color: hsl(var(--destructive)); }
-
-        .tc-loading-field {
-          height: 36px; display: flex; align-items: center;
-          font-size: 13px; color: hsl(var(--muted-foreground));
-        }
 
         /* Needs-attention amber hint text (§3.3 — warning-foreground, AA contrast) */
         .ops-attn-hint {

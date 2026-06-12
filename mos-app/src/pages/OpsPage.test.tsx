@@ -1,7 +1,7 @@
 // OpsPage + OpsAddForm unit tests — TDD, AC-tagged (P2-3b)
 // All behavior assertions; no mocks-of-themselves.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { AuthState } from '../auth/context'
@@ -35,7 +35,7 @@ vi.mock('../lib/db/tasks', () => ({
   updateTaskRaci: vi.fn(),
   getTaskTitlesByIds: vi.fn(),
 }))
-import { getTaskTitlesByIds } from '../lib/db/tasks'
+import { getTaskTitlesByIds, listTasks } from '../lib/db/tasks'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListLogEntries = vi.mocked(listLogEntries)
@@ -43,21 +43,27 @@ const mockAddLogEntry = vi.mocked(addLogEntry)
 const mockArchiveLogEntry = vi.mocked(archiveLogEntry)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetTaskTitlesByIds = vi.mocked(getTaskTitlesByIds)
+const mockListTasks = vi.mocked(listTasks)
 
-// Mock matchMedia for useIsDesktop (desktop by default)
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: query === '(min-width: 768px)',
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-})
+// useIsDesktop reads matchMedia('(min-width: 768px)') synchronously on first paint.
+// applyViewport(true) = desktop (≥768px); applyViewport(false) = phone (~390px).
+function applyViewport(isDesktop: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(min-width: 768px)' ? isDesktop : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+applyViewport(true) // desktop by default
 
 const VIEWER: AuthState = {
   status: 'authenticated',
@@ -150,9 +156,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockGetBusinessUnits.mockResolvedValue([BU_KITCHEN, BU_ROASTERY])
   mockGetTaskTitlesByIds.mockResolvedValue([])
+  mockListTasks.mockResolvedValue([]) // add-form linked-task picker source (FR-045)
   // Default: 3 entries, newest first
   mockListLogEntries.mockResolvedValue([ENTRY_3, ENTRY_1, ENTRY_2])
 })
+
+afterEach(() => applyViewport(true)) // restore desktop so phone tests don't leak
 
 // ── AC-060: feed renders newest-first with source badge, type, title ──────────
 describe('AC-060: feed renders newest-first with source badge, type, title', () => {
@@ -171,6 +180,11 @@ describe('AC-060: feed renders newest-first with source badge, type, title', () 
 
     // Type text present (muted, not a badge)
     expect(screen.getAllByTestId('ops-type-text').length).toBeGreaterThan(0)
+
+    // WIB time on each row: UTC 06/05/04:00Z → 13:00/12:00/11:00 WIB (proves +7 shift)
+    expect(screen.getByText('13:00')).toBeInTheDocument()
+    expect(screen.getByText('12:00')).toBeInTheDocument()
+    expect(screen.getByText('11:00')).toBeInTheDocument()
   })
 
   it('orders rows newest-first on screen', async () => {
@@ -398,19 +412,49 @@ describe('AC-066: feed empty/loading/error states', () => {
 
 // ── AC-067: phone reflow with 44px add target ─────────────────────────────────
 describe('AC-067: phone reflow with 44px add target', () => {
-  it('renders the feed region with proper ARIA list structure', async () => {
-    await renderOps()
+  it('at ~390px, rows use the phone block layout (not the desktop row)', async () => {
+    applyViewport(false) // phone
+    const { container } = await renderOps()
     await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
-    // Feed is a list
-    expect(screen.getByRole('list', { name: /ops log/i })).toBeInTheDocument()
+
+    // Rows reflow to the phone block layout, and the desktop row layout is absent
+    expect(container.querySelectorAll('.ops-row-inner--phone').length).toBe(3)
+    expect(container.querySelector('.ops-row-inner--desktop')).toBeNull()
   })
 
-  it('has a "+ Add log entry" link', async () => {
+  it('at ~390px, the needs-attention tint is preserved on the reflowed row', async () => {
+    applyViewport(false) // phone
+    const { container } = await renderOps()
+    await waitFor(() => expect(screen.getByText('Stock opname tertunda')).toBeInTheDocument())
+    // ENTRY_3 (needs_attention) keeps its amber row treatment in phone layout
+    expect(container.querySelector('.ops-row--attn[data-attn="true"]')).not.toBeNull()
+  })
+
+  it('at ~390px, exposes the sticky 44px "+ Add log entry" submit bar', async () => {
+    applyViewport(false) // phone
+    const { container } = await renderOps()
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+
+    // The phone-only full-width submit bar exists (min-height 44px target, FR-038)…
+    const submitBtn = container.querySelector('.ops-submit-bar-btn') as HTMLElement | null
+    expect(submitBtn).not.toBeNull()
+    expect(submitBtn).toHaveAccessibleName(/add log entry/i)
+    // …and the desktop toolbar add button is NOT rendered at phone width
+    expect(container.querySelector('.ops-add-btn:not(.ops-add-btn--empty)')).toBeNull()
+  })
+
+  it('on desktop, rows use the desktop row layout (control case)', async () => {
+    const { container } = await renderOps() // desktop default
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+    expect(container.querySelectorAll('.ops-row-inner--desktop').length).toBe(3)
+    expect(container.querySelector('.ops-row-inner--phone')).toBeNull()
+    expect(container.querySelector('.ops-submit-bar-btn')).toBeNull()
+  })
+
+  it('the feed has proper ARIA list structure', async () => {
     await renderOps()
     await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
-    // Could be in toolbar or submit bar
-    const addLinks = screen.getAllByRole('link', { name: /add log entry/i })
-    expect(addLinks.length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('list', { name: /ops log/i })).toBeInTheDocument()
   })
 })
 
@@ -488,6 +532,39 @@ describe('AC-071: submit disabled until title + business unit present', () => {
     const titleInput = screen.getByLabelText(/title/i)
     fireEvent.change(titleInput, { target: { value: 'Something happened' } })
     const submit = screen.getByRole('button', { name: /add log entry/i })
+    expect(submit).not.toBeDisabled()
+  })
+
+  it('submit stays disabled when no Business Unit is chosen (even with a title), then enables once one is picked', async () => {
+    // A creator with no role has no primary BU → the BU select starts empty.
+    const VIEWER_NO_BU: AuthState = {
+      ...VIEWER,
+      viewer: { ...VIEWER.viewer, roles: [] },
+    }
+    mockUseAuth.mockReturnValue(VIEWER_NO_BU)
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/ops/new']}>
+          <Routes>
+            <Route path="/ops" element={<OpsPage />} />
+            <Route path="/ops/new" element={<OpsAddForm />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toBeInTheDocument())
+
+    const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
+    expect(buSelect.value).toBe('') // no primary BU
+
+    // Title present but BU still empty → submit disabled
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Floor incident' } })
+    const submit = screen.getByRole('button', { name: /add log entry/i })
+    expect(submit).toBeDisabled()
+
+    // Choosing a BU satisfies the inline-required field → submit enables
+    fireEvent.change(buSelect, { target: { value: BU_KITCHEN.id } })
     expect(submit).not.toBeDisabled()
   })
 })

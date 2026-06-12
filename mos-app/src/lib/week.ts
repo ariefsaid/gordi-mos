@@ -124,6 +124,32 @@ export function wibDayRange(now: Date): { startISO: string; endISO: string } {
   }
 }
 
+/**
+ * Format a UTC instant as the WIB (Asia/Jakarta) wall-clock value for a `datetime-local` input,
+ * i.e. "YYYY-MM-DDTHH:mm". Shifts +7h and reads UTC parts — no host-timezone leak (NFR-005).
+ */
+export function toWibInputValue(d: Date): string {
+  const shifted = new Date(d.getTime() + WIB_OFFSET_MS)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
+    `T${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`
+  )
+}
+
+/**
+ * Parse a `datetime-local` value ("YYYY-MM-DDTHH:mm", interpreted as WIB wall-clock) into the
+ * corresponding UTC ISO instant. Builds from parts via `Date.UTC(...) - 7h` so the result is the
+ * same regardless of the host's timezone (NFR-005) — `new Date(localString)` would parse in the
+ * host TZ and is wrong for any non-UTC device.
+ */
+export function wibInputToUTCISO(local: string): string {
+  const [datePart, timePart = '00:00'] = local.split('T')
+  const [y, mo, d] = datePart.split('-').map(Number)
+  const [h, mi] = timePart.split(':').map(Number)
+  return new Date(Date.UTC(y, mo - 1, d, h, mi) - WIB_OFFSET_MS).toISOString()
+}
+
 export type WeeklyUpdateTiming = 'on-time' | 'late'
 
 /**
