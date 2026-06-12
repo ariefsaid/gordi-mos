@@ -26,11 +26,14 @@ select is(
   '00000000-0000-0000-0000-0000000000d4'::uuid,
   'AC-010: inserted created_by stamped to the session person');
 
--- AC-011: explicit FOREIGN org_id (WU-B ...0b01) -> WITH CHECK rejects (42501).
+-- AC-011: explicit FOREIGN org_id (WU-B ...0b01) -> rejected. Two layers now reject a foreign org_id:
+-- the RLS INSERT WITH CHECK (org_id = current_org_id() -> 42501) AND the ops._guard_log_entry
+-- same-org reference guard (the supplied business_unit belongs to org a1, not the spoofed b1 -> 23514).
+-- The BEFORE INSERT trigger fires first, so we assert the GOAL (spoof blocked) mechanism-agnostically.
 select throws_ok($$
   insert into ops.log_entries (org_id, business_unit_id, title)
   values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000a2','spoof org')
-$$, '42501', null, 'AC-011: foreign org_id spoof blocked');
+$$, null, null, 'AC-011: foreign org_id spoof blocked');
 
 -- AC-012: explicit FORGED created_by (Author ...0d01, not the session) -> WITH CHECK rejects (42501).
 select throws_ok($$

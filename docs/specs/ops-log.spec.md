@@ -216,6 +216,15 @@ No DELETE is granted to `authenticated` on `ops.log_entries` (mirrors `mos.tasks
 - **FR-024** When a non-author / non-manager attempts to edit or archive a log entry, the system shall
   deny it (RLS); the feed UI shall expose edit/archive affordances only on entries the viewer may edit
   (OD-P2-19).
+- **FR-025** The system shall treat `created_by` and `org_id` as **immutable** once written: any UPDATE
+  that changes either is denied at the DB layer (`ops._guard_log_entry` BEFORE UPDATE → `42501`). The
+  edit gate re-reads the row by id, so WITH CHECK alone cannot block authorship re-attribution / forced
+  handoff / cross-org `created_by` — the trigger is the authority (security audit HIGH, 2026-06-12).
+- **FR-026** The system shall require, on INSERT and UPDATE, that every reference resolves **within the
+  entry's org**: the referenced `shared.business_units.org_id` and (when non-null) `mos.tasks.org_id`
+  must equal the entry's `org_id`, else denied (`ops._guard_log_entry` → `23514`). The FKs check
+  existence only (bypass RLS), so this closes the cross-org reference / existence-oracle seam
+  (security audit MEDIUM, 2026-06-12).
 
 ### Ops Log feed page (`/ops`) — mock-daily-ops-feed (SIGNED)
 - **FR-030** The system shall render the Ops Log as a **single ~1080px column** chronological feed
@@ -375,6 +384,22 @@ No DELETE is granted to `authenticated` on `ops.log_entries` (mirrors `mos.tasks
 - **AC-024 [pgTAP]** Given a **dual-hat** author P reporting (via different held roles) to managers M1
   and M2, When either M1 or M2 edits P's entry, Then it succeeds for **both** (union chain) — FR-021,
   OD-P1-7.
+
+### RLS — created_by/org_id immutable on UPDATE (security HIGH) → **pgTAP**
+- **AC-025 [pgTAP]** Given an author's own log entry, When the author issues an UPDATE that changes
+  `created_by` to another person (incl. a foreign-org person), Then it is denied (`42501`), and a normal
+  title/needs_attention edit on the same row still persists — FR-025 (authorship re-attribution / forced
+  handoff blocked).
+- **AC-026 [pgTAP]** Given an author's own log entry, When the author issues an UPDATE that changes
+  `org_id` to a foreign org, Then it is denied (`42501`) — FR-025 (cross-org relocation blocked).
+
+### Refs same-org on INSERT/UPDATE (security MEDIUM) → **pgTAP**
+- **AC-013 [pgTAP]** Given a member of org A, When they INSERT a log entry whose `business_unit_id`
+  belongs to **org B**, Then it is denied (`23514`); a same-org `business_unit_id` is allowed — FR-026
+  (cross-org reference / existence-oracle closed).
+- **AC-014 [pgTAP]** Given a member of org A, When they INSERT or UPDATE a log entry whose
+  `linked_task_id` belongs to **org B**, Then it is denied (`23514`); a same-org or **NULL**
+  `linked_task_id` is allowed — FR-026.
 
 ### RLS — no hard delete + org-scope on update → **pgTAP**
 - **AC-030 [pgTAP]** Given any log entry, When an authenticated member (author, manager, or service-less
