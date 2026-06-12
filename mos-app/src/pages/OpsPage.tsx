@@ -1,4 +1,4 @@
-// OpsPage — Daily ops feed (P2-3b, FR-030..037/039, AC-060..067)
+// OpsPage — Daily Log (P2-3b, FR-030..037/039, AC-060..067)
 // Design authority: docs/plans/2026-06-12-ops-log-design.md + DESIGN.md tokens.
 // Data: listLogEntries (ops schema, RLS-scoped), getBusinessUnits (directory),
 //       getTaskTitlesByIds (client-side linked-task resolution, NFR-006).
@@ -127,9 +127,10 @@ interface OpsLogRowProps {
 function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, isArchiving }: OpsLogRowProps) {
   const isArchived = entry.archived_at != null
   const wibTime = toWibTime(entry.occurred_at)
+  const editLink = `/ops/${entry.id}/edit`
 
   const rowProps = {
-    className: `ops-row${entry.needs_attention ? ' ops-row--attn' : ''}${isArchived ? ' ops-row--archived' : ''}`,
+    className: `ops-row${entry.needs_attention ? ' ops-row--attn' : ''}${isArchived ? ' ops-row--archived' : ''}${canEdit ? ' ops-row--editable' : ''}`,
     'data-attn': entry.needs_attention ? 'true' : undefined,
   }
 
@@ -194,16 +195,29 @@ function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, i
         </div>
       )}
       {canEdit && (
-        <button
-          type="button"
-          className="ops-archive-btn"
-          aria-label={isArchived ? 'Unarchive' : 'Archive'}
-          onClick={() => onArchive(entry.id, !isArchived)}
-          disabled={isArchiving}
-          title={isArchived ? 'Unarchive' : 'Archive'}
+        <div
+          className={`ops-row-actions ${isDesktop ? 'ops-row-actions--overlay' : 'ops-row-actions--phone'}`}
+          data-testid="ops-row-actions"
         >
-          {isArchived ? '↩' : '⋯'}
-        </button>
+          <Link
+            to={editLink}
+            className={`ops-edit-btn ${isDesktop ? '' : 'ops-edit-btn--touch'}`.trim()}
+            aria-label="Edit"
+            title="Edit"
+          >
+            Edit
+          </Link>
+          <button
+            type="button"
+            className={`ops-archive-btn ${isDesktop ? '' : 'ops-archive-btn--touch'}`.trim()}
+            aria-label={isArchived ? 'Unarchive' : 'Archive'}
+            onClick={() => onArchive(entry.id, !isArchived)}
+            disabled={isArchiving}
+            title={isArchived ? 'Unarchive' : 'Archive'}
+          >
+            {isArchived ? 'Unarchive' : 'Archive'}
+          </button>
+        </div>
       )}
     </li>
   )
@@ -211,7 +225,7 @@ function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, i
 
 // ── Main OpsPage ──────────────────────────────────────────────────────────────
 export default function OpsPage() {
-  useDocumentTitle('Daily ops feed — Gordi MOS')
+  useDocumentTitle('Daily Log — Gordi MOS')
   const isDesktop = useIsDesktop()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -333,17 +347,23 @@ export default function OpsPage() {
     return 'Kitchen, Roastery, and the floor show up here as things happen. Add the first one.'
   }
 
+  function clearFilters() {
+    setBusinessUnitId('')
+    setEventType('')
+    setIncludeArchived(false)
+  }
+
   return (
     <PageFrame>
       <div className="ops-page-head">
-        <h1 className="ops-page-title">Daily ops feed</h1>
+        <h1 className="ops-page-title">Daily Log</h1>
         <span className="ops-count-line tabular-nums">
           {wib.today}{countLabel}
         </span>
       </div>
 
       {/* Card assembly: toolbar seamed to feed */}
-      <section className="ops-assembly" aria-label="Daily ops feed">
+      <section className="ops-assembly" aria-label="Daily Log">
 
         {/* Toolbar */}
         <div className="ops-toolbar" role="search">
@@ -414,8 +434,8 @@ export default function OpsPage() {
         {/* Feed body — loading / error / empty / populated */}
         {loadState === 'loading' ? (
           <div aria-busy="true">
-            <span className="sr-only" role="status">Loading the Ops Log</span>
-            <ul className="ops-feed" aria-label="Ops Log" aria-busy="true" role="list">
+            <span className="sr-only" role="status">Loading the Daily Log</span>
+            <ul className="ops-feed" aria-label="Daily Log" aria-busy="true" role="list">
               <OpsSkeletonRow />
               <OpsSkeletonRow />
               <OpsSkeletonRow />
@@ -425,7 +445,7 @@ export default function OpsPage() {
         ) : loadState === 'error' ? (
           <div role="alert" className="ops-error-banner">
             <span className="ops-error-text">
-              Couldn&apos;t load the Ops Log
+              Couldn&apos;t load the Daily Log
             </span>
             <button type="button" className="ops-retry-btn" onClick={load}>
               Retry
@@ -435,6 +455,11 @@ export default function OpsPage() {
           <div className="ops-empty-state">
             <h2 className="ops-empty-title">{emptyTitle()}</h2>
             <p className="ops-empty-copy">{emptyCopy()}</p>
+            {hasActiveFilter && (
+              <button type="button" className="ops-clear-btn" onClick={clearFilters}>
+                Clear filters
+              </button>
+            )}
             <Link to="/ops/new" className="ops-add-btn ops-add-btn--empty" aria-label="Add log entry">
               + Add log entry
             </Link>
@@ -442,7 +467,7 @@ export default function OpsPage() {
         ) : (
           <ul
             className="ops-feed"
-            aria-label="Ops Log"
+            aria-label="Daily Log"
             role="list"
           >
             {entries.map(entry => (
@@ -554,10 +579,19 @@ export default function OpsPage() {
         .ops-row--archived {
           opacity: 0.7;
         }
+        .ops-row--archived.ops-row--attn {
+          background: transparent;
+          border-left: 0;
+          padding-left: 12px;
+          border-radius: 0;
+        }
 
         /* Desktop inner layout */
         .ops-row-inner--desktop {
           display: flex; align-items: flex-start; gap: 12px; flex: 1;
+        }
+        .ops-row--editable .ops-row-inner--desktop {
+          padding-right: 112px;
         }
         .ops-time {
           color: hsl(var(--muted-foreground)); font-size: 12px;
@@ -644,20 +678,58 @@ export default function OpsPage() {
           font-size: 11px; font-weight: 500; white-space: nowrap; flex: none;
         }
 
+        /* ── Row actions (edit + archive) ── */
+        .ops-row-actions {
+          display: flex;
+        }
+        .ops-row-actions--overlay {
+          position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+          gap: 4px; opacity: 0; transition: opacity 0.1s;
+        }
+        .ops-row:hover .ops-row-actions--overlay,
+        .ops-row:focus-within .ops-row-actions--overlay { opacity: 1; }
+        .ops-row-actions--phone {
+          position: static;
+          margin-top: 8px;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .ops-edit-btn {
+          height: 28px; padding: 0 10px; border-radius: 6px;
+          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
+          font-size: 12px; font-weight: 500; color: hsl(var(--foreground)); cursor: pointer;
+          text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+        }
+        .ops-edit-btn--touch {
+          min-height: 46px;
+          flex: 1;
+          padding: 0 12px;
+          font-size: 13px;
+          border-radius: 8px;
+        }
+        .ops-edit-btn:focus-visible {
+          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+        }
+        .ops-edit-btn:hover { background: hsl(var(--accent)); }
+
         /* ── Archive button (ghost ⋯, 32px, reveal on hover / always phone) ── */
         .ops-archive-btn {
-          position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-          width: 32px; height: 32px; border-radius: 8px;
+          min-width: 32px; height: 32px; border-radius: 8px;
           border: 0; background: transparent; color: hsl(var(--muted-foreground));
-          font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-          opacity: 0; transition: opacity 0.1s;
+          font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+          padding: 0 8px;
         }
-        .ops-row:hover .ops-archive-btn { opacity: 1; }
-        @media (max-width: 767px) {
-          .ops-archive-btn { opacity: 1; }
+        .ops-archive-btn--touch {
+          min-height: 46px;
+          flex: 1;
+          padding: 0 12px;
+          border: 1px solid hsl(var(--border));
+          background: hsl(var(--background));
+          color: hsl(var(--foreground));
         }
         .ops-archive-btn:focus-visible {
-          outline: 2px solid hsl(var(--ring)); outline-offset: 2px; opacity: 1;
+          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
         }
         .ops-archive-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
 
@@ -702,6 +774,23 @@ export default function OpsPage() {
         .ops-add-btn--empty {
           margin-left: 0;
         }
+        .ops-clear-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          height: 32px;
+          padding: 0 12px;
+          margin-right: 8px;
+          border-radius: 8px;
+          border: 1px solid hsl(var(--border));
+          background: hsl(var(--background));
+          color: hsl(var(--foreground));
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .ops-clear-btn:hover { background: hsl(var(--accent)); }
+        .ops-clear-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 
         /* ── Phone submit bar (FR-038, 44px full-width) ── */
         .ops-submit-bar {
@@ -718,6 +807,12 @@ export default function OpsPage() {
           box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);
         }
         .ops-submit-bar-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+        @media (max-width: 767px) {
+          .ops-row { display: block; }
+          .ops-row--editable .ops-row-inner--desktop { padding-right: 0; }
+          .ops-time--phone { align-self: flex-start; }
+        }
 
         /* ── Utility ── */
         .sr-only {

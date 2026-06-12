@@ -36,7 +36,7 @@ describe('AC-002: Rail contents', () => {
     expect(screen.getByText('Management OS')).toBeInTheDocument()
   })
 
-  it('renders exactly four nav links in order: My Week / Tasks / Updates / Ops', () => {
+  it('renders exactly four nav links in order: My Week / Tasks / Updates / Daily Log', () => {
     renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
@@ -44,7 +44,7 @@ describe('AC-002: Rail contents', () => {
     expect(links[0]).toHaveAccessibleName('My Week')
     expect(links[1]).toHaveAccessibleName('Tasks')
     expect(links[2]).toHaveAccessibleName('Updates')
-    expect(links[3]).toHaveAccessibleName('Ops')
+    expect(links[3]).toHaveAccessibleName('Daily Log')
   })
 
   it('has no badge-count elements', () => {

@@ -167,13 +167,38 @@ describe('addLogEntry', () => {
 })
 
 describe('edit / archive', () => {
-  it('editLogEntry updates the patch by id', async () => {
+  it('editLogEntry maps camelCase input → snake_case columns, updates by id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ log_entries: [{ data: null, error: null }] }, rec) as never)
-    await editLogEntry('e-1', { title: 'new', needs_attention: false })
-    expect(rec.updates[0]).toEqual({ title: 'new', needs_attention: false })
+    // The form hands editLogEntry the SAME camelCase payload it hands addLogEntry;
+    // the data layer is the snake/camel boundary (playbook §8) and must map before .update().
+    await editLogEntry('e-1', {
+      businessUnitId: 'bu-1',
+      eventType: 'qc',
+      title: 'new',
+      detail: 'd',
+      occurredAt: '2026-06-12T03:00:00.000Z',
+      needsAttention: false,
+      linkedTaskId: 'task-9',
+    })
+    expect(rec.updates[0]).toEqual({
+      business_unit_id: 'bu-1',
+      event_type: 'qc',
+      title: 'new',
+      detail: 'd',
+      occurred_at: '2026-06-12T03:00:00.000Z',
+      needs_attention: false,
+      linked_task_id: 'task-9',
+    })
     expect(rec.eqs).toContainEqual(['id', 'e-1'])
     noServerStamps(rec)
+  })
+
+  it('editLogEntry maps only the keys provided (partial patch; explicit null clears link)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ log_entries: [{ data: null, error: null }] }, rec) as never)
+    await editLogEntry('e-1', { title: 'just title', linkedTaskId: null })
+    expect(rec.updates[0]).toEqual({ title: 'just title', linked_task_id: null })
   })
 
   it('archiveLogEntry sets archived_at to an ISO instant', async () => {

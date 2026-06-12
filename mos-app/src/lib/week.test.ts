@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange } from './week'
+import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange, toWibInputValue, wibInputToUTCISO } from './week'
 import type { WeekLabel } from './week'
 
 // AC-010: WIB week math — tests the pure weekLabel utility.
@@ -148,5 +148,29 @@ describe('AC-050: wibDayRange returns the half-open WIB-day UTC range with no ho
       startISO: '2026-06-10T17:00:00.000Z',
       endISO: '2026-06-11T17:00:00.000Z',
     })
+  })
+})
+
+// Daily Log add/edit form datetime-local helpers — WIB wall-clock ⇄ UTC ISO.
+// Must be host-timezone-independent (NFR-005): the same string maps to the same
+// UTC instant on a UTC laptop, a WIB laptop, or a CI runner.
+describe('WIB datetime-local form helpers', () => {
+  it('toWibInputValue: a UTC instant → its WIB wall-clock "YYYY-MM-DDTHH:mm"', () => {
+    // 2026-06-12T00:00:00Z = 07:00 WIB
+    expect(toWibInputValue(new Date('2026-06-12T00:00:00Z'))).toBe('2026-06-12T07:00')
+    // 2026-06-11T20:30:00Z = 03:30 WIB next day
+    expect(toWibInputValue(new Date('2026-06-11T20:30:00Z'))).toBe('2026-06-12T03:30')
+  })
+
+  it('wibInputToUTCISO: a WIB wall-clock string → the correct UTC ISO instant', () => {
+    // 07:00 WIB = 00:00:00Z
+    expect(wibInputToUTCISO('2026-06-12T07:00')).toBe('2026-06-12T00:00:00.000Z')
+    // 03:30 WIB on 12 Jun = 2026-06-11T20:30:00Z
+    expect(wibInputToUTCISO('2026-06-12T03:30')).toBe('2026-06-11T20:30:00.000Z')
+  })
+
+  it('round-trips a UTC instant through WIB wall-clock and back, to the minute', () => {
+    const iso = '2026-03-01T15:45:00.000Z'
+    expect(wibInputToUTCISO(toWibInputValue(new Date(iso)))).toBe(iso)
   })
 })

@@ -50,20 +50,20 @@ export async function addLogEntry(input: CreateLogEntryInput): Promise<string> {
   return (data as { id: string }).id
 }
 
-export type LogEntryPatch = Partial<
-  Pick<
-    LogEntryRow,
-    | 'title'
-    | 'detail'
-    | 'event_type'
-    | 'business_unit_id'
-    | 'occurred_at'
-    | 'needs_attention'
-    | 'linked_task_id'
-  >
->
+// Edit accepts the SAME camelCase domain shape as create (a partial of it); the data layer is the
+// snake/camel boundary (playbook §8) and maps to columns here. Only keys that are present are sent,
+// so a partial patch never blanks untouched columns; an explicit `null` (e.g. linkedTaskId) clears.
+export type EditLogEntryInput = Partial<CreateLogEntryInput>
 
-export async function editLogEntry(id: string, patch: LogEntryPatch): Promise<void> {
+export async function editLogEntry(id: string, input: EditLogEntryInput): Promise<void> {
+  const patch: Record<string, unknown> = {}
+  if (input.businessUnitId !== undefined) patch.business_unit_id = input.businessUnitId
+  if (input.eventType !== undefined) patch.event_type = input.eventType
+  if (input.title !== undefined) patch.title = input.title
+  if (input.detail !== undefined) patch.detail = input.detail
+  if (input.occurredAt !== undefined) patch.occurred_at = input.occurredAt
+  if (input.needsAttention !== undefined) patch.needs_attention = input.needsAttention
+  if (input.linkedTaskId !== undefined) patch.linked_task_id = input.linkedTaskId
   const { error } = await ops().from('log_entries').update(patch).eq('id', id)
   if (error) throw new Error(`editLogEntry failed — ${error.message}`)
 }
@@ -97,4 +97,11 @@ export async function getTodayOpsSummary(now: Date = new Date()): Promise<TodayO
   if (error) throw new Error(`getTodayOpsSummary failed — ${error.message}`)
   const rows = (data ?? []) as { needs_attention: boolean }[]
   return { count: rows.length, needsAttention: rows.some((r) => r.needs_attention) }
+}
+
+/** Get a single log entry by id (for edit mode pre-fill) */
+export async function getLogEntry(id: string): Promise<LogEntryRow> {
+  const { data, error } = await ops().from('log_entries').select('*').eq('id', id).single()
+  if (error) throw new Error(`getLogEntry failed — ${error.message}`)
+  return data as unknown as LogEntryRow
 }

@@ -95,7 +95,7 @@ test('AC-091: needs-attention entry → strip amber → archive → leaves feed 
   await page.waitForURL(/\/$|\/mos\/?$/)
 
   // Strip shows amber pill with "today" count and "needs attention" sentence
-  const opsStrip = page.getByRole('region', { name: 'Today on Ops' })
+  const opsStrip = page.getByRole('region', { name: 'Today on the Daily Log' })
   await expect(opsStrip).toBeVisible({ timeout: 8_000 })
 
   // The amber pill has data-ops-attn="true"
@@ -105,8 +105,8 @@ test('AC-091: needs-attention entry → strip amber → archive → leaves feed 
   // Sentence says "something needs attention"
   await expect(opsStrip.getByText(/something needs attention/i)).toBeVisible({ timeout: 5_000 })
 
-  // Link says "Review on Ops →"
-  await expect(opsStrip.getByRole('link', { name: /Review on Ops/i })).toBeVisible()
+  // Link says "See what needs attention →"
+  await expect(opsStrip.getByRole('link', { name: /See what needs attention/i })).toBeVisible()
 
   // ── 5. Go back to /ops and archive the entry ──────────────────────────────
   await page.goto('ops')
@@ -137,7 +137,7 @@ test('AC-091: needs-attention entry → strip amber → archive → leaves feed 
   await page.goto('')
   await page.waitForURL(/\/$|\/mos\/?$/)
 
-  const opsStripAfter = page.getByRole('region', { name: 'Today on Ops' })
+  const opsStripAfter = page.getByRole('region', { name: 'Today on the Daily Log' })
   await expect(opsStripAfter).toBeVisible({ timeout: 8_000 })
 
   // No amber pill (data-ops-attn should be absent/undefined)

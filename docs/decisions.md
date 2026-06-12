@@ -174,9 +174,12 @@ Feature P2-3, the `ops.log_entries` entity (generic typed log, manual entry; kit
 deferred to P2-4). Anchored to mock-daily-ops-feed.html, OD-P0-8 (My Week ops strip), OD-P1-3 (read),
 WALL-4 (generic, low-stakes until an external writer exists).
 
-### OD-P2-15 — Naming: "Log entry" / "Ops Log" (NOT "event")
-The row is a **Log entry**; the surface is the **Ops Log** (`/ops`). "Event" is avoided — it collides
-with Gordi's cafe events (cuppings, workshops, bookings). Table: `ops.log_entries`.
+### OD-P2-15 — Naming: "Log entry" / "Daily Log" (NOT "event"; renamed from "Ops Log" 2026-06-12)
+The row is a **Log entry**; the user-facing surface is the **Daily Log** (`/ops`). "Event" is avoided —
+it collides with Gordi's cafe events (cuppings, workshops, bookings). **Owner rename 2026-06-12:** the
+surface label "Ops Log" → **"Daily Log"** across all user-facing chrome (rail, breadcrumb, H1, document
+title, aria-labels, copy). The internal seams are unchanged and stay terse-internal: schema `ops`,
+route `/ops`, table `ops.log_entries`, data module `opsLog` (OD-DIR-3 — internal, not user-facing).
 
 ### OD-P2-16 — A Log entry is a past-tense FLOOR RECORD, distinct from a Task
 A record that something happened: no owner/RACI/status (it's done), just `occurred_at`. High-frequency

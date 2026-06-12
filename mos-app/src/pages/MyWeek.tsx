@@ -285,31 +285,31 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
         </button>
       </>
     )
-    linkLabel = 'Today on Ops →'
+    linkLabel = 'Open the Daily Log →'
   } else if (isAmber) {
     sentence = (
       <>
         {count} log entr{count === 1 ? 'y' : 'ies'} today · something needs attention.
       </>
     )
-    linkLabel = 'Review on Ops →'
+    linkLabel = 'See what needs attention →'
   } else if (count > 0) {
     sentence = (
       <>
         {count} log entr{count === 1 ? 'y' : 'ies'} on the floor today.
       </>
     )
-    linkLabel = 'Today on Ops →'
+    linkLabel = 'Open the Daily Log →'
   } else {
     sentence = <>No log entries on the floor today.</>
-    linkLabel = 'Today on Ops →'
+    linkLabel = 'Open the Daily Log →'
   }
 
   return (
     <section
       className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
       style={{ minHeight: 60, padding: '12px 20px' }}
-      aria-label="Today on Ops"
+      aria-label="Today on the Daily Log"
     >
       {/* Count pill (24px height matching weekly-update strip) */}
       <span

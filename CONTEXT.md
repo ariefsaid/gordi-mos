@@ -82,13 +82,15 @@ stable thing a manager reviews). The author may **Reopen** a submitted update ba
 re-Submit. Filing after the Friday due / week close is allowed ("filed late") — weeks never hard-lock.
 _Avoid_: filed (as the status name — say Submitted), published, locked
 
-**Log entry** (the **Ops Log**):
+**Log entry** (the **Daily Log**):
 A record that something *happened* on the floor — past-tense and factual: a typed (production ·
 receiving · QC · follow-up · other), business-unit-badged operational happening, manually added now
 and mirrored from ops apps (kitchen, future roastery) later. It is NOT work-to-do (that's a Task) —
-no owner / RACI / status, just *when it occurred*. The chronological surface is the **Ops Log** (the
+no owner / RACI / status, just *when it occurred*. The chronological surface is the **Daily Log** (the
 `/ops` feed). A log entry may carry **needs attention** and link to a Task (the follow-up seam).
-_Avoid_: event (collides with cafe events — cuppings, workshops, bookings), activity, daily update, ticket
+The user-facing surface name is **Daily Log** (owner rename 2026-06-12, was "Ops Log"); the internal
+schema/route/module stay `ops` / `/ops` / `opsLog` (OD-DIR-3 — internal seams, not user-facing).
+_Avoid_: event (collides with cafe events — cuppings, workshops, bookings), activity, daily update, ticket, "Ops Log" (superseded as a user-facing label)
 
 **Needs attention**:
 The amber state on a log entry or strip meaning something waits on the viewer (sign-off,
