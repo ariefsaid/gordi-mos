@@ -19,19 +19,28 @@
    - **EDIT affordance missing** — only archive shipped; my Director call was EDIT + ARCHIVE both.
      Fix: edit reuses the add-form pre-filled (design-plan §4.3); `opsLog.editLogEntry` exists, unwired.
    - **Linked-task picker missing** — `OpsAddForm` hardcodes `linkedTaskId=''`, forces `taskDirectory=[]`,
-     fetches+discards `getPeople()` (dead). FR-045/AC-072 unimplemented. Use the tasks data layer; client-side resolve.
+     fetches+discards `getPeople()` (dead). FR-045 unimplemented (AC-072 is a different test — the add-form needs-attention/occurred_at). Use the tasks data layer; client-side resolve.
    - **AC-067 phone-reflow test bent-to-pass** — behavior ships, test never renders <768px. Strengthen it.
 3. **code-quality + 3-lens design reviews for P2-3b+c NEVER RAN.**
-4. **Roll-forward branch `fix/ops-log-followups`** (off green main) holds a **WIP commit `26ac988`** =
-   a pi `glm-4.7` run that was **KILLED by the Claude-app RAM crash (>20GB)** mid-fix → **half-applied,
-   unverified** (gates not run, no sentinel, AC-067 test strengthening likely not done).
+4. **Roll-forward branch `fix/ops-log-followups`** (off main, **rebased onto main 2026-06-12** so its
+   diff is now CODE-ONLY) holds WIP commit `26ac988` = a pi `glm-4.7` run **KILLED by the Claude-app RAM
+   crash**. Unbiased opus audit read the diff: the WIP **substantially implements all 3 gaps** — adds
+   `opsLog.getLogEntry`, wires add/edit modes via `useParams`, builds the linked-task picker off
+   `listTasks()`, adds an OpsPage Edit link, and adds a 285-line `OpsAddForm.test.tsx` (picker +
+   strengthened phone test). **It is INCOMPLETE/UNVERIFIED in specific ways:** (a) **`router.tsx` has NO
+   `/ops/:id/edit` route** → the Edit link is dead (the concrete missing piece); (b) gates never run
+   (typecheck/lint/test/build); (c) unverified — does `OpsPage` resolve the linked-task title for DISPLAY
+   rows without a cross-schema embed? is `editLogEntry`'s payload type-compatible with the new shared
+   add/edit `payload`? Do NOT re-do the picker/test — they exist.
 
 ### NEXT STEP for P2-3 (do this first next session)
-On `fix/ops-log-followups`: `git diff main..HEAD` the WIP, then **re-dispatch pi as a COMPLETION round**
-(pi-delegation §5 — list only what's missing, "don't rework what landed") OR discard + redo cleanly.
-Then: run gates yourself · code-quality (gpt-5.4 via pi) · the 3-lens design review (Director vision lens —
-this surface has a history of rendered-only Criticals) · release-engineer → PR → **Director merges**.
-That completes the bypassed review and P2-3. Then P2-3 is COMPLETE.
+On `fix/ops-log-followups` (already rebased onto main): COMPLETION round (pi-delegation §5 — fix ONLY
+what's missing, don't rework the picker/test that landed): (1) add the `/ops/:id/edit` route to
+`router.tsx`; (2) run the 4 gates + fix any fallout; (3) verify the two unknowns above (display-row
+linked-task title resolved client-side, no cross-schema embed; `editLogEntry` payload type-compat).
+Then: code-quality (gpt-5.4 via pi) · the **3-lens design review** (Director vision lens — this surface
+has a history of rendered-only Criticals; render-verify edit+picker) · release-engineer → PR → **Director
+merges**. That completes the bypassed review and P2-3.
 
 ## Open owner decisions (THE WALL — never guess)
 - **WALL-3** — which kitchen events mirror first (gates P2-4).

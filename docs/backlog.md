@@ -73,7 +73,7 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
     refs) via a guard trigger). 152 pgTAP · 411 unit.
   - [~] P2-3b+c Ops Log feed page + add form + My Week strip + 2 e2e — BUILT, on main (commits
     f1440bf/1646370/0ec3fce) but via a git-hygiene slip (HEAD:main push); CI green. spec-review ❌:
-    EDIT affordance missing, linked-task picker missing (FR-045/AC-072), AC-067 phone test bent.
+    EDIT affordance missing, linked-task picker missing (FR-045), AC-067 phone test bent.
     code-quality + 3-lens NEVER ran. Roll-forward branch `fix/ops-log-followups` has WIP `26ac988`
     (a pi run killed by the app RAM crash — half-applied, unverified). **See docs/STATUS.md for the
     exact next step.** Completing this finishes P2-3.
