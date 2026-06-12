@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+vi.mock('../components/weekly/WeeklyUpdateWritePane', () => ({
+  default: () => <section aria-label="My weekly update">Write pane</section>,
+}))
+vi.mock('../components/weekly/WeeklyUpdateReviewPane', () => ({
+  default: () => <section aria-label="My team updates">Review pane</section>,
+}))
+vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
+
 import UpdatesPage from './UpdatesPage'
 import OpsPage from './OpsPage'
 
@@ -118,7 +126,7 @@ describe('FIX-3: Empty state containers are left-aligned (not text-center)', () 
         <UpdatesPage />
       </MemoryRouter>,
     )
-    const emptyDiv = container.querySelector('.bg-card.border.border-border.rounded-md')
+    const emptyDiv = container.querySelector('[aria-label="My weekly update"]')
     expect(emptyDiv).toBeTruthy()
     expect(emptyDiv!.className).not.toMatch(/text-center/)
   })

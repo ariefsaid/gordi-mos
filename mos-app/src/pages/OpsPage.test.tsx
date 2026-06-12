@@ -2,7 +2,7 @@
 // All behavior assertions; no mocks-of-themselves.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { AuthState } from '../auth/context'
 
@@ -408,6 +408,27 @@ describe('AC-066: feed empty/loading/error states', () => {
     const addLinks = screen.getAllByRole('link', { name: /add log entry/i })
     expect(addLinks.length).toBeGreaterThanOrEqual(1)
   })
+
+  it('filtered empty state shows Clear filters and resets the query to unfiltered', async () => {
+    await renderOps()
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+
+    mockListLogEntries.mockClear()
+    mockListLogEntries.mockResolvedValue([])
+    fireEvent.change(screen.getByLabelText(/business unit/i), { target: { value: BU_KITCHEN.id } })
+
+    await waitFor(() => {
+      expect(screen.getByText(/No Kitchen and Bar log entries match/i)).toBeInTheDocument()
+    })
+
+    mockListLogEntries.mockClear()
+    mockListLogEntries.mockResolvedValue([ENTRY_3, ENTRY_1, ENTRY_2])
+    fireEvent.click(screen.getByRole('button', { name: /clear filters/i }))
+
+    await waitFor(() => {
+      expect(mockListLogEntries).toHaveBeenCalledWith({ includeArchived: false })
+    })
+  })
 })
 
 // ── AC-067: phone reflow with 44px add target ─────────────────────────────────
@@ -441,6 +462,25 @@ describe('AC-067: phone reflow with 44px add target', () => {
     expect(submitBtn).toHaveAccessibleName(/add log entry/i)
     // …and the desktop toolbar add button is NOT rendered at phone width
     expect(container.querySelector('.ops-add-btn:not(.ops-add-btn--empty)')).toBeNull()
+  })
+
+  it('at ~390px, renders row actions in their own in-flow container with 44px touch targets', async () => {
+    applyViewport(false)
+    const { container } = await renderOps()
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+
+    const row = screen.getByText(ENTRY_1.title).closest('.ops-row') as HTMLElement
+    const actions = row.querySelector('[data-testid="ops-row-actions"]') as HTMLElement | null
+    expect(actions).not.toBeNull()
+    expect(actions).toHaveClass('ops-row-actions', 'ops-row-actions--phone')
+    expect(actions?.classList.contains('ops-row-actions--overlay')).toBe(false)
+
+    const edit = within(actions as HTMLElement).getByRole('link', { name: /edit/i })
+    const archive = within(actions as HTMLElement).getByRole('button', { name: /archive/i })
+    expect(edit).toHaveClass('ops-edit-btn', 'ops-edit-btn--touch')
+    expect(archive).toHaveClass('ops-archive-btn', 'ops-archive-btn--touch')
+
+    expect(container.querySelector('.ops-row-actions--overlay')).toBeNull()
   })
 
   it('on desktop, rows use the desktop row layout (control case)', async () => {
