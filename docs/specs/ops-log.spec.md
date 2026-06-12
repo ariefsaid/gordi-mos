@@ -1,5 +1,10 @@
 # Spec — Ops Log (daily ops feed) (P2-3)
 
+> **Naming note (post-authoring):** the user-facing surface was **renamed "Ops Log" → "Daily Log"**
+> (owner, 2026-06-12, OD-P2-15). This spec keeps "Ops Log" as the point-in-time name; in the shipped app
+> all user-facing chrome says **"Daily Log"**. Internal seams are unchanged: schema `ops`, route `/ops`,
+> table `ops.log_entries`, module `opsLog`. SHIPPED + merged (PR #12) — see `docs/STATUS.md`.
+
 - Feature: the `ops.log_entries` entity end-to-end — schema + RLS (**org-readable**, **any-member
   manual-add**, **edit-own/manager**, **soft-archive**, **no hard delete**) + data layer + the **Ops
   Log feed page** (`/ops` — chronological by `occurred_at` desc, business-unit source badge, typed

@@ -173,7 +173,8 @@ violation — while the Director's own read caught 2 the reviewer missed. Both l
 
 ## 7. Where this fits
 
-- Sequencing + status: `docs/backlog.md` (current: Phase 2 first slice — P2-3 Ops Log in progress).
+- Sequencing + status: `docs/STATUS.md` (read-first) + `docs/backlog.md` (current: first-slice MVP
+  feature-complete; Phase 3 — P3-1 production deploy is the only open work).
 - The loop being executed: `docs/director-playbook.md` §2; UI issues additionally
   `docs/design-workflow.md` §1 (Phase-0 mockup gate) + §2 (per-UI-issue loop + 3-lens battery).
 - Grading: playbook §10 rubric applies to pi-produced work unchanged.

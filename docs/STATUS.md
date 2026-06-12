@@ -50,6 +50,19 @@ After P2-3 merge, the only remaining gap to a usable product is **P3-1 productio
   pmo-portal stack.** CI excludes edge-runtime (it 502s intermittently).
 - **The 3-lens design review earns its keep** — it caught the cross-schema embed bug, the transparent
   Submit button, the dead roster rows, the unstyled states. Run it on every UI slice, render-verified.
+- **NEVER read `~/.op-token` or any `.env`/secret file** (owner hard rule). Secrets come via `op-get.sh
+  <item> <vault> <field>` at runtime; to learn a value read the committed coordinates (`.env.example`,
+  `supabase/op.resend.env`) or `docs/environments.md` — never the live file.
+- **Release hygiene (PR #12 scar):** rebase the branch onto latest `origin/main` BEFORE merging, or the
+  squash conflicts on docs. A mechanical/haiku agent may run deterministic git/gh steps but **never
+  resolve merge conflicts** — it left a stray `<<<<<<<` marker in backlog.md that I caught + fixed
+  forward (`0b4a42b`). After ANY delegated merge, scan main: `git grep -nE "^(<<<<<<<|>>>>>>>)( |$)|^=======$"` + re-run gates.
+- **Delegation substrate:** heavy role work → **pi** (preserves Director context); cheap mechanical →
+  the Claude **`mechanical` (haiku) agent** (owner: "use haiku for mechanical… agents not pi"); pi's
+  OpenRouter free fallbacks (Nemotron/Nex-N2) are **flaky** — tiny mechanical only. `docs/pi-delegation.md`.
+- **Local stack hygiene + RAM/disk cleanup:** `docs/environments.md` (one shared Docker stack per
+  `project_id`; `db reset` is global; `supabase stop --no-backup` to free RAM; `docker container/image
+  prune` safe but NEVER `volume prune` — pmo-portal shares the host).
 
 ## Reference slice (for briefs)
 Tasks vertical: `mos-app/src/pages/TasksPage.tsx` + `TaskDetail.tsx` + `src/lib/db/tasks.ts`; schema
