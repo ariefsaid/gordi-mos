@@ -62,7 +62,7 @@ select is((select title from ops.log_entries where id='00000000-0000-0000-0000-0
 -- SECURITY (High, audit 2026-06-12): created_by + org_id are IMMUTABLE on UPDATE. The author passes
 -- the can_edit gate (re-read by id sees the OLD created_by), so without a BEFORE UPDATE trigger an
 -- author could PATCH created_by to anyone (incl. a foreign-org person) or relocate org_id. The
--- ops._guard_log_entry_immutable trigger RAISES 42501 (mirrors mos._guard_archive's convention) when
+-- ops._guard_log_entry trigger RAISES 42501 (mirrors mos._guard_archive's convention) when
 -- created_by or org_id is changed. Asserted directly by error code on the author's own entry.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
 
