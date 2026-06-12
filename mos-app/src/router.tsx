@@ -8,6 +8,7 @@ import TaskDetail from './pages/TaskDetail'
 import TaskCreate from './pages/TaskCreate'
 import UpdatesPage from './pages/UpdatesPage'
 import OpsPage from './pages/OpsPage'
+import OpsAddForm from './pages/OpsAddForm'
 import NotFoundPage from './pages/NotFoundPage'
 import LoginPage from './pages/LoginPage'
 import RecoveryPage from './pages/RecoveryPage'
@@ -48,6 +49,7 @@ export const routeConfig = [
           { path: 'tasks/:taskId', element: <TaskDetail /> },
           { path: 'updates', element: <UpdatesPage /> },
           { path: 'ops', element: <OpsPage /> },
+          { path: 'ops/new', element: <OpsAddForm /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

@@ -163,6 +163,27 @@ export async function archiveTask(id: string, actor: string): Promise<void> {
   await logEvent(id, actor, 'archived')
 }
 
+export interface TaskTitleRef {
+  id: string
+  title: string
+  status: TaskStatus
+}
+
+/**
+ * Batch-fetch title + status for a set of task IDs (client-side linked-task resolution,
+ * NFR-006). Returns only the ids that are visible to the caller (org-readable set from RLS).
+ * Never embeds cross-schema FKs — the ops data layer stays raw and name-resolution is here.
+ */
+export async function getTaskTitlesByIds(ids: string[]): Promise<TaskTitleRef[]> {
+  if (ids.length === 0) return []
+  const { data, error } = await mos()
+    .from('tasks')
+    .select('id,title,status')
+    .in('id', ids)
+  if (error) throw new Error(`getTaskTitlesByIds failed — ${error.message}`)
+  return (data ?? []) as unknown as TaskTitleRef[]
+}
+
 /** Unarchive (clear archived_at), then log an `unarchived` event (FR-052/054). */
 export async function unarchiveTask(id: string, actor: string): Promise<void> {
   await updateTask(id, { archived_at: null })

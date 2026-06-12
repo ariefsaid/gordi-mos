@@ -44,6 +44,7 @@ export default defineConfig({
         'src/pages/TaskNewPlaceholder.tsx',
         'src/pages/UpdatesPage.tsx',
         'src/pages/OpsPage.tsx',
+        'src/pages/OpsAddForm.tsx',
         'src/pages/NotFoundPage.tsx',
         'src/shell/**',
         // P2-2b: weekly update components
