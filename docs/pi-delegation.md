@@ -31,9 +31,15 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 | `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC, auth), manager-grade judgment | opus |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+| `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback **only when BOTH z.ai AND OpenAI are rate-limited** — keeps the loop moving rather than stalling on a 429 | best-effort |
 
 The agent's own `model:` frontmatter is IGNORED under pi (pi uses `--model`); route by this table.
-**Fallback (owner rule):** z.ai limit → use `gpt-5.4`; OpenAI limit → use GLM. Smoke-test a provider with
+**Fallback (owner rule):** z.ai limit → use `gpt-5.4`; OpenAI limit → use GLM; **BOTH rate-limited →
+the OpenRouter free models** (owner directive 2026-06-12): try **Nemotron 3 Ultra (free)** first, then
+**Nex N2 Pro (free)**, via `--provider openrouter --model <slug>` (confirm the exact OpenRouter model
+slugs from the OpenRouter model list at first use — the names above are the owner's shorthand). These
+are last-resort capacity, not quality-matched to GLM/gpt-5.4 — the Director's double-verification (§5)
+matters more, not less, when running on them. Smoke-test any provider with
 `pi --provider <p> --model <m> -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
 
 ## 3. Invocation pattern
