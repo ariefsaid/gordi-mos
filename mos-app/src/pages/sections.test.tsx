@@ -8,7 +8,32 @@ import OpsPage from './OpsPage'
 // TasksPage.test.tsx (AC-060..067). The title + no-phase-wording tests below remain valid
 // and are covered in AC-004 below.
 
-vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn(() => new Promise(() => {})) }))
+vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn(() => new Promise(() => {})), getTaskTitlesByIds: vi.fn(() => Promise.resolve([])) }))
+// OpsPage needs these mocked (P2-3b — real page, not placeholder)
+vi.mock('../lib/db/opsLog', () => ({
+  listLogEntries: vi.fn(() => new Promise(() => {})), // stays loading
+  addLogEntry: vi.fn(),
+  editLogEntry: vi.fn(),
+  archiveLogEntry: vi.fn(),
+  unarchiveLogEntry: vi.fn(),
+  getTodayOpsSummary: vi.fn(() => new Promise(() => {})),
+}))
+vi.mock('../lib/db/directory', () => ({
+  getBusinessUnits: vi.fn(() => new Promise(() => {})),
+  getPeople: vi.fn(() => new Promise(() => {})),
+}))
+// useAuth needed for OpsPage (viewer context)
+vi.mock('../auth/useAuth', () => ({
+  useAuth: vi.fn(() => ({
+    status: 'authenticated',
+    viewer: {
+      person: { id: 'p1', org_id: 'org1', user_id: 'u1', full_name: 'Test', email: null, archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+      roles: [],
+      isManager: false,
+    },
+    signOut: () => {},
+  })),
+}))
 import TasksPage from './TasksPage'
 import { AuthContext } from '../auth/context'
 import type { PeopleRow, RolesRow } from '../lib/database.types'
@@ -56,18 +81,18 @@ describe('AC-007: Section empty shells', () => {
     expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
-  it('OpsPage: title "Ops", empty headline, explainer, no phase wording', () => {
+  it('OpsPage: title "Daily ops feed" heading is present, no phase wording (P2-3b replaces placeholder)', () => {
+    // OpsPage is now the live feed page (P2-3b); placeholder copy is gone.
+    // It starts loading — the heading is visible immediately.
     render(
       <MemoryRouter>
         <OpsPage />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Ops' })).toBeInTheDocument()
-    expect(screen.getByText('No ops events yet.')).toBeInTheDocument()
-    expect(
-      screen.getByText('Events from the floor will show up here as they\'re logged.'),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Daily ops feed' })).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/phase|roadmap|coming soon|Phase 2/i)
+    // Must not contain old placeholder text
+    expect(document.body.textContent).not.toMatch(/No ops events yet/)
   })
 })
 
@@ -98,15 +123,16 @@ describe('FIX-3: Empty state containers are left-aligned (not text-center)', () 
     expect(emptyDiv!.className).not.toMatch(/text-center/)
   })
 
-  it('OpsPage empty container does NOT have text-center class', () => {
+  it('OpsPage assembly container does NOT have text-center class (P2-3b live feed)', () => {
+    // OpsPage now renders an ops-assembly container (card assembly, left-aligned).
     const { container } = render(
       <MemoryRouter>
         <OpsPage />
       </MemoryRouter>,
     )
-    const emptyDiv = container.querySelector('.bg-card.border.border-border.rounded-md')
-    expect(emptyDiv).toBeTruthy()
-    expect(emptyDiv!.className).not.toMatch(/text-center/)
+    const assembly = container.querySelector('.ops-assembly')
+    expect(assembly).toBeTruthy()
+    expect(assembly!.className).not.toMatch(/text-center/)
   })
 })
 
@@ -132,12 +158,12 @@ describe('AC-004: Document title per section page', () => {
     expect(document.title).toBe('Weekly update — Gordi MOS')
   })
 
-  it('OpsPage sets document.title to "Ops — Gordi MOS"', () => {
+  it('OpsPage sets document.title to "Daily ops feed — Gordi MOS" (P2-3b)', () => {
     render(
       <MemoryRouter>
         <OpsPage />
       </MemoryRouter>,
     )
-    expect(document.title).toBe('Ops — Gordi MOS')
+    expect(document.title).toBe('Daily ops feed — Gordi MOS')
   })
 })

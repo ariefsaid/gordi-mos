@@ -55,13 +55,15 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
 
   // --- Navigate to Ops ---
+  // P2-3b: page title is now "Daily ops feed — Gordi MOS"; real feed replaces placeholder.
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Ops' }).click()
   await expect(page).toHaveURL(/\/ops$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Ops — Gordi MOS')
+  await expect(page).toHaveTitle('Daily ops feed — Gordi MOS')
   await expect(page.locator('header b:text("Ops")')).toBeVisible()
   const opsLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Ops' })
   await expect(opsLink).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByText('No ops events yet.')).toBeVisible()
+  // Real feed rendered — heading visible
+  await expect(page.getByRole('heading', { name: 'Daily ops feed' })).toBeVisible({ timeout: 5_000 })
 
   // --- Deep-link reload on /updates (FR-008) ---
   // Navigate to updates first, then reload

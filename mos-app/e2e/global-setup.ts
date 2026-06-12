@@ -183,6 +183,14 @@ export default async function globalSetup() {
   `)
   console.log('[global-setup] cleared mos.weekly_updates for e2e org')
 
+  // ── Clear ops.log_entries for P2-3 e2e journeys (idempotent clean slate) ──
+  // The AC-090/091 journeys create entries; wipe them so re-runs are deterministic.
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
+    DELETE FROM ops.log_entries
+     WHERE org_id = '10000000-0000-0000-0000-000000000001';
+  `)
+  console.log('[global-setup] cleared ops.log_entries for e2e org')
+
   // ── Seed mos.tasks for P2-1c e2e journeys ──────────────────────────────────
   // Deterministic: delete all mos.tasks for the Gordi e2e org, then seed fixed rows.
   // (service_role bypasses RLS via postgres; the org_id is fixed in seed.sql.)
