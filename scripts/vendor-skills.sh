@@ -70,7 +70,16 @@ git -C "$TMP/mps" sparse-checkout set skills/engineering/grill-with-docs
 rm -rf "${DEST:?}/grill-with-docs"
 cp -R "$TMP/mps/skills/engineering/grill-with-docs" "$DEST/grill-with-docs"
 
+echo "==> agent-browser (discovery stub) — rendered UI verification from pi (docs/pi-delegation.md §3a)"
+# The CLI (npm i -g agent-browser) serves its own version-matched usage skill via
+# `agent-browser skills get core`; the vendored file is only a discovery stub. Source = the global
+# CLI's skill, mirrored from the PMO checkout where it was first vendored.
+mkdir -p "$DEST/agent-browser"
+if [ -f /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md ]; then
+  cp /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md "$DEST/agent-browser/SKILL.md"
+fi
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling grill-with-docs"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling grill-with-docs agent-browser"
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

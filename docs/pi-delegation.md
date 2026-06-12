@@ -1,0 +1,148 @@
+# Delegating role work to pi — Director guide (Gordi MOS)
+
+**Status: ACTIVE** (adopted 2026-06-12 from PMO's pi-delegation trial). This document tells any agent
+acting as **Director** (`docs/director-playbook.md` §1 posture) how to dispatch role work to the
+**pi CLI** instead of (or alongside) Claude subagents. It changes **who executes a phase — nothing
+else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md` §2 (including the
+`grill-with-docs` intake gate and the Phase-0 mockup-first gate), the UI cycle in
+`docs/design-workflow.md` (§1 mockup-first + §2 three-lens battery), and the per-layer DoD in
+`docs/product-expectations.md` are unchanged and binding.
+
+Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; providers
+`zai/glm-5.1` and `openai-codex/gpt-5.4` both smoke-tested green.
+
+## 1. Division of labor (binding)
+
+| Who | Keeps |
+|---|---|
+| **pi dispatches** | Spec/plan authoring, implementation slices, mockup HTML builds, code-level reviews & audits — i.e. the role-agent work of playbook §2 steps 2–7 · **rendered UI/UX/FE verification via the `agent-browser` CLI** (§3a) |
+| **Director (you)** | Dispatch briefs · verification of every claim (§5) · the **final rendered visual-taste lens** + owner-facing screenshots (design-workflow §2.3 lens (a) sign-off — taste needs vision; pi text models work from the a11y tree) · merge + git hygiene (playbook §6) · prod operations (`supabase/README.md`, ris-dev) |
+| **Owner** (Arief) | Spec sign-off, mockup/IA approval, production/irreversible approvals — exactly as in CLAUDE.md "Quality gates & checkpoints" |
+
+pi agents may **commit on the issue branch** (implementer discipline) but never push, open PRs, or
+merge — the release-engineer flow and the Director merge gate (playbook §6) are unchanged.
+
+## 2. Model routing (by task complexity)
+
+Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/haiku mapping when running pi:
+
+| Substrate | Use for | Claude analog |
+|---|---|---|
+| `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC, auth), manager-grade judgment | opus |
+| `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
+| `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+
+The agent's own `model:` frontmatter is IGNORED under pi (pi uses `--model`); route by this table.
+**Fallback (owner rule):** z.ai limit → use `gpt-5.4`; OpenAI limit → use GLM. Smoke-test a provider with
+`pi --provider <p> --model <m> -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
+
+## 3. Invocation pattern
+
+```bash
+cd <issue-worktree-or-repo-root>   # dispatch from where the work happens (worktree per issue, playbook §6)
+pi --provider zai --model glm-5.1 -p --no-session \
+  --append-system-prompt .claude/agents/<role>.md \
+  "<self-contained brief>" < /dev/null
+```
+
+- **`< /dev/null` is load-bearing** — without it `-p` can block on stdin.
+- **`--append-system-prompt`** injects the role contract. `.claude/agents/*.md` are **tracked**
+  (present in every worktree). `.claude/skills/*` are **gitignored** (vendored) — reference them by
+  **absolute path from the primary checkout**, e.g.
+  `--append-system-prompt /Users/ariefsaid/Coding/gordi-mos/.claude/skills/feature-forge/SKILL.md`.
+  (Stack multiple `--append-system-prompt` flags: role contract + the skill[s] it owns.)
+- Run long dispatches as **harness-tracked background tasks** with a generous timeout. **Never
+  `nohup … &`** — the wrapper is reaped when the parent shell exits and the run dies silently.
+  (macOS has no `timeout`; rely on `< /dev/null` + the background-task timeout, or `gtimeout`.)
+- Avoid `--mode json` unless piping to a file — a single long run once emitted 664 MB of stdout.
+- pi has no MCP and no built-in subagents; its power tool is Bash. Default tools: read/bash/edit/write.
+
+### 3a. Rendered UI/FE verification from pi — `agent-browser` CLI
+
+pi agents drive a real browser through Bash with the **`agent-browser`** CLI
+([vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser), installed globally).
+Use it in design-review / qa dispatches and in ui-implementer self-checks:
+
+- **Tell the agent to start with** `agent-browser skills get core --full` — the CLI ships its own
+  version-matched usage skill (workflows, ref/selector usage, examples). Put that line in the brief;
+  don't paste flag docs. (The vendored `.claude/skills/agent-browser/SKILL.md` is only a discovery stub.)
+- Core verbs: `open <url>` · `click/fill/type/press` · `wait <sel|ms>` · `screenshot [path]` ·
+  snapshot/refs per the core skill. Serve static mockups with `python3 -m http.server <port>` from the
+  mockup dir; the app via `npm run dev` from `mos-app/` (serves `http://localhost:5173/mos/`). The local
+  Supabase stack is `supabase start -x edge-runtime` from repo root (ports **44321** api / 44322 db /
+  44324 mailpit — NEVER touch the pmo-portal stack).
+- **Text models verify against the accessibility tree / DOM assertions** (snapshot + selector checks:
+  states, labels, focus order, counts) — that covers design-workflow §2.3 lens (b) IxD-flow and lens
+  (c) IA walks plus functional FE verification. **Screenshots are for vision-capable reviewers** — have
+  the pi agent save them to a known path; the Director (a vision model) judges lens (a) pixel/taste from
+  the files. (This is exactly where Claude's design-reviewer caught the cross-schema bug, the transparent
+  Submit button, and the dead roster rows — keep that Director lens on every UI slice.)
+- The owner-approval artifact (design-workflow §2.5, §3) is still produced/curated by the Director — pi
+  screenshots feed it, they don't replace the gate.
+
+## 4. Brief structure — the quality lever
+
+pi agents see NOTHING of your session. The brief must stand alone:
+
+1. **Task in one line**, naming the phase + binding role rules ("per docs/design-workflow.md §2").
+2. **READ FIRST list** — exact paths: the locked `OD-*` decisions (`docs/decisions.md`), the
+   `CONTEXT.md` glossary, the spec/plan, the **reference slice** (the Tasks vertical:
+   `mos-app/src/pages/TasksPage.tsx` + `mos-app/src/pages/TaskDetail.tsx` + `mos-app/src/lib/db/tasks.ts`,
+   and for schema/RLS the `supabase/migrations/20260611000007..09_mos_*` + their pgTAP), relevant ADRs.
+   The agent reads them itself; don't paste content.
+3. **Output path** — exact file(s) the agent must write.
+4. **Conventions verbatim** — spec/plan/test conventions from CLAUDE.md (EARS, AC-### Given/When/Then,
+   no-placeholder 2–5-min tasks, AC-id tagging, one-owning-layer test pyramid).
+5. **Do-NOT list** — scope fences ("spec is signed — do not re-litigate", "do not redesign the shell").
+6. **End marker** — require a final sentinel line (`SPEC-DONE`, `BUILD-DONE`, `FIX-DONE`…) so you can
+   detect truncated/killed runs cheaply.
+7. **"Verify your own work"** — instruct the agent to re-read its output against the input list and
+   report deviations. (Then verify yourself anyway — §5.)
+8. **Fix rounds:** numbered findings, "fix ALL, change nothing else". **Completion rounds** (after a
+   killed run): list ONLY the missing items, "do not rework what already landed".
+
+## 5. Verification — playbook §7, applied doubly
+
+Never accept a pi completion report. Minimum per dispatch:
+
+- **Artifact exists** (`wc -l`, `git status`) and **ends with the sentinel line**.
+- **Grep the load-bearing claims** (the fix-list items, the AC ids, the constants, the OD ids).
+- **Structure-check HTML/JSX bulk edits** — balance-count tags or parse before trusting a bulk edit
+  (a GLM builder once dropped a `<section>` and silently swallowed every later section).
+- **Render UI work yourself** (the playwright/preview MCP or `agent-browser` + your own screenshot read)
+  — design-workflow §2.3 lens (a); it catches what source review can't.
+- **Run the gates yourself** before any phase transition: from `mos-app/` `npm run typecheck` ·
+  `npm run lint:ci` · `npm test`/`test:coverage` · `npm run build` · `npx playwright test`; and
+  `supabase test db` (+ the CI definer-revoke lint) for DB changes.
+- **Killed/timed-out runs leave HALF-APPLIED edits.** `git diff` first; re-dispatch as a completion
+  round, never a blind retry.
+
+**Cross-family review is complementary, not sufficient.** Run **both** lenses on anything load-bearing
+— the cross-family reviewer (gpt-5.4) AND the Director's own read. (Trial empirics from PMO: gpt-5.4
+caught 3 criticals a GLM author missed — a fake progress bar, e2e not proving their ACs, an org_id seam
+violation — while the Director's own read caught 2 the reviewer missed. Both lenses, always.)
+
+## 6. Known failure tendencies (watch for these in review)
+
+- **e2e softening** — `.catch(...)` around assertions, or "element exists" instead of the journey goal.
+  Violates the binding BDD rule (CLAUDE.md). Reject on sight. (This project has already caught this
+  class via the 3-lens battery — keep it ruthless.)
+- **Honest-UX shortcuts** — e.g. a fake/indeterminate progress bar where real progress is specced; a
+  clickable-looking row with no handler (the P2-2c FR-031 miss).
+- **Stopping partway** on long multi-item briefs (glm-4.7) — hence sentinel lines + completion rounds.
+- **Scope drift in mockups** — page-level reframing of tab-level UI, invented vocabulary; pin terms to
+  the real component and `CONTEXT.md` in the brief.
+- **Schema/security gaps mocks hide** — cross-schema PostgREST embeds (resolve names client-side),
+  mutable `created_by`/`org_id`, public-execute SECURITY DEFINER funcs (the definer-revoke CI lint
+  guards this). Always run `supabase test db` + the security-auditor lens on data/auth slices.
+
+## 7. Where this fits
+
+- Sequencing + status: `docs/backlog.md` (current: Phase 2 first slice — P2-3 Ops Log in progress).
+- The loop being executed: `docs/director-playbook.md` §2; UI issues additionally
+  `docs/design-workflow.md` §1 (Phase-0 mockup gate) + §2 (per-UI-issue loop + 3-lens battery).
+- Grading: playbook §10 rubric applies to pi-produced work unchanged.
+- **Substrate-agnostic fallback:** if pi or the providers are unavailable, fall back to the standard
+  Claude role agents (the Agent tool, `.claude/agents/`, playbook §3 model tiers + the
+  model-delegation-discipline memory) — the loop is substrate-agnostic by design. The Director may mix:
+  e.g. pi for a bulk implementation slice, a Claude design-reviewer for the vision lens.

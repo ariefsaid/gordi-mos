@@ -45,6 +45,13 @@ architected so the larger MOS (objectives, programs, SWPs, RACI matrix) can grow
 Detailed runbook: `docs/director-playbook.md`. UI/UX cycle: `docs/design-workflow.md`.
 Binding charter + per-layer Definition of Done: `docs/product-expectations.md`.
 
+**Delegation substrate (ACTIVE):** dispatch role work via the **pi CLI** (multi-provider: z.ai/GLM
+builders + OpenAI/gpt-5.4 cross-family reviewers) per `docs/pi-delegation.md` — it changes *who
+executes a phase*, nothing else; the loop, gates, DoD, and the Director's verify-everything +
+final-visual-taste + merge/git duties are unchanged. pi agents drive rendered UI checks via the
+`agent-browser` CLI. Fall back to Claude role agents (the Agent tool, `.claude/agents/`) if pi or a
+provider is unavailable — the loop is substrate-agnostic.
+
 ## Quality gates & checkpoints (binding from Phase 1 on)
 - **Coverage:** ≥80% lines on changed code to merge; tests assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (`--max-warnings=0`). Both block merge.

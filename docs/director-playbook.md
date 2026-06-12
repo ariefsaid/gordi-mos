@@ -45,9 +45,16 @@ mockups (`docs/design-mockups/`) → Director sanity-check (tokens, realistic da
 **owner picks** → record the pick in `docs/decisions.md`. Mockups commit straight to main.
 
 ## 3. Delegation & context discipline
+- **Substrate (ACTIVE): the pi CLI.** Dispatch role work to pi (`docs/pi-delegation.md`) — model
+  routing by §2 of that doc (glm-5.1 ≈ opus, glm-4.7 ≈ sonnet/haiku, gpt-5.4 = all reviews,
+  cross-family), invocation `pi --provider … --model … -p --no-session --append-system-prompt
+  .claude/agents/<role>.md "<brief>" < /dev/null`, rendered UI via `agent-browser`. The Director still
+  verifies every claim doubly (§7 + pi-delegation §5), keeps the final visual-taste lens, and owns
+  merge/git. Claude role agents (the Agent tool) are the substrate-agnostic fallback.
 - **Briefs are self-contained:** tell the agent which files/specs to read; it reads them itself. Don't
   paste large content into the brief. Always pass the locked decisions + the `[OWNER-DECISION]`
-  resolutions so it doesn't re-ask.
+  resolutions so it doesn't re-ask. (pi agents see NOTHING of the session — the brief MUST stand alone;
+  pi-delegation §4 is the brief template + the sentinel-line rule for detecting killed runs.)
 - **Ask for CONCISE reports** to preserve the Director's context (hard constraint on long runs).
 - **Parallelize** independent agents in one message. Avoid running two agents that both drive the
   single local Supabase stack at once — stagger those.
