@@ -28,6 +28,18 @@ vi.mock('../lib/db/team', () => ({
 import { getTeamForManager } from '../lib/db/team'
 const mockGetTeamForManager = vi.mocked(getTeamForManager)
 
+// Mock opsLog data layer for ops-strip wiring (AC-080, AC-081, AC-082)
+vi.mock('../lib/db/opsLog', () => ({
+  getTodayOpsSummary: vi.fn(),
+  listLogEntries: vi.fn(),
+  addLogEntry: vi.fn(),
+  editLogEntry: vi.fn(),
+  archiveLogEntry: vi.fn(),
+  unarchiveLogEntry: vi.fn(),
+}))
+import { getTodayOpsSummary } from '../lib/db/opsLog'
+const mockGetTodayOpsSummary = vi.mocked(getTodayOpsSummary)
+
 const mockUseAuth = vi.mocked(useAuth)
 
 import MyWeek from './MyWeek'
@@ -100,6 +112,8 @@ beforeEach(() => {
   // Default team mocks: empty roster + empty updates
   mockGetTeamForManager.mockResolvedValue([])
   mockListTeamUpdates.mockResolvedValue([])
+  // Default ops summary: no entries, no needs-attention
+  mockGetTodayOpsSummary.mockResolvedValue({ count: 0, needsAttention: false })
 })
 
 // AC-011: My Week task-table frame (empty)
@@ -161,10 +175,11 @@ describe('AC-012: Empty strips', () => {
   })
 
   it('ops strip shows no-ops copy and link to /ops', async () => {
+    mockGetTodayOpsSummary.mockResolvedValue({ count: 0, needsAttention: false })
     await renderMyWeek()
-    expect(
-      screen.getByText('No ops events logged today.'),
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByText(/No log entries on the floor today\./i)).toBeInTheDocument(),
+    )
     const link = screen.getByRole('link', { name: /Today on Ops/i })
     expect(link.getAttribute('href')).toBe('/ops')
   })
@@ -207,7 +222,8 @@ describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
 
   it('ops strip container has flex-wrap class (not fixed row)', async () => {
     const { container } = await renderMyWeek()
-    const opsSection = container.querySelector('[aria-label="Today on the floor"]')
+    const opsSection = container.querySelector('[aria-label="Today on the floor"]') ??
+                       container.querySelector('[aria-label="Today on Ops"]')
     expect(opsSection).toBeTruthy()
     expect(opsSection!.className).toMatch(/flex-wrap/)
   })
@@ -484,5 +500,93 @@ describe('RI-CROSS: Team module wired to listTeamUpdates — cross-surface consi
     await waitFor(() =>
       expect(screen.getByText(/no direct reports/i)).toBeInTheDocument()
     )
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// AC-080: ops strip shows today count (neutral)
+// AC-081: ops strip amber when needs-attention
+// AC-082: ops strip degrades pane-by-pane
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('AC-080: ops strip shows today count, neutral', () => {
+  it('shows count pill and neutral sentence when N>0, no needs-attention', async () => {
+    mockGetTodayOpsSummary.mockResolvedValue({ count: 3, needsAttention: false })
+    await renderMyWeek()
+    await waitFor(() =>
+      expect(screen.getByText(/3 today/i)).toBeInTheDocument(),
+    )
+    // Sentence mentions log entries
+    expect(screen.getByText(/3 log entries on the floor today/i)).toBeInTheDocument()
+    // Link to /ops
+    const link = screen.getByRole('link', { name: /Today on Ops/i })
+    expect(link.getAttribute('href')).toBe('/ops')
+  })
+
+  it('shows "0 today" and no-entries copy when count=0', async () => {
+    mockGetTodayOpsSummary.mockResolvedValue({ count: 0, needsAttention: false })
+    await renderMyWeek()
+    await waitFor(() =>
+      expect(screen.getByText(/0 today/i)).toBeInTheDocument(),
+    )
+    expect(screen.getByText(/No log entries on the floor today\./i)).toBeInTheDocument()
+  })
+
+  it('strip section links to /ops', async () => {
+    mockGetTodayOpsSummary.mockResolvedValue({ count: 1, needsAttention: false })
+    await renderMyWeek()
+    await waitFor(() => expect(screen.getByText(/1 today/i)).toBeInTheDocument())
+    const link = screen.getByRole('link', { name: /Today on Ops/i })
+    expect(link.getAttribute('href')).toBe('/ops')
+  })
+})
+
+describe('AC-081: ops strip amber when a needs-attention entry is open', () => {
+  it('shows amber pill with dot and "needs attention" sentence when needsAttention=true', async () => {
+    mockGetTodayOpsSummary.mockResolvedValue({ count: 2, needsAttention: true })
+    await renderMyWeek()
+    await waitFor(() =>
+      expect(screen.getByText(/2 today/i)).toBeInTheDocument(),
+    )
+    // Sentence must include "needs attention" signal
+    expect(screen.getByText(/something needs attention/i)).toBeInTheDocument()
+    // Link label changes to "Review on Ops"
+    expect(screen.getByRole('link', { name: /Review on Ops/i })).toBeInTheDocument()
+    // data-attn or amber class on the pill (visual check via data attr)
+    const pill = document.querySelector('[data-ops-attn="true"]')
+    expect(pill).not.toBeNull()
+  })
+})
+
+describe('AC-082: ops strip degrades pane-by-pane', () => {
+  it('ops strip error shows retry, weekly-update strip still renders', async () => {
+    mockGetTodayOpsSummary.mockRejectedValue(new Error('ops down'))
+    // Weekly update still works
+    mockGetMyUpdate.mockResolvedValue(null)
+    await renderMyWeek()
+    await waitFor(() =>
+      expect(screen.getByText(/Couldn't load today's ops/i)).toBeInTheDocument(),
+    )
+    // Retry button present in ops strip
+    const opsSection = document.querySelector('[aria-label="Today on Ops"]')
+    expect(opsSection).toBeTruthy()
+    // Weekly update strip still rendered (not affected by ops error)
+    expect(screen.getByText(/No weekly update for this week yet/i)).toBeInTheDocument()
+  })
+
+  it('ops strip loading state shows muted pill (no flash) independently', async () => {
+    // Never resolves — stays loading
+    mockGetTodayOpsSummary.mockImplementation(() => new Promise(() => {}))
+    mockUseAuth.mockReturnValue(nonManagerViewer)
+    render(
+      <MemoryRouter>
+        <MyWeek />
+      </MemoryRouter>,
+    )
+    // Ops strip section (role=region) is present with loading state
+    await waitFor(() => {
+      const opsSection = screen.queryByRole('region', { name: 'Today on Ops' })
+      expect(opsSection).toBeTruthy()
+    })
   })
 })

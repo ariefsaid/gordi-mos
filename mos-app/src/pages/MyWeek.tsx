@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import PageFrame from '../shell/PageFrame'
@@ -12,6 +12,8 @@ import type { TeamUpdateRow } from '../lib/db/weeklyUpdates.types'
 import { getTeamForManager } from '../lib/db/team'
 import TimingChip from '../components/weekly/TimingChip'
 import { StatePill } from '../components/weekly/WeeklyUpdateReviewPane'
+import { getTodayOpsSummary } from '../lib/db/opsLog'
+import type { TodayOpsSummary } from '../lib/db/opsLog'
 
 export default function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
@@ -19,7 +21,8 @@ export default function MyWeek() {
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
-  const now = new Date()
+  // Stable "now" snapshot — memoized so useCallback deps don't change on every render
+  const now = useMemo(() => new Date(), [])
   const wib = weekLabel(now)
   const weekStart = weekStartISO(now, 0)
 
@@ -47,6 +50,28 @@ export default function MyWeek() {
   // Derive strip state
   const stripStatus = myUpdate?.update.status ?? null
   const submittedAt = myUpdate?.update.submitted_at ?? null
+
+  // ── Ops strip state (AC-080/081/082) ────────────────────────────────────────
+  const [opsLoad, setOpsLoad] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [opsSummary, setOpsSummary] = useState<TodayOpsSummary>({ count: 0, needsAttention: false })
+
+  const loadOpsSummary = useCallback(() => {
+    let cancelled = false
+    getTodayOpsSummary(now).then(summary => {
+      if (!cancelled) {
+        setOpsSummary(summary)
+        setOpsLoad('ready')
+      }
+    }).catch(() => {
+      if (!cancelled) setOpsLoad('error')
+    })
+    return () => { cancelled = true }
+  }, [now])
+
+  useEffect(() => {
+    const cancel = loadOpsSummary()
+    return cancel
+  }, [loadOpsSummary])
 
   // ── Team module state (FR-017, OD-P0-8 — wired for managers only) ─────────────
   const isManager      = viewer?.isManager ?? false
@@ -180,30 +205,12 @@ export default function MyWeek() {
           fridayShort={wib.fridayShort}
         />
 
-        {/* ===== Auxiliary strip 2: ops ===== */}
-        <section
-          className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
-          style={{ minHeight: 60, padding: '12px 20px' }}
-          aria-label="Today on the floor"
-        >
-          {/* Neutral pill */}
-          <span
-            className="bg-secondary text-muted-foreground rounded-full font-semibold flex-none"
-            style={{ height: 24, padding: '0 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center' }}
-          >
-            0 events
-          </span>
-          <span className="flex-1 min-w-[160px]" style={{ fontSize: 14 }}>
-            No ops events logged today.
-          </span>
-          <Link
-            to="/ops"
-            className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
-            style={{ fontSize: 13 }}
-          >
-            Today on Ops →
-          </Link>
-        </section>
+        {/* ===== Auxiliary strip 2: ops (AC-080/081/082) ===== */}
+        <OpsStrip
+          opsLoad={opsLoad}
+          summary={opsSummary}
+          onRetry={loadOpsSummary}
+        />
 
         {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) ===== */}
         {isManager && (
@@ -222,6 +229,117 @@ export default function MyWeek() {
           </>
         )}
     </PageFrame>
+  )
+}
+
+// ── Ops strip (AC-080/081/082, FR-060/061/062) ───────────────────────────────
+// Mirrors WeeklyUpdateStrip: card strip, own load-state machine, degrades independently.
+// Amber when any non-archived needs_attention entry exists today (D-E, org-readable set).
+interface OpsStripProps {
+  opsLoad: 'loading' | 'ready' | 'error'
+  summary: TodayOpsSummary
+  onRetry: () => void
+}
+
+function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
+  const isLoading = opsLoad === 'loading'
+  const isError   = opsLoad === 'error'
+  const isAmber   = !isLoading && !isError && summary.needsAttention
+  const { count } = summary
+
+  // Pill (§6 design-plan table)
+  let pillContent: React.ReactNode
+  let pillStyle: React.CSSProperties = {}
+  if (isLoading) {
+    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'transparent' }
+    pillContent = '⠀' // zero-width space for height
+  } else if (isAmber) {
+    // amber: --ops-attn-strip-bg (warning/18%) + --ops-attn-strip-text (warning-foreground)
+    pillStyle = { background: 'hsl(43 96% 56% / 0.18)', color: 'hsl(22 78% 26%)' }
+    pillContent = (
+      <>
+        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(43 96% 56%)', flexShrink: 0 }} />
+        {count} today
+      </>
+    )
+  } else {
+    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'hsl(240 4% 40%)' }
+    pillContent = `${count} today`
+  }
+
+  // Sentence + link
+  let sentence: React.ReactNode
+  let linkLabel: string
+  if (isError) {
+    sentence = (
+      <>
+        <span>Couldn&apos;t load today&apos;s ops.</span>
+        {' '}
+        <button
+          type="button"
+          onClick={onRetry}
+          className="font-semibold text-primary"
+          style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          Retry
+        </button>
+      </>
+    )
+    linkLabel = 'Today on Ops →'
+  } else if (isAmber) {
+    sentence = (
+      <>
+        {count} log entr{count === 1 ? 'y' : 'ies'} today · something needs attention.
+      </>
+    )
+    linkLabel = 'Review on Ops →'
+  } else if (count > 0) {
+    sentence = (
+      <>
+        {count} log entr{count === 1 ? 'y' : 'ies'} on the floor today.
+      </>
+    )
+    linkLabel = 'Today on Ops →'
+  } else {
+    sentence = <>No log entries on the floor today.</>
+    linkLabel = 'Today on Ops →'
+  }
+
+  return (
+    <section
+      className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
+      style={{ minHeight: 60, padding: '12px 20px' }}
+      aria-label="Today on Ops"
+    >
+      {/* Count pill (24px height matching weekly-update strip) */}
+      <span
+        className="rounded-full font-semibold flex-none"
+        data-ops-attn={isAmber ? 'true' : undefined}
+        style={{
+          height: 24, padding: '0 10px', fontSize: 12,
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          ...pillStyle,
+        }}
+        aria-hidden={isLoading ? 'true' : undefined}
+      >
+        {pillContent}
+      </span>
+
+      {/* Body sentence */}
+      <span className="flex-1 min-w-[160px]" style={{ fontSize: 14 }}>
+        {sentence}
+      </span>
+
+      {/* Trailing link (always /ops) */}
+      <Link
+        to="/ops"
+        className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
+        style={{ fontSize: 13 }}
+        aria-label={linkLabel.replace(' →', '')}
+      >
+        {linkLabel}
+      </Link>
+    </section>
   )
 }
 
