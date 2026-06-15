@@ -4,8 +4,7 @@ import { RedirectIfAuthed } from './auth/RedirectIfAuthed'
 import AppShell from './shell/AppShell'
 import MyWeek from './pages/MyWeek'
 import TasksLayout from './pages/TasksLayout'
-import TaskDetail from './pages/TaskDetail'
-import TaskCreate from './pages/TaskCreate'
+import TaskDrawer from './components/tasks/TaskDrawer'
 import UpdatesPage from './pages/UpdatesPage'
 import OpsPage from './pages/OpsPage'
 import OpsAddForm from './pages/OpsAddForm'
@@ -20,10 +19,10 @@ import RecoveryPage from './pages/RecoveryPage'
 // / (ProtectedRoute gate) — authenticated viewers only
 //   AppShell (layout route — rail + header + drawer, persistent across nav)
 //     /           → MyWeek (index)
-//     /tasks      → TasksLayout (ADR-0007 nested parent)
-//                     (index)        → list (TasksPage, via TasksLayout)
-//       /tasks/new      → TaskCreate (P2-1c create form)
-//       /tasks/:taskId  → TaskDetail (P2-1c detail)
+//     /tasks      → TasksLayout (ADR-0007 split-view shell — persistent table + <Outlet> drawer)
+//                     (index)        → table full width (.split.nodrawer)
+//       /tasks/new      → TaskDrawer (create mode, beside the table)
+//       /tasks/:taskId  → TaskDrawer (view mode, beside the table)
 //     /updates    → UpdatesPage
 //     /ops        → OpsPage (Daily Log)
 //     /ops/new    → OpsAddForm (add log entry)
@@ -51,8 +50,8 @@ export const routeConfig: RouteObject[] = [
             path: 'tasks',
             element: <TasksLayout />,
             children: [
-              { path: 'new', element: <TaskCreate /> },
-              { path: ':taskId', element: <TaskDetail /> },
+              { path: 'new', element: <TaskDrawer mode="create" /> },
+              { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
           { path: 'updates', element: <UpdatesPage /> },

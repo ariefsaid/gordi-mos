@@ -39,6 +39,7 @@ export default defineConfig({
         'src/pages/RecoveryPage.tsx',
         'src/pages/MyWeek.tsx',
         'src/pages/TasksPage.tsx',
+        'src/pages/TasksLayout.tsx',
         'src/pages/TaskDetail.tsx',
         'src/pages/TaskCreate.tsx',
         'src/pages/TaskNewPlaceholder.tsx',

@@ -20,6 +20,9 @@ import { RaciCard } from './RaciCard'
 import { ChecklistCard } from './ChecklistCard'
 import { ActivityCard } from './ActivityCard'
 import { canEdit, canArchive } from './taskPermissions'
+import { TaskDrawerHeader } from './TaskDrawerHeader'
+import { TaskTabStrip } from './TaskTabStrip'
+import { useTabMemory } from './useTabMemory'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 // PR-A: TaskSurface is the single actionable task editor (ADR-0007 "one UI, two
@@ -58,9 +61,12 @@ export function TaskSurface(props: TaskSurfaceProps) {
 }
 
 // ── View mode ──────────────────────────────────────────────────────────────────
-function ViewSurface({ taskId, onClose, onTitleResolved }: TaskSurfaceProps) {
+function ViewSurface({
+  taskId, width, expanded, onClose, onExpandToggle, onTaskChanged, onTitleResolved,
+}: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
+  const [tab, setTab] = useTabMemory(taskId)
 
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const isManager = auth.status === 'authenticated' ? auth.viewer.isManager : false
@@ -131,14 +137,17 @@ function ViewSurface({ taskId, onClose, onTitleResolved }: TaskSurfaceProps) {
     if (!localTask) return
     const oldStatus = localTask.status
     setLocalTask(t => t ? { ...t, status: newStatus } : t)
+    onTaskChanged?.({ ...localTask, status: newStatus })  // sync the table row optimistically
     try {
       await updateTaskStatus(localTask.id, oldStatus, newStatus, viewerId)
       const refreshed = await getTask(localTask.id)
       setData(refreshed)
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
+      onTaskChanged?.(refreshed.task)
     } catch {
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
+      onTaskChanged?.({ ...localTask, status: oldStatus })
     }
   }
 
@@ -275,7 +284,111 @@ function ViewSurface({ taskId, onClose, onTitleResolved }: TaskSurfaceProps) {
   const task = localTask
   const buName = buMap.get(task.business_unit_id) ?? task.business_unit_id
   const events = data?.events ?? []
+  const checklistDone = localChecklist.filter(i => i.is_done).length
 
+  // ── Drawer width: pinned header + tabs + pinned foot (Variant B) ──────────
+  if (width === 'drawer') {
+    return (
+      <div className={expanded ? 'dw-surface dw-surface-expanded' : 'dw-surface'}>
+        <TaskDrawerHeader
+          task={task}
+          buName={buName}
+          people={peopleDirectory}
+          editable={editable}
+          archiveable={archiveable}
+          expanded={Boolean(expanded)}
+          now={now}
+          onStatusChange={handleStatusChange}
+          onExpandToggle={() => onExpandToggle?.()}
+          onClose={() => (onClose ? onClose() : navigate('/tasks'))}
+          onArchive={() => setShowConfirm(true)}
+        />
+
+        {isArchived && (
+          <div className="archived-banner" role="status">
+            <span>This task is archived.</span>
+            {archiveable && (
+              <button type="button" className="btn-outline-sm" onClick={handleUnarchive}>
+                Unarchive
+              </button>
+            )}
+          </div>
+        )}
+
+        <TaskTabStrip
+          active={tab}
+          checklistCount={[checklistDone, localChecklist.length]}
+          activityCount={events.length}
+          onSelect={setTab}
+        />
+
+        <div
+          className="dw-tabpane"
+          role="tabpanel"
+          id={`dw-tabpanel-${tab}`}
+          aria-labelledby={`dw-tab-${tab}`}
+        >
+          {tab === 'details' && (
+            <>
+              <section className="dw-sec" aria-label="Description">
+                <h3 className="dw-sec-h3">Description</h3>
+                {task.description
+                  ? <p className="desc-body">{task.description}</p>
+                  : <p className="empty-substate">No description.</p>
+                }
+              </section>
+              <RaciCard
+                task={task}
+                people={peopleDirectory}
+                canEdit={editable}
+                viewerId={viewerId}
+                onRaciChange={handleRaciChange}
+                onRaChange={handleRaChange}
+              />
+            </>
+          )}
+          {tab === 'checklist' && (
+            <ChecklistCard
+              items={localChecklist}
+              canEdit={editable}
+              taskId={task.id}
+              viewerId={viewerId}
+              onAdd={handleAddChecklist}
+              onToggle={handleToggle}
+              onReorder={handleReorder}
+              onDelete={handleDeleteChecklist}
+            />
+          )}
+          {tab === 'activity' && (
+            <ActivityCard events={events} people={peopleDirectory} now={now} />
+          )}
+        </div>
+
+        {/* Pinned foot — Archive always reachable (collapsed only; expanded shows it in the header) */}
+        {archiveable && !isArchived && !expanded && (
+          <div className="dw-foot">
+            <button
+              type="button"
+              className="btn-ghost-danger"
+              aria-label="Archive task"
+              onClick={() => setShowConfirm(true)}
+            >
+              Archive task
+            </button>
+          </div>
+        )}
+
+        {showConfirm && (
+          <ConfirmArchive
+            onConfirm={() => { setShowConfirm(false); handleArchive() }}
+            onCancel={() => setShowConfirm(false)}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ── Full width (the historical stacked layout — unchanged) ─────────────────
   return (
     <>
       {/* Archived banner */}
@@ -389,9 +502,10 @@ function ViewSurface({ taskId, onClose, onTitleResolved }: TaskSurfaceProps) {
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ onClose }: TaskSurfaceProps) {
+function CreateSurface({ onClose, width }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
+  const inDrawer = width === 'drawer'
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -475,8 +589,30 @@ function CreateSurface({ onClose }: TaskSurfaceProps) {
   }
 
   return (
-    <div className="tc-card">
-      <form onSubmit={handleSubmit} noValidate aria-label="Create task form">
+    <div className={inDrawer ? 'dw-surface tc-create-drawer' : 'tc-card'}>
+      {inDrawer && (
+        <div className="dw-bar">
+          <span className="dw-crumb-mini">New task</span>
+          <span className="dw-bar-spacer" />
+          <button
+            type="button"
+            className="dw-iconbtn"
+            aria-label="Close (Esc)"
+            title="Close (Esc)"
+            onClick={() => (onClose ? onClose() : navigate('/tasks'))}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        aria-label="Create task form"
+        className={inDrawer ? 'tc-create-form' : undefined}
+      >
         {submitError && (
           <div role="alert" className="tc-submit-error">
             {submitError}

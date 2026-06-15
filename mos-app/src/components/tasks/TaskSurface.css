@@ -364,3 +364,116 @@
 .tc-btn-submit:hover { opacity: 0.92; }
 .tc-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 .tc-btn-submit:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PR-B — Variant B drawer chrome (pinned header + tabs + pinned foot).
+   All values resolve to DESIGN.md tokens; the only literal px are layout
+   dimensions (sizes/radii reused verbatim from the picked mockup).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.dw-surface {
+  display: flex; flex-direction: column; min-height: 0;
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  border-radius: 8px; /* rounded.md */ overflow: hidden;
+}
+
+/* ── Utility bar (crumb-mini + expand + close) ── */
+.dw-head { flex: none; }
+.dw-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-bottom: 1px solid hsl(var(--border));
+}
+.dw-crumb-mini { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.dw-bar-spacer { flex: 1; }
+.dw-iconbtn {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: transparent; border: 1px solid transparent;
+  display: grid; place-items: center; cursor: pointer;
+  color: hsl(var(--muted-foreground));
+}
+.dw-iconbtn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.dw-iconbtn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.dw-iconbtn-on { color: hsl(var(--primary)); }
+
+/* ── Pinned action header — never scrolls ── */
+.dw-pinned { padding: 14px 16px 12px; border-bottom: 1px solid hsl(var(--border)); flex: none; }
+.dw-pinned-inner { min-width: 0; }
+.dw-titlewrap { min-width: 0; }
+.dw-title {
+  font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.dw-unit { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+.dw-statusrow { display: flex; align-items: center; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+.dw-activity { margin-left: 0; }
+.dw-ra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 11px; }
+.ra-mini { display: flex; align-items: center; gap: 7px; }
+.ra-glyph {
+  width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; flex: none;
+}
+.ra-glyph-r { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } /* --raci-responsible */
+.ra-glyph-a { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); }       /* --raci-accountable */
+.ra-who { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
+.ra-role { font-size: 11px; color: hsl(var(--muted-foreground)); }
+
+/* ── Tabs (sticky under the pinned header) ── */
+.dw-tabs {
+  display: flex; gap: 2px; padding: 8px 12px 0;
+  border-bottom: 1px solid hsl(var(--border)); flex: none;
+}
+.dw-tab {
+  position: relative; border: 0; background: transparent; font: inherit;
+  font-size: 13px; font-weight: 500; padding: 8px 12px 10px;
+  color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.dw-tab:hover { color: hsl(var(--foreground)); }
+.dw-tab:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; border-radius: 4px; }
+.dw-tab .tcount { font-size: 11px; color: hsl(var(--muted-foreground)); margin-left: 5px; }
+.dw-tab.on { color: hsl(var(--foreground)); font-weight: 600; }
+.dw-tab.on::after {
+  content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px;
+  height: 2px; border-radius: 2px; background: hsl(var(--primary)); /* sticky-tab indicator */
+}
+
+/* ── Tab pane (the scrolling body) ── */
+.dw-tabpane { overflow: auto; padding: 16px; flex: 1; min-height: 0; }
+.dw-sec { margin-bottom: 18px; }
+.dw-sec-h3 {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: hsl(var(--muted-foreground)); margin-bottom: 10px;
+}
+/* Inside the drawer the reused cards drop their card frame (the drawer is the frame). */
+.dw-tabpane .card {
+  background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0;
+}
+.dw-tabpane .card-h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+
+/* ── Pinned foot — Archive always reachable ── */
+.dw-foot { padding: 10px 16px; border-top: 1px solid hsl(var(--border)); display: flex; flex: none; }
+.btn-ghost-danger {
+  height: 32px; padding: 0 12px; border-radius: 8px; border: 0;
+  background: transparent; font: inherit; font-size: 13px; font-weight: 500;
+  color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.btn-ghost-danger:hover { background: hsl(var(--destructive) / 0.10); color: hsl(0 72% 45%); } /* --status-lost-text */
+.btn-ghost-danger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+/* ── Expanded (focus mode) reflow ── */
+.dw-surface-expanded .dw-title { font-size: 24px; letter-spacing: -0.02em; }
+.dw-surface-expanded .dw-pinned { padding: 18px 28px 14px; }
+.dw-surface-expanded .dw-pinned-inner { max-width: 880px; margin: 0 auto; width: 100%; }
+.dw-surface-expanded .dw-head-expanded .dw-pinned-inner { }
+.dw-surface-expanded .dw-tabs { padding-left: 28px; padding-right: 28px; }
+.dw-surface-expanded .dw-tabpane { max-width: 880px; margin: 0 auto; width: 100%; padding: 22px 28px 36px; }
+.dw-surface-expanded .desc-body { max-width: 62ch; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .dw-tab.on::after { transition: left 150ms ease, right 150ms ease; }
+}
+
+/* ── Create mode inside the drawer (no double card frame) ── */
+.tc-create-drawer { max-width: none; }
+.tc-create-form { padding: 16px; overflow: auto; }
+.tc-create-drawer .tc-actions { margin-top: 4px; }
