@@ -1,11 +1,20 @@
 # Jobs-to-Be-Done map — the Lens-D oracle (role × job)
 
-**Status:** v0.1 seed (2026-06-15). The **oracle** that **Lens D — Product / Intent** grades every
-first-slice screen against. Adapted from PMO's `docs/jtbd.md` STRUCTURE (intro → role table →
-screen × job rows → cross-cutting paradigms → the 5 questions → calibration anchors); the *content* is
-100% Gordi MOS — its roles, its screens (My Week · Tasks · Task detail · Weekly update · Daily Log),
-its domain language (`CONTEXT.md`). PMO paid for this fourth lens with real shipped intent-failures;
-MOS adopts the lens, not PMO's product nouns.
+**Status:** v0.2 — owner-grilled 2026-06-15 (was a v0.1 agent-seed). The **oracle** that **Lens D —
+Product / Intent** grades every first-slice screen against. Adapted from PMO's `docs/jtbd.md` STRUCTURE
+(intro → role table → screen × job rows → cross-cutting paradigms → the 5 questions → calibration
+anchors); the *content* is 100% Gordi MOS — its roles, its screens (My Week · Tasks · Task detail ·
+Weekly update · Daily Log), its domain language (`CONTEXT.md`). PMO paid for this fourth lens with real
+shipped intent-failures; MOS adopts the lens, not PMO's product nouns.
+
+> **Owner-grilled decisions (2026-06-15)** — the calls below are confirmed by the owner, not inferred:
+> 1. **Three distinct personas** kept (Manager · Ops/floor · Arief/Director) — Arief stays his own
+>    persona even though many rows overlap a manager's.
+> 2. **Daily Log feed** is graded against the **manager/Arief read** job; **Ops is primary only on the
+>    add/edit screen** (capture fast), not a primary reader of the feed.
+> 3. **Arief's distinct job is org-wide oversight, READ-ONLY in v1** — there is **no approval/sign-off
+>    job** (no v1 surface exists). Do not grade any screen against an approval flow until one ships.
+> 4. **Anchor set stays at three** (A1/A2/A3); A2 carries an explicit **sunset** (see §5).
 
 This is a **living foundation artifact**: each new feature adds/updates its role's job stories during
 intake (the grill captures the job story *before* spec), and the Director keeps the §2 screen rows in
@@ -37,7 +46,7 @@ whole company (brief "First Users"). "Manager" is derived from the role chain, n
 |---|---|
 | **Manager** (a lead with direct reports — e.g. Kitchen Lead, Roastery Lead, Sales Lead) | *"What needs me this week, is my team filing, and who owns what?"* Triages their own R/A tasks, reviews their reports' weekly updates (upward-only), scans task ownership/RACI across units. Lives in My Week + Updates review + Tasks. |
 | **Ops / floor user** (a selected person on the floor — barista, kitchen hand, roastery operator) | *"Record what just happened on the floor, fast, and get back to work."* Files a Daily Log entry in **under a minute** from a phone (OD-P0-3 mobile-usable); rarely owns tasks; narrow write surface. |
-| **Arief / owner-director** | *"Across all units, what's drifting, who owns it, and what waits on me?"* Cross-cutting ownership + a "what-needs-me" view; reads everyone's updates (top-of-chain), files his own; scans the floor and the cross-unit task picture. Same screens as a manager, but org-wide scope. |
+| **Arief / owner-director** | *"Across ALL units, what's drifting, who owns it, and is everyone filing their week?"* Whole-company **read-only oversight**: reads everyone's updates (top-of-chain), scans the cross-unit task + floor picture, files his own update. Same screens as a manager, org-wide scope. **v1 has no approval/sign-off job** — there is no surface for "what waits on me to approve", so Lens D must not grade screens against one. |
 
 Each as a job story:
 
@@ -48,8 +57,9 @@ Each as a job story:
   roasted, a QC fail), an ops user wants to record it in one short pass on my phone, so the fact is
   captured for management visibility without pulling me off the floor.*
 - **Arief / owner-director** — *When I check the operating picture, the owner-director wants to see
-  cross-unit ownership, what needs my sign-off, and where delivery is drifting, so I can direct
-  attention without chasing people one-by-one.*
+  cross-unit ownership, whether every unit is filing its week, and where delivery is drifting across
+  units, so I can direct attention without chasing people one-by-one.* (Read-only oversight in v1 — no
+  sign-off/approval job exists yet.)
 
 ---
 
@@ -77,7 +87,7 @@ to that information (the actionability test).
 | **Weekly update — review pane** (`/updates`, manager-conditional) | Manager / Arief | *When my reports have filed, I want to read their updates and see who's still missing, so I know my team's week without chasing.* | The team's per-person **filed / draft / not-started** state for the selected week (on-time-vs-late signal, OD-P2-14), each expanding to the **read-only submitted update**. Independent week navigation from the write pane (§3.5 model). **Upward-only** — only the author + their manager chain + top-of-chain see it (OD-P1-3). | **Read** the update (review is READ-ONLY in v1 — no ack, no comment — OD-P2-12). The "next action" is *recognition*, not a button: the missing-filers must be obvious so the manager can nudge off-screen. (See anchor A2 — the review pane must not invent a write affordance.) |
 
 ### The floor record
-| **Daily Log — feed** (`/ops`) | Manager / Arief (read for visibility); Ops (read their unit) | *When I want to know what happened on the floor today, I want a chronological feed badged by unit and type, with anything needing attention flagged, so I can scan it and follow up only where flagged.* | The **reverse-chronological feed** of log entries: time (WIB) · **source/BU badge** · **type** (production / receiving / QC / follow-up / other) · the happening · **needs-attention amber** · any **linked-task ref** (OD-P2-17/18). Org-readable (floor visibility, OD-P1-3). | Open the **linked task** where one exists (the follow-up seam); the **Add entry** primary for filing a new one. **A log entry is read, not reviewed** — it is a past-tense fact, not work-to-do (OD-P2-16); there is no approve/review verb on it (see anchor A1). |
+| **Daily Log — feed** (`/ops`) | Manager / Arief (read for visibility) — **Ops is NOT a primary reader here** (their job is the add/edit screen below) | *When I want to know what happened on the floor today, I want a chronological feed badged by unit and type, with anything needing attention flagged, so I can scan it and follow up only where flagged.* | The **reverse-chronological feed** of log entries: time (WIB) · **source/BU badge** · **type** (production / receiving / QC / follow-up / other) · the happening · **needs-attention amber** · any **linked-task ref** (OD-P2-17/18). Org-readable (floor visibility, OD-P1-3). | Open the **linked task** where one exists (the follow-up seam); the **Add entry** primary for filing a new one. **A log entry is read, not reviewed** — it is a past-tense fact, not work-to-do (OD-P2-16); there is no approve/review verb on it (see anchor A1). |
 | **Daily Log — add / edit** (`/ops` add form) | **Ops / floor user** (primary) | *When something just happened, I want to record it in one short pass on my phone, so it's captured and I'm back on the floor in under a minute.* | The **minimal capture form**: what happened + type + (defaulted) occurred-at + unit + needs-attention toggle + optional task link. `occurred_at` defaults to now but is **editable** (log a 9am happening at noon — OD-P2-18). No owner / RACI / status fields (a log entry has none — OD-P2-16). Mobile-first (OD-P0-3). | **Save** as a single quiet write with confirmation (ui-implementer invariant: routine writes are single-click + quiet confirm). Edit-own only (author or manager-of-author, OD-P2-19); archive is soft + reversible, no hard delete. |
 
 ---
@@ -135,7 +145,7 @@ the regression line for Lens D — if the lens ever stops catching these, it has
 | # | The trap | Lens-D Q that catches it | Why A/B/C miss it |
 |---|---|---|---|
 | **A1** | **"Review" verb on a Daily Log entry.** A log entry surfaces a "Review" / "Approve" / "Acknowledge" affordance, treating a past-tense floor fact like work-to-do or like a weekly update awaiting sign-off. (This is the real owner rename: "Ops Log" → "Daily Log", and the OD-P2-16 ruling that a log entry is *read, not reviewed* — past-tense, no owner/RACI/status/lifecycle.) | **Q5** (mental-model consistency: the read-vs-review verb, §3.5) + **Q2** (the user doesn't expect a review action on a fact). | **(a) Visual** sees a clean, on-brand button. **(b) IxD** finds the click-to-review flow *smooth* — naturalness, not job-fit. **(c) IA** sees one canonical feed. Only the **job** ("record what happened, then get back to work" — not "approve it") exposes the wrong verb. (PMO's analog was a different conflated verb; the MOS trap is read-vs-review.) |
-| **A2** | **A write affordance on the upward weekly-update review pane.** The manager review pane sprouts a comment box, an "Acknowledge" button, or an edit control on a report's submitted update — when v1 review is explicitly **READ-ONLY** (OD-P2-12), and the report's job is "submit and be done", not "get edited by my manager". | **Q1/Q4** (the screen's job is *read the team's week*; an unasked-for write action is a non-job action) + **Q2** (the report doesn't expect their manager to mutate their submitted recap). | **(a)** the control is styled correctly. **(b)** the comment flow may even feel *natural* in isolation. **(c)** the update still has one canonical home. Only the **job + the OD-P2-12 lifecycle** reveal the affordance does a job nobody on this screen has in v1 — it's scope-creep that fails the read-only intent. |
+| **A2** | **A write affordance on the upward weekly-update review pane.** The manager review pane sprouts a comment box, an "Acknowledge" button, or an edit control on a report's submitted update — when v1 review is explicitly **READ-ONLY** (OD-P2-12), and the report's job is "submit and be done", not "get edited by my manager". | **Q1/Q4** (the screen's job is *read the team's week*; an unasked-for write action is a non-job action) + **Q2** (the report doesn't expect their manager to mutate their submitted recap). | **(a)** the control is styled correctly. **(b)** the comment flow may even feel *natural* in isolation. **(c)** the update still has one canonical home. Only the **job + the OD-P2-12 lifecycle** reveal the affordance does a job nobody on this screen has in v1 — it's scope-creep that fails the read-only intent. **Sunset:** when OD-P2-12 ack/comment ships, a write affordance becomes *intended* — relax/retire A2 then so Lens D doesn't false-positive the new feature; until then it's a defect. |
 | **A3** | **A downward / lateral weekly-update view.** Any My Week or Updates surface that lets a viewer see a *peer's* or a *subordinate-of-a-different-manager's* weekly update — breaking the **upward-only** visibility model (OD-P1-3: author + manager chain + top-of-chain only). E.g. the team module linking to an update the viewer isn't up-chain of, or a "browse all updates" list. | **Q5** (mental-model consistency: visibility direction, §3.6) + **Q2** (a person does not expect their weekly recap visible sideways). | **(a)** renders fine. **(b)** the click-through is a *smooth* flow. **(c)** it's the same canonical update surface. RLS may even still block the *data* (OD-P1-3) — so the screen shows an empty/forbidden state that looks like a *bug*, not an *intent* error. Only the **job + the upward-only model** name it as a screen that offers a view the product deliberately does not grant. |
 
 ---
