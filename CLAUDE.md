@@ -70,6 +70,12 @@ code-quality-reviewer (opus) · qa-acceptance (sonnet) · security-auditor (opus
 release-engineer (sonnet) · mechanical (haiku) · design-architect (opus) ·
 ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 
+**Model discipline (binding):** delegate at the **minimum capable tier** — haiku for mechanical/deterministic,
+sonnet for routine build/QA/release, opus only for planning, review, security, and genuinely hard/cross-cutting
+slices. Don't use opus where sonnet suffices, nor sonnet where haiku suffices — but **don't skimp**: use opus
+for opus' jobs (architecture, multi-file refactors, security, the review battery). Match tier to task difficulty,
+both directions.
+
 ## Skill ownership (one owner per concern — avoids collisions)
 | Concern | Owner |
 |---|---|
