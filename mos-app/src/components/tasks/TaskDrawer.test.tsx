@@ -170,4 +170,22 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
     fireEvent.keyDown(dialog, { key: 'Escape' })
     await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
   })
+
+  it('AC-110 (overlay band 920–1100): renders the modal as a right-side sheet (drawer-sheet, not full-screen)', async () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/tasks/task-abc')
+    await screen.findByRole('dialog', { name: /task detail/i })
+    expect(document.querySelector('.drawer-modal.drawer-sheet')).toBeTruthy()
+    expect(document.querySelector('.drawer-modal.drawer-fullscreen')).toBeNull()
+  })
+
+  it('AC-110 (mobile <768): renders the modal full-screen', async () => {
+    stubWidths({ split: false, band: false, desktop: false })
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/tasks/task-abc')
+    await screen.findByRole('dialog', { name: /task detail/i })
+    expect(document.querySelector('.drawer-modal.drawer-fullscreen')).toBeTruthy()
+    expect(document.querySelector('.drawer-modal.drawer-sheet')).toBeNull()
+  })
 })

@@ -4,6 +4,7 @@ import PageFrame from '../shell/PageFrame'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { TasksTable } from '../components/tasks/TasksTable'
 import { useExpandPref } from '../components/tasks/useExpandPref'
+import { useIsSplitWidth } from '../shell/useIsSplitWidth'
 import type { TaskListRow, TaskStatus } from '../lib/db/tasks.types'
 import type { TaskDrawerOutletContext } from '../components/tasks/TaskDrawer'
 
@@ -22,6 +23,9 @@ export default function TasksLayout() {
   const isNew = useMatch('/tasks/new')
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
   const [expanded, setExpanded] = useExpandPref()
+  // ≥1100px is the live push/squash split; below it the drawer floats as a modal
+  // overlay over a full-width (un-squashed) table, so the table must NOT condense.
+  const isSplit = useIsSplitWidth()
 
   // Optimistic status overrides fed by the open drawer (AC-103) so the table row
   // reflects an inline status change without a full reload.
@@ -48,6 +52,7 @@ export default function TasksLayout() {
       <TasksTable
         selectedId={taskId ?? null}
         drawerOpen={drawerOpen}
+        splitLayout={isSplit}
         expanded={expanded}
         statusOverrides={statusOverrides}
         refreshKey={refreshKey}
