@@ -2,6 +2,11 @@
 -- Real Gordi people + real auth links. NEVER commit this file (public repo, OD-P1-6).
 -- Applied manually against the deployed stack, not by `db reset`. Real names/emails go here ONLY.
 --
+-- SECURITY: do NOT copy the dev-auth pattern from seed.dev-auth.sql here. That file
+-- provisions accounts with the public, repo-visible password `Passw0rd!dev` — fine for
+-- local `.test` personas, catastrophic for real accounts. Provision real users via
+-- Supabase invite / per-user passwords, and keep open signup disabled (L5 hardening).
+--
 -- insert into shared.people (org_id, user_id, full_name, email) values
 --   ('10000000-0000-0000-0000-000000000001', '<auth.users uuid>', '<Real Name>', '<real@gordi.id>')
 -- on conflict do nothing;
