@@ -33,7 +33,9 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
         )}
       </h2>
 
-      {items.length === 0 && !editable && (
+      {/* M7: empty Checklist always shows the empty line (plan §3.2); editors
+          additionally get the add field below it. */}
+      {items.length === 0 && (
         <p className="empty-substate">No steps yet.</p>
       )}
 
