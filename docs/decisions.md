@@ -301,4 +301,31 @@ Mailpit — no real sends outside prod. Password login works independently of SM
 
 ---
 
+## OD-P3 — Tasks redesign (LOCKED 2026-06-15, via grill-with-docs + mockup-first A/B; mockups in `docs/design-mockups/tasks-redesign-{A,B}.html`)
+
+_(OD-P3-1 is reserved for the production-deploy decision — the "P3-1" roadmap task; the Tasks-redesign rulings start at OD-P3-2.)_
+
+### OD-P3-2 — Tasks: split-view drawer, "one UI / two widths"
+The Tasks surface becomes a **table + actionable side drawer** (master-detail), not list→full-page navigation.
+- **One UI, two widths.** The drawer **is** the fully-actionable task surface (inline Status, RACI, checklist — OD-P2-1/3 change-in-place preserved). "Open task page" **expands the same surface** to full width (focus mode). There is no second/separate task editor — avoids the "two homes per entity" Lens-C trap (`docs/jtbd.md`).
+- **One canonical URL.** `/tasks/:id` = the table with that task's drawer open (deep-linkable from My Week / Daily Log linked tasks). Expand vs drawer is a **remembered view toggle on the same URL** (not a second route).
+- **Drawer behavior = push/squash split-view** (no scrim): the table shrinks to ~2/3 and stays live so triage continues with the drawer open (Gmail/Linear/Outlook convention). Responsive fallback: overlay/full-screen when the remaining table would be too cramped (narrow laptops). **Mobile = card list + full-screen task** (no 1/3 drawer; same `/tasks/:id`).
+- **Width:** ~1/3, **clamped 360–480px** (33vw); table condenses/drops low-priority columns as it narrows.
+- **New task:** `+ New task` opens the drawer in **create mode**; on save it becomes the just-created task, ready to act in place (`/tasks/new` → `/tasks/:newId`).
+
+### OD-P3-3 — Drawer layout = Variant B (pinned header + tabs)
+Owner picked **B** over A (single-scroll) at the mockup gate. A **pinned action header** (title · inline Status · R/A · Archive) never scrolls; the body is **tabs** — Details · Checklist · Activity — so the decision drivers + primary write + the one confirmed action stay visible in the narrow drawer.
+- **Default tab = Details** (Status + R/A + description — the jtbd "above-the-fold" drivers); remember last-used tab per task within a session.
+- **Expand persistence = per-user global** (one preference applied to every task), not per-task.
+
+### OD-P3-4 — Productivity-tool interaction layer (from ui-ux-pro-max "Productivity Tool")
+Binding for the build: **keyboard-first** (`j/k` move · `Enter`/`o` open · `Esc` close · `n` new · `e` expand) with visible focus rings; snappy **~150–200ms** micro-interactions; **optimistic** inline writes (status, checklist); **inline validation on blur** in the create form (error below field); **archive-only** confirm (routine writes are single-click + quiet confirm); **virtualize** the table at 50+ rows.
+
+### OD-P3-5 — Ratify field-error tokens into DESIGN.md §5
+Owner approved closing the DESIGN.md §5 Inputs gap: `--field-error-border` = `destructive`, `--field-error-text` = AA-darkened (`--status-lost-text`). **design-architect** ratifies into DESIGN.md §5 during the design-plan; used by the create-form validation.
+
+> **ADR candidate (eng-planner authors):** the "one UI / two widths + one canonical URL" master-detail model is hard-to-reverse and cross-cutting (routing, the 844-line `TaskDetail` refactor, the My Week / Daily Log deep-link contract) → warrants an ADR. CONTEXT.md untouched — "drawer"/"expand" are UI mechanics, not domain vocabulary.
+
+---
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

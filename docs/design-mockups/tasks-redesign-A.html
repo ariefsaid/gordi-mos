@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tasks redesign — Variant A (stacked / scroll drawer) — Gordi MOS</title>
+<style>
+  /* ============================================================
+     TASKS REDESIGN — VARIANT A: "stacked / scroll drawer"
+     One UI, two widths. Desktop = dense table + 1/3-width drawer
+     that IS the fully-actionable task surface. Expand = same
+     surface to full width (focus mode), same /tasks/:id URL.
+     Mobile = card list + full-screen task.
+
+     IDENTITY: adopted PMO "Quiet Control Surface" — DESIGN.md is
+     authority. Token VALUES inlined; token NAME in comment.
+     Nothing here is a new brand/palette/font. Status-pill hues +
+     RACI chip tokens + owner cell reused verbatim from the built
+     StatusPill.css / TaskDetail.tsx / TasksPage.tsx.
+
+     A vs B axis = drawer IA at 1/3 width. A = single scroll column
+     (header → RACI → checklist → activity). See B for pinned+tabs.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* typography.body */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);         /* foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);                               /* secondary/35% main area */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; } /* Tabular-Numbers Rule */
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring — global focus */
+  a { color: inherit; }
+
+  /* section divider label between the stacked screens (mockup scaffold only, not app chrome) */
+  .screenlabel { max-width: 1280px; margin: 36px auto 12px; padding: 0 12px; display: flex; align-items: baseline; gap: 12px; }
+  .screenlabel .n { width: 22px; height: 22px; border-radius: 999px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; } /* primary */
+  .screenlabel h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; } /* subheading */
+  .screenlabel p { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .frame { max-width: 1280px; margin: 0 auto; padding: 0 12px; }
+  .device { border: 1px solid hsl(240 5.9% 90%); border-radius: 10px; overflow: hidden; background: hsl(0 0% 100%); } /* border / rounded.lg / card */
+
+  /* ============================================================
+     APP SHELL (rail + header) — adopted from IA-8 / PageFrame
+     ============================================================ */
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 720px; } /* --rail-w 224px */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / spacing.4 / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; } /* primary / primary-foreground / rounded.sm */
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .nav { padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .nav-item { height: 36px; border-radius: 6px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 13.5px; font-weight: 500; color: hsl(240 10% 3.9%); text-decoration: none; } /* nav-item / rounded.sm / foreground */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% + primary */
+  .nav-item .ico { width: 17px; height: 17px; flex: none; }
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 12px; } /* border */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 20px; } /* --header-h / background / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; }
+  .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .kbd { font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 11px; font-weight: 500; padding: 2px 6px; border: 1px solid hsl(240 5.9% 90%); border-radius: 4px; color: hsl(240 4% 40%); } /* mono / border / rounded.xs / muted-foreground */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* primary→violet avatar gradient */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ============================================================
+     TASKS PAGE BODY — table + drawer split (the redesign)
+     ============================================================ */
+  .page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .page-head { display: flex; align-items: baseline; gap: 12px; padding: 22px 24px 14px; flex-wrap: wrap; }
+  .page-title { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; } /* typography.page-title */
+  .count-line { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .page-head .spacer { flex: 1; }
+  /* keyboard-hint strip — Productivity-Tool affordance */
+  .khints { display: inline-flex; align-items: center; gap: 10px; font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .khints .kbd { font-size: 10px; }
+
+  /* The split: table (flex) + drawer (1/3, fixed-ish). When no drawer, table is full width. */
+  .split { display: grid; grid-template-columns: 1fr 380px; gap: 0; padding: 0 24px 24px; align-items: start; }
+  .split.nodrawer { grid-template-columns: 1fr; }
+  .split.expanded { grid-template-columns: 1fr; } /* focus mode: drawer expands to full width, table hidden */
+
+  /* Card assembly: toolbar seamed to table (DESIGN.md §5 Data Table) */
+  .assembly { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; overflow: hidden; min-width: 0; } /* card / border / rounded.md */
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* border */
+  .control { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); background: hsl(0 0% 100%); border-radius: 8px; font-size: 13px; cursor: pointer; } /* input border / background / rounded.md */
+  .control .lbl { color: hsl(240 4% 40%); } /* muted-foreground */
+  .control .chev { color: hsl(240 4% 40%); font-size: 10px; } /* muted-foreground */
+  .control .val { font-weight: 500; }
+  .seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(240 4.8% 95.9%); border-radius: 8px; } /* secondary / rounded.md */
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px; border-radius: 6px; color: hsl(240 5.9% 10%); cursor: pointer; white-space: nowrap; } /* secondary-foreground / rounded.sm */
+  .seg button.on { background: hsl(0 0% 100%); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); } /* background pill + pressed lift */
+  .search-mini { margin-left: auto; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; color: hsl(240 4% 40%); font-size: 13px; min-width: 160px; } /* input / muted-foreground */
+  .search-mini input { border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; width: 100%; color: hsl(240 10% 3.9%); }
+  .btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); border: 0; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); } /* primary / primary-foreground / brand button shadow */
+  .btn-primary:hover { background: hsl(221.2 83.2% 53.3% / 0.9); }
+
+  table.tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .tbl thead th { text-align: left; height: 38px; padding: 0 12px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); border-bottom: 1px solid hsl(240 5.9% 90%); white-space: nowrap; } /* table-header-cell / overline / muted-foreground / border */
+  .tbl thead th.right { text-align: right; }
+  .tbl thead th.sorted { color: hsl(240 10% 3.9%); } /* foreground when sorted */
+  .tbl thead th .sortaff { color: hsl(221.2 83.2% 53.3%); font-size: 10px; margin-left: 5px; } /* primary */
+  .tbl tbody td { height: 54px; padding: 0 12px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle; } /* table-body-cell 54px / border/70% */
+  .tbl tbody tr.trow { cursor: pointer; }
+  .tbl tbody tr.trow:hover td { background: hsl(240 4.8% 95.9% / 0.6); } /* accent/60% hover */
+  .tbl tbody tr.trow.selected td { background: hsl(221.2 83.2% 53.3% / 0.07); } /* primary/7% selected row */
+  .tbl tbody tr.trow.kfocus td { box-shadow: inset 2px 0 0 hsl(221.2 83.2% 53.3%); } /* keyboard cursor — primary inset rule */
+  .t-title { font-size: 13.5px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t-unit { font-size: 12px; color: hsl(240 4% 40%); margin-top: 1px; } /* muted-foreground */
+  .right { text-align: right; }
+
+  /* status pill — reused verbatim from StatusPill.css (Tinted-Status Rule) */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; } /* badge-status / rounded.full */
+  .pill .pdot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+  .pill.inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); } .pill.inprogress .pdot { background: hsl(221.2 83.2% 53.3%); } /* --status-open-text */
+  .pill.blocked { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); } .pill.blocked .pdot { background: hsl(0 84.2% 60.2%); } /* --status-lost-text */
+  .pill.open { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .pill.open .pdot { background: hsl(43 96% 56%); } /* warning-foreground */
+  .pill.done { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .pill.done .pdot { background: hsl(142 71% 45%); } /* --status-won-text */
+
+  /* owner cell — R person avatar + first name + muted +N (RACI collapse, OD-P0-8) */
+  .owner { display: flex; align-items: center; gap: 8px; }
+  .ownav { width: 26px; height: 26px; border-radius: 999px; background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none; } /* primary/12% + --status-open-text — the R person */
+  .own-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .own-more { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); flex: none; } /* muted-foreground */
+
+  /* due-date coloring (OD-P0-7: colored only when overdue/≤3d) */
+  .due { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .due.overdue { color: hsl(0 72% 45%); } /* --status-lost-text */
+  .due.soon { color: hsl(22 78% 26%); } /* warning-foreground */
+  .due.calm { color: hsl(240 4% 40%); font-weight: 500; } /* muted-foreground */
+  .act { color: hsl(240 4% 40%); font-size: 12px; font-weight: 500; } /* muted-foreground */
+
+  /* ============================================================
+     DRAWER (1/3 width) — VARIANT A: single scroll column
+     ============================================================ */
+  .drawer { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 640px; } /* card / border / rounded.md */
+  .drawer.expanded { max-height: none; }
+  /* drawer top bar: close + expand toggle (remembered view toggle, same URL) */
+  .dw-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* border */
+  .dw-bar .crumb-mini { font-size: 12px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .dw-bar .spacer { flex: 1; }
+  .iconbtn { width: 30px; height: 30px; border-radius: 8px; background: transparent; border: 1px solid transparent; display: grid; place-items: center; cursor: pointer; color: hsl(240 4% 40%); } /* ghost / muted-foreground / rounded.md */
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); color: hsl(240 10% 3.9%); } /* accent */
+  .iconbtn.on { color: hsl(221.2 83.2% 53.3%); } /* primary — expanded toggle active */
+
+  .dw-scroll { overflow: auto; padding: 16px; }
+  /* A: full-width focus mode reflows the single column into a centred reading measure */
+  .drawer.expanded .dw-scroll { max-width: 880px; margin: 0 auto; padding: 24px 28px 40px; width: 100%; }
+
+  /* drawer header block (above-the-fold: title · status · R/A summary) */
+  .dw-title { font-size: 18px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; } /* subheading-ish (drawer) */
+  .drawer.expanded .dw-title { font-size: 24px; letter-spacing: -0.02em; } /* page-title in focus mode */
+  .dw-unit { font-size: 12px; color: hsl(240 4% 40%); margin-top: 2px; } /* muted-foreground */
+  .dw-statusrow { display: flex; align-items: center; gap: 8px; margin: 12px 0 14px; flex-wrap: wrap; }
+  /* inline status change trigger (no view transition — OD-P2-1) */
+  .status-trigger { height: 32px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; background: hsl(0 0% 100%); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; } /* input / rounded.md */
+  .status-trigger .chev { color: hsl(240 4% 40%); font-size: 10px; } /* muted-foreground */
+  .dw-ra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 0 0; }
+  .ra-mini { display: flex; align-items: center; gap: 7px; }
+  .ra-glyph { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; }
+  .ra-glyph.r { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } /* --raci-responsible = primary */
+  .ra-glyph.a { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); } /* --raci-accountable = violet / --status-violet-text */
+  .ra-mini .who { font-size: 13px; font-weight: 500; }
+  .ra-mini .role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* section blocks in the scroll column */
+  .dw-sec { padding-top: 18px; margin-top: 18px; border-top: 1px solid hsl(240 5.9% 90%); } /* border */
+  .dw-sec h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); margin-bottom: 10px; display: flex; align-items: baseline; gap: 8px; } /* overline / muted-foreground */
+  .dw-sec h3 .cnt { font-weight: 600; }
+
+  /* RACI chips (OD-P2 role chips) */
+  .raci-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .raci-role { width: 78px; flex: none; font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); display: inline-flex; align-items: center; gap: 6px; } /* muted-foreground */
+  .raci-role .glyph { width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; }
+  .raci-role .glyph.r { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } /* --raci-responsible */
+  .raci-role .glyph.a { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); } /* --raci-accountable */
+  .raci-role .glyph.c, .raci-role .glyph.i { background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); } /* --raci-consulted/informed = secondary + muted-foreground */
+  .person-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px 0 4px; border: 1px solid hsl(240 5.9% 90%); border-radius: 999px; font-size: 12.5px; } /* input border / rounded.full */
+  .person-chip .av { width: 18px; height: 18px; border-radius: 999px; background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); display: grid; place-items: center; font-size: 9px; font-weight: 700; }
+  .person-chip.editable { cursor: pointer; }
+  .person-chip .x { color: hsl(240 4% 40%); font-size: 13px; margin-left: 2px; } /* muted-foreground */
+  .add-person { height: 26px; padding: 0 9px; border: 1px dashed hsl(240 5.9% 90%); border-radius: 999px; background: transparent; font: inherit; font-size: 12px; color: hsl(240 4% 40%); cursor: pointer; } /* border / muted-foreground */
+  .add-person:hover { background: hsl(240 4.8% 95.9%); color: hsl(240 10% 3.9%); }
+
+  /* checklist */
+  .chk-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+  .chk-box { width: 16px; height: 16px; border: 1.5px solid hsl(240 5.9% 90%); border-radius: 4px; flex: none; } /* input / rounded.xs */
+  .chk-box.checked { background: hsl(221.2 83.2% 53.3%); border-color: hsl(221.2 83.2% 53.3%); position: relative; } /* primary fill */
+  .chk-box.checked::after { content: "✓"; position: absolute; inset: 0; color: hsl(0 0% 98%); font-size: 11px; display: grid; place-items: center; } /* primary-foreground */
+  .chk-label { font-size: 13.5px; }
+  .chk-label.done { color: hsl(240 4% 40%); text-decoration: line-through; } /* muted-foreground */
+  .chk-add { margin-top: 6px; height: 32px; width: 100%; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px; color: hsl(240 4% 40%); background: hsl(0 0% 100%); } /* input / rounded.md / muted-foreground */
+
+  /* activity thread */
+  .ev { display: flex; gap: 10px; padding: 8px 0; }
+  .ev-av { width: 24px; height: 24px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); display: grid; place-items: center; font-size: 9.5px; font-weight: 700; flex: none; } /* secondary / muted-foreground */
+  .ev-who { font-size: 13px; font-weight: 600; }
+  .ev-when { font-size: 11px; color: hsl(240 4% 40%); margin-left: 6px; } /* muted-foreground */
+  .ev-label { font-size: 12.5px; color: hsl(240 4% 40%); margin-top: 1px; } /* muted-foreground */
+
+  /* archive — the one confirmed action (ghost, destructive only on confirm) */
+  .dw-foot { padding: 16px; border-top: 1px solid hsl(240 5.9% 90%); display: flex; } /* border */
+  .btn-ghost-danger { height: 32px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 500; color: hsl(240 4% 40%); cursor: pointer; } /* ghost / muted-foreground */
+  .btn-ghost-danger:hover { background: hsl(0 84.2% 60.2% / 0.10); color: hsl(0 72% 45%); } /* destructive tint hover */
+
+  /* ============================================================
+     DRAWER — CREATE MODE
+     ============================================================ */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); margin-bottom: 5px; } /* label / muted-foreground */
+  .field input.txt, .field select, .field textarea { width: 100%; min-height: 32px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13.5px; background: hsl(0 0% 100%); color: hsl(240 10% 3.9%); } /* input / rounded.md */
+  .field textarea { min-height: 64px; resize: vertical; }
+  .field .help { font-size: 11.5px; color: hsl(240 4% 40%); margin-top: 4px; } /* muted-foreground */
+  .field.err input.txt { border-color: hsl(0 84.2% 60.2%); } /* destructive — proposed error field token */
+  .field.err .help { color: hsl(0 72% 45%); } /* --status-lost-text — inline validation on blur */
+  .create-actions { display: flex; gap: 8px; margin-top: 6px; }
+  .btn-outline { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid hsl(240 5.9% 90%); background: hsl(0 0% 100%); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; } /* outline / input border */
+  .btn-outline:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+
+  /* empty / loading / error notes inline */
+  .note { background: hsl(0 0% 100%); border: 1px dashed hsl(240 5.9% 90%); border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: hsl(240 4% 40%); margin: 8px 24px 24px; } /* card / border / muted-foreground */
+  .note b { color: hsl(240 10% 3.9%); font-weight: 600; }
+
+  /* ============================================================
+     MOBILE (~390px): card list + full-screen task
+     ============================================================ */
+  .phones { display: flex; gap: 28px; flex-wrap: wrap; max-width: 1280px; margin: 0 auto; padding: 0 12px; }
+  .phone { width: 390px; border: 1px solid hsl(240 5.9% 90%); border-radius: 28px; overflow: hidden; background: hsl(0 0% 100%); } /* border */
+  .ph-cap { font-size: 12px; color: hsl(240 4% 40%); margin: 0 0 8px 4px; } /* muted-foreground */
+  .ph-header { height: 52px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+  .ph-header .back { color: hsl(240 4% 40%); font-size: 18px; } /* muted-foreground */
+  .ph-header .ph-title { font-size: 15px; font-weight: 700; }
+  .ph-body { padding: 12px; background: hsl(240 4.8% 95.9% / 0.35); min-height: 560px; } /* secondary/35% */
+  /* mobile filter row — segmented + chips, horizontal scroll */
+  .ph-filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
+  .ph-filters .seg { flex: none; }
+  .ph-card { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; min-height: 44px; } /* card / border / rounded.md / 44px touch target */
+  .ph-card .cardhead { display: flex; align-items: flex-start; gap: 8px; }
+  .ph-card .cardhead .t-title { flex: 1; white-space: normal; }
+  .ph-card .cardmeta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; align-items: center; }
+  /* full-screen task (mobile) — same surface, no drawer */
+  .ph-task .pill { margin-bottom: 0; }
+  .ph-fab { position: relative; }
+  .ph-newbtn { display: flex; align-items: center; justify-content: center; gap: 6px; height: 44px; border-radius: 8px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); font-size: 14px; font-weight: 600; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); margin-top: 4px; } /* primary / 44px target */
+  .ph-tap { height: 44px; display: flex; align-items: center; } /* 44px touch target wrapper */
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SCREEN 1 — Desktop: table + 1/3 drawer open (deep-linked)
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">1</span>
+  <div>
+    <h2>Desktop — table + 1/3 drawer open on a selected task</h2>
+    <p>Deep-linked state: /tasks/krishna-chiller-001 → table with that task's drawer open. The drawer IS fully actionable (inline status, RACI, checklist).</p>
+  </div>
+</div>
+<div class="frame"><div class="device">
+  <div class="app">
+    <!-- rail -->
+    <aside class="rail">
+      <div class="brand"><span class="logo">G</span><span class="name">Gordi MOS</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>My Week</a>
+        <a class="nav-item active" href="#" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6"/></svg>Tasks</a>
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Weekly Updates</a>
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>Daily Log</a>
+      </nav>
+      <div class="rail-foot"><a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg>Settings</a></div>
+    </aside>
+    <!-- main -->
+    <div class="main">
+      <header class="header">
+        <span class="crumb"><b>Tasks</b><span class="sep">/</span>Replace Cafe chiller compressor</span>
+        <span class="spacer"></span>
+        <span class="kbd">⌘K</span>
+        <div class="userchip"><span class="avatar">DD</span><div><div class="u-name">Dewi Director</div><div class="u-role">Director</div></div></div>
+      </header>
+      <div class="page">
+        <div class="page-head">
+          <h1 class="page-title">Tasks</h1>
+          <span class="count-line tnum">24 tasks · 3 blocked · 5 overdue</span>
+          <span class="spacer"></span>
+          <span class="khints"><span class="kbd">j</span><span class="kbd">k</span> move · <span class="kbd">Enter</span> open · <span class="kbd">e</span> expand · <span class="kbd">Esc</span> close · <span class="kbd">n</span> new</span>
+        </div>
+        <div class="split">
+          <!-- TABLE -->
+          <section class="assembly" aria-label="Tasks">
+            <div class="toolbar">
+              <div class="control"><span class="lbl">Business unit</span><span class="val">All</span><span class="chev">▾</span></div>
+              <div class="control"><span class="lbl">Status</span><span class="val">Any</span><span class="chev">▾</span></div>
+              <div class="control"><span class="lbl">Person</span><span class="val">Anyone</span><span class="chev">▾</span></div>
+              <div class="seg" role="tablist" aria-label="Ownership filter">
+                <button role="tab" aria-selected="false">Mine</button>
+                <button role="tab" aria-selected="false">RACI</button>
+                <button class="on" role="tab" aria-selected="true">All</button>
+              </div>
+              <div class="search-mini">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="search" placeholder="Search tasks" aria-label="Search tasks">
+              </div>
+              <button class="btn-primary" type="button">+ New task</button>
+            </div>
+            <table class="tbl">
+              <colgroup><col style="width:42%"><col style="width:16%"><col style="width:22%"><col style="width:12%"><col style="width:8%"></colgroup>
+              <thead><tr>
+                <th>Task</th><th>Status</th><th>Owner</th>
+                <th class="right sorted">Due<span class="sortaff">▴</span></th><th class="right">Activity</th>
+              </tr></thead>
+              <tbody>
+                <tr class="trow"><td><div class="t-title">Renew roastery green-bean supplier contract</div><div class="t-unit">Roastery</div></td>
+                  <td><span class="pill blocked"><span class="pdot"></span>Blocked</span></td>
+                  <td><div class="owner"><span class="ownav">RR</span><span class="own-name">Rama</span><span class="own-more">+2</span></div></td>
+                  <td class="right"><span class="due overdue tnum">Overdue · 8 Jun</span></td><td class="right act tnum">2d</td></tr>
+
+                <tr class="trow selected kfocus" aria-current="true"><td><div class="t-title">Replace Cafe chiller compressor</div><div class="t-unit">Cafe Ops – General</div></td>
+                  <td><span class="pill blocked"><span class="pdot"></span>Blocked</span></td>
+                  <td><div class="owner"><span class="ownav">KK</span><span class="own-name">Krishna</span><span class="own-more">+3</span></div></td>
+                  <td class="right"><span class="due overdue tnum">Overdue · 11 Jun</span></td><td class="right act tnum">5h</td></tr>
+
+                <tr class="trow"><td><div class="t-title">Q3 CRM pipeline data cleanup</div><div class="t-unit">Sales – CRM</div></td>
+                  <td><span class="pill inprogress"><span class="pdot"></span>In Progress</span></td>
+                  <td><div class="owner"><span class="ownav">SS</span><span class="own-name">Sari</span><span class="own-more">+1</span></div></td>
+                  <td class="right"><span class="due soon tnum">17 Jun</span></td><td class="right act tnum">1d</td></tr>
+
+                <tr class="trow"><td><div class="t-title">Onboard new barista — payroll + access</div><div class="t-unit">Finance and People</div></td>
+                  <td><span class="pill open"><span class="pdot"></span>Open</span></td>
+                  <td><div class="owner"><span class="ownav">FF</span><span class="own-name">Fitri</span><span class="own-more">+1</span></div></td>
+                  <td class="right"><span class="due calm tnum">24 Jun</span></td><td class="right act tnum">3d</td></tr>
+
+                <tr class="trow"><td><div class="t-title">Kitchen QC log — weekly temperature audit</div><div class="t-unit">Kitchen and Bar</div></td>
+                  <td><span class="pill done"><span class="pdot"></span>Done</span></td>
+                  <td><div class="owner"><span class="ownav">KK</span><span class="own-name">Krishna</span></div></td>
+                  <td class="right"><span class="due calm tnum">13 Jun</span></td><td class="right act tnum">2d</td></tr>
+
+                <tr class="trow"><td><div class="t-title">Roastery monthly cupping schedule</div><div class="t-unit">Roastery</div></td>
+                  <td><span class="pill open"><span class="pdot"></span>Open</span></td>
+                  <td><div class="owner"><span class="ownav">RR</span><span class="own-name">Rama</span></div></td>
+                  <td class="right"><span class="due calm tnum">30 Jun</span></td><td class="right act tnum">6d</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- DRAWER — stacked scroll column (Variant A) -->
+          <aside class="drawer" aria-label="Task detail">
+            <div class="dw-bar">
+              <span class="crumb-mini">Task</span>
+              <span class="spacer"></span>
+              <button class="iconbtn" type="button" aria-label="Expand to full width (e)" title="Expand (e)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+              <button class="iconbtn" type="button" aria-label="Close (Esc)" title="Close (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="dw-scroll">
+              <!-- ABOVE THE FOLD: title · status · R/A -->
+              <div class="dw-title">Replace Cafe chiller compressor</div>
+              <div class="dw-unit">Cafe Ops – General · due <span class="due overdue tnum">Overdue · 11 Jun</span></div>
+              <div class="dw-statusrow">
+                <button class="status-trigger" type="button" aria-haspopup="listbox" aria-label="Change status">
+                  <span class="pill blocked"><span class="pdot"></span>Blocked</span><span class="chev">▾</span>
+                </button>
+                <span class="act tnum">Activity 5h ago</span>
+              </div>
+              <div class="dw-ra">
+                <div class="ra-mini"><span class="ra-glyph r">R</span><div><div class="who">Krishna Kitchen</div><div class="role">Responsible</div></div></div>
+                <div class="ra-mini"><span class="ra-glyph a">A</span><div><div class="who">Dewi Director</div><div class="role">Accountable</div></div></div>
+              </div>
+
+              <!-- DESCRIPTION -->
+              <div class="dw-sec">
+                <h3>Description</h3>
+                <p style="font-size:13.5px; color:hsl(240 10% 3.9%);">Compressor failed Sunday night; cold-storage temps drifting. Awaiting quote from refrigeration vendor before scheduling the swap — blocked on their site visit.</p>
+              </div>
+
+              <!-- RACI (full R/A/C/I) -->
+              <div class="dw-sec">
+                <h3>RACI</h3>
+                <div class="raci-row"><span class="raci-role"><span class="glyph r">R</span>Responsible</span><span class="person-chip editable"><span class="av">KK</span>Krishna Kitchen<span class="x">▾</span></span></div>
+                <div class="raci-row"><span class="raci-role"><span class="glyph a">A</span>Accountable</span><span class="person-chip editable"><span class="av" style="background:hsl(262 83% 58% / 0.12); color:hsl(262 60% 42%)">DD</span>Dewi Director<span class="x">▾</span></span></div>
+                <div class="raci-row"><span class="raci-role"><span class="glyph c">C</span>Consulted</span><span class="person-chip editable"><span class="av">FF</span>Fitri Finance<span class="x">×</span></span><button class="add-person" type="button">+ Add</button></div>
+                <div class="raci-row"><span class="raci-role"><span class="glyph i">I</span>Informed</span><span class="person-chip editable"><span class="av">CC</span>Cahya Cafe<span class="x">×</span></span><span class="person-chip editable"><span class="av">DD</span>Dewi<span class="x">×</span></span><button class="add-person" type="button">+ Add</button></div>
+              </div>
+
+              <!-- CHECKLIST -->
+              <div class="dw-sec">
+                <h3>Checklist <span class="cnt tnum">1 of 4 done</span></h3>
+                <div class="chk-item"><span class="chk-box checked"></span><span class="chk-label done">Log the failure + photos to ops</span></div>
+                <div class="chk-item"><span class="chk-box"></span><span class="chk-label">Get vendor quote (site visit Tue)</span></div>
+                <div class="chk-item"><span class="chk-box"></span><span class="chk-label">Approve PO with Finance</span></div>
+                <div class="chk-item"><span class="chk-box"></span><span class="chk-label">Schedule swap + confirm cold-chain backup</span></div>
+                <input class="chk-add" type="text" placeholder="+ Add a step" aria-label="Add checklist item">
+              </div>
+
+              <!-- ACTIVITY -->
+              <div class="dw-sec">
+                <h3>Activity &amp; updates</h3>
+                <div class="ev"><span class="ev-av">KK</span><div><div><span class="ev-who">Krishna Kitchen</span><span class="ev-when tnum">5h</span></div><div class="ev-label">Status changed · In Progress → Blocked</div></div></div>
+                <div class="ev"><span class="ev-av">KK</span><div><div><span class="ev-who">Krishna Kitchen</span><span class="ev-when tnum">5h</span></div><div class="ev-label">Checklist item added · Get vendor quote</div></div></div>
+                <div class="ev"><span class="ev-av">DD</span><div><div><span class="ev-who">Dewi Director</span><span class="ev-when tnum">1d</span></div><div class="ev-label">RACI updated · added Fitri (Consulted)</div></div></div>
+              </div>
+            </div>
+            <div class="dw-foot">
+              <button class="btn-ghost-danger" type="button">Archive task</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ============================================================
+     SCREEN 2 — Desktop: drawer in CREATE mode
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">2</span>
+  <div>
+    <h2>Desktop — drawer in CREATE mode (+ New task)</h2>
+    <p>"+ New task" opens the drawer in create mode. Inline validation on blur (errors below the field). On Save it becomes the just-created task, ready to act in place.</p>
+  </div>
+</div>
+<div class="frame"><div class="device">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="logo">G</span><span class="name">Gordi MOS</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="#">My Week</a>
+        <a class="nav-item active" href="#" aria-current="page">Tasks</a>
+        <a class="nav-item" href="#">Weekly Updates</a>
+        <a class="nav-item" href="#">Daily Log</a>
+      </nav>
+      <div class="rail-foot"><a class="nav-item" href="#">Settings</a></div>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <span class="crumb"><b>Tasks</b><span class="sep">/</span>New task</span>
+        <span class="spacer"></span><span class="kbd">⌘K</span>
+        <div class="userchip"><span class="avatar">SS</span><div><div class="u-name">Sari Sales</div><div class="u-role">Sales Lead</div></div></div>
+      </header>
+      <div class="page">
+        <div class="page-head"><h1 class="page-title">Tasks</h1><span class="count-line tnum">24 tasks</span></div>
+        <div class="split">
+          <section class="assembly" aria-label="Tasks">
+            <div class="toolbar">
+              <div class="control"><span class="lbl">Business unit</span><span class="val">Sales – CRM</span><span class="chev">▾</span></div>
+              <div class="control"><span class="lbl">Status</span><span class="val">Any</span><span class="chev">▾</span></div>
+              <div class="seg" role="tablist" aria-label="Ownership filter"><button class="on" role="tab" aria-selected="true">Mine</button><button role="tab" aria-selected="false">RACI</button><button role="tab" aria-selected="false">All</button></div>
+              <button class="btn-primary" type="button" style="margin-left:auto">+ New task</button>
+            </div>
+            <table class="tbl">
+              <colgroup><col style="width:42%"><col style="width:16%"><col style="width:22%"><col style="width:12%"><col style="width:8%"></colgroup>
+              <thead><tr><th>Task</th><th>Status</th><th>Owner</th><th class="right">Due</th><th class="right">Activity</th></tr></thead>
+              <tbody>
+                <tr class="trow"><td><div class="t-title">Q3 CRM pipeline data cleanup</div><div class="t-unit">Sales – CRM</div></td><td><span class="pill inprogress"><span class="pdot"></span>In Progress</span></td><td><div class="owner"><span class="ownav">SS</span><span class="own-name">Sari</span><span class="own-more">+1</span></div></td><td class="right"><span class="due soon tnum">17 Jun</span></td><td class="right act tnum">1d</td></tr>
+                <tr class="trow"><td><div class="t-title">Draft Q3 wholesale outreach list</div><div class="t-unit">Sales – CRM</div></td><td><span class="pill open"><span class="pdot"></span>Open</span></td><td><div class="owner"><span class="ownav">SS</span><span class="own-name">Sari</span></div></td><td class="right"><span class="due calm tnum">27 Jun</span></td><td class="right act tnum">4d</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- DRAWER — CREATE MODE -->
+          <aside class="drawer" aria-label="New task">
+            <div class="dw-bar"><span class="crumb-mini">New task</span><span class="spacer"></span><button class="iconbtn" type="button" aria-label="Expand to full width (e)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button><button class="iconbtn" type="button" aria-label="Close (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+            <div class="dw-scroll">
+              <div class="dw-title" style="font-size:16px; margin-bottom:14px;">New task</div>
+              <div class="field err">
+                <label for="nt-title">Title</label>
+                <input class="txt" id="nt-title" type="text" value="" placeholder="What needs doing?">
+                <div class="help">Title is required.</div>
+              </div>
+              <div class="field">
+                <label for="nt-bu">Business unit</label>
+                <select id="nt-bu"><option>Sales – CRM</option><option>Cafe Ops – General</option><option>Kitchen and Bar</option><option>Roastery</option><option>Finance and People</option></select>
+              </div>
+              <div class="field">
+                <label for="nt-r">Responsible (R)</label>
+                <select id="nt-r"><option>Sari Sales (you)</option><option>Dewi Director</option><option>Cahya Cafe</option></select>
+                <div class="help">Defaults to you. R + A default to the creator (OD-P2-2).</div>
+              </div>
+              <div class="field">
+                <label for="nt-a">Accountable (A)</label>
+                <select id="nt-a"><option>Sari Sales (you)</option><option>Dewi Director</option></select>
+              </div>
+              <div class="field">
+                <label for="nt-due">Due date</label>
+                <input class="txt" id="nt-due" type="text" value="" placeholder="dd Mon — optional">
+              </div>
+              <div class="field">
+                <label for="nt-desc">Description</label>
+                <textarea id="nt-desc" placeholder="Optional context"></textarea>
+              </div>
+              <div class="create-actions">
+                <button class="btn-primary" type="button">Create task</button>
+                <button class="btn-outline" type="button">Cancel</button>
+              </div>
+              <p class="help" style="margin-top:10px;">On save the drawer stays open showing the new task — RACI, checklist &amp; status ready to act in place.</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ============================================================
+     SCREEN 3 — Desktop: expanded full-width (focus mode)
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">3</span>
+  <div>
+    <h2>Desktop — expanded full-width (the "open task page" toggle)</h2>
+    <p>Same surface, same /tasks/:id URL — the expand toggle (e) hides the table and widens the SAME drawer to a centred reading measure. Not a second editor.</p>
+  </div>
+</div>
+<div class="frame"><div class="device">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="logo">G</span><span class="name">Gordi MOS</span></div>
+      <nav class="nav"><a class="nav-item" href="#">My Week</a><a class="nav-item active" href="#" aria-current="page">Tasks</a><a class="nav-item" href="#">Weekly Updates</a><a class="nav-item" href="#">Daily Log</a></nav>
+      <div class="rail-foot"><a class="nav-item" href="#">Settings</a></div>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <span class="crumb"><b>Tasks</b><span class="sep">/</span>Replace Cafe chiller compressor</span>
+        <span class="spacer"></span><span class="kbd">⌘K</span>
+        <div class="userchip"><span class="avatar">DD</span><div><div class="u-name">Dewi Director</div><div class="u-role">Director</div></div></div>
+      </header>
+      <div class="page">
+        <div class="page-head"><h1 class="page-title">Tasks</h1><span class="count-line tnum">Focus mode · 1 task</span>
+          <span class="spacer"></span><span class="khints"><span class="kbd">e</span> back to split · <span class="kbd">Esc</span> close</span>
+        </div>
+        <div class="split expanded">
+          <aside class="drawer expanded" aria-label="Task detail (expanded)">
+            <div class="dw-bar">
+              <span class="crumb-mini">Task · full width</span><span class="spacer"></span>
+              <button class="iconbtn on" type="button" aria-label="Collapse to split (e)" title="Collapse (e)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7"/></svg></button>
+              <button class="iconbtn" type="button" aria-label="Close (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="dw-scroll">
+              <div class="dw-title">Replace Cafe chiller compressor</div>
+              <div class="dw-unit">Cafe Ops – General · due <span class="due overdue tnum">Overdue · 11 Jun</span></div>
+              <div class="dw-statusrow">
+                <button class="status-trigger" type="button" aria-haspopup="listbox" aria-label="Change status"><span class="pill blocked"><span class="pdot"></span>Blocked</span><span class="chev">▾</span></button>
+                <span class="act tnum">Activity 5h ago</span>
+                <span class="spacer" style="flex:1"></span>
+                <button class="btn-ghost-danger" type="button">Archive task</button>
+              </div>
+              <div class="dw-ra">
+                <div class="ra-mini"><span class="ra-glyph r">R</span><div><div class="who">Krishna Kitchen</div><div class="role">Responsible</div></div></div>
+                <div class="ra-mini"><span class="ra-glyph a">A</span><div><div class="who">Dewi Director</div><div class="role">Accountable</div></div></div>
+              </div>
+              <div class="dw-sec"><h3>Description</h3><p style="font-size:14px; color:hsl(240 10% 3.9%); max-width:62ch;">Compressor failed Sunday night; cold-storage temps drifting. Awaiting quote from refrigeration vendor before scheduling the swap — blocked on their site visit.</p></div>
+              <div class="dw-sec">
+                <h3>RACI</h3>
+                <div class="raci-row"><span class="raci-role"><span class="glyph r">R</span>Responsible</span><span class="person-chip editable"><span class="av">KK</span>Krishna Kitchen<span class="x">▾</span></span></div>
+                <div class="raci-row"><span class="raci-role"><span class="glyph a">A</span>Accountable</span><span class="person-chip editable"><span class="av" style="background:hsl(262 83% 58% / 0.12); color:hsl(262 60% 42%)">DD</span>Dewi Director<span class="x">▾</span></span></div>
+                <div class="raci-row"><span class="raci-role"><span class="glyph c">C</span>Consulted</span><span class="person-chip editable"><span class="av">FF</span>Fitri Finance<span class="x">×</span></span><button class="add-person" type="button">+ Add</button></div>
+                <div class="raci-row"><span class="raci-role"><span class="glyph i">I</span>Informed</span><span class="person-chip editable"><span class="av">CC</span>Cahya Cafe<span class="x">×</span></span><button class="add-person" type="button">+ Add</button></div>
+              </div>
+              <div class="dw-sec"><h3>Checklist <span class="cnt tnum">1 of 4 done</span></h3>
+                <div class="chk-item"><span class="chk-box checked"></span><span class="chk-label done">Log the failure + photos to ops</span></div>
+                <div class="chk-item"><span class="chk-box"></span><span class="chk-label">Get vendor quote (site visit Tue)</span></div>
+                <div class="chk-item"><span class="chk-box"></span><span class="chk-label">Approve PO with Finance</span></div>
+                <div class="chk-item"><span class="chk-box"></span><span class="chk-label">Schedule swap + confirm cold-chain backup</span></div>
+                <input class="chk-add" type="text" placeholder="+ Add a step" style="max-width:420px;" aria-label="Add checklist item">
+              </div>
+              <div class="dw-sec"><h3>Activity &amp; updates</h3>
+                <div class="ev"><span class="ev-av">KK</span><div><div><span class="ev-who">Krishna Kitchen</span><span class="ev-when tnum">5h</span></div><div class="ev-label">Status changed · In Progress → Blocked</div></div></div>
+                <div class="ev"><span class="ev-av">DD</span><div><div><span class="ev-who">Dewi Director</span><span class="ev-when tnum">1d</span></div><div class="ev-label">RACI updated · added Fitri (Consulted)</div></div></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ============================================================
+     SCREEN 4 — Mobile (~390px): card list + full-screen task
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">4</span>
+  <div>
+    <h2>Mobile (~390px) — card list + full-screen task</h2>
+    <p>No 1/3 drawer on phones (tables scroll badly). Card list; tapping a card pushes the SAME actionable surface full-screen. 44px+ touch targets.</p>
+  </div>
+</div>
+<div class="phones">
+  <div>
+    <p class="ph-cap">Tasks — card list</p>
+    <div class="phone">
+      <div class="ph-header"><span class="ph-title">Tasks</span><span class="spacer" style="flex:1"></span><span class="kbd">24</span></div>
+      <div class="ph-body">
+        <div class="ph-filters">
+          <div class="seg"><button role="tab" aria-selected="false">Mine</button><button role="tab" aria-selected="false">RACI</button><button class="on" role="tab" aria-selected="true">All</button></div>
+          <div class="control" style="flex:none">Status<span class="chev">▾</span></div>
+        </div>
+        <a class="ph-tap" href="#" style="text-decoration:none; color:inherit; height:auto; display:block;">
+          <div class="ph-card">
+            <div class="cardhead"><div class="t-title">Replace Cafe chiller compressor</div><span class="pill blocked"><span class="pdot"></span>Blocked</span></div>
+            <div class="t-unit">Cafe Ops – General</div>
+            <div class="cardmeta"><div class="owner"><span class="ownav">KK</span><span class="own-name">Krishna</span><span class="own-more">+3</span></div><span class="due overdue tnum">Overdue · 11 Jun</span><span class="act tnum">5h</span></div>
+          </div>
+        </a>
+        <div class="ph-card">
+          <div class="cardhead"><div class="t-title">Renew roastery green-bean supplier contract</div><span class="pill blocked"><span class="pdot"></span>Blocked</span></div>
+          <div class="t-unit">Roastery</div>
+          <div class="cardmeta"><div class="owner"><span class="ownav">RR</span><span class="own-name">Rama</span><span class="own-more">+2</span></div><span class="due overdue tnum">Overdue · 8 Jun</span><span class="act tnum">2d</span></div>
+        </div>
+        <div class="ph-card">
+          <div class="cardhead"><div class="t-title">Q3 CRM pipeline data cleanup</div><span class="pill inprogress"><span class="pdot"></span>In Progress</span></div>
+          <div class="t-unit">Sales – CRM</div>
+          <div class="cardmeta"><div class="owner"><span class="ownav">SS</span><span class="own-name">Sari</span><span class="own-more">+1</span></div><span class="due soon tnum">17 Jun</span><span class="act tnum">1d</span></div>
+        </div>
+        <div class="ph-newbtn">+ New task</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="ph-cap">Task — full-screen (same surface)</p>
+    <div class="phone">
+      <div class="ph-header"><span class="back">‹</span><span class="ph-title">Task</span></div>
+      <div class="ph-body ph-task" style="background:hsl(0 0% 100%)">
+        <div class="dw-title">Replace Cafe chiller compressor</div>
+        <div class="dw-unit">Cafe Ops – General · due <span class="due overdue tnum">Overdue · 11 Jun</span></div>
+        <div class="dw-statusrow"><button class="status-trigger" type="button" style="height:44px" aria-label="Change status"><span class="pill blocked"><span class="pdot"></span>Blocked</span><span class="chev">▾</span></button></div>
+        <div class="dw-ra">
+          <div class="ra-mini"><span class="ra-glyph r">R</span><div><div class="who">Krishna Kitchen</div><div class="role">Responsible</div></div></div>
+          <div class="ra-mini"><span class="ra-glyph a">A</span><div><div class="who">Dewi Director</div><div class="role">Accountable</div></div></div>
+        </div>
+        <div class="dw-sec"><h3>Checklist <span class="cnt tnum">1 of 4 done</span></h3>
+          <div class="chk-item" style="min-height:44px"><span class="chk-box checked"></span><span class="chk-label done">Log the failure + photos to ops</span></div>
+          <div class="chk-item" style="min-height:44px"><span class="chk-box"></span><span class="chk-label">Get vendor quote (site visit Tue)</span></div>
+          <div class="chk-item" style="min-height:44px"><span class="chk-box"></span><span class="chk-label">Approve PO with Finance</span></div>
+        </div>
+        <div class="dw-sec"><h3>RACI</h3>
+          <div class="raci-row"><span class="raci-role"><span class="glyph c">C</span>Consulted</span><span class="person-chip"><span class="av">FF</span>Fitri Finance</span></div>
+          <div class="raci-row"><span class="raci-role"><span class="glyph i">I</span>Informed</span><span class="person-chip"><span class="av">CC</span>Cahya Cafe</span></div>
+        </div>
+        <div class="dw-foot" style="border-top:1px solid hsl(240 5.9% 90%); margin-top:6px;"><button class="btn-ghost-danger" type="button" style="height:44px">Archive task</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     STATE NOTES (no full screens needed)
+     ============================================================ -->
+<div class="note">
+  <b>Loading</b> — table: 5 skeleton rows (pulse on <code>secondary</code>, <code>aria-busy</code>); drawer: skeleton title bar + two skeleton section blocks. &nbsp; <b>Empty</b> — table shows the existing context-keyed empty state ("No tasks assigned to you" / "No tasks match your filters") with a <code>+ New task</code> primary; drawer is simply absent (split → <code>.nodrawer</code> full-width table). &nbsp; <b>Error</b> — table: inline <code>role="alert"</code> banner (<code>destructive</code> text) + Retry outline button (reused from TasksPage). Drawer load error → "Couldn't load this task" + Retry inside the drawer; the table stays usable. &nbsp; <b>Edge</b> — archived task: drawer shows an archived banner (<code>secondary</code>) + Unarchive (A/manager), all edit affordances suppressed; very long title clamps to 2 lines in the drawer header; deep-link to a missing/forbidden task → drawer "Task not found" with an "All tasks" link.
+</div>
+
+<!-- ============================================================
+     CLOSING COMMENT BLOCK — tokens, proposed tokens, A-vs-B, Lens-D
+     ============================================================ -->
+<!--
+================================================================================
+VARIANT A — "stacked / scroll drawer"   (tasks-redesign-A.html)
+================================================================================
+
+DESIGN.md TOKENS USED (token NAME → where):
+  colors.background ............ app/header/card bg, field fills, drawer
+  colors.foreground ............ primary text, titles, sorted column header
+  colors.card .................. rail, assembly, drawer, table surfaces (white on secondary/35%)
+  colors.primary ............... brand logo, active nav, + New task, selected row (7%),
+                                 keyboard-cursor inset rule, R chip/avatar (12% tint),
+                                 checkbox fill, focus ring, expand-toggle-active
+  colors.primary-foreground .... text on primary (logo, button, checkbox ✓)
+  colors.secondary ............. seg track, count pills, C/I role glyphs, skeleton, ev-av,
+                                 archived banner; secondary/35% = main scroll area; /0.6 row hover
+  colors.secondary-foreground .. seg button text (off)
+  colors.muted-foreground ...... labels, captions, unit sublines, +N, chevrons, activity age,
+                                 calm due dates, breadcrumb, khints, C/I chip text
+  colors.accent ................ hover wash on nav / iconbtn / seg-off / control / row
+  colors.destructive ........... overdue+blocked dots/tints, error field border, archive-hover tint,
+                                 notification dot
+  colors.warning (+ -foreground) Open status pill (amber tint + deep-brown text), ≤3d due text
+  colors.success ............... Done status pill (green tint + --status-won-text)
+  colors.violet ................ Accountable (A) chip + avatar (categorical use, allowed)
+  colors.border / colors.input . every hairline: rail, header, assembly, table dividers (/0.7),
+                                 drawer sections, fields, chips, controls (single-border rule)
+  colors.ring .................. global :focus-visible ring (2px, 2px offset)
+  typography.page-title ........ "Tasks" h1, expanded drawer title
+  typography.subheading ........ drawer title (1/3 width), screen labels
+  typography.body / label / overline / mono .... body text / field labels / section + column
+                                 headers (uppercase tracked) / ⌘K + kbd hints + count chips
+  rounded.xs(4) sm(6) md(8) lg(10) full(999) .... checkbox/kbd / nav+seg / cards+controls+fields /
+                                 device frame / pills+avatars+chips
+  spacing 1–6 (4–24px) ......... padding/gaps throughout
+  components: button-primary, button-outline, button-ghost, card, input, badge-status,
+              table-header-cell, table-body-cell (54px), nav-item, seg/tabs
+  Named rules honored: One-Blue (primary ≤10% — R chip & selected row are categorical/state, not
+    actions), Tinted-Status (6px dot + ~10–18% tint + darkened AA text), Single-Border,
+    Flat-By-Default (cards have borders, no rest shadow; only seg "on" + brand button + popover lift),
+    No-Pure-Black-Shadow, Tabular-Numbers (all due/age/counts .tnum), Mono-For-Identifiers (⌘K/kbd only).
+  Adopted MOS additions reused (not invented): --status-open/won/lost-text, --status-violet-text,
+    --raci-responsible/accountable/consulted/informed (OD-P2), OD-P0-7 due-date coloring rule,
+    OD-P0-8 owner = R-avatar + "+N".
+
+PROPOSED NEW TOKENS (flagged for owner sign-off — NOT applied as new brand):
+  1. --field-error-border = colors.destructive ; --field-error-text = --status-lost-text (0 72% 45%).
+     DESIGN.md §5 Inputs lists error-field styling as an EXISTING GAP ("no error-state field styling
+     in source… proposed: error border = destructive, helper text = destructive"). This mockup uses
+     the AA-darkened --status-lost-text for the helper (not base destructive) so it clears AA on white;
+     recommend ratifying that pair into DESIGN.md (closes the documented gap, no new hue).
+  2. (optional) --kbd-cursor = colors.primary inset 2px rule on the keyboard-focused table row — reuses
+     primary; flag only because a row-level keyboard cursor is a new pattern PMO didn't have. No new hue.
+  NO new palette / font / radius is introduced. Both items reuse existing hues.
+
+OPEN QUESTIONS FOR THE OWNER:
+  Q1. Drawer width — 380px shown. Is ~1/3 of a 1280px content area (≈380–420px) right, or pin to a
+      fraction (33vw, min 360 / max 480)?
+  Q2. Expand toggle persistence — "remembered view toggle" per the locked decision: per-user global,
+      or per-task? (Mockup assumes a single remembered preference.)
+  Q3. Create-mode width — should "+ New task" ever open expanded (full-width) directly, or always
+      start in the 1/3 drawer? (Mockup: always 1/3, expandable.)
+  Q4. Confirm Q1 field-error token pair (item 1 above) for ratification into DESIGN.md §5.
+
+LENS-D SELF-CHECK (docs/jtbd.md — Tasks list + Task detail rows; 5 questions; anchors A1/A2/A3):
+  • Tasks list job ("filter by owner/RACI/status, spot what's off track, open the one that needs
+    attention"):
+    Q1 Job ✓ — scan + open. Q2 Expectation ✓ — filters obvious in the toolbar (BU/Status/Person/seg/
+    search), create-task is a placed primary, owner column = R person per CONTEXT. Q3 Priority ✓ —
+    off-track signal IN-ROW (overdue red, blocked pill) above the fold; due-sorted with overdue first.
+    Q4 Actionability ✓ — row → canonical drawer in ONE click (no dead-end numbers); keyboard j/k+Enter.
+    Q5 Model ✓ — one canonical /tasks/:id home whether arrived from My Week / Tasks / Daily Log ref.
+    RESULT: PASS.
+  • Task detail job ("status, who's R/A, what's blocking, next checklist step — change it without
+    leaving"):
+    Q1 Job ✓. Q2 Expectation ✓ — Status + R/A are the first thing in the drawer header. Q3 Priority ✓
+    — above the fold = title · inline-Status · R/A summary; C/I + checklist + activity follow by scroll.
+    Q4 Actionability ✓ — inline status change (no view transition), inline RACI edit, in-place checklist
+    toggle; archive is the ONE confirmed action. Q5 Model ✓ — drawer == expanded == mobile = ONE surface.
+    RISK (A-specific): the most-common triage actions (status, R/A) are above the fold AT FIRST PAINT,
+    but a long RACI/checklist can push Activity far down — acceptable for detail work; B mitigates with
+    tabs. Anchors: A1 (review-verb on a log entry) N/A here — no Daily Log surface; A2 (write affordance
+    on review pane) N/A — no review pane; A3 (downward/lateral update view) N/A — Tasks are org-readable
+    by design. None violated.
+    RESULT: PASS.
+
+A vs B differs on: the drawer's information architecture at 1/3 width — A is ONE scrollable column
+  (header → RACI → checklist → activity, everything reached by scroll); B pins the action header
+  (title · Status · R/A) and tabs the rest (Details · Checklist · Activity).
+================================================================================
+-->
+</body>
+</html>
