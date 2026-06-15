@@ -293,6 +293,75 @@ describe('LoginPage — credentials form', () => {
   })
 })
 
+// ── Demo login (dev-only one-click sign-in) ─────────────────────────────────
+
+describe('LoginPage — demo login (dev-only)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockNavigate.mockClear()
+  })
+
+  it('renders the demo-login panel in dev (import.meta.env.DEV)', () => {
+    render(<LoginPage />)
+    expect(screen.getByText(/demo login/i)).toBeInTheDocument()
+  })
+
+  it('one-click persona signs in with the persona email + shared dev password and navigates home', async () => {
+    mockSignIn.mockResolvedValue({
+      data: {
+        user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
+        session: {} as unknown as import('@supabase/supabase-js').Session,
+      },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.click(screen.getByRole('button', { name: /director/i }))
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith({
+        email: 'dewi.dev@example.test',
+        password: 'Passw0rd!dev',
+      })
+    })
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+    })
+  })
+
+  it('does NOT render the demo panel when not in dev (prod-safety gate)', () => {
+    // Pin the security contract: the plaintext password + all-roles buttons
+    // must never render in a built/deployed site (import.meta.env.DEV === false).
+    vi.stubEnv('DEV', false)
+    try {
+      render(<LoginPage />)
+      expect(screen.queryByText(/demo login/i)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /director/i })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Passw0rd!dev/)).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('failed demo sign-in surfaces the generic credential error', async () => {
+    mockSignIn.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: 'Invalid login credentials', status: 400 } as unknown as import('@supabase/supabase-js').AuthError,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.click(screen.getByRole('button', { name: /finance/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid email or password.')
+    })
+  })
+})
+
 // ── fix-2 ── Email client-validation (design-plan §3 + §5) ──────────────────
 
 describe('LoginPage — email client-validation (fix-2)', () => {

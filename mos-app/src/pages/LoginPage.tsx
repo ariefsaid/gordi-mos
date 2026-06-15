@@ -2,6 +2,8 @@ import { useState, useId, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '../auth/AuthShell'
+import DemoLogin from './DemoLogin'
+import { DEMO_PASSWORD } from './demoPersonas'
 
 // Error-handling table strings (verbatim from spec)
 const ERR_CREDENTIAL = 'Invalid email or password.'
@@ -51,6 +53,8 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
   const [loading, setLoading] = useState<'sign-in' | 'magic' | 'reset' | null>(null)
+  // Dev-only one-click demo sign-in: which persona email is currently in flight.
+  const [demoBusy, setDemoBusy] = useState<string | null>(null)
 
   // Check for expired-link URL param on mount (design-plan §3 expired-link notice)
   const [expiredLink, setExpiredLink] = useState(false)
@@ -70,7 +74,29 @@ export default function LoginPage() {
     }
   }, [error])
 
-  const isDisabled = loading !== null
+  const isDisabled = loading !== null || demoBusy !== null
+
+  // Dev-only: one-click sign in as a seeded persona (no form interaction).
+  async function handleDemoSignIn(personaEmail: string) {
+    setError('')
+    setEmailError('')
+    setDemoBusy(personaEmail)
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: personaEmail,
+        password: DEMO_PASSWORD,
+      })
+      if (authError) {
+        setError(mapAuthError(authError))
+      } else {
+        navigate('/', { replace: true })
+      }
+    } catch {
+      setError(ERR_NETWORK)
+    } finally {
+      setDemoBusy(null)
+    }
+  }
 
   // fix-2: validate email client-side before any auth call
   function validateEmail(): boolean {
@@ -397,6 +423,11 @@ export default function LoginPage() {
             'Email me a sign-in link instead'
           )}
         </button>
+
+        {/* Dev-only one-click demo sign-in — NEVER rendered in a built/deployed site */}
+        {import.meta.env.DEV && (
+          <DemoLogin onPick={handleDemoSignIn} busyEmail={demoBusy} disabled={isDisabled} />
+        )}
       </AuthCard>
     </AuthShell>
   )
