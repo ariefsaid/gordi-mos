@@ -3,8 +3,11 @@
 The design analog of the code-side SDD→TDD→BDD loop (`docs/director-playbook.md` §2). The **Director**
 orchestrates this and **owns the human-UX checkpoint** — taste is the owner's gate, the way spec
 sign-off is. `DESIGN.md` at repo root is the single source of truth. Adapted from PMO's
-`docs/design-workflow.md`; the 3-lens battery and the "e2e encodes the natural journey" rule are
-inherited because PMO paid for them with real shipped defects.
+`docs/design-workflow.md`; the four-lens battery (Visual / IxD / IA / Product-Intent) and the "e2e
+encodes the natural journey" rule are inherited because PMO paid for them with real shipped defects —
+PMO added the fourth lens (Product/Intent, JTBD) after intent-failures shipped clean past code review
+and the first three lenses. MOS adopts the lens and its oracle (`docs/jtbd.md`); the content is Gordi's
+own (its roles, screens, domain), not PMO's product.
 
 ## 1. Phase 0 — mockup-first (MOS-specific; replaces PMO's reverse-engineering Foundation)
 MOS is greenfield, so the Foundation inverts: instead of extracting a design system from an existing
@@ -26,6 +29,13 @@ Mockup rules: self-contained single HTML files, inline CSS using `DESIGN.md` tok
 token NAME in a comment; an HTML comment block at the end lists tokens used, open questions, and any
 proposed new tokens (e.g. RACI badge colors) flagged for owner sign-off.
 
+> **Lens D applies to mockups too.** A mockup can — and should — be graded against the screen's job
+> story (`docs/jtbd.md` §2) **before any code exists**. When `design-architect` shapes a key-screen
+> mockup, it walks the Lens-D 5 questions (§2.3d) for that screen's primary role: does the mockup put
+> the decision-relevant info above the fold, with the one next action adjacent, in MOS's own language?
+> Catching an intent miss at the mockup gate is far cheaper than at the built-UI review. This does NOT
+> change the mockup-first model — it adds a check to it; §1 steps 1–4 are otherwise unchanged.
+
 ## 2. Per-UI-issue loop (Phase 1 on)
 Slots into the Director per-issue loop **between Build and Accept** (a feature's data/logic lands
 under TDD, then its UI is designed, built, and reviewed). The **BDD authoring rule** still governs the
@@ -42,11 +52,12 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
    transitions, convention placement, post-action feedback, mental-model match — the binding list in
    `.claude/agents/ui-implementer.md` "IxD / flow-naturalness alignment") and escalates plan-vs-naturalness
    conflicts instead of building or silently fixing them.
-3. **Design-review — the standing THREE-LENS battery** *(read-only; renders + screenshots the running
-   app at the plan's breakpoints)*. Every UI review runs **all three** lenses, each **explicitly
-   directed** — a single generic "UX review" prompt reliably hits only the first and misses the other
-   two (this gap let real IxD/IA defects ship in PMO). Findings write to `review/*.md` (gitignored
-   scratch — durable findings go to `docs/backlog.md`).
+3. **Design-review — the standing FOUR-LENS battery** *(read-only; renders + screenshots the running
+   app at the plan's breakpoints)*. Every UI review runs **all four** lenses, each **explicitly
+   directed** — a single generic "UX review" prompt reliably hits only the first and misses the others
+   (this gap let real IxD/IA defects ship in PMO; PMO then added a fourth lens after intent-failures
+   shipped past the first three). Findings write to `review/*.md` (gitignored scratch — durable findings
+   go to `docs/backlog.md`).
    - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste`
      AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA,
      interaction perf, vs `DESIGN.md` + the design-plan + the Phase-0 mockup.
@@ -54,10 +65,28 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
      persona walkthrough)* — for each role's REAL tasks (manager triaging the week, ops user filing a
      daily update, Arief scanning ownership), walk the journey in the running app and flag workflow
      friction, convention violation, needless state transitions, information overload, mental-model
-     mismatch. *Naturalness, not correctness.*
+     mismatch. *Naturalness, not correctness — scoped to flow-smoothness, not job-fit (that is Lens D).*
    - **(c) IA / structure & navigation** — **one canonical home/URL per entity**, no list/route
      overlap, no entry-point-dependent rendering, coherent lifecycle presentation, consistent
      breadcrumb/back. *Structure, not flow.*
+   - **(d) Product / Intent (JTBD cognitive walkthrough)** *(`impeccable critique` run WITH the
+     directed Lens-D prompts, against the oracle)*. **Oracle: `docs/jtbd.md`** (the Gordi role ×
+     job-story map). Lens D has no aesthetic of its own — it **grades the screen against its job story
+     for the primary role**. Read `docs/jtbd.md` §2 for the screen's job row first, then interrogate the
+     **5 questions**: **1. Job** — what job did the user come here to do (state it as a job story)?
+     **2. Expectation** — does the user *expect* this affordance HERE, named in Gordi's language
+     (`CONTEXT.md`)? **3. Priority/placement** — is the decision-relevant info above the fold (on My
+     Week, is the drifting-task table truly first, strips quiet and below)? **4. Actionability** —
+     *"so what / now what?"* — can the user act in one step, with the next action adjacent? **5.
+     Mental-model consistency** — do analogous MOS objects share one paradigm, *including the
+     read-vs-review verb and the upward-only vs org-readable visibility direction* (`jtbd.md` §3)? Lens
+     D must always catch the three Gordi calibration anchors (`jtbd.md` §5): **A1** a "Review"/"Approve"
+     verb on a Daily Log entry (a log entry is *read, not reviewed* — OD-P2-15/16); **A2** a write
+     affordance on the upward weekly-update review pane (v1 review is READ-ONLY — OD-P2-12); **A3** a
+     downward/lateral weekly-update view (visibility is upward-only — OD-P1-3). These pass code review +
+     Lenses A/B/C but fail the user's actual job. *Job-fit, not flow-smoothness.* **Lens D runs on both
+     rounds** — the Phase-0 mockup (§1) and the built UI here — since the job story does not need a
+     running app.
 4. **Fix round (if needed)** — issues route back to `ui-implementer`; `design-reviewer` re-checks
    with before/after. Repeat until ship-clean.
 5. **Owner visual UX sign-off** — the owner approves the look on a real artifact.
@@ -78,8 +107,10 @@ The review battery **discovers** UX issues; **e2e locks the observable ones so t
 Author each acceptance test to the user's *ideal, conventional* journey and assert the
 convention-invariants + expected post-states — so the test is RED until the app behaves naturally.
 The PMO anti-pattern to avoid: authoring the e2e to the app's current steps, which keeps an unnatural
-flow green. **Every confirmed IxD/IA finding becomes a regression invariant at the lowest sufficient
-layer** — observable flow/structure → e2e/component test; data-logic → unit/pgTAP.
+flow green. **Every confirmed IxD/IA/intent finding becomes a regression invariant at the lowest
+sufficient layer** — observable flow/structure → e2e/component test; data-logic → unit/pgTAP. (The
+three Lens-D calibration anchors in `docs/jtbd.md` §5 are themselves the standing intent-regression
+line — if the lens stops catching them, it has drifted.)
 
 ## 4. Storybook
 Only when/if a shared component library is extracted (post-MVP, and only after both PMO and MOS show
@@ -88,17 +119,17 @@ repeated use of the same components — see the brief's DRY caution). Not before
 ## 5. Code-agent → UI/UX-agent analog
 | Code-side agent | UI/UX analog | Role |
 |---|---|---|
-| spec-miner / eng-planner | **design-architect** | steward adopted `DESIGN.md`; Phase-0 mockups; per-issue design-plan |
+| spec-miner / eng-planner | **design-architect** | steward adopted `DESIGN.md`; Phase-0 mockups (Lens-D checked at the mockup gate); per-issue design-plan |
 | implementer | **ui-implementer** | build/refactor UI to tokens + plan; TDD component states; all states + responsive + a11y |
-| spec-reviewer + code-quality-reviewer | **design-reviewer** | render + screenshot; 3-lens audit vs `DESIGN.md` + plan + mockup; read-only |
+| spec-reviewer + code-quality-reviewer | **design-reviewer** | render + screenshot; **four-lens** audit (Visual / IxD / IA / Product-Intent vs `DESIGN.md` + plan + mockup + `docs/jtbd.md`); read-only |
 | Director (main session) | **Director (main session)** | orchestrates the loop; owns the **human-UX checkpoint** |
 
 ### Skills → exact commands per agent (one owner per command — no overlap)
 | Agent | Primary | Secondary / checklist | Not used |
 |---|---|---|---|
-| **design-architect** | `impeccable shape` (mockups + per-issue plans); `ui-ux-pro-max` `plan` + `design-system` vocabulary | `design-consultation` (format only); `taste` (states/a11y/anti-slop into mockups + plans) | design-consultation greenfield brand interview; `impeccable document/extract` (nothing to reverse-engineer — DESIGN.md is adopted) |
+| **design-architect** | `impeccable shape` (mockups + per-issue plans); `ui-ux-pro-max` `plan` + `design-system` vocabulary | `design-consultation` (format only); `taste` (states/a11y/anti-slop into mockups + plans); `docs/jtbd.md` (Lens-D job stories at the mockup gate) | design-consultation greenfield brand interview; `impeccable document/extract` (nothing to reverse-engineer — DESIGN.md is adopted) |
 | **ui-implementer** | `ui-ux-pro-max` `ui-styling` + `build`/`implement`; `taste` (discipline) | `impeccable` `harden`/`adapt`/`animate`/`optimize`/`clarify`/`layout`/`typeset` — per plan only | `impeccable live` (localhost browser loop) |
-| **design-reviewer** | `design-review` (render→screenshot→audit) | `impeccable` `critique` + `audit`; `taste` AI-tells/pre-flight; `ui-ux-pro-max` `review`/`check` | — |
+| **design-reviewer** | `design-review` (render→screenshot→audit) | `impeccable` `critique` + `audit` (the latter run WITH the directed Lens-D prompts vs `docs/jtbd.md`); `taste` AI-tells/pre-flight; `ui-ux-pro-max` `review`/`check` | — |
 
 ## 6. Skill caveats
 - **impeccable** — phone-home / telemetry disabled (vendored copy); use offline.

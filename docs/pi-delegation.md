@@ -5,7 +5,7 @@ acting as **Director** (`docs/director-playbook.md` §1 posture) how to dispatch
 **pi CLI** instead of (or alongside) Claude subagents. It changes **who executes a phase — nothing
 else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md` §2 (including the
 `grill-with-docs` intake gate and the Phase-0 mockup-first gate), the UI cycle in
-`docs/design-workflow.md` (§1 mockup-first + §2 three-lens battery), and the per-layer DoD in
+`docs/design-workflow.md` (§1 mockup-first + §2 four-lens battery), and the per-layer DoD in
 `docs/product-expectations.md` are unchanged and binding.
 
 Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; providers
@@ -161,7 +161,7 @@ violation — while the Director's own read caught 2 the reviewer missed. Both l
 
 - **e2e softening** — `.catch(...)` around assertions, or "element exists" instead of the journey goal.
   Violates the binding BDD rule (CLAUDE.md). Reject on sight. (This project has already caught this
-  class via the 3-lens battery — keep it ruthless.)
+  class via the design-review battery — keep it ruthless.)
 - **Honest-UX shortcuts** — e.g. a fake/indeterminate progress bar where real progress is specced; a
   clickable-looking row with no handler (the P2-2c FR-031 miss).
 - **Stopping partway** on long multi-item briefs (glm-4.7) — hence sentinel lines + completion rounds.
@@ -176,7 +176,7 @@ violation — while the Director's own read caught 2 the reviewer missed. Both l
 - Sequencing + status: `docs/STATUS.md` (read-first) + `docs/backlog.md` (current: first-slice MVP
   feature-complete; Phase 3 — P3-1 production deploy is the only open work).
 - The loop being executed: `docs/director-playbook.md` §2; UI issues additionally
-  `docs/design-workflow.md` §1 (Phase-0 mockup gate) + §2 (per-UI-issue loop + 3-lens battery).
+  `docs/design-workflow.md` §1 (Phase-0 mockup gate) + §2 (per-UI-issue loop + 4-lens battery).
 - Grading: playbook §10 rubric applies to pi-produced work unchanged.
 - **Substrate-agnostic fallback:** if pi or the providers are unavailable, fall back to the standard
   Claude role agents (the Agent tool, `.claude/agents/`, playbook §3 model tiers + the

@@ -23,6 +23,8 @@ spec of *intended* behavior — **the app conforms to the test, never the test t
 
 Inputs: the feature's spec (`docs/specs/<feature>.spec.md`) with its `AC-###` Given/When/Then criteria.
 
+Playwright authored under `e2e/` is the AC layer of record (CI runs it). For **manual exploratory verification** outside the committed suite — reproducing a reported defect, eyeballing a state the Director flagged, sanity-driving a flow before writing the spec test — use the `agent-browser` CLI ([vendored stub](../skills/agent-browser/SKILL.md) → `agent-browser skills get core`; `agent-browser skills get dogfood` for a structured bug-hunt). It works from Bash, so it's available whether you run under Claude or pi. It does NOT replace the committed Playwright AC tests.
+
 Your job:
 1. For each `AC-###`, ensure an `e2e/<AC-id>.spec.ts` Playwright test exists that encodes the Given/When/Then literally (arrange → act → assert).
 2. Start the app/test env as documented and run `npx playwright test`. Read exit codes — no pass claim without fresh evidence.

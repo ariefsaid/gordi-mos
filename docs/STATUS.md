@@ -48,8 +48,9 @@ After P2-3 merge, the only remaining gap to a usable product is **P3-1 productio
   `<task-notification>`, read the output FILE once.
 - **Local Supabase = `supabase start -x edge-runtime`, ports 44321/44322/44324. NEVER touch the
   pmo-portal stack.** CI excludes edge-runtime (it 502s intermittently).
-- **The 3-lens design review earns its keep** — it caught the cross-schema embed bug, the transparent
-  Submit button, the dead roster rows, the unstyled states. Run it on every UI slice, render-verified.
+- **The design review battery earns its keep** — its 3-lens form caught the cross-schema embed bug, the
+  transparent Submit button, the dead roster rows, the unstyled states. Now **4-lens** (added Lens D —
+  Product/Intent JTBD, oracle `docs/jtbd.md`). Run all four on every UI slice, render-verified.
 - **NEVER read `~/.op-token` or any `.env`/secret file** (owner hard rule). Secrets come via `op-get.sh
   <item> <vault> <field>` at runtime; to learn a value read the committed coordinates (`.env.example`,
   `supabase/op.resend.env`) or `docs/environments.md` — never the live file.

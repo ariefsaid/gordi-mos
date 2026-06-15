@@ -29,7 +29,7 @@ first slice and record the deferral in `docs/backlog.md`.
    branch; commits; does **not** push/PR.
 5. **Review** — `spec-reviewer` (does it match spec/ACs? **don't trust the implementer — read code +
    run tests**), then `code-quality-reviewer`. UI changes additionally get the `design-reviewer`
-   3-lens battery (`docs/design-workflow.md` §2.3). Run reviewers **in parallel** when independent.
+   4-lens battery (Visual · IxD · IA · Product/Intent JTBD; `docs/design-workflow.md` §2.3, oracle `docs/jtbd.md`). Run reviewers **in parallel** when independent.
 6. **Secure (when relevant)** — `security-auditor` (opus) for ANY change to auth, RLS, schema seams
    (`org_id`, app/workspace fields, cross-schema grants), a new RPC/view, or a public surface. It must
    attempt live cross-tenant/escalation exploits, not just read.
@@ -61,6 +61,24 @@ mockups (`docs/design-mockups/`) → Director sanity-check (tokens, realistic da
 - **Model choice:** opus for planning, all review, security, and hard/security build slices; sonnet
   for routine implementation, QA runs, releases; haiku for mechanical edits.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
+
+## 3a. Series is the default SOP; parallel is an opt-in transient mode
+**Default = one issue at a time** (§2: one branch, one PR; role work via pi, `docs/pi-delegation.md`). That is
+the SOP — use it unless the owner *explicitly* opts into a **parallel push** (a transient burst, e.g. to
+exploit a window of abundant Claude quota). Even then, two things stay serial — the **single human owner**
+and `main` integration:
+- **The owner is a single, non-parallelizable resource; the Director is the sole proxy.** Front-load and
+  serialize every owner-interactive gate (grill-with-docs, spec sign-off, mockup approval) **before** fan-out.
+  Parallel agents consume only **locked** decisions; an agent that hits an unresolved owner question **STOPS
+  and escalates** — never asks the owner mid-run.
+- **Build in parallel, verify on CI, merge serially.** N worktrees build independent features; each pushes a
+  PR; CI runs each PR's isolated Postgres + pgTAP + e2e (public repo ⇒ unlimited Actions). Verify from CI +
+  light local; **merge one PR at a time** and rebase onto latest `main` first (release-hygiene §6).
+- **Executor by mode:** series → **pi** (spares the Claude quota; the series default, `docs/pi-delegation.md`);
+  parallel burst → **Claude `Task` subagents** (pi hits provider rate limits fast under parallel load, so the
+  burst exploits abundant Claude quota instead).
+- **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
+  starts trusting instead of verifying — the exact failure the multi-reviewer battery exists to prevent.
 
 ## 4. Decision policy (decide vs escalate)
 - **Decide yourself** (then state it): tactical sequencing, which agent/model, file layout, library
@@ -128,8 +146,9 @@ broken render, a self-escalation RLS hole, and a lying test that the implementer
 - **Agents ran Playwright from the repo root** ("no tests found") → false e2e success. → e2e runs from
   `mos-app/`; release-engineer re-verifies.
 - **"1 AC → 1 e2e" built an ice-cream cone.** → the pyramid (§5).
-- **A single generic "UX review" prompt missed IxD and IA defects.** → the 3-lens battery, each lens
-  explicitly directed (`docs/design-workflow.md` §2.3).
+- **A single generic "UX review" prompt missed IxD and IA defects.** → the 4-lens battery (Visual ·
+  IxD · IA · Product/Intent JTBD), each lens explicitly directed (`docs/design-workflow.md` §2.3,
+  Lens-D oracle `docs/jtbd.md`).
 - **e2e authored to the app's current steps stayed green through an unnatural flow.** → author e2e to
   the user's *ideal* journey (design-workflow §3a).
 

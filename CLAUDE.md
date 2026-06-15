@@ -28,7 +28,7 @@ push / merge / deploy. Per-issue loop:
 2. **Spec (SDD)** — `feature-forge` (new behavior) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs); `design-architect` for UI design-plans.
 4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing test).
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (3-lens) for UI.
+5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (4-lens) for UI.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
 8. **Ship** — `release-engineer` (branch → commit → push → PR). Director merges.
@@ -62,7 +62,7 @@ provider is unavailable — the loop is substrate-agnostic.
 - **Data/schema:** reversible migrations; **RLS on every business table**; `org_id` + app/workspace
   seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
-  source of truth; 3-lens design review before merging UI changes.
+  source of truth; 4-lens design review (Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) before merging UI changes.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
