@@ -26,7 +26,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { getTask, createTask, updateTaskStatus } from '../../lib/db/tasks'
+import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask } from '../../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../../lib/db/directory'
 import { TaskSurface } from './TaskSurface'
 
@@ -155,6 +155,61 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => {
       expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID)
     })
+  })
+})
+
+// ── Mutation handlers (self-coverage — these previously relied transitively on
+//    pages/TaskDetail.test.tsx; pin them directly to the new unit so PR-B can't
+//    drop the proof of behavior-preservation silently) ──────────────────────────
+describe('TaskSurface — mutation handlers', () => {
+  const item: ChecklistItemRow = {
+    id: 'item-9', org_id: 'org', task_id: 'task-abc', label: 'Drain reservoir',
+    is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
+  }
+
+  it('checklist toggle (optimistic): calls toggleChecklistItem with the new done state', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
+    vi.mocked(toggleChecklistItem).mockResolvedValue()
+    renderSurface()
+    await waitFor(() => screen.getByText('Drain reservoir'))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Drain reservoir' }))
+    await waitFor(() =>
+      expect(vi.mocked(toggleChecklistItem)).toHaveBeenCalledWith('item-9', true, 'task-abc', VIEWER_ID),
+    )
+  })
+
+  it('checklist toggle (rollback): reverts the checkbox when the write rejects', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
+    vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
+    renderSurface()
+    await waitFor(() => screen.getByText('Drain reservoir'))
+    const cb = () => screen.getByRole('checkbox', { name: 'Drain reservoir' }) as HTMLInputElement
+    expect(cb().checked).toBe(false)
+    fireEvent.click(cb())
+    await waitFor(() => expect(vi.mocked(toggleChecklistItem)).toHaveBeenCalled())
+    // optimistic flips on, the catch arm rolls back to off
+    await waitFor(() => expect(cb().checked).toBe(false))
+  })
+
+  it('RACI change (rollback): restores the consulted chip when updateTaskRaci rejects', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ consulted_person_ids: ['other-id'] }), checklist: [], events: [] })
+    vi.mocked(updateTaskRaci).mockRejectedValue(new Error('write failed'))
+    renderSurface()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    expect(screen.getByTestId('chip-consulted')).toHaveTextContent('Other Person')
+    fireEvent.click(screen.getByRole('button', { name: /remove consulted person other person/i }))
+    await waitFor(() => expect(vi.mocked(updateTaskRaci)).toHaveBeenCalled())
+    // rollback restores the removed chip
+    await waitFor(() => expect(screen.getByTestId('chip-consulted')).toHaveTextContent('Other Person'))
+  })
+
+  it('unarchive: archived task surfaces Unarchive and calls unarchiveTask', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
+    vi.mocked(unarchiveTask).mockResolvedValue()
+    renderSurface()
+    await waitFor(() => screen.getByText(/this task is archived/i))
+    fireEvent.click(screen.getByRole('button', { name: /unarchive/i }))
+    await waitFor(() => expect(vi.mocked(unarchiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
   })
 })
 
