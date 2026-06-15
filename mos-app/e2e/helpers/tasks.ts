@@ -15,15 +15,16 @@ export async function createTaskViaUI(
   await newTaskLink.click()
   await page.waitForURL(/\/tasks\/new$/)
 
-  // Fill the title
-  await page.getByLabel(/title/i).fill(title)
+  // The create surface mounts BESIDE the persistent table (split-view, ADR-0007),
+  // so scope to the create form — the toolbar has its own BU/search controls.
+  const form = page.getByRole('form', { name: /create task form/i })
+  await form.getByLabel('Title').fill(title)
 
-  // BU should already be pre-filled (creator's primary-role BU) — verify it's not empty
-  const buSelect = page.getByLabel(/business unit/i)
-  await buSelect.waitFor({ state: 'visible' })
+  // BU should already be pre-filled (creator's primary-role BU) — verify it's there.
+  await form.getByLabel('Business unit').waitFor({ state: 'visible' })
 
   // Submit
-  await page.getByRole('button', { name: /create task/i }).click()
+  await form.getByRole('button', { name: /create task/i }).click()
 
   // Wait for navigation to the new task detail page
   await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 15_000 })

@@ -72,14 +72,14 @@ export default function TaskDrawer({ mode }: TaskDrawerProps) {
     // Re-run when the task or regime changes (a fresh surface mounts).
   }, [taskId, mode, isModal])
 
-  // Modal-only: focus trap + Esc.
+  // Modal-only: focus trap (on the panel) + Esc (on the document, since the modal
+  // owns the whole screen and focus may rest on the body/scrim).
   useEffect(() => {
     if (!isModal) return
     const panel = panelRef.current
     if (!panel) return
 
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); close(); return }
+    function onTrapKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Tab') return
       const focusable = Array.from(panel!.querySelectorAll<HTMLElement>(FOCUSABLE))
         .filter(el => el.offsetParent !== null || el === document.activeElement)
@@ -92,8 +92,15 @@ export default function TaskDrawer({ mode }: TaskDrawerProps) {
         e.preventDefault(); firstEl.focus()
       }
     }
-    panel.addEventListener('keydown', onKeyDown)
-    return () => panel.removeEventListener('keydown', onKeyDown)
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.preventDefault(); close() }
+    }
+    panel.addEventListener('keydown', onTrapKeyDown)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      panel.removeEventListener('keydown', onTrapKeyDown)
+      document.removeEventListener('keydown', onEsc)
+    }
   }, [isModal, taskId, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const label = mode === 'create' ? 'New task' : 'Task detail'
