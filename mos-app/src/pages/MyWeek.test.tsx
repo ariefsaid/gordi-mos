@@ -340,8 +340,15 @@ describe('AC-051: My Week strip — Draft state', () => {
 })
 
 describe('AC-051: My Week strip — Submitted state', () => {
+  // Freeze Date to Wed 10 Jun 2026 12:00 WIB (05:00Z) so weekStartISO(now)='2026-06-08'.
+  // Only fake 'Date' — leave setTimeout/setInterval real so RTL waitFor/act work normally.
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-10T05:00:00Z'))
     vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('strip shows "Submitted" pill and on-time indicator (AC-051)', async () => {

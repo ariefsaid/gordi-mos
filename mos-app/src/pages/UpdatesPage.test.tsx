@@ -1,6 +1,6 @@
 // TDD: UpdatesPage — write pane states, validation, mutations (PR-b, AC-031..038, AC-030 timing signal)
 // Review pane (PR-c, AC-040..046), My Week strip (AC-050..051)
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '../auth/context'
@@ -336,9 +336,16 @@ describe('UpdatesPage write pane — submitted (locked) state (AC-031, AC-037)',
 })
 
 describe('UpdatesPage write pane — submitted late signal (§2.5)', () => {
+  // Freeze Date to Wed 10 Jun 2026 12:00 WIB (05:00Z) so weekStartISO(now)='2026-06-08'.
+  // Only fake 'Date' — leave setTimeout/setInterval real so RTL waitFor/act work normally.
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-10T05:00:00Z'))
     vi.clearAllMocks()
     mockGetMyUpdate.mockResolvedValue(LATE_SUBMITTED_UPDATE)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('submitted late shows "late" signal (§2.5 design-plan)', async () => {
@@ -552,9 +559,16 @@ describe('UpdatesPage review pane — roster rows (AC-040)', () => {
 })
 
 describe('UpdatesPage review pane — on-time / late signal (AC-042)', () => {
+  // Freeze Date to Wed 10 Jun 2026 12:00 WIB (05:00Z) so weekStartISO(now)='2026-06-08'.
+  // Only fake 'Date' — leave setTimeout/setInterval real so RTL waitFor/act work normally.
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-10T05:00:00Z'))
     vi.clearAllMocks()
     mockGetMyUpdate.mockResolvedValue(null)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('filed row with on-time submit shows "on time" signal (AC-042)', async () => {
