@@ -285,7 +285,11 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Style:** `background` fill, 1px `input` border, 8px radius, 32px tall, `0 10px` padding. Placeholder = `muted-foreground`. The search-mini and the header `cmdk` are the canonical field shells; inner `<input>` is borderless/transparent and inherits the font.
 - **Focus:** `:focus-visible` ring (`2px {colors.ring}`, 2px offset). The `cmdk` also shifts its border on hover (`muted-foreground/50%`).
 - **Checkbox:** 16px, 1.5px `input` border, 4px radius; checked → `primary` fill + `primary` border + white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
-- **Error / Disabled (gap — see Open Questions):** no error-state field styling in source. Proposed: error border = `destructive`, helper text = `destructive`; disabled = `secondary` bg + `muted-foreground` text + `not-allowed`.
+- **Error (field validation — RATIFIED 2026-06-15, OD-P3-5):** the documented gap is now closed with two named tokens, both reusing existing palette values (no new hue):
+  - `--field-error-border` = `destructive` — the field's 1px `input` border swaps to `destructive` while the field is invalid.
+  - `--field-error-text` = `--status-lost-text` (`0 72% 45%`, the AA-darkened red) — for the helper/error line below the field. **Not** base `destructive`, which fails AA (~3.6:1) as small text on white; the darkened red clears AA (≥4.5:1), mirroring the Tinted-Status pattern (saturated hue for the marker/outline, darkened variant for the text).
+  - Applied on inline-validate-on-blur in the create-task form (OD-P3-4). Base `destructive` stays the field *outline*; the error *text* is always `--status-lost-text`.
+- **Disabled (gap — see Open Questions):** no disabled-field styling in source; proposed `secondary` bg + `muted-foreground` text + `not-allowed` cursor. Not yet ratified (no owner-driven disabled-field need yet); the error pair above is the only §5 Inputs item ratified so far.
 
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
@@ -420,3 +424,11 @@ The Ops Log feed (`/ops`) renders log entries with:
 PMO's data-dense DataTable posture stays: sortable columns, functional filters, loading/empty/error
 states. Density mode governs *home*, not the working lists ("Executive vs Data-Dense split" —
 at-a-glance up top, dense where the work happens).
+
+### Field-error tokens (RATIFIED 2026-06-15, OD-P3-5 — reuse existing hues, no new brand)
+Cross-reference to §5 Inputs. The create-task form's inline-validate-on-blur uses two named tokens,
+both reusing existing palette values:
+- `--field-error-border` = `destructive` — the invalid field's 1px outline.
+- `--field-error-text` = `--status-lost-text` (`0 72% 45%`) — the helper/error text below the field
+  (AA-darkened red; base `destructive` would fail AA as small text on white).
+This closes the long-standing §5 Inputs error-field gap; it is composition/state only, no new hue.
