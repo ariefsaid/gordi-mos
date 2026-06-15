@@ -26,7 +26,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask } from '../../lib/db/tasks'
+import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask, archiveTask } from '../../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../../lib/db/directory'
 import { TaskSurface } from './TaskSurface'
 
@@ -203,6 +203,19 @@ describe('TaskSurface — mutation handlers', () => {
     await waitFor(() => expect(screen.getByTestId('chip-consulted')).toHaveTextContent('Other Person'))
   })
 
+  // I3: archiving reports the id back to the host (so the table drops the row).
+  it('I3: confirming archive calls archiveTask then onTaskArchived with the id', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    vi.mocked(archiveTask).mockResolvedValue(undefined)
+    const onTaskArchived = vi.fn()
+    renderSurface({ onTaskArchived, onClose: vi.fn() })
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^archive$/i }))
+    await waitFor(() => expect(vi.mocked(archiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
+    expect(onTaskArchived).toHaveBeenCalledWith('task-abc')
+  })
+
   it('unarchive: archived task surfaces Unarchive and calls unarchiveTask', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
     vi.mocked(unarchiveTask).mockResolvedValue()
@@ -350,6 +363,17 @@ describe('TaskSurface — create mode', () => {
     expect(mockCreateTask).not.toHaveBeenCalled()
   })
 
+  // I4: the field-error TEXT must use the AA-darkened red (--status-lost-text /
+  // --field-error-text), NOT base --destructive (~3.6:1, fails AA as small text).
+  // The invalid field outline may stay --destructive (it's a non-text affordance).
+  it('I4: the field-error helper text renders with the tc-field-error class', async () => {
+    renderCreate()
+    await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    const err = await screen.findByText(/title is required/i)
+    expect(err).toHaveClass('tc-field-error')
+  })
+
   it('AC-107 (create drawer): at drawer width renders a "New task" bar with no double card frame', async () => {
     render(
       <AuthContext.Provider value={authedState}>
@@ -366,6 +390,61 @@ describe('TaskSurface — create mode', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Drawer task' } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Drawer task' })))
+  })
+
+  // M5: the create-mode drawer bar must include the expand toggle for parity
+  // with view mode (mockup Screen 2). It reflects `expanded` and calls back.
+  it('M5: create-mode drawer bar shows the expand toggle and calls onExpandToggle', async () => {
+    const onExpandToggle = vi.fn()
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/tasks/new']}>
+          <TaskSurface
+            taskId={null} mode="create" width="drawer"
+            expanded={false} onExpandToggle={onExpandToggle} onClose={vi.fn()}
+          />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    const toggle = screen.getByRole('button', { name: /expand to full width/i })
+    expect(toggle).toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(onExpandToggle).toHaveBeenCalled()
+  })
+
+  it('M5: create-mode drawer bar reflects expanded=true (collapse affordance + full-width crumb)', async () => {
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/tasks/new']}>
+          <TaskSurface
+            taskId={null} mode="create" width="drawer"
+            expanded onExpandToggle={vi.fn()} onClose={vi.fn()}
+          />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    expect(screen.getByRole('button', { name: /collapse to split/i })).toBeInTheDocument()
+    expect(screen.getByText(/new task · full width/i)).toBeInTheDocument()
+    expect(document.querySelector('.dw-surface-expanded')).toBeTruthy()
+  })
+
+  // C2: a successful create reports the new id back to the host (so the table
+  // can refetch) before navigating.
+  it('C2: successful create calls onTaskCreated with the new id', async () => {
+    const onTaskCreated = vi.fn()
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/tasks/new']}>
+          <TaskSurface taskId={null} mode="create" width="drawer" onClose={vi.fn()} onTaskCreated={onTaskCreated} />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => screen.getByLabelText(/title/i))
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Reportable task' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await waitFor(() => expect(onTaskCreated).toHaveBeenCalledWith('new-task-id'))
   })
 
   it('AC-081 (TaskSurface create): valid submit calls createTask and navigates to the new task', async () => {

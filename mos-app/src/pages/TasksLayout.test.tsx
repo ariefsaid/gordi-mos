@@ -26,14 +26,17 @@ vi.mock('../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listTasks, getTask, updateTaskStatus } from '../lib/db/tasks'
+import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
 import TasksLayout from './TasksLayout'
 import TaskDrawer from '../components/tasks/TaskDrawer'
+import { __resetExpandPrefForTests } from '../components/tasks/useExpandPref'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
+const mockCreateTask = vi.mocked(createTask)
+const mockArchiveTask = vi.mocked(archiveTask)
 
 function stubMatchMedia(matches: boolean) {
   Object.defineProperty(window, 'matchMedia', {
@@ -80,6 +83,7 @@ const PEOPLE = [{ id: VIEWER_ID, full_name: 'Arief Said' }]
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
+  __resetExpandPrefForTests()
   stubMatchMedia(true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
@@ -176,5 +180,95 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/tasks/new')
     await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
     expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
+  })
+
+  // RI-1 (C1): the expand toggle must collapse the table live — the .split grid
+  // and the layout-driving `expanded` prop share ONE source of truth. Previously
+  // useExpandPref was instantiated twice (read-only in TasksLayout, setter in
+  // TaskDrawer) so toggling flipped the drawer + localStorage but the grid never
+  // re-rendered until reload. Both panes must reflect the toggle in the SAME render.
+  it('RI-1: toggling expand in the drawer collapses the .split grid to one column live (no reload)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    renderAt('/tasks/task-1')
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    // Split view (not expanded): grid is two-column, table assembly visible
+    const split = document.querySelector('.split')
+    expect(split).toBeTruthy()
+    expect(split?.classList.contains('expanded')).toBe(false)
+    expect(document.querySelector('.assembly')).toBeTruthy()
+
+    // Toggle expand from the drawer header
+    fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
+
+    // SAME render: the layout grid collapses to one column (.split.expanded) —
+    // no reload required.
+    await waitFor(() => {
+      expect(document.querySelector('.split.expanded')).toBeTruthy()
+    })
+    // and the drawer itself reflects the expanded state
+    expect(document.querySelector('.dw-surface-expanded')).toBeTruthy()
+  })
+
+  // RI-2 (C2): after creating a task in the drawer, the table must show the new
+  // row + updated count without a reload. Previously TasksTable fetched only on
+  // [businessUnitId, statusFilter, includeArchived] so create had no refetch
+  // channel — the count + empty-copy said "0 tasks" while the drawer showed it.
+  it('RI-2: creating a task in the drawer adds its row to the table + updates the count (no reload)', async () => {
+    // First load: empty list. After create: the new row is present.
+    mockListTasks
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([makeTask({ id: 'task-new', title: 'Freshly created' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-new', title: 'Freshly created' }), checklist: [], events: [] })
+    mockCreateTask.mockResolvedValue('task-new')
+    renderAt('/tasks/new')
+    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+    // Initially the table is empty (0 tasks)
+    await waitFor(() => expect(screen.getByText(/0 tasks/i)).toBeInTheDocument())
+
+    // Fill + submit the create form (title required; BU pre-fills from role)
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Freshly created' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+
+    // The new row appears in the table and the count reflects it — no reload.
+    await waitFor(() => {
+      expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
+    })
+    expect(screen.getByText('Freshly created')).toBeInTheDocument()
+    expect(screen.getByText(/1 task\b/i)).toBeInTheDocument()
+    // and the new task's row is the selected one (we navigated to /tasks/task-new)
+    await waitFor(() => {
+      const sel = document.querySelector('tr.task-row.row-selected')
+      expect(sel?.textContent).toContain('Freshly created')
+    })
+  })
+
+  // RI-3 (I3): archiving from the drawer must remove the row from the default
+  // list + decrement the count without a reload.
+  it('RI-3: archiving from the drawer removes the row from the default list + decrements the count (no reload)', async () => {
+    mockListTasks
+      .mockResolvedValueOnce([
+        makeTask({ id: 'task-1', title: 'Keep me' }),
+        makeTask({ id: 'task-2', title: 'Archive me' }),
+      ])
+      .mockResolvedValue([makeTask({ id: 'task-1', title: 'Keep me' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-2', title: 'Archive me' }), checklist: [], events: [] })
+    mockArchiveTask.mockResolvedValue()
+    renderAt('/tasks/task-2')
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    await waitFor(() => expect(screen.getByText(/2 tasks/i)).toBeInTheDocument())
+
+    // Archive from the drawer foot (collapsed split shows "Archive task")
+    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    // Confirm the archive dialog
+    const confirm = await screen.findByRole('button', { name: /^archive$/i })
+    fireEvent.click(confirm)
+
+    // The archived row leaves the default list + the count decrements — no reload.
+    await waitFor(() => {
+      expect(screen.queryByText('Archive me')).toBeNull()
+    })
+    expect(screen.getByText('Keep me')).toBeInTheDocument()
+    expect(screen.getByText(/1 task\b/i)).toBeInTheDocument()
   })
 })

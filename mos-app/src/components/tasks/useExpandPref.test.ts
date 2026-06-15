@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useExpandPref } from './useExpandPref'
+import { useExpandPref, __resetExpandPrefForTests } from './useExpandPref'
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => { localStorage.clear(); __resetExpandPrefForTests() })
 
 describe('useExpandPref (AC-104, AC-105) — per-user-global expand persistence', () => {
   it('AC-105: defaults to false when nothing is persisted', () => {
@@ -12,8 +12,19 @@ describe('useExpandPref (AC-104, AC-105) — per-user-global expand persistence'
 
   it('AC-105: reads the persisted value (true) on mount', () => {
     localStorage.setItem('mos.tasks.expandDefault', 'true')
+    __resetExpandPrefForTests() // sync the shared snapshot to the freshly-set storage
     const { result } = renderHook(() => useExpandPref())
     expect(result.current[0]).toBe(true)
+  })
+
+  it('C1: two independent consumers share one source — a toggle in one updates the other', () => {
+    const a = renderHook(() => useExpandPref())
+    const b = renderHook(() => useExpandPref())
+    expect(a.result.current[0]).toBe(false)
+    expect(b.result.current[0]).toBe(false)
+    act(() => a.result.current[1](true))
+    expect(a.result.current[0]).toBe(true)
+    expect(b.result.current[0]).toBe(true) // the OTHER consumer re-rendered too
   })
 
   it('AC-104: toggling persists to localStorage', () => {

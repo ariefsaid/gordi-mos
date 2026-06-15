@@ -27,6 +27,7 @@ vi.mock('../../lib/db/directory', () => ({
 import { getTask } from '../../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../../lib/db/directory'
 import TaskDrawer from './TaskDrawer'
+import { __resetExpandPrefForTests } from './useExpandPref'
 
 const mockGetTask = vi.mocked(getTask)
 const VIEWER_ID = 'viewer-person-id'
@@ -62,6 +63,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
+  __resetExpandPrefForTests()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Cafe Operations' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
 })
@@ -94,6 +96,7 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
 
   it('AC-104/105: when the expand pref is persisted true, the surface renders full width', async () => {
     localStorage.setItem('mos.tasks.expandDefault', 'true')
+    __resetExpandPrefForTests() // sync the shared snapshot to the freshly-set storage
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/tasks/task-abc')
     await waitFor(() => expect(document.querySelector('.dw-surface-expanded')).toBeTruthy())

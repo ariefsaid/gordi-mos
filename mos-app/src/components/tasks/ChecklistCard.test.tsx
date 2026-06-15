@@ -23,6 +23,26 @@ describe('ChecklistCard', () => {
     expect(onAdd).toHaveBeenCalledWith('Buy beans')
   })
 
+  // M7: the empty Checklist tab must show the "No steps yet." copy for EVERYONE
+  // (plan §3.2 / design-plan §168) — previously it only rendered for non-editors,
+  // so an editor with an empty checklist saw a bare add-field with no empty line.
+  it('M7: shows "No steps yet." when empty, for an editor (with the add field too)', () => {
+    render(
+      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+        onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
+    )
+    expect(screen.getByText(/no steps yet\./i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/add checklist item/i)).toBeInTheDocument()
+  })
+
+  it('M7: shows "No steps yet." when empty, for a non-editor', () => {
+    render(
+      <ChecklistCard items={[]} canEdit={false} taskId="t" viewerId="v"
+        onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
+    )
+    expect(screen.getByText(/no steps yet\./i)).toBeInTheDocument()
+  })
+
   it('disables the checkbox when canEdit=false', () => {
     render(
       <ChecklistCard items={items(['Step A'])} canEdit={false} taskId="t" viewerId="v"

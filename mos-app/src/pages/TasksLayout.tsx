@@ -33,7 +33,15 @@ export default function TasksLayout() {
       return next
     })
   }, [])
-  const outletContext: TaskDrawerOutletContext = { onTaskChanged }
+
+  // C2/I3: create + archive have no optimistic-row channel, so bump a refresh key
+  // the table watches — it refetches the list so a just-created row appears (and
+  // becomes the selected row) and an archived row leaves the default list + the
+  // count updates, both WITHOUT a reload.
+  const [refreshKey, setRefreshKey] = useState(0)
+  const onTaskCreated = useCallback(() => setRefreshKey(k => k + 1), [])
+  const onTaskArchived = useCallback(() => setRefreshKey(k => k + 1), [])
+  const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived }
 
   return (
     <PageFrame>
@@ -42,6 +50,7 @@ export default function TasksLayout() {
         drawerOpen={drawerOpen}
         expanded={expanded}
         statusOverrides={statusOverrides}
+        refreshKey={refreshKey}
         drawerSlot={<Outlet context={outletContext} />}
       />
     </PageFrame>

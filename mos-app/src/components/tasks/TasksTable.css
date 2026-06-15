@@ -72,6 +72,18 @@
 .archived-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); }
 .archived-label { font-size: 13px; }
 
+/* ── M6: condensed (drawer-open) toolbar — keep it to ≤2 tidy rows ──
+   At the squashed column width the labelled controls + segmented control +
+   search + archived toggle wrapped to ~3 rows with an empty band. In condensed
+   mode we drop the in-control text labels (the <select> keeps its aria-label so
+   a11y is intact), let the search take the remaining row, and tighten gaps. */
+.assembly.condensed .toolbar { gap: 6px; padding: 8px 10px; }
+.assembly.condensed .toolbar .ctrl-lbl { display: none; }
+.assembly.condensed .toolbar .control { padding: 0 8px; }
+.assembly.condensed .toolbar .seg-btn { padding: 0 8px; }
+.assembly.condensed .toolbar .search-mini { min-width: 120px; flex: 1 1 120px; }
+.assembly.condensed .toolbar .archived-toggle { padding: 0 8px; }
+
 /* ── Table ── */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 /* Default 5-col widths */

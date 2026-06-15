@@ -35,6 +35,8 @@ export type TaskSurfaceProps = {
   onExpandToggle?: () => void    // wired in PR-B
   expanded?: boolean
   onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
+  onTaskCreated?: (id: string) => void         // C2: lets the table refetch after a create (PR-B)
+  onTaskArchived?: (id: string) => void        // I3: lets the table refetch after an archive (PR-B)
   onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
 }
 
@@ -62,7 +64,7 @@ export function TaskSurface(props: TaskSurfaceProps) {
 
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
-  taskId, width, expanded, onClose, onExpandToggle, onTaskChanged, onTitleResolved,
+  taskId, width, expanded, onClose, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
@@ -255,6 +257,7 @@ function ViewSurface({
     if (!localTask) return
     try {
       await archiveTask(localTask.id, viewerId)
+      onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
       else navigate('/tasks')
     } catch { /* surface */ }
@@ -502,7 +505,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ onClose, width }: TaskSurfaceProps) {
+function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const inDrawer = width === 'drawer'
@@ -581,6 +584,7 @@ function CreateSurface({ onClose, width }: TaskSurfaceProps) {
         dueDate: dueDate || null,
       }
       const newId = await createTask(input)
+      onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
       navigate(`/tasks/${newId}`)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong')
@@ -589,11 +593,30 @@ function CreateSurface({ onClose, width }: TaskSurfaceProps) {
   }
 
   return (
-    <div className={inDrawer ? 'dw-surface tc-create-drawer' : 'tc-card'}>
+    <div className={inDrawer ? `dw-surface tc-create-drawer${expanded ? ' dw-surface-expanded' : ''}` : 'tc-card'}>
       {inDrawer && (
         <div className="dw-bar">
-          <span className="dw-crumb-mini">New task</span>
+          <span className="dw-crumb-mini">{expanded ? 'New task · full width' : 'New task'}</span>
           <span className="dw-bar-spacer" />
+          {/* M5: create mode keeps the expand toggle for parity with view mode (mockup Screen 2) */}
+          <button
+            type="button"
+            className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
+            aria-pressed={Boolean(expanded)}
+            aria-label={expanded ? 'Collapse to split (e)' : 'Expand to full width (e)'}
+            title={expanded ? 'Collapse (e)' : 'Expand (e)'}
+            onClick={() => onExpandToggle?.()}
+          >
+            {expanded ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            )}
+          </button>
           <button
             type="button"
             className="dw-iconbtn"

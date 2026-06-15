@@ -6,6 +6,10 @@ import type { TaskListRow } from '../../lib/db/tasks.types'
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
   onTaskChanged?: (task: TaskListRow) => void
+  /** C2: lets the surface tell the table to refetch after a create. */
+  onTaskCreated?: (id: string) => void
+  /** I3: lets the surface tell the table to refetch after an archive. */
+  onTaskArchived?: (id: string) => void
 }
 
 export type TaskDrawerProps = {
@@ -44,6 +48,8 @@ export default function TaskDrawer({ mode }: TaskDrawerProps) {
         onExpandToggle={() => setExpanded(e => !e)}
         onClose={() => navigate('/tasks')}
         onTaskChanged={ctx?.onTaskChanged}
+        onTaskCreated={ctx?.onTaskCreated}
+        onTaskArchived={ctx?.onTaskArchived}
       />
     </aside>
   )

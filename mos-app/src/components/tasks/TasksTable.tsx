@@ -31,6 +31,8 @@ export type TasksTableProps = {
   expanded?: boolean
   /** Optimistic per-row overrides fed by the open drawer (AC-103). */
   statusOverrides?: Map<string, TaskStatus>
+  /** C2/I3: bump this to force a list refetch (after create/archive in the drawer). */
+  refreshKey?: number
   /** The drawer slot (the router <Outlet>); rendered inside the .split grid. */
   drawerSlot?: ReactNode
 }
@@ -94,7 +96,7 @@ function TaskCard({ task, now, buName, rName }: TaskCardProps) {
  * (TasksLayout) AND the standalone full-page host. Selection, condense ladder,
  * and optimistic status sync are split-view additions driven by props.
  */
-export function TasksTable({ selectedId, drawerOpen = false, expanded = false, statusOverrides, drawerSlot }: TasksTableProps) {
+export function TasksTable({ selectedId, drawerOpen = false, expanded = false, statusOverrides, refreshKey = 0, drawerSlot }: TasksTableProps) {
   const condensed = drawerOpen && !expanded
   const isDesktop = useIsDesktop()
   const navigate = useNavigate()
@@ -155,7 +157,9 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
     return () => { cancelled = true }
   }, [businessUnitId, statusFilter, includeArchived])
 
-  useEffect(() => { const cancel = load(); return cancel }, [load])
+  // C2/I3: refetch on filter changes AND whenever the host bumps refreshKey
+  // (create/archive in the drawer). refreshKey is intentionally an extra dep.
+  useEffect(() => { const cancel = load(); return cancel }, [load, refreshKey])
 
   // ── Apply optimistic status overrides from the open drawer ────────────────
   const tasksWithOverrides = useMemo(() => {
