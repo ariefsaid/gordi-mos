@@ -1,0 +1,633 @@
+import './TaskSurface.css'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../../auth/useAuth'
+import {
+  getTask, createTask,
+  updateTaskStatus, updateTaskRaci, updateTaskFields,
+  addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
+  archiveTask, unarchiveTask,
+} from '../../lib/db/tasks'
+import type { TaskDetail as TaskDetailData, CreateTaskInput } from '../../lib/db/tasks'
+import type { TaskListRow, TaskStatus, ChecklistItemRow } from '../../lib/db/tasks.types'
+import { getBusinessUnits, getPeople } from '../../lib/db/directory'
+import type { BusinessUnitOption, PersonOption } from '../../lib/db/directory'
+import { StatusPill } from './StatusPill'
+import { formatAge, formatDate } from './taskFormatters'
+import { StatusTrigger } from './StatusTrigger'
+import { ConfirmArchive } from './ConfirmArchive'
+import { RaciCard } from './RaciCard'
+import { ChecklistCard } from './ChecklistCard'
+import { ActivityCard } from './ActivityCard'
+import { canEdit, canArchive } from './taskPermissions'
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+// PR-A: TaskSurface is the single actionable task editor (ADR-0007 "one UI, two
+// widths"). It renders the full-width host today; PR-B adds the drawer width.
+export type TaskSurfaceProps = {
+  taskId: string | null          // null only in create mode
+  mode: 'view' | 'create'
+  width: 'drawer' | 'full'
+  onClose?: () => void           // drawer/expanded use this; full host passes navigate('/tasks')
+  onExpandToggle?: () => void    // wired in PR-B
+  expanded?: boolean
+  onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
+  onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
+}
+
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+function DetailSkeleton() {
+  return (
+    <div aria-busy="true">
+      <span className="sr-only" role="status">Loading task</span>
+      <div className="card sk-block">
+        <div className="sk" style={{ width: '40%', height: 24, marginBottom: 12 }} />
+        <div className="sk" style={{ width: '60%', height: 14 }} />
+      </div>
+      <div className="card sk-block">
+        <div className="sk" style={{ width: '30%', height: 14, marginBottom: 8 }} />
+        <div className="sk" style={{ width: '80%', height: 14 }} />
+      </div>
+    </div>
+  )
+}
+
+export function TaskSurface(props: TaskSurfaceProps) {
+  if (props.mode === 'create') return <CreateSurface {...props} />
+  return <ViewSurface {...props} />
+}
+
+// ── View mode ──────────────────────────────────────────────────────────────────
+function ViewSurface({ taskId, onClose, onTitleResolved }: TaskSurfaceProps) {
+  const navigate = useNavigate()
+  const auth = useAuth()
+
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  const isManager = auth.status === 'authenticated' ? auth.viewer.isManager : false
+
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [data, setData] = useState<TaskDetailData | null>(null)
+  const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
+  const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+
+  // Optimistic local state
+  const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
+  const [localChecklist, setLocalChecklist] = useState<ChecklistItemRow[]>([])
+
+  const now = useMemo(() => new Date(), [data]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const load = useCallback(() => {
+    if (!taskId) return
+    setLoading(true)
+    setNotFound(false)
+    Promise.all([
+      getTask(taskId),
+      getBusinessUnits(),
+      getPeople(),
+    ]).then(([taskData, bus, people]) => {
+      setData(taskData)
+      setLocalTask(taskData.task)
+      setLocalChecklist(taskData.checklist)
+      setBusDirectory(bus)
+      setPeopleDirectory(people)
+      setLoading(false)
+    }).catch(() => {
+      setNotFound(true)
+      setLoading(false)
+    })
+  }, [taskId])
+
+  useEffect(() => { load() }, [load])
+
+  // Notify a host of the resolved title (e.g. for the breadcrumb)
+  useEffect(() => {
+    if (localTask && onTitleResolved) onTitleResolved(localTask.title)
+  }, [localTask, onTitleResolved])
+
+  // ── Lookup maps ─────────────────────────────────────────────────────────
+  const buMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const bu of busDirectory) m.set(bu.id, bu.name)
+    return m
+  }, [busDirectory])
+
+  // ── Permission ───────────────────────────────────────────────────────────
+  // M2: archived task is read-only except Unarchive — treat as non-editor
+  const isArchived = localTask?.archived_at != null
+
+  const editable = useMemo(() => {
+    if (isArchived) return false // M2: archived suppresses all edit affordances
+    return localTask ? canEdit(localTask, viewerId, isManager) : false
+  }, [localTask, viewerId, isManager, isArchived])
+
+  const archiveable = useMemo(() => localTask
+    ? canArchive(localTask, viewerId, isManager)
+    : false,
+  [localTask, viewerId, isManager])
+
+  // ── Status change ────────────────────────────────────────────────────────
+  async function handleStatusChange(newStatus: TaskStatus) {
+    if (!localTask) return
+    const oldStatus = localTask.status
+    setLocalTask(t => t ? { ...t, status: newStatus } : t)
+    try {
+      await updateTaskStatus(localTask.id, oldStatus, newStatus, viewerId)
+      const refreshed = await getTask(localTask.id)
+      setData(refreshed)
+      setLocalTask(refreshed.task)
+      setLocalChecklist(refreshed.checklist)
+    } catch {
+      setLocalTask(t => t ? { ...t, status: oldStatus } : t)
+    }
+  }
+
+  // ── Shared: refetch events after any mutation ────────────────────────────
+  async function refetchEvents(id: string) {
+    try {
+      const refreshed = await getTask(id)
+      setData(refreshed)
+    } catch { /* non-critical — stale events are acceptable */ }
+  }
+
+  // ── RACI C/I change ──────────────────────────────────────────────────────
+  async function handleRaciChange(patch: Partial<Pick<TaskListRow, 'consulted_person_ids' | 'informed_person_ids'>>) {
+    if (!localTask) return
+    const prev = { ...localTask }
+    setLocalTask(t => t ? { ...t, ...patch } : t)
+    try {
+      await updateTaskRaci(localTask.id, patch, viewerId)
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalTask(prev)
+    }
+  }
+
+  // ── RACI R/A change (I2) ─────────────────────────────────────────────────
+  async function handleRaChange(patch: Partial<Pick<TaskListRow, 'responsible_person_id' | 'accountable_person_id'>>) {
+    if (!localTask) return
+    const prev = { ...localTask }
+    setLocalTask(t => t ? { ...t, ...patch } : t)
+    try {
+      await updateTaskFields(localTask.id, patch, viewerId)
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalTask(prev)
+    }
+  }
+
+  // ── Checklist add ────────────────────────────────────────────────────────
+  async function handleAddChecklist(label: string) {
+    if (!localTask) return
+    const position = localChecklist.length
+    const newItem: ChecklistItemRow = {
+      id: `optimistic-${Date.now()}`, org_id: '', task_id: localTask.id,
+      label, is_done: false, position,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }
+    setLocalChecklist(prev => [...prev, newItem])
+    try {
+      await addChecklistItem(localTask.id, label, position, viewerId)
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
+    }
+  }
+
+  // ── Checklist toggle ─────────────────────────────────────────────────────
+  async function handleToggle(itemId: string, isDone: boolean) {
+    if (!localTask) return
+    setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: isDone } : i))
+    try {
+      await toggleChecklistItem(itemId, isDone, localTask.id, viewerId)
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: !isDone } : i))
+    }
+  }
+
+  // ── Checklist reorder ────────────────────────────────────────────────────
+  async function handleReorder(itemId: string, direction: 'up' | 'down') {
+    const idx = localChecklist.findIndex(i => i.id === itemId)
+    if (idx < 0) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= localChecklist.length) return
+
+    const prev = localChecklist
+    const next = [...localChecklist]
+    const swapId = next[swapIdx].id
+    ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+    const reindexed = next.map((item, i) => ({ ...item, position: i }))
+    setLocalChecklist(reindexed)
+    try {
+      await reorderChecklistItem(itemId, swapIdx)
+      await reorderChecklistItem(swapId, idx)
+    } catch {
+      setLocalChecklist(prev)
+    }
+  }
+
+  // ── Checklist delete ─────────────────────────────────────────────────────
+  async function handleDeleteChecklist(itemId: string) {
+    if (!localTask) return
+    const prev = localChecklist
+    setLocalChecklist(p => p.filter(i => i.id !== itemId))
+    try {
+      await deleteChecklistItem(itemId, localTask.id, viewerId)
+      await refetchEvents(localTask.id)
+    } catch {
+      setLocalChecklist(prev)
+    }
+  }
+
+  // ── Archive/unarchive ────────────────────────────────────────────────────
+  const [showConfirm, setShowConfirm] = useState(false)
+  async function handleArchive() {
+    if (!localTask) return
+    try {
+      await archiveTask(localTask.id, viewerId)
+      if (onClose) onClose()
+      else navigate('/tasks')
+    } catch { /* surface */ }
+  }
+  async function handleUnarchive() {
+    if (!localTask) return
+    try {
+      await unarchiveTask(localTask.id, viewerId)
+      setLocalTask(t => t ? { ...t, archived_at: null } : t)
+      load()
+    } catch { /* surface */ }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  if (loading) return <DetailSkeleton />
+
+  if (notFound || !localTask) {
+    return (
+      <div className="not-found-panel">
+        <h1 className="not-found-title">Task not found</h1>
+        <p className="not-found-copy">This task doesn&apos;t exist or you don&apos;t have access.</p>
+        <Link to="/tasks" className="btn-outline-link">All tasks</Link>
+      </div>
+    )
+  }
+
+  const task = localTask
+  const buName = buMap.get(task.business_unit_id) ?? task.business_unit_id
+  const events = data?.events ?? []
+
+  return (
+    <>
+      {/* Archived banner */}
+      {isArchived && (
+        <div className="archived-banner" role="status">
+          <span>This task is archived.</span>
+          {archiveable && (
+            <button type="button" className="btn-outline-sm" onClick={handleUnarchive}>
+              Unarchive
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Head card */}
+      <div className="card head-card">
+        {/* I1: actions-cluster stacks below title at <768px via CSS media query */}
+        <div className="head-top">
+          <div className="head-title-block">
+            <h1 className="task-title">{task.title}</h1>
+          </div>
+          <div className="actions-cluster" role="group" aria-label="Task actions">
+            {editable && (
+              <StatusTrigger
+                status={task.status}
+                onChange={handleStatusChange}
+              />
+            )}
+            {!editable && (
+              <StatusPill status={task.status} />
+            )}
+            {archiveable && !isArchived && (
+              <button
+                type="button"
+                className="btn-ghost"
+                aria-label="Archive task"
+                onClick={() => setShowConfirm(true)}
+              >
+                Archive task
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Meta row */}
+        <div className="meta-row" aria-label="Task metadata">
+          <div className="meta-item">
+            <span className="meta-label">Due</span>
+            <span className="meta-value tabular-nums">
+              {task.due_date ? formatDate(task.due_date) : '—'}
+            </span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Business unit</span>
+            <span className="meta-value">{buName}</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Activity</span>
+            <span className="meta-value tabular-nums">{formatAge(task.last_activity_at, now)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Description card */}
+      <section className="card" aria-label="Description">
+        <h2 className="card-h2">Description</h2>
+        {task.description
+          ? <p className="desc-body">{task.description}</p>
+          : <p className="empty-substate">No description.</p>
+        }
+      </section>
+
+      {/* RACI card — I2: R/A now editable for editors */}
+      <RaciCard
+        task={task}
+        people={peopleDirectory}
+        canEdit={editable}
+        viewerId={viewerId}
+        onRaciChange={handleRaciChange}
+        onRaChange={handleRaChange}
+      />
+
+      {/* Checklist card */}
+      <ChecklistCard
+        items={localChecklist}
+        canEdit={editable}
+        taskId={task.id}
+        viewerId={viewerId}
+        onAdd={handleAddChecklist}
+        onToggle={handleToggle}
+        onReorder={handleReorder}
+        onDelete={handleDeleteChecklist}
+      />
+
+      {/* Activity card */}
+      <ActivityCard
+        events={events}
+        people={peopleDirectory}
+        now={now}
+      />
+
+      {/* Archive confirm */}
+      {showConfirm && (
+        <ConfirmArchive
+          onConfirm={() => { setShowConfirm(false); handleArchive() }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// ── Create mode ────────────────────────────────────────────────────────────────
+function CreateSurface({ onClose }: TaskSurfaceProps) {
+  const navigate = useNavigate()
+  const auth = useAuth()
+
+  // Viewer details
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  // Primary-role BU: first role's business_unit_id (ordered by created_at asc from resolveViewer)
+  const primaryRoleBU = auth.status === 'authenticated'
+    ? (auth.viewer.roles[0]?.business_unit_id ?? '')
+    : ''
+
+  // Directory
+  const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
+  const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+  const [dirLoading, setDirLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([getBusinessUnits(), getPeople()]).then(([bus, people]) => {
+      setBusDirectory(bus)
+      setPeopleDirectory(people)
+      setDirLoading(false)
+    }).catch(() => setDirLoading(false))
+  }, [])
+
+  // ── Form state ────────────────────────────────────────────────────────────
+  const [title, setTitle] = useState('')
+  const [businessUnitId, setBusinessUnitId] = useState(primaryRoleBU)
+  const [responsiblePersonId, setResponsiblePersonId] = useState(viewerId)
+  const [accountablePersonId, setAccountablePersonId] = useState(viewerId)
+  const [dueDate, setDueDate] = useState('')
+  const [description, setDescription] = useState('')
+
+  // Set BU once directory loads (in case primaryRoleBU wasn't set at mount)
+  useEffect(() => {
+    if (primaryRoleBU && !businessUnitId) {
+      setBusinessUnitId(primaryRoleBU)
+    }
+  }, [primaryRoleBU, businessUnitId])
+
+  // ── Validation state ──────────────────────────────────────────────────────
+  const [titleError, setTitleError] = useState('')
+  const [buError, setBuError] = useState('')
+
+  // ── Submit state ──────────────────────────────────────────────────────────
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    // Validate
+    let valid = true
+    if (!title.trim()) {
+      setTitleError('Title is required')
+      valid = false
+    } else {
+      setTitleError('')
+    }
+    if (!businessUnitId) {
+      setBuError('Business unit is required')
+      valid = false
+    } else {
+      setBuError('')
+    }
+    if (!valid) return
+
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const input: CreateTaskInput = {
+        title: title.trim(),
+        businessUnitId,
+        responsiblePersonId,
+        accountablePersonId,
+        createdBy: viewerId,
+        description: description.trim() || undefined,
+        dueDate: dueDate || null,
+      }
+      const newId = await createTask(input)
+      navigate(`/tasks/${newId}`)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Something went wrong')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="tc-card">
+      <form onSubmit={handleSubmit} noValidate aria-label="Create task form">
+        {submitError && (
+          <div role="alert" className="tc-submit-error">
+            {submitError}
+          </div>
+        )}
+
+        {/* Title */}
+        <div className="tc-field">
+          <label htmlFor="task-title" className="tc-label">
+            Title <span aria-hidden="true" className="tc-required">*</span>
+          </label>
+          <input
+            id="task-title"
+            type="text"
+            className={`tc-input${titleError ? ' tc-input-error' : ''}`}
+            value={title}
+            onChange={e => { setTitle(e.target.value); if (titleError) setTitleError('') }}
+            aria-required="true"
+            aria-invalid={titleError ? 'true' : undefined}
+            aria-describedby={titleError ? 'title-err' : undefined}
+            placeholder="What needs to be done?"
+            disabled={submitting}
+            aria-label="Title"
+          />
+          {titleError && (
+            <span id="title-err" role="alert" className="tc-field-error">{titleError}</span>
+          )}
+        </div>
+
+        {/* Business unit */}
+        <div className="tc-field">
+          <label htmlFor="task-bu" className="tc-label">
+            Business unit <span aria-hidden="true" className="tc-required">*</span>
+          </label>
+          {dirLoading ? (
+            <div className="tc-loading-field">Loading…</div>
+          ) : (
+            <select
+              id="task-bu"
+              className={`tc-select${buError ? ' tc-input-error' : ''}`}
+              value={businessUnitId}
+              onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
+              aria-required="true"
+              aria-invalid={buError ? 'true' : undefined}
+              aria-describedby={buError ? 'bu-err' : undefined}
+              disabled={submitting}
+              aria-label="Business unit"
+            >
+              <option value="">Select business unit…</option>
+              {busDirectory.map(bu => (
+                <option key={bu.id} value={bu.id}>{bu.name}</option>
+              ))}
+            </select>
+          )}
+          {buError && (
+            <span id="bu-err" role="alert" className="tc-field-error">{buError}</span>
+          )}
+        </div>
+
+        {/* Responsible (R) — pre-filled to creator, editable */}
+        <div className="tc-field">
+          <label htmlFor="task-responsible" className="tc-label">
+            Responsible (R) <span aria-hidden="true" className="tc-required">*</span>
+          </label>
+          {dirLoading ? (
+            <div className="tc-loading-field">Loading…</div>
+          ) : (
+            <select
+              id="task-responsible"
+              className="tc-select"
+              value={responsiblePersonId}
+              onChange={e => setResponsiblePersonId(e.target.value)}
+              disabled={submitting}
+              aria-label="Responsible (R)"
+              aria-required="true"
+            >
+              {peopleDirectory.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Accountable (A) — pre-filled to creator, editable */}
+        <div className="tc-field">
+          <label htmlFor="task-accountable" className="tc-label">
+            Accountable (A) <span aria-hidden="true" className="tc-required">*</span>
+          </label>
+          {dirLoading ? (
+            <div className="tc-loading-field">Loading…</div>
+          ) : (
+            <select
+              id="task-accountable"
+              className="tc-select"
+              value={accountablePersonId}
+              onChange={e => setAccountablePersonId(e.target.value)}
+              disabled={submitting}
+              aria-label="Accountable (A)"
+              aria-required="true"
+            >
+              {peopleDirectory.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Due date (optional) */}
+        <div className="tc-field">
+          <label htmlFor="task-due" className="tc-label">Due date</label>
+          <input
+            id="task-due"
+            type="date"
+            className="tc-input"
+            value={dueDate}
+            onChange={e => setDueDate(e.target.value)}
+            disabled={submitting}
+          />
+        </div>
+
+        {/* Description (optional) */}
+        <div className="tc-field">
+          <label htmlFor="task-desc" className="tc-label">Description</label>
+          <textarea
+            id="task-desc"
+            className="tc-textarea"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Optional context, goals, or notes…"
+            disabled={submitting}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="tc-actions">
+          {onClose ? (
+            <button type="button" className="tc-btn-cancel" onClick={onClose}>Cancel</button>
+          ) : (
+            <Link to="/tasks" className="tc-btn-cancel">Cancel</Link>
+          )}
+          <button
+            type="submit"
+            className="tc-btn-submit"
+            disabled={submitting}
+            aria-busy={submitting}
+          >
+            {submitting ? 'Creating…' : 'Create task'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}

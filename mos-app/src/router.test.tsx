@@ -4,6 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 vi.mock('./auth/useAuth')
 import { useAuth } from './auth/useAuth'
+import { routeConfig } from './router'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -52,4 +53,21 @@ describe('AC-008: Guard on new routes', () => {
       expect(screen.getByTestId('login-page')).toBeInTheDocument()
     })
   })
+})
+
+// ADR-0007: the three sibling /tasks routes become nested children under a
+// parent /tasks route so the table can persist (split-view, PR-B). PR-A only
+// establishes the nesting — the rendered output stays identical to today.
+describe('router — tasks nesting (ADR-0007)', () => {
+  it('AC-100: tasks is a parent route with :taskId and new as children', () => {
+    const shell = routeConfig[1].children![0] // ProtectedRoute → AppShell
+    const tasks = shell.children!.find(r => r.path === 'tasks')!
+    expect(tasks.children).toBeDefined()
+    const childPaths = tasks.children!.map(c => c.path).sort()
+    expect(childPaths).toEqual(['new', ':taskId'].sort())
+    // siblings `tasks/new` / `tasks/:taskId` no longer exist at the shell level
+    expect(shell.children!.some(r => r.path === 'tasks/new')).toBe(false)
+    expect(shell.children!.some(r => r.path === 'tasks/:taskId')).toBe(false)
+  })
+
 })
