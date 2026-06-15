@@ -243,6 +243,57 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })
   })
 
+  // AC-109: keyboard navigation — j/k move the cursor, Enter opens, n opens create,
+  // Esc closes. The cursor row carries the .kfocus class.
+  it('AC-109: j moves the cursor (row gets .kfocus); Enter opens the cursor row', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'task-1', title: 'First row' }),
+      makeTask({ id: 'task-2', title: 'Second row' }),
+    ])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('First row'))
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy())
+    const cursorRow = document.querySelector('tr.task-row.kfocus')
+    expect(cursorRow?.textContent).toContain('First row')
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => {
+      expect(document.querySelector('tr.task-row.kfocus')?.textContent).toContain('Second row')
+    })
+    // Enter opens the cursor row → navigates to /tasks/task-2 → drawer mounts
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-2', title: 'Second row' }), checklist: [], events: [] })
+    fireEvent.keyDown(window, { key: 'Enter' })
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+  })
+
+  it('AC-109: n navigates to the create drawer', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('First row'))
+    fireEvent.keyDown(window, { key: 'n' })
+    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+  })
+
+  it('AC-109: Esc closes the open drawer (back to /tasks, table full width)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'First row' }), checklist: [], events: [] })
+    renderAt('/tasks/task-1')
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('.split.nodrawer')).toBeTruthy())
+  })
+
+  it('AC-109: typing "n" in the search field does NOT open create (hotkeys suppressed in fields)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('First row'))
+    const search = screen.getByLabelText('Search tasks')
+    search.focus()
+    fireEvent.keyDown(window, { key: 'n' })
+    // still on /tasks (no create drawer)
+    expect(screen.queryByRole('complementary', { name: /new task/i })).toBeNull()
+  })
+
   // RI-3 (I3): archiving from the drawer must remove the row from the default
   // list + decrement the count without a reload.
   it('RI-3: archiving from the drawer removes the row from the default list + decrements the count (no reload)', async () => {

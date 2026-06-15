@@ -1,5 +1,5 @@
 import './TasksTable.css'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useIsDesktop } from '../../shell/useIsDesktop'
@@ -14,6 +14,7 @@ import { raciMember, raciOwner } from '../../lib/raciMember'
 import { StatusPill } from './StatusPill'
 import { OwnerCell } from './OwnerCell'
 import { formatAge, formatDate, otherRaciCount } from './taskFormatters'
+import { useTasksKeyboard } from './useTasksKeyboard'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -33,6 +34,8 @@ export type TasksTableProps = {
   statusOverrides?: Map<string, TaskStatus>
   /** C2/I3: bump this to force a list refetch (after create/archive in the drawer). */
   refreshKey?: number
+  /** AC-109: toggle the per-user-global expand pref (keyboard `e`). */
+  onToggleExpand?: () => void
   /** The drawer slot (the router <Outlet>); rendered inside the .split grid. */
   drawerSlot?: ReactNode
 }
@@ -96,7 +99,7 @@ function TaskCard({ task, now, buName, rName }: TaskCardProps) {
  * (TasksLayout) AND the standalone full-page host. Selection, condense ladder,
  * and optimistic status sync are split-view additions driven by props.
  */
-export function TasksTable({ selectedId, drawerOpen = false, expanded = false, statusOverrides, refreshKey = 0, drawerSlot }: TasksTableProps) {
+export function TasksTable({ selectedId, drawerOpen = false, expanded = false, statusOverrides, refreshKey = 0, onToggleExpand, drawerSlot }: TasksTableProps) {
   const condensed = drawerOpen && !expanded
   const isDesktop = useIsDesktop()
   const navigate = useNavigate()
@@ -205,6 +208,32 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
 
   const buOptions = useMemo(() => busDirectory, [busDirectory])
   const personOptions = useMemo(() => peopleDirectory, [peopleDirectory])
+
+  // ── Keyboard layer (AC-109) ────────────────────────────────────────────────
+  // j/k move a row cursor, Enter/o open it, Esc closes the drawer, n opens
+  // create, e toggles expand. Single-letter hotkeys are suppressed in text
+  // fields (handled inside the hook). The cursor row carries .kfocus.
+  const { cursor, setCursor } = useTasksKeyboard({
+    rowCount: sortedTasks.length,
+    enabled: isDesktop, // mobile uses the card list + native links, not row cursor
+    onOpen: i => { const t = sortedTasks[i]; if (t) navigate(`/tasks/${t.id}`) },
+    onClose: () => { if (drawerOpen) navigate('/tasks') },
+    onNew: () => navigate('/tasks/new'),
+    onExpand: () => { if (drawerOpen) onToggleExpand?.() },
+  })
+
+  // Keep the cursor synced to the open/selected row so j/k continues from there.
+  useEffect(() => {
+    if (!selectedId) return
+    const idx = sortedTasks.findIndex(t => t.id === selectedId)
+    if (idx >= 0 && idx !== cursor) setCursor(idx)
+  }, [selectedId, sortedTasks, cursor, setCursor])
+
+  // Scroll the cursor row into view as j/k moves it (windowing-safe in PR-D).
+  const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
+  useEffect(() => {
+    cursorRowRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [cursor])
 
   // ── Stats → host ──────────────────────────────────────────────────────────
   const stats = useMemo<TasksTableStats>(() => {
@@ -383,7 +412,7 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
               </tr>
             </thead>
             <tbody>
-              {sortedTasks.map(task => {
+              {sortedTasks.map((task, rowIndex) => {
                 const ds = dueStatus(task.due_date, now)
                 const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
                 const dueText = task.due_date
@@ -395,9 +424,11 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
                 const rName = personMap.get(task.responsible_person_id) ?? ''
                 const isArchived = task.archived_at != null
                 const isSelected = selectedId === task.id
+                const isCursor = cursor === rowIndex
                 return (
                   <tr key={task.id}
-                    className={`task-row${isSelected ? ' row-selected' : ''}`}
+                    ref={isCursor ? cursorRowRef : undefined}
+                    className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}`}
                     aria-current={isSelected ? 'true' : undefined}
                     onClick={() => navigate(`/tasks/${task.id}`)}>
                     <td className="td-main">

@@ -38,6 +38,44 @@
 }
 .drawer.expanded { border: 0; background: transparent; }
 
+/* ── Modal regime (overlay 920–1100 + mobile <768, AC-110, design-plan §4/§5) ──
+   Below the split threshold the squashed table is too cramped to keep live, so
+   the drawer floats over it with a scrim (focus-trap + Esc handled in TaskDrawer).
+   Scrim matches the existing .confirm-overlay elevation (consistent overlay token). */
+.drawer-modal-root { position: fixed; inset: 0; z-index: 90; }
+.drawer-scrim {
+  position: absolute; inset: 0; background: hsl(240 10% 3.9% / 0.45);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-scrim { animation: scrim-in 150ms ease; }
+  @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+}
+/* Right-side sheet (920–1100 narrow-laptop band). */
+.drawer-modal.drawer-sheet {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: clamp(360px, 50vw, 520px); border-radius: 0;
+  border: 0; border-left: 1px solid hsl(var(--border));
+  box-shadow: -8px 0 32px hsl(240 10% 3.9% / 0.18);
+  display: flex; flex-direction: column;
+}
+/* Full-screen surface (<768px mobile). */
+.drawer-modal.drawer-fullscreen {
+  position: absolute; inset: 0; width: auto; border-radius: 0; border: 0;
+  display: flex; flex-direction: column;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-modal.drawer-sheet { animation: sheet-in 180ms ease; }
+  @keyframes sheet-in { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+}
+/* The modal drawer fills its sheet/fullscreen container (pinned head + scroll body + foot). */
+.drawer-modal .dw-surface { flex: 1; min-height: 0; border: 0; border-radius: 0; }
+/* Mobile (<768px): ≥44px touch targets + a horizontally-scrollable tab strip. */
+.drawer-modal.drawer-fullscreen .dw-iconbtn { width: 44px; height: 44px; }
+.drawer-modal.drawer-fullscreen .dw-tabs { overflow-x: auto; flex-wrap: nowrap; }
+.drawer-modal.drawer-fullscreen .dw-tab { min-height: 44px; white-space: nowrap; }
+.drawer-modal.drawer-fullscreen .btn-ghost-danger,
+.drawer-modal.drawer-fullscreen .checklist-checkbox { min-height: 44px; }
+
 /* ── Toolbar ── */
 .toolbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px;
@@ -119,6 +157,11 @@
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: hsl(240 4.8% 95.9% / 0.6); }
 .task-row.row-selected td { background: hsl(var(--primary) / 0.07); } /* selected/open row */
+/* AC-109 keyboard cursor: a plain primary 2px inset rule (no new --kbd-cursor token,
+   design-plan §6.2). box-shadow inset keeps the row height stable (no layout shift). */
+.task-row.kfocus td { box-shadow: inset 0 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }
+.task-row.kfocus td:first-child { box-shadow: inset 2px 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }
+.task-row.kfocus td:last-child { box-shadow: inset -2px 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }
 .task-row-link { display: block; text-decoration: none; color: inherit; }
 .task-row-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }

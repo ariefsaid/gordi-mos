@@ -21,7 +21,7 @@ export default function TasksLayout() {
   const { taskId } = useParams()
   const isNew = useMatch('/tasks/new')
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
-  const [expanded] = useExpandPref()
+  const [expanded, setExpanded] = useExpandPref()
 
   // Optimistic status overrides fed by the open drawer (AC-103) so the table row
   // reflects an inline status change without a full reload.
@@ -51,6 +51,7 @@ export default function TasksLayout() {
         expanded={expanded}
         statusOverrides={statusOverrides}
         refreshKey={refreshKey}
+        onToggleExpand={() => setExpanded(e => !e)}
         drawerSlot={<Outlet context={outletContext} />}
       />
     </PageFrame>
