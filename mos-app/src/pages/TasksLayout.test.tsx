@@ -48,6 +48,23 @@ function stubMatchMedia(matches: boolean) {
   })
 }
 
+// Width-aware stub: control split (≥1100) and desktop (≥768) independently.
+function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boolean }) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => {
+      let matches = false
+      if (query.includes('1100')) matches = split
+      else if (query.includes('768')) matches = desktop
+      else if (query.includes('919')) matches = !desktop // useIsNarrow (max-width)
+      return {
+        matches, media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }
+    },
+  })
+}
+
 const VIEWER_ID = 'viewer-person-id'
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
@@ -175,6 +192,18 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(screen.getByRole('columnheader', { name: /activity/i })).toBeInTheDocument()
   })
 
+  // AC-110/113: below the split threshold the drawer floats over a full-width table
+  // (overlay/mobile), so the table must NOT condense (Activity stays).
+  it('AC-113: below 1100px the table is NOT condensed even with a task open (drawer is a modal overlay)', async () => {
+    stubWidths({ split: false, desktop: true }) // <1100px but ≥768 → overlay/modal regime
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    renderAt('/tasks/task-1')
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
+    expect(screen.getByRole('columnheader', { name: /activity/i })).toBeInTheDocument()
+    expect(document.querySelector('.assembly.condensed')).toBeNull()
+  })
+
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     renderAt('/tasks/new')
@@ -241,6 +270,107 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       const sel = document.querySelector('tr.task-row.row-selected')
       expect(sel?.textContent).toContain('Freshly created')
     })
+  })
+
+  // AC-109: keyboard navigation — j/k move the cursor, Enter opens, n opens create,
+  // Esc closes. The cursor row carries the .kfocus class.
+  it('AC-109: j moves the cursor (row gets .kfocus); Enter opens the cursor row', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'task-1', title: 'First row' }),
+      makeTask({ id: 'task-2', title: 'Second row' }),
+    ])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('First row'))
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy())
+    const cursorRow = document.querySelector('tr.task-row.kfocus')
+    expect(cursorRow?.textContent).toContain('First row')
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => {
+      expect(document.querySelector('tr.task-row.kfocus')?.textContent).toContain('Second row')
+    })
+    // Enter opens the cursor row → navigates to /tasks/task-2 → drawer mounts
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-2', title: 'Second row' }), checklist: [], events: [] })
+    fireEvent.keyDown(window, { key: 'Enter' })
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+  })
+
+  it('AC-109: n navigates to the create drawer', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('First row'))
+    fireEvent.keyDown(window, { key: 'n' })
+    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+  })
+
+  it('AC-109: Esc closes the open drawer (back to /tasks, table full width)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'First row' }), checklist: [], events: [] })
+    renderAt('/tasks/task-1')
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('.split.nodrawer')).toBeTruthy())
+  })
+
+  it('AC-109: typing "n" in the search field does NOT open create (hotkeys suppressed in fields)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('First row'))
+    const search = screen.getByLabelText('Search tasks')
+    search.focus()
+    fireEvent.keyDown(window, { key: 'n' })
+    // still on /tasks (no create drawer)
+    expect(screen.queryByRole('complementary', { name: /new task/i })).toBeNull()
+  })
+
+  // AC-114: the table virtualizes at 50+ rows yet j/k cursor + aria-sort survive.
+  // jsdom reports offsetHeight=0, so stub a 600px viewport for the scroll
+  // container the virtualizer measures (otherwise it'd window to 0 rows).
+  function stubViewportHeight(height = 600) {
+    const orig = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.className?.includes?.('tasks-scroll-virtual')) return height
+        return orig?.get?.call(this) ?? 0
+      },
+    })
+  }
+
+  it('AC-114: with 60 rows the table windows (not all 60 <tr> in the DOM)', async () => {
+    stubViewportHeight()
+    const rows = Array.from({ length: 60 }, (_, i) =>
+      makeTask({ id: `task-${i}`, title: `Task number ${i}` }))
+    mockListTasks.mockResolvedValue(rows)
+    renderAt('/tasks')
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
+    const bodyRows = document.querySelectorAll('tbody tr.task-row')
+    // Windowed: far fewer than 60 rows are actually mounted.
+    expect(bodyRows.length).toBeLessThan(60)
+    expect(bodyRows.length).toBeGreaterThan(0)
+  })
+
+  it('AC-114: under windowing aria-sort stays on the sortable headers and j/k still moves the cursor', async () => {
+    stubViewportHeight()
+    const rows = Array.from({ length: 60 }, (_, i) =>
+      makeTask({ id: `task-${i}`, title: `Task number ${i}` }))
+    mockListTasks.mockResolvedValue(rows)
+    renderAt('/tasks')
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
+    // aria-sort intact on the Due header (default sort)
+    expect(screen.getByRole('columnheader', { name: /due/i }).getAttribute('aria-sort')).toBe('ascending')
+    // j moves the cursor (the cursor row carries .kfocus)
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy())
+  })
+
+  it('AC-114: under 50 rows the table is NOT windowed (all rows mounted)', async () => {
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      makeTask({ id: `task-${i}`, title: `Task number ${i}` }))
+    mockListTasks.mockResolvedValue(rows)
+    renderAt('/tasks')
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
+    expect(document.querySelectorAll('tbody tr.task-row').length).toBe(10)
   })
 
   // RI-3 (I3): archiving from the drawer must remove the row from the default

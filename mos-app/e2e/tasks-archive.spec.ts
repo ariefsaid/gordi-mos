@@ -18,10 +18,12 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   const taskTitle = TASKS.VIEWER_ACCOUNTABLE.title
   await page.goto(`tasks/${taskId}`)
   await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
-  await expect(page.getByRole('heading', { level: 1, name: taskTitle })).toBeVisible({ timeout: 10_000 })
+  // The split-view drawer hosts the task surface (ADR-0007); title is its heading.
+  const drawer = page.getByRole('complementary', { name: /task detail/i })
+  await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible({ timeout: 10_000 })
 
-  // ── 3. Archive the task from the detail page ────────────────────────────────
-  const archiveBtn = page.getByRole('button', { name: /archive task/i })
+  // ── 3. Archive the task from the drawer ─────────────────────────────────────
+  const archiveBtn = drawer.getByRole('button', { name: /archive task/i })
   await expect(archiveBtn).toBeVisible()
   await archiveBtn.click()
 

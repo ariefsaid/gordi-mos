@@ -33,28 +33,35 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.getByRole('tab', { name: 'All' }).click()
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 
-  // ── 5. Open the task detail ─────────────────────────────────────────────────
-  await page.getByText(taskTitle).click()
+  // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
+  await page.getByText(taskTitle).first().click()
   await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
-  await expect(page.getByRole('heading', { level: 1, name: taskTitle })).toBeVisible()
+  // The split-view drawer hosts the task surface; the title is the drawer heading.
+  const drawer = page.getByRole('complementary', { name: /task detail/i })
+  await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible()
 
   // ── 6. Change status to "In Progress" inline ─────────────────────────────────
-  const statusTrigger = page.getByRole('button', { name: /change status/i })
+  const statusTrigger = drawer.getByRole('button', { name: /change status/i })
   await expect(statusTrigger).toBeVisible()
   await statusTrigger.click()
 
-  const inProgressOption = page.getByRole('option', { name: 'In Progress' })
+  // Scope to the status popover listbox (the toolbar Status <select> also has an
+  // "In Progress" option).
+  const statusListbox = page.getByRole('listbox', { name: /select status/i })
+  const inProgressOption = statusListbox.getByRole('option', { name: 'In Progress' })
   await expect(inProgressOption).toBeVisible()
   await inProgressOption.click()
 
   // ── 7. Assert: pill shows "In Progress" in place (no navigation) ─────────────
-  await expect(page.getByText('In Progress')).toBeVisible({ timeout: 8_000 })
+  await expect(drawer.getByText('In Progress')).toBeVisible({ timeout: 8_000 })
   // Still on the same detail URL
   expect(page.url()).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
 
-  // ── 8. Assert: activity log shows the status_changed event ─────────────────
-  const activityRegion = page.getByRole('region', { name: /activity/i })
-  await expect(activityRegion.getByText(/status changed/i)).toBeVisible({ timeout: 8_000 })
+  // ── 8. Assert: the Activity tab shows the status_changed event ─────────────
+  // Activity is a tab in the Variant-B drawer (design-plan §1.2).
+  await drawer.getByRole('tab', { name: /activity/i }).click()
+  const activityPane = drawer.getByRole('tabpanel')
+  await expect(activityPane.getByText(/status changed|→ In Progress|In Progress/i).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
   await page.goto('tasks')

@@ -79,6 +79,9 @@ const mockPeople: PersonOption[] = [
 
 beforeEach(() => {
   vi.resetAllMocks()
+  // Clear per-task tab memory (sessionStorage) so a Checklist-tab test doesn't
+  // leak the active tab into a later Details-default test (useTabMemory keys by id).
+  sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
   mockUpdateTaskStatus.mockResolvedValue()
@@ -223,6 +226,72 @@ describe('TaskSurface — mutation handlers', () => {
     await waitFor(() => screen.getByText(/this task is archived/i))
     fireEvent.click(screen.getByRole('button', { name: /unarchive/i }))
     await waitFor(() => expect(vi.mocked(unarchiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
+  })
+})
+
+// ── Live region (AC-111, AC-034) — optimistic save/rollback announcements ─────
+describe('TaskSurface — live region (AC-111)', () => {
+  function liveRegion() {
+    return document.querySelector('[aria-live="polite"]')
+  }
+
+  it('AC-111: a successful status change announces the new status', async () => {
+    mockGetTask
+      .mockResolvedValueOnce({ task: makeTask({ status: 'Open' }), checklist: [], events: [] })
+      .mockResolvedValueOnce({ task: makeTask({ status: 'In Progress' }), checklist: [], events: [] })
+    mockUpdateTaskStatus.mockResolvedValue()
+    renderSurface()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'In Progress' }))
+    await waitFor(() => expect(liveRegion()?.textContent).toMatch(/status changed to In Progress/i))
+  })
+
+  it('AC-111: a failed status change rolls back AND announces the revert', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ status: 'Open' }), checklist: [], events: [] })
+    mockUpdateTaskStatus.mockRejectedValue(new Error('write failed'))
+    renderSurface()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
+    await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalled())
+    // pill reverts to Open AND the live region announces the failure
+    await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
+  })
+
+  it('AC-111: a successful checklist add announces it', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    const { addChecklistItem } = await import('../../lib/db/tasks')
+    vi.mocked(addChecklistItem).mockResolvedValue()
+    renderDrawer()
+    await waitFor(() => screen.getByRole('tablist'))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    const input = screen.getByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(liveRegion()?.textContent).toMatch(/checklist item added/i))
+  })
+
+  it('AC-111: a failed checklist toggle reverts AND announces the rollback', async () => {
+    const item: ChecklistItemRow = {
+      id: 'item-x', org_id: 'org', task_id: 'task-abc', label: 'Wipe counter',
+      is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
+    }
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
+    vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
+    renderSurface()
+    await waitFor(() => screen.getByText('Wipe counter'))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Wipe counter' }))
+    await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
+  })
+
+  it('AC-111: a failed RACI change reverts AND announces the rollback', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ consulted_person_ids: ['other-id'] }), checklist: [], events: [] })
+    vi.mocked(updateTaskRaci).mockRejectedValue(new Error('write failed'))
+    renderSurface()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('button', { name: /remove consulted person other person/i }))
+    await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 })
 
@@ -458,5 +527,45 @@ describe('TaskSurface — create mode', () => {
         responsiblePersonId: VIEWER_ID, accountablePersonId: VIEWER_ID, createdBy: VIEWER_ID,
       }))
     })
+  })
+
+  // AC-108: inline-validate-ON-BLUR (design-plan §7) — the create form validates
+  // a required field the moment focus leaves it empty, not only on submit.
+  it('AC-108: blurring an empty Title renders an inline error (role=alert) + the error border class', async () => {
+    renderCreate()
+    const title = await screen.findByLabelText('Title')
+    // Field starts clean — no error before interaction
+    expect(screen.queryByText(/title is required/i)).toBeNull()
+    fireEvent.blur(title)
+    // Error appears below the field, announced, and the input carries the error class
+    const err = await screen.findByText(/title is required/i)
+    expect(err).toHaveAttribute('role', 'alert')
+    expect(title).toHaveClass('tc-input-error')
+    expect(title).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('AC-108: a blur error clears once the field is filled (typing)', async () => {
+    renderCreate()
+    const title = await screen.findByLabelText('Title')
+    fireEvent.blur(title)
+    await screen.findByText(/title is required/i)
+    fireEvent.change(title, { target: { value: 'Now it has a value' } })
+    await waitFor(() => expect(screen.queryByText(/title is required/i)).toBeNull())
+    expect(title).not.toHaveClass('tc-input-error')
+  })
+
+  it('AC-108: blurring an empty Business unit renders an inline error', async () => {
+    // Auth with no role → no primary-role BU, so the BU select starts empty.
+    const noRoleAuth: AuthState = {
+      status: 'authenticated',
+      viewer: { person: mockPerson, roles: [], isManager: false },
+      signOut: async () => {},
+    }
+    renderCreate(noRoleAuth)
+    const bu = await screen.findByLabelText('Business unit')
+    fireEvent.blur(bu)
+    const err = await screen.findByText(/business unit is required/i)
+    expect(err).toHaveAttribute('role', 'alert')
+    expect(bu).toHaveClass('tc-input-error')
   })
 })

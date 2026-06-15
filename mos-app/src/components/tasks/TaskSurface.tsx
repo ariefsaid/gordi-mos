@@ -83,6 +83,15 @@ function ViewSurface({
   const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
   const [localChecklist, setLocalChecklist] = useState<ChecklistItemRow[]>([])
 
+  // AC-111: off-screen live region announcing optimistic-save / rollback outcomes.
+  const [liveMessage, setLiveMessage] = useState('')
+  const announce = useCallback((msg: string) => {
+    // Re-set even if identical so repeated outcomes re-announce (clear then set).
+    setLiveMessage('')
+    requestAnimationFrame(() => setLiveMessage(msg))
+  }, [])
+  const ROLLBACK_MSG = "Couldn't save — reverted"
+
   const now = useMemo(() => new Date(), [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(() => {
@@ -147,9 +156,11 @@ function ViewSurface({
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
       onTaskChanged?.(refreshed.task)
+      announce(`Status changed to ${newStatus}`)
     } catch {
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
       onTaskChanged?.({ ...localTask, status: oldStatus })
+      announce(ROLLBACK_MSG)
     }
   }
 
@@ -169,8 +180,10 @@ function ViewSurface({
     try {
       await updateTaskRaci(localTask.id, patch, viewerId)
       await refetchEvents(localTask.id)
+      announce('RACI updated')
     } catch {
       setLocalTask(prev)
+      announce(ROLLBACK_MSG)
     }
   }
 
@@ -182,8 +195,10 @@ function ViewSurface({
     try {
       await updateTaskFields(localTask.id, patch, viewerId)
       await refetchEvents(localTask.id)
+      announce('Owner updated')
     } catch {
       setLocalTask(prev)
+      announce(ROLLBACK_MSG)
     }
   }
 
@@ -200,8 +215,10 @@ function ViewSurface({
     try {
       await addChecklistItem(localTask.id, label, position, viewerId)
       await refetchEvents(localTask.id)
+      announce('Checklist item added')
     } catch {
       setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
+      announce(ROLLBACK_MSG)
     }
   }
 
@@ -212,8 +229,10 @@ function ViewSurface({
     try {
       await toggleChecklistItem(itemId, isDone, localTask.id, viewerId)
       await refetchEvents(localTask.id)
+      announce(isDone ? 'Checklist item completed' : 'Checklist item reopened')
     } catch {
       setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: !isDone } : i))
+      announce(ROLLBACK_MSG)
     }
   }
 
@@ -246,8 +265,10 @@ function ViewSurface({
     try {
       await deleteChecklistItem(itemId, localTask.id, viewerId)
       await refetchEvents(localTask.id)
+      announce('Checklist item removed')
     } catch {
       setLocalChecklist(prev)
+      announce(ROLLBACK_MSG)
     }
   }
 
@@ -293,6 +314,7 @@ function ViewSurface({
   if (width === 'drawer') {
     return (
       <div className={expanded ? 'dw-surface dw-surface-expanded' : 'dw-surface'}>
+        <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
         <TaskDrawerHeader
           task={task}
           buName={buName}
@@ -394,6 +416,7 @@ function ViewSurface({
   // ── Full width (the historical stacked layout — unchanged) ─────────────────
   return (
     <>
+      <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
       {/* Archived banner */}
       {isArchived && (
         <div className="archived-banner" role="status">
@@ -546,8 +569,17 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   }, [primaryRoleBU, businessUnitId])
 
   // ── Validation state ──────────────────────────────────────────────────────
+  // AC-108: inline-validate-ON-BLUR (design-plan §7) — a required field flags the
+  // moment focus leaves it empty, not only on submit. Typing clears the error.
   const [titleError, setTitleError] = useState('')
   const [buError, setBuError] = useState('')
+
+  function validateTitleOnBlur() {
+    setTitleError(title.trim() ? '' : 'Title is required')
+  }
+  function validateBuOnBlur() {
+    setBuError(businessUnitId ? '' : 'Business unit is required')
+  }
 
   // ── Submit state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
@@ -653,6 +685,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
             className={`tc-input${titleError ? ' tc-input-error' : ''}`}
             value={title}
             onChange={e => { setTitle(e.target.value); if (titleError) setTitleError('') }}
+            onBlur={validateTitleOnBlur}
             aria-required="true"
             aria-invalid={titleError ? 'true' : undefined}
             aria-describedby={titleError ? 'title-err' : undefined}
@@ -678,6 +711,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
               className={`tc-select${buError ? ' tc-input-error' : ''}`}
               value={businessUnitId}
               onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
+              onBlur={validateBuOnBlur}
               aria-required="true"
               aria-invalid={buError ? 'true' : undefined}
               aria-describedby={buError ? 'bu-err' : undefined}
