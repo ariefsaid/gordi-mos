@@ -71,9 +71,10 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-# seed.dev-auth.sql is DEV-ONLY: it provisions Auth accounts for the fictional
-# dev personas (one-click demo login). It must stay out of any prod seed run.
-sql_paths = ["./seed.sql", "./seed.dev-auth.sql"]
+# seed.dev-auth.sql + seed.dev-tasks.sql are DEV-ONLY: dev-persona Auth accounts
+# (one-click demo login) + a sample Tasks dataset for the demo/design review.
+# Both must stay out of any prod seed run (they reference the fictional *.dev data).
+sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
