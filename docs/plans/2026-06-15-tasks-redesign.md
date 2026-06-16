@@ -6,7 +6,10 @@
 - **Inputs (authority):** design-plan `docs/plans/2026-06-15-tasks-redesign-design-plan.md` (PRIMARY) ·
   `docs/adr/0007-tasks-split-view-master-detail.md` · `docs/decisions.md` OD-P3-2..5 (LOCKED) ·
   spec `docs/specs/tasks-raci.spec.md` (P2-1, the surface being recomposed) · `CONTEXT.md` · `docs/jtbd.md`
-- **Status:** for owner review. **Build does NOT start until the owner signs off.**
+- **Status:** ✅ SHIPPED 2026-06-16 — PRs #15 (PR-A) · #17 (PR-B) · #18 (PR-C+D), all merged to `main`.
+  As-built naming differs from this plan: the split-view shell shipped as **`TasksLayout`** (not
+  `TasksSplitView`), the table was extracted to **`TasksTable`**, and route children render **`TaskDrawer`**
+  (which wraps the one editor `TaskSurface`). Behavior/ACs as planned. (Plan kept as historical record.)
 
 ## Scope guardrails (read before any task)
 

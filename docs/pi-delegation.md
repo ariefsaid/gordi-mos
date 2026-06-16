@@ -121,9 +121,11 @@ pi agents see NOTHING of your session. The brief must stand alone:
 
 1. **Task in one line**, naming the phase + binding role rules ("per docs/design-workflow.md §2").
 2. **READ FIRST list** — exact paths: the locked `OD-*` decisions (`docs/decisions.md`), the
-   `CONTEXT.md` glossary, the spec/plan, the **reference slice** (the Tasks vertical:
-   `mos-app/src/pages/TasksPage.tsx` + `mos-app/src/pages/TaskDetail.tsx` + `mos-app/src/lib/db/tasks.ts`,
-   and for schema/RLS the `supabase/migrations/20260611000007..09_mos_*` + their pgTAP), relevant ADRs.
+   `CONTEXT.md` glossary, the spec/plan, the **reference slice** (the Tasks split-view, ADR-0007:
+   `mos-app/src/pages/TasksLayout.tsx` + `mos-app/src/components/tasks/{TaskDrawer,TaskSurface}.tsx` +
+   `mos-app/src/lib/db/tasks.ts` — `TaskSurface` is the one editor; `TaskDetail.tsx`/`TaskCreate.tsx`/
+   `TasksPage.tsx` are now thin/un-routed, don't brief from them — and for schema/RLS the
+   `supabase/migrations/20260611000007..09_mos_*` + their pgTAP), relevant ADRs.
    The agent reads them itself; don't paste content.
 3. **Output path** — exact file(s) the agent must write.
 4. **Conventions verbatim** — spec/plan/test conventions from CLAUDE.md (EARS, AC-### Given/When/Then,

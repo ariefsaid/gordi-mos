@@ -3,11 +3,13 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
-> **NEXT SESSION: read `docs/STATUS.md` first.** P2-3 (Daily Log) is **MERGED** (PR #12, `main@67b059d`;
-> marker-fix `0b4a42b`). **The first-slice MVP is now feature-complete** (tasks+RACI · weekly updates ·
-> Daily Log). The single remaining gap to a *usable* product is **▶ P3-1 production deploy** (ris-dev,
-> owner-gated) — see "Phase 3" below. P2-4 stays owner-deferred. Git-hygiene: NEVER `git push origin
-> HEAD:main` from a feature branch; rebase onto latest main before merging; feature code = branch → PR → merge.
+> **NEXT SESSION: read `docs/STATUS.md` first.** MVP is feature-complete (tasks+RACI · weekly updates ·
+> Daily Log). Since then (Phase 3, 2026-06-13→16, all merged): **dev demo login (#13)**, **agentic
+> workflow sync w/ PMO** (4-lens/Lens-D + `docs/jtbd.md`, model-discipline), **Tasks split-view redesign
+> (#15→#18, ADR-0007)**, **CI-green clock fix (#16)**. The single remaining gap to a *usable* product is
+> **▶ P3-1 production deploy** (ris-dev, owner-gated) — see "Phase 3" below. P2-4 stays owner-deferred.
+> Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main before
+> merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset` relinks.
 
 ## ✅ Phase 0 — frontend mockups (DONE)
 - [x] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
@@ -80,6 +82,22 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
     verb fix. 460 unit · e2e AC-090/091 live · all gates green.
 - [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
 
+## ✅ Phase 3 — shipped this session (2026-06-13 → 16, all merged to `main`)
+- [x] **Dev demo login — PR #13.** Dev-only one-click 6-persona login (`DemoLogin.tsx` + `demoPersonas.ts`);
+  accounts via `supabase/seed.dev-auth.sql` (relinks on `db reset`). Gated `import.meta.env.DEV` (never prod).
+- [x] **Agentic workflow sync with PMO (Gordi context).** Lens D / 4-lens design review + `docs/jtbd.md`
+  oracle (OD-P3 grill); code-quality DB-perf dimension; qa agent-browser note; playbook §3a series-default;
+  CLAUDE.md model-discipline. (Verified non-gaps: PMO's "supabase skills" are dead symlinks; §3d surface-sync is PMO-only.)
+- [x] **Tasks split-view redesign — PR #15 → #18** (OD-P3-2..5, **ADR-0007**). Table-default + push/squash
+  split-view + Variant-B actionable drawer (pinned Status·R/A·Archive + Details/Checklist/Activity tabs) +
+  expand-to-full-width (one `/tasks/:id`) + keyboard (j/k/Enter/o/Esc/n/e) + 3 responsive regimes
+  (split ≥1100 · overlay 920–1100 · mobile <768) + virtualization (50+). `TaskDetail` 844→thin; `TaskSurface`
+  the one editor; new `TasksLayout`/`TasksTable`/`TaskDrawer`/`TaskDrawerHeader`/`TaskTabStrip`. UI/routing only
+  (no schema/RLS change). 584 unit · 6 e2e. PR-B's 4-lens render review caught 2 Criticals (expand+create/archive sync) → fixed.
+  Residual polish (non-blocking): eyeball the 920–1100 overlay band live; the thin `TaskDetail`/`TaskCreate` hosts may be deleted.
+- [x] **CI-green fix — PR #16.** Froze the clock in 3 date-relative weekly-update "late signal" tests
+  (failed by run-date); test-only. `main` green on any date.
+
 ## ▶ NOW — Phase 3: production deploy (the only gap to a usable product)
 - [ ] **P3-1 — ris-dev production deploy** to `https://ops.gordi.id/mos` (self-hosted Supabase + Caddy at `/mos`).
   **Owner-gated** (irreversible infra). Runbook: `docs/environments.md` (§Production deploy) + `supabase/README.md`
@@ -87,6 +105,18 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   below): disable open signup both keys + live 422 self-signup probe · password policy (≥8, mixed) · session
   `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
   vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
+
+## Doc & code debt (non-blocking — from the 2026-06-16 fresh-eyes audit)
+- [ ] **Fold AC-100..115 into the spec.** The Tasks-redesign ACs live only in `docs/plans/2026-06-15-tasks-redesign.md`,
+  not in `docs/specs/tasks-raci.spec.md` (or a `tasks-redesign.spec.md` addendum). Plan-only AC coverage.
+- [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children); as-built is
+  `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note to the ADR. (The plan header is already corrected.)
+- [ ] **Delete dead Tasks code:** `TaskNewPlaceholder.tsx` (pre-P2-1c stub, un-routed), and the now-thin un-routed
+  hosts `TaskDetail.tsx`/`TaskCreate.tsx`/`TasksPage.tsx` (the last two kept only as test oracles) — repoint their
+  tests at `TaskSurface`/`TasksLayout`, then remove. (OD-P3 "Q5".)
+- [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ordered ris-dev deploy runbook before P3-1.
+- Note: `docs/plans/archive/` now holds the 11 completed Phase-1/2 plans; the 2 Phase-3 `2026-06-15-tasks-redesign*`
+  plans stay at `docs/plans/` top level (most-recent reference). All shipped plans are historical records.
 
 ## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
 - ~~WALL-1 — first navigation IA~~ CLOSED → OD-P0-6 (balanced My Week, proposal-IA-8) + OD-P0-7 (density mode in DESIGN.md).

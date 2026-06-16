@@ -1,7 +1,8 @@
 # STATUS — where Gordi MOS stands (for the next session / post-compaction)
 
-**Updated 2026-06-12 (P2-3 complete).** Single source of "where are we, what's next, what's half-done."
-Pairs with `docs/backlog.md` (full task list) + `docs/decisions.md` (locked OD-* + ADRs). Read this first.
+**Updated 2026-06-16 (Phase 3: Tasks split-view redesign shipped; MVP feature-complete).** Single source
+of "where are we, what's next, what's half-done." Pairs with `docs/backlog.md` (full task list) +
+`docs/decisions.md` (locked OD-* + ADRs). Read this first.
 
 ## Shipped & merged to `main` (all green in CI)
 - **Phase 0** — IA + design system locked (IA-8 "My Week"; DESIGN.md density mode + RACI/ProgressMarker/Ops tokens).
@@ -29,10 +30,30 @@ all gates green (typecheck 0 · lint 0 · **460** unit · build OK), **e2e AC-09
   reviewed). Amended OD-P2-15. Internal seams (`ops` schema, `/ops` route, `ops.log_entries`, `opsLog`)
   stay terse-internal (OD-DIR-3).
 
-### NEXT STEP — MVP is feature-complete; only P3-1 production deploy remains
-After P2-3 merge, the only remaining gap to a usable product is **P3-1 production deploy** (ris-dev, owner-gated): the L5 hardening
-(disable open signup + 422 probe, password policy, session timebox, prod Resend SMTP, tight CSP). P2-4
-(kitchen→ops mirror) stays owner-deferred; WALL-3/WALL-4 only matter when P2-4 resumes.
+## ✅ Phase 3 work shipped this session (2026-06-13 → 16, all merged to `main`)
+- **Dev demo login (#13)** — dev-only one-click 6-persona login panel (`mos-app/src/pages/DemoLogin.tsx`
+  + `mos-app/src/pages/demoPersonas.ts`); accounts provisioned by `supabase/seed.dev-auth.sql` (links
+  `shared.people.user_id` on `db reset`). **Gated on `import.meta.env.DEV`** → never in a prod build.
+- **Agentic workflow synced with PMO (in Gordi context)** — adopted PMO's **Lens D (4-lens design review,
+  Product/Intent JTBD)** + authored the Gordi oracle `docs/jtbd.md` (OD-P3 grilled); code-quality-reviewer
+  gained a DB/query-perf dimension; qa-acceptance gained the agent-browser exploratory note; playbook §3a
+  "series-default / parallel-opt-in." **CLAUDE.md model-discipline rule** (minimum capable tier).
+- **Tasks split-view redesign (#15 → #18)** — OD-P3-2..5, **ADR-0007**. Table-default → **push/squash
+  split-view** → fully-actionable **Variant-B drawer** (pinned Status·R/A·Archive + Details/Checklist/
+  Activity tabs) → **expand** to full-width (one canonical `/tasks/:id`) → **keyboard** (j/k/Enter/o/Esc/n/e)
+  → **3 responsive regimes** (split ≥1100 · overlay+scrim 920–1100 · mobile full-screen <768) →
+  **virtualized** at 50+ rows. `TaskDetail` 844→thin; **`TaskSurface` is the ONE editor** (drawer+full
+  widths, "one UI two widths"); new `TasksLayout`/`TasksTable`/`TaskDrawer`/`TaskDrawerHeader`/`TaskTabStrip`.
+  Routes nested under `/tasks` (`<Outlet>`). 584 unit + 6 e2e. Plan: `docs/plans/2026-06-15-tasks-redesign*.md`.
+- **CI-green fix (#16)** — froze the clock in 3 date-relative weekly-update "late signal" tests (they
+  failed by run-date); test-only. `main` is now green on any date.
+
+### NEXT STEP — MVP feature-complete; only P3-1 production deploy remains
+The only gap to a usable product is **P3-1 production deploy** (ris-dev, owner-gated): L5 hardening
+(disable open signup + 422 probe, password policy, session timebox, prod Resend SMTP, tight CSP).
+Non-blocking polish: eyeball the 920–1100 overlay band live; the thin `TaskDetail`/`TaskCreate` page
+hosts may be deleted (OD-P3 "Q5"). P2-4 (kitchen→ops mirror) stays owner-deferred; WALL-3/WALL-4 only
+matter when P2-4 resumes.
 
 ## Open owner decisions (THE WALL — never guess)
 - **WALL-3** — which kitchen events mirror first (gates P2-4).
@@ -50,7 +71,9 @@ After P2-3 merge, the only remaining gap to a usable product is **P3-1 productio
   pmo-portal stack.** CI excludes edge-runtime (it 502s intermittently).
 - **The design review battery earns its keep** — its 3-lens form caught the cross-schema embed bug, the
   transparent Submit button, the dead roster rows, the unstyled states. Now **4-lens** (added Lens D —
-  Product/Intent JTBD, oracle `docs/jtbd.md`). Run all four on every UI slice, render-verified.
+  Product/Intent JTBD, oracle `docs/jtbd.md`). Run all four on every UI slice, render-verified — the
+  PR-B render pass caught the master-detail desync (expand not collapsing the table; create/archive not
+  refetching) that 538 green unit tests missed because they mock and don't render both panes interacting.
 - **NEVER read `~/.op-token` or any `.env`/secret file** (owner hard rule). Secrets come via `op-get.sh
   <item> <vault> <field>` at runtime; to learn a value read the committed coordinates (`.env.example`,
   `supabase/op.resend.env`) or `docs/environments.md` — never the live file.
@@ -64,7 +87,16 @@ After P2-3 merge, the only remaining gap to a usable product is **P3-1 productio
 - **Local stack hygiene + RAM/disk cleanup:** `docs/environments.md` (one shared Docker stack per
   `project_id`; `db reset` is global; `supabase stop --no-backup` to free RAM; `docker container/image
   prune` safe but NEVER `volume prune` — pmo-portal shares the host).
+- **Demo login orphans after an e2e reseed → `supabase db reset` relinks it.** The dev one-click login
+  (#13) lands on "Your account isn't set up yet" when `shared.people.user_id` loses its link to the
+  seeded `auth.users` (an e2e run can drift local DB state). `supabase db reset` re-runs
+  `seed.dev-auth.sql` and relinks all 6 personas (verified). Demo login is dev-only — no prod/CI impact.
+- **Model discipline (CLAUDE.md):** delegate at the minimum capable tier (haiku→sonnet→opus); don't
+  over-spend or skimp; opus for planning/review/security/hard refactors only.
 
 ## Reference slice (for briefs)
-Tasks vertical: `mos-app/src/pages/TasksPage.tsx` + `TaskDetail.tsx` + `src/lib/db/tasks.ts`; schema
-`supabase/migrations/20260611000007..09_mos_*` + their pgTAP. Glossary: `CONTEXT.md`.
+**Tasks split-view (the redesign, ADR-0007):** `mos-app/src/pages/TasksLayout.tsx` (split-view shell) +
+`components/tasks/{TasksTable,TaskDrawer,TaskDrawerHeader,TaskTabStrip,TaskSurface}.tsx` + the extracted
+RACI/Checklist/Activity cards + `src/lib/db/tasks.ts`. `TaskSurface` is the single editor (drawer+full).
+`TaskDetail`/`TaskCreate` are now thin full-page hosts. Schema `supabase/migrations/20260611000007..09_mos_*`
++ their pgTAP (UNCHANGED by the redesign — UI/routing only). Glossary: `CONTEXT.md`.
