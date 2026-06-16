@@ -17,7 +17,11 @@ vi.mock('../lib/db/directory', () => ({
 
 import { listTasks } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
-import TasksPage from './TasksPage'
+// Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
+// The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
+// behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
+// real component the /tasks page renders.
+import { TasksWorkspace } from '../components/tasks/TasksWorkspace'
 const mockListTasks = vi.mocked(listTasks)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
@@ -96,7 +100,7 @@ function renderPage(auth: AuthState = authedState) {
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <TasksPage />
+        <TasksWorkspace />
         <LocationCapture />
       </MemoryRouter>
     </AuthContext.Provider>,
@@ -125,7 +129,7 @@ beforeEach(() => {
 })
 
 // ── T-030: AC-067 — loading / error / empty states ─────────────────────────
-describe('AC-067 — TasksPage states (loading, error, empty)', () => {
+describe('AC-067 — Tasks table (live surface) states (loading, error, empty)', () => {
   it('AC-067: shows skeleton rows while data is loading', async () => {
     // pending promise never resolves within the test tick
     mockListTasks.mockReturnValue(new Promise(() => {}))

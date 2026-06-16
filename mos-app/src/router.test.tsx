@@ -11,7 +11,7 @@ const mockUseAuth = vi.mocked(useAuth)
 // Import components used in the route tree to verify guard behavior
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import AppShell from './shell/AppShell'
-import TasksPage from './pages/TasksPage'
+import TasksLayout from './pages/TasksLayout'
 import UpdatesPage from './pages/UpdatesPage'
 import OpsPage from './pages/OpsPage'
 
@@ -23,7 +23,7 @@ function LoginStub() {
 // Uses MemoryRouter (same pattern as guards.test.tsx) for reliable redirect testing.
 describe('AC-008: Guard on new routes', () => {
   const cases = [
-    { path: '/tasks', element: <TasksPage /> },
+    { path: '/tasks', element: <TasksLayout /> },
     { path: '/updates', element: <UpdatesPage /> },
     { path: '/ops', element: <OpsPage /> },
   ]

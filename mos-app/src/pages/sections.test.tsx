@@ -12,9 +12,10 @@ vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolv
 import UpdatesPage from './UpdatesPage'
 import OpsPage from './OpsPage'
 
-// TasksPage is now a full list page (P2-1b); its section-level assertions moved to
-// TasksPage.test.tsx (AC-060..067). The title + no-phase-wording tests below remain valid
-// and are covered in AC-004 below.
+// The /tasks page-shell oracles below were re-homed from the deleted TasksPage host onto
+// the LIVE /tasks surface (TasksLayout → TasksWorkspace). AC-004 (document.title) +
+// AC-007 (Tasks heading, no phase/roadmap wording) + the assembly left-align check are now
+// proven against the real page the user sees.
 
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn(() => new Promise(() => {})), getTaskTitlesByIds: vi.fn(() => Promise.resolve([])) }))
 // OpsPage needs these mocked (P2-3b — real page, not placeholder)
@@ -42,7 +43,7 @@ vi.mock('../auth/useAuth', () => ({
     signOut: () => {},
   })),
 }))
-import TasksPage from './TasksPage'
+import TasksLayout from './TasksLayout'
 import { AuthContext } from '../auth/context'
 import type { PeopleRow, RolesRow } from '../lib/database.types'
 import type { AuthState } from '../auth/context'
@@ -64,13 +65,13 @@ const authedState: AuthState = {
 
 // AC-007: section empty shells render correct copy with no roadmap/phase wording
 describe('AC-007: Section empty shells', () => {
-  it('TasksPage: title "Tasks" heading is present, no phase/roadmap wording', () => {
-    // TasksPage now shows loading skeleton (data layer mocked to pending) but still
-    // renders the "Tasks" h1 and has no phase wording.
+  it('AC-007: live /tasks page shows the "Tasks" heading, no phase/roadmap wording', () => {
+    // Re-homed onto the LIVE /tasks surface (TasksLayout). listTasks is mocked pending so
+    // the table stays loading, but the "Tasks" h1 + zero phase/roadmap wording hold.
     render(
       <AuthContext.Provider value={authedState}>
-        <MemoryRouter>
-          <TasksPage />
+        <MemoryRouter initialEntries={['/tasks']}>
+          <TasksLayout />
         </MemoryRouter>
       </AuthContext.Provider>,
     )
@@ -106,12 +107,12 @@ describe('AC-007: Section empty shells', () => {
 
 // FIX-3: Empty states are NOT text-centered (left-aligned per mockup anti-slop note)
 describe('FIX-3: Empty state containers are left-aligned (not text-center)', () => {
-  it('TasksPage assembly container does NOT have text-center class', () => {
-    // TasksPage now renders a .assembly container (card assembly per design-plan).
+  it('FIX-3: live /tasks assembly container does NOT have text-center class', () => {
+    // Re-homed onto the LIVE /tasks surface (TasksLayout → TasksWorkspace .assembly).
     const { container } = render(
       <AuthContext.Provider value={authedState}>
-        <MemoryRouter>
-          <TasksPage />
+        <MemoryRouter initialEntries={['/tasks']}>
+          <TasksLayout />
         </MemoryRouter>
       </AuthContext.Provider>,
     )
@@ -146,11 +147,11 @@ describe('FIX-3: Empty state containers are left-aligned (not text-center)', () 
 
 // AC-004 title portion: section pages set document.title
 describe('AC-004: Document title per section page', () => {
-  it('TasksPage sets document.title to "Tasks — Gordi MOS"', () => {
+  it('AC-004: the live /tasks page (TasksLayout) sets document.title to "Tasks — Gordi MOS"', () => {
     render(
       <AuthContext.Provider value={authedState}>
-        <MemoryRouter>
-          <TasksPage />
+        <MemoryRouter initialEntries={['/tasks']}>
+          <TasksLayout />
         </MemoryRouter>
       </AuthContext.Provider>,
     )

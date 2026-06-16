@@ -35,7 +35,10 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 import { getTask, updateTaskStatus, updateTaskRaci, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
-import TaskDetail from './TaskDetail'
+// Re-homed from the deleted TaskDetail host onto the LIVE task surface (TaskSurface view
+// mode, width="full" — identical to what the host rendered). All detail-field ACs
+// (AC-070..075, T-047, RIC-1/2/3, I2, M2) now run against the real component.
+import { TaskSurface } from '../components/tasks/TaskSurface'
 
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
@@ -135,7 +138,8 @@ function renderDetail(auth: AuthState = authedState) {
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/tasks/task-abc']}>
-        <TaskDetail />
+        {/* Re-homed: TaskSurface view mode at full width (was the TaskDetail host's render). */}
+        <TaskSurface taskId="task-abc" mode="view" width="full" onClose={() => {}} onTitleResolved={() => {}} />
       </MemoryRouter>
     </AuthContext.Provider>,
   )

@@ -22,7 +22,10 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 import { createTask } from '../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../lib/db/directory'
-import TaskCreate from './TaskCreate'
+// Re-homed from the deleted TaskCreate host onto the LIVE create surface (TaskSurface
+// create mode, width="full" — identical to what the host rendered). AC-080 (prefills) +
+// AC-081 (validation) now run against the real component.
+import { TaskSurface } from '../components/tasks/TaskSurface'
 
 const mockCreateTask = vi.mocked(createTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
@@ -62,7 +65,8 @@ function renderCreate(auth: AuthState = authedState) {
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/tasks/new']}>
-        <TaskCreate />
+        {/* Re-homed: TaskSurface create mode at full width (was the TaskCreate host's render). */}
+        <TaskSurface taskId={null} mode="create" width="full" onClose={() => {}} />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
