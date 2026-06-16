@@ -27,3 +27,25 @@ describe('StatusPill — status variants', () => {
     expect(container.querySelector('.dot')).toBeTruthy()
   })
 })
+
+describe('StatusPill — AC-118 always-label rule', () => {
+  it('AC-118: always renders the status text label (never dot-only) for "In Progress"', () => {
+    render(<StatusPill status="In Progress" />)
+    expect(screen.getByText('In Progress')).toBeInTheDocument()
+  })
+
+  it('AC-118: always renders the status text label (never dot-only) for "Blocked"', () => {
+    render(<StatusPill status="Blocked" />)
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+  })
+
+  it('AC-118: always renders the status text label (never dot-only) for "Open"', () => {
+    render(<StatusPill status="Open" />)
+    expect(screen.getByText('Open')).toBeInTheDocument()
+  })
+
+  it('AC-118: always renders the status text label (never dot-only) for "Done"', () => {
+    render(<StatusPill status="Done" />)
+    expect(screen.getByText('Done')).toBeInTheDocument()
+  })
+})

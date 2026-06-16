@@ -439,7 +439,9 @@
 .dw-tab.on { color: hsl(var(--foreground)); font-weight: 600; }
 .dw-tab.on::after {
   content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px;
-  height: 2px; border-radius: 2px; background: hsl(var(--primary)); /* sticky-tab indicator */
+  height: 2px; border-radius: 2px;
+  /* OD-P3-7 / Structural-Navy Rule: drawer active-tab underline → brand-navy (structural, not action) */
+  background: hsl(var(--brand-navy));
 }
 
 /* ── Tab pane (the scrolling body) ── */

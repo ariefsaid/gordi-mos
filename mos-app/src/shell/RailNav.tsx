@@ -14,12 +14,20 @@ export default function RailNav({ onNavigate }: RailNavProps) {
         className="flex items-center gap-[10px] px-4 border-b border-border"
         style={{ height: 'var(--header-h)' }}
       >
-        {/* 28px primary logo square */}
-        <div
-          className="flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-bold flex-none"
-          style={{ width: 28, height: 28, fontSize: 13 }}
-        >
-          G
+        {/* 28px brand-navy logo square + orange sprinkle dot (OD-P3-7 / Structural-Navy Rule) */}
+        <div className="relative flex-none" style={{ width: 28, height: 28 }}>
+          <div
+            className="flex items-center justify-center bg-brand-navy text-primary-foreground rounded-sm font-bold w-full h-full"
+            style={{ fontSize: 13 }}
+          >
+            G
+          </div>
+          {/* Orange sprinkle dot — brand identity marker, bottom-right corner */}
+          <span
+            className="absolute bottom-0 right-0 bg-brand-orange rounded-full"
+            style={{ width: 6, height: 6, transform: 'translate(30%, 30%)' }}
+            aria-hidden="true"
+          />
         </div>
         <div>
           <div className="font-bold text-foreground" style={{ fontSize: 14, letterSpacing: '-0.01em' }}>
@@ -46,12 +54,17 @@ export default function RailNav({ onNavigate }: RailNavProps) {
               [
                 'flex items-center gap-[11px] rounded-sm px-3 no-underline',
                 'text-sm font-medium',
+                /* OD-P3-7 / Structural-Navy Rule: active nav uses brand-navy tint, NOT primary blue */
                 isActive
-                  ? 'bg-primary/10 text-primary font-semibold'
+                  ? 'bg-brand-navy/6 text-brand-navy-text font-semibold'
                   : 'text-foreground hover:bg-accent',
               ].join(' ')
             }
-            style={{ height: 38 }}
+            style={({ isActive }) => ({
+              height: 38,
+              /* OD-P3-7: inset left rail marker for active state (navy, structural) */
+              boxShadow: isActive ? 'inset 3px 0 0 hsl(var(--brand-navy))' : undefined,
+            })}
           >
             <section.Icon />
             {section.label}
