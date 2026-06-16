@@ -159,6 +159,13 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
   `OpsAddForm.tsx` / a stale `TaskDetail.css` comment in `WeeklyUpdateWritePane.css` / CSS-provenance notes —
   harmless, sweep whenever.)*
 - [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ordered ris-dev deploy runbook before P3-1.
+- [ ] **Decouple e2e fixtures from the demo personas (recurring demo-login orphan).** The Playwright
+  global-setup reuses the SAME `shared.people` rows as the one-click demo personas (`40000000-…-00N`,
+  emails `*.dev@example.test`) and re-points their `user_id` to e2e auth users (e.g. it links person
+  `…-000`/Dewi to the e2e MANAGER uid). So **every e2e run breaks the demo login** ("Your account isn't
+  set up yet"). Quick recovery: `UPDATE shared.people p SET user_id=a.id FROM auth.users a WHERE
+  p.email=a.email AND p.email LIKE '%.dev@example.test';` (or `supabase db reset`). **Permanent fix:** give
+  e2e its own person ids / org (or its own emails) so global-setup never touches the `*.dev` demo rows.
 - Note: `docs/plans/archive/` now holds the 11 completed Phase-1/2 plans; the 2 Phase-3 `2026-06-15-tasks-redesign*`
   plans stay at `docs/plans/` top level (most-recent reference). All shipped plans are historical records.
 
