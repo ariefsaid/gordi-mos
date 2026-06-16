@@ -200,6 +200,31 @@ pi agents see NOTHING of your session. The brief must stand alone:
 8. **Fix rounds:** numbered findings, "fix ALL, change nothing else". **Completion rounds** (after a
    killed run): list ONLY the missing items, "do not rework what already landed".
 
+### 4a. Manager (orchestrator) briefs — result-based, NOT step-by-step (owner-directed 2026-06-16)
+
+§4 above is the **single-role WORKER** brief (one bounded spec/build/review slice). When dispatching a
+**GLM manager/orchestrator** (§3e) — which **may spin up its own sub-`pi` subagents** — brief it by
+**OUTCOME, not steps**, and grant it the latitude to decide the decomposition, so the Director stays in
+the **review/verify** seat instead of supervising every move:
+
+1. **The goal / outcome** — what "done" looks like, not a step list.
+2. **The Definition of Done + acceptance criteria** it must hit — the *verifiable bar* (gates green; the
+   specific ACs preserved/added; the final sentinel). This is what you'll check, so make it concrete.
+3. **Non-negotiable invariants** (binding even with full latitude): the **BDD rule** (assert the goal,
+   never weaken/soften/`.catch` an assertion), the **gates** (typecheck/lint/test/build), **never
+   push/PR/merge**, the scope fences, and **security/RLS/RPC/auth/money-path is never sole-signed by a
+   GLM** (§2 degraded mode, §5).
+4. **READ-FIRST pointers** (decisions/spec/reference slice) so it grounds itself — but let it choose the path.
+5. **Latitude grant, explicit:** "you decide how to decompose; you MAY dispatch sub-`pi` role-workers via
+   Bash and run an inner review loop; keep sub-dispatches **in-turn** (§3c-bis); spawn a cross-family or
+   different-GLM reviewer for load-bearing slices."
+6. **A final verifiable report + sentinel** — so the Director verifies the **result against the DoD**
+   (§5), not the steps.
+
+**The trade (say it in the brief):** the *how* is delegated; the *rigor* moves entirely into **outcome
+verification** — a looser brief ⇒ a **tighter** verify, never a lighter one. Fall back to the §4
+prescriptive worker brief for a single bounded slice, or when a prior result-based run drifted.
+
 ## 5. Verification — playbook §7, applied doubly
 
 Never accept a pi completion report. Minimum per dispatch:
@@ -220,6 +245,12 @@ Never accept a pi completion report. Minimum per dispatch:
 — the cross-family reviewer (gpt-5.4) AND the Director's own read. (Trial empirics from PMO: gpt-5.4
 caught 3 criticals a GLM author missed — a fake progress bar, e2e not proving their ACs, an org_id seam
 violation — while the Director's own read caught 2 the reviewer missed. Both lenses, always.)
+
+**Result-based (§4a) dispatches raise the verification bar, not lower it.** When you delegated the *how*,
+the outcome check is the only safety net: verify the **DoD line-by-line** (each AC preserved/added, the
+gates re-run *by you*, the diff read, the UI rendered), and treat a manager run that touched
+security/RLS/auth/money-path as **lower-trust** until your own review clears it. Latitude on the path is
+fine; latitude on the verify is not.
 
 ## 6. Known failure tendencies (watch for these in review)
 
