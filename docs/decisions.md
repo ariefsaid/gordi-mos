@@ -326,6 +326,23 @@ Owner approved closing the DESIGN.md §5 Inputs gap: `--field-error-border` = `d
 
 > **ADR candidate (eng-planner authors):** the "one UI / two widths + one canonical URL" master-detail model is hard-to-reverse and cross-cutting (routing, the 844-line `TaskDetail` refactor, the My Week / Daily Log deep-link contract) → warrants an ADR. CONTEXT.md untouched — "drawer"/"expand" are UI mechanics, not domain vocabulary.
 
+### OD-P3-6 — Tasks = full-bleed DB-view workspace (monday IA, Gordi skin)
+The post-split-view Tasks screen still read as a **personal to-do app**; root cause was **IA + layout width**, not color (owner, grill 2026-06-16; mockups `docs/design-mockups/tasks-dbview-{A,B,final}.html`). Adopt the **monday.com *information architecture*** (explicitly **not** its color), rendered in the restrained DESIGN.md register:
+- **Full-bleed workspace** — kill the 1080px centered cap in `PageFrame.tsx` for **data/list surfaces** (Tasks now; My Week / Daily Log to follow). **Prose surfaces (Weekly-update write) keep a readable max-width** — full-bleed is for tables, not paragraphs.
+- **View-tab strip** — **Table** (built) · **Board** / **Calendar** (visible but **stubbed/disabled** — owner deferred; separate later slices).
+- **Collapsible group-by** — default **group-by Status**; each group header carries a **count + overdue subtotal**. Group-by is the "database" signature; switchable to Owner / BU.
+- **Real toolbar** — Group · Business unit · Person · Mine/RACI/All · Search · New task.
+- **Open paradigm unchanged** — the shipped split-view **drawer (ADR-0007) is kept** (it *is* Notion's side-peek); inline-cell editing is **not** adopted (drawer remains the editor).
+- **Visual register (owner-iterated 2026-06-16, `tasks-dbview-final.html`):** **A's chrome** — bordered filter controls, thin **horizontal** gridlines only (no vertical "stripes"), denser rows, hover quick-actions, bulk-select — combined with **B's table-body simplicity**: clean hairline group headers (NO navy bands, NO left-edge swatch — left stripes removed as distracting), flat-grey selected row (no left bar). **Status chips = soft-tinted** (DESIGN.md "Tinted-Status Rule": In-Progress soft-blue, Blocked soft-red, Open soft-amber, Done soft-green) — the one place soft color lives; everything else neutral grey (grey owner avatars). Overdue dates stay red (off-track signal).
+
+### OD-P3-7 — Adopt Gordi brand tokens: navy + burnt-orange (DESIGN.md amendment)
+The adopted DESIGN.md is the RIS near-monochrome (one bright action-blue, no navy, no orange). Owner ratified **introducing the real Gordi brand colors** (grill 2026-06-16): **navy `hsl(218 46% 22%)`** + **burnt-orange `hsl(18 80% 48%)`**.
+- **Navy = structural** (group-bars, active nav indicator, logo, avatar gradient) — carries weight the lone action-blue shouldn't (One-Blue Rule preserved: blue stays the only *action* color).
+- **Orange = brand sprinkle only**, used **sparingly** (logo dot, active view-tab marker). **Kept OFF all status semantics** — burnt-orange sits between the red/amber status hues and would be misread as a warning. Never a status, never an action color.
+- This is a **DESIGN.md amendment + an ADR** (hard-to-reverse identity change to an "identity authority, never re-invent" doc) — exact token names/usage rules ratified into DESIGN.md by **design-architect** in build PR-1.
+
+> **ADR (eng-planner authors): ADR-0008** — covers both the DESIGN.md brand-token amendment (OD-P3-7) and the full-bleed DB-view IA (OD-P3-6): identity-level, cross-cutting (shared `PageFrame`, the design-system authority doc), genuine trade-off (brand fidelity vs adopted-restraint). **Build phasing (owner):** PR-1 tokens+amendment → PR-2 full-bleed layout + view-tab scaffold + toolbar → PR-3 group-by engine + group headers.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

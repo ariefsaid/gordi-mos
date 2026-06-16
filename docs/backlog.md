@@ -106,6 +106,31 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
   vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
 
+## 🎨 Design-ready — Tasks DB-view redesign (adopted mockup + 4-lens review DONE; NOT yet built)
+Grill + mockup + review complete 2026-06-16; **owner stopped at the mockup** (no plan/build started). Decisions:
+**OD-P3-6** (full-bleed DB-view IA) + **OD-P3-7** (navy+orange brand amendment) in `docs/decisions.md`. Adopted
+visual: `docs/design-mockups/tasks-dbview-final.html` — **A's chrome** (full-bleed · view-tabs · A's bordered
+filter controls · thin **horizontal** gridlines only, no vertical "stripes") + **B's table simplicity** (clean
+hairline group headers — NO navy bands, NO left-edge swatch) · **soft-tinted status chips** (DESIGN.md
+"Tinted-Status Rule": In-Progress soft-blue, Blocked soft-red, Open soft-amber, Done soft-green) as the one
+color element + overdue red dates · everything else **neutral grey** (grey owner avatars, flat-grey selected
+row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Criticals** (no second mockup round).
+- [ ] **Resume = design-plan + ADR-0008** (eng-planner/design-architect), then build phasing (owner-approved):
+  **PR-1** DESIGN.md navy/orange token amendment + ADR-0008 → **PR-2** full-bleed layout (kill 1080 cap in
+  `PageFrame.tsx` for data surfaces; keep prose capped) + view-tab scaffold (Board/Calendar **stubbed**) + toolbar
+  restyle → **PR-3** group-by engine + group headers (count + overdue subtotal) over the existing virtualized table.
+- **Fold into the design-plan (review "Important"):** (1) all states — loading/empty/error/no-results/empty-group/
+  zero-overdue header; (2) **bulk-select selection-mode toolbar** (checkboxes shown, action bar unspecified);
+  (3) **"Mine" vs "Person:" filter precedence** (can form a contradictory state — define disable/precedence);
+  (4) **"+N" RACI tooltip** (silent glyph → reveal C/I people on hover/focus).
+- **design-architect notes (review "Minor"):** make "3 overdue"/group subtotals **click-to-filter**; codify status
+  **dot ≥8px + text label always** (no dot-only variant — keeps WCAG 1.4.1 when grouping ≠ Status); document
+  **50px rows** vs DESIGN.md 54px; bless the **navy→blue avatar gradient** in the amendment (doc says blue→violet).
+- **Regression-invariants to test when built:** RI-1 one canonical task home regardless of entry; RI-2 inline
+  status change with no view transition; RI-3 every chip renders its text label; RI-4 off-track signal in the row;
+  RI-5 role-stable nav/breadcrumb.
+- Sibling mockups (context): `tasks-dbview-A.html` (louder), `tasks-dbview-B.html` (Notion-quiet).
+
 ## Doc & code debt (non-blocking — from the 2026-06-16 fresh-eyes audit)
 - [ ] **Fold AC-100..115 into the spec.** The Tasks-redesign ACs live only in `docs/plans/2026-06-15-tasks-redesign.md`,
   not in `docs/specs/tasks-raci.spec.md` (or a `tasks-redesign.spec.md` addendum). Plan-only AC coverage.

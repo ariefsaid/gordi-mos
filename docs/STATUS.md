@@ -55,6 +55,12 @@ Non-blocking polish: eyeball the 920–1100 overlay band live; the thin `TaskDet
 hosts may be deleted (OD-P3 "Q5"). P2-4 (kitchen→ops mirror) stays owner-deferred; WALL-3/WALL-4 only
 matter when P2-4 resumes.
 
+**Also design-ready (owner stopped at the mockup 2026-06-16, NOT built):** the **Tasks DB-view redesign**
+— full-bleed monday-IA workspace, neutral table, navy+orange brand. Grill + mockup
+(`docs/design-mockups/tasks-dbview-final.html`) + 4-lens review all DONE (verdict **PASS, no Criticals**);
+decisions **OD-P3-6/7**. Resume = design-plan + **ADR-0008** → 3-PR build (tokens → layout → group-by).
+Full checklist + folded review findings: `docs/backlog.md` → "🎨 Design-ready — Tasks DB-view redesign".
+
 ## Open owner decisions (THE WALL — never guess)
 - **WALL-3** — which kitchen events mirror first (gates P2-4).
 - **WALL-4** — ops schema generic vs kitchen-specific. Director rec = **generic** (already built that way);
