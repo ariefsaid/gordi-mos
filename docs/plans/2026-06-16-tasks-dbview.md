@@ -39,6 +39,25 @@
 - **Also fold the PR-1 Minor:** strengthen the AC-118 StatusPill oracle to assert the text label
   **coexists with** the dot (the real intent: redundant cue = dot + label, never one alone).
 
+### Director rulings — PR-3 review (2026-06-16; for the PR-3 fix-up + record)
+- **Grouping stays app-side BY DESIGN** (not `getGroupedRowModel`/`getExpandedRowModel`). Q3 mandates the
+  **full domain incl. empty groups**, which TanStack's grouped row model cannot synthesize (it only groups
+  rows that exist). So TanStack owns core/filtered/sorted; grouping + empty-group injection is a derived
+  `useMemo` over the engine's leaf rows. This is the correct approach, not drift — OD-P3-8's
+  `getGroupedRowModel` wording is superseded here. (ADR-0008 should note this.)
+- **Status-group "+ Add task" must NOT emit/`?status=`** — `CreateSurface` has no status field and never
+  reads it (the default group silently dropped its pre-fill). Drop status pre-fill; keep Owner→`r=` and
+  BU→`bu=`. Fix the misleading `CreateSurface` comment. (See refined FR-123.)
+- **Fix-up round items (PR-3):** extract `MobileGroupedCards` + share the group-header chrome (no
+  duplicated caret/label/count/overdue/add between desktop `GroupHeaderRow` and the mobile block);
+  remove orphaned `.card-list` dead CSS; fix the dangling `aria-controls` (point at the real leaf-row
+  group id or drop it); **tag AC-117** explicitly in a test title (currently only covered behaviorally by
+  AC-103) so `grep -r AC-117` finds its proof.
+- **Toolbar keeps the standalone Status filter + the "Show archived" checkbox** (owner ratified "keep both",
+  PR-3 review 2026-06-16). The Status *filter* composes with non-Status grouping (e.g. group by Owner, filter
+  Status=Blocked); Show-archived is real capability. The adopted mockup under-depicted them — **not a defect**;
+  update the mockup/design-plan to show them rather than trimming the code.
+
 ## Scope guardrails (read before any task)
 
 - **UI + design-system + one client dependency ONLY.** NO schema / RLS / grant / migration change.
@@ -81,7 +100,9 @@
   or BU — and **shall** render every group always (including empty groups), with rows sorted Due-ascending
   (overdue first) within each group.
 - **FR-123** — Each group header **shall** show a caret, the group label, a row count, an overdue subtotal
-  when >0, and a "+ Add task" affordance that pre-fills the grouped dimension (Owner → R).
+  when >0, and a "+ Add task" affordance. The affordance pre-fills the grouped dimension **only for Owner
+  (→R) and BU** groups; **Status groups open a plain create** (a new task is always Open — no status
+  pre-fill, and the create form has no status field). *(Director ruling, PR-3 review 2026-06-16.)*
 - **FR-124** — When a Person filter is set, the workspace **shall** disable the Mine/RACI/All segment (the
   Person filter overrides ownership scope).
 - **FR-125** — The workspace **shall** persist `view`, `groupBy`, and `collapsedGroups` per-user-global in
@@ -129,7 +150,7 @@
 | **AC-123** | Given the workspace with default state, Then rows are **grouped by Status**, each group header showing the label, a **count**, and an **overdue subtotal** when >0; within a group rows are **Due-ascending (overdue first)** — FR-122/123. | unit |
 | **AC-124** | Given grouping by **Owner** (or BU), When a group has zero leaf rows, Then its header is **still shown** (count 0, caret, "+ Add task", no overdue subtotal) — FR-122. | unit |
 | **AC-125** | Given grouping by **Owner**, When "+ Add task" in a group header is activated, Then the create drawer opens pre-filling that person as **R (Responsible)** — FR-123, OD-P3-6 (Director ruling). | unit |
-| **AC-126** | Given a Person filter is chosen, Then the Mine/RACI/All segment is **disabled** (`aria-disabled`, removed from tab order, reads "Person: me") — FR-124. | unit |
+| **AC-126** | Given a Person filter is chosen, Then the Mine/RACI/All segment is **disabled** (`aria-disabled`, removed from tab order, with a tooltip "Scope is set by the Person filter" — **no literal "Person: me" text**) — FR-124. | unit |
 | **AC-127** | Given the viewer changes `view`/`groupBy`/a collapsed group, When the page re-opens, Then the choice is **restored** from `localStorage` `mos.tasks.{view,groupBy,collapsedGroups}` (per-user-global) — FR-125. | unit |
 | **AC-128** | Given the page "N overdue" count (or a group overdue subtotal) is a button, When activated, Then a **transient overdue-only filter chip** is applied (only overdue rows shown) and is clearable — FR-126, OD-P3-6 (Director ruling). | unit |
 | **AC-129** | Given `<768px`, Then the workspace renders **grouped cards** (group headers + `TaskCard`s for the chosen group-by) and **no view-tab strip** — FR-127. | unit |
