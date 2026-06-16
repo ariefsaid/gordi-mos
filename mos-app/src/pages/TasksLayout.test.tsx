@@ -122,6 +122,25 @@ function renderAt(path: string) {
 }
 
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
+  it('AC-121: TasksLayout renders inside a full-bleed (variant=data) PageFrame — no 1080px maxWidth cap', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('Triage me'))
+    const main = document.querySelector('main') as HTMLElement
+    const inner = main.querySelector('main > div') as HTMLElement
+    expect(inner.style.maxWidth).toBe('none')
+  })
+
+  it('AC-120: the Tasks <main> landmark is present and the breadcrumb/nav survive full-bleed', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('Triage me'))
+    // <main> landmark still present (full-bleed does not remove it)
+    expect(document.querySelector('main')).toBeTruthy()
+    // Tasks heading still renders (structural anchor for the page)
+    expect(screen.getByRole('heading', { name: /tasks/i })).toBeInTheDocument()
+  })
+
   it('AC-100: at /tasks the table renders and no drawer is present (nodrawer)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
     renderAt('/tasks')
@@ -151,7 +170,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(selectedRow?.textContent).toContain('Open one')
   })
 
-  it('AC-103: an optimistic status change in the drawer is reflected in the table row', async () => {
+  it('AC-103 / AC-117: an optimistic status change in the drawer is reflected in the table row without navigation (RI-2: no view transition)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one', status: 'Open' })])
     mockGetTask
       .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Open one', status: 'Open' }), checklist: [], events: [] })

@@ -237,7 +237,6 @@
 }
 
 /* ── Mobile card list ── */
-.card-list { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 .task-card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px; overflow: hidden; }
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
 .task-card-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
@@ -250,6 +249,154 @@
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
 @media (max-width: 1099.98px) {
   .split, .split.expanded { grid-template-columns: 1fr; }
+}
+
+/* ── Group-by control (DB-view toolbar, DESIGN.md §5 toolbar-control treatment) ──
+   Tinted to read as the active "database" control: brand-navy/6 bg + brand-navy border
+   + brand-navy-text text + 600 weight (The Structural-Navy Rule). */
+.control-groupby {
+  background: hsl(var(--brand-navy) / 0.06);
+  border-color: hsl(var(--brand-navy));
+  color: hsl(var(--brand-navy-text));
+  font-weight: 600;
+}
+.control-groupby .ctrl-lbl {
+  color: hsl(var(--brand-navy-text));
+}
+.control-groupby .ctrl-chev {
+  color: hsl(var(--brand-navy-text));
+}
+
+/* ── Segment disabled state (FR-124 / AC-126) ── */
+.seg-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Overdue filter button (count line, AC-128 / FR-126) ── */
+.overdue-filter-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: hsl(var(--status-lost-text));
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.overdue-filter-btn:hover {
+  color: hsl(0 72% 35%);
+}
+
+/* ── Overdue-only active chip (AC-128 — clearable transient filter) ── */
+.overdue-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 1px solid hsl(var(--status-lost-text) / 0.4);
+  background: hsl(var(--status-lost-text) / 0.08);
+  color: hsl(var(--status-lost-text));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  gap: 4px;
+}
+.overdue-chip:hover {
+  background: hsl(var(--status-lost-text) / 0.14);
+}
+
+/* ── Empty state actions row (no-results + new task, AC-133) ── */
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-outline:hover {
+  background: hsl(var(--accent));
+}
+
+/* ── Group header row (OD-P3-6, DESIGN.md §5 group-header spec) ──
+   A clean hairline-separated row (no navy band, no left swatch): caret + label
+   + count + overdue subtotal (when >0) + "+ Add task". 38px tall. */
+tr.grp td { padding: 0; }
+.gbar {
+  display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
+  border-top: 1px solid hsl(var(--border)); border-bottom: 1px solid hsl(var(--border));
+}
+.gbar .caret {
+  display: inline-grid; place-items: center; width: 16px; height: 16px;
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1; flex: none;
+}
+.gbar .caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+.gbar .glabel { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
+.gbar .gcount { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.gbar .gsub {
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
+  color: hsl(var(--status-lost-text)); cursor: pointer;
+}
+.gbar .gsub:hover { color: hsl(0 72% 35%); }
+.gbar .gadd {
+  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.gbar .gadd:hover { color: hsl(var(--foreground)); }
+.gbar .gadd:focus-visible, .gbar .gsub:focus-visible {
+  outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px;
+}
+
+/* ── Owner "+N" RACI disclosure tooltip (AC-130, FR-128) ── */
+.own-more-wrap { position: relative; display: inline-flex; }
+.own-more-btn {
+  background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer;
+}
+.own-more-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+.own-tip {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 2px; min-width: 120px; padding: 8px 10px;
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+  box-shadow: 0 6px 20px hsl(240 6% 10% / 0.12); white-space: nowrap;
+}
+.own-tip-row { font-size: 12px; color: hsl(var(--foreground)); }
+
+/* ── Mobile grouped cards (AC-129, FR-127) ── */
+.mgc { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+.mgc-group { display: flex; flex-direction: column; gap: 8px; }
+.mgc-group-head { display: flex; align-items: center; gap: 8px; padding: 0 4px; min-height: 36px; }
+.mgc-caret {
+  display: inline-grid; place-items: center; width: 28px; height: 28px;
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  color: hsl(var(--muted-foreground)); font-size: 12px; flex: none;
+}
+.mgc-caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+.mgc-label { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
+.mgc-count { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.mgc-sub {
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
+  color: hsl(var(--status-lost-text)); cursor: pointer;
+}
+.mgc-add {
+  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer;
 }
 
 /* ── Utility ── */

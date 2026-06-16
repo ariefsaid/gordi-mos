@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — Tasks DB-view · Variant B "Database" (Notion-leaning)</title>
+<style>
+  /* Base tokens from DESIGN.md. Same PROPOSED brand tokens as Variant A, but the
+     REGISTER is quieter: hairline group dividers (no tinted bars), GHOST status
+     tags (outline, color only on the dot), color reserved for off-track signals,
+     more whitespace. Navy appears only as group-label text + active nav; ONE
+     orange sprinkle (active view-tab dot). The Notion "calm database" reading. */
+  :root {
+    --fg: hsl(240 10% 3.9%); --muted: hsl(240 4% 40%); --border: hsl(240 5.9% 90%);
+    --card: hsl(0 0% 100%); --bg: hsl(0 0% 100%); --accent: hsl(240 4.8% 95.9%);
+    --blue: hsl(221.2 83.2% 53.3%); --blue-12: hsl(221 83% 53% / 0.10); --blue-text: hsl(221 75% 38%);
+    --navy: hsl(218 46% 22%); --navy-08: hsl(218 46% 22% / 0.06); --navy-text: hsl(218 42% 26%);
+    --orange: hsl(18 80% 48%);
+    --red: hsl(0 84.2% 60.2%); --red-text: hsl(0 72% 45%);
+    --amber: hsl(43 96% 56%); --amber-text: hsl(22 78% 26%);
+    --green: hsl(142 71% 45%); --green-text: hsl(142 64% 30%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.45; color: var(--fg); background: var(--bg); -webkit-font-smoothing: antialiased; }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  *:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+  .cmp { background: var(--navy); color: hsl(0 0% 98%); padding: 9px 24px; font-size: 12.5px; display: flex; gap: 14px; align-items: center; }
+  .cmp b { font-weight: 700; } .cmp .tag { background: var(--orange); color: #fff; font-weight: 700; padding: 1px 8px; border-radius: 999px; font-size: 11px; letter-spacing: .04em; }
+  .cmp .lk { margin-left: auto; color: hsl(0 0% 88%); text-decoration: underline; font-size: 12px; }
+
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: calc(100vh - 36px); }
+  .rail { background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+  .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: var(--navy); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 800; font-size: 13px; position: relative; }
+  .brand .logo::after { content:""; position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:999px; background:var(--orange); border:2px solid var(--card); }
+  .brand .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .nav { padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .nav-item { height: 38px; border-radius: 6px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 14px; font-weight: 500; color: var(--fg); text-decoration: none; cursor: pointer; }
+  .nav-item:hover { background: var(--accent); }
+  .nav-item .ico { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; }
+  .nav-item.active { background: var(--navy-08); color: var(--navy-text); font-weight: 600; }
+  .rail-foot { margin-top: auto; border-top: 1px solid var(--border); padding: 12px; }
+
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .header { height: 56px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; padding: 0 24px; }
+  .crumb { font-size: 13px; color: var(--muted); } .crumb b { color: var(--fg); font-weight: 600; } .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, var(--navy), var(--blue)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .userchip .nm { font-size: 13px; font-weight: 600; line-height: 1.1; } .userchip .rl { font-size: 11px; color: var(--muted); }
+
+  .page { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 396px; }
+  .ws { min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+  .titlerow { display: flex; align-items: baseline; gap: 12px; padding: 20px 32px 0; }
+  .ptitle { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .pcount { color: var(--muted); font-size: 13px; }
+  .pcount .od { color: var(--red-text); font-weight: 600; }
+
+  .views { display: flex; align-items: center; gap: 4px; padding: 12px 32px 0; }
+  .vtab { height: 30px; padding: 0 4px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); border: 0; background: transparent; cursor: pointer; position: relative; }
+  .vtab .ico { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .vtab:hover { color: var(--fg); }
+  .vtab.on { color: var(--fg); }
+  .vtab.on::after { content:""; position:absolute; left:4px; right:4px; bottom:-13px; height:2px; background: var(--fg); }
+  .vtab.on .dot { width:5px; height:5px; border-radius:999px; background: var(--orange); } /* the single orange sprinkle */
+  .vtab.add { color: var(--muted); font-weight: 500; }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 32px 14px; border-bottom: 1px solid var(--border); }
+  .control { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border-radius: 7px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .control:hover { background: var(--accent); color: var(--fg); }
+  .control b { color: var(--fg); font-weight: 600; } .control .chev { font-size: 10px; }
+  .seg { display: inline-flex; height: 30px; padding: 2px; background: var(--accent); border-radius: 8px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px; border-radius: 6px; color: hsl(240 5.9% 10%); cursor: pointer; }
+  .seg button.on { background: var(--card); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.10); }
+  .search-mini { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border-radius: 7px; color: var(--muted); font-size: 13px; }
+  .grow { margin-left: auto; }
+  .btn-primary { height: 30px; padding: 0 12px; border-radius: 7px; background: var(--blue); color: hsl(0 0% 98%); border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+
+  .scroll { overflow: auto; flex: 1; }
+  table { width: 100%; border-collapse: collapse; }
+  col.c-task { width: auto; } col.c-status { width: 140px; } col.c-owner { width: 200px; } col.c-bu { width: 120px; } col.c-due { width: 116px; } col.c-act { width: 90px; }
+  thead th { text-align: left; height: 34px; padding: 0 32px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: var(--card); z-index: 2; }
+  thead th:not(:first-child) { padding: 0 12px; }
+  thead th.r { text-align: right; }
+
+  /* group header — HAIRLINE divider, label only, no tinted bar (Database/Notion) */
+  tr.grp td { padding: 0; }
+  .gbar { display: flex; align-items: center; gap: 9px; height: 40px; padding: 0 32px; cursor: pointer; }
+  .gbar .caret { color: var(--muted); font-size: 11px; width: 12px; }
+  .gdot { width: 7px; height: 7px; border-radius: 999px; }
+  .gbar.s-prog .gdot { background: var(--blue); } .gbar.s-block .gdot { background: var(--red); } .gbar.s-open .gdot { background: var(--amber); } .gbar.s-done .gdot { background: var(--green); }
+  .gbar .glabel { font-size: 13px; font-weight: 700; color: var(--navy-text); }
+  .gbar .gcount { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .gbar .gsub { font-size: 12px; color: var(--red-text); font-weight: 600; }
+  .gbar .gadd { margin-left: auto; font-size: 12px; color: var(--muted); opacity: 0; }
+  .gbar:hover .gadd { opacity: 1; }
+  tr.grp.top .gbar { border-top: 1px solid var(--border); }
+
+  tbody td { height: 48px; padding: 0 12px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.55); vertical-align: middle; } /* hairline rows, NO vertical gridlines */
+  tbody td.c1 { padding-left: 32px; }
+  tbody tr.row { cursor: pointer; }
+  tbody tr.row:hover td { background: hsl(240 4.8% 95.9% / 0.5); }
+  tbody tr.row.sel td { background: var(--blue-12); }
+  .task-name { font-weight: 500; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* GHOST status tag — outline + colored dot, no fill */
+  .pill { display: inline-flex; align-items: center; gap: 7px; height: 23px; padding: 0 10px 0 8px; border-radius: 6px; font-size: 12.5px; font-weight: 500; white-space: nowrap; border: 1px solid var(--border); color: var(--fg); }
+  .pill .dot { width: 7px; height: 7px; border-radius: 999px; }
+  .pill.prog .dot { background: var(--blue); } .pill.block { border-color: hsl(0 84% 60% / 0.4); } .pill.block .dot { background: var(--red); } .pill.open .dot { background: var(--amber); } .pill.done { color: var(--muted); } .pill.done .dot { background: var(--green); }
+  .owner { display: flex; align-items: center; gap: 8px; }
+  .ownav { width: 24px; height: 24px; border-radius: 999px; background: var(--accent); color: var(--navy-text); display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; }
+  .own-name { font-size: 13px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .own-more { font-size: 12px; font-weight: 500; color: var(--muted); flex: none; }
+  .bu { font-size: 12.5px; color: var(--muted); }
+  .due { font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--fg); }
+  .due.overdue { color: var(--red-text); font-weight: 600; } .due.soon { color: var(--amber-text); font-weight: 600; } .due.calm { color: var(--muted); }
+  .act { font-size: 12px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+
+  /* side-peek drawer — same shipped pattern, quieter chrome */
+  .drawer { border-left: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-width: 0; }
+  .dhead { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+  .dhead-top { display: flex; align-items: center; gap: 8px; }
+  .dh-btn { width: 30px; height: 30px; border-radius: 7px; background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--muted); border: 0; }
+  .dh-btn:hover { background: var(--accent); }
+  .dh-btn.expand { margin-left: auto; }
+  .dtitle { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.3; }
+  .dpinned { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .raci-chip { font-size: 12.5px; color: var(--fg); display: inline-flex; align-items: center; gap: 6px; }
+  .raci-chip .k { color: var(--muted); font-weight: 700; font-size: 11px; }
+  .raci-chip .sep { color: var(--border); }
+  .tabs { display: flex; gap: 4px; padding: 0 18px; border-bottom: 1px solid var(--border); }
+  .tabs button { height: 40px; padding: 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tabs button.on { color: var(--fg); border-bottom-color: var(--fg); }
+  .dbody { padding: 18px; overflow: auto; display: flex; flex-direction: column; gap: 18px; }
+  .field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 12px; } /* Notion property rows */
+  .field .flbl { font-size: 12.5px; color: var(--muted); }
+  .field .fval { font-size: 13.5px; }
+  .field .fval.edit { padding: 5px 8px; border-radius: 6px; cursor: pointer; } .field .fval.edit:hover { background: var(--accent); }
+  .block-lbl { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+  .desc { font-size: 13.5px; color: hsl(240 6% 25%); line-height: 1.6; }
+  .ck { display: flex; align-items: center; gap: 9px; font-size: 13.5px; padding: 5px 0; }
+  .ck .box { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid var(--border); flex: none; }
+  .ck.done .box { background: var(--green); border-color: var(--green); color:#fff; display:grid; place-items:center; font-size:11px; }
+  .ck.done span { color: var(--muted); text-decoration: line-through; }
+</style>
+</head>
+<body>
+<div class="cmp">
+  <span class="tag">VARIANT B</span><b>"Database"</b><span>Notion-leaning — hairline group dividers · ghost status tags · color only on off-track · more whitespace · one orange sprinkle. Same full-bleed + view-tabs + group-by + side-peek drawer IA.</span>
+  <a class="lk" href="tasks-dbview-A.html">→ Compare Variant A</a>
+</div>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="logo">G</div><div><div class="name">Gordi MOS</div><div class="sub">Management OS</div></div></div>
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>My Week</a>
+      <a class="nav-item active" aria-current="page"><svg class="ico" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>Updates</a>
+      <a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Daily Log</a>
+    </nav>
+    <div class="rail-foot"><a class="nav-item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a></div>
+  </aside>
+
+  <div class="main">
+    <header class="header">
+      <div class="crumb"><span>Gordi MOS</span><span class="sep">&rsaquo;</span><b>Tasks</b></div>
+      <div class="spacer"></div>
+      <div class="userchip"><div class="avatar">AR</div><div><div class="nm">Arief</div><div class="rl">Director</div></div></div>
+    </header>
+
+    <div class="page">
+      <section class="ws">
+        <div class="titlerow"><div class="ptitle">Tasks</div><div class="pcount tabular">11 tasks · 2 blocked · <span class="od">3 overdue</span></div></div>
+
+        <div class="views">
+          <button class="vtab on"><span class="dot"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18M9 4v16"/></svg>Table</button>
+          <button class="vtab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="11"/><rect x="17" y="4" width="4" height="8"/></svg>Board</button>
+          <button class="vtab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Calendar</button>
+          <button class="vtab add">+ View</button>
+        </div>
+
+        <div class="toolbar">
+          <span class="control"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Group: <b>Status</b><span class="chev">▾</span></span>
+          <span class="control">Business unit: <b>All</b><span class="chev">▾</span></span>
+          <span class="control">Person: <b>Anyone</b><span class="chev">▾</span></span>
+          <span class="seg"><button class="on">Mine</button><button>RACI</button><button>All</button></span>
+          <span class="search-mini"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search</span>
+          <button class="btn-primary grow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>New task</button>
+        </div>
+
+        <div class="scroll">
+          <table>
+            <colgroup><col class="c-task"><col class="c-status"><col class="c-owner"><col class="c-bu"><col class="c-due"><col class="c-act"></colgroup>
+            <thead><tr><th>Task</th><th>Status</th><th>Owner</th><th>Business unit</th><th class="r">Due</th><th class="r">Activity</th></tr></thead>
+            <tbody>
+              <tr class="grp top"><td colspan="6"><div class="gbar s-prog"><span class="caret">▾</span><span class="gdot"></span><span class="glabel">In Progress</span><span class="gcount tabular">4</span><span class="gsub">· 1 overdue</span><span class="gadd">+ Add</span></div></td></tr>
+              <tr class="row sel"><td class="c1"><div class="task-name">Dial in new Brazil single-origin</div></td><td><span class="pill prog"><span class="dot"></span>In Progress</span></td><td><div class="owner"><div class="ownav">RA</div><span class="own-name">Rama</span><span class="own-more">+2</span></div></td><td class="bu">Roastery</td><td class="r"><span class="due overdue tabular">Overdue · Jun 12</span></td><td class="r"><span class="act tabular">2d</span></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Update espresso recipe cards</div></td><td><span class="pill prog"><span class="dot"></span>In Progress</span></td><td><div class="owner"><div class="ownav">CA</div><span class="own-name">Cahya</span></div></td><td class="bu">Cafe Ops</td><td class="r"><span class="due soon tabular">Jun 18</span></td><td class="r"><span class="act tabular">5h</span></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Photograph new pastry line</div></td><td><span class="pill prog"><span class="dot"></span>In Progress</span></td><td><div class="owner"><div class="ownav">KR</div><span class="own-name">Krishna</span><span class="own-more">+1</span></div></td><td class="bu">Kitchen</td><td class="r"><span class="due calm tabular">Jun 24</span></td><td class="r"><span class="act tabular">1d</span></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Q3 wholesale price list</div></td><td><span class="pill prog"><span class="dot"></span>In Progress</span></td><td><div class="owner"><div class="ownav">SA</div><span class="own-name">Sari</span></div></td><td class="bu">Sales</td><td class="r"><span class="due calm tabular">Jun 30</span></td><td class="r"><span class="act tabular">3d</span></td></tr>
+
+              <tr class="grp"><td colspan="6"><div class="gbar s-block"><span class="caret">▾</span><span class="gdot"></span><span class="glabel">Blocked</span><span class="gcount tabular">2</span><span class="gsub">· 2 overdue</span><span class="gadd">+ Add</span></div></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Replace grinder burrs (Cafe 2)</div></td><td><span class="pill block"><span class="dot"></span>Blocked</span></td><td><div class="owner"><div class="ownav">CA</div><span class="own-name">Cahya</span></div></td><td class="bu">Cafe Ops</td><td class="r"><span class="due overdue tabular">Overdue · Jun 9</span></td><td class="r"><span class="act tabular">6d</span></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Source compostable cups vendor</div></td><td><span class="pill block"><span class="dot"></span>Blocked</span></td><td><div class="owner"><div class="ownav">FI</div><span class="own-name">Fitri</span><span class="own-more">+1</span></div></td><td class="bu">Finance</td><td class="r"><span class="due overdue tabular">Overdue · Jun 11</span></td><td class="r"><span class="act tabular">4d</span></td></tr>
+
+              <tr class="grp"><td colspan="6"><div class="gbar s-open"><span class="caret">▾</span><span class="gdot"></span><span class="glabel">Open</span><span class="gcount tabular">3</span><span class="gadd">+ Add</span></div></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Plan barista latte-art workshop</div></td><td><span class="pill open"><span class="dot"></span>Open</span></td><td><div class="owner"><div class="ownav">CA</div><span class="own-name">Cahya</span></div></td><td class="bu">Cafe Ops</td><td class="r"><span class="due calm tabular">Jul 3</span></td><td class="r"><span class="act tabular">1d</span></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Roastery extractor PM schedule</div></td><td><span class="pill open"><span class="dot"></span>Open</span></td><td><div class="owner"><div class="ownav">RA</div><span class="own-name">Rama</span></div></td><td class="bu">Roastery</td><td class="r"><span class="due calm tabular">Jul 8</span></td><td class="r"><span class="act tabular">2d</span></td></tr>
+              <tr class="row"><td class="c1"><div class="task-name">Draft Q3 OKRs for cafe team</div></td><td><span class="pill open"><span class="dot"></span>Open</span></td><td><div class="owner"><div class="ownav">DE</div><span class="own-name">Dewi</span><span class="own-more">+3</span></div></td><td class="bu">Cafe Ops</td><td class="r"><span class="due calm tabular">Jul 11</span></td><td class="r"><span class="act tabular">7h</span></td></tr>
+
+              <tr class="grp"><td colspan="6"><div class="gbar s-done"><span class="caret">▸</span><span class="gdot"></span><span class="glabel">Done</span><span class="gcount tabular">2</span><span class="gadd">+ Add</span></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="drawer" aria-label="Task preview">
+        <div class="dhead">
+          <div class="dhead-top">
+            <button class="dh-btn" title="Close">✕</button>
+            <button class="dh-btn expand" title="Expand to full page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+          </div>
+          <div class="dtitle">Dial in new Brazil single-origin</div>
+          <div class="dpinned">
+            <span class="pill prog"><span class="dot"></span>In Progress ▾</span>
+            <span class="raci-chip"><span class="k">R</span> Rama</span><span class="sep">·</span><span class="raci-chip"><span class="k">A</span> Dewi</span>
+          </div>
+        </div>
+        <div class="tabs"><button class="on">Details</button><button>Checklist</button><button>Activity</button></div>
+        <div class="dbody">
+          <div class="field"><span class="flbl">Business unit</span><span class="fval edit">Roastery</span></div>
+          <div class="field"><span class="flbl">Due date</span><span class="fval edit" style="color:var(--red-text);font-weight:600">Overdue · Jun 12</span></div>
+          <div class="field"><span class="flbl">Owner (R)</span><span class="fval edit">Rama</span></div>
+          <div>
+            <div class="block-lbl">Description</div>
+            <div class="desc">Pull shots across 3 ratios, log TDS + tasting notes, lock the recipe card before the Saturday wholesale tasting. Waiting on the refractometer calibration from Cahya.</div>
+          </div>
+          <div>
+            <div class="block-lbl">Checklist · 2 of 4</div>
+            <div class="ck done"><span class="box">✓</span><span>Green bean intake logged</span></div>
+            <div class="ck done"><span class="box">✓</span><span>First roast profile drafted</span></div>
+            <div class="ck"><span class="box"></span><span>TDS + tasting across 3 ratios</span></div>
+            <div class="ck"><span class="box"></span><span>Lock recipe card</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+</body>
+</html>

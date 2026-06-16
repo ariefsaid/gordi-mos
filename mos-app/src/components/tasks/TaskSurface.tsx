@@ -1,6 +1,6 @@
 import './TaskSurface.css'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
 import {
   getTask, createTask,
@@ -532,6 +532,13 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   const navigate = useNavigate()
   const auth = useAuth()
   const inDrawer = width === 'drawer'
+  // AC-125 / FR-123: "+ Add task" from a group header deep-links the grouped
+  // dimension via query params (?r=<personId> / ?bu=<buId>).
+  // Note: Status groups do NOT pass ?status= — CreateSurface has no status field;
+  // all new tasks open as "Open". Only Owner (r=) and BU (bu=) pre-fills are read.
+  const [searchParams] = useSearchParams()
+  const prefillR = searchParams.get('r') ?? ''
+  const prefillBu = searchParams.get('bu') ?? ''
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -554,14 +561,17 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   }, [])
 
   // ── Form state ────────────────────────────────────────────────────────────
+  // Pre-fill from the group "+ Add task" deep-link (AC-125) takes precedence over
+  // the creator-default; absent param → today's creator-default behavior.
   const [title, setTitle] = useState('')
-  const [businessUnitId, setBusinessUnitId] = useState(primaryRoleBU)
-  const [responsiblePersonId, setResponsiblePersonId] = useState(viewerId)
+  const [businessUnitId, setBusinessUnitId] = useState(prefillBu || primaryRoleBU)
+  const [responsiblePersonId, setResponsiblePersonId] = useState(prefillR || viewerId)
   const [accountablePersonId, setAccountablePersonId] = useState(viewerId)
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
 
-  // Set BU once directory loads (in case primaryRoleBU wasn't set at mount)
+  // Set BU once directory loads (in case primaryRoleBU wasn't set at mount).
+  // A pre-filled BU (deep-link) is never overwritten.
   useEffect(() => {
     if (primaryRoleBU && !businessUnitId) {
       setBusinessUnitId(primaryRoleBU)

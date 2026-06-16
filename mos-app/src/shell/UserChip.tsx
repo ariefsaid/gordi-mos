@@ -58,14 +58,14 @@ export default function UserChip({ compact = false }: UserChipProps) {
         style={{ height: 36 }}
         onClick={() => setOpen((v) => !v)}
       >
-        {/* Avatar: 28px rounded-full, blue→violet gradient */}
+        {/* Avatar: 28px rounded-full, navy→blue gradient (OD-P3-7 / Structural-Navy Rule) */}
         <div
           className="flex items-center justify-center rounded-full text-primary-foreground flex-none font-bold"
           style={{
             width: 28,
             height: 28,
             fontSize: 11,
-            background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))',
+            background: 'linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)))',
           }}
           aria-hidden="true"
         >

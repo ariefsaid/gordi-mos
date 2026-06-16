@@ -106,6 +106,43 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
   vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
 
+## ✅ Tasks DB-view redesign — BUILT + fully reviewed + e2e-passed (PENDING owner merge)
+Grill → mockup → 4-lens → build-spec grill → **3-PR build + fix-ups** all done 2026-06-16 on branch
+`design/tasks-dbview-mockup`. **661 unit green · typecheck/eslint/build clean · ADR-0007 split-view oracle
+green · spec+code-quality reviewed each phase · 4-lens render-verified (C1 Done-overdue, I1 keyboard-aria,
+M1 condensed-glyph fixed) · AC-134 e2e PASS** (existing e2e green except AC-004/005 = pre-existing mailpit
+port-forward infra, unrelated). New dev seed `supabase/seed.dev-tasks.sql` (11 demo tasks). **Next = push the
+branch + open the redesign PR for owner merge** (then update this to SHIPPED). Follow-ups (non-blocking):
+M2 runtime desktop↔mobile resize re-subscribe; M3 re-confirm avatar grey live; reconcile the mockup to show
+the kept Status-filter + Show-archived; optionally restore mailpit forwarding to re-green AC-004/005.
+Decisions: **OD-P3-6** (full-bleed DB-view IA + grilled build-specs) · **OD-P3-7** (navy+orange brand amendment) ·
+**OD-P3-8** (adopt `@tanstack/react-table` — headless row-models, full `TasksTable` refactor) in `docs/decisions.md`. Adopted
+visual: `docs/design-mockups/tasks-dbview-final.html` — **A's chrome** (full-bleed · view-tabs · A's bordered
+filter controls · thin **horizontal** gridlines only, no vertical "stripes") + **B's table simplicity** (clean
+hairline group headers — NO navy bands, NO left-edge swatch) · **soft-tinted status chips** (DESIGN.md
+"Tinted-Status Rule": In-Progress soft-blue, Blocked soft-red, Open soft-amber, Done soft-green) as the one
+color element + overdue red dates · everything else **neutral grey** (grey owner avatars, flat-grey selected
+row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Criticals** (no second mockup round).
+- [ ] **Resume = design-plan + ADR-0008** (eng-planner/design-architect), then build phasing (owner-approved):
+  **PR-1** DESIGN.md navy/orange token amendment + ADR-0008 → **PR-2** full-bleed layout (kill 1080 cap in
+  `PageFrame.tsx` for data surfaces; keep prose capped) + view-tab scaffold (Board/Calendar **stubbed**) + toolbar
+  restyle → **PR-3** **`@tanstack/react-table` refactor** + group-by engine + group headers (count + overdue subtotal),
+  rendered with our markup over the existing `@tanstack/react-virtual` window.
+- **Grilled build-specs (OD-P3-6):** group-by Status(default)/Owner/BU · within-group sort Due-asc · show ALL groups
+  always · **bulk-select DEFERRED (no checkboxes v1)** · Person filter overrides Mine/RACI/All segment · mobile =
+  grouped cards · view/group/collapse persisted per-user-global · client-side row models · no column-customization v1.
+- **Fold into the design-plan (review "Important"):** (1) all states — loading/empty/error/no-results/
+  zero-overdue header (empty-group N/A — groups always shown); (2) **"+N" RACI tooltip** (silent glyph → reveal C/I
+  on hover/focus). *(Was #2 bulk-select toolbar → dropped, bulk-select deferred. Was #3 Mine/Person → resolved:
+  Person overrides segment.)*
+- **design-architect notes (review "Minor"):** make "3 overdue"/group subtotals **click-to-filter**; codify status
+  **dot ≥8px + text label always** (no dot-only variant — keeps WCAG 1.4.1 when grouping ≠ Status); document
+  **50px rows** vs DESIGN.md 54px; bless the **navy→blue avatar gradient** in the amendment (doc says blue→violet).
+- **Regression-invariants to test when built:** RI-1 one canonical task home regardless of entry; RI-2 inline
+  status change with no view transition; RI-3 every chip renders its text label; RI-4 off-track signal in the row;
+  RI-5 role-stable nav/breadcrumb.
+- Sibling mockups (context): `tasks-dbview-A.html` (louder), `tasks-dbview-B.html` (Notion-quiet).
+
 ## Doc & code debt (non-blocking — from the 2026-06-16 fresh-eyes audit)
 - [ ] **Fold AC-100..115 into the spec.** The Tasks-redesign ACs live only in `docs/plans/2026-06-15-tasks-redesign.md`,
   not in `docs/specs/tasks-raci.spec.md` (or a `tasks-redesign.spec.md` addendum). Plan-only AC coverage.

@@ -32,6 +32,11 @@ colors:
   ring: "hsl(221.2 83.2% 53.3%)"
   # --- Categorical accent (KPI/avatar/timeline only; never primary action) ---
   violet: "hsl(262 83% 58%)"
+  # --- Gordi brand (OD-P3-7, ratified 2026-06-16; the first owner-approved
+  #     divergence from the adopted RIS near-monochrome) ---
+  brand-navy:        "hsl(218 46% 22%)"   # structural weight; NOT an action color
+  brand-navy-text:   "hsl(218 42% 26%)"   # AA text/label on white & on navy-tint
+  brand-orange:      "hsl(18 80% 48%)"    # brand sprinkle ONLY; never status, never action
 typography:
   page-title:
     fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
@@ -188,7 +193,7 @@ A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a coo
 - **Action Blue** (`hsl(221.2 83.2% 53.3%)`): The one interactive color. Primary buttons, active nav item (at 10% tint + full-color text), selected rows (7% tint), focus ring, checkbox fill, links-in-context, the "current" step in steppers, sticky-tab indicators, and the toast accent stripe. Its foreground (`hsl(0 0% 98%)`, near-white) sits on solid blue. **Used sparingly** — see The One Blue Rule.
 
 ### Secondary (categorical accent — not an action color)
-- **Categorical Violet** (`hsl(262 83% 58%)`): Reserved for non-interactive categorization only: a KPI icon tile (`violet` variant), the user avatar gradient (blue→violet), and select timeline/legend dots. Never use it for buttons, links, or anything clickable.
+- **Categorical Violet** (`hsl(262 83% 58%)`): Reserved for non-interactive categorization only: a KPI icon tile (`violet` variant), and select timeline/legend dots. Never use it for buttons, links, or anything clickable. *(The user avatar gradient moved from blue→violet to **navy→blue** in OD-P3-7; violet is no longer an avatar token — it is KPI/timeline only.)*
 
 ### Tertiary (status semantics — data-driven only)
 - **Destructive Red** (`hsl(0 84.2% 60.2%)`, fg `hsl(0 0% 98%)`): Errors, destructive buttons, "lost"/negative status, overdue/stale ages, negative deltas, notification dot. Tinted variants at ~10–12% for chips/icon tiles.
@@ -202,12 +207,30 @@ A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a coo
 - **Secondary / Muted / Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). `accent` is the hover wash on interactive neutral surfaces (rail items, ghost buttons, row hover, control hover).
 - **Border / Input** (`hsl(240 5.9% 90%)`): All hairline dividers, card outlines, and field strokes — one value. Table row dividers soften to 70% opacity.
 
+### Gordi brand tokens (OD-P3-7)
+
+The three Gordi brand tokens are the **first owner-approved divergence** from the adopted RIS near-monochrome palette (ratified 2026-06-16). They carry structural and brand identity weight; they do NOT add interactive affordance (The One Blue Rule is preserved).
+
+| Token | Value | Role |
+|---|---|---|
+| `brand-navy` | `hsl(218 46% 22%)` | Structural weight — logo, active nav indicator, group-by chrome, drawer tab underline |
+| `brand-navy-text` | `hsl(218 42% 26%)` | AA text/label on white and on the navy/6 tint (≥7:1 on white) |
+| `brand-orange` | `hsl(18 80% 48%)` | Brand sprinkle — logo dot, active view-tab underline. Never status, never action |
+
+**Navy tint:** `brand-navy / 0.06` fill is generated via the v4 slash-alpha modifier (`bg-brand-navy/6`) — no separate token, mirroring how `primary/10` works.
+
+**No `brand-orange` tint/text token** — orange is only ever used at full strength as a tiny marker (logo dot, active view-tab underline 2px); it never carries text or a fill behind text, so it needs no AA-darkened variant.
+
 ### Named Rules
 **The One Blue Rule.** The primary blue is the only saturated interactive color and should touch ≤10% of any screen. If two things on a screen are blue and only one is the main action, one of them is wrong. Categorical violet and status colors are NOT substitutes for it.
 
-**The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only.
+**The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only. *Note: Task status chips use an 8px dot (bumped from 6px for WCAG 1.4.1 visibility) + always-present text label (never dot-only) so status stays perceivable when grouping ≠ Status — see §5 Badges.*
 
 **The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead.
+
+**The Structural-Navy Rule (OD-P3-7).** `brand-navy` carries *structural* weight the lone action-blue must not: the logo square + dot, the active nav indicator (inset-shadow rail marker), the group-by control, the drawer's active-tab underline, the avatar gradient (`navy → primary`). It is **never** an action color (no buttons, no links) and **never** a status. The One-Blue Rule is preserved — `primary` blue remains the *only* interactive/action color.
+
+**The Orange-Sprinkle Rule (OD-P3-7).** `brand-orange` is a brand sprinkle used **sparingly** (≤2 marks per screen): the logo dot and the **active view-tab underline marker**. It is kept **OFF all status semantics** (it sits hue-wise between the red/amber status hues and would be misread as a warning) and **OFF all actions**. Never a status, never a link, never a button.
 
 ## 3. Typography
 
@@ -294,6 +317,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
 - **Body cells:** 54px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu button is hidden until row hover.
+- **Dense DB-view variant (OD-P3-6).** On the full-bleed Tasks DB-view, body rows run **50px** (not the standard 54px) — an intentional density increase for the scan-many-rows workspace job, paired with horizontal hairline dividers (`border/70%`) and **no vertical column rules** (vertical "stripes" hurt scan-readability — owner). 54px remains the default for all other DataTables. The 50px figure is the only deliberate divergence from the 54px row token and is documented here so it isn't "drift."
 - **In-cell patterns:** project cell (28px colored icon + 2-line name/code, code in mono); money (`tabular`, sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by threshold); age chip (turns `warning-foreground`/`destructive` when aging/stale).
 - **Footer:** totals row, `secondary/40%` bg, 1.5px top border, `tabular` values; count in `muted`.
 - **Toolbar / Action bar:** `card` bg seamed to the table top (`… … 0 0`), 10–12px padding, holds `control` chips (32px, `input` border, `muted` icon, chevron), a `seg` segmented filter (`secondary` track, "on" = white pill + lift), a `search-mini`, and trailing icon controls. Selection mode swaps the default controls for a bulk-action cluster on a `primary/6%` wash with a count `pill`.
@@ -306,9 +330,18 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 ### Navigation
 - **Rail (sidebar):** 224px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, `sm`-derived radius (`calc(var(--radius) - 2px)`), 13.5px/500, 17px stroke-2 icon, optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Settings.
-- **Top bar (header):** 56px (`--header-h`), `background` bg, bottom `border`. Holds the mobile menu button, a breadcrumb (`muted` links → `foreground` on hover, `>` separators, bold `current`), a flexible spacer, the `cmdk` search button (`⌘K` chip), an icon button with a `destructive` notification dot, and a user chip (avatar gradient blue→violet + name/role, hidden on phone).
+- **Top bar (header):** 56px (`--header-h`), `background` bg, bottom `border`. Holds the mobile menu button, a breadcrumb (`muted` links → `foreground` on hover, `>` separators, bold `current`), a flexible spacer, the `cmdk` search button (`⌘K` chip), an icon button with a `destructive` notification dot, and a user chip (avatar gradient **navy→blue** (`brand-navy → primary`) + name/role, hidden on phone). *(OD-P3-7: gradient was blue→violet; violet moved to KPI/timeline only.)*
 - **Mobile:** below 920px the rail collapses (`--rail-w: 0`) and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide.
 - **DataTable reflow (OD-W4-4):** the DataTable **single-renders** — at `md` (768 px) it renders the `<table>`; below `md` it renders a stacked card list instead. Exactly ONE branch is in the DOM at a time (chosen by `useIsDesktop()` reading `(min-width: 768px)` synchronously at first paint, so no flash of the wrong branch on mobile). These are two separate breakpoints — 920 px for the rail collapse, 768 px for the table→card reflow. Card anatomy: first column = title/activation button, remaining columns = `<dl>` label:value grid. Because only one branch renders, each cell appears once in the AT tree — **no `aria-hidden` on either branch** (the unrendered branch is simply absent). Touch targets on card affordances extend to ≥44 px via `.touch-target`.
+
+### View-tab strip (OD-P3-6)
+A horizontal tab strip above the toolbar selecting the workspace view (Table · Board · Calendar). 34px tall tabs, 13px/600, `0 12px` padding, 7px gap to a 15px icon. Inactive = `muted-foreground`; hover = `foreground`; **active = `brand-navy-text` + a 2px `brand-orange` bottom border** (the one orange sprinkle per screen). Disabled/"SOON" stubs = `hsl(240 4% 62%)` text + `not-allowed` cursor + a small `secondary`/`muted-foreground` "SOON" pill, `aria-disabled="true"`. `role="tablist"` / `role="tab"` / `aria-selected`; roving tabindex (only the active tab is `tabindex=0`). The strip is the "this is a database view, not a to-do list" signature. *Disabled stub AA note: ~3:1 contrast is acceptable for disabled controls (WCAG exempts them); state is communicated by the "SOON" pill + `aria-disabled`, not color alone.*
+
+### Group header row (OD-P3-6)
+Inside the grouped DataTable, each group is introduced by a full-width `<tr>` rendered as a clean **hairline-separated** row (38px): top + bottom 1px `border`, transparent bg — **no navy band, no left-edge swatch** (left stripes removed as distracting — owner). Contents: a caret (`▾`/`▸`, `muted-foreground`, `aria-expanded`), the group **label** (13px/700, `brand-navy-text`, the structural-navy use), a plain **count** (`muted-foreground`, `tabular-nums`), an **overdue subtotal** when >0 (`· N overdue`, `--status-lost-text`, click-to-filter button `aria-label="Filter to N overdue tasks"`), and a trailing **"+ Add task"** ghost affordance (`muted-foreground`, pre-fills the grouped dimension). The whole header toggles collapse on click/Enter/Space (`aria-expanded`). Groups are **always shown** (including empty ones) for layout stability.
+
+### DB-view toolbar controls (OD-P3-6)
+The Tasks toolbar uses **bordered** filter controls (the existing `control` chip: 32px, 1px `input` border, 8px radius, `muted-foreground` label + `foreground` value + chevron) — A's bordered chrome, not borderless text triggers. The **group-by control is the exception**: it is tinted to read as the active "database" control — `brand-navy/6` bg + 1px `brand-navy` border + `brand-navy-text` text + 600 weight (the structural-navy use). The Mine/RACI/All `seg` segmented control is unchanged (`secondary` track, white "on" pill + lift). **The segment is disabled when a Person filter is set** (Person overrides it): disabled `seg` = `opacity: 0.5`, `aria-disabled`, with the segment visually reading "Person: me."
 
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary`, buttons 28px, "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. `role="tablist"`/`role="tab"`/`aria-selected`. Used for stage filters.
@@ -346,8 +379,18 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 The source ships these as **shadcn-vue HSL custom properties on `:root`**, consumed via `hsl(var(--token))` and `hsl(var(--token) / <alpha>)`. Preserve that pipeline in the React/Tailwind app:
 
-1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus `--radius: 0.5rem`, `--rail-w: 224px`, `--header-h: 56px`. The frontmatter lists them pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works.
-2. **Map Tailwind theme** to the vars. This app is **Tailwind v4**, so map them in a CSS `@theme inline` block where each `--color-*` value is a **resolvable** color — `@theme inline { --color-background: hsl(var(--background)); --color-primary: hsl(var(--primary)); --color-primary-foreground: hsl(var(--primary-foreground)); … }` — and `--radius-lg: var(--radius); --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px)`. **Do NOT append the v3 `/ <alpha-value>` placeholder** — v4 does not substitute it, so it emits invalid CSS the browser discards and every token utility silently renders nothing. The bare-triplet `:root` form (point 1) is what makes this work: v4 generates the `/<alpha>` modifier (`bg-primary/10`, `border-border/70`) automatically via `color-mix()` from the bare color. Add `warning`/`warning-foreground`, `success`/`success-foreground`, and the categorical `violet` — these are RIS additions beyond stock shadcn.
+1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus `--radius: 0.5rem`, `--rail-w: 224px`, `--header-h: 56px`. The frontmatter lists them pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works. Include the Gordi brand tokens:
+   ```css
+   --brand-navy:      218 46% 22%;
+   --brand-navy-text: 218 42% 26%;
+   --brand-orange:    18 80% 48%;
+   ```
+2. **Map Tailwind theme** to the vars. This app is **Tailwind v4**, so map them in a CSS `@theme inline` block where each `--color-*` value is a **resolvable** color — `@theme inline { --color-background: hsl(var(--background)); --color-primary: hsl(var(--primary)); --color-primary-foreground: hsl(var(--primary-foreground)); … }` — and `--radius-lg: var(--radius); --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px)`. **Do NOT append the v3 `/ <alpha-value>` placeholder** — v4 does not substitute it, so it emits invalid CSS the browser discards and every token utility silently renders nothing. The bare-triplet `:root` form (point 1) is what makes this work: v4 generates the `/<alpha>` modifier (`bg-primary/10`, `border-border/70`) automatically via `color-mix()` from the bare color. Add `warning`/`warning-foreground`, `success`/`success-foreground`, and the categorical `violet` — these are RIS additions beyond stock shadcn. Also add the brand tokens:
+   ```css
+   --color-brand-navy:      hsl(var(--brand-navy));
+   --color-brand-navy-text: hsl(var(--brand-navy-text));
+   --color-brand-orange:    hsl(var(--brand-orange));
+   ```
 3. **Alpha tints** (`primary/10%`, `success/12%`, `border/70%`, etc.) come straight from the slash-alpha syntax — keep them; they are load-bearing for the tinted-status and hover-wash patterns.
 4. **Numbers:** add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric.
 5. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px }` rather than per-component focus styles.

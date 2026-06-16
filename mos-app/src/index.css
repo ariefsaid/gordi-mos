@@ -33,6 +33,10 @@
   --ring: 221.2 83.2% 53.3%;
   /* Categorical accent (non-interactive) */
   --violet: 262 83% 58%;
+  /* Gordi brand tokens (OD-P3-7 — first owner-approved divergence from RIS near-monochrome) */
+  --brand-navy: 218 46% 22%;
+  --brand-navy-text: 218 42% 26%;
+  --brand-orange: 18 80% 48%;
   /* Status-pill darkened-AA text tokens (DESIGN.md §5) */
   --status-open-text: 221 75% 38%;
   --status-won-text: 142 64% 30%;
@@ -71,6 +75,9 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-violet: hsl(var(--violet));
+  --color-brand-navy: hsl(var(--brand-navy));
+  --color-brand-navy-text: hsl(var(--brand-navy-text));
+  --color-brand-orange: hsl(var(--brand-orange));
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);

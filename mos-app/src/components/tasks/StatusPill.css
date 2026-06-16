@@ -7,7 +7,8 @@
   font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .dot {
-  width: 6px; height: 6px; border-radius: 999px; flex: none;
+  /* OD-P3-7 / AC-118: 8px dot (bumped from 6px for WCAG 1.4.1 visibility — redundant cue) */
+  width: 8px; height: 8px; border-radius: 999px; flex: none;
 }
 .pill-inprogress { background: hsl(221 83% 53% / 0.12); color: hsl(221 75% 38%); }
 .pill-inprogress .dot { background: hsl(221.2 83.2% 53.3%); }

@@ -27,3 +27,21 @@ describe('StatusPill — status variants', () => {
     expect(container.querySelector('.dot')).toBeTruthy()
   })
 })
+
+describe('StatusPill — AC-118 always-label rule (label COEXISTS with the dot)', () => {
+  // The real intent (OBS-120, WCAG 1.4.1): status is a redundant cue = dot + label,
+  // never one alone. Each case asserts the text label AND the dot are present together.
+  const statuses: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
+  for (const status of statuses) {
+    it(`AC-118: "${status}" renders the text label AND the dot together (never dot-only, never label-only)`, () => {
+      const { container } = render(<StatusPill status={status} />)
+      const pill = container.querySelector('.pill')!
+      // Label present
+      expect(screen.getByText(status)).toBeInTheDocument()
+      // Dot present as a redundant cue
+      expect(pill.querySelector('.dot')).toBeTruthy()
+      // Both live inside the same pill (coexist)
+      expect(pill.textContent).toContain(status)
+    })
+  }
+})
