@@ -335,6 +335,71 @@
   background: hsl(var(--accent));
 }
 
+/* ── Group header row (OD-P3-6, DESIGN.md §5 group-header spec) ──
+   A clean hairline-separated row (no navy band, no left swatch): caret + label
+   + count + overdue subtotal (when >0) + "+ Add task". 38px tall. */
+tr.grp td { padding: 0; }
+.gbar {
+  display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
+  border-top: 1px solid hsl(var(--border)); border-bottom: 1px solid hsl(var(--border));
+}
+.gbar .caret {
+  display: inline-grid; place-items: center; width: 16px; height: 16px;
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1; flex: none;
+}
+.gbar .caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+.gbar .glabel { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
+.gbar .gcount { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.gbar .gsub {
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
+  color: hsl(var(--status-lost-text)); cursor: pointer;
+}
+.gbar .gsub:hover { color: hsl(0 72% 35%); }
+.gbar .gadd {
+  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.gbar .gadd:hover { color: hsl(var(--foreground)); }
+.gbar .gadd:focus-visible, .gbar .gsub:focus-visible {
+  outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px;
+}
+
+/* ── Owner "+N" RACI disclosure tooltip (AC-130, FR-128) ── */
+.own-more-wrap { position: relative; display: inline-flex; }
+.own-more-btn {
+  background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer;
+}
+.own-more-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+.own-tip {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 2px; min-width: 120px; padding: 8px 10px;
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+  box-shadow: 0 6px 20px hsl(240 6% 10% / 0.12); white-space: nowrap;
+}
+.own-tip-row { font-size: 12px; color: hsl(var(--foreground)); }
+
+/* ── Mobile grouped cards (AC-129, FR-127) ── */
+.mgc { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+.mgc-group { display: flex; flex-direction: column; gap: 8px; }
+.mgc-group-head { display: flex; align-items: center; gap: 8px; padding: 0 4px; min-height: 36px; }
+.mgc-caret {
+  display: inline-grid; place-items: center; width: 28px; height: 28px;
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  color: hsl(var(--muted-foreground)); font-size: 12px; flex: none;
+}
+.mgc-caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+.mgc-label { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
+.mgc-count { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.mgc-sub {
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
+  color: hsl(var(--status-lost-text)); cursor: pointer;
+}
+.mgc-add {
+  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+
 /* ── Utility ── */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }
 .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }

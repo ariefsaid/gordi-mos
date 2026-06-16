@@ -1,6 +1,5 @@
 import './ViewTabStrip.css'
-
-export type TasksView = 'table'
+import type { TasksView } from './useTasksViewPref'
 
 interface ViewTabStripProps {
   /** The currently active view (only 'table' is valid in v1). */
@@ -37,8 +36,7 @@ export function ViewTabStrip({ active }: ViewTabStripProps) {
             tabIndex={isDisabled ? -1 : 0}
             type="button"
             className={`vts-tab${isActive ? ' vts-tab-active' : ''}${isDisabled ? ' vts-tab-disabled' : ''}`}
-            /* Stubs are not activatable — no onClick */
-            onClick={isDisabled ? undefined : undefined}
+            /* Stubs are not activatable; Table is the only active view in v1 — no onClick either way. */
           >
             {tab.label}
             {isDisabled && (

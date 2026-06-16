@@ -22,6 +22,23 @@
   consumed via `hsl(var(--token))`). The new `--brand-navy`/`--brand-navy-text`/`--brand-orange` (+ navy/6
   tint) follow that wrapper-less format. DESIGN.md documents them in PR-1 Task 1.
 
+### Director rulings — PR-2 review (2026-06-16; binding for PR-3)
+- **AC-126 refinement (deliberate UX correction — goal unchanged).** Drop the literal "Person: me"
+  segment label (misleading when a *different* person is selected). The affordance when a Person filter
+  is set = the Mine/RACI/All segment is **disabled, de-emphasized, removed from tab order, + a tooltip**
+  (`title`/`aria` "Scope is set by the Person filter"). The goal-oracle (Person overrides segment; no
+  contradictory ownership state) is intact and already tested — only the journey *copy* changed. PR-3
+  adds the tooltip; update the AC-126 wording accordingly (do NOT re-introduce "Person: me").
+- **Fold these PR-2-review code-quality Minors into PR-3** (they live in files PR-3 refactors anyway):
+  (1) define `TasksView` once in `useTasksViewPref.ts`, import it in `ViewTabStrip` (no duplicate export);
+  (2) `ViewTabStrip` `onClick={isDisabled ? undefined : undefined}` → drop the no-op ternary;
+  (3) `useTasksViewPref` `readView` tautology `… ? 'table' : 'table'` → `return 'table'`;
+  (4) remove the pointless `countLineParts` intermediate (use `stats` directly);
+  (5) `TasksTable.tsx` inline `import('./useTasksViewPref').TasksGroupBy` cast → static top-of-file import;
+  (6) ungate the zero-overdue test assertion (`if (countEl)` → assert presence then text).
+- **Also fold the PR-1 Minor:** strengthen the AC-118 StatusPill oracle to assert the text label
+  **coexists with** the dot (the real intent: redundant cue = dot + label, never one alone).
+
 ## Scope guardrails (read before any task)
 
 - **UI + design-system + one client dependency ONLY.** NO schema / RLS / grant / migration change.

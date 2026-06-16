@@ -35,7 +35,7 @@ vi.mock('../../lib/db/directory', () => ({
 
 import { listTasks } from '../../lib/db/tasks'
 import { getBusinessUnits, getPeople } from '../../lib/db/directory'
-import { TasksTable } from './TasksTable'
+import { TasksWorkspace } from './TasksWorkspace'
 import { __resetExpandPrefForTests } from './useExpandPref'
 
 const mockListTasks = vi.mocked(listTasks)
@@ -90,11 +90,11 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
-function renderTable(props: Partial<React.ComponentProps<typeof TasksTable>> = {}) {
+function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <TasksTable {...props} />
+        <TasksWorkspace {...props} />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -197,6 +197,10 @@ describe('Task 10 — Person-overrides-segment (AC-126, FR-124)', () => {
         expect(btn).toHaveAttribute('aria-disabled', 'true')
         expect(btn).toHaveAttribute('tabindex', '-1')
       })
+      // PR-2-review ruling: the disabled segment carries a tooltip explaining the
+      // override (NOT a literal "Person: me" label). Goal: Person overrides segment.
+      expect(segList).toHaveAttribute('title', 'Scope is set by the Person filter')
+      expect(segList.textContent).not.toMatch(/person: me/i)
     })
   })
 
@@ -283,11 +287,10 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
     if (allBtn) fireEvent.click(allBtn as Element)
     await waitFor(() => {
-      // count line should NOT contain "0 overdue"
       const countEl = document.querySelector('.tasks-count-line')
-      if (countEl) {
-        expect(countEl.textContent).not.toMatch(/0 overdue/)
-      }
+      // The count line is always present; assert it and that it omits "0 overdue".
+      expect(countEl).toBeTruthy()
+      expect(countEl!.textContent).not.toMatch(/0 overdue/)
     })
   })
 
@@ -310,9 +313,11 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Normal task')).toBeInTheDocument()
     })
 
-    // The "N overdue" text should be a button
-    const overdueBtn = screen.getByRole('button', { name: /filter to.*overdue/i })
-    expect(overdueBtn).toBeInTheDocument()
+    // The page count-line "N overdue" is a button (group subtotals also expose
+    // overdue-filter buttons now that grouping is live — scope to the count line).
+    const overdueBtn = document.querySelector('.tasks-count-line .overdue-filter-btn') as HTMLButtonElement
+    expect(overdueBtn).toBeTruthy()
+    expect(overdueBtn.getAttribute('aria-label')).toMatch(/filter to.*overdue/i)
 
     // Click it → only overdue rows shown + clearable chip
     fireEvent.click(overdueBtn)
@@ -346,5 +351,181 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await waitFor(() => {
       expect(screen.getByText('Alpha task')).toBeInTheDocument()
     })
+  })
+})
+
+// ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
+
+// Helper: switch the ownership segment to "All" so non-viewer tasks are visible.
+async function switchToAll() {
+  const seg = screen.getByRole('tablist', { name: /ownership filter/i })
+  const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
+  if (allBtn) fireEvent.click(allBtn as Element)
+}
+
+describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
+  it('AC-116: clicking a row navigates to the one canonical /tasks/:id surface', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-9', title: 'Canonical task' })])
+    renderTable({ drawerSlot: <div /> })
+    await waitFor(() => screen.getByText('Canonical task'))
+    const row = document.querySelector('tr.task-row') as HTMLElement
+    expect(row).toBeTruthy()
+    // The row carries the canonical link to /tasks/:id (no alternate detail route)
+    const link = row.querySelector('a.task-row-link') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/tasks/task-9')
+  })
+})
+
+describe('Task 14/15 — grouping engine (AC-123, AC-119)', () => {
+  it('AC-123: defaults to grouping by Status with a count per group', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 'b', title: 'Blocked one', status: 'Blocked' }),
+      makeTask({ id: 'c', title: 'Blocked two', status: 'Blocked' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+    await switchToAll()
+    await waitFor(() => screen.getByText('Blocked one'))
+    // Group header rows (tr.grp) for each status, never .task-row
+    const groups = document.querySelectorAll('tr.grp')
+    expect(groups.length).toBeGreaterThanOrEqual(4) // all 4 statuses shown
+    // Blocked group header shows its label + count 2
+    const blockedHeader = Array.from(groups).find(g => g.textContent?.includes('Blocked'))
+    expect(blockedHeader).toBeTruthy()
+    expect(blockedHeader!.textContent).toContain('2')
+  })
+
+  it('AC-123: within a group, leaf rows are sorted Due-ascending (overdue first)', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'late', title: 'Later task', status: 'Open', due_date: '2030-12-31' }),
+      makeTask({ id: 'over', title: 'Overdue task', status: 'Open', due_date: '2020-01-01' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Later task'))
+    await switchToAll()
+    await waitFor(() => screen.getByText('Overdue task'))
+    const rows = Array.from(document.querySelectorAll('tr.task-row'))
+    const idxOver = rows.findIndex(r => r.textContent?.includes('Overdue task'))
+    const idxLate = rows.findIndex(r => r.textContent?.includes('Later task'))
+    expect(idxOver).toBeLessThan(idxLate)
+  })
+
+  it('AC-119: an overdue row shows the in-row off-track signal "Overdue · <date>" in red', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'over', title: 'Overdue task', status: 'Open', due_date: '2020-01-01' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Overdue task'))
+    await switchToAll()
+    await waitFor(() => {
+      const cell = document.querySelector('tr.task-row .due-overdue')
+      expect(cell).toBeTruthy()
+      expect(cell!.textContent).toMatch(/^Overdue · /)
+    })
+  })
+})
+
+describe('Task 17 — show all groups incl. empty (AC-124)', () => {
+  it('AC-124: grouping by Owner shows ALL owner groups, including those with zero tasks', async () => {
+    // Only the viewer owns a task; Budi (other-id) owns none → his group still renders.
+    mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Mine task'))
+    const groupSelect = screen.getByRole('combobox', { name: /group/i })
+    fireEvent.change(groupSelect, { target: { value: 'owner' } })
+    await waitFor(() => {
+      const groups = Array.from(document.querySelectorAll('tr.grp'))
+      const budiHeader = groups.find(g => g.textContent?.includes('Budi'))
+      expect(budiHeader).toBeTruthy()
+      expect(budiHeader!.textContent).toContain('0') // zero count
+    })
+  })
+})
+
+describe('Task 18 — group collapse persists (AC-132)', () => {
+  it('AC-132: toggling a group caret collapses its leaf rows and persists per-user-global', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Open visible', status: 'Open' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open visible'))
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open visible'))
+    // Find the Open group header's caret toggle
+    const groups = Array.from(document.querySelectorAll('tr.grp'))
+    const openHeader = groups.find(g => g.textContent?.includes('Open'))!
+    const caret = openHeader.querySelector('button[aria-expanded]') as HTMLButtonElement
+    expect(caret.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(caret)
+    // Leaf row hidden + persisted
+    await waitFor(() => {
+      expect(screen.queryByText('Open visible')).toBeNull()
+    })
+    expect(JSON.parse(localStorage.getItem('mos.tasks.collapsedGroups')!)).toEqual({ status: ['Open'] })
+  })
+})
+
+describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
+  it('AC-131/OBS-121: j moves the leaf-row cursor and never lands on a group-header row', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'o1', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 'b1', title: 'Blocked one', status: 'Blocked' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+    await switchToAll()
+    await waitFor(() => screen.getByText('Blocked one'))
+    // Press j several times — the cursor (.kfocus) must always be on a .task-row,
+    // never on a .grp header (group headers are not cursor targets).
+    for (let i = 0; i < 5; i++) {
+      fireEvent.keyDown(window, { key: 'j' })
+      const cursorRow = document.querySelector('tr.kfocus')
+      if (cursorRow) {
+        expect(cursorRow.classList.contains('task-row')).toBe(true)
+        expect(cursorRow.classList.contains('grp')).toBe(false)
+      }
+    }
+    // After 2+ presses the cursor has landed on a leaf row
+    expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy()
+  })
+})
+
+describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
+  it('AC-125: in an Owner-grouped view, a group "+ Add task" navigates to /tasks/new?r=<personId>', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
+    // Capture navigation by rendering a route that echoes the URL
+    const { container } = renderTable()
+    await waitFor(() => screen.getByText('Mine task'))
+    const groupSelect = screen.getByRole('combobox', { name: /group/i })
+    fireEvent.change(groupSelect, { target: { value: 'owner' } })
+    await waitFor(() => {
+      const groups = Array.from(container.querySelectorAll('tr.grp .glabel'))
+      expect(groups.some(g => g.textContent?.includes('Arief'))).toBe(true)
+    })
+    const groups = Array.from(container.querySelectorAll('tr.grp'))
+    const ariefHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arief'))!
+    const addBtn = ariefHeader.querySelector('button.gadd') as HTMLButtonElement
+    expect(addBtn).toBeTruthy()
+    // The add affordance carries the pre-fill target person as its data attribute
+    expect(addBtn.getAttribute('data-prefill')).toBe(`r=${VIEWER_ID}`)
+  })
+})
+
+describe('Task 22 — mobile grouped cards (AC-129)', () => {
+  it('AC-129: <768px renders grouped cards (group headers + cards) and no view-tab strip', async () => {
+    stubMatchMedia(false, false) // not split, not desktop → mobile
+    mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mobile task', status: 'Open' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Mobile task'))
+    await switchToAll()
+    await waitFor(() => screen.getByText('Mobile task'))
+    // No view-tab strip on mobile
+    expect(screen.queryByRole('tablist', { name: /workspace view/i })).toBeNull()
+    // Group headings present (the chosen group-by: status)
+    expect(screen.getByText('Mobile task')).toBeInTheDocument()
+    expect(document.querySelector('[data-testid="task-card"]')).toBeTruthy()
+    // A group heading for the status grouping
+    expect(document.querySelector('.mgc-group-head')).toBeTruthy()
   })
 })

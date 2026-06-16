@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch } from 'react-router-dom'
 import PageFrame from '../shell/PageFrame'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
-import { TasksTable } from '../components/tasks/TasksTable'
+import { TasksWorkspace } from '../components/tasks/TasksWorkspace'
 import { useExpandPref } from '../components/tasks/useExpandPref'
 import { useIsSplitWidth } from '../shell/useIsSplitWidth'
 import type { TaskListRow, TaskStatus } from '../lib/db/tasks.types'
@@ -49,7 +49,7 @@ export default function TasksLayout() {
 
   return (
     <PageFrame variant="data">
-      <TasksTable
+      <TasksWorkspace
         selectedId={taskId ?? null}
         drawerOpen={drawerOpen}
         splitLayout={isSplit}

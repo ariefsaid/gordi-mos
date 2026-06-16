@@ -1,0 +1,73 @@
+type GroupHeaderRowProps = {
+  /** The group label (status name, person name, or BU name). */
+  label: string
+  /** Number of leaf rows in this group. */
+  count: number
+  /** Number of overdue leaf rows in this group (subtotal). */
+  overdue: number
+  /** Whether the group is collapsed (leaf rows hidden). */
+  collapsed: boolean
+  /** colSpan for the full-width header cell (matches the table column count). */
+  colSpan: number
+  /** Toggle collapse/expand of this group. */
+  onToggle: () => void
+  /** Open the create surface pre-filled for this group's dimension. */
+  onAddTask: () => void
+  /** Apply the transient overdue-only filter (AC-128). */
+  onOverdueFilter: () => void
+  /** Pre-fill descriptor surfaced for tests/e2e (e.g. "r=<personId>"). */
+  prefill?: string
+  /** id used by aria-controls (points at the group's leaf-row region). */
+  controlsId?: string
+}
+
+/**
+ * Group header row (OD-P3-6, design-plan §2.6). A full-width <tr class="grp">
+ * rendered as a clean hairline-separated row: caret toggle + label + count +
+ * overdue subtotal (click-to-filter, only when >0) + "+ Add task".
+ * Groups are always shown (incl. empty) for layout stability.
+ */
+export function GroupHeaderRow({
+  label, count, overdue, collapsed, colSpan,
+  onToggle, onAddTask, onOverdueFilter, prefill, controlsId,
+}: GroupHeaderRowProps) {
+  return (
+    <tr className="grp">
+      <td colSpan={colSpan}>
+        <div className="gbar">
+          <button
+            type="button"
+            className="caret"
+            aria-expanded={!collapsed}
+            aria-controls={controlsId}
+            aria-label={collapsed ? `Expand ${label} group` : `Collapse ${label} group`}
+            onClick={onToggle}
+          >
+            <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span>
+          </button>
+          <span className="glabel">{label}</span>
+          <span className="gcount tabular-nums">{count}</span>
+          {overdue > 0 && (
+            <button
+              type="button"
+              className="gsub"
+              aria-label={`Filter to ${overdue} overdue tasks`}
+              onClick={onOverdueFilter}
+            >
+              · {overdue} overdue
+            </button>
+          )}
+          <button
+            type="button"
+            className="gadd"
+            aria-label={`Add task to ${label}`}
+            data-prefill={prefill}
+            onClick={onAddTask}
+          >
+            + Add task
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}

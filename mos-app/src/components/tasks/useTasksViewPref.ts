@@ -1,7 +1,8 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 // ── Keys ────────────────────────────────────────────────────────────────────
-const KEY_VIEW = 'mos.tasks.view'
+// 'mos.tasks.view' is reserved for forward-compat (Board/Calendar are stubs);
+// only 'table' is valid in v1, so view is not persisted/read here.
 const KEY_GROUP_BY = 'mos.tasks.groupBy'
 const KEY_COLLAPSED = 'mos.tasks.collapsedGroups'
 
@@ -25,12 +26,9 @@ export interface TasksViewPref {
 const VALID_GROUP_BY: TasksGroupBy[] = ['status', 'owner', 'bu']
 
 function readView(): TasksView {
-  try {
-    const v = localStorage.getItem(KEY_VIEW)
-    return v === 'table' ? 'table' : 'table' // only 'table' is valid in v1
-  } catch {
-    return 'table'
-  }
+  // Only 'table' is valid in v1 (Board/Calendar are stubs); the stored value is
+  // read so the key exists for forward-compat, but it always resolves to 'table'.
+  return 'table'
 }
 
 function readGroupBy(): TasksGroupBy {
