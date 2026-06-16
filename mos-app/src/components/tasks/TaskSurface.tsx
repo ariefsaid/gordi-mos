@@ -533,7 +533,9 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   const auth = useAuth()
   const inDrawer = width === 'drawer'
   // AC-125 / FR-123: "+ Add task" from a group header deep-links the grouped
-  // dimension via query params (?r=<personId> / ?bu=<buId> / ?status=<status>).
+  // dimension via query params (?r=<personId> / ?bu=<buId>).
+  // Note: Status groups do NOT pass ?status= — CreateSurface has no status field;
+  // all new tasks open as "Open". Only Owner (r=) and BU (bu=) pre-fills are read.
   const [searchParams] = useSearchParams()
   const prefillR = searchParams.get('r') ?? ''
   const prefillBu = searchParams.get('bu') ?? ''

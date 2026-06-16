@@ -510,6 +510,28 @@ describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
     // The add affordance carries the pre-fill target person as its data attribute
     expect(addBtn.getAttribute('data-prefill')).toBe(`r=${VIEWER_ID}`)
   })
+
+  it('AC-125 / FR-123 (refined): Status-group "+ Add task" has NO ?status= pre-fill (plain create link)', async () => {
+    // CreateSurface has no status field — tasks always open as "Open". A ?status= param
+    // would be silently dropped, so the Status group must emit an empty prefill (plain /tasks/new).
+    mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task', status: 'Open' })])
+    const { container } = renderTable()
+    await waitFor(() => screen.getByText('Mine task'))
+    // Default groupBy is 'status' — group headers should already be present.
+    await switchToAll()
+    await waitFor(() => {
+      const groups = Array.from(container.querySelectorAll('tr.grp'))
+      expect(groups.length).toBeGreaterThanOrEqual(1)
+    })
+    const groups = Array.from(container.querySelectorAll('tr.grp'))
+    const openHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Open'))!
+    expect(openHeader).toBeTruthy()
+    const addBtn = openHeader.querySelector('button.gadd') as HTMLButtonElement
+    expect(addBtn).toBeTruthy()
+    // The Status group + Add must carry an empty (or absent) prefill — no ?status= param
+    const prefill = addBtn.getAttribute('data-prefill') ?? ''
+    expect(prefill).not.toMatch(/status=/i)
+  })
 })
 
 describe('Task 22 — mobile grouped cards (AC-129)', () => {

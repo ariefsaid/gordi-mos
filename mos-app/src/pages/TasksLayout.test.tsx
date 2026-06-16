@@ -170,7 +170,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(selectedRow?.textContent).toContain('Open one')
   })
 
-  it('AC-103: an optimistic status change in the drawer is reflected in the table row', async () => {
+  it('AC-103 / AC-117: an optimistic status change in the drawer is reflected in the table row without navigation (RI-2: no view transition)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one', status: 'Open' })])
     mockGetTask
       .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Open one', status: 'Open' }), checklist: [], events: [] })

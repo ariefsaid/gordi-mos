@@ -17,7 +17,12 @@ type GroupHeaderRowProps = {
   onOverdueFilter: () => void
   /** Pre-fill descriptor surfaced for tests/e2e (e.g. "r=<personId>"). */
   prefill?: string
-  /** id used by aria-controls (points at the group's leaf-row region). */
+  /**
+   * @deprecated Not used — the table uses a single shared <tbody> (virtualization
+   * requirement) so no element can carry a per-group id. Kept in the type for
+   * backward-compatibility; the caret carries aria-expanded only (sufficient for
+   * screen readers). Pass nothing or omit.
+   */
   controlsId?: string
 }
 
@@ -26,10 +31,16 @@ type GroupHeaderRowProps = {
  * rendered as a clean hairline-separated row: caret toggle + label + count +
  * overdue subtotal (click-to-filter, only when >0) + "+ Add task".
  * Groups are always shown (incl. empty) for layout stability.
+ *
+ * aria-controls is intentionally omitted: the table body is a single shared
+ * <tbody> (required for @tanstack/react-virtual windowing), so no single element
+ * can carry the per-group id that aria-controls would reference. The caret's
+ * aria-expanded is sufficient to communicate the collapsed/expanded state to
+ * assistive technology.
  */
 export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
-  onToggle, onAddTask, onOverdueFilter, prefill, controlsId,
+  onToggle, onAddTask, onOverdueFilter, prefill,
 }: GroupHeaderRowProps) {
   return (
     <tr className="grp">
@@ -39,7 +50,6 @@ export function GroupHeaderRow({
             type="button"
             className="caret"
             aria-expanded={!collapsed}
-            aria-controls={controlsId}
             aria-label={collapsed ? `Expand ${label} group` : `Collapse ${label} group`}
             onClick={onToggle}
           >
