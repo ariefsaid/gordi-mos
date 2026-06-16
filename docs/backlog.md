@@ -106,13 +106,12 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
   vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
 
-## ✅ Tasks DB-view redesign — BUILT + fully reviewed + e2e-passed (PENDING owner merge)
-Grill → mockup → 4-lens → build-spec grill → **3-PR build + fix-ups** all done 2026-06-16 on branch
-`design/tasks-dbview-mockup`. **661 unit green · typecheck/eslint/build clean · ADR-0007 split-view oracle
-green · spec+code-quality reviewed each phase · 4-lens render-verified (C1 Done-overdue, I1 keyboard-aria,
-M1 condensed-glyph fixed) · AC-134 e2e PASS** (existing e2e green except AC-004/005 = pre-existing mailpit
-port-forward infra, unrelated). New dev seed `supabase/seed.dev-tasks.sql` (11 demo tasks). **Next = push the
-branch + open the redesign PR for owner merge** (then update this to SHIPPED). Follow-ups (non-blocking):
+## ✅ Tasks DB-view redesign — SHIPPED to `main` (PR #19, squash `e5686a9`, 2026-06-16)
+Grill → mockup → 4-lens → build-spec grill → **3-PR build + fix-ups** → reviewed → e2e → merged.
+**661 unit green · typecheck/eslint/build clean · ADR-0007 split-view oracle green · spec+code-quality
+reviewed each phase · 4-lens render-verified (C1 Done-overdue, I1 keyboard-aria, M1 condensed-glyph fixed)
+· AC-134 e2e PASS** (existing e2e green except AC-004/005 = pre-existing mailpit port-forward infra,
+unrelated). Dev seed `supabase/seed.dev-tasks.sql` (11 demo tasks). Follow-ups (non-blocking):
 M2 runtime desktop↔mobile resize re-subscribe; M3 re-confirm avatar grey live; reconcile the mockup to show
 the kept Status-filter + Show-archived; optionally restore mailpit forwarding to re-green AC-004/005.
 Decisions: **OD-P3-6** (full-bleed DB-view IA + grilled build-specs) · **OD-P3-7** (navy+orange brand amendment) ·

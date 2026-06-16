@@ -55,14 +55,14 @@ Non-blocking polish: eyeball the 920–1100 overlay band live; the thin `TaskDet
 hosts may be deleted (OD-P3 "Q5"). P2-4 (kitchen→ops mirror) stays owner-deferred; WALL-3/WALL-4 only
 matter when P2-4 resumes.
 
-**Tasks DB-view redesign — BUILT + fully reviewed + e2e-passed, PENDING owner merge (2026-06-16):**
-full-bleed monday-IA workspace, neutral table, soft-tinted chips, navy+orange brand, `@tanstack/react-table`
-grouping. Branch `design/tasks-dbview-mockup` (10+ commits): grill → mockup → ADR-0008 + design/impl plans →
-PR-1 tokens → PR-2 full-bleed+view-tabs+toolbar+persistence → PR-3 TanStack+grouping+mobile → fix-ups.
-**661 unit · 4-lens (C1/I1/M1 fixed) · AC-134 e2e — all green** (suite green except AC-004/005 pre-existing
-mailpit infra). Decisions **OD-P3-6/7/8**, ADR-0008. Dev seed `supabase/seed.dev-tasks.sql`. **Next = push +
-open the redesign PR for Director/owner merge.** Detail + non-blocking follow-ups: `docs/backlog.md`
-→ "✅ Tasks DB-view redesign".
+**✅ Tasks DB-view redesign — SHIPPED to `main` (PR #19, squash `e5686a9`, 2026-06-16):**
+full-bleed monday-IA workspace, neutral table, soft-tinted chips, navy+orange brand (DESIGN.md amended),
+`@tanstack/react-table` grouping. grill → mockup → ADR-0008 + design/impl plans → PR-1 tokens → PR-2
+full-bleed+view-tabs+toolbar+persistence → PR-3 TanStack+grouping+mobile → fix-ups. **661 unit · 4-lens
+(C1/I1/M1 fixed) · AC-134 e2e — all green** (e2e suite green except AC-004/005 = pre-existing mailpit
+port-forward infra). Decisions **OD-P3-6/7/8**, ADR-0008. Dev seed `supabase/seed.dev-tasks.sql`.
+Non-blocking follow-ups in `docs/backlog.md` → "✅ Tasks DB-view redesign" (mailpit forwarding to re-green
+AC-004/005, M2 resize re-subscribe, M3 avatar re-confirm, mockup reconcile).
 
 ## Open owner decisions (THE WALL — never guess)
 - **WALL-3** — which kitchen events mirror first (gates P2-4).
@@ -96,6 +96,11 @@ open the redesign PR for Director/owner merge.** Detail + non-blocking follow-up
 - **Local stack hygiene + RAM/disk cleanup:** `docs/environments.md` (one shared Docker stack per
   `project_id`; `db reset` is global; `supabase stop --no-backup` to free RAM; `docker container/image
   prune` safe but NEVER `volume prune` — pmo-portal shares the host).
+- **Docker port-forwarding breaks after a daemon restart** (host can't reach `:4432x`/`:5173` even though
+  `docker ps` shows the container healthy + the port mapped). Fix: **`docker restart <container>`** for the
+  affected service (e.g. `supabase_kong_gordi-mos` for the API gateway, the mailpit/inbucket container for
+  `:44324`) to re-establish the host proxy — lighter + safer than `supabase stop/start` or a full Docker
+  bounce (which can also restart co-resident PMO containers). This unblocked the #19 4-lens review.
 - **Demo login orphans after an e2e reseed → `supabase db reset` relinks it.** The dev one-click login
   (#13) lands on "Your account isn't set up yet" when `shared.people.user_id` loses its link to the
   seeded `auth.users` (an e2e run can drift local DB state). `supabase db reset` re-runs
