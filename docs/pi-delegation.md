@@ -9,7 +9,9 @@ else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md
 `docs/product-expectations.md` are unchanged and binding.
 
 Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; providers
-`zai/glm-5.1` and `openai-codex/gpt-5.4` both smoke-tested green.
+`zai/glm-5.1` and `openai-codex/gpt-5.4` both smoke-tested green. **`zai/glm-5.2`** (newest GLM, out
+2026-06) trialed-good as a builder 2026-06-16 — now the **preferred builder** and a capable
+**orchestrator/Director of a parallel pi team** (§3e, owner-directed for max Claude-token economy).
 
 ## 1. Division of labor (binding)
 
@@ -28,10 +30,18 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 
 | Substrate | Use for | Claude analog |
 |---|---|---|
-| `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC, auth), manager-grade judgment | opus |
+| `zai` / `glm-5.2` | **Newest GLM (out 2026-06; trialed-good as builder 2026-06-16 — first-pass-correct, none of the §6 tendencies).** Preferred **builder** for implementation slices; also a capable **orchestrator/Director** of a parallel pi team (§3e) | opus/sonnet |
+| `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC, auth), orchestrator / manager-grade judgment | opus |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback **only when BOTH z.ai AND OpenAI are rate-limited** — keeps the loop moving rather than stalling on a 429 | best-effort |
+
+> **⚑ GLM-only degraded review mode (gpt-5.4 / openai-codex unavailable).** When the cross-family
+> reviewer is down, route reviews to a **different GLM than the builder** (build `glm-5.2` → review
+> `glm-5.1`): gives *some* independence but is **same-family** — weaker than the intended cross-family
+> check. OK for low-risk / presentational slices; for **security / RLS / RPC / auth or money-path**
+> changes, escalate to the Director's own review or wait for cross-family — never ship those on a
+> same-family-only sign-off.
 
 OpenRouter slugs (confirmed live 2026-06-12): Nemotron 3 Ultra (free) = `nvidia/nemotron-3-ultra-550b-a55b:free`; Nex N2 Pro (free) = `nex-agi/nex-n2-pro:free`. Both reachable via `--provider openrouter`.
 
@@ -115,16 +125,68 @@ A `Bash(run_in_background)` pi dispatch is spawned **inside the Claude-app proce
   is already high, prefer a git-worktree-isolated dispatch so a crash can't corrupt the primary checkout.
   See `docs/environments.md` "Local stack hygiene" for the canonical cleanup runbook (RAM/disk release, Docker prune patterns, worktree lifecycle).
 
+### 3c-bis. ⚑ A *non-main* orchestrator (Claude subagent OR a pi/GLM orchestrator) must keep pi IN-TURN
+
+The §3b "background + the harness re-invokes you" pattern is **main-Director-only**. Anything that is NOT
+the main Claude session is never auto-re-invoked when a background task finishes:
+- A **Claude subagent** acting as orchestrator that fires `Bash(run_in_background)` pi and ends its turn
+  → the child is **orphaned** (verified in PMO: empty worktree, idle pi). It must dispatch pi **blocking
+  foreground** `Bash(timeout: 600000)` (≤10-min slices) and stay alive to verify + continue; split longer
+  work, or detached-tmux + poll the `__PI_EXIT_0__` sentinel **within the same turn**. (detached-tmux can
+  fail in a sandboxed subagent — `fork failed: Device not configured`; foreground-blocking is the safe default.)
+- A **pi / GLM orchestrator** (§3e) is a CLI process, not on the Claude harness at all — it likewise can't
+  rely on notifications; it dispatches its sub-pi workers via **blocking Bash** (pi-calling-pi) or its own
+  tmux + sentinel loop, all **within its own run**.
+Make this explicit in any orchestrator brief. Only the **main Director** uses §3b background + auto-notify.
+
+### 3e. Parallel GLM teams — GLM as a separate orchestrator/Director (max Claude-token economy)
+
+For a **large, well-scoped, independent workstream** where Claude's per-step judgment isn't needed mid-loop
+(a multi-slice series, a bulk codemod/migration across many files, a parallel set of independent issues),
+hand the **whole inner loop** to a **GLM orchestrator** so the Claude Director spends ~zero tokens until it
+finishes. This is the owner-directed "pi + GLM as a separate parallel team, GLM as the director" mode
+(2026-06-16).
+
+**Shape:**
+- One `pi --provider zai --model glm-5.1` (orchestrator judgment) **or** `glm-5.2` (builder-strong) run
+  whose brief = *"You are the Director for workstream X. Run the per-issue loop (`docs/director-playbook.md`
+  §2): for each item, dispatch a sub-`pi` role-worker via Bash (pi-calling-pi,
+  `--append-system-prompt .claude/agents/<role>.md`), verify it (gates + grep + sentinel), then the next;
+  produce a final report + a sentinel."* The orchestrator commits on its branch.
+- It runs as **ONE** Claude-backgrounded task (§3b) — or detached-tmux (§3c) for heavy/long — so **Claude
+  gets a single notification when the entire workstream finishes**, not per slice. Per §3c-bis the
+  orchestrator keeps its own sub-dispatches in-turn (blocking / tmux-sentinel).
+- **Parallelism:** launch several GLM-orchestrator runs in **separate git worktrees** at once (one
+  workstream each) — a true parallel team. **Stagger anything that drives the single local Supabase stack**
+  (migrations / `db reset` / pgTAP / e2e) — never two at once (playbook §3).
+- **Models inside the team:** orchestrator = glm-5.1/5.2; builders = glm-5.2; reviewers = **gpt-5.4
+  cross-family** (or the GLM-only degraded mode in §2 if codex is down — then Claude's own review carries
+  more weight on load-bearing slices).
+
+**Binding boundaries (the GLM team runs the inner loop, NOT the gates):**
+- The GLM team **never pushes, opens PRs, or merges.** Claude (the human-facing Director) still owns
+  **merge + git hygiene** (rebase, conflict-marker scan, the merge gate), the **final rendered
+  visual-taste lens** (vision — GLM works the a11y tree), and **owner gates** (spec sign-off, mockup/IA
+  approval, production/irreversible) per CLAUDE.md.
+- Claude **verifies the team's output before merge** (§5, doubly): gates green, `git diff` the branch,
+  render the UI, scan for conflict markers + e2e-softening (§6). A GLM-orchestrated workstream is
+  **lower-trust** than a Claude-run one — verify harder; **security/RLS/RPC/auth/money-path must not ship
+  on a GLM-only review**.
+- **When NOT to use it:** novel architecture/security/auth design, anything needing the owner mid-loop, or
+  work where Claude's judgment/taste is the point. Use it for **breadth + token economy**, not the hard calls.
+
 ## 4. Brief structure — the quality lever
 
 pi agents see NOTHING of your session. The brief must stand alone:
 
 1. **Task in one line**, naming the phase + binding role rules ("per docs/design-workflow.md §2").
 2. **READ FIRST list** — exact paths: the locked `OD-*` decisions (`docs/decisions.md`), the
-   `CONTEXT.md` glossary, the spec/plan, the **reference slice** (the Tasks split-view, ADR-0007:
-   `mos-app/src/pages/TasksLayout.tsx` + `mos-app/src/components/tasks/{TaskDrawer,TaskSurface}.tsx` +
-   `mos-app/src/lib/db/tasks.ts` — `TaskSurface` is the one editor; `TaskDetail.tsx`/`TaskCreate.tsx`/
-   `TasksPage.tsx` are now thin/un-routed, don't brief from them — and for schema/RLS the
+   `CONTEXT.md` glossary, the spec/plan, the **reference slice** (the shipped Tasks DB-view — ADR-0007
+   split-view + ADR-0008 DB-view, spec `docs/specs/tasks-dbview.spec.md`):
+   `mos-app/src/pages/TasksLayout.tsx` +
+   `mos-app/src/components/tasks/{TasksWorkspace,TaskDrawer,TaskSurface,GroupHeaderRow,ViewTabStrip,useTasksViewPref}.tsx`
+   + `mos-app/src/lib/db/tasks.ts` (`TaskSurface` is the one editor; `TaskDetail.tsx`/`TaskCreate.tsx`/
+   `TasksPage.tsx` are thin/un-routed — don't brief from them) — and for schema/RLS the
    `supabase/migrations/20260611000007..09_mos_*` + their pgTAP), relevant ADRs.
    The agent reads them itself; don't paste content.
 3. **Output path** — exact file(s) the agent must write.
@@ -175,8 +237,8 @@ violation — while the Director's own read caught 2 the reviewer missed. Both l
 
 ## 7. Where this fits
 
-- Sequencing + status: `docs/STATUS.md` (read-first) + `docs/backlog.md` (current: first-slice MVP
-  feature-complete; Phase 3 — P3-1 production deploy is the only open work).
+- Sequencing + status: `docs/STATUS.md` (read-first) + `docs/backlog.md` (current: MVP feature-complete;
+  Tasks DB-view redesign SHIPPED #19; **P3-1 production deploy** is the next milestone).
 - The loop being executed: `docs/director-playbook.md` §2; UI issues additionally
   `docs/design-workflow.md` §1 (Phase-0 mockup gate) + §2 (per-UI-issue loop + 4-lens battery).
 - Grading: playbook §10 rubric applies to pi-produced work unchanged.
