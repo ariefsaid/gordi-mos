@@ -107,8 +107,9 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
 
 ## 🎨 Design-ready — Tasks DB-view redesign (adopted mockup + 4-lens review DONE; NOT yet built)
-Grill + mockup + review complete 2026-06-16; **owner stopped at the mockup** (no plan/build started). Decisions:
-**OD-P3-6** (full-bleed DB-view IA) + **OD-P3-7** (navy+orange brand amendment) in `docs/decisions.md`. Adopted
+Grill + mockup + review + **build-spec grill** complete 2026-06-16; **owner stopped at the mockup** (no build started).
+Decisions: **OD-P3-6** (full-bleed DB-view IA + grilled build-specs) · **OD-P3-7** (navy+orange brand amendment) ·
+**OD-P3-8** (adopt `@tanstack/react-table` — headless row-models, full `TasksTable` refactor) in `docs/decisions.md`. Adopted
 visual: `docs/design-mockups/tasks-dbview-final.html` — **A's chrome** (full-bleed · view-tabs · A's bordered
 filter controls · thin **horizontal** gridlines only, no vertical "stripes") + **B's table simplicity** (clean
 hairline group headers — NO navy bands, NO left-edge swatch) · **soft-tinted status chips** (DESIGN.md
@@ -118,11 +119,15 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
 - [ ] **Resume = design-plan + ADR-0008** (eng-planner/design-architect), then build phasing (owner-approved):
   **PR-1** DESIGN.md navy/orange token amendment + ADR-0008 → **PR-2** full-bleed layout (kill 1080 cap in
   `PageFrame.tsx` for data surfaces; keep prose capped) + view-tab scaffold (Board/Calendar **stubbed**) + toolbar
-  restyle → **PR-3** group-by engine + group headers (count + overdue subtotal) over the existing virtualized table.
-- **Fold into the design-plan (review "Important"):** (1) all states — loading/empty/error/no-results/empty-group/
-  zero-overdue header; (2) **bulk-select selection-mode toolbar** (checkboxes shown, action bar unspecified);
-  (3) **"Mine" vs "Person:" filter precedence** (can form a contradictory state — define disable/precedence);
-  (4) **"+N" RACI tooltip** (silent glyph → reveal C/I people on hover/focus).
+  restyle → **PR-3** **`@tanstack/react-table` refactor** + group-by engine + group headers (count + overdue subtotal),
+  rendered with our markup over the existing `@tanstack/react-virtual` window.
+- **Grilled build-specs (OD-P3-6):** group-by Status(default)/Owner/BU · within-group sort Due-asc · show ALL groups
+  always · **bulk-select DEFERRED (no checkboxes v1)** · Person filter overrides Mine/RACI/All segment · mobile =
+  grouped cards · view/group/collapse persisted per-user-global · client-side row models · no column-customization v1.
+- **Fold into the design-plan (review "Important"):** (1) all states — loading/empty/error/no-results/
+  zero-overdue header (empty-group N/A — groups always shown); (2) **"+N" RACI tooltip** (silent glyph → reveal C/I
+  on hover/focus). *(Was #2 bulk-select toolbar → dropped, bulk-select deferred. Was #3 Mine/Person → resolved:
+  Person overrides segment.)*
 - **design-architect notes (review "Minor"):** make "3 overdue"/group subtotals **click-to-filter**; codify status
   **dot ≥8px + text label always** (no dot-only variant — keeps WCAG 1.4.1 when grouping ≠ Status); document
   **50px rows** vs DESIGN.md 54px; bless the **navy→blue avatar gradient** in the amendment (doc says blue→violet).
