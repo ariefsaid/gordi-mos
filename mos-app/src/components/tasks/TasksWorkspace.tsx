@@ -58,7 +58,9 @@ export type TasksTableProps = {
   drawerSlot?: ReactNode
 }
 
-const STATUS_ORDER: TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
+// OD-P3-6 / mockup: OFF-TRACK-FIRST group order (In Progress → Blocked → Open → Done),
+// mirroring the signed mockup and the My Week 'off track first' reading.
+const STATUS_ORDER: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
 
 // ── Group model ────────────────────────────────────────────────────────────────
 // A group ready to render: its display label, persistence key, leaf rows (filtered
@@ -78,6 +80,9 @@ function SkeletonRow({ condensed }: { condensed: boolean }) {
       <td className="sk-cell"><div className="sk" style={{ width: '42%' }} /></td>
       <td className="sk-cell"><div className="sk pill" /></td>
       <td className="sk-cell"><div className="sk av" /></td>
+      {!condensed && (
+        <td className="sk-cell"><div className="sk" style={{ width: 60 }} /></td>
+      )}
       <td className="sk-cell" style={{ textAlign: 'right' }}>
         <div className="sk" style={{ width: 56, marginLeft: 'auto' }} />
       </td>
@@ -468,11 +473,11 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
               {isArchived && <span className="archived-tag">Archived</span>}
               <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
             </span>
-            <span className="task-bu">{buName}</span>
           </Link>
         </td>
         <td className="td-cell"><StatusPill status={task.status} /></td>
         <td className="td-cell td-owner"><OwnerCell fullName={rName} otherCount={otherRaciCount(task)} others={buildOthers(task)} /></td>
+        {!condensed && <td className="td-cell td-bu">{buName}</td>}
         <td className={`td-right tabular-nums ${dueClass}`}>{dueText}</td>
         {!condensed && <td className="td-right tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
       </tr>
@@ -487,7 +492,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         count={group.rows.length}
         overdue={group.overdue}
         collapsed={isCollapsed(group.key)}
-        colSpan={condensed ? 4 : 5}
+        colSpan={condensed ? 4 : 6}
         prefill={group.prefillParam}
         controlsId={`grp-rows-${group.key}`}
         onToggle={() => toggleCollapsed(group.key)}
@@ -504,6 +509,10 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     if (sortCol !== col) return ''
     return sortDir === 'ascending' ? ' ▴' : ' ▾'
   }
+
+  // + New task lives in the toolbar only when the table is populated (empty / no-results
+  // states own their own create CTA).
+  const showNewTask = !loading && !error && leafTasks.length > 0
 
   return (
     <>
@@ -618,7 +627,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         >
           {([
             { key: 'mine', label: 'Mine' },
-            { key: 'raci', label: 'RACI-involved' },
+            { key: 'raci', label: 'RACI' },
             { key: 'all', label: 'All' },
           ] as { key: Segment; label: string }[]).map(({ key, label }) => (
             <button
@@ -652,6 +661,13 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             onChange={e => setIncludeArchived(e.target.checked)} aria-label="Show archived" className="archived-checkbox" />
           <span className="archived-label">Show archived</span>
         </label>
+
+        {/* + New task lives in the toolbar as the right-aligned primary action (mockup
+            '.btn-primary.grow'). Rendered only when the table is populated — empty /
+            no-results states own their own CTA, so every state has exactly one create link. */}
+        {showNewTask && (
+          <Link to="/tasks/new" className="btn-primary toolbar-new-task">+ New task</Link>
+        )}
       </div>
 
       {/* Body */}
@@ -698,7 +714,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         </div>
       ) : isDesktop ? (
         <>
-          <div className="table-top-bar"><Link to="/tasks/new" className="new-task-link">+ New task</Link></div>
           <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
           <table className="tasks-table" aria-label="Tasks">
             <thead>
@@ -715,6 +730,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
                   aria-sort={colSort('owner')} onClick={() => handleSort('owner')}>
                   Owner{sortGlyph('owner') && <span className="sort-aff" aria-hidden="true">{sortGlyph('owner')}</span>}
                 </th>
+                {!condensed && (
+                  <th scope="col" className="th-cell">Business unit</th>
+                )}
                 <th scope="col" className={`th-cell th-sortable th-right${sortCol === 'due' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('due')} onClick={() => handleSort('due')}>
                   Due{sortGlyph('due') && <span className="sort-aff" aria-hidden="true">{sortGlyph('due')}</span>}
@@ -731,7 +749,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
               (() => {
                 const items = rowVirtualizer.getVirtualItems()
                 const totalSize = rowVirtualizer.getTotalSize()
-                const colSpan = condensed ? 4 : 5
+                const colSpan = condensed ? 4 : 6
                 const padTop = items.length > 0 ? items[0].start : 0
                 const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
                 return (
@@ -760,7 +778,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         </>
       ) : (
         <>
-          <div className="table-top-bar"><Link to="/tasks/new" className="new-task-link">+ New task</Link></div>
           <MobileGroupedCards
             groups={groups}
             now={now}

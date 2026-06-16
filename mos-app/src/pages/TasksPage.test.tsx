@@ -389,7 +389,7 @@ describe('AC-064 — segmented control: Mine / RACI-involved / All', () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
 
-    fireEvent.click(screen.getByRole('tab', { name: /raci-involved/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /^raci$/i }))
 
     await waitFor(() => {
       expect(screen.getByText('My task')).toBeTruthy()
@@ -498,7 +498,7 @@ describe('a11y — aria roles and labels', () => {
     // Wait for any tablist (now includes ViewTabStrip + Ownership filter)
     await waitFor(() => screen.getAllByRole('tablist'))
     expect(screen.getByRole('tab', { name: /mine/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /raci-involved/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^raci$/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^all$/i })).toBeTruthy()
     // "Mine" is selected by default
     expect(screen.getByRole('tab', { name: /mine/i }).getAttribute('aria-selected')).toBe('true')
