@@ -16,6 +16,8 @@ import { StatusPill } from './StatusPill'
 import { OwnerCell } from './OwnerCell'
 import { formatAge, formatDate, otherRaciCount } from './taskFormatters'
 import { useTasksKeyboard } from './useTasksKeyboard'
+import { ViewTabStrip } from './ViewTabStrip'
+import { useTasksViewPref } from './useTasksViewPref'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -112,6 +114,9 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
+  // ── Persistence (FR-125) ──────────────────────────────────────────────────
+  const { groupBy, setGroupBy } = useTasksViewPref()
+
   // ── Filters ────────────────────────────────────────────────────────────────
   const [businessUnitId, setBusinessUnitId] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
@@ -119,6 +124,9 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
   const [segment, setSegment] = useState<Segment>('mine')
   const [personFilter, setPersonFilter] = useState<string>('')
   const [searchText, setSearchText] = useState<string>('')
+  // Transient overdue-only filter (AC-128 / FR-126) — clicking "N overdue" sets this;
+  // cleared via the chip ✕ or the Clear filters button.
+  const [overdueOnly, setOverdueOnly] = useState(false)
 
   // ── Sort ─────────────────────────────────────────────────────────────────
   const [sortCol, setSortCol] = useState<SortCol>('due')
@@ -176,14 +184,25 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
     return allTasks.map(t => statusOverrides.has(t.id) ? { ...t, status: statusOverrides.get(t.id)! } : t)
   }, [allTasks, statusOverrides])
 
+  // ── Person-overrides-segment (FR-124 / AC-126) ───────────────────────────
+  // When a Person filter is set, the Mine/RACI/All segment is inert — the Person
+  // filter drives the ownership scope. The segment is re-enabled when cleared.
+  const segmentDisabled = personFilter !== ''
+
   // ── Client-side filtering ─────────────────────────────────────────────────
   const visibleTasks = useMemo(() => tasksWithOverrides.filter(t => {
-    if (segment === 'mine' && viewerId && !raciOwner(t, viewerId)) return false
-    if (segment === 'raci' && viewerId && !raciMember(t, viewerId)) return false
-    if (personFilter && !raciMember(t, personFilter)) return false
+    // When Person filter is set, segment is overridden — use personFilter for scope
+    if (personFilter) {
+      if (!raciMember(t, personFilter)) return false
+    } else {
+      if (segment === 'mine' && viewerId && !raciOwner(t, viewerId)) return false
+      if (segment === 'raci' && viewerId && !raciMember(t, viewerId)) return false
+    }
     if (searchText && !t.title.toLowerCase().includes(searchText.toLowerCase())) return false
+    // Transient overdue-only filter (AC-128)
+    if (overdueOnly && dueStatus(t.due_date, now) !== 'overdue') return false
     return true
-  }), [tasksWithOverrides, segment, viewerId, personFilter, searchText])
+  }), [tasksWithOverrides, segment, viewerId, personFilter, searchText, overdueOnly, now])
 
   // ── Sort ─────────────────────────────────────────────────────────────────
   const sortedTasks = useMemo(() => [...visibleTasks].sort((a, b) => {
@@ -214,6 +233,22 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
 
   const buOptions = useMemo(() => busDirectory, [busDirectory])
   const personOptions = useMemo(() => peopleDirectory, [peopleDirectory])
+
+  // ── Active-filter detection (for no-results-after-filter vs empty-no-tasks) ──
+  // A filter is "active" when any non-default selection is applied.
+  const hasActiveFilter = businessUnitId !== '' || statusFilter !== '' || personFilter !== ''
+    || searchText !== '' || overdueOnly || includeArchived
+
+  // Clears all transient + filter state back to defaults
+  function clearFilters() {
+    setBusinessUnitId('')
+    setStatusFilter('')
+    setPersonFilter('')
+    setSearchText('')
+    setOverdueOnly(false)
+    setIncludeArchived(false)
+    // Segment stays as user set it (not a "filter" in the traditional sense)
+  }
 
   // ── Keyboard layer (AC-109) ────────────────────────────────────────────────
   // j/k move a row cursor, Enter/o open it, Esc closes the drawer, n opens
@@ -272,11 +307,15 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
     return { total: sortedTasks.length, blocked, overdue }
   }, [sortedTasks, now, error])
 
-  const countLine = stats === null
-    ? '—'
-    : `${stats.total} task${stats.total !== 1 ? 's' : ''}`
-      + (stats.blocked > 0 ? ` · ${stats.blocked} blocked` : '')
-      + (stats.overdue > 0 ? ` · ${stats.overdue} overdue` : '')
+  // Count line is built in JSX now so "N overdue" can be a <button> (AC-128).
+  // Zero-overdue: omit the overdue segment entirely (AC-133 zero-overdue rule — no green badge).
+  const countLineParts = stats === null
+    ? null
+    : {
+        total: stats.total,
+        blocked: stats.blocked,
+        overdue: stats.overdue,
+      }
 
   const splitClass = `split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`
 
@@ -341,15 +380,68 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
 
   return (
     <>
+      {/* ViewTabStrip — above the page head, per design-plan §5 (FR-121 / AC-122) */}
+      <ViewTabStrip active="table" />
+
       <div className="page-head-row">
         <h1 className="tasks-page-title">Tasks</h1>
-        <span className="tasks-count-line tabular-nums">{countLine}</span>
+        {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}
+        <span className="tasks-count-line tabular-nums">
+          {countLineParts === null ? '—' : (
+            <>
+              {countLineParts.total} task{countLineParts.total !== 1 ? 's' : ''}
+              {countLineParts.blocked > 0 && (
+                <> · {countLineParts.blocked} blocked</>
+              )}
+              {/* Zero-overdue: omit entirely (AC-133). Non-zero: render as click-to-filter button */}
+              {countLineParts.overdue > 0 && (
+                <> · <button
+                  type="button"
+                  className="overdue-filter-btn"
+                  aria-label={`Filter to ${countLineParts.overdue} overdue tasks`}
+                  onClick={() => setOverdueOnly(true)}
+                >
+                  {countLineParts.overdue} overdue
+                </button></>
+              )}
+            </>
+          )}
+        </span>
+        {/* Overdue-only active chip (AC-128 — clearable transient filter) */}
+        {overdueOnly && (
+          <button
+            type="button"
+            className="overdue-chip"
+            aria-label="Clear overdue filter"
+            onClick={() => setOverdueOnly(false)}
+          >
+            Overdue only ✕
+          </button>
+        )}
       </div>
 
       <div className={splitClass}>
         <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label="Tasks">
       {/* Toolbar */}
       <div className="toolbar">
+        {/* Group-by control — rendered but flat/non-functional in PR-2; wired in PR-3 (FR-122) */}
+        <label htmlFor="group-by-filter" className="sr-only">Group</label>
+        <div className="control control-groupby">
+          <span className="ctrl-lbl">Group</span>
+          <select
+            id="group-by-filter"
+            aria-label="Group"
+            value={groupBy}
+            onChange={e => setGroupBy(e.target.value as import('./useTasksViewPref').TasksGroupBy)}
+            className="ctrl-select"
+          >
+            <option value="status">Status</option>
+            <option value="owner">Owner</option>
+            <option value="bu">Business unit</option>
+          </select>
+          <span className="ctrl-chev" aria-hidden="true">▾</span>
+        </div>
+
         <label htmlFor="bu-filter" className="sr-only">Business unit</label>
         <div className="control">
           <span className="ctrl-lbl">Business unit</span>
@@ -386,15 +478,28 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
           <span className="ctrl-chev" aria-hidden="true">▾</span>
         </div>
 
-        <div role="tablist" aria-label="Ownership filter" className="seg">
+        {/* Mine/RACI/All segment — disabled when Person filter is set (FR-124 / AC-126) */}
+        <div
+          role="tablist"
+          aria-label="Ownership filter"
+          className={`seg${segmentDisabled ? ' seg-disabled' : ''}`}
+        >
           {([
             { key: 'mine', label: 'Mine' },
             { key: 'raci', label: 'RACI-involved' },
             { key: 'all', label: 'All' },
           ] as { key: Segment; label: string }[]).map(({ key, label }) => (
-            <button key={key} role="tab" aria-selected={segment === key}
-              className={segment === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
-              onClick={() => setSegment(key)} type="button">
+            <button
+              key={key}
+              role="tab"
+              aria-selected={!segmentDisabled && segment === key}
+              aria-disabled={segmentDisabled ? 'true' : undefined}
+              tabIndex={segmentDisabled ? -1 : 0}
+              disabled={segmentDisabled}
+              className={!segmentDisabled && segment === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
+              onClick={segmentDisabled ? undefined : () => setSegment(key)}
+              type="button"
+            >
               {label}
             </button>
           ))}
@@ -441,7 +546,18 @@ export function TasksTable({ selectedId, drawerOpen = false, expanded = false, s
           <span className="error-text">Couldn&apos;t load tasks</span>
           <button type="button" className="retry-btn" onClick={load}>Retry</button>
         </div>
+      ) : sortedTasks.length === 0 && hasActiveFilter ? (
+        /* No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3) */
+        <div className="empty-state">
+          <h3 className="empty-title">No tasks match these filters</h3>
+          <p className="empty-copy">Clear filters to see all tasks.</p>
+          <div className="empty-actions">
+            <button type="button" className="btn-outline" onClick={clearFilters}>Clear filters</button>
+            <Link to="/tasks/new" className="btn-primary">+ New task</Link>
+          </div>
+        </div>
       ) : sortedTasks.length === 0 ? (
+        /* Empty-no-tasks: no filter is active (segment-aware copy) */
         <div className="empty-state">
           <h3 className="empty-title">{emptyTitle()}</h3>
           <p className="empty-copy">{emptyCopy()}</p>

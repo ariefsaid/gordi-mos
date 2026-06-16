@@ -491,7 +491,8 @@ describe('a11y — aria roles and labels', () => {
   it('segmented control has tablist/tab roles and aria-selected', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
-    await waitFor(() => screen.getByRole('tablist'))
+    // Wait for any tablist (now includes ViewTabStrip + Ownership filter)
+    await waitFor(() => screen.getAllByRole('tablist'))
     expect(screen.getByRole('tab', { name: /mine/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /raci-involved/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^all$/i })).toBeTruthy()

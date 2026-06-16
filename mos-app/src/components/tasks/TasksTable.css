@@ -252,6 +252,89 @@
   .split, .split.expanded { grid-template-columns: 1fr; }
 }
 
+/* ── Group-by control (DB-view toolbar, DESIGN.md §5 toolbar-control treatment) ──
+   Tinted to read as the active "database" control: brand-navy/6 bg + brand-navy border
+   + brand-navy-text text + 600 weight (The Structural-Navy Rule). */
+.control-groupby {
+  background: hsl(var(--brand-navy) / 0.06);
+  border-color: hsl(var(--brand-navy));
+  color: hsl(var(--brand-navy-text));
+  font-weight: 600;
+}
+.control-groupby .ctrl-lbl {
+  color: hsl(var(--brand-navy-text));
+}
+.control-groupby .ctrl-chev {
+  color: hsl(var(--brand-navy-text));
+}
+
+/* ── Segment disabled state (FR-124 / AC-126) ── */
+.seg-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Overdue filter button (count line, AC-128 / FR-126) ── */
+.overdue-filter-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: hsl(var(--status-lost-text));
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.overdue-filter-btn:hover {
+  color: hsl(0 72% 35%);
+}
+
+/* ── Overdue-only active chip (AC-128 — clearable transient filter) ── */
+.overdue-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 1px solid hsl(var(--status-lost-text) / 0.4);
+  background: hsl(var(--status-lost-text) / 0.08);
+  color: hsl(var(--status-lost-text));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  gap: 4px;
+}
+.overdue-chip:hover {
+  background: hsl(var(--status-lost-text) / 0.14);
+}
+
+/* ── Empty state actions row (no-results + new task, AC-133) ── */
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-outline:hover {
+  background: hsl(var(--accent));
+}
+
 /* ── Utility ── */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }
 .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }

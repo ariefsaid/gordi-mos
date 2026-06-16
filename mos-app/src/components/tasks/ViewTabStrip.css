@@ -1,0 +1,63 @@
+/* ── ViewTabStrip — Tasks workspace view-tab strip (DESIGN.md §5, FR-121) ──────
+   Design spec: 34px tall tabs, 13px/600, 0 12px padding.
+   Active = brand-navy-text + 2px brand-orange bottom border (the Orange-Sprinkle Rule).
+   Disabled/SOON = muted-foreground text + not-allowed cursor + secondary SOON pill.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.vts-strip {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0 12px;
+  background: hsl(var(--card));
+}
+
+.vts-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.vts-tab:hover:not(.vts-tab-disabled) {
+  color: hsl(var(--foreground));
+}
+
+/* Active tab: brand-navy-text text + 2px brand-orange bottom underline (the one orange sprinkle) */
+.vts-tab-active {
+  color: hsl(var(--brand-navy-text));
+  border-bottom-color: hsl(var(--brand-orange));
+}
+
+/* Disabled SOON stub: muted-foreground + not-allowed cursor */
+.vts-tab-disabled {
+  cursor: not-allowed;
+  color: hsl(240 4% 62%);
+}
+
+/* SOON pill inside the stub tab */
+.vts-soon {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

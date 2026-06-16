@@ -122,6 +122,25 @@ function renderAt(path: string) {
 }
 
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
+  it('AC-121: TasksLayout renders inside a full-bleed (variant=data) PageFrame — no 1080px maxWidth cap', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('Triage me'))
+    const main = document.querySelector('main') as HTMLElement
+    const inner = main.querySelector('main > div') as HTMLElement
+    expect(inner.style.maxWidth).toBe('none')
+  })
+
+  it('AC-120: the Tasks <main> landmark is present and the breadcrumb/nav survive full-bleed', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    renderAt('/tasks')
+    await waitFor(() => screen.getByText('Triage me'))
+    // <main> landmark still present (full-bleed does not remove it)
+    expect(document.querySelector('main')).toBeTruthy()
+    // Tasks heading still renders (structural anchor for the page)
+    expect(screen.getByRole('heading', { name: /tasks/i })).toBeInTheDocument()
+  })
+
   it('AC-100: at /tasks the table renders and no drawer is present (nodrawer)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
     renderAt('/tasks')

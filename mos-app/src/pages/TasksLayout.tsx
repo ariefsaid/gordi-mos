@@ -48,7 +48,7 @@ export default function TasksLayout() {
   const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived }
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <TasksTable
         selectedId={taskId ?? null}
         drawerOpen={drawerOpen}
