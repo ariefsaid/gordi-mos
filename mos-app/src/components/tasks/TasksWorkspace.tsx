@@ -18,7 +18,7 @@ import type { TaskListFilters } from '../../lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '../../lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '../../lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '../../lib/db/directory'
-import { dueStatus } from '../../lib/dueStatus'
+import { dueStatus, isOverdue } from '../../lib/dueStatus'
 import { raciMember, raciOwner } from '../../lib/raciMember'
 import { StatusPill } from './StatusPill'
 import { OwnerCell } from './OwnerCell'
@@ -232,7 +232,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     else if (seg === 'mine' && viewerId && !raciOwner(t, viewerId)) return false
     else if (seg === 'raci' && viewerId && !raciMember(t, viewerId)) return false
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
-    if (od && dueStatus(t.due_date, now) !== 'overdue') return false
+    if (od && !isOverdue(t, now)) return false
     return true
   }, [now, viewerId])
 
@@ -308,7 +308,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     }
     const mk = (key: string, label: string, prefillParam: string): RenderGroup => {
       const rows = byKey.get(key) ?? []
-      const overdue = rows.filter(t => dueStatus(t.due_date, now) === 'overdue').length
+      const overdue = rows.filter(t => isOverdue(t, now)).length
       return { key, label, rows, overdue, prefillParam }
     }
     if (groupBy === 'status') {
@@ -412,7 +412,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const stats = useMemo<TasksTableStats>(() => {
     if (error) return null
     const blocked = leafTasks.filter(t => t.status === 'Blocked').length
-    const overdue = leafTasks.filter(t => dueStatus(t.due_date, now) === 'overdue').length
+    const overdue = leafTasks.filter(t => isOverdue(t, now)).length
     return { total: leafTasks.length, blocked, overdue }
   }, [leafTasks, now, error])
 
@@ -441,10 +441,13 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // ── Row renderer (shared by the plain + virtualized bodies) ────────────────
   function renderRow(task: TaskListRow, leafIndex: number) {
     const ds = dueStatus(task.due_date, now)
-    const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
+    const taskOverdue = isOverdue(task, now)
+    // C1: only genuinely-overdue (non-Done, non-archived) rows get the red class.
+    const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
     const dueText = task.due_date
-      ? (ds === 'overdue'
-        ? (condensed ? formatDate(task.due_date) : `Overdue · ${formatDate(task.due_date)}`)
+      ? (taskOverdue
+        // M1: condensed drops the "Overdue · " prefix but keeps a "!" glyph (WCAG 1.4.1).
+        ? (condensed ? `! ${formatDate(task.due_date)}` : `Overdue · ${formatDate(task.due_date)}`)
         : formatDate(task.due_date))
       : '—'
     const buName = buMap.get(task.business_unit_id) ?? ''
@@ -456,7 +459,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       <tr key={task.id}
         ref={isCursor ? cursorRowRef : undefined}
         className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}`}
-        aria-current={isSelected ? 'true' : undefined}
+        // I1: expose cursor to AT via aria-current; isSelected keeps 'true' for the open drawer row.
+        aria-current={isSelected ? 'true' : (isCursor ? 'true' : undefined)}
         onClick={() => navigate(`/tasks/${task.id}`)}>
         <td className="td-main">
           <Link to={`/tasks/${task.id}`} className="task-row-link" tabIndex={0}>

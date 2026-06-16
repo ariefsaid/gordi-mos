@@ -3,7 +3,7 @@ import type { TaskListRow } from '../../lib/db/tasks.types'
 import type { OwnerCellRaciMember } from './OwnerCell'
 import { OwnerCell } from './OwnerCell'
 import { StatusPill } from './StatusPill'
-import { dueStatus } from '../../lib/dueStatus'
+import { dueStatus, isOverdue } from '../../lib/dueStatus'
 import { formatAge, formatDate, otherRaciCount } from './taskFormatters'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
@@ -38,12 +38,14 @@ type TaskCardProps = {
 
 function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
+  const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
   const n = otherRaciCount(task)
   const isArchived = task.archived_at != null
-  const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
+  // C1: only genuinely-overdue (non-Done, non-archived) gets red class / "Overdue · " prefix.
+  const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
-    ? (ds === 'overdue' ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
+    ? (taskOverdue ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
     : '—'
 
   return (

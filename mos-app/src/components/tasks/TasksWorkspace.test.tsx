@@ -489,6 +489,41 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
     // After 2+ presses the cursor has landed on a leaf row
     expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy()
   })
+
+  // I1: aria-current exposes the keyboard cursor to AT
+  it('I1/OBS-121: j/k move aria-current="true" across leaf rows; group headers never receive it', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'o1', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 'b1', title: 'Blocked one', status: 'Blocked' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+    await switchToAll()
+    await waitFor(() => screen.getByText('Blocked one'))
+
+    // Before any j press: no aria-current=true on any task-row
+    expect(document.querySelector('tr.task-row[aria-current="true"]')).toBeNull()
+
+    // First j: cursor lands on leaf index 0 → that row should have aria-current="true"
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => {
+      const currentRow = document.querySelector('tr.task-row[aria-current="true"]')
+      expect(currentRow).toBeTruthy()
+      // Must be a task-row, not a group header
+      expect(currentRow!.classList.contains('task-row')).toBe(true)
+      expect(currentRow!.classList.contains('grp')).toBe(false)
+    })
+
+    // j again: aria-current moves to next leaf row; previous row loses it
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => {
+      const currentRows = document.querySelectorAll('tr.task-row[aria-current="true"]')
+      // Exactly one row carries aria-current at a time
+      expect(currentRows.length).toBe(1)
+      // And it is still a task-row, never a .grp
+      expect(currentRows[0].classList.contains('grp')).toBe(false)
+    })
+  })
 })
 
 describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
@@ -531,6 +566,105 @@ describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
     // The Status group + Add must carry an empty (or absent) prefill — no ?status= param
     const prefill = addBtn.getAttribute('data-prefill') ?? ''
     expect(prefill).not.toMatch(/status=/i)
+  })
+})
+
+// ── C1: Done task must not appear in overdue count / subtotal / row label ──────
+describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () => {
+  it('RI-1: a Done task with a past due_date does NOT contribute to the page overdue count', async () => {
+    const overdueDate = '2020-01-01'
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 't1', title: 'Done past due', status: 'Done', due_date: overdueDate }),
+      makeTask({ id: 't2', title: 'Open past due', status: 'Open', due_date: overdueDate }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
+    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
+    if (allBtn) fireEvent.click(allBtn as Element)
+    await waitFor(() => {
+      expect(screen.getByText('Done past due')).toBeInTheDocument()
+      expect(screen.getByText('Open past due')).toBeInTheDocument()
+    })
+    // Page count line: only 1 overdue (Open one), not 2
+    const countLine = document.querySelector('.tasks-count-line')
+    expect(countLine?.textContent).toMatch(/1 overdue/)
+    expect(countLine?.textContent).not.toMatch(/2 overdue/)
+  })
+
+  it('RI-1: a Done task with a past due_date does NOT show the red "Overdue ·" row label', async () => {
+    const overdueDate = '2020-01-01'
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 't1', title: 'Done past due', status: 'Done', due_date: overdueDate }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
+    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
+    if (allBtn) fireEvent.click(allBtn as Element)
+    await waitFor(() => screen.getByText('Done past due'))
+    // The row cell must NOT carry due-overdue class
+    const dueCells = document.querySelectorAll('.due-overdue')
+    expect(dueCells.length).toBe(0)
+  })
+
+  it('RI-1: the Done group header shows no overdue subtotal when only Done tasks have past due_dates', async () => {
+    const overdueDate = '2020-01-01'
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 't1', title: 'Done past due', status: 'Done', due_date: overdueDate }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
+    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
+    if (allBtn) fireEvent.click(allBtn as Element)
+    await waitFor(() => screen.getByText('Done past due'))
+    // Done group header must not render an overdue subtotal button
+    const grps = Array.from(document.querySelectorAll('tr.grp'))
+    const doneHeader = grps.find(g => g.querySelector('.glabel')?.textContent === 'Done')
+    expect(doneHeader).toBeTruthy()
+    // No overdue subtotal button in the Done group header
+    const overdueBtns = doneHeader!.querySelectorAll('button.gsub')
+    expect(overdueBtns.length).toBe(0)
+  })
+})
+
+// ── M1: condensed off-track glyph (WCAG 1.4.1 non-color cue) ─────────────────
+describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
+  it('M1: in condensed split-view, overdue row retains a non-color "!" glyph in the DUE cell', async () => {
+    const overdueDate = '2020-01-01'
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 't1', title: 'Overdue task', status: 'Open', due_date: overdueDate }),
+    ])
+    // drawerOpen=true + splitLayout=true → condensed=true
+    renderTable({ drawerOpen: true, splitLayout: true })
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
+    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
+    if (allBtn) fireEvent.click(allBtn as Element)
+    await waitFor(() => screen.getByText('Overdue task'))
+    // In condensed mode the cell drops "Overdue · " text prefix, but must show a non-color glyph
+    const dueCell = document.querySelector('tr.task-row .due-overdue')
+    expect(dueCell).toBeTruthy()
+    // The glyph "!" (or similar) must be present — conveys off-track without relying on color alone
+    expect(dueCell!.textContent).toMatch(/!/)
+  })
+
+  it('M1: non-condensed (no drawer) overdue row shows the full "Overdue · <date>" text (not just the glyph)', async () => {
+    const overdueDate = '2020-01-01'
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 't1', title: 'Overdue task', status: 'Open', due_date: overdueDate }),
+    ])
+    // drawerOpen=false → condensed=false
+    renderTable({ drawerOpen: false })
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
+    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
+    if (allBtn) fireEvent.click(allBtn as Element)
+    await waitFor(() => screen.getByText('Overdue task'))
+    const dueCell = document.querySelector('tr.task-row .due-overdue')
+    expect(dueCell).toBeTruthy()
+    expect(dueCell!.textContent).toMatch(/^Overdue · /)
   })
 })
 

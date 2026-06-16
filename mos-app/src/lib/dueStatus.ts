@@ -5,6 +5,13 @@
 
 export type DueStatus = 'overdue' | 'soon' | 'calm' | 'none'
 
+// Minimal shape that isOverdue needs — avoids importing the full TaskListRow cycle.
+type IsOverdueTask = {
+  status: string
+  due_date: string | null
+  archived_at: string | null
+}
+
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const SOON_WINDOW_DAYS = 3
@@ -34,4 +41,17 @@ export function dueStatus(dueDate: string | null, now: Date): DueStatus {
   if (diffDays < 0) return 'overdue'
   if (diffDays <= SOON_WINDOW_DAYS) return 'soon'
   return 'calm'
+}
+
+/**
+ * True only when a task is genuinely drifting: not Done, not archived, and
+ * its due_date is in the past. (JTBD OD-P0-8: off-track = drifting work, not finished.)
+ *
+ * Use this everywhere an "is this task overdue?" decision is made so that
+ * Done / archived tasks are always excluded. (RI-1)
+ */
+export function isOverdue(task: IsOverdueTask, now: Date): boolean {
+  if (task.status === 'Done') return false
+  if (task.archived_at != null) return false
+  return dueStatus(task.due_date, now) === 'overdue'
 }
