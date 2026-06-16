@@ -150,12 +150,14 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
 - [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children); as-built is
   `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note to the ADR. (The plan header is already corrected.)
 - [x] **Removed genuinely-dead `TaskNewPlaceholder.tsx` (+test)** — merged `38d6dcd` 2026-06-16 (unrouted, self-test-only).
-- [ ] **Prune the thin host trio `TaskDetail.tsx`/`TaskCreate.tsx`/`TasksPage.tsx` — NOT dead, they're live test
-  oracles** (verified 2026-06-16: `TasksPage` is rendered by `sections.test.tsx` AC-004/007 + `router.test.tsx`
-  AC-008 guard; `TaskDetail`/`TaskCreate` similarly). Real task = **re-home those AC tests onto the live surface**
-  (`/tasks` → `TasksLayout` sets `document.title` + renders `<h1>Tasks</h1>` via `TasksWorkspace`; `/tasks/new` →
-  `TaskCreate`→`TaskSurface`) with proper auth/router/data providers, **then** delete the hosts. Implementer-tier
-  (test re-wiring, not a blind delete) — good pi/glm-5.2 task. (OD-P3 "Q5".)
+- [x] **Pruned the thin host trio `TaskDetail`/`TaskCreate`/`TasksPage` — DONE, merged `01f9ce1` 2026-06-16.**
+  All three were dead test-oracles; their AC tests were **re-homed onto the live surfaces** (TaskDetail/Create
+  → `TaskSurface` view/create mode; TasksPage tests → `TasksWorkspace`/`TasksLayout`) with **assertions
+  unchanged** (AC-004/007/008/060-067/070-075/080-081 preserved, delta 0 tests = 660), then the hosts deleted.
+  Built via a **result-based GLM-manager dispatch** (`docs/pi-delegation.md` §3e/§4a) — Director verified the
+  outcome independently (gates re-run, diffs BDD-clean) + merged. *(Tiny residual: comment-only mentions in
+  `OpsAddForm.tsx` / a stale `TaskDetail.css` comment in `WeeklyUpdateWritePane.css` / CSS-provenance notes —
+  harmless, sweep whenever.)*
 - [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ordered ris-dev deploy runbook before P3-1.
 - Note: `docs/plans/archive/` now holds the 11 completed Phase-1/2 plans; the 2 Phase-3 `2026-06-15-tasks-redesign*`
   plans stay at `docs/plans/` top level (most-recent reference). All shipped plans are historical records.
