@@ -143,8 +143,10 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
 - Sibling mockups (context): `tasks-dbview-A.html` (louder), `tasks-dbview-B.html` (Notion-quiet).
 
 ## Doc & code debt (non-blocking — from the 2026-06-16 fresh-eyes audit)
-- [ ] **Fold AC-100..115 into the spec.** The Tasks-redesign ACs live only in `docs/plans/2026-06-15-tasks-redesign.md`,
-  not in `docs/specs/tasks-raci.spec.md` (or a `tasks-redesign.spec.md` addendum). Plan-only AC coverage.
+- [x] **Fold AC-100..134 into the spec — DONE 2026-06-16.** Authored `docs/specs/tasks-dbview.spec.md` (the
+  Tasks UI spec layered on the `tasks-raci` data model): FR-100..109 + FR-120..128, NFR-120..124, OBS-120..122,
+  AC-100..134, + an extends/supersedes mapping for the `tasks-raci` FRs the redesign changed (FR-022/023/024/026/030/031).
+  Pointer added to `tasks-raci.spec.md`. (Was: split-view + DB-view ACs were plan-only.)
 - [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children); as-built is
   `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note to the ADR. (The plan header is already corrected.)
 - [ ] **Delete dead Tasks code:** `TaskNewPlaceholder.tsx` (pre-P2-1c stub, un-routed), and the now-thin un-routed

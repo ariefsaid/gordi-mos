@@ -41,6 +41,9 @@ Primary jobs:
 - **Archive** (not delete) work that is decided-against or finished-with — reversible, no data ever
   destroyed (OD-P2-3, CONTEXT.md "Archived").
 
+> **UI surface** (split-view drawer + DB-view workspace) is specced separately in
+> `docs/specs/tasks-dbview.spec.md` (ADR-0007/0008).
+
 ---
 
 ## 2. Domain model & vocabulary (CONTEXT.md — used exactly)
