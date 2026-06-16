@@ -55,11 +55,14 @@ Non-blocking polish: eyeball the 920–1100 overlay band live; the thin `TaskDet
 hosts may be deleted (OD-P3 "Q5"). P2-4 (kitchen→ops mirror) stays owner-deferred; WALL-3/WALL-4 only
 matter when P2-4 resumes.
 
-**Also design-ready (owner stopped at the mockup 2026-06-16, NOT built):** the **Tasks DB-view redesign**
-— full-bleed monday-IA workspace, neutral table, navy+orange brand. Grill + mockup
-(`docs/design-mockups/tasks-dbview-final.html`) + 4-lens review all DONE (verdict **PASS, no Criticals**);
-decisions **OD-P3-6/7**. Resume = design-plan + **ADR-0008** → 3-PR build (tokens → layout → group-by).
-Full checklist + folded review findings: `docs/backlog.md` → "🎨 Design-ready — Tasks DB-view redesign".
+**Tasks DB-view redesign — BUILT + fully reviewed + e2e-passed, PENDING owner merge (2026-06-16):**
+full-bleed monday-IA workspace, neutral table, soft-tinted chips, navy+orange brand, `@tanstack/react-table`
+grouping. Branch `design/tasks-dbview-mockup` (10+ commits): grill → mockup → ADR-0008 + design/impl plans →
+PR-1 tokens → PR-2 full-bleed+view-tabs+toolbar+persistence → PR-3 TanStack+grouping+mobile → fix-ups.
+**661 unit · 4-lens (C1/I1/M1 fixed) · AC-134 e2e — all green** (suite green except AC-004/005 pre-existing
+mailpit infra). Decisions **OD-P3-6/7/8**, ADR-0008. Dev seed `supabase/seed.dev-tasks.sql`. **Next = push +
+open the redesign PR for Director/owner merge.** Detail + non-blocking follow-ups: `docs/backlog.md`
+→ "✅ Tasks DB-view redesign".
 
 ## Open owner decisions (THE WALL — never guess)
 - **WALL-3** — which kitchen events mirror first (gates P2-4).
