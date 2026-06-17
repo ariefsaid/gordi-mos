@@ -260,3 +260,97 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
     expect(readSrc('components/tasks/TasksWorkspace.tsx')).not.toMatch(/maxWidth=\{1280\}/)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-VIS-4: ONE pill — no hand-rolled pillStyle / wup-state-* / ops-source-badge
+// raw pill shell outside the shared <Pill> (VIS-4, PR-2). The My Week strips +
+// the Ops source badge re-skin onto <Pill>; the weekly <StatePill> does too.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
+  it('MyWeek.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
+    const src = readSrc('pages/MyWeek.tsx')
+    expect(src).not.toMatch(/\bpillStyle\b/)
+    expect(src).toMatch(/from '\.\.\/components\/ui\/Pill'/)
+  })
+
+  it('no non-test source renders a wup-state-* or ops-source-badge className (raw pill shells)', () => {
+    const offenders: string[] = []
+    for (const f of listNonTestSource(SRC)) {
+      if (!f.endsWith('.tsx')) continue
+      const body = readFileSync(f, 'utf8')
+      if (/className=["'`{][^"'`}]*\b(?:wup-state-|ops-source-badge)\b/.test(body)) offenders.push(f)
+    }
+    // ops-source-badge survives only as a data-testid (on the Pill wrapper), never a className
+    expect(offenders).toEqual([])
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-4: ONE button hierarchy — no bespoke .tc-btn-* / .ops-*-btn(main-action)
+// / .retry-btn / .btn-outline-link / .confirm-cancel / .btn-archive button classes
+// (IXD-4, PR-2). All consolidated onto .btn .btn-{variant} (ui/Button.css).
+// (.ops-edit-btn / .ops-archive-btn row controls + .btn-ghost / .btn-outline-sm
+//  specialized variants stay — they are not the duplicated main-action hierarchy.)
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-4: no bespoke button classes duplicating the shared hierarchy', () => {
+  const RETIRED_BTN = [
+    'tc-btn-cancel', 'tc-btn-submit',
+    'ops-add-btn', 'ops-retry-btn', 'ops-clear-btn', 'ops-submit-bar-btn',
+    'retry-btn',
+    'confirm-cancel', 'btn-outline-link', 'btn-archive',
+  ]
+  const classNameRe = new RegExp('className="[^"]*\\b(?:' + RETIRED_BTN.join('|') + ')\\b')
+  const cssRuleRe = new RegExp('\\.(?:' + RETIRED_BTN.join('|') + ')\\s*\\{')
+
+  it('no non-test source APPLIES a retired bespoke button class via className', () => {
+    const offenders: string[] = []
+    for (const f of listNonTestSource(SRC)) {
+      if (classNameRe.test(readFileSync(f, 'utf8'))) offenders.push(f)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('no non-test CSS RE-DEFINES a retired bespoke button class', () => {
+    const offenders: string[] = []
+    for (const f of listNonTestSource(SRC)) {
+      if (cssRuleRe.test(readFileSync(f, 'utf8'))) offenders.push(f)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('TasksWorkspace.css does not re-define the shared button/error kit classes', () => {
+    const css = readSrc('components/tasks/TasksWorkspace.css')
+    expect(css).not.toMatch(/\.retry-btn\s*\{/)
+    // .btn-primary / .btn-outline are owned globally by ui/Button.css; the local
+    // re-definitions were removed (usages now pair .btn .btn-{variant}).
+    expect(css).not.toMatch(/\.btn-primary\s*\{/)
+    expect(css).not.toMatch(/\.btn-outline\s*\{/)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IA-2: ONE breadcrumb — no in-page .tc-breadcrumb (the shell <Breadcrumb> in
+// shell/Header.tsx is the single wayfinding home and extends to the leaf; one ›
+// separator throughout). IA-2, PR-2.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, › separator)', () => {
+  it('no non-test source APPLIES a .tc-breadcrumb className', () => {
+    const offenders: string[] = []
+    for (const f of listNonTestSource(SRC)) {
+      if (/className=["'`{][^"'`}]*\btc-breadcrumb\b/.test(readFileSync(f, 'utf8'))) offenders.push(f)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('no non-test CSS DEFINES a .tc-breadcrumb rule', () => {
+    const offenders: string[] = []
+    for (const f of listNonTestSource(SRC)) {
+      if (/\.tc-breadcrumb[a-z-]*\s*\{/.test(readFileSync(f, 'utf8'))) offenders.push(f)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('the shell <Breadcrumb> renders the › separator (single breadcrumb system)', () => {
+    expect(readSrc('shell/Breadcrumb.tsx')).toMatch(/›/)
+  })
+})

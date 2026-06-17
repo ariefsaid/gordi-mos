@@ -518,8 +518,8 @@ describe('RIC-2 — not-found state renders styled panel', () => {
     expect(document.querySelector('.not-found-panel')).toBeTruthy()
     // not-found-title class must be present
     expect(document.querySelector('.not-found-title')).toBeTruthy()
-    // btn-outline-link (styled back link) must be present
-    expect(document.querySelector('.btn-outline-link')).toBeTruthy()
+    // btn-outline (shared button hierarchy, IXD-4) styled back link must be present
+    expect(document.querySelector('.btn-outline')).toBeTruthy()
     // The back link must point to /tasks
     const link = screen.getByRole('link', { name: /all tasks/i })
     expect(link).toBeTruthy()

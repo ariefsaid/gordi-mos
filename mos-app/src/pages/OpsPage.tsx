@@ -19,6 +19,8 @@ import type { BusinessUnitOption } from '../lib/db/directory'
 import { getTaskTitlesByIds } from '../lib/db/tasks'
 import type { TaskTitleRef } from '../lib/db/tasks'
 import { StatusPill } from '../components/tasks/StatusPill'
+import { Pill } from '../components/ui/Pill'
+import { ErrorState, EmptyState } from '../components/ui/StateKit'
 import type { TaskStatus } from '../lib/db/tasks.types'
 import { weekLabel } from '../lib/week'
 
@@ -51,18 +53,15 @@ function sourceBadgeVariant(buName: string): 'kitchen' | 'roastery' | 'neutral' 
 
 // ── OpsSourceBadge ────────────────────────────────────────────────────────────
 interface OpsSourceBadgeProps { name: string }
+// VIS-4 (PR-2): re-skinned onto the shared <Pill>. kitchen→primary, roastery→violet,
+// neutral→neutral (dotless). The wrapper span carries the test hook + accessible name
+// (Pill's typed props are aria-only; data-testid rides on the wrapper).
 function OpsSourceBadge({ name }: OpsSourceBadgeProps) {
   const variant = sourceBadgeVariant(name)
+  const tone = variant === 'kitchen' ? 'primary' : variant === 'roastery' ? 'violet' : 'neutral'
   return (
-    <span
-      className={`ops-source-badge ops-source-badge--${variant}`}
-      data-testid="ops-source-badge"
-      aria-label={`Source: ${name}`}
-    >
-      {variant !== 'neutral' && (
-        <span className="ops-source-dot" aria-hidden="true" />
-      )}
-      {name}
+    <span data-testid="ops-source-badge" aria-label={`Source: ${name}`}>
+      <Pill tone={tone} dot={variant !== 'neutral'}>{name}</Pill>
     </span>
   )
 }
@@ -427,7 +426,7 @@ export default function OpsPage() {
           {isDesktop && (
             <Link
               to="/ops/new"
-              className="ops-add-btn"
+              className="btn btn-primary ops-toolbar-add"
               aria-label="Add log entry"
             >
               + Add log entry
@@ -447,27 +446,18 @@ export default function OpsPage() {
             </ul>
           </div>
         ) : loadState === 'error' ? (
-          <div role="alert" className="ops-error-banner">
-            <span className="ops-error-text">
-              Couldn&apos;t load the Daily Log
-            </span>
-            <button type="button" className="ops-retry-btn" onClick={load}>
-              Retry
-            </button>
-          </div>
+          <ErrorState message="Couldn't load the Daily Log" onRetry={load} />
         ) : entries.length === 0 ? (
-          <div className="ops-empty-state">
-            <h2 className="ops-empty-title">{emptyTitle()}</h2>
-            <p className="ops-empty-copy">{emptyCopy()}</p>
+          <EmptyState title={emptyTitle()} copy={emptyCopy()}>
             {hasActiveFilter && (
-              <button type="button" className="ops-clear-btn" onClick={clearFilters}>
+              <button type="button" className="btn btn-outline" onClick={clearFilters}>
                 Clear filters
               </button>
             )}
-            <Link to="/ops/new" className="ops-add-btn ops-add-btn--empty" aria-label="Add log entry">
+            <Link to="/ops/new" className="btn btn-primary" aria-label="Add log entry">
               + Add log entry
             </Link>
-          </div>
+          </EmptyState>
         ) : (
           <ul
             className="ops-feed"
@@ -495,7 +485,7 @@ export default function OpsPage() {
         <div className="ops-submit-bar">
           <Link
             to="/ops/new"
-            className="ops-submit-bar-btn"
+            className="btn btn-primary btn-touch"
             aria-label="Add log entry"
           >
             + Add log entry
@@ -542,15 +532,9 @@ export default function OpsPage() {
         }
         .archived-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); }
         .archived-label { font-size: 13px; }
-        .ops-add-btn {
-          margin-left: auto; display: inline-flex; align-items: center;
-          height: 32px; padding: 0 12px; border-radius: 8px;
-          background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-          text-decoration: none; font-size: 13px; font-weight: 600;
-          box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
-          border: 0; cursor: pointer;
-        }
-        .ops-add-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        /* IXD-4 (PR-2): the toolbar add button uses .btn .btn-primary (ui/Button.css).
+           This thin layout hook right-aligns it (was .ops-add-btn's margin-left:auto). */
+        .ops-toolbar-add { margin-left: auto; }
 
         /* ── Feed list ── */
         .ops-feed {
@@ -615,25 +599,9 @@ export default function OpsPage() {
         }
 
         /* ── Source badge (§3.1) ── */
-        .ops-source-badge {
-          display: inline-flex; align-items: center; gap: 5px;
-          height: 22px; padding: 0 9px; border-radius: 999px;
-          font-size: 12px; font-weight: 600; white-space: nowrap;
-          background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
-        }
-        .ops-source-badge--kitchen {
-          background: hsl(var(--primary) / 0.10);
-          color: hsl(var(--status-open-text));
-        }
-        .ops-source-badge--roastery {
-          background: hsl(var(--violet) / 0.12);
-          color: hsl(var(--status-violet-text));
-        }
-        .ops-source-dot {
-          width: 6px; height: 6px; border-radius: 999px; flex: none;
-        }
-        .ops-source-badge--kitchen .ops-source-dot { background: hsl(var(--primary)); }
-        .ops-source-badge--roastery .ops-source-dot { background: hsl(var(--violet)); }
+        /* VIS-4 (PR-2): the source badge re-skins onto the shared <Pill> (ui/Pill.css):
+           kitchen→primary, roastery→violet, neutral→neutral (dotless). The bespoke
+           .ops-source-badge* / .ops-source-dot rules were removed. */
 
         /* ── Type text (§3.2) — muted text, no badge ── */
         .ops-type-text {
@@ -745,49 +713,12 @@ export default function OpsPage() {
         .ops-skel--title { flex: 1; }
         @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-        /* ── Error banner ── */
-        .ops-error-banner {
-          display: flex; align-items: center; gap: 12px;
-          padding: 16px 20px; font-size: 13px;
-        }
-        .ops-error-text { color: hsl(var(--destructive)); flex: 1; }
-        .ops-retry-btn {
-          height: 32px; padding: 0 12px; border-radius: 8px;
-          border: 1px solid hsl(var(--border));
-          background: hsl(var(--background)); font-size: 13px;
-          color: hsl(var(--foreground)); cursor: pointer; font-weight: 600;
-        }
-        .ops-retry-btn:hover { background: hsl(var(--accent)); }
-
-        /* ── Empty state ── */
-        .ops-empty-state { text-align: left; padding: 28px 20px; }
-        .ops-empty-title {
-          font-size: 15px; font-weight: 600; margin-bottom: 4px;
-          color: hsl(var(--foreground));
-        }
-        .ops-empty-copy {
-          font-size: 13px; color: hsl(var(--muted-foreground)); margin-bottom: 12px;
-        }
-        .ops-add-btn--empty {
-          margin-left: 0;
-        }
-        .ops-clear-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          height: 32px;
-          padding: 0 12px;
-          margin-right: 8px;
-          border-radius: 8px;
-          border: 1px solid hsl(var(--border));
-          background: hsl(var(--background));
-          color: hsl(var(--foreground));
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .ops-clear-btn:hover { background: hsl(var(--accent)); }
-        .ops-clear-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        /* ── Error + Empty (IXD-5, PR-2) ── */
+        /* The Daily Log error + empty states use the shared <ErrorState> / <EmptyState>
+           (ui/StateKit → CardHead.css .error-state / .empty-state). The bespoke
+           .ops-error-banner / .ops-error-text / .ops-retry-btn / .ops-empty-* /
+           .ops-clear-btn rules were removed. Empty-state actions use .btn .btn-outline /
+           .btn .btn-primary (ui/Button.css). */
 
         /* ── Phone submit bar (FR-038, 44px full-width) ── */
         .ops-submit-bar {
@@ -796,14 +727,8 @@ export default function OpsPage() {
           background: hsl(var(--background));
           border-top: 1px solid hsl(var(--border));
         }
-        .ops-submit-bar-btn {
-          display: flex; align-items: center; justify-content: center;
-          width: 100%; min-height: 44px;
-          background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-          border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;
-          box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
-        }
-        .ops-submit-bar-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        /* IXD-4 (PR-2): the submit-bar button uses .btn .btn-primary .btn-touch
+           (ui/Button.css). The bespoke .ops-submit-bar-btn rule was removed. */
 
         @media (max-width: 767px) {
           .ops-row { display: block; }

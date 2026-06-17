@@ -457,11 +457,13 @@ describe('AC-067: phone reflow with 44px add target', () => {
     await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
 
     // The phone-only full-width submit bar exists (min-height 44px target, FR-038)…
-    const submitBtn = container.querySelector('.ops-submit-bar-btn') as HTMLElement | null
+    const submitBar = container.querySelector('.ops-submit-bar')
+    expect(submitBar).not.toBeNull()
+    const submitBtn = submitBar!.querySelector('.btn-primary') as HTMLElement | null
     expect(submitBtn).not.toBeNull()
     expect(submitBtn).toHaveAccessibleName(/add log entry/i)
     // …and the desktop toolbar add button is NOT rendered at phone width
-    expect(container.querySelector('.ops-add-btn:not(.ops-add-btn--empty)')).toBeNull()
+    expect(container.querySelector('.ops-toolbar-add')).toBeNull()
   })
 
   it('at ~390px, renders row actions in their own in-flow container with 44px touch targets', async () => {
@@ -488,7 +490,7 @@ describe('AC-067: phone reflow with 44px add target', () => {
     await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
     expect(container.querySelectorAll('.ops-row-inner--desktop').length).toBe(3)
     expect(container.querySelector('.ops-row-inner--phone')).toBeNull()
-    expect(container.querySelector('.ops-submit-bar-btn')).toBeNull()
+    expect(container.querySelector('.ops-submit-bar')).toBeNull()
   })
 
   it('the feed has proper ARIA list structure', async () => {

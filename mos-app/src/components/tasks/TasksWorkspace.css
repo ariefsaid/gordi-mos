@@ -6,9 +6,9 @@
    ──────────────────────────────────────────────────────────────────────────── */
 
 /* ── Page head ── */
-/* IA-1: the page head is the shared shell/PageHead.tsx (title + right-aligned meta +
-   maxWidth=1280 cap). The bespoke .page-head-row / .tasks-page-title /
-   .tasks-count-line classes were removed; only the head-owned controls below remain. */
+/* IA-1: the page head is the shared shell/PageHead.tsx (title + meta beside it, full-bleed —
+   no maxWidth cap). The bespoke .page-head-row / .tasks-page-title / .tasks-count-line
+   classes were removed; only the head-owned controls below remain. */
 
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
@@ -231,24 +231,12 @@
 .skeleton-cards { padding: 8px 12px; }
 .sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 54px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
 
-/* ── Error banner ── */
-.error-banner { display: flex; align-items: center; gap: 12px; padding: 16px 20px; font-size: 13px; }
-.error-text { color: hsl(var(--destructive)); flex: 1; }
-.retry-btn {
-  height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid hsl(var(--border));
-  background: hsl(var(--background)); font-size: 13px; color: hsl(var(--foreground)); cursor: pointer; font-weight: 600;
-}
-.retry-btn:hover { background: hsl(var(--accent)); }
-
-/* ── Empty state ── */
-.empty-state { text-align: left; padding: 28px 20px; }
-.empty-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; color: hsl(var(--foreground)); }
-.empty-copy { font-size: 13px; color: hsl(var(--muted-foreground)); margin-bottom: 12px; }
-.btn-primary {
-  display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px;
-  background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border: 0; font-size: 13px;
-  font-weight: 600; cursor: pointer; text-decoration: none; box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);
-}
+/* ── Error / Empty (IXD-5, PR-2) ── */
+/* The Tasks error + empty states use the shared <ErrorState> / <EmptyState>
+   (ui/StateKit → CardHead.css .error-state / .empty-state), and the action buttons
+   use .btn .btn-{variant} (ui/Button.css). The bespoke .error-banner / .error-text /
+   .retry-btn / .empty-state / .empty-title / .empty-copy / .empty-actions / .btn-primary /
+   .btn-outline rules were removed (no duplication of the shared kit). */
 
 /* ── New task — lives in the toolbar as the right-aligned primary action (mockup
    '.btn-primary.grow'); the orphan '.table-top-bar' strip was removed (OD-P3-6 tidy). */
@@ -327,30 +315,10 @@
   background: hsl(var(--status-lost-text) / 0.14);
 }
 
-/* ── Empty state actions row (no-results + new task, AC-133) ── */
-.empty-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.btn-outline {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-}
-.btn-outline:hover {
-  background: hsl(var(--accent));
-}
+/* ── Empty-state actions (IXD-5/IXD-4, PR-2) ── */
+/* <EmptyState> renders the actions row (.empty-actions lives in CardHead.css); the
+   action buttons use .btn .btn-outline / .btn .btn-primary (ui/Button.css). The
+   bespoke .empty-actions / .btn-outline rules were removed. */
 
 /* ── Group header row (OD-P3-6, DESIGN.md §5 group-header spec) ──
    A clean hairline-separated row (no navy band, no left swatch): caret + label

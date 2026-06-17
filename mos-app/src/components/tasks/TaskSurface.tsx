@@ -300,7 +300,7 @@ function ViewSurface({
       <div className="not-found-panel">
         <h1 className="not-found-title">Task not found</h1>
         <p className="not-found-copy">This task doesn&apos;t exist or you don&apos;t have access.</p>
-        <Link to="/tasks" className="btn-outline-link">All tasks</Link>
+        <Link to="/tasks" className="btn btn-outline">All tasks</Link>
       </div>
     )
   }
@@ -817,13 +817,13 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
         {/* Actions */}
         <div className="tc-actions">
           {onClose ? (
-            <button type="button" className="tc-btn-cancel" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button>
           ) : (
-            <Link to="/tasks" className="tc-btn-cancel">Cancel</Link>
+            <Link to="/tasks" className="btn btn-outline">Cancel</Link>
           )}
           <button
             type="submit"
-            className="tc-btn-submit"
+            className="btn btn-primary"
             disabled={submitting}
             aria-busy={submitting}
           >

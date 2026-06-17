@@ -31,6 +31,7 @@ import { GroupHeaderRow } from './GroupHeaderRow'
 import { MobileGroupedCards } from './MobileGroupedCards'
 import { Chevron } from '../../shell/icons'
 import PageHead from '../../shell/PageHead'
+import { ErrorState, EmptyState } from '../ui/StateKit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -683,7 +684,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             '.btn-primary.grow'). Rendered only when the table is populated — empty /
             no-results states own their own CTA, so every state has exactly one create link. */}
         {showNewTask && (
-          <Link to="/tasks/new" className="btn-primary toolbar-new-task">+ New task</Link>
+          <Link to="/tasks/new" className="btn btn-primary toolbar-new-task">+ New task</Link>
         )}
       </div>
 
@@ -708,27 +709,18 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           )}
         </div>
       ) : error ? (
-        <div role="alert" className="error-banner">
-          <span className="error-text">Couldn&apos;t load tasks</span>
-          <button type="button" className="retry-btn" onClick={load}>Retry</button>
-        </div>
+        <ErrorState message="Couldn't load tasks" onRetry={load} />
       ) : leafTasks.length === 0 && hasActiveFilter ? (
         /* No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3) */
-        <div className="empty-state">
-          <h3 className="empty-title">No tasks match these filters</h3>
-          <p className="empty-copy">Clear filters to see all tasks.</p>
-          <div className="empty-actions">
-            <button type="button" className="btn-outline" onClick={clearFilters}>Clear filters</button>
-            <Link to="/tasks/new" className="btn-primary">+ New task</Link>
-          </div>
-        </div>
+        <EmptyState title="No tasks match these filters" copy="Clear filters to see all tasks.">
+          <button type="button" className="btn btn-outline" onClick={clearFilters}>Clear filters</button>
+          <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+        </EmptyState>
       ) : leafTasks.length === 0 ? (
         /* Empty-no-tasks: no filter is active (segment-aware copy) */
-        <div className="empty-state">
-          <h3 className="empty-title">{emptyTitle()}</h3>
-          <p className="empty-copy">{emptyCopy()}</p>
-          <Link to="/tasks/new" className="btn-primary">+ New task</Link>
-        </div>
+        <EmptyState title={emptyTitle()} copy={emptyCopy()}>
+          <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+        </EmptyState>
       ) : isDesktop ? (
         <>
           <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
