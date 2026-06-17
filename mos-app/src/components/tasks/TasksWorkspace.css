@@ -6,18 +6,9 @@
    ──────────────────────────────────────────────────────────────────────────── */
 
 /* ── Page head ── */
-.page-head-row {
-  /* CONV: the page title anchors the TOP (PMO `.page-head`) and shares ONE left rule with
-     the toolbar + table — the `.assembly` card edge — so the title, toolbar, and table all
-     land on the PageFrame 24px gutter (no indent). Capped at 1280px, LEFT-aligned: trailing
-     empty space sits on the RIGHT only on wide monitors (NOT a centered column, per owner). */
-  display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
-  max-width: 1280px;
-}
-.tasks-page-title {
-  font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; color: hsl(var(--foreground));
-}
-.tasks-count-line { color: hsl(var(--muted-foreground)); font-size: 13px; }
+/* IA-1: the page head is the shared shell/PageHead.tsx (title + right-aligned meta +
+   maxWidth=1280 cap). The bespoke .page-head-row / .tasks-page-title /
+   .tasks-count-line classes were removed; only the head-owned controls below remain. */
 
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
@@ -370,6 +361,12 @@ tr.grp td { padding: 0; }
   color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1; flex: none;
 }
 .gbar .caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+/* IXD-1: the group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
+.gbar .caret .grp-chev { transition: transform 150ms ease; display: block; }
+.gbar .caret .grp-chev.grp-chev-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .gbar .caret .grp-chev { transition: none; }
+}
 .gbar .glabel { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
 .gbar .gcount { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
 .gbar .gsub {
@@ -410,6 +407,12 @@ tr.grp td { padding: 0; }
   color: hsl(var(--muted-foreground)); font-size: 12px; flex: none;
 }
 .mgc-caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+/* IXD-1: the mobile group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
+.mgc-caret .mgc-chev { transition: transform 150ms ease; display: block; }
+.mgc-caret .mgc-chev.mgc-chev-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .mgc-caret .mgc-chev { transition: none; }
+}
 .mgc-label { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
 .mgc-count { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
 .mgc-sub {

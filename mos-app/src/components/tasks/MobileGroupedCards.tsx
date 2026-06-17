@@ -3,6 +3,7 @@ import type { TaskListRow } from '../../lib/db/tasks.types'
 import type { OwnerCellRaciMember } from './OwnerCell'
 import { OwnerCell } from './OwnerCell'
 import { StatusPill } from './StatusPill'
+import { Chevron } from '../../shell/icons'
 import { dueStatus, isOverdue } from '../../lib/dueStatus'
 import { formatAge, formatDate, otherRaciCount } from './taskFormatters'
 
@@ -97,7 +98,8 @@ export function MobileGroupedCards({
               aria-label={isCollapsed(group.key) ? `Expand ${group.label} group` : `Collapse ${group.label} group`}
               onClick={() => toggleCollapsed(group.key)}
             >
-              <span aria-hidden="true">{isCollapsed(group.key) ? '▸' : '▾'}</span>
+              {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
+              <Chevron className={`mgc-chev${isCollapsed(group.key) ? ' mgc-chev-collapsed' : ''}`} />
             </button>
             <span className="mgc-label">{group.label}</span>
             <span className="mgc-count tabular-nums">{group.rows.length}</span>

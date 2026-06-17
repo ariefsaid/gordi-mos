@@ -79,14 +79,14 @@ describe('AC-007: Section empty shells', () => {
     expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
-  it('UpdatesPage: title "Weekly update" heading is present, no phase wording (P2-2b replaces placeholder)', () => {
+  it('UpdatesPage: title "Weekly Updates" heading is present, no phase wording (P2-2b replaces placeholder)', () => {
     // P2-2b: UpdatesPage is now the live write-pane; placeholder copy is gone.
     render(
       <MemoryRouter>
         <UpdatesPage />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Weekly update' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Weekly Updates' })).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
@@ -158,13 +158,13 @@ describe('AC-004: Document title per section page', () => {
     expect(document.title).toBe('Tasks — Gordi MOS')
   })
 
-  it('UpdatesPage sets document.title to "Weekly update — Gordi MOS" (P2-2b page title)', () => {
+  it('UpdatesPage sets document.title to "Weekly Updates — Gordi MOS" (P2-2b page title)', () => {
     render(
       <MemoryRouter>
         <UpdatesPage />
       </MemoryRouter>,
     )
-    expect(document.title).toBe('Weekly update — Gordi MOS')
+    expect(document.title).toBe('Weekly Updates — Gordi MOS')
   })
 
   it('OpsPage sets document.title to "Daily Log — Gordi MOS" (P2-3b)', () => {

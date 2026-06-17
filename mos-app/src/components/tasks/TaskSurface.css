@@ -61,7 +61,7 @@
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
   background: hsl(var(--card)); border: 1px solid hsl(var(--border));
   border-radius: 8px; padding: 4px; min-width: 140px;
-  box-shadow: 0 4px 16px hsl(240 10% 3.9% / 0.10);
+  box-shadow: 0 4px 16px hsl(var(--foreground) / 0.10);
 }
 .status-option {
   padding: 6px 8px; border-radius: 6px; cursor: pointer;
@@ -95,13 +95,13 @@
 
 /* ── Archive confirm ── */
 .confirm-overlay {
-  position: fixed; inset: 0; background: hsl(240 10% 3.9% / 0.45);
+  position: fixed; inset: 0; background: hsl(var(--foreground) / 0.45);
   display: grid; place-items: center; z-index: 100;
 }
 .confirm-box {
   background: hsl(var(--card)); border: 1px solid hsl(var(--border));
   border-radius: 10px; padding: 20px 24px; max-width: 360px; width: 90%;
-  box-shadow: 0 8px 32px hsl(240 10% 3.9% / 0.18);
+  box-shadow: 0 8px 32px hsl(var(--foreground) / 0.18);
 }
 .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
@@ -112,7 +112,7 @@
 }
 .btn-archive {
   height: 32px; padding: 0 12px; border-radius: 8px; border: 0;
-  background: hsl(var(--destructive)); color: hsl(0 0% 98%);
+  background: hsl(var(--destructive)); color: hsl(var(--primary-foreground));
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .btn-archive:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
@@ -152,12 +152,12 @@
 }
 .role-marker {
   width: 15px; height: 15px; border-radius: 999px; display: grid;
-  place-items: center; font-size: 9.5px; font-weight: 700; color: hsl(0 0% 98%);
+  place-items: center; font-size: 9.5px; font-weight: 700; color: hsl(var(--primary-foreground));
 }
-.role-chip-r { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221 75% 38%); }
-.role-chip-r .role-marker { background: hsl(221.2 83.2% 53.3%); }
-.role-chip-a { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); }
-.role-chip-a .role-marker { background: hsl(262 83% 58%); }
+.role-chip-r { background: hsl(var(--primary) / 0.10); color: hsl(var(--status-open-text)); }
+.role-chip-r .role-marker { background: hsl(var(--primary)); }
+.role-chip-a { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }
+.role-chip-a .role-marker { background: hsl(var(--violet)); }
 .role-chip-ci { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
 .role-marker-ci { background: hsl(var(--muted-foreground)); }
 .person-field {
@@ -177,14 +177,14 @@
 .person-field-edit-hint {
   margin-left: auto; font-size: 11px; color: hsl(var(--muted-foreground)); flex-shrink: 0;
 }
+/* VIS-1: ONE avatar gradient (navy→primary, OD-P3-7) — same as shell/UserChip.tsx.
+   Violet (--violet) is KPI/timeline only; no avatar carries it. R and A share the
+   canonical gradient; the R/A distinction lives on the role-chip, not the avatar. */
 .person-av {
   width: 22px; height: 22px; border-radius: 999px; flex: none;
-  background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-  color: hsl(0 0% 98%); display: grid; place-items: center;
+  background: linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)));
+  color: hsl(var(--primary-foreground)); display: grid; place-items: center;
   font-size: 10px; font-weight: 700;
-}
-.person-av-a {
-  background: linear-gradient(135deg, hsl(262 83% 58%), hsl(221.2 83.2% 53.3%));
 }
 .person-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .multi-field {
@@ -208,7 +208,7 @@
 .chip-remove:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .add-person-btn {
   border: 0; background: transparent; font-size: 12px;
-  color: hsl(221 75% 38%); cursor: pointer; padding: 2px 4px;
+  color: hsl(var(--status-open-text)); cursor: pointer; padding: 2px 4px;
 }
 .add-person-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 
@@ -217,7 +217,7 @@
   position: absolute; z-index: 50; background: hsl(var(--card));
   border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 4px;
   min-width: 200px; max-height: 200px; overflow-y: auto;
-  box-shadow: 0 4px 16px hsl(240 10% 3.9% / 0.10);
+  box-shadow: 0 4px 16px hsl(var(--foreground) / 0.10);
 }
 .person-picker-option {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
@@ -234,7 +234,7 @@
 .checklist-item {
   display: flex; align-items: center; gap: 10px;
   min-height: 36px; padding: 4px 0;
-  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
 }
 .checklist-item:last-child { border-bottom: none; }
 .checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
@@ -263,13 +263,13 @@
 .thread { display: flex; flex-direction: column; }
 .event-entry {
   display: flex; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
 }
 .event-entry:last-child { border-bottom: none; }
 .event-av {
   width: 26px; height: 26px; border-radius: 999px; flex: none;
-  background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-  color: hsl(0 0% 98%); display: grid; place-items: center;
+  background: linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)));
+  color: hsl(var(--primary-foreground)); display: grid; place-items: center;
   font-size: 10px; font-weight: 700;
 }
 .event-body { flex: 1; min-width: 0; }
@@ -364,7 +364,7 @@
   height: 32px; padding: 0 16px; border-radius: 8px; border: 0;
   background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);
+  box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
 }
 .tc-btn-submit:hover { opacity: 0.92; }
 .tc-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -418,8 +418,8 @@
   width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
   font-size: 10px; font-weight: 700; flex: none;
 }
-.ra-glyph-r { background: hsl(221.2 83.2% 53.3% / 0.12); color: hsl(221 75% 38%); } /* --raci-responsible */
-.ra-glyph-a { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); }       /* --raci-accountable */
+.ra-glyph-r { background: hsl(var(--primary) / 0.12); color: hsl(var(--status-open-text)); } /* --raci-responsible */
+.ra-glyph-a { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }       /* --raci-accountable */
 .ra-who { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
 .ra-role { font-size: 11px; color: hsl(var(--muted-foreground)); }
 
@@ -464,7 +464,7 @@
   background: transparent; font: inherit; font-size: 13px; font-weight: 500;
   color: hsl(var(--muted-foreground)); cursor: pointer;
 }
-.btn-ghost-danger:hover { background: hsl(var(--destructive) / 0.10); color: hsl(0 72% 45%); } /* --status-lost-text */
+.btn-ghost-danger:hover { background: hsl(var(--destructive) / 0.10); color: hsl(var(--status-lost-text)); } /* --status-lost-text */
 .btn-ghost-danger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 
 /* ── Expanded (focus mode) reflow ── */

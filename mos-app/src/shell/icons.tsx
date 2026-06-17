@@ -1,6 +1,32 @@
 // Inline SVG icons lifted verbatim from proposal-IA-8-balanced-myweek.html nav (lines 169–175).
 // NFR-002: no icon library; stroke-2, 18px, aria-hidden.
 
+/**
+ * The ONE shared disclosure/dropdown chevron (IXD-1/2/3 consistency pass, PR-1).
+ * Path `M6 9l6 6 6-6`, stroke-2, round caps, currentColor, aria-hidden. Used by every
+ * dropdown/disclosure trigger so the affordance is identical everywhere. Group-collapse
+ * carets render this same Chevron rotated −90° via CSS when collapsed (down = expanded).
+ * (Never reuse this for sort-direction — that is a distinct shafted arrow, not a chevron.)
+ */
+export function Chevron({ className, size = 14 }: { className?: string; size?: number }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
 export function MyWeekIcon() {
   return (
     <svg

@@ -416,10 +416,10 @@ describe('UpdatesPage — page structure (§1 design-plan)', () => {
     mockGetMyUpdate.mockResolvedValue(null)
   })
 
-  it('page title is "Weekly update" (§1.1 design-plan)', async () => {
+  it('page title is "Weekly Updates" (§1.1 design-plan)', async () => {
     renderPage()
     await waitFor(() => screen.getByRole('heading', { level: 1 }))
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/weekly update/i)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/weekly updates/i)
   })
 
   it('write pane section has accessible label (a11y)', async () => {

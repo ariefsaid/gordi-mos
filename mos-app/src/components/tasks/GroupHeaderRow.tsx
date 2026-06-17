@@ -1,3 +1,5 @@
+import { Chevron } from '../../shell/icons'
+
 type GroupHeaderRowProps = {
   /** The group label (status name, person name, or BU name). */
   label: string
@@ -53,7 +55,8 @@ export function GroupHeaderRow({
             aria-label={collapsed ? `Expand ${label} group` : `Collapse ${label} group`}
             onClick={onToggle}
           >
-            <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span>
+            {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
+            <Chevron className={`grp-chev${collapsed ? ' grp-chev-collapsed' : ''}`} />
           </button>
           <span className="glabel">{label}</span>
           <span className="gcount tabular-nums">{count}</span>

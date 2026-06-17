@@ -360,8 +360,10 @@ export default function OpsAddForm() {
         }
 
         .tc-submit-error {
+          /* VIS-2: error TEXT uses the AA-darkened --status-lost-text; the tinted bg +
+             border keep base --destructive (non-text affordances). */
           padding: 10px 12px; margin-bottom: 16px; border-radius: 6px;
-          background: hsl(var(--destructive) / 0.10); color: hsl(var(--destructive));
+          background: hsl(var(--destructive) / 0.10); color: hsl(var(--status-lost-text));
           font-size: 13px; border: 1px solid hsl(var(--destructive) / 0.25);
         }
 
@@ -388,7 +390,9 @@ export default function OpsAddForm() {
         .tc-select { cursor: pointer; }
         .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
 
-        .tc-field-error { font-size: 12px; color: hsl(var(--destructive)); }
+        /* VIS-2: error TEXT uses the AA-darkened --status-lost-text. The invalid field
+           outline (.tc-input-error) + required asterisk (.tc-required) keep base --destructive. */
+        .tc-field-error { font-size: 12px; color: hsl(var(--status-lost-text)); }
 
         /* Needs-attention amber hint text (§3.3 — warning-foreground, AA contrast) */
         .ops-attn-hint {

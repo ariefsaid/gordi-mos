@@ -37,7 +37,7 @@ describe('AC-004: Breadcrumb per route', () => {
   const cases: Array<{ path: string; section: string }> = [
     { path: '/', section: 'My Week' },
     { path: '/tasks', section: 'Tasks' },
-    { path: '/updates', section: 'Updates' },
+    { path: '/updates', section: 'Weekly Updates' },
     { path: '/ops', section: 'Daily Log' },
   ]
 

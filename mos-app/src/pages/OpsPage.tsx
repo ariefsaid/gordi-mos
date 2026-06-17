@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import PageFrame from '../shell/PageFrame'
+import PageHead from '../shell/PageHead'
+import { Chevron } from '../shell/icons'
 import { useDocumentTitle } from '../shell/useDocumentTitle'
 import { useIsDesktop } from '../shell/useIsDesktop'
 import { listLogEntries, archiveLogEntry, unarchiveLogEntry } from '../lib/db/opsLog'
@@ -355,12 +357,14 @@ export default function OpsPage() {
 
   return (
     <PageFrame>
-      <div className="ops-page-head">
-        <h1 className="ops-page-title">Daily Log</h1>
-        <span className="ops-count-line tabular-nums">
-          {wib.today}{countLabel}
-        </span>
-      </div>
+      <PageHead
+        title="Daily Log"
+        meta={
+          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>
+            {wib.today}{countLabel}
+          </span>
+        }
+      />
 
       {/* Card assembly: toolbar seamed to feed */}
       <section className="ops-assembly" aria-label="Daily Log">
@@ -383,7 +387,7 @@ export default function OpsPage() {
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
             </select>
-            <span className="ctrl-chev" aria-hidden="true">▾</span>
+            <Chevron className="ctrl-chev" />
           </div>
 
           {/* Type filter */}
@@ -404,7 +408,7 @@ export default function OpsPage() {
               <option value="follow_up">Follow-up</option>
               <option value="other">Other</option>
             </select>
-            <span className="ctrl-chev" aria-hidden="true">▾</span>
+            <Chevron className="ctrl-chev" />
           </div>
 
           {/* Show archived toggle */}
@@ -502,15 +506,8 @@ export default function OpsPage() {
       {/* ── Inline CSS — DESIGN.md tokens only, no raw hex/px beyond token values ── */}
       <style>{`
         /* ── Page head ── */
-        .ops-page-head {
-          display: flex; align-items: baseline; gap: 12px;
-          margin-bottom: 16px; flex-wrap: wrap;
-        }
-        .ops-page-title {
-          font-size: 24px; font-weight: 700; line-height: 1.2;
-          letter-spacing: -0.02em; color: hsl(var(--foreground));
-        }
-        .ops-count-line { color: hsl(var(--muted-foreground)); font-size: 13px; }
+        /* IA-1: the page head is the shared shell/PageHead.tsx (title + right-aligned meta).
+           The bespoke .ops-page-head / .ops-page-title / .ops-count-line classes are gone. */
 
         /* ── Card assembly ── */
         .ops-assembly {
@@ -550,7 +547,7 @@ export default function OpsPage() {
           height: 32px; padding: 0 12px; border-radius: 8px;
           background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
           text-decoration: none; font-size: 13px; font-weight: 600;
-          box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);
+          box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
           border: 0; cursor: pointer;
         }
         .ops-add-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
@@ -571,8 +568,8 @@ export default function OpsPage() {
 
         /* Needs-attention treatment (§3.3): amber 7% fill + 2px warning left rule */
         .ops-row--attn {
-          background: hsl(43 96% 56% / 0.07);  /* --ops-attn-row-bg */
-          border-left: 2px solid hsl(43 96% 56%); /* --ops-attn-rule */
+          background: hsl(var(--warning) / 0.07);  /* --ops-attn-row-bg */
+          border-left: 2px solid hsl(var(--warning)); /* --ops-attn-rule */
           padding-left: 10px;
           border-radius: 0 6px 6px 0; /* rounded.sm right corners */
         }
@@ -625,18 +622,18 @@ export default function OpsPage() {
           background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
         }
         .ops-source-badge--kitchen {
-          background: hsl(221.2 83.2% 53.3% / 0.10);
-          color: hsl(221 75% 38%);
+          background: hsl(var(--primary) / 0.10);
+          color: hsl(var(--status-open-text));
         }
         .ops-source-badge--roastery {
-          background: hsl(262 83% 58% / 0.12);
-          color: hsl(262 60% 42%);
+          background: hsl(var(--violet) / 0.12);
+          color: hsl(var(--status-violet-text));
         }
         .ops-source-dot {
           width: 6px; height: 6px; border-radius: 999px; flex: none;
         }
-        .ops-source-badge--kitchen .ops-source-dot { background: hsl(221.2 83.2% 53.3%); }
-        .ops-source-badge--roastery .ops-source-dot { background: hsl(262 83% 58%); }
+        .ops-source-badge--kitchen .ops-source-dot { background: hsl(var(--primary)); }
+        .ops-source-badge--roastery .ops-source-dot { background: hsl(var(--violet)); }
 
         /* ── Type text (§3.2) — muted text, no badge ── */
         .ops-type-text {
@@ -804,7 +801,7 @@ export default function OpsPage() {
           width: 100%; min-height: 44px;
           background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
           border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;
-          box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);
+          box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
         }
         .ops-submit-bar-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 

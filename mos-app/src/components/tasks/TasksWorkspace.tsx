@@ -29,6 +29,8 @@ import { useTasksViewPref } from './useTasksViewPref'
 import type { TasksGroupBy } from './useTasksViewPref'
 import { GroupHeaderRow } from './GroupHeaderRow'
 import { MobileGroupedCards } from './MobileGroupedCards'
+import { Chevron } from '../../shell/icons'
+import PageHead from '../../shell/PageHead'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -97,15 +99,18 @@ function SkeletonRow({ condensed }: { condensed: boolean }) {
 
 const columnHelper = createColumnHelper<TaskListRow>()
 
-/** Down-chevron affordance for the bordered filter controls (Group / Business unit /
- *  Status / Person) — mirrors PMO's `select.inp` chevron path `M6 9l6 6 6-6`, ~14px,
- *  muted-foreground via currentColor (the group-by control recolors it to navy).
- *  Replaces the old 10px '▾' text glyph that read as a dot. */
-function FilterChevron() {
+/** Sort-direction indicator (IXD-1/2/3: distinct from the shared dropdown Chevron —
+ *  a shafted arrow, never the bare chevron that means "dropdown"). Rendered only on
+ *  the active-sort column. */
+function SortArrow({ dir }: { dir: SortDir }) {
   return (
-    <svg className="ctrl-chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 9l6 6 6-6" />
+    <svg className="sort-aff" width="10" height="10" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {dir === 'ascending' ? (
+        <><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>
+      ) : (
+        <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>
+      )}
     </svg>
   )
 }
@@ -517,9 +522,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   function colSort(col: SortCol): 'ascending' | 'descending' | 'none' {
     return sortCol === col ? sortDir : 'none'
   }
-  function sortGlyph(col: SortCol): string {
-    if (sortCol !== col) return ''
-    return sortDir === 'ascending' ? ' ▴' : ' ▾'
+  function sortIndicator(col: SortCol): ReactNode {
+    if (sortCol !== col) return null
+    return <SortArrow dir={sortDir} />
   }
 
   // + New task lives in the toolbar only when the table is populated (empty / no-results
@@ -528,42 +533,47 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
   return (
     <>
-      <div className="page-head-row">
-        <h1 className="tasks-page-title">Tasks</h1>
-        {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}
-        <span className="tasks-count-line tabular-nums">
-          {stats === null ? '—' : (
-            <>
-              {stats.total} task{stats.total !== 1 ? 's' : ''}
-              {stats.blocked > 0 && (
-                <> · {stats.blocked} blocked</>
+      <PageHead
+        title="Tasks"
+        maxWidth={1280}
+        meta={
+          <>
+            {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}
+            <span data-testid="tasks-count-line" className="tabular-nums" style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>
+              {stats === null ? '—' : (
+                <>
+                  {stats.total} task{stats.total !== 1 ? 's' : ''}
+                  {stats.blocked > 0 && (
+                    <> · {stats.blocked} blocked</>
+                  )}
+                  {/* Zero-overdue: omit entirely (AC-133). Non-zero: render as click-to-filter button */}
+                  {stats.overdue > 0 && (
+                    <> · <button
+                      type="button"
+                      className="overdue-filter-btn"
+                      aria-label={`Filter to ${stats.overdue} overdue tasks`}
+                      onClick={() => setOverdueOnly(true)}
+                    >
+                      {stats.overdue} overdue
+                    </button></>
+                  )}
+                </>
               )}
-              {/* Zero-overdue: omit entirely (AC-133). Non-zero: render as click-to-filter button */}
-              {stats.overdue > 0 && (
-                <> · <button
-                  type="button"
-                  className="overdue-filter-btn"
-                  aria-label={`Filter to ${stats.overdue} overdue tasks`}
-                  onClick={() => setOverdueOnly(true)}
-                >
-                  {stats.overdue} overdue
-                </button></>
-              )}
-            </>
-          )}
-        </span>
-        {/* Overdue-only active chip (AC-128 — clearable transient filter) */}
-        {overdueOnly && (
-          <button
-            type="button"
-            className="overdue-chip"
-            aria-label="Clear overdue filter"
-            onClick={() => setOverdueOnly(false)}
-          >
-            Overdue only ✕
-          </button>
-        )}
-      </div>
+            </span>
+            {/* Overdue-only active chip (AC-128 — clearable transient filter) */}
+            {overdueOnly && (
+              <button
+                type="button"
+                className="overdue-chip"
+                aria-label="Clear overdue filter"
+                onClick={() => setOverdueOnly(false)}
+              >
+                Overdue only ✕
+              </button>
+            )}
+          </>
+        }
+      />
 
       <div className={splitClass}>
         <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label="Tasks">
@@ -584,7 +594,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="owner">Owner</option>
             <option value="bu">Business unit</option>
           </select>
-          <FilterChevron />
+          <Chevron className="ctrl-chev" />
         </div>
 
         <label htmlFor="bu-filter" className="sr-only">Business unit</label>
@@ -595,7 +605,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="">All</option>
             {buOptions.map(bu => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
           </select>
-          <FilterChevron />
+          <Chevron className="ctrl-chev" />
         </div>
 
         <label htmlFor="status-filter" className="sr-only">Status</label>
@@ -609,7 +619,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="Blocked">Blocked</option>
             <option value="Done">Done</option>
           </select>
-          <FilterChevron />
+          <Chevron className="ctrl-chev" />
         </div>
 
         <label htmlFor="person-filter" className="sr-only">Person</label>
@@ -620,7 +630,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="">Anyone</option>
             {personOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
           </select>
-          <FilterChevron />
+          <Chevron className="ctrl-chev" />
         </div>
 
         {/* Mine/RACI/All segment — disabled when Person filter is set (FR-124 / AC-126).
@@ -728,27 +738,27 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
               <tr>
                 <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('task')} onClick={() => handleSort('task')}>
-                  Task{sortGlyph('task') && <span className="sort-aff" aria-hidden="true">{sortGlyph('task')}</span>}
+                  Task{sortIndicator('task')}
                 </th>
                 <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('status')} onClick={() => handleSort('status')}>
-                  Status{sortGlyph('status') && <span className="sort-aff" aria-hidden="true">{sortGlyph('status')}</span>}
+                  Status{sortIndicator('status')}
                 </th>
                 <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('owner')} onClick={() => handleSort('owner')}>
-                  Owner{sortGlyph('owner') && <span className="sort-aff" aria-hidden="true">{sortGlyph('owner')}</span>}
+                  Owner{sortIndicator('owner')}
                 </th>
                 {!condensed && (
                   <th scope="col" className="th-cell">Business unit</th>
                 )}
                 <th scope="col" className={`th-cell th-sortable th-right${sortCol === 'due' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('due')} onClick={() => handleSort('due')}>
-                  Due{sortGlyph('due') && <span className="sort-aff" aria-hidden="true">{sortGlyph('due')}</span>}
+                  Due{sortIndicator('due')}
                 </th>
                 {!condensed && (
                   <th scope="col" className={`th-cell th-sortable th-right${sortCol === 'activity' ? ' th-sorted' : ''}`}
                     aria-sort={colSort('activity')} onClick={() => handleSort('activity')}>
-                    Activity{sortGlyph('activity') && <span className="sort-aff" aria-hidden="true">{sortGlyph('activity')}</span>}
+                    Activity{sortIndicator('activity')}
                   </th>
                 )}
               </tr>

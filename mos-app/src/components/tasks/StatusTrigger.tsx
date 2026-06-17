@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { TaskStatus } from '../../lib/db/tasks.types'
 import { StatusPill } from './StatusPill'
+import { Chevron } from '../../shell/icons'
 
 const STATUSES: TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
 
@@ -39,7 +40,7 @@ export function StatusTrigger({ status, onChange }: StatusTriggerProps) {
         onClick={() => setOpen(o => !o)}
       >
         <StatusPill status={status} />
-        <span className="trigger-chev" aria-hidden="true">▾</span>
+        <Chevron className="trigger-chev" />
       </button>
       {open && (
         <div role="listbox" aria-label="Select status" className="status-popover">

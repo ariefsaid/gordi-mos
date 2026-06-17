@@ -630,7 +630,7 @@ describe('Fix M2 — task count suppressed in error state', () => {
     await waitFor(() => screen.getByRole('alert'))
 
     // Count line must not show "0 tasks" — it should show "—"
-    const countLine = document.querySelector('.tasks-count-line')
+    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
     expect(countLine?.textContent).not.toMatch(/0 task/)
     expect(countLine?.textContent).toContain('—')
   })
@@ -640,7 +640,7 @@ describe('Fix M2 — task count suppressed in error state', () => {
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
     // count shows the correct value
-    const countLine = document.querySelector('.tasks-count-line')
+    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
     // In "Mine" segment default, both tasks are by VIEWER_ID so both appear
     expect(countLine?.textContent).toMatch(/2 tasks/)
   })

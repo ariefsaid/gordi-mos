@@ -16,24 +16,24 @@
 
 /* In progress — primary/12% bg, --status-open-text, primary dot */
 .pm-inprogress {
-  background: hsl(221 83% 53% / 0.12);
-  color: hsl(221 75% 38%); /* --status-open-text */
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--status-open-text)); /* --status-open-text */
 }
-.pm-inprogress .pm-dot { background: hsl(221.2 83.2% 53.3%); } /* primary */
+.pm-inprogress .pm-dot { background: hsl(var(--primary)); } /* primary */
 
 /* Blocked — destructive/12% bg, --status-lost-text, destructive dot */
 .pm-blocked {
-  background: hsl(0 84% 60% / 0.12);
-  color: hsl(0 72% 45%); /* --status-lost-text */
+  background: hsl(var(--destructive) / 0.12);
+  color: hsl(var(--status-lost-text)); /* --status-lost-text */
 }
-.pm-blocked .pm-dot { background: hsl(0 84.2% 60.2%); } /* destructive */
+.pm-blocked .pm-dot { background: hsl(var(--destructive)); } /* destructive */
 
 /* Done — success/14% bg, --status-won-text, success dot */
 .pm-done {
-  background: hsl(142 71% 45% / 0.14);
-  color: hsl(142 64% 30%); /* --status-won-text */
+  background: hsl(var(--success) / 0.14);
+  color: hsl(var(--status-won-text)); /* --status-won-text */
 }
-.pm-done .pm-dot { background: hsl(142 71% 45%); } /* success */
+.pm-done .pm-dot { background: hsl(var(--success)); } /* success */
 
 /* ── Interactive trigger (picker button) ── */
 .pm-trigger {
@@ -52,19 +52,19 @@
 .pm-picker {
   position: absolute;
   z-index: 50;
-  background: hsl(0 0% 100%); /* popover */
-  border: 1px solid hsl(240 5.9% 90%); /* border */
+  background: hsl(var(--background)); /* popover */
+  border: 1px solid hsl(var(--border)); /* border */
   border-radius: 8px; /* rounded.md */
-  box-shadow: 0 4px 12px hsl(240 10% 3.9% / 0.12); /* overlay shadow — overlay response to state, not decoration */
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12); /* overlay shadow — overlay response to state, not decoration */
   padding: 4px;
   min-width: 140px;
   /* Reduced motion: no transform animation */
 }
 
 /* Dot color helpers for picker option rows (standalone dots, not inside .pm-pill) */
-.pm-dot-inprogress { background: hsl(221.2 83.2% 53.3%); }
-.pm-dot-blocked    { background: hsl(0 84.2% 60.2%); }
-.pm-dot-done       { background: hsl(142 71% 45%); }
+.pm-dot-inprogress { background: hsl(var(--primary)); }
+.pm-dot-blocked    { background: hsl(var(--destructive)); }
+.pm-dot-done       { background: hsl(var(--success)); }
 
 .pm-option {
   display: flex; align-items: center; gap: 8px;
@@ -72,7 +72,7 @@
   border-radius: 6px; /* rounded.sm */
   cursor: pointer;
   font-size: 13px; font-weight: 500;
-  color: hsl(240 10% 3.9%); /* foreground */
+  color: hsl(var(--foreground)); /* foreground */
   background: transparent;
   border: none;
   width: 100%;
@@ -81,12 +81,12 @@
 }
 .pm-option:hover,
 .pm-option:focus-visible {
-  background: hsl(240 4.8% 95.9%); /* accent */
+  background: hsl(var(--secondary)); /* accent */
   outline: none;
 }
 .pm-option[aria-selected="true"] {
   /* Highlight current selection */
-  background: hsl(221 83% 53% / 0.08);
+  background: hsl(var(--primary) / 0.08);
 }
 
 /* Picker wrapper positioning anchor */

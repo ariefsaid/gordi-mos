@@ -251,19 +251,19 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
   let pillContent: React.ReactNode
   let pillStyle: React.CSSProperties = {}
   if (isLoading) {
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'transparent' }
+    pillStyle = { background: 'hsl(var(--secondary))', color: 'transparent' }
     pillContent = '⠀' // zero-width space for height
   } else if (isAmber) {
     // amber: --ops-attn-strip-bg (warning/18%) + --ops-attn-strip-text (warning-foreground)
-    pillStyle = { background: 'hsl(43 96% 56% / 0.18)', color: 'hsl(22 78% 26%)' }
+    pillStyle = { background: 'hsl(var(--warning) / 0.18)', color: 'hsl(var(--warning-foreground))' }
     pillContent = (
       <>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(43 96% 56%)', flexShrink: 0 }} />
+        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(var(--warning))', flexShrink: 0 }} />
         {count} today
       </>
     )
   } else {
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'hsl(240 4% 40%)' }
+    pillStyle = { background: 'hsl(var(--secondary))', color: 'hsl(var(--muted-foreground))' }
     pillContent = `${count} today`
   }
 
@@ -374,29 +374,29 @@ function WeeklyUpdateStrip({
 
   if (isLoading) {
     // Blank pill while loading — no text, just a muted shell (no flash)
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'transparent' }
+    pillStyle = { background: 'hsl(var(--secondary))', color: 'transparent' }
     pillContent = '⠀' // zero-width space for height
   } else if (isSubmitted) {
     // success/14% tint + success dot
-    pillStyle = { background: 'hsl(142 71% 45% / 0.14)', color: 'hsl(142 64% 30%)' }
+    pillStyle = { background: 'hsl(var(--success) / 0.14)', color: 'hsl(var(--status-won-text))' }
     pillContent = (
       <>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(142 71% 45%)', flexShrink: 0 }} />
+        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(var(--success))', flexShrink: 0 }} />
         Submitted
       </>
     )
   } else if (isDraft) {
     // warning/18% tint + warning dot
-    pillStyle = { background: 'hsl(43 96% 56% / 0.18)', color: 'hsl(22 78% 26%)' }
+    pillStyle = { background: 'hsl(var(--warning) / 0.18)', color: 'hsl(var(--warning-foreground))' }
     pillContent = (
       <>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(43 96% 56%)', flexShrink: 0 }} />
+        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(var(--warning))', flexShrink: 0 }} />
         Draft
       </>
     )
   } else {
     // No update (or error — fallback)
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'hsl(240 4% 40%)' }
+    pillStyle = { background: 'hsl(var(--secondary))', color: 'hsl(var(--muted-foreground))' }
     pillContent = 'No update'
   }
 
@@ -547,7 +547,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
             className="flex items-center gap-3"
             style={{
               padding: '10px 20px',
-              borderBottom: i < rows.length - 1 ? '1px solid hsl(240 5.9% 90%)' : undefined,
+              borderBottom: i < rows.length - 1 ? '1px solid hsl(var(--border))' : undefined,
               fontSize: 14,
             }}
           >

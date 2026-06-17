@@ -273,7 +273,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
     if (allBtn) fireEvent.click(allBtn as Element)
     await waitFor(() => {
-      const countEl = document.querySelector('.tasks-count-line')
+      const countEl = document.querySelector('[data-testid="tasks-count-line"]')
       // The count line is always present; assert it and that it omits "0 overdue".
       expect(countEl).toBeTruthy()
       expect(countEl!.textContent).not.toMatch(/0 overdue/)
@@ -301,7 +301,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
     // The page count-line "N overdue" is a button (group subtotals also expose
     // overdue-filter buttons now that grouping is live — scope to the count line).
-    const overdueBtn = document.querySelector('.tasks-count-line .overdue-filter-btn') as HTMLButtonElement
+    const overdueBtn = document.querySelector('[data-testid="tasks-count-line"] .overdue-filter-btn') as HTMLButtonElement
     expect(overdueBtn).toBeTruthy()
     expect(overdueBtn.getAttribute('aria-label')).toMatch(/filter to.*overdue/i)
 
@@ -573,7 +573,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
       expect(screen.getByText('Open past due')).toBeInTheDocument()
     })
     // Page count line: only 1 overdue (Open one), not 2
-    const countLine = document.querySelector('.tasks-count-line')
+    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
     expect(countLine?.textContent).toMatch(/1 overdue/)
     expect(countLine?.textContent).not.toMatch(/2 overdue/)
   })
