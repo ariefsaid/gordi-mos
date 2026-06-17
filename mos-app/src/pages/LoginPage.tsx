@@ -261,7 +261,7 @@ export default function LoginPage() {
             className="mb-4 rounded-md px-3 py-2"
             style={{
               backgroundColor: 'hsl(var(--destructive) / 0.08)',
-              color: 'hsl(var(--destructive))',
+              color: 'hsl(var(--status-lost-text))',
               fontSize: 13,
             }}
           >
@@ -306,7 +306,7 @@ export default function LoginPage() {
               <p
                 id={emailErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'hsl(var(--destructive))' }}
+                style={{ fontSize: 12, color: 'hsl(var(--status-lost-text))' }}
               >
                 {emailError}
               </p>

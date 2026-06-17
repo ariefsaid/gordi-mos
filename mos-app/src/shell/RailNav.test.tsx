@@ -43,7 +43,7 @@ describe('AC-002: Rail contents', () => {
     expect(links).toHaveLength(4)
     expect(links[0]).toHaveAccessibleName('My Week')
     expect(links[1]).toHaveAccessibleName('Tasks')
-    expect(links[2]).toHaveAccessibleName('Updates')
+    expect(links[2]).toHaveAccessibleName('Weekly Updates')
     expect(links[3]).toHaveAccessibleName('Daily Log')
   })
 

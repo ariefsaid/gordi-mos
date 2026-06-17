@@ -16,9 +16,13 @@ interface PageFrameProps {
  */
 export default function PageFrame({ children, variant = 'prose' }: PageFrameProps) {
   const isData = variant === 'data'
+  // CONV (layout consistency): every page LEFT-aligns at the same 24px gutter (content
+  // origin identical across routes — no centered-prose vs left-data jump). Prose caps at
+  // 1080px for comfortable reading/forms; data runs full-bleed (the workspace caps itself
+  // at 1280 internally). Trailing whitespace sits on the RIGHT only — never centered.
   return (
-    <main className="overflow-auto" style={{ padding: isData ? '28px 24px 56px' : '28px 32px 56px' }}>
-      <div style={{ maxWidth: isData ? 'none' : '1080px', margin: isData ? '0' : '0 auto' }}>
+    <main className="overflow-auto" style={{ padding: '28px 24px 56px' }}>
+      <div style={{ maxWidth: isData ? 'none' : '1080px', margin: 0 }}>
         {children}
       </div>
     </main>

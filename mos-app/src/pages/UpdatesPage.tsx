@@ -14,7 +14,7 @@ import { getTeamForManager } from '../lib/db/team'
 import type { TeamMember } from '../lib/db/weeklyUpdates'
 
 export default function UpdatesPage() {
-  useDocumentTitle('Weekly update — Gordi MOS')
+  useDocumentTitle('Weekly Updates — Gordi MOS')
 
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -61,8 +61,8 @@ export default function UpdatesPage() {
 
   return (
     <PageFrame>
-      {/* Page head (§1.1) — h1 "Weekly update" */}
-      <PageHead title="Weekly update" subtitle={subtitle} />
+      {/* Page head (§1.1) — h1 "Weekly Updates" */}
+      <PageHead title="Weekly Updates" subtitle={subtitle} />
 
       {/* Write pane caption (§1.2, overline style) */}
       <p

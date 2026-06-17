@@ -238,20 +238,20 @@ describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
   })
 })
 
-// FIX-2: Card-head reflow — allows wrap, title never breaks mid-phrase
-describe('FIX-2: Card-head reflow — structural layout guards', () => {
-  it('card head container has flex-wrap class', async () => {
+// FIX-2: Card-head uses the shared <CardHead> (IA-3, PR-2)
+describe('FIX-2: Card-head uses the shared <CardHead> (IA-3)', () => {
+  it('renders the shared <CardHead> shell (.card-head — flex-wrap via CardHead.css)', async () => {
     const { container } = await renderMyWeek()
-    const cardHead = container.querySelector('[aria-label="My tasks this week"] div')
+    const cardHead = container.querySelector('[aria-label="My tasks this week"] .card-head')
     expect(cardHead).toBeTruthy()
-    expect(cardHead!.className).toMatch(/flex-wrap/)
   })
 
-  it('"My tasks" title has whitespace-nowrap to prevent mid-phrase break', async () => {
+  it('"My tasks" is the CardHead title (h2.card-head-title)', async () => {
     const { container } = await renderMyWeek()
-    const titleEl = container.querySelector('[aria-label="My tasks this week"] div span:first-child')
+    const titleEl = container.querySelector('[aria-label="My tasks this week"] .card-head-title')
     expect(titleEl).toBeTruthy()
-    expect(titleEl!.className).toMatch(/whitespace-nowrap/)
+    expect(titleEl!.tagName).toBe('H2')
+    expect(titleEl!.textContent).toBe('My tasks')
   })
 })
 

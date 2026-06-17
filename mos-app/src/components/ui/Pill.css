@@ -1,0 +1,44 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   The ONE pill shell (VIS-4/5/6, PR-2). Single source for every status/state/
+   source/progress pill in the app. Consumed by <Pill> (ui/Pill.tsx), the task
+   StatusPill, the weekly-update StatePill, ProgressMarker, the Ops source badge,
+   and the My Week strip pills.
+   Shell: height 22, padding 0 9px, 6px radius (rounded-rect), 8px leading dot,
+   12/600. Tint differs by tone only. All values resolve to DESIGN.md tokens.
+   ════════════════════════════════════════════════════════════════════════════ */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 9px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.pill .dot {
+  /* VIS-6: 8px leading dot (WCAG 1.4.1 redundant cue — bumped from 6px). */
+  width: 8px; height: 8px; border-radius: 999px; flex: none;
+}
+
+/* Neutral (default badge-status: secondary + muted-foreground) */
+.pill--neutral { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+.pill--neutral .dot { background: hsl(var(--muted-foreground)); }
+
+/* Primary / "in progress" (primary/12% + --status-open-text) */
+.pill--primary { background: hsl(var(--primary) / 0.12); color: hsl(var(--status-open-text)); }
+.pill--primary .dot { background: hsl(var(--primary)); }
+
+/* Success / "done" / "filed" (success/14% + --status-won-text) */
+.pill--success { background: hsl(var(--success) / 0.14); color: hsl(var(--status-won-text)); }
+.pill--success .dot { background: hsl(var(--success)); }
+
+/* Warning / "draft" / "open" (warning/18% + warning-foreground) */
+.pill--warning { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning-foreground)); }
+.pill--warning .dot { background: hsl(var(--warning)); }
+
+/* Destructive / "blocked" (destructive/12% + --status-lost-text) */
+.pill--destructive { background: hsl(var(--destructive) / 0.12); color: hsl(var(--status-lost-text)); }
+.pill--destructive .dot { background: hsl(var(--destructive)); }
+
+/* Violet / "roastery" (violet/12% + --status-violet-text) */
+.pill--violet { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }
+.pill--violet .dot { background: hsl(var(--violet)); }
+
+/* Skeleton shell — loading strips (muted fill, transparent text, pulse) */
+.pill--skeleton { background: hsl(var(--secondary)); color: transparent; }

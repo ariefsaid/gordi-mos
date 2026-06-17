@@ -1,5 +1,5 @@
 /**
- * PR-2 TasksTable tests — Task 9 (toolbar + ViewTabStrip), Task 10 (Person-overrides-segment),
+ * PR-2 TasksTable tests — Task 9 (toolbar), Task 10 (Person-overrides-segment),
  * Task 11 (missing states + overdue filter button).
  * Tests that cover behavior via the full split-view (TasksLayout.test.tsx) are kept there.
  * These tests mount TasksTable directly to assert PR-2-specific additions.
@@ -110,23 +110,9 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
 })
 
-// ── Task 9 — ViewTabStrip in toolbar region (AC-122) ──────────────────────────
+// ── Task 9 — group-by control in toolbar (view-tab strip removed per owner — the table IS the view, PMO-style)
 
-describe('Task 9 — ViewTabStrip + group-by control in toolbar', () => {
-  it('renders the ViewTabStrip tablist above the toolbar (AC-122)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
-    renderTable()
-    await waitFor(() => screen.getByText('A task'))
-    // ViewTabStrip tablist present
-    const tablist = screen.getByRole('tablist', { name: /workspace view/i })
-    expect(tablist).toBeInTheDocument()
-    // Table tab is selected
-    expect(screen.getByRole('tab', { name: /table/i })).toHaveAttribute('aria-selected', 'true')
-    // Board and Calendar are SOON stubs
-    expect(screen.getByRole('tab', { name: /board/i })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('tab', { name: /calendar/i })).toHaveAttribute('aria-disabled', 'true')
-  })
-
+describe('Task 9 — group-by control in toolbar', () => {
   it('renders a group-by control with Status, Owner, Business unit options', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
@@ -287,7 +273,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
     if (allBtn) fireEvent.click(allBtn as Element)
     await waitFor(() => {
-      const countEl = document.querySelector('.tasks-count-line')
+      const countEl = document.querySelector('[data-testid="tasks-count-line"]')
       // The count line is always present; assert it and that it omits "0 overdue".
       expect(countEl).toBeTruthy()
       expect(countEl!.textContent).not.toMatch(/0 overdue/)
@@ -315,7 +301,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
     // The page count-line "N overdue" is a button (group subtotals also expose
     // overdue-filter buttons now that grouping is live — scope to the count line).
-    const overdueBtn = document.querySelector('.tasks-count-line .overdue-filter-btn') as HTMLButtonElement
+    const overdueBtn = document.querySelector('[data-testid="tasks-count-line"] .overdue-filter-btn') as HTMLButtonElement
     expect(overdueBtn).toBeTruthy()
     expect(overdueBtn.getAttribute('aria-label')).toMatch(/filter to.*overdue/i)
 
@@ -587,7 +573,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
       expect(screen.getByText('Open past due')).toBeInTheDocument()
     })
     // Page count line: only 1 overdue (Open one), not 2
-    const countLine = document.querySelector('.tasks-count-line')
+    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
     expect(countLine?.textContent).toMatch(/1 overdue/)
     expect(countLine?.textContent).not.toMatch(/2 overdue/)
   })
@@ -669,15 +655,13 @@ describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
 })
 
 describe('Task 22 — mobile grouped cards (AC-129)', () => {
-  it('AC-129: <768px renders grouped cards (group headers + cards) and no view-tab strip', async () => {
+  it('AC-129: <768px renders grouped cards (group headers + cards)', async () => {
     stubMatchMedia(false, false) // not split, not desktop → mobile
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mobile task', status: 'Open' })])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
     await switchToAll()
     await waitFor(() => screen.getByText('Mobile task'))
-    // No view-tab strip on mobile
-    expect(screen.queryByRole('tablist', { name: /workspace view/i })).toBeNull()
     // Group headings present (the chosen group-by: status)
     expect(screen.getByText('Mobile task')).toBeInTheDocument()
     expect(document.querySelector('[data-testid="task-card"]')).toBeTruthy()

@@ -1,6 +1,6 @@
 # ADR-0007 — Tasks split-view master-detail ("one UI, two widths"; one canonical `/tasks/:id`)
 
-- Status: Accepted (2026-06-15; design-plan gate signed — Variant B picked, OD-P3-2..5)
+- Status: Accepted + SHIPPED (#15–#18). **As-built naming (the Decision snippet below uses pre-impl names):** route parent is **`TasksLayout`** (not "TasksSplitView"); route children are **`TaskDrawer`** (mounts **`TaskSurface`** inside) — not `TaskSurface` directly. Full-bleed table is **`TasksWorkspace`** (ADR-0008). `PageFrame` gained `variant: 'data'|'prose'`.
 - Deciders: Owner (Arief) + Director
 - Related: OD-P3-2..5 (`docs/decisions.md`); design-plan `docs/plans/2026-06-15-tasks-redesign-design-plan.md`;
   spec `docs/specs/tasks-raci.spec.md` (P2-1 — the surface being recomposed); ADR-0003 (cascade seam,

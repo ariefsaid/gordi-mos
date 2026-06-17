@@ -146,7 +146,7 @@ export default function OpsAddForm() {
           <p className="tc-error-msg">
             The log entry you&apos;re trying to edit doesn&apos;t exist or you don&apos;t have access to it.
           </p>
-          <Link to="/ops" className="tc-btn-cancel">Back to Daily Log</Link>
+          <Link to="/ops" className="btn btn-outline">Back to Daily Log</Link>
         </div>
       </PageFrame>
     )
@@ -164,13 +164,6 @@ export default function OpsAddForm() {
 
   return (
     <PageFrame>
-      {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="tc-breadcrumb">
-        <Link to="/ops" className="tc-breadcrumb-link">Daily Log</Link>
-        <span className="tc-breadcrumb-sep" aria-hidden="true"> / </span>
-        <span className="tc-breadcrumb-current">{isEditMode ? 'Edit log entry' : 'Add log entry'}</span>
-      </nav>
-
       <div className="tc-page-head">
         <h1 className="tc-page-title">{isEditMode ? 'Edit log entry' : 'Add log entry'}</h1>
       </div>
@@ -328,10 +321,10 @@ export default function OpsAddForm() {
 
           {/* Actions */}
           <div className="tc-actions">
-            <Link to="/ops" className="tc-btn-cancel">Cancel</Link>
+            <Link to="/ops" className="btn btn-outline">Cancel</Link>
             <button
               type="submit"
-              className="tc-btn-submit"
+              className="btn btn-primary"
               disabled={!isValid || submitting}
               aria-busy={submitting}
             >
@@ -343,12 +336,9 @@ export default function OpsAddForm() {
 
       {/* ── Inline CSS — DESIGN.md tokens, mirrors TaskCreate.tsx ── */}
       <style>{`
-        .tc-breadcrumb { font-size: 13px; color: hsl(var(--muted-foreground)); margin-bottom: 12px; }
-        .tc-breadcrumb-link { color: hsl(var(--muted-foreground)); text-decoration: none; }
-        .tc-breadcrumb-link:hover { color: hsl(var(--foreground)); }
-        .tc-breadcrumb-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .tc-breadcrumb-sep { margin: 0 6px; }
-        .tc-breadcrumb-current { color: hsl(var(--foreground)); font-weight: 500; }
+        /* IA-2 (PR-2): the in-page breadcrumb was removed — the shell <Breadcrumb>
+           (shell/Header.tsx) extends to the leaf (Daily Log › Add log entry). One
+           breadcrumb, one › separator. The .tc-breadcrumb* rules are gone. */
 
         .tc-page-head { margin-bottom: 16px; }
         .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: hsl(var(--foreground)); }
@@ -360,8 +350,10 @@ export default function OpsAddForm() {
         }
 
         .tc-submit-error {
+          /* VIS-2: error TEXT uses the AA-darkened --status-lost-text; the tinted bg +
+             border keep base --destructive (non-text affordances). */
           padding: 10px 12px; margin-bottom: 16px; border-radius: 6px;
-          background: hsl(var(--destructive) / 0.10); color: hsl(var(--destructive));
+          background: hsl(var(--destructive) / 0.10); color: hsl(var(--status-lost-text));
           font-size: 13px; border: 1px solid hsl(var(--destructive) / 0.25);
         }
 
@@ -388,7 +380,9 @@ export default function OpsAddForm() {
         .tc-select { cursor: pointer; }
         .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
 
-        .tc-field-error { font-size: 12px; color: hsl(var(--destructive)); }
+        /* VIS-2: error TEXT uses the AA-darkened --status-lost-text. The invalid field
+           outline (.tc-input-error) + required asterisk (.tc-required) keep base --destructive. */
+        .tc-field-error { font-size: 12px; color: hsl(var(--status-lost-text)); }
 
         /* Needs-attention amber hint text (§3.3 — warning-foreground, AA contrast) */
         .ops-attn-hint {
@@ -403,22 +397,9 @@ export default function OpsAddForm() {
           display: flex; justify-content: flex-end; gap: 8px;
           padding-top: 8px; border-top: 1px solid hsl(var(--border)); margin-top: 8px;
         }
-        .tc-btn-cancel {
-          height: 32px; padding: 0 12px; border-radius: 8px;
-          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-          font-size: 13px; font-weight: 500; color: hsl(var(--foreground));
-          text-decoration: none; display: inline-flex; align-items: center;
-        }
-        .tc-btn-cancel:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-        .tc-btn-submit {
-          height: 32px; padding: 0 16px; border-radius: 8px; border: 0;
-          background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-          font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-          box-shadow: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25);
-        }
-        .tc-btn-submit:hover { opacity: 0.92; }
-        .tc-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
-        .tc-btn-submit:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        /* IXD-4 (PR-2): the create-form Cancel/Submit buttons use the shared
+           .btn .btn-outline / .btn .btn-primary (ui/Button.css). The bespoke
+           .tc-btn-cancel / .tc-btn-submit rules were removed. */
       `}</style>
     </PageFrame>
   )

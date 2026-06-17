@@ -11,6 +11,9 @@ import type { TeamMember } from '../lib/db/weeklyUpdates'
 import type { TeamUpdateRow } from '../lib/db/weeklyUpdates.types'
 import { getTeamForManager } from '../lib/db/team'
 import TimingChip from '../components/weekly/TimingChip'
+import { Pill, type PillTone } from '../components/ui/Pill'
+import { CardHead } from '../components/ui/CardHead'
+import { ErrorState } from '../components/ui/StateKit'
 import { StatePill } from '../components/weekly/WeeklyUpdateReviewPane'
 import { getTodayOpsSummary } from '../lib/db/opsLog'
 import type { TodayOpsSummary } from '../lib/db/opsLog'
@@ -110,25 +113,20 @@ export default function MyWeek() {
           className="bg-card border border-border rounded-md mb-4"
           aria-label="My tasks this week"
         >
-          {/* Card head */}
-          <div
-            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border"
-            style={{ padding: '16px 20px 14px' }}
-          >
-            <span className="font-semibold text-foreground whitespace-nowrap" style={{ fontSize: 18, letterSpacing: '-0.01em' }}>
-              My tasks
-            </span>
-            <span className="text-muted-foreground" style={{ fontSize: 13 }}>
-              Where you're Responsible or Accountable · off track first
-            </span>
-            <Link
-              to="/tasks"
-              className="ml-auto font-semibold text-primary no-underline"
-              style={{ fontSize: 13 }}
-            >
-              All tasks →
-            </Link>
-          </div>
+          {/* Card head (IA-3: shared <CardHead>) */}
+          <CardHead
+            title="My tasks"
+            meta="Where you're Responsible or Accountable · off track first"
+            action={
+              <Link
+                to="/tasks"
+                className="font-semibold text-primary no-underline"
+                style={{ fontSize: 13 }}
+              >
+                All tasks →
+              </Link>
+            }
+          />
 
           {/* Table */}
           <table
@@ -167,14 +165,14 @@ export default function MyWeek() {
                 </th>
                 <th
                   scope="col"
-                  className="text-right text-muted-foreground font-semibold uppercase border-b border-border"
+                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
                   style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
                 >
                   Due
                 </th>
                 <th
                   scope="col"
-                  className="text-right text-muted-foreground font-semibold uppercase border-b border-border"
+                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
                   style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
                 >
                   Activity
@@ -247,23 +245,18 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
   const isAmber   = !isLoading && !isError && summary.needsAttention
   const { count } = summary
 
-  // Pill (§6 design-plan table)
+  // Pill (§6 design-plan table) — VIS-4 (PR-2): shared <Pill> primitive.
+  // amber (needs attention) → warning; else neutral; loading → skeleton shell.
+  let pillTone: PillTone
   let pillContent: React.ReactNode
-  let pillStyle: React.CSSProperties = {}
   if (isLoading) {
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'transparent' }
-    pillContent = '⠀' // zero-width space for height
+    pillTone = 'skeleton'
+    pillContent = '⠀' // skeleton tone hides the text; reserves height
   } else if (isAmber) {
-    // amber: --ops-attn-strip-bg (warning/18%) + --ops-attn-strip-text (warning-foreground)
-    pillStyle = { background: 'hsl(43 96% 56% / 0.18)', color: 'hsl(22 78% 26%)' }
-    pillContent = (
-      <>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(43 96% 56%)', flexShrink: 0 }} />
-        {count} today
-      </>
-    )
+    pillTone = 'warning'
+    pillContent = `${count} today`
   } else {
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'hsl(240 4% 40%)' }
+    pillTone = 'neutral'
     pillContent = `${count} today`
   }
 
@@ -311,18 +304,13 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
       style={{ minHeight: 60, padding: '12px 20px' }}
       aria-label="Today on the Daily Log"
     >
-      {/* Count pill (24px height matching weekly-update strip) */}
-      <span
-        className="rounded-full font-semibold flex-none"
-        data-ops-attn={isAmber ? 'true' : undefined}
-        style={{
-          height: 24, padding: '0 10px', fontSize: 12,
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          ...pillStyle,
-        }}
-        aria-hidden={isLoading ? 'true' : undefined}
-      >
-        {pillContent}
+      {/* Count pill — VIS-4 shared <Pill>. The wrapper carries the amber test hook
+          (data-ops-attn) + the strip's flex-none positioning (Pill's typed props are
+          aria-only, so the data-attr rides on the wrapper). */}
+      <span className="flex-none" data-ops-attn={isAmber ? 'true' : undefined}>
+        <Pill tone={pillTone} dot={!isLoading} aria-hidden={isLoading ? 'true' : undefined}>
+          {pillContent}
+        </Pill>
       </span>
 
       {/* Body sentence */}
@@ -368,35 +356,25 @@ function WeeklyUpdateStrip({
   const isSubmitted = !isLoading && !isError && stripStatus === 'submitted'
   const isDraft     = !isLoading && !isError && stripStatus === 'draft'
 
-  // Pill config (§6 design-plan table)
+  // Pill config (§6 design-plan table) — VIS-4 (PR-2): shared <Pill> primitive.
+  let pillTone: PillTone
   let pillContent: React.ReactNode
-  let pillStyle: React.CSSProperties = {}
 
   if (isLoading) {
-    // Blank pill while loading — no text, just a muted shell (no flash)
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'transparent' }
-    pillContent = '⠀' // zero-width space for height
+    // Blank pill while loading — muted shell (no flash)
+    pillTone = 'skeleton'
+    pillContent = '⠀' // skeleton tone hides the text; reserves height
   } else if (isSubmitted) {
-    // success/14% tint + success dot
-    pillStyle = { background: 'hsl(142 71% 45% / 0.14)', color: 'hsl(142 64% 30%)' }
-    pillContent = (
-      <>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(142 71% 45%)', flexShrink: 0 }} />
-        Submitted
-      </>
-    )
+    // success tint + success dot
+    pillTone = 'success'
+    pillContent = 'Submitted'
   } else if (isDraft) {
-    // warning/18% tint + warning dot
-    pillStyle = { background: 'hsl(43 96% 56% / 0.18)', color: 'hsl(22 78% 26%)' }
-    pillContent = (
-      <>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(43 96% 56%)', flexShrink: 0 }} />
-        Draft
-      </>
-    )
+    // warning tint + warning dot
+    pillTone = 'warning'
+    pillContent = 'Draft'
   } else {
     // No update (or error — fallback)
-    pillStyle = { background: 'hsl(240 4.8% 95.9%)', color: 'hsl(240 4% 40%)' }
+    pillTone = 'neutral'
     pillContent = 'No update'
   }
 
@@ -437,16 +415,11 @@ function WeeklyUpdateStrip({
       style={{ minHeight: 60, padding: '12px 20px' }}
       aria-label="My weekly update"
     >
-      {/* State pill (24px height matching sibling ops strip) */}
-      <span
-        className="rounded-full font-semibold flex-none"
-        style={{
-          height: 24, padding: '0 10px', fontSize: 12,
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          ...pillStyle,
-        }}
-      >
-        {pillContent}
+      {/* State pill — VIS-4 shared <Pill> */}
+      <span className="flex-none">
+        <Pill tone={pillTone} dot={!isLoading}>
+          {pillContent}
+        </Pill>
       </span>
 
       {/* Body sentence */}
@@ -500,20 +473,9 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
         className="bg-card border border-border rounded-md"
         aria-label="Team weekly updates"
       >
-        <div
-          className="flex items-center gap-3 text-muted-foreground"
-          style={{ minHeight: 46, padding: '12px 20px', fontSize: 13 }}
-        >
-          <span>Couldn't load team updates.</span>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="font-semibold text-primary"
-            style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            Retry
-          </button>
-        </div>
+        {/* IXD-5 (PR-2): shared <ErrorState> (this is a card, not a 56–64px density
+            strip, so it uses the full block — the inline Retry stays only in the strips). */}
+        <ErrorState message="Couldn't load team updates." onRetry={onRetry} />
       </div>
     )
   }
@@ -547,7 +509,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
             className="flex items-center gap-3"
             style={{
               padding: '10px 20px',
-              borderBottom: i < rows.length - 1 ? '1px solid hsl(240 5.9% 90%)' : undefined,
+              borderBottom: i < rows.length - 1 ? '1px solid hsl(var(--border))' : undefined,
               fontSize: 14,
             }}
           >

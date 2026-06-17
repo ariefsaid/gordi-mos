@@ -14,6 +14,13 @@ import { listTeamUpdates, type TeamMember } from '../../lib/db/weeklyUpdates'
 import type { TeamUpdateRow } from '../../lib/db/weeklyUpdates.types'
 import { weekLabel, weekStartISO } from '../../lib/week'
 import TimingChip from './TimingChip'
+import { CardHead } from '../ui/CardHead'
+import { ErrorState } from '../ui/StateKit'
+import { Pill } from '../ui/Pill'
+// VIS-4 (PR-2): the weekly-update lifecycle pill now lives in the shared ui module
+// and re-skins onto <Pill>. Re-exported here so existing import sites stay stable.
+export { StatePill } from '../ui/StatePill'
+import { StatePill } from '../ui/StatePill'
 import './WeeklyUpdateReviewPane.css'
 
 // ── Initials helper ────────────────────────────────────────────────────────────
@@ -31,22 +38,6 @@ function formatSubmitTime(submittedAt: string): string {
     minute: '2-digit',
     timeZone: 'Asia/Jakarta',
   })
-}
-
-// ── State pill (§3.3) — exported for reuse in My Week team module ──────────────
-export function StatePill({ state }: { state: TeamUpdateRow['state'] }) {
-  const cls = state === 'filed'
-    ? 'wup-state-filed'
-    : state === 'draft'
-    ? 'wup-state-draft'
-    : 'wup-state-notstarted'
-  const label = state === 'filed' ? 'Filed' : state === 'draft' ? 'Draft' : 'Not started'
-  return (
-    <span className={`wup-state-pill ${cls}`}>
-      <span className="wup-state-pill-dot" aria-hidden="true" />
-      {label}
-    </span>
-  )
 }
 
 // ── Skeleton (3 rows, 60px each) ──────────────────────────────────────────────
@@ -86,10 +77,7 @@ function ReadOnlyPanel({ row, weekStart }: ReadOnlyPanelProps) {
       <div className="wup-review-panel-head">
         <span className="wup-review-panel-name">{row.full_name}</span>
         {isDraft && (
-          <span className="wup-state-pill wup-state-draft" style={{ marginLeft: 8 }}>
-            <span className="wup-state-pill-dot" aria-hidden="true" />
-            Draft
-          </span>
+          <StatePill state="draft" />
         )}
         {row.submitted_at && (
           <TimingChip submittedAt={row.submitted_at} weekStart={weekStart} />
@@ -289,19 +277,9 @@ export default function WeeklyUpdateReviewPane({
 
   // ── Week pill ────────────────────────────────────────────────────────────────
   const WeekPill = (
-    <span
-      className="tabular-nums"
-      style={{
-        display: 'inline-flex', alignItems: 'center',
-        height: 22, padding: '0 9px', borderRadius: 999,
-        background: 'hsl(240 4.8% 95.9%)',
-        color: 'hsl(240 4% 40%)',
-        fontSize: 12, fontWeight: 600,
-        fontVariantNumeric: 'tabular-nums',
-      }}
-    >
+    <Pill tone="neutral" className="tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
       Week of {wib.range}
-    </span>
+    </Pill>
   )
 
   return (
@@ -310,64 +288,48 @@ export default function WeeklyUpdateReviewPane({
       className="bg-card border border-border rounded-md"
       style={{ padding: '16px 20px' }}
     >
-      {/* Card head row: h2 + week pill + prior-week nav (§3.1, §3.5) */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 10, marginBottom: 14, flexWrap: 'wrap',
-      }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3 }}>Team updates</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {WeekPill}
-          {/* Prior-week nav (§3.5) */}
-          <div className="wup-week-nav" role="navigation" aria-label="Week navigation">
-            <button
-              type="button"
-              className="wup-week-nav-btn"
-              aria-label="Previous week"
-              onClick={handlePrevWeek}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="wup-week-nav-btn"
-              aria-label="Next week"
-              disabled={atCurrentWeek}
-              aria-disabled={atCurrentWeek ? 'true' : 'false'}
-              onClick={handleNextWeek}
-            >
-              ›
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Card head (IA-3: shared <CardHead>) — title + trailing week pill + nav */}
+      <CardHead
+        className="wup-review-card-head"
+        title="Team updates"
+        action={(
+          <>
+            {WeekPill}
+            {/* Prior-week nav (§3.5) */}
+            <div className="wup-week-nav" role="navigation" aria-label="Week navigation">
+              <button
+                type="button"
+                className="wup-week-nav-btn"
+                aria-label="Previous week"
+                onClick={handlePrevWeek}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="wup-week-nav-btn"
+                aria-label="Next week"
+                disabled={atCurrentWeek}
+                aria-disabled={atCurrentWeek ? 'true' : 'false'}
+                onClick={handleNextWeek}
+              >
+                ›
+              </button>
+            </div>
+          </>
+        )}
+      />
 
       {/* Loading skeleton */}
       {loadState === 'loading' && <ReviewSkeleton />}
 
-      {/* Error state (AC-046) */}
+      {/* Error state (AC-046) — IXD-5 shared <ErrorState> */}
       {loadState === 'error' && (
-        <div
-          role="alert"
-          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}
-        >
-          <span style={{ fontSize: 14, color: 'hsl(240 4% 40%)' }}>
-            Couldn't load team updates
-          </span>
-          <button
-            type="button"
-            onClick={load}
-            style={{
-              height: 32, padding: '0 12px', borderRadius: 8,
-              border: '1px solid hsl(240 5.9% 90%)',
-              background: 'hsl(0 0% 100%)', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-              color: 'hsl(240 10% 3.9%)',
-            }}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          className="wup-review-error"
+          message="Couldn't load team updates"
+          onRetry={load}
+        />
       )}
 
       {/* Ready: counts + roster */}

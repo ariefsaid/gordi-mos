@@ -2,7 +2,7 @@
 
 - Feature: `mos.tasks` entity end-to-end — schema + RLS + data layer + Tasks list page + Task detail
   page + create/edit/archive flows + RACI fields + checklist items + auto change-events.
-- Status: Draft for owner sign-off.
+- Status: Shipped (P2-1 #5–#7, on `main`). UI surface recomposed by ADR-0007/0008 — see `docs/specs/tasks-dbview.spec.md`.
 - Authority: business rules are **pre-decided** in `docs/decisions.md` **OD-P2-1..9** (LOCKED 2026-06-11)
   plus OD-DIR-5, OD-P0-8/9, OD-P1-3 (read posture), OD-P1-7 (union manager chain), OD-P1-4 (WIB time).
   This spec **encodes**, it does not re-open them. Each rule cites its OD id inline.

@@ -10,7 +10,7 @@ export interface Section {
 export const SECTIONS: Section[] = [
   { path: '/', label: 'My Week', Icon: MyWeekIcon },
   { path: '/tasks', label: 'Tasks', Icon: TasksIcon },
-  { path: '/updates', label: 'Updates', Icon: UpdatesIcon },
+  { path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon },
   { path: '/ops', label: 'Daily Log', Icon: OpsIcon },
 ]
 

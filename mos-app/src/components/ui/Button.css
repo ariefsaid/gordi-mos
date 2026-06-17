@@ -1,0 +1,45 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   The ONE button hierarchy (IXD-4, PR-2; DESIGN.md §5 Buttons). 32px tall, 8px
+   radius, 13/600, 0 12px padding. Apply `.btn .btn-{variant}` to <button>,
+   <a>, or react-router <Link>. Replaces .tc-btn-*, .ops-add-btn, .retry-btn,
+   .btn-outline-link, .confirm-cancel, and the per-surface re-implementations.
+   ════════════════════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 32px; padding: 0 12px; border-radius: 8px;
+  font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; text-decoration: none; border: 0; white-space: nowrap;
+}
+.btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.btn:disabled,
+.btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+
+/* Primary — the one action blue, faint brand shadow at rest */
+.btn-primary {
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
+}
+.btn-primary:hover:not(:disabled) { background: hsl(var(--primary) / 0.9); }
+
+/* Outline — background fill, input border, accent wash on hover */
+.btn-outline {
+  background: hsl(var(--background)); color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--input));
+}
+.btn-outline:hover:not(:disabled) { background: hsl(var(--accent)); }
+
+/* Ghost — transparent, muted text; accent wash on hover (header/icon buttons) */
+.btn-ghost {
+  background: transparent; color: hsl(var(--muted-foreground)); font-weight: 500;
+}
+.btn-ghost:hover:not(:disabled) { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+
+/* Destructive — the only solid status fill; irreversible actions only */
+.btn-destructive {
+  background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground));
+}
+.btn-destructive:hover:not(:disabled) { background: hsl(var(--destructive) / 0.9); }
+
+/* Full-width mobile touch variant (44px) — pairs with any .btn-{variant}.
+   Used by the phone submit bars where the action must span the viewport. */
+.btn-touch { width: 100%; min-height: 44px; font-size: 14px; }

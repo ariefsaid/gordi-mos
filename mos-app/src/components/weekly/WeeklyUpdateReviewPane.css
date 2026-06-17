@@ -5,7 +5,7 @@
 /* C3: list item wrappers — no bullets, no indent */
 .wup-review-li {
   list-style: none;
-  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
 }
 .wup-review-li:last-child {
   border-bottom: 0;
@@ -32,34 +32,34 @@
   transition: background 80ms;
 }
 .wup-review-row-btn:hover {
-  background: hsl(240 4.8% 95.9% / 0.6); /* accent @60% */
+  background: hsl(var(--secondary) / 0.6); /* accent @60% */
 }
 .wup-review-row-btn:focus-visible {
-  outline: 2px solid hsl(221.2 83.2% 53.3%); /* ring */
+  outline: 2px solid hsl(var(--primary)); /* ring */
   outline-offset: 2px;
 }
 .wup-review-row-open {
-  background: hsl(240 4.8% 95.9% / 0.4);
+  background: hsl(var(--secondary) / 0.4);
 }
 
 /* C2: non-interactive (not_started) — plain static row */
 .wup-review-row-static {
   list-style: none;
-  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
   cursor: default;
 }
 .wup-review-row-static:last-child {
   border-bottom: 0;
 }
 
-/* Avatar 32px circle — primary→violet gradient */
+/* VIS-1: ONE avatar gradient (navy→primary, OD-P3-7) — same as shell/UserChip.tsx. */
 .wup-review-avatar {
   width: 32px;
   height: 32px;
   border-radius: 9999px;
   flex: none;
-  background: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(262 83% 58%));
-  color: hsl(0 0% 98%);
+  background: linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)));
+  color: hsl(var(--primary-foreground));
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -74,16 +74,16 @@
 .wup-review-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: hsl(240 10% 3.9%);
+  color: hsl(var(--foreground));
 }
 .wup-review-role {
   font-size: 12px;
-  color: hsl(240 4% 40%);
+  color: hsl(var(--muted-foreground));
   font-weight: 400;
 }
 .wup-review-excerpt {
   font-size: 13px;
-  color: hsl(240 4% 40%);
+  color: hsl(var(--muted-foreground));
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -91,7 +91,7 @@
 }
 .wup-review-excerpt-empty {
   font-style: italic;
-  color: hsl(240 4% 40%);
+  color: hsl(var(--muted-foreground));
 }
 
 /* Meta: time + state pill (right-aligned desktop, wraps on mobile) */
@@ -105,52 +105,21 @@
 }
 .wup-review-time {
   font-size: 12px;
-  color: hsl(240 4% 40%);
+  color: hsl(var(--muted-foreground));
   font-variant-numeric: tabular-nums;
   min-width: 56px;
   text-align: right;
 }
 
-/* State pills (§3.3) — badge-status shell + dot */
-.wup-state-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 9px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  min-width: 96px;
-  justify-content: center;
-}
-.wup-state-pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-}
-.wup-state-filed {
-  background: hsl(142 71% 45% / 0.14);
-  color: hsl(142 64% 30%);
-}
-.wup-state-filed .wup-state-pill-dot {
-  background: hsl(142 71% 45%);
-}
-.wup-state-draft {
-  background: hsl(43 96% 56% / 0.18);
-  color: hsl(22 78% 26%);
-}
-.wup-state-draft .wup-state-pill-dot {
-  background: hsl(43 96% 56%);
-}
-.wup-state-notstarted {
-  background: hsl(240 4.8% 95.9%);
-  color: hsl(240 4% 40%);
-}
-.wup-state-notstarted .wup-state-pill-dot {
-  background: hsl(240 4% 40%);
-}
+/* State pills (§3.3) — VIS-4 (PR-2): consolidated onto the shared <Pill> (ui/Pill.css).
+   The bespoke .wup-state-* rules were removed; <StatePill> (ui/StatePill.tsx) renders
+   <Pill tone=success|warning|neutral>. */
+
+/* Card head inside this pane — the shared <CardHead> ships its own bottom border +
+   padding; here we only reset the side padding (the section already pads 16px 20px)
+   and add the bottom margin the old inline head row had. */
+.wup-review-card-head { padding: 0 0 14px; border-bottom: 0; margin-bottom: 14px; }
+.wup-review-error { padding: 8px 0; }
 
 /* Week nav in card head */
 .wup-week-nav {
@@ -168,13 +137,13 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: hsl(240 4% 40%);
+  color: hsl(var(--muted-foreground));
   font-size: 16px;
   min-height: 44px; /* ≥44px touch target */
   min-width: 44px;
 }
 .wup-week-nav-btn:hover:not(:disabled) {
-  background: hsl(240 4.8% 95.9%);
+  background: hsl(var(--secondary));
 }
 .wup-week-nav-btn:disabled,
 .wup-week-nav-btn[aria-disabled="true"] {
@@ -189,10 +158,10 @@
   flex-wrap: wrap;
   margin-bottom: 10px;
   font-size: 13px;
-  color: hsl(240 4% 40%);
+  color: hsl(var(--muted-foreground));
 }
 .wup-review-counts b {
-  color: hsl(240 10% 3.9%);
+  color: hsl(var(--foreground));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -204,26 +173,26 @@
   gap: 12px;
   min-height: 60px;
   padding: 8px 0;
-  border-bottom: 1px solid hsl(240 5.9% 90% / 0.7);
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
 }
 .wup-review-skeleton:last-child { border-bottom: 0; }
 .wup-review-skeleton-circle {
   width: 32px;
   height: 32px;
   border-radius: 9999px;
-  background: hsl(240 4.8% 95.9%);
+  background: hsl(var(--secondary));
   flex: none;
 }
 .wup-review-skeleton-line {
   border-radius: 4px;
-  background: hsl(240 4.8% 95.9%);
+  background: hsl(var(--secondary));
 }
 
 /* C2: read-only expanded panel (in-place under the row) */
 .wup-review-panel {
   padding: 12px 12px 14px 44px; /* indent under avatar width */
-  border-top: 1px solid hsl(240 5.9% 90% / 0.5);
-  background: hsl(240 4.8% 95.9% / 0.35);
+  border-top: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--secondary) / 0.35);
   border-radius: 0 0 4px 4px;
 }
 .wup-review-panel-head {
@@ -236,7 +205,7 @@
 .wup-review-panel-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: hsl(240 10% 3.9%); /* foreground */
+  color: hsl(var(--foreground)); /* foreground */
 }
 .wup-review-panel-section {
   margin-bottom: 10px;
@@ -246,13 +215,13 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: hsl(240 4% 40%); /* muted-foreground */
+  color: hsl(var(--muted-foreground)); /* muted-foreground */
   margin-bottom: 4px;
 }
 .wup-review-panel-body {
   font-size: 14px;
   line-height: 1.5;
-  color: hsl(240 10% 3.9%); /* foreground */
+  color: hsl(var(--foreground)); /* foreground */
   white-space: pre-wrap;
   margin: 0;
 }

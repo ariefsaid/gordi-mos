@@ -3,7 +3,18 @@ name: integration
 on:
   push:
     branches: [main]
+  # On PRs the heavy full-stack job (boots Supabase + pgTAP + e2e, ~3–4 min) runs ONLY
+  # when something it actually validates changes — DB/migrations/RLS, the e2e journeys,
+  # or this workflow's deps. UI-only PRs run just `verify` (~1 min). Pushes to main always
+  # run it (no paths filter on push), so every merge is fully validated post-merge.
   pull_request:
+    paths:
+      - 'supabase/**'
+      - 'mos-app/e2e/**'
+      - 'mos-app/playwright.config.*'
+      - 'mos-app/package-lock.json'
+      # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
+      # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
 jobs:
   db:
@@ -19,10 +30,13 @@ jobs:
       - name: Start local Supabase stack (applies migrations + seed)
         # Full `supabase start` (not `db start`): e2e needs auth/API/mailpit, and
         # `supabase status -o env` only emits keys when the full stack is up.
-        # `-x edge-runtime`: MOS ships no edge functions, and the edge-runtime
-        # container intermittently 502s on its health check (flaked PR #9 CI +
-        # locally) — excluding it removes a flaky dependency we never use.
-        run: supabase start -x edge-runtime
+        # KEPT (load-bearing): db (pgTAP) · auth/rest/kong (app API) · inbucket (e2e
+        # magic-link/reset). EXCLUDED: containers MOS's first slice never uses — speeds
+        # the boot (~the dominant CI cost). edge-runtime/functions (no edge fns; the
+        # edge-runtime container also intermittently 502s — flaked PR #9); studio/meta
+        # (admin UI); imgproxy/storage (no file features); realtime (no subscriptions);
+        # vector/analytics (log shipping). Re-add a name here if the app starts using it.
+        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
         # Defense-in-depth: prevents a recurrence of the _test_seed_role_tree audit Critical

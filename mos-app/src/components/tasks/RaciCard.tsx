@@ -3,6 +3,7 @@ import type { TaskListRow } from '../../lib/db/tasks.types'
 import type { PersonOption } from '../../lib/db/directory'
 import { initials } from './taskFormatters'
 import { PersonPicker } from './PersonPicker'
+import { Chevron } from '../../shell/icons'
 
 // ── RACI card ────────────────────────────────────────────────────────────────
 export type RaciCardProps = {
@@ -69,7 +70,7 @@ export function RaciCard({ task, people, canEdit: editable, onRaciChange, onRaCh
               >
                 <span className="person-av" aria-hidden="true">{initials(rName)}</span>
                 <span className="person-name">{rName}</span>
-                <span className="person-field-edit-hint" aria-hidden="true">▾</span>
+                <Chevron className="person-field-edit-hint" />
               </button>
               {showRPicker && (
                 <PersonPicker
@@ -105,9 +106,9 @@ export function RaciCard({ task, people, canEdit: editable, onRaciChange, onRaCh
                 aria-expanded={showAPicker}
                 onClick={() => setShowAPicker(o => !o)}
               >
-                <span className="person-av person-av-a" aria-hidden="true">{initials(aName)}</span>
+                <span className="person-av" aria-hidden="true">{initials(aName)}</span>
                 <span className="person-name">{aName}</span>
-                <span className="person-field-edit-hint" aria-hidden="true">▾</span>
+                <Chevron className="person-field-edit-hint" />
               </button>
               {showAPicker && (
                 <PersonPicker
@@ -119,7 +120,7 @@ export function RaciCard({ task, people, canEdit: editable, onRaciChange, onRaCh
             </>
           ) : (
             <div className="person-field" aria-label={`Accountable: ${aName}`}>
-              <span className="person-av person-av-a" aria-hidden="true">{initials(aName)}</span>
+              <span className="person-av" aria-hidden="true">{initials(aName)}</span>
               <span className="person-name">{aName}</span>
             </div>
           )}

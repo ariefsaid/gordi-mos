@@ -6,26 +6,27 @@ import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
 import type { ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
 
 // ── Static (display) form ───────────────────────────────────────────────────
-describe('ProgressMarker — static display', () => {
-  const cases: [ProgressMarkerType, string, string][] = [
-    ['done',        'pm-done',        'Done'],
-    ['in_progress', 'pm-inprogress',  'In progress'],
-    ['blocked',     'pm-blocked',     'Blocked'],
+describe('ProgressMarker — static display (re-skinned onto shared <Pill>)', () => {
+  // VIS-4 (PR-2): each marker maps to a shared-Pill tone.
+  const cases: [ProgressMarkerType, import('../../components/ui/Pill').PillTone, string][] = [
+    ['done',        'success',     'Done'],
+    ['in_progress', 'primary',     'In progress'],
+    ['blocked',     'destructive', 'Blocked'],
   ]
 
-  for (const [progress, cls, label] of cases) {
-    it(`renders "${label}" with class "${cls}" (AC-034, NFR-007)`, () => {
+  for (const [progress, tone, label] of cases) {
+    it(`renders "${label}" on a shared Pill with tone "${tone}" (AC-034, NFR-007)`, () => {
       const { container } = render(<ProgressMarker progress={progress} />)
-      const pill = container.querySelector('.pm-pill')
+      const pill = container.querySelector('.pill')
       expect(pill).toBeTruthy()
-      expect(pill!.classList.contains(cls)).toBe(true)
+      expect(pill!.classList.contains(`pill--${tone}`)).toBe(true)
       expect(screen.getByText(label)).toBeTruthy()
     })
   }
 
-  it('renders a 6px dot inside the pill (design-plan §4.2)', () => {
+  it('renders an 8px leading dot inside the pill (VIS-6 convergence, design-plan §4.2)', () => {
     const { container } = render(<ProgressMarker progress="blocked" />)
-    expect(container.querySelector('.pm-dot')).toBeTruthy()
+    expect(container.querySelector('.pill .dot')).toBeTruthy()
   })
 
   it('has an accessible name via aria-label on the pill span (WCAG-AA)', () => {

@@ -1,50 +1,18 @@
-/* ProgressMarker — token-based pill for update-line progress markers.
-   Distinct from StatusPill (task vocabulary): 3-value self-reported marker.
-   §4 design-plan; co-located CSS mirrors StatusPill.css pattern.
-   Token mapping (§4.2, ratified): In progress=primary/12%, Blocked=destructive/12%, Done=success/14%.
-   All text tokens cleared WCAG-AA ≥4.5:1 on their tints per DESIGN.md a11y posture. */
+/* ProgressMarker — picker chrome only (VIS-4, PR-2).
+   The pill shell + tints + dot moved to the shared ui/Pill.css (.pill/.dot/.pill--{tone}).
+   This file owns just the interactive picker trigger modifier + the listbox popover
+   (the option rows + their small standalone marker dots). */
 
-.pm-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 22px; padding: 0 9px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
-  /* No border, no shadow — flat at rest (Flat-By-Default Rule) */
-}
-.pm-dot {
-  width: 6px; height: 6px; border-radius: 999px; flex: none;
-}
-
-/* In progress — primary/12% bg, --status-open-text, primary dot */
-.pm-inprogress {
-  background: hsl(221 83% 53% / 0.12);
-  color: hsl(221 75% 38%); /* --status-open-text */
-}
-.pm-inprogress .pm-dot { background: hsl(221.2 83.2% 53.3%); } /* primary */
-
-/* Blocked — destructive/12% bg, --status-lost-text, destructive dot */
-.pm-blocked {
-  background: hsl(0 84% 60% / 0.12);
-  color: hsl(0 72% 45%); /* --status-lost-text */
-}
-.pm-blocked .pm-dot { background: hsl(0 84.2% 60.2%); } /* destructive */
-
-/* Done — success/14% bg, --status-won-text, success dot */
-.pm-done {
-  background: hsl(142 71% 45% / 0.14);
-  color: hsl(142 64% 30%); /* --status-won-text */
-}
-.pm-done .pm-dot { background: hsl(142 71% 45%); } /* success */
-
-/* ── Interactive trigger (picker button) ── */
+/* ── Interactive trigger modifier (applied on top of .pill .pill--{tone}) ── */
 .pm-trigger {
-  /* Inherits the pill shape; adds button reset */
+  /* Inherits the pill shape from .pill; adds button reset + affordance */
   cursor: pointer;
   border: none;
-  font: inherit; /* preserve parent typography */
+  font: inherit;
   /* Focus ring via global *:focus-visible — no per-component override */
 }
 .pm-trigger:hover {
-  /* Subtle hover wash — accent/40% overlay effect without a new token */
+  /* Subtle hover wash — brightness overlay without a new token */
   filter: brightness(0.97);
 }
 
@@ -52,19 +20,20 @@
 .pm-picker {
   position: absolute;
   z-index: 50;
-  background: hsl(0 0% 100%); /* popover */
-  border: 1px solid hsl(240 5.9% 90%); /* border */
+  background: hsl(var(--background)); /* popover */
+  border: 1px solid hsl(var(--border)); /* border */
   border-radius: 8px; /* rounded.md */
-  box-shadow: 0 4px 12px hsl(240 10% 3.9% / 0.12); /* overlay shadow — overlay response to state, not decoration */
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12); /* overlay shadow — overlay response to state, not decoration */
   padding: 4px;
   min-width: 140px;
   /* Reduced motion: no transform animation */
 }
 
-/* Dot color helpers for picker option rows (standalone dots, not inside .pm-pill) */
-.pm-dot-inprogress { background: hsl(221.2 83.2% 53.3%); }
-.pm-dot-blocked    { background: hsl(0 84.2% 60.2%); }
-.pm-dot-done       { background: hsl(142 71% 45%); }
+/* Small standalone marker dots inside picker options (not pills) */
+.pm-option-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.pm-option-dot--in_progress { background: hsl(var(--primary)); }
+.pm-option-dot--blocked     { background: hsl(var(--destructive)); }
+.pm-option-dot--done        { background: hsl(var(--success)); }
 
 .pm-option {
   display: flex; align-items: center; gap: 8px;
@@ -72,7 +41,7 @@
   border-radius: 6px; /* rounded.sm */
   cursor: pointer;
   font-size: 13px; font-weight: 500;
-  color: hsl(240 10% 3.9%); /* foreground */
+  color: hsl(var(--foreground)); /* foreground */
   background: transparent;
   border: none;
   width: 100%;
@@ -81,12 +50,12 @@
 }
 .pm-option:hover,
 .pm-option:focus-visible {
-  background: hsl(240 4.8% 95.9%); /* accent */
+  background: hsl(var(--secondary)); /* accent */
   outline: none;
 }
 .pm-option[aria-selected="true"] {
   /* Highlight current selection */
-  background: hsl(221 83% 53% / 0.08);
+  background: hsl(var(--primary) / 0.08);
 }
 
 /* Picker wrapper positioning anchor */
