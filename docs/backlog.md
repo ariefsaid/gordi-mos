@@ -106,6 +106,21 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
   `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
   vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
 
+## ⏳ Tasks tidy-up + UI-convention re-converge — branch `fix/tasks-tidy-reconverge` (NOT merged; awaiting owner verify)
+Post-ship, owner felt `/tasks` was "not tidy." A 3-lens opus design review (design-review · impeccable · taste)
+found the built page **drifted from its signed mockup** + broke common conventions. Two commits fix it:
+- `8699614` tidy-up → re-converge to `docs/design-mockups/tasks-dbview-final.html` (orphan "+ New task" row → toolbar;
+  %-widths → fixed-px; grey avatars; off-track-first group order; left-edge alignment; condensed toolbar keeps labels).
+- `44e9ce1` conventions (PMO `crud-companies.html` oracle): **view-tab strip REMOVED** (ViewTabStrip deleted); title
+  to top + aligned; filter **chevron** not dot; selected row **neutral grey**; **table `max-width:1280` LEFT-aligned**
+  (kills wide-screen Task-column sprawl); status pills → rounded-rect 6px.
+- Gates green (typecheck 0 · eslint 0 · **656** unit, −4 obsolete view-tab tests · build OK). Verified at code level;
+  **visual verify is the OWNER's at their real width** (agent-browser wedged + locked 1280 — see STATUS hard-won rules).
+- [ ] **NEXT:** owner verifies wide-width → **merge to main** → then: remove `FR-121`/`AC-122` from
+  `docs/specs/tasks-dbview.spec.md` (view-tabs gone) + amend `OD-P3-6` (view-tabs removed; left-aligned-1280
+  containment; chevron filters; grey selection; rounded-rect pills). Then flip this block to ✅.
+- [ ] (offered, not started) run the same convention pass over My Week / Updates / Daily Log for app-wide consistency.
+
 ## ✅ Tasks DB-view redesign — SHIPPED to `main` (PR #19, squash `e5686a9`, 2026-06-16)
 Grill → mockup → 4-lens → build-spec grill → **3-PR build + fix-ups** → reviewed → e2e → merged.
 **661 unit green · typecheck/eslint/build clean · ADR-0007 split-view oracle green · spec+code-quality

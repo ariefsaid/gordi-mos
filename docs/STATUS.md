@@ -63,6 +63,26 @@ full-bleed+view-tabs+toolbar+persistence → PR-3 TanStack+grouping+mobile → f
 port-forward infra). Decisions **OD-P3-6/7/8**, ADR-0008. Dev seed `supabase/seed.dev-tasks.sql`.
 Non-blocking follow-ups in `docs/backlog.md` → "✅ Tasks DB-view redesign" (mailpit forwarding to re-green
 AC-004/005, M2 resize re-subscribe, M3 avatar re-confirm, mockup reconcile).
+Post-#19 cleanup MERGED to main: `TaskNewPlaceholder` removed (`38d6dcd`); host trio `TaskDetail`/`TaskCreate`/
+`TasksPage` pruned + their AC oracles re-homed onto live surfaces (`01f9ce1`); AC-004/005 re-greened (mailpit).
+
+### ⏳ IN FLIGHT — Tasks tidy-up + UI-convention re-converge (branch `fix/tasks-tidy-reconverge`, NOT merged)
+A 3-lens design review (design-review · impeccable · taste, all opus) found the built `/tasks` page had
+**drifted from its own signed mockup** + violated common conventions. Two commits on the branch fix it:
+- `8699614` **tidy-up** (re-converge to `tasks-dbview-final.html`): orphan "+ New task" row → into toolbar;
+  %-col-widths → fixed-px; blue owner avatars → grey; off-track-first group order (In Progress→Blocked→
+  Open→Done); left-edge alignment; condensed-toolbar keeps filter labels.
+- `44e9ce1` **conventions** (PMO `crud-companies.html` oracle): **view-tab strip REMOVED** (ViewTabStrip
+  deleted — Board/Calendar were dead "SOON" stubs); title to top + aligned; filter **chevron** (not the
+  dot-like ▾); selected row → **neutral grey** (was blue); **table contained `max-width:1280` LEFT-aligned**
+  (kills Task-column sprawl on wide monitors); status pills → rounded-rect (6px, shared StatusPill).
+- Gates green (typecheck 0 · eslint 0 · **656** unit — −4 obsolete view-tab tests · build OK).
+- **NEXT:** awaiting **owner visual verify at their real width** (the agent-browser tool is wedged + locked
+  at 1280px, so the Director cannot self-screenshot the wide-screen containment — see hard-won rule below).
+  On owner OK → **merge `fix/tasks-tidy-reconverge` to main**, THEN update docs: **remove `FR-121`/`AC-122`
+  (view-tabs) from `docs/specs/tasks-dbview.spec.md`** and amend **`OD-P3-6`** (view-tabs removed; left-aligned
+  1280 containment; chevron filters; grey selection; rounded-rect pills). Offered (not started): same
+  convention pass over My Week / Updates / Daily Log for app-wide consistency.
 
 ## Open owner decisions (THE WALL — never guess)
 - **WALL-3** — which kitchen events mirror first (gates P2-4).
@@ -101,6 +121,22 @@ AC-004/005, M2 resize re-subscribe, M3 avatar re-confirm, mockup reconcile).
   affected service (e.g. `supabase_kong_gordi-mos` for the API gateway, the mailpit/inbucket container for
   `:44324`) to re-establish the host proxy — lighter + safer than `supabase stop/start` or a full Docker
   bounce (which can also restart co-resident PMO containers). This unblocked the #19 4-lens review.
+- **`agent-browser` (the Director's render tool) degrades under load + is viewport-locked.** Over a long
+  session it wedges: DOM `snapshot` keeps working but `screenshot` file-writes stall and JS-driven clicks
+  (incl. the demo-login button AND the email/password `fill`+submit) stop registering — `pkill -f
+  "/.agent-browser/browsers/"` + a chained `open && screenshot` recovers it briefly, then it re-wedges.
+  It also renders at a **fixed 1280px** here (`viewport`/`--viewport` don't take), so the Director CANNOT
+  reproduce a wide monitor — full-bleed/containment bugs are **invisible at 1280** (the #19 review missed the
+  Task-column sprawl for exactly this reason: looked fine at 1280, ballooned at the owner's width). **Rule:**
+  verify wide-screen layout by **DOM measurement** (`agent-browser eval` getBoundingClientRect + the CSS
+  math) AND hand the final visual verdict to the **owner at their real width**. To log in via agent-browser,
+  use the **regular email/password form** (`fill`/`type` e10/e11 + click/Enter), not the demo-persona button
+  (its React onClick doesn't fire through agent-browser) — and even that is unreliable when wedged.
+- **Demo-login orphan RECURS after every e2e run** — the Playwright global-setup reuses the `*.dev` persona
+  `shared.people` rows (`40000000-…-00N`) and repoints their `user_id` to e2e auth users. Symptom: "Your
+  account isn't set up yet." Quick fix: `docker exec supabase_db_gordi-mos psql -U postgres -c "UPDATE
+  shared.people p SET user_id=a.id FROM auth.users a WHERE p.email=a.email AND p.email LIKE
+  '%.dev@example.test';"` (or `supabase db reset`). Permanent fix logged in backlog (decouple e2e fixtures).
 - **Demo login orphans after an e2e reseed → `supabase db reset` relinks it.** The dev one-click login
   (#13) lands on "Your account isn't set up yet" when `shared.people.user_id` loses its link to the
   seeded `auth.users` (an e2e run can drift local DB state). `supabase db reset` re-runs
