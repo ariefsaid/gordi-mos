@@ -7,12 +7,12 @@
 
 /* ── Page head ── */
 .page-head-row {
+  /* CONV: the page title anchors the TOP (PMO `.page-head`) and shares ONE left rule with
+     the toolbar + table — the `.assembly` card edge — so the title, toolbar, and table all
+     land on the PageFrame 24px gutter (no indent). Capped at 1280px, LEFT-aligned: trailing
+     empty space sits on the RIGHT only on wide monitors (NOT a centered column, per owner). */
   display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
-  /* OD-P3-6 left rule: the page title shares ONE left edge with the toolbar's first
-     control, the THEAD 'Task' column, the group caret and the task-name text. The table
-     carries a readable 12px cell padding (DESIGN.md row-breathing), so the shared edge is
-     the PageFrame 24px gutter + 12px; every content element lands on this single rule. */
-  padding-left: 12px;
+  max-width: 1280px;
 }
 .tasks-page-title {
   font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; color: hsl(var(--foreground));
@@ -24,6 +24,10 @@
   display: grid;
   grid-template-columns: 1fr clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width */
   align-items: start; gap: 12px;
+  /* CONV: cap the workspace (toolbar + table + drawer) at ~1280px, LEFT-aligned within
+     the full-bleed page so the Task column can't balloon on wide monitors (PMO main-inner
+     cap). NOT centered — trailing space sits on the RIGHT only. */
+  max-width: 1280px;
 }
 .split.nodrawer { grid-template-columns: 1fr; }
 /* Expanded focus mode: table hidden, drawer fills the row. */
@@ -92,7 +96,7 @@
   font-size: 13px; color: hsl(var(--foreground)); cursor: pointer; position: relative;
 }
 .ctrl-lbl { color: hsl(var(--muted-foreground)); font-size: 13px; }
-.ctrl-chev { color: hsl(var(--muted-foreground)); font-size: 10px; pointer-events: none; }
+.ctrl-chev { color: hsl(var(--muted-foreground)); pointer-events: none; flex: none; }
 .ctrl-select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 13px; }
 .seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(var(--secondary)); border-radius: 8px; }
 .seg-btn {
@@ -184,7 +188,7 @@
 .task-row { cursor: pointer; }
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: hsl(240 4.8% 95.9% / 0.6); }
-.task-row.row-selected td { background: hsl(var(--primary) / 0.07); } /* selected/open row */
+.task-row.row-selected td { background: hsl(var(--secondary)); } /* CONV: neutral-grey selected/open row — de-blued (owner pref + One-Blue Rule) */
 /* AC-109 keyboard cursor: a plain primary 2px inset rule (no new --kbd-cursor token,
    design-plan §6.2). box-shadow inset keeps the row height stable (no layout shift). */
 .task-row.kfocus td { box-shadow: inset 0 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }

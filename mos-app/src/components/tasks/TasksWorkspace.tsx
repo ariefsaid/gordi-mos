@@ -25,7 +25,6 @@ import { OwnerCell } from './OwnerCell'
 import type { OwnerCellRaciMember } from './OwnerCell'
 import { formatAge, formatDate, otherRaciCount } from './taskFormatters'
 import { useTasksKeyboard } from './useTasksKeyboard'
-import { ViewTabStrip } from './ViewTabStrip'
 import { useTasksViewPref } from './useTasksViewPref'
 import type { TasksGroupBy } from './useTasksViewPref'
 import { GroupHeaderRow } from './GroupHeaderRow'
@@ -98,8 +97,21 @@ function SkeletonRow({ condensed }: { condensed: boolean }) {
 
 const columnHelper = createColumnHelper<TaskListRow>()
 
+/** Down-chevron affordance for the bordered filter controls (Group / Business unit /
+ *  Status / Person) — mirrors PMO's `select.inp` chevron path `M6 9l6 6 6-6`, ~14px,
+ *  muted-foreground via currentColor (the group-by control recolors it to navy).
+ *  Replaces the old 10px '▾' text glyph that read as a dot. */
+function FilterChevron() {
+  return (
+    <svg className="ctrl-chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
 /**
- * The Tasks workspace assembly (view-tabs + toolbar + grouped dense table /
+ * The Tasks workspace assembly (page title + toolbar + grouped dense table /
  * mobile grouped cards + all states + the split-view drawer slot). Built on a
  * single client-side @tanstack/react-table instance for filtering + sorting
  * (NFR-120); grouping (incl. empty groups), the keyboard cursor, optimistic
@@ -516,10 +528,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
   return (
     <>
-      {/* ViewTabStrip — above the page head, per design-plan §5 (FR-121 / AC-122).
-          Desktop only — mobile drops the view-tab strip (OD-P3-6 / AC-129). */}
-      {isDesktop && <ViewTabStrip active="table" />}
-
       <div className="page-head-row">
         <h1 className="tasks-page-title">Tasks</h1>
         {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}
@@ -576,7 +584,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="owner">Owner</option>
             <option value="bu">Business unit</option>
           </select>
-          <span className="ctrl-chev" aria-hidden="true">▾</span>
+          <FilterChevron />
         </div>
 
         <label htmlFor="bu-filter" className="sr-only">Business unit</label>
@@ -587,7 +595,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="">All</option>
             {buOptions.map(bu => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
           </select>
-          <span className="ctrl-chev" aria-hidden="true">▾</span>
+          <FilterChevron />
         </div>
 
         <label htmlFor="status-filter" className="sr-only">Status</label>
@@ -601,7 +609,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="Blocked">Blocked</option>
             <option value="Done">Done</option>
           </select>
-          <span className="ctrl-chev" aria-hidden="true">▾</span>
+          <FilterChevron />
         </div>
 
         <label htmlFor="person-filter" className="sr-only">Person</label>
@@ -612,7 +620,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             <option value="">Anyone</option>
             {personOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
           </select>
-          <span className="ctrl-chev" aria-hidden="true">▾</span>
+          <FilterChevron />
         </div>
 
         {/* Mine/RACI/All segment — disabled when Person filter is set (FR-124 / AC-126).

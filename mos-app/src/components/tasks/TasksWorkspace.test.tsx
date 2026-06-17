@@ -1,5 +1,5 @@
 /**
- * PR-2 TasksTable tests — Task 9 (toolbar + ViewTabStrip), Task 10 (Person-overrides-segment),
+ * PR-2 TasksTable tests — Task 9 (toolbar), Task 10 (Person-overrides-segment),
  * Task 11 (missing states + overdue filter button).
  * Tests that cover behavior via the full split-view (TasksLayout.test.tsx) are kept there.
  * These tests mount TasksTable directly to assert PR-2-specific additions.
@@ -110,23 +110,9 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
 })
 
-// ── Task 9 — ViewTabStrip in toolbar region (AC-122) ──────────────────────────
+// ── Task 9 — group-by control in toolbar (view-tab strip removed per owner — the table IS the view, PMO-style)
 
-describe('Task 9 — ViewTabStrip + group-by control in toolbar', () => {
-  it('renders the ViewTabStrip tablist above the toolbar (AC-122)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
-    renderTable()
-    await waitFor(() => screen.getByText('A task'))
-    // ViewTabStrip tablist present
-    const tablist = screen.getByRole('tablist', { name: /workspace view/i })
-    expect(tablist).toBeInTheDocument()
-    // Table tab is selected
-    expect(screen.getByRole('tab', { name: /table/i })).toHaveAttribute('aria-selected', 'true')
-    // Board and Calendar are SOON stubs
-    expect(screen.getByRole('tab', { name: /board/i })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('tab', { name: /calendar/i })).toHaveAttribute('aria-disabled', 'true')
-  })
-
+describe('Task 9 — group-by control in toolbar', () => {
   it('renders a group-by control with Status, Owner, Business unit options', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
@@ -669,15 +655,13 @@ describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
 })
 
 describe('Task 22 — mobile grouped cards (AC-129)', () => {
-  it('AC-129: <768px renders grouped cards (group headers + cards) and no view-tab strip', async () => {
+  it('AC-129: <768px renders grouped cards (group headers + cards)', async () => {
     stubMatchMedia(false, false) // not split, not desktop → mobile
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mobile task', status: 'Open' })])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
     await switchToAll()
     await waitFor(() => screen.getByText('Mobile task'))
-    // No view-tab strip on mobile
-    expect(screen.queryByRole('tablist', { name: /workspace view/i })).toBeNull()
     // Group headings present (the chosen group-by: status)
     expect(screen.getByText('Mobile task')).toBeInTheDocument()
     expect(document.querySelector('[data-testid="task-card"]')).toBeTruthy()
