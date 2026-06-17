@@ -15,10 +15,12 @@
   display: grid;
   grid-template-columns: 1fr clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width */
   align-items: start; gap: 12px;
-  /* CONV: cap the workspace (toolbar + table + drawer) at ~1280px, LEFT-aligned within
-     the full-bleed page so the Task column can't balloon on wide monitors (PMO main-inner
-     cap). NOT centered — trailing space sits on the RIGHT only. */
-  max-width: 1280px;
+  /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — no max-width cap.
+     It fills PageFrame's 24px gutters, which equal the topbar's px-6 gutter, so the table's
+     right edge aligns with the account chip (no detached 1/3-width content on wide monitors).
+     Only the Task column (1fr) absorbs the extra width; the other columns are fixed-px, so
+     nothing balloons. A generous safety cap guards absurd ultra-wide Task columns only. */
+  max-width: 1760px;
 }
 .split.nodrawer { grid-template-columns: 1fr; }
 /* Expanded focus mode: table hidden, drawer fills the row. */

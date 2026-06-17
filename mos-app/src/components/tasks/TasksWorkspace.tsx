@@ -535,7 +535,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     <>
       <PageHead
         title="Tasks"
-        maxWidth={1280}
         meta={
           <>
             {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}

@@ -246,3 +246,17 @@ describe('RI-IXD-2: sort affordance inline-block + uniform left-aligned grid', (
     expect(readSrc('components/tasks/TasksWorkspace.tsx')).not.toMatch(/th-sortable th-right/)
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RI-LAYOUT-2: data workspace is FULL-BLEED (owner-directed) — no 1280 cap, so the
+// table fills the gutter and aligns with the top-right account chip. A generous
+// ultra-wide safety cap (1760) is allowed; the released 1280 cap is not.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
+  it('TasksWorkspace.css .split is not capped at 1280px', () => {
+    expect(readSrc('components/tasks/TasksWorkspace.css')).not.toMatch(/max-width:\s*1280px/)
+  })
+  it('the Tasks PageHead is not capped at 1280 (full-bleed header)', () => {
+    expect(readSrc('components/tasks/TasksWorkspace.tsx')).not.toMatch(/maxWidth=\{1280\}/)
+  })
+})
