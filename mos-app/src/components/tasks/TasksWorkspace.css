@@ -150,7 +150,7 @@
 .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 150px; }  /* Status */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 200px; }  /* Owner */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 128px; }  /* Business unit */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 118px; }  /* Due */
+.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 150px; }  /* Due (fits "Overdue · Fri 12 Jun" left-aligned, no clip) */
 .tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 92px; }   /* Activity */
 /* Condensed 4-col widths (drawer-open: Business unit + Activity dropped for the squashed
    column; Owner narrowed → avatar only). %-based so the columns flex to the narrow split. */
@@ -170,12 +170,15 @@
 .th-sortable { cursor: pointer; }
 .th-sortable:hover { color: hsl(var(--foreground)); }
 .th-sorted { color: hsl(var(--foreground)); }
-.th-right { text-align: right; }
-.sort-aff { font-size: 10px; margin-left: 5px; color: hsl(var(--primary)); }
-.td-main, .td-cell, .td-right {
+/* Sort affordance MUST be inline-block: Tailwind preflight sets `svg { display:block }`,
+   and a block-level SVG ignores the cell's text-align and drops to its own line at the left
+   (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
+.sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: hsl(var(--primary)); }
+.td-main, .td-cell {
   height: 54px; padding: 0 12px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle;
 }
-.td-right { text-align: right; white-space: nowrap; }
+/* Due/Activity: LEFT-aligned like every other column (uniform grid), but never wrap. */
+.td-nowrap { white-space: nowrap; }
 .task-row { cursor: pointer; }
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: hsl(240 4.8% 95.9% / 0.6); }

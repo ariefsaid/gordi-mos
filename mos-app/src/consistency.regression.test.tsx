@@ -43,6 +43,7 @@ import MyWeek from './pages/MyWeek'
 import UpdatesPage from './pages/UpdatesPage'
 import OpsPage from './pages/OpsPage'
 import TasksLayout from './pages/TasksLayout'
+import PageFrame from './shell/PageFrame'
 
 const authedState: AuthState = {
   status: 'authenticated',
@@ -211,5 +212,37 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     )
     expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('[class*="page-title"]')).toBeNull()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RI-LAYOUT-1: every page LEFT-aligns at the same gutter — PageFrame never centers
+// content (no `margin: 0 auto`), so the content origin is identical across routes.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('RI-LAYOUT-1: PageFrame left-aligns content (no centered prose)', () => {
+  for (const variant of ['prose', 'data'] as const) {
+    it(`${variant} variant does not center (inline margin is 0, not auto)`, () => {
+      const { container } = render(
+        <PageFrame variant={variant}><div>x</div></PageFrame>,
+      )
+      const inner = container.querySelector('main > div') as HTMLElement
+      expect(inner).toBeTruthy()
+      expect(inner.style.margin).toBe('0px') // left-aligned; a centered layout would be "0px auto"
+    })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RI-IXD-2: the sort affordance is inline-block. Tailwind preflight sets
+// `svg { display:block }`; a block sort SVG ignores the cell's text-align and
+// detaches from its column label (the bug this guards). Due/Activity stay LEFT.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-2: sort affordance inline-block + uniform left-aligned grid', () => {
+  it('.sort-aff is display:inline-block so the arrow stays beside its label', () => {
+    const body = ruleBody(readSrc('components/tasks/TasksWorkspace.css'), '.sort-aff')
+    expect(body).toMatch(/display:\s*inline-block/)
+  })
+  it('Due/Activity headers are not right-aligned (no th-right — uniform left grid)', () => {
+    expect(readSrc('components/tasks/TasksWorkspace.tsx')).not.toMatch(/th-sortable th-right/)
   })
 })

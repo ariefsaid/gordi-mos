@@ -495,8 +495,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         <td className="td-cell"><StatusPill status={task.status} /></td>
         <td className="td-cell td-owner"><OwnerCell fullName={rName} otherCount={otherRaciCount(task)} others={buildOthers(task)} /></td>
         {!condensed && <td className="td-cell td-bu">{buName}</td>}
-        <td className={`td-right tabular-nums ${dueClass}`}>{dueText}</td>
-        {!condensed && <td className="td-right tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
+        <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
+        {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
       </tr>
     )
   }
@@ -751,12 +751,12 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
                 {!condensed && (
                   <th scope="col" className="th-cell">Business unit</th>
                 )}
-                <th scope="col" className={`th-cell th-sortable th-right${sortCol === 'due' ? ' th-sorted' : ''}`}
+                <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('due')} onClick={() => handleSort('due')}>
                   Due{sortIndicator('due')}
                 </th>
                 {!condensed && (
-                  <th scope="col" className={`th-cell th-sortable th-right${sortCol === 'activity' ? ' th-sorted' : ''}`}
+                  <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
                     aria-sort={colSort('activity')} onClick={() => handleSort('activity')}>
                     Activity{sortIndicator('activity')}
                   </th>

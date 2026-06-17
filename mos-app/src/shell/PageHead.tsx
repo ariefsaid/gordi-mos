@@ -4,9 +4,9 @@ interface PageHeadProps {
   title: string
   subtitle?: string
   /**
-   * Right-aligned slot for the count/meta line that sits on the title's baseline
-   * ("N tasks", "Tue 17 Jun · N log entries"). Folded in from the bespoke
-   * `.tasks-count-line` / `.ops-count-line` variants (IA-1, PR-1).
+   * Count/meta slot that sits on the title's baseline, immediately after it
+   * ("11 tasks · 2 blocked", "Tue 17 Jun · N log entries"). Folded in from the
+   * bespoke `.tasks-count-line` / `.ops-count-line` variants (IA-1, PR-1).
    */
   meta?: ReactNode
   /**
@@ -33,7 +33,9 @@ export default function PageHead({ title, subtitle, meta, maxWidth }: PageHeadPr
         >
           {title}
         </h1>
-        {meta && <span className="ml-auto">{meta}</span>}
+        {/* Meta/count sits immediately after the title (Linear-style "Tasks · 11 tasks"),
+            NOT flung to the far edge — keeps the header anchored to the content. */}
+        {meta && <span>{meta}</span>}
       </div>
       {subtitle && (
         <p className="text-muted-foreground mt-[6px]" style={{ fontSize: 14 }}>

@@ -167,14 +167,14 @@ export default function MyWeek() {
                 </th>
                 <th
                   scope="col"
-                  className="text-right text-muted-foreground font-semibold uppercase border-b border-border"
+                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
                   style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
                 >
                   Due
                 </th>
                 <th
                   scope="col"
-                  className="text-right text-muted-foreground font-semibold uppercase border-b border-border"
+                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
                   style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
                 >
                   Activity
