@@ -44,12 +44,12 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 
   // --- Navigate to Updates ---
-  // P2-2b: page title is now "Weekly update — Gordi MOS"; real write pane replaces placeholder.
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }).click()
+  // P2-2b + JTBD-1 rename: section is now "Weekly Updates" (rail label, h1, and title).
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }).click()
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Weekly update — Gordi MOS')
-  await expect(page.locator('header b:text("Updates")')).toBeVisible()
-  const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' })
+  await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
+  await expect(page.locator('header b:text("Weekly Updates")')).toBeVisible()
+  const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' })
   await expect(updatesLink).toHaveAttribute('aria-current', 'page')
   // Real write pane is rendered (aria-label from WeeklyUpdateWritePane section)
   await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
@@ -67,16 +67,16 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   // --- Deep-link reload on /updates (FR-008) ---
   // Navigate to updates first, then reload
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }).click()
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }).click()
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
   await page.reload()
 
   // After reload: all three signals should still resolve to Updates (P2-2b title update)
   await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Weekly update — Gordi MOS')
-  await expect(page.locator('header b:text("Updates")')).toBeVisible()
+  await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
+  await expect(page.locator('header b:text("Weekly Updates")')).toBeVisible()
   await expect(
-    page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Updates' }),
+    page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }),
   ).toHaveAttribute('aria-current', 'page')
 })
 
