@@ -1,50 +1,18 @@
-/* ProgressMarker — token-based pill for update-line progress markers.
-   Distinct from StatusPill (task vocabulary): 3-value self-reported marker.
-   §4 design-plan; co-located CSS mirrors StatusPill.css pattern.
-   Token mapping (§4.2, ratified): In progress=primary/12%, Blocked=destructive/12%, Done=success/14%.
-   All text tokens cleared WCAG-AA ≥4.5:1 on their tints per DESIGN.md a11y posture. */
+/* ProgressMarker — picker chrome only (VIS-4, PR-2).
+   The pill shell + tints + dot moved to the shared ui/Pill.css (.pill/.dot/.pill--{tone}).
+   This file owns just the interactive picker trigger modifier + the listbox popover
+   (the option rows + their small standalone marker dots). */
 
-.pm-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 22px; padding: 0 9px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
-  /* No border, no shadow — flat at rest (Flat-By-Default Rule) */
-}
-.pm-dot {
-  width: 6px; height: 6px; border-radius: 999px; flex: none;
-}
-
-/* In progress — primary/12% bg, --status-open-text, primary dot */
-.pm-inprogress {
-  background: hsl(var(--primary) / 0.12);
-  color: hsl(var(--status-open-text)); /* --status-open-text */
-}
-.pm-inprogress .pm-dot { background: hsl(var(--primary)); } /* primary */
-
-/* Blocked — destructive/12% bg, --status-lost-text, destructive dot */
-.pm-blocked {
-  background: hsl(var(--destructive) / 0.12);
-  color: hsl(var(--status-lost-text)); /* --status-lost-text */
-}
-.pm-blocked .pm-dot { background: hsl(var(--destructive)); } /* destructive */
-
-/* Done — success/14% bg, --status-won-text, success dot */
-.pm-done {
-  background: hsl(var(--success) / 0.14);
-  color: hsl(var(--status-won-text)); /* --status-won-text */
-}
-.pm-done .pm-dot { background: hsl(var(--success)); } /* success */
-
-/* ── Interactive trigger (picker button) ── */
+/* ── Interactive trigger modifier (applied on top of .pill .pill--{tone}) ── */
 .pm-trigger {
-  /* Inherits the pill shape; adds button reset */
+  /* Inherits the pill shape from .pill; adds button reset + affordance */
   cursor: pointer;
   border: none;
-  font: inherit; /* preserve parent typography */
+  font: inherit;
   /* Focus ring via global *:focus-visible — no per-component override */
 }
 .pm-trigger:hover {
-  /* Subtle hover wash — accent/40% overlay effect without a new token */
+  /* Subtle hover wash — brightness overlay without a new token */
   filter: brightness(0.97);
 }
 
@@ -61,10 +29,11 @@
   /* Reduced motion: no transform animation */
 }
 
-/* Dot color helpers for picker option rows (standalone dots, not inside .pm-pill) */
-.pm-dot-inprogress { background: hsl(var(--primary)); }
-.pm-dot-blocked    { background: hsl(var(--destructive)); }
-.pm-dot-done       { background: hsl(var(--success)); }
+/* Small standalone marker dots inside picker options (not pills) */
+.pm-option-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.pm-option-dot--in_progress { background: hsl(var(--primary)); }
+.pm-option-dot--blocked     { background: hsl(var(--destructive)); }
+.pm-option-dot--done        { background: hsl(var(--success)); }
 
 .pm-option {
   display: flex; align-items: center; gap: 8px;

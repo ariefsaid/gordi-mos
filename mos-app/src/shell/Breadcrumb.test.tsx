@@ -52,3 +52,30 @@ describe('AC-004: Breadcrumb per route', () => {
     })
   })
 })
+
+// IA-2 (PR-2): the shell breadcrumb EXTENDS to the leaf on sub-pages, so the
+// redundant in-page `/`-separated crumbs could be removed. One `›` separator.
+describe('IA-2: Breadcrumb extends to the leaf on sub-pages', () => {
+  const leafCases: Array<{ path: string; section: string; leaf: string }> = [
+    { path: '/ops/new', section: 'Daily Log', leaf: 'Add log entry' },
+    { path: '/ops/some-id/edit', section: 'Daily Log', leaf: 'Edit log entry' },
+    { path: '/tasks/new', section: 'Tasks', leaf: 'New task' },
+  ]
+
+  for (const { path, section, leaf } of leafCases) {
+    it(`renders "Gordi MOS › ${section} › ${leaf}" at "${path}" (leaf bold, section muted)`, () => {
+      const { container } = renderBreadcrumb(path)
+      // Three segments + two › separators
+      expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
+      expect(screen.getByText(section)).toBeInTheDocument()
+      expect(screen.getByText(leaf)).toBeInTheDocument()
+      const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+        .filter(el => el.textContent === '›')
+      expect(separators).toHaveLength(2)
+      // The leaf (current page) is bold; the section de-emphasizes to a muted span
+      const leafEl = screen.getByText(leaf)
+      expect(leafEl.tagName.toLowerCase()).toBe('b')
+      expect(screen.getByText(section).tagName.toLowerCase()).not.toBe('b')
+    })
+  }
+})

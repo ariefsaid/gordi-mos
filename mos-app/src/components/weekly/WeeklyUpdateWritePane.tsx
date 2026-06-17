@@ -10,6 +10,9 @@ import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdat
 import { weekLabel } from '../../lib/week'
 import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
 import TimingChip from './TimingChip'
+import { CardHead } from '../ui/CardHead'
+import { ErrorState } from '../ui/StateKit'
+import { Pill } from '../ui/Pill'
 
 // ── Local item shape (draft lines before persist) ────────────────────────────
 interface DraftLine {
@@ -379,7 +382,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     )
   }
 
-  // Error state (AC-038) — role=alert so screen reader announces it
+  // Error state (AC-038) — IXD-5 shared <ErrorState> (role=alert)
   if (loadState === 'error') {
     return (
       <section
@@ -387,44 +390,21 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
         className="bg-card border border-border rounded-md"
         style={{ padding: '16px 20px' }}
       >
-        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 14, color: 'hsl(var(--muted-foreground))' }}>
-            Couldn't load your update
-          </span>
-          <button
-            type="button"
-            onClick={load}
-            style={{
-              height: 32, padding: '0 12px', borderRadius: 8,
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--background))', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-              color: 'hsl(var(--foreground))',
-            }}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorState message="Couldn't load your update" onRetry={load} />
       </section>
     )
   }
 
-  // Week pill (§1.2 design-plan, tabular)
+  // Week pill (§1.2 design-plan, tabular) — VIS-4: shared <Pill>
   const WeekPill = (
-    <span
+    <Pill
+      tone="neutral"
       data-testid="week-pill"
       className="tabular-nums"
-      style={{
-        display: 'inline-flex', alignItems: 'center',
-        height: 22, padding: '0 9px', borderRadius: 999,
-        background: 'hsl(var(--secondary))', /* secondary */
-        color: 'hsl(var(--muted-foreground))', /* muted-foreground */
-        fontSize: 12, fontWeight: 600,
-        fontVariantNumeric: 'tabular-nums',
-      }}
+      style={{ fontVariantNumeric: 'tabular-nums' }}
     >
       Week of {wib.range}
-    </span>
+    </Pill>
   )
 
   // ── Submitted (locked) render (AC-031, §2.4) ──────────────────────────────
@@ -435,24 +415,19 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
         className="bg-card border border-border rounded-md"
         style={{ padding: '16px 20px' }}
       >
-        {/* Head row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3 }}>My weekly update</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {WeekPill}
-            {/* Submitted lifecycle pill (§2.4) */}
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              height: 22, padding: '0 9px', borderRadius: 999,
-              background: 'hsl(var(--success) / 0.14)', color: 'hsl(var(--status-won-text))', /* success/14% / --status-won-text */
-              fontSize: 12, fontWeight: 600,
-            }}>
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(var(--success))', flexShrink: 0 }} />
-              Submitted
-            </span>
-            {submittedAt && <TimingChip submittedAt={submittedAt} weekStart={weekStart} />}
-          </div>
-        </div>
+        {/* Card head (IA-3: shared <CardHead>) — title + week pill + Submitted pill + timing */}
+        <CardHead
+          className="wup-write-card-head"
+          title="My weekly update"
+          action={(
+            <>
+              {WeekPill}
+              {/* Submitted lifecycle pill (§2.4) — VIS-4 shared <Pill> */}
+              <Pill tone="success">Submitted</Pill>
+              {submittedAt && <TimingChip submittedAt={submittedAt} weekStart={weekStart} />}
+            </>
+          )}
+        />
 
         {/* Summary — static text (no textarea, AC-031) */}
         <div style={{ marginBottom: 16 }}>
@@ -480,21 +455,14 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           </div>
         )}
 
-        {/* Reopen action (§2.4) */}
+        {/* Reopen action (§2.4) — IXD-4 shared .btn-outline */}
         <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 14, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             type="button"
+            className="btn btn-outline"
             onClick={handleReopen}
             disabled={saving}
             aria-busy={saving ? 'true' : undefined}
-            style={{
-              height: 32, padding: '0 12px', borderRadius: 8,
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--background))', cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-              color: 'hsl(var(--foreground))',
-              opacity: saving ? 0.5 : 1,
-            }}
           >
             Reopen to edit
           </button>

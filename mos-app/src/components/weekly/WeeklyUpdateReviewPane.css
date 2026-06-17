@@ -111,46 +111,15 @@
   text-align: right;
 }
 
-/* State pills (§3.3) — badge-status shell + dot */
-.wup-state-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 9px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  min-width: 96px;
-  justify-content: center;
-}
-.wup-state-pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-}
-.wup-state-filed {
-  background: hsl(var(--success) / 0.14);
-  color: hsl(var(--status-won-text));
-}
-.wup-state-filed .wup-state-pill-dot {
-  background: hsl(var(--success));
-}
-.wup-state-draft {
-  background: hsl(var(--warning) / 0.18);
-  color: hsl(var(--warning-foreground));
-}
-.wup-state-draft .wup-state-pill-dot {
-  background: hsl(var(--warning));
-}
-.wup-state-notstarted {
-  background: hsl(var(--secondary));
-  color: hsl(var(--muted-foreground));
-}
-.wup-state-notstarted .wup-state-pill-dot {
-  background: hsl(var(--muted-foreground));
-}
+/* State pills (§3.3) — VIS-4 (PR-2): consolidated onto the shared <Pill> (ui/Pill.css).
+   The bespoke .wup-state-* rules were removed; <StatePill> (ui/StatePill.tsx) renders
+   <Pill tone=success|warning|neutral>. */
+
+/* Card head inside this pane — the shared <CardHead> ships its own bottom border +
+   padding; here we only reset the side padding (the section already pads 16px 20px)
+   and add the bottom margin the old inline head row had. */
+.wup-review-card-head { padding: 0 0 14px; border-bottom: 0; margin-bottom: 14px; }
+.wup-review-error { padding: 8px 0; }
 
 /* Week nav in card head */
 .wup-week-nav {

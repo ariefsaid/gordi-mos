@@ -3,15 +3,30 @@
 //   static  ProgressMarker        — display only (submitted-locked, review excerpts)
 //   interactive ProgressMarkerPicker — button + listbox picker (draft editor)
 // DISTINCT from task StatusPill: different vocabulary (Done/In progress/Blocked, no "Open").
+//
+// VIS-4/5/6 (PR-2): re-skinned onto the shared <Pill> primitive — one shell (6px radius,
+// 8px dot, 12/600). The picker listbox options keep their own small standalone dots.
 import { useRef, useState, useEffect, useCallback } from 'react'
 import type { ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
+import { Pill } from '../ui/Pill'
+import type { PillTone } from '../ui/Pill'
 import './ProgressMarker.css'
 
 // ── Token mapping (§4.2, ratified in design-plan) ───────────────────────────
-const PROGRESS_CONFIG: Record<ProgressMarkerType, { cls: string; label: string }> = {
-  done:        { cls: 'pm-done',        label: 'Done' },
-  in_progress: { cls: 'pm-inprogress',  label: 'In progress' },
-  blocked:     { cls: 'pm-blocked',     label: 'Blocked' },
+const PROGRESS_TONE: Record<ProgressMarkerType, PillTone> = {
+  done: 'success',
+  in_progress: 'primary',
+  blocked: 'destructive',
+}
+const PROGRESS_LABEL: Record<ProgressMarkerType, string> = {
+  done: 'Done',
+  in_progress: 'In progress',
+  blocked: 'Blocked',
+}
+const PROGRESS_TONE_CLASS: Record<ProgressMarkerType, string> = {
+  done: 'pill--success',
+  in_progress: 'pill--primary',
+  blocked: 'pill--destructive',
 }
 
 const ALL_MARKERS: ProgressMarkerType[] = ['done', 'in_progress', 'blocked']
@@ -23,15 +38,11 @@ interface ProgressMarkerProps {
 }
 
 export function ProgressMarker({ progress, className = '' }: ProgressMarkerProps) {
-  const { cls, label } = PROGRESS_CONFIG[progress]
+  const label = PROGRESS_LABEL[progress]
   return (
-    <span
-      className={`pm-pill ${cls} ${className}`}
-      aria-label={label}
-    >
-      <span className="pm-dot" aria-hidden="true" />
+    <Pill tone={PROGRESS_TONE[progress]} className={className} aria-label={label}>
       {label}
-    </span>
+    </Pill>
   )
 }
 
@@ -54,7 +65,7 @@ export function ProgressMarkerPicker({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
 
-  const { cls, label } = PROGRESS_CONFIG[progress]
+  const label = PROGRESS_LABEL[progress]
 
   // Close on outside click (§4.3 — Esc closes + returns focus)
   useEffect(() => {
@@ -117,14 +128,16 @@ export function ProgressMarkerPicker({
       <button
         ref={triggerRef}
         type="button"
-        className={`pm-pill pm-trigger ${cls}`}
+        // VIS-4: the trigger re-uses the shared pill shell (.pill .pill--{tone}) + the
+        // .pm-trigger modifier (cursor/reset) + the 8px .dot from Pill.css.
+        className={`pill ${PROGRESS_TONE_CLASS[progress]} pm-trigger`}
         aria-label={`${label} — ${triggerLabel}`}
         aria-haspopup="listbox"
         aria-expanded={open ? 'true' : 'false'}
         onClick={handleTriggerClick}
         style={{ minHeight: 44 }}
       >
-        <span className="pm-dot" aria-hidden="true" />
+        <span className="dot" aria-hidden="true" />
         {label}
       </button>
 
@@ -136,23 +149,20 @@ export function ProgressMarkerPicker({
           className="pm-picker"
           onKeyDown={handleKeyDown}
         >
-          {ALL_MARKERS.map(m => {
-            const cfg = PROGRESS_CONFIG[m]
-            return (
-              <button
-                key={m}
-                role="option"
-                aria-selected={m === progress ? 'true' : 'false'}
-                className="pm-option"
-                type="button"
-                onClick={() => handleSelect(m)}
-              >
-                {/* dot decorative, label is accessible name of this option */}
-                <span className={`pm-dot ${cfg.cls.replace('pm-', 'pm-dot-')}`} aria-hidden="true" />
-                {cfg.label}
-              </button>
-            )
-          })}
+          {ALL_MARKERS.map(m => (
+            <button
+              key={m}
+              role="option"
+              aria-selected={m === progress ? 'true' : 'false'}
+              className="pm-option"
+              type="button"
+              onClick={() => handleSelect(m)}
+            >
+              {/* standalone option dot (not a pill) — small marker in the popover */}
+              <span className={`pm-option-dot pm-option-dot--${m}`} aria-hidden="true" />
+              {PROGRESS_LABEL[m]}
+            </button>
+          ))}
         </div>
       )}
     </div>

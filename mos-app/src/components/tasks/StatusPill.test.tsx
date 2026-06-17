@@ -4,20 +4,21 @@ import { render, screen } from '@testing-library/react'
 import { StatusPill } from './StatusPill'
 import type { TaskStatus } from '../../lib/db/tasks.types'
 
-describe('StatusPill — status variants', () => {
-  const cases: [TaskStatus, string][] = [
-    ['Open',        'pill-open'],
-    ['In Progress', 'pill-inprogress'],
-    ['Blocked',     'pill-blocked'],
-    ['Done',        'pill-done'],
+describe('StatusPill — status variants (re-skinned onto the shared <Pill>)', () => {
+  // VIS-4 (PR-2): StatusPill maps each status to a shared-Pill tone.
+  const cases: [TaskStatus, import('../../components/ui/Pill').PillTone][] = [
+    ['Open',        'warning'],
+    ['In Progress', 'primary'],
+    ['Blocked',     'destructive'],
+    ['Done',        'success'],
   ]
 
-  for (const [status, cls] of cases) {
-    it(`renders "${status}" with class "${cls}"`, () => {
+  for (const [status, tone] of cases) {
+    it(`renders "${status}" on a shared Pill with tone "${tone}"`, () => {
       const { container } = render(<StatusPill status={status} />)
       const pill = container.querySelector('.pill')
       expect(pill).toBeTruthy()
-      expect(pill!.classList.contains(cls)).toBe(true)
+      expect(pill!.classList.contains(`pill--${tone}`)).toBe(true)
       expect(screen.getByText(status)).toBeTruthy()
     })
   }
