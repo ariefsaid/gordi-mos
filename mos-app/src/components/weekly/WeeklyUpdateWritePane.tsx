@@ -374,7 +374,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     return (
       <section
         aria-label="My weekly update"
-        className="bg-card border border-border rounded-md"
+        className="bg-card border border-border rounded-lg shadow-rest"
         style={{ padding: '16px 20px' }}
       >
         <WritePaneSkeleton />
@@ -387,7 +387,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     return (
       <section
         aria-label="My weekly update"
-        className="bg-card border border-border rounded-md"
+        className="bg-card border border-border rounded-lg shadow-rest"
         style={{ padding: '16px 20px' }}
       >
         <ErrorState message="Couldn't load your update" onRetry={load} />
@@ -412,7 +412,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
     return (
       <section
         aria-label="My weekly update"
-        className="bg-card border border-border rounded-md"
+        className="bg-card border border-border rounded-lg shadow-rest"
         style={{ padding: '16px 20px' }}
       >
         {/* Card head (IA-3: shared <CardHead>) — title + week pill + Submitted pill + timing */}
@@ -488,7 +488,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
   return (
     <section
       aria-label="My weekly update"
-      className="bg-card border border-border rounded-md"
+      className="bg-card border border-border rounded-lg shadow-rest"
       style={{ padding: '16px 20px' }}
     >
       {/* Head row (§2.1) */}
@@ -514,7 +514,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           style={{
             width: '100%', display: 'block',
             border: '1px solid hsl(var(--border))', /* input */
-            borderRadius: 8, /* rounded.md */
+            borderRadius: 'var(--radius-sm)', /* 8px — control/input, OD-P3-10 */
             padding: 10,
             minHeight: 96,
             fontSize: 14, lineHeight: 1.5, /* body */
@@ -551,7 +551,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           style={{
             marginTop: lines.length > 0 ? 8 : 0,
             display: 'flex', alignItems: 'center', gap: 6,
-            height: 32, padding: '0 12px', borderRadius: 8,
+            height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
             border: '1px solid hsl(var(--border))', /* input border */
             background: 'hsl(var(--background))', cursor: 'pointer',
             fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
@@ -582,7 +582,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             disabled={saving}
             aria-busy={saving ? 'true' : undefined}
             style={{
-              height: 32, padding: '0 12px', borderRadius: 8,
+              height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
               border: '1px solid hsl(var(--border))',
               background: 'hsl(var(--background))', cursor: saving ? 'not-allowed' : 'pointer',
               fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
@@ -604,7 +604,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             aria-disabled={submitDisabled || saving ? 'true' : 'false'}
             aria-busy={saving ? 'true' : undefined}
             style={{
-              height: 32, padding: '0 12px', borderRadius: 8, border: 0,
+              height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: 0, /* 8px — control, OD-P3-10 */
               backgroundColor: 'hsl(var(--primary))', /* primary — always set, opacity dims when disabled */
               color: 'hsl(var(--primary-foreground))', /* primary-foreground */
               cursor: submitDisabled || saving ? 'not-allowed' : 'pointer',

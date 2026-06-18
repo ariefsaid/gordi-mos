@@ -292,7 +292,7 @@ export default function LoginPage() {
               disabled={isDisabled}
               aria-invalid={emailError ? 'true' : undefined}
               aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
-              className="w-full bg-background text-foreground rounded-md px-2.5 border"
+              className="w-full bg-background text-foreground rounded-sm px-2.5 border"
               style={{
                 height: 32,
                 fontSize: 14,
@@ -330,7 +330,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-md px-2.5"
+              className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
               style={{
                 height: 32,
                 fontSize: 14,
@@ -371,7 +371,7 @@ export default function LoginPage() {
             type="submit"
             disabled={isDisabled}
             aria-busy={loading === 'sign-in'}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md font-medium"
+            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
             style={{
               height: 32,
               fontSize: 14,

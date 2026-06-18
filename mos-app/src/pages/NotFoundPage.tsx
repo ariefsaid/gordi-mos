@@ -8,8 +8,8 @@ export default function NotFoundPage() {
   return (
     <PageFrame>
       <h1
-        className="font-bold text-foreground"
-        style={{ fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.02em', marginBottom: 16 }}
+        className="font-semibold text-foreground"
+        style={{ fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.01em', marginBottom: 16 }}
       >
         Page not found.
       </h1>

@@ -341,12 +341,14 @@ export default function OpsAddForm() {
            breadcrumb, one › separator. The .tc-breadcrumb* rules are gone. */
 
         .tc-page-head { margin-bottom: 16px; }
-        .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: hsl(var(--foreground)); }
+        .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: hsl(var(--foreground)); } /* OD-P3-9: Jakarta tracking relaxed */
 
         .tc-card {
           max-width: 640px;
           background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-          border-radius: 8px; padding: 20px 24px;
+          border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+          box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+          padding: 20px 24px;
         }
 
         .tc-submit-error {
@@ -368,7 +370,7 @@ export default function OpsAddForm() {
 
         .tc-input, .tc-select, .tc-textarea {
           width: 100%; height: 36px; padding: 0 12px;
-          border: 1px solid hsl(var(--input)); border-radius: 8px;
+          border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
           background: hsl(var(--background)); font: inherit; font-size: 14px;
           color: hsl(var(--foreground));
         }

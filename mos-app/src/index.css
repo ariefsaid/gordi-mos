@@ -43,9 +43,14 @@
   --status-lost-text: 0 72% 45%;
   --status-violet-text: 262 60% 42%;
   /* Geometry */
-  --radius: 0.5rem;
+  --radius: 0.75rem; /* OD-P3-10: bumped 8px→12px (cards/containers/overlays) */
   --rail-w: 224px;
   --header-h: 56px;
+  /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha */
+  --shadow-rest: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04);
+  /* OD-P3-12 gradients — navy-tinted whispers, never purple */
+  --gradient-primary-sheen: linear-gradient(180deg, hsl(221.2 83.2% 56%) 0%, hsl(221.2 83.2% 51%) 100%);
+  --gradient-surface-wash:  linear-gradient(180deg, hsl(218 46% 22% / 0.035) 0%, hsl(218 46% 22% / 0) 220px);
 }
 
 /* ── Tailwind v4 theme mapping — resolvable colors, NO v3 alpha placeholder ──
@@ -79,12 +84,17 @@
   --color-brand-navy-text: hsl(var(--brand-navy-text));
   --color-brand-orange: hsl(var(--brand-orange));
 
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);              /* 12px — cards/containers/overlays */
+  --radius-md: calc(var(--radius) - 2px);  /* 10px — mid nesting */
+  --radius-sm: calc(var(--radius) - 4px);  /* 8px  — CONTROLS (buttons/inputs/nav-items/badges) */
+  --radius-xs: calc(var(--radius) - 8px);  /* 4px  — checkbox/tiny */
 
-  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  --font-sans:    "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* Expose resting shadow + gradients as Tailwind utilities */
+  --shadow-rest: var(--shadow-rest);
 }
 
 @layer base {
@@ -99,6 +109,10 @@
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
+  /* OD-P3-9: display font binding — Plus Jakarta Sans on all heading-tier elements */
+  h1, h2, h3, .page-head h1, .card-head-title, .heading, .subheading {
+    font-family: var(--font-display);
+  }
   /* Single source of truth for focus (DESIGN.md): primary ring, 2px offset. */
   *:focus-visible {
     outline: 2px solid hsl(var(--ring));
@@ -107,8 +121,12 @@
 }
 
 @layer utilities {
-  /* Mandatory on all money/%/counts/deltas/ages (DESIGN.md Tabular-Numbers Rule). */
+  /* Mandatory on all money/%/counts/deltas/ages (DESIGN.md Tabular-Numbers Rule).
+     Inter-tabular fallback (OD-P3-9): DM Sans's "tnum" doesn't align digits, so
+     numeric cells render in Inter Variable (verified tabular figures); proportional
+     body/UI text stays DM Sans. Numeric-only scope, never proportional. */
   .tabular {
+    font-family: "Inter Variable", var(--font-sans);
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }

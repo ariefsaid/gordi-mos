@@ -27,16 +27,20 @@
 .split.expanded { grid-template-columns: 1fr; }
 .split.expanded .assembly { display: none; }
 
-/* ── Card assembly ── */
+/* ── Card assembly (OD-P3-10/11) ── */
 .assembly {
   background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-  border-radius: 8px; overflow: hidden; min-width: 0;
+  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+  box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+  overflow: hidden; min-width: 0;
 }
 
-/* ── Drawer pane (the aside hosting TaskSurface) ── */
+/* ── Drawer pane (the aside hosting TaskSurface, OD-P3-10/11) ── */
 .drawer {
   background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-  border-radius: 8px; overflow: hidden; min-width: 0;
+  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+  box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+  overflow: hidden; min-width: 0;
 }
 .drawer.expanded { border: 0; background: transparent; }
 
@@ -85,28 +89,32 @@
 }
 .control {
   height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
-  border: 1px solid hsl(var(--input)); background: hsl(var(--background)); border-radius: 8px;
+  border: 1px solid hsl(var(--input)); background: hsl(var(--background));
+  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   font-size: 13px; color: hsl(var(--foreground)); cursor: pointer; position: relative;
 }
 .ctrl-lbl { color: hsl(var(--muted-foreground)); font-size: 13px; }
 .ctrl-chev { color: hsl(var(--muted-foreground)); pointer-events: none; flex: none; }
 .ctrl-select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 13px; }
-.seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(var(--secondary)); border-radius: 8px; }
+.seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(var(--secondary)); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */ }
 .seg-btn {
   border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px;
-  border-radius: 6px; color: hsl(var(--secondary-foreground)); cursor: pointer; white-space: nowrap;
+  border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
+  color: hsl(var(--secondary-foreground)); cursor: pointer; white-space: nowrap;
 }
 .seg-btn-on { background: hsl(var(--background)); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); }
 .search-mini {
   height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
-  border: 1px solid hsl(var(--input)); border-radius: 8px; color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  color: hsl(var(--muted-foreground));
   font-size: 13px; min-width: 180px;
 }
 .search-input { border: none; outline: none; background: transparent; font: inherit; font-size: 13px; color: hsl(var(--foreground)); width: 100%; }
 .search-input::placeholder { color: hsl(var(--muted-foreground)); }
 .archived-toggle {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
-  border: 1px solid hsl(var(--input)); background: hsl(var(--background)); border-radius: 8px;
+  border: 1px solid hsl(var(--input)); background: hsl(var(--background));
+  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   font-size: 13px; cursor: pointer; color: hsl(var(--foreground));
 }
 /* Custom checkbox (DESIGN.md §5 checkbox spec) so 'Show archived' reads as a deliberate
@@ -242,8 +250,13 @@
    '.btn-primary.grow'); the orphan '.table-top-bar' strip was removed (OD-P3-6 tidy). */
 .toolbar-new-task { margin-left: auto; }
 
-/* ── Mobile card list ── */
-.task-card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px; overflow: hidden; }
+/* ── Mobile card list (OD-P3-10/11) ── */
+.task-card {
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg); /* 12px — mobile reflow card, OD-P3-10 */
+  box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+  overflow: hidden;
+}
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
 .task-card-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
 .task-card-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
@@ -365,7 +378,8 @@ tr.grp td { padding: 0; }
 .own-tip {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
   display: flex; flex-direction: column; gap: 2px; min-width: 120px; padding: 8px 10px;
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   box-shadow: 0 6px 20px hsl(240 6% 10% / 0.12); white-space: nowrap;
 }
 .own-tip-row { font-size: 12px; color: hsl(var(--foreground)); }

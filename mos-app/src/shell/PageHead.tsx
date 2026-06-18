@@ -28,8 +28,8 @@ export default function PageHead({ title, subtitle, meta, maxWidth }: PageHeadPr
     >
       <div className="flex items-baseline gap-3 flex-wrap">
         <h1
-          className="font-bold text-foreground"
-          style={{ fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.02em' }}
+          className="font-semibold text-foreground"
+          style={{ fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.01em' }}
         >
           {title}
         </h1>

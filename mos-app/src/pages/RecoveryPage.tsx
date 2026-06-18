@@ -131,7 +131,7 @@ export default function RecoveryPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-md px-2.5"
+              className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
               style={{
                 height: 32,
                 fontSize: 14,
@@ -159,7 +159,7 @@ export default function RecoveryPage() {
               disabled={isDisabled}
               aria-invalid={mismatchError ? 'true' : undefined}
               aria-describedby={mismatchError ? mismatchErrorId : undefined}
-              className="w-full bg-background text-foreground border rounded-md px-2.5"
+              className="w-full bg-background text-foreground border rounded-sm px-2.5"
               style={{
                 height: 32,
                 fontSize: 14,
@@ -184,7 +184,7 @@ export default function RecoveryPage() {
             type="submit"
             disabled={isDisabled}
             aria-busy={loading}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md font-medium"
+            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
             style={{
               height: 32,
               fontSize: 14,

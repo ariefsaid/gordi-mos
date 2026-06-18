@@ -6,7 +6,7 @@
    ════════════════════════════════════════════════════════════════════════════ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  height: 32px; padding: 0 12px; border-radius: 8px;
+  height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control radius, OD-P3-10 */
   font: inherit; font-size: 13px; font-weight: 600;
   cursor: pointer; text-decoration: none; border: 0; white-space: nowrap;
 }
@@ -14,12 +14,17 @@
 .btn:disabled,
 .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 
-/* Primary — the one action blue, faint brand shadow at rest */
+/* Primary — the one action blue, sheen + faint brand shadow at rest (OD-P3-12) */
 .btn-primary {
-  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  background-color: hsl(var(--primary));
+  background-image: var(--gradient-primary-sheen); /* navy-tinted sheen within same blue, AA-safe */
+  color: hsl(var(--primary-foreground));
   box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
 }
-.btn-primary:hover:not(:disabled) { background: hsl(var(--primary) / 0.9); }
+.btn-primary:hover:not(:disabled) {
+  background-image: none;                          /* flatten to solid on hover */
+  background-color: hsl(var(--primary) / 0.9);
+}
 
 /* Outline — background fill, input border, accent wash on hover */
 .btn-outline {

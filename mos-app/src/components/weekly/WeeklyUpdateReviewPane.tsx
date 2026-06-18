@@ -285,7 +285,7 @@ export default function WeeklyUpdateReviewPane({
   return (
     <section
       aria-label="Team updates"
-      className="bg-card border border-border rounded-md"
+      className="bg-card border border-border rounded-lg shadow-rest"
       style={{ padding: '16px 20px' }}
     >
       {/* Card head (IA-3: shared <CardHead>) — title + trailing week pill + nav */}

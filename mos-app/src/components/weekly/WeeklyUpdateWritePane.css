@@ -12,7 +12,7 @@
 
 .wup-skeleton-block {
   background: hsl(var(--secondary));
-  border-radius: 8px;
+  border-radius: var(--radius-sm); /* 8px — control-scale skeleton bar, OD-P3-10 */
   animation: wup-pulse 1.5s ease-in-out infinite;
 }
 

@@ -22,7 +22,7 @@
   z-index: 50;
   background: hsl(var(--background)); /* popover */
   border: 1px solid hsl(var(--border)); /* border */
-  border-radius: 8px; /* rounded.md */
+  border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12); /* overlay shadow — overlay response to state, not decoration */
   padding: 4px;
   min-width: 140px;
