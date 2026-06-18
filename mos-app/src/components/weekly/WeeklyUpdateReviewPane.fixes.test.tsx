@@ -12,6 +12,11 @@ import WeeklyUpdateWritePane from './WeeklyUpdateWritePane'
 import { MemoryRouter } from 'react-router-dom'
 import MyWeek from '../../pages/MyWeek'
 
+// The submitted-strip RI-5 cases render <MyWeek/>, where the weekly-update strip is
+// flag-hidden in production (config/features.ts). Force the flags on so the strip renders
+// and its formatting is still exercised.
+vi.mock('../../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG: true }))
+
 // ── Mock data layer ─────────────────────────────────────────────────────────
 vi.mock('../../lib/db/weeklyUpdates', () => ({
   listTeamUpdates: vi.fn().mockResolvedValue([]),

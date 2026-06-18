@@ -10,12 +10,15 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { writeWeeklyUpdate, submitWeeklyUpdate, signOutFromApp, clearWeeklyUpdates } from './helpers/weeklyUpdates'
 import { VIEWER, MANAGER } from './fixtures/users'
+import { SHOW_WEEKLY_UPDATES } from '../src/config/features'
 
 const SUMMARY = 'Produksi stabil minggu ini — 2 SKU cold brew lolos uji rasa'
 const LINE_LABEL = 'Finalisasi menu seasonal Q3'
 
-// Ensure a clean weekly-updates state before each run so tests are deterministic
+// Weekly Updates is flag-hidden for the first rollout (config/features.ts); skip the journey
+// while hidden — it auto-restores when the flag is flipped on.
 test.beforeEach(async () => {
+  test.skip(!SHOW_WEEKLY_UPDATES, 'Weekly Updates section is flag-hidden (config/features.ts)')
   await clearWeeklyUpdates()
 })
 

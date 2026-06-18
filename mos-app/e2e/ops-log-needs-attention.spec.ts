@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+import { SHOW_DAILY_LOG } from '../src/config/features'
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
@@ -35,6 +36,8 @@ const SERVICE_ROLE_KEY = envFile.SUPABASE_SERVICE_ROLE_KEY ?? ''
 const ORG_ID = '10000000-0000-0000-0000-000000000001'
 
 test.beforeEach(async () => {
+  // Daily Log is flag-hidden for the first rollout (config/features.ts); skip while hidden.
+  test.skip(!SHOW_DAILY_LOG, 'Daily Log section is flag-hidden (config/features.ts)')
   // Clean up any leftover ops.log_entries from previous e2e runs (idempotent)
   if (!SERVICE_ROLE_KEY) return
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {

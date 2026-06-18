@@ -10,6 +10,7 @@ const mockUseAuth = vi.mocked(useAuth)
 
 import MobileDrawer from './MobileDrawer'
 import Header from './Header'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
 
 // R2: Helper to force narrow viewport (matches:true for useIsNarrow)
 function setNarrowViewport(narrow: boolean) {
@@ -113,7 +114,7 @@ describe('AC-014: Mobile drawer', () => {
     expect(dialog).toHaveAttribute('aria-label', 'Primary navigation')
   })
 
-  it('dialog contains the four nav items', async () => {
+  it('dialog contains the visible nav items (My Week + Tasks always; Weekly Updates / Daily Log per flag)', async () => {
     const user = userEvent.setup()
     renderNarrow()
     await user.click(screen.getByRole('button', { name: /open navigation/i }))
@@ -121,8 +122,8 @@ describe('AC-014: Mobile drawer', () => {
     // nav items are links within the dialog
     expect(dialog.querySelector('[href="/"]')).toBeTruthy()
     expect(dialog.querySelector('[href="/tasks"]')).toBeTruthy()
-    expect(dialog.querySelector('[href="/updates"]')).toBeTruthy()
-    expect(dialog.querySelector('[href="/ops"]')).toBeTruthy()
+    expect(!!dialog.querySelector('[href="/updates"]')).toBe(SHOW_WEEKLY_UPDATES)
+    expect(!!dialog.querySelector('[href="/ops"]')).toBe(SHOW_DAILY_LOG)
   })
 
   it('Escape closes drawer and returns focus to hamburger', async () => {

@@ -1,4 +1,5 @@
-import { createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from './config/features'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { RedirectIfAuthed } from './auth/RedirectIfAuthed'
 import AppShell from './shell/AppShell'
@@ -54,10 +55,12 @@ export const routeConfig: RouteObject[] = [
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
-          { path: 'updates', element: <UpdatesPage /> },
-          { path: 'ops', element: <OpsPage /> },
-          { path: 'ops/new', element: <OpsAddForm /> },
-          { path: 'ops/:id/edit', element: <OpsAddForm /> },
+          // Flag-hidden for the first rollout (config/features.ts): the routes stay mounted
+          // but redirect to My Week so a stale deep-link can't reach a hidden section.
+          { path: 'updates', element: SHOW_WEEKLY_UPDATES ? <UpdatesPage /> : <Navigate to="/" replace /> },
+          { path: 'ops', element: SHOW_DAILY_LOG ? <OpsPage /> : <Navigate to="/" replace /> },
+          { path: 'ops/new', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
+          { path: 'ops/:id/edit', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

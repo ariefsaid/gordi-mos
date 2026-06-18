@@ -10,13 +10,15 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { writeWeeklyUpdate, submitWeeklyUpdate, reopenWeeklyUpdate, signOutFromApp, clearWeeklyUpdates } from './helpers/weeklyUpdates'
 import { VIEWER, MANAGER } from './fixtures/users'
+import { SHOW_WEEKLY_UPDATES } from '../src/config/features'
 
 const INITIAL_SUMMARY   = 'Draft awal — belum final'
 const EDITED_SUMMARY    = 'Revisi final — produksi OK dan SOP selesai diupdate'
 const LINE_LABEL        = 'Cek SOP mingguan'
 
-// Ensure a clean weekly-updates state before each run so tests are deterministic
+// Weekly Updates is flag-hidden for the first rollout (config/features.ts); skip while hidden.
 test.beforeEach(async () => {
+  test.skip(!SHOW_WEEKLY_UPDATES, 'Weekly Updates section is flag-hidden (config/features.ts)')
   await clearWeeklyUpdates()
 })
 
