@@ -86,6 +86,9 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
 // AC-013 e2e: MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8)
 test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page }) => {
+  // The team module IS the weekly-update review surface — flag-hidden for the first rollout
+  // (src/config/features.ts). Skip while hidden; auto-restores when SHOW_WEEKLY_UPDATES flips on.
+  test.skip(!SHOW_WEEKLY_UPDATES, 'Weekly Updates (team module) is flag-hidden (config/features.ts)')
   // ── MANAGER: signs in → My Week should show "Your team" overline ──
   await loginAs(page, MANAGER.email, MANAGER.password)
   await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
