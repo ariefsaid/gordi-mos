@@ -521,7 +521,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
             className="flex items-center gap-3"
             style={{
               padding: '10px 20px',
-              borderBottom: i < rows.length - 1 ? '1px solid hsl(var(--border))' : undefined,
+              borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : undefined,
               fontSize: 14,
             }}
           >

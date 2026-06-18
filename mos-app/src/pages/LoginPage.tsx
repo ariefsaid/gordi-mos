@@ -180,8 +180,8 @@ export default function LoginPage() {
               style={{
                 width: 28,
                 height: 28,
-                backgroundColor: 'hsl(var(--success) / 0.14)',
-                color: 'hsl(var(--status-won-text))',
+                backgroundColor: 'color-mix(in srgb, var(--success) 14%, transparent)',
+                color: 'var(--status-won-text)',
                 fontSize: 14,
               }}
               aria-hidden="true"
@@ -226,8 +226,8 @@ export default function LoginPage() {
           <div
             className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
             style={{
-              backgroundColor: 'hsl(var(--warning) / 0.18)',
-              color: 'hsl(var(--warning-foreground))',
+              backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
+              color: 'var(--warning-foreground)',
               fontSize: 13,
             }}
             role="alert"
@@ -260,8 +260,8 @@ export default function LoginPage() {
             tabIndex={-1}
             className="mb-4 rounded-md px-3 py-2"
             style={{
-              backgroundColor: 'hsl(var(--destructive) / 0.08)',
-              color: 'hsl(var(--status-lost-text))',
+              backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+              color: 'var(--status-lost-text)',
               fontSize: 13,
             }}
           >
@@ -296,7 +296,7 @@ export default function LoginPage() {
               style={{
                 height: 32,
                 fontSize: 14,
-                borderColor: emailError ? 'hsl(var(--destructive))' : 'hsl(var(--input))',
+                borderColor: emailError ? 'var(--destructive)' : 'var(--input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
@@ -306,7 +306,7 @@ export default function LoginPage() {
               <p
                 id={emailErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'hsl(var(--status-lost-text))' }}
+                style={{ fontSize: 12, color: 'var(--status-lost-text)' }}
               >
                 {emailError}
               </p>
@@ -375,7 +375,7 @@ export default function LoginPage() {
             style={{
               height: 32,
               fontSize: 14,
-              boxShadow: '0 1px 2px hsl(var(--primary) / 0.25)',
+              boxShadow: '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
               opacity: (isDisabled && loading !== 'sign-in') ? 0.5 : 1,
               cursor: isDisabled ? 'not-allowed' : undefined,
             }}

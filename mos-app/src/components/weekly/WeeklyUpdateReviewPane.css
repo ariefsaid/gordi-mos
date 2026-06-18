@@ -5,7 +5,7 @@
 /* C3: list item wrappers — no bullets, no indent */
 .wup-review-li {
   list-style: none;
-  border-bottom: 1px solid hsl(var(--border) / 0.7);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .wup-review-li:last-child {
   border-bottom: 0;
@@ -32,20 +32,20 @@
   transition: background 80ms;
 }
 .wup-review-row-btn:hover {
-  background: hsl(var(--secondary) / 0.6); /* accent @60% */
+  background: color-mix(in srgb, var(--secondary) 60%, transparent); /* accent @60% */
 }
 .wup-review-row-btn:focus-visible {
-  outline: 2px solid hsl(var(--primary)); /* ring */
+  outline: 2px solid var(--primary); /* ring */
   outline-offset: 2px;
 }
 .wup-review-row-open {
-  background: hsl(var(--secondary) / 0.4);
+  background: color-mix(in srgb, var(--secondary) 40%, transparent);
 }
 
 /* C2: non-interactive (not_started) — plain static row */
 .wup-review-row-static {
   list-style: none;
-  border-bottom: 1px solid hsl(var(--border) / 0.7);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   cursor: default;
 }
 .wup-review-row-static:last-child {
@@ -58,8 +58,8 @@
   height: 32px;
   border-radius: 9999px;
   flex: none;
-  background: linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)));
-  color: hsl(var(--primary-foreground));
+  background: linear-gradient(135deg, var(--brand-navy), var(--primary));
+  color: var(--primary-foreground);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -74,16 +74,16 @@
 .wup-review-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 .wup-review-role {
   font-size: 12px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-weight: 400;
 }
 .wup-review-excerpt {
   font-size: 13px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -91,7 +91,7 @@
 }
 .wup-review-excerpt-empty {
   font-style: italic;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 
 /* Meta: time + state pill (right-aligned desktop, wraps on mobile) */
@@ -105,7 +105,7 @@
 }
 .wup-review-time {
   font-size: 12px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   min-width: 56px;
   text-align: right;
@@ -137,13 +137,13 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-size: 16px;
   min-height: 44px; /* ≥44px touch target */
   min-width: 44px;
 }
 .wup-week-nav-btn:hover:not(:disabled) {
-  background: hsl(var(--secondary));
+  background: var(--secondary);
 }
 .wup-week-nav-btn:disabled,
 .wup-week-nav-btn[aria-disabled="true"] {
@@ -158,10 +158,10 @@
   flex-wrap: wrap;
   margin-bottom: 10px;
   font-size: 13px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 .wup-review-counts b {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -173,26 +173,26 @@
   gap: 12px;
   min-height: 60px;
   padding: 8px 0;
-  border-bottom: 1px solid hsl(var(--border) / 0.7);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .wup-review-skeleton:last-child { border-bottom: 0; }
 .wup-review-skeleton-circle {
   width: 32px;
   height: 32px;
   border-radius: 9999px;
-  background: hsl(var(--secondary));
+  background: var(--secondary);
   flex: none;
 }
 .wup-review-skeleton-line {
   border-radius: 4px;
-  background: hsl(var(--secondary));
+  background: var(--secondary);
 }
 
 /* C2: read-only expanded panel (in-place under the row) */
 .wup-review-panel {
   padding: 12px 12px 14px 44px; /* indent under avatar width */
-  border-top: 1px solid hsl(var(--border) / 0.5);
-  background: hsl(var(--secondary) / 0.35);
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--secondary) 35%, transparent);
   border-radius: 0 0 4px 4px;
 }
 .wup-review-panel-head {
@@ -205,7 +205,7 @@
 .wup-review-panel-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: hsl(var(--foreground)); /* foreground */
+  color: var(--foreground); /* foreground */
 }
 .wup-review-panel-section {
   margin-bottom: 10px;
@@ -215,13 +215,13 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: hsl(var(--muted-foreground)); /* muted-foreground */
+  color: var(--muted-foreground); /* muted-foreground */
   margin-bottom: 4px;
 }
 .wup-review-panel-body {
   font-size: 14px;
   line-height: 1.5;
-  color: hsl(var(--foreground)); /* foreground */
+  color: var(--foreground); /* foreground */
   white-space: pre-wrap;
   margin: 0;
 }

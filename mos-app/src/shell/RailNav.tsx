@@ -63,7 +63,7 @@ export default function RailNav({ onNavigate }: RailNavProps) {
             style={({ isActive }) => ({
               height: 38,
               /* OD-P3-7: inset left rail marker for active state (navy, structural) */
-              boxShadow: isActive ? 'inset 3px 0 0 hsl(var(--brand-navy))' : undefined,
+              boxShadow: isActive ? 'inset 3px 0 0 var(--brand-navy)' : undefined,
             })}
           >
             <section.Icon />

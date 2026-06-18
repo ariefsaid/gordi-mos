@@ -15,20 +15,20 @@
 
 /* on-time: success/14% tint + --status-won-text */
 .timing-chip-ontime {
-  background: hsl(142 71% 45% / 0.14);
-  color: hsl(142 64% 30%);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--status-won-text);
 }
 .timing-chip-ontime .timing-chip-dot {
-  background: hsl(142 71% 45%);
+  background: var(--success);
 }
 
 /* late: warning/18% tint + warning-foreground */
 .timing-chip-late {
-  background: hsl(43 96% 56% / 0.18);
-  color: hsl(22 78% 26%);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
 }
 .timing-chip-late .timing-chip-dot {
-  background: hsl(43 96% 56%);
+  background: var(--warning);
 }
 
 .timing-chip-dot {

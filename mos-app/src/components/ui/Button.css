@@ -10,40 +10,40 @@
   font: inherit; font-size: 13px; font-weight: 600;
   cursor: pointer; text-decoration: none; border: 0; white-space: nowrap;
 }
-.btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .btn:disabled,
 .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 
 /* Primary — the one action blue, sheen + faint brand shadow at rest (OD-P3-12) */
 .btn-primary {
-  background-color: hsl(var(--primary));
+  background-color: var(--primary);
   background-image: var(--gradient-primary-sheen); /* navy-tinted sheen within same blue, AA-safe */
-  color: hsl(var(--primary-foreground));
-  box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .btn-primary:hover:not(:disabled) {
   background-image: none;                          /* flatten to solid on hover */
-  background-color: hsl(var(--primary) / 0.9);
+  background-color: color-mix(in srgb, var(--primary) 90%, transparent);
 }
 
 /* Outline — background fill, input border, accent wash on hover */
 .btn-outline {
-  background: hsl(var(--background)); color: hsl(var(--foreground));
-  border: 1px solid hsl(var(--input));
+  background: var(--background); color: var(--foreground);
+  border: 1px solid var(--input);
 }
-.btn-outline:hover:not(:disabled) { background: hsl(var(--accent)); }
+.btn-outline:hover:not(:disabled) { background: var(--accent); }
 
 /* Ghost — transparent, muted text; accent wash on hover (header/icon buttons) */
 .btn-ghost {
-  background: transparent; color: hsl(var(--muted-foreground)); font-weight: 500;
+  background: transparent; color: var(--muted-foreground); font-weight: 500;
 }
-.btn-ghost:hover:not(:disabled) { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.btn-ghost:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
 
 /* Destructive — the only solid status fill; irreversible actions only */
 .btn-destructive {
-  background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground));
+  background: var(--destructive); color: var(--destructive-foreground);
 }
-.btn-destructive:hover:not(:disabled) { background: hsl(var(--destructive) / 0.9); }
+.btn-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--destructive) 90%, transparent); }
 
 /* Full-width mobile touch variant (44px) — pairs with any .btn-{variant}.
    Used by the phone submit bars where the action must span the viewport. */

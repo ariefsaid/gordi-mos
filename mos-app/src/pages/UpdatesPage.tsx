@@ -68,7 +68,7 @@ export default function UpdatesPage() {
       <p
         style={{
           fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
-          textTransform: 'uppercase', color: 'hsl(240 4% 40%)', /* muted-foreground */
+          textTransform: 'uppercase', color: 'var(--muted-foreground)', /* muted-foreground */
           margin: '0 4px 8px',
         }}
         aria-hidden="true"
@@ -90,7 +90,7 @@ export default function UpdatesPage() {
           className="bg-card border border-border rounded-lg shadow-rest"
           style={{ padding: '16px 20px' }}
         >
-          <p style={{ fontSize: 14, color: 'hsl(240 4% 40%)' }}>Loading…</p>
+          <p style={{ fontSize: 14, color: 'var(--muted-foreground)' }}>Loading…</p>
         </section>
       )}
 
@@ -100,7 +100,7 @@ export default function UpdatesPage() {
           <p
             style={{
               fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
-              textTransform: 'uppercase', color: 'hsl(240 4% 40%)', /* muted-foreground */
+              textTransform: 'uppercase', color: 'var(--muted-foreground)', /* muted-foreground */
               margin: '28px 4px 8px', /* 28px air between panes (§1.2) */
             }}
             aria-hidden="true"

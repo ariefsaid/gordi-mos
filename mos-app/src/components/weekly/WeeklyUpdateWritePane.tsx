@@ -67,7 +67,7 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
       style={{
         display: 'flex', alignItems: 'center', flexWrap: 'wrap',
         gap: 12, padding: '10px 0',
-        borderBottom: !isLast ? '1px solid hsl(var(--border) / 0.7)' : undefined,
+        borderBottom: !isLast ? '1px solid color-mix(in srgb, var(--border) 70%, transparent)' : undefined,
       }}
     >
       {/* Reorder handle — keyboard operable (§5.3) */}
@@ -77,7 +77,7 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
         title="Drag to reorder"
         style={{
           background: 'none', border: 'none', cursor: 'grab',
-          color: 'hsl(var(--muted-foreground))', padding: 4, borderRadius: 4,
+          color: 'var(--muted-foreground)', padding: 4, borderRadius: 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           minWidth: 32, minHeight: 44, /* ≥44px touch target */
           flexShrink: 0,
@@ -111,7 +111,7 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
         style={{
           flex: '1 1 100%', minWidth: 0,
           border: 'none', background: 'transparent',
-          fontSize: 14, color: 'hsl(var(--foreground))', /* foreground */
+          fontSize: 14, color: 'var(--foreground)', /* foreground */
           fontFamily: 'inherit',
           padding: 0,
           /* Focus ring via global *:focus-visible */
@@ -130,7 +130,7 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
         aria-label="Remove line"
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: 'hsl(var(--muted-foreground))', padding: 4, borderRadius: 4,
+          color: 'var(--muted-foreground)', padding: 4, borderRadius: 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           minWidth: 32, minHeight: 44, /* ≥44px touch target */
           flexShrink: 0,
@@ -152,10 +152,10 @@ function StaticLineRow({ item, isLast }: { item: WeeklyUpdateItemRow; isLast: bo
       data-testid="update-line-row-static"
       style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-        borderBottom: !isLast ? '1px solid hsl(var(--border) / 0.7)' : undefined,
+        borderBottom: !isLast ? '1px solid color-mix(in srgb, var(--border) 70%, transparent)' : undefined,
       }}
     >
-      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'hsl(var(--foreground))' }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--foreground)' }}>
         {item.label}
       </span>
       <ProgressMarker progress={item.progress} />
@@ -431,18 +431,18 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
 
         {/* Summary — static text (no textarea, AC-031) */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: 6 }}>
             This week's summary
           </div>
-          <p style={{ fontSize: 14, lineHeight: 1.5, color: 'hsl(var(--foreground))', whiteSpace: 'pre-wrap' }}>
-            {summary || <span style={{ color: 'hsl(var(--muted-foreground))' }}>(no summary)</span>}
+          <p style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--foreground)', whiteSpace: 'pre-wrap' }}>
+            {summary || <span style={{ color: 'var(--muted-foreground)' }}>(no summary)</span>}
           </p>
         </div>
 
         {/* Update lines — read-only; derived from local state (single source of truth, FIX-1) */}
         {lines.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: 8 }}>
               Update lines
             </div>
             {lines.map((l, i) => (
@@ -456,7 +456,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
         )}
 
         {/* Reopen action (§2.4) — IXD-4 shared .btn-outline */}
-        <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 14, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             type="button"
             className="btn btn-outline"
@@ -469,13 +469,13 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           {submittedAt && (
             <span
               className="tabular-nums"
-              style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', fontVariantNumeric: 'tabular-nums' }}
+              style={{ fontSize: 12, color: 'var(--muted-foreground)', fontVariantNumeric: 'tabular-nums' }}
             >
               Submitted {submittedAt ? new Date(submittedAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) : ''}
             </span>
           )}
           {saveError && (
-            <span role="alert" style={{ fontSize: 12, color: 'hsl(var(--status-lost-text))' }}>
+            <span role="alert" style={{ fontSize: 12, color: 'var(--status-lost-text)' }}>
               {saveError}
             </span>
           )}
@@ -501,7 +501,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
       <div style={{ marginBottom: 16 }}>
         <label
           htmlFor={summaryId}
-          style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}
+          style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: 6 }}
         >
           This week's summary
         </label>
@@ -513,13 +513,13 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
           rows={4}
           style={{
             width: '100%', display: 'block',
-            border: '1px solid hsl(var(--border))', /* input */
+            border: '1px solid var(--border)', /* input */
             borderRadius: 'var(--radius-sm)', /* 8px — control/input, OD-P3-10 */
             padding: 10,
             minHeight: 96,
             fontSize: 14, lineHeight: 1.5, /* body */
-            color: 'hsl(var(--foreground))', /* foreground */
-            background: 'hsl(var(--background))',
+            color: 'var(--foreground)', /* foreground */
+            background: 'var(--background)',
             fontFamily: 'inherit',
             resize: 'vertical',
             boxSizing: 'border-box',
@@ -529,7 +529,7 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
 
       {/* Update-line editor (§2.2) */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: 8 }}>
           Update lines
         </div>
         {lines.map((line, i) => (
@@ -552,10 +552,10 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             marginTop: lines.length > 0 ? 8 : 0,
             display: 'flex', alignItems: 'center', gap: 6,
             height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
-            border: '1px solid hsl(var(--border))', /* input border */
-            background: 'hsl(var(--background))', cursor: 'pointer',
+            border: '1px solid var(--border)', /* input border */
+            background: 'var(--background)', cursor: 'pointer',
             fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-            color: 'hsl(var(--foreground))',
+            color: 'var(--foreground)',
           }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -567,13 +567,13 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
 
       {/* Save error */}
       {saveError && (
-        <div role="alert" style={{ fontSize: 13, color: 'hsl(var(--status-lost-text))', marginBottom: 8 }}>
+        <div role="alert" style={{ fontSize: 13, color: 'var(--status-lost-text)', marginBottom: 8 }}>
           {saveError}
         </div>
       )}
 
       {/* Action cluster — co-located from first paint (§2.3, AC-032, IxD bar) */}
-      <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 14, marginTop: 0 }}>
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           {/* Save draft (§2.3) */}
           <button
@@ -583,10 +583,10 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             aria-busy={saving ? 'true' : undefined}
             style={{
               height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--background))', cursor: saving ? 'not-allowed' : 'pointer',
+              border: '1px solid var(--border)',
+              background: 'var(--background)', cursor: saving ? 'not-allowed' : 'pointer',
               fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-              color: 'hsl(var(--foreground))',
+              color: 'var(--foreground)',
               opacity: saving ? 0.5 : 1,
             }}
           >
@@ -605,12 +605,12 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             aria-busy={saving ? 'true' : undefined}
             style={{
               height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: 0, /* 8px — control, OD-P3-10 */
-              backgroundColor: 'hsl(var(--primary))', /* primary — always set, opacity dims when disabled */
-              color: 'hsl(var(--primary-foreground))', /* primary-foreground */
+              backgroundColor: 'var(--primary)', /* primary — always set, opacity dims when disabled */
+              color: 'var(--primary-foreground)', /* primary-foreground */
               cursor: submitDisabled || saving ? 'not-allowed' : 'pointer',
               opacity: submitDisabled || saving ? 0.5 : 1,
               fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-              boxShadow: submitDisabled || saving ? 'none' : '0 1px 2px hsl(var(--primary) / 0.25)',
+              boxShadow: submitDisabled || saving ? 'none' : '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
               pointerEvents: submitDisabled ? 'none' : undefined,
             }}
           >
@@ -626,9 +626,9 @@ export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }
             style={{ marginLeft: 'auto', minWidth: 0 }}
           >
             {saveConfirm && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(var(--status-won-text))' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--status-won-text)' }}>
                 {/* --status-won-text */}
-                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'hsl(var(--success))', flexShrink: 0 }} />
+                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--success)', flexShrink: 0 }} />
                 Draft saved{savedAt ? ` · ${formatAge(savedAt.toISOString(), new Date())} ago` : ''}
               </span>
             )}
