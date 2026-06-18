@@ -1,42 +1,46 @@
 ---
 name: Gordi MOS
-description: The owner-approved shadcn-style control surface — calm, dense, data-first. ADOPTED verbatim from ~/Coding/PMO/DESIGN.md (2026-06-10); PMO remains the reference, this copy is MOS's source of truth and may diverge via owner-approved additions only.
+version: alpha
+description: The owner-approved "Quiet Control Surface" — calm, dense, data-first. Adopted from PMO (2026-06-10, OD-DIR-8) as MOS's identity authority; diverges only via owner-approved additions. ADR-0009 (2026-06-19) re-expressed the palette to Display-P3 + adopted the mos-design-kit token system + light/dark theme. Runtime tokens live in mos-app/src/index.css as color(display-p3 …); the oklch values below are the linter-compatible documentation form (same colors, OKLab space — a wide-gamut format the @google/design.md linter parses).
 colors:
-  # --- Surfaces ---
-  background: "hsl(0 0% 100%)"
-  foreground: "hsl(240 10% 3.9%)"
-  card: "hsl(0 0% 100%)"
-  card-foreground: "hsl(240 10% 3.9%)"
-  popover: "hsl(0 0% 100%)"
-  popover-foreground: "hsl(240 10% 3.9%)"
-  # --- Brand / action ---
-  primary: "hsl(221.2 83.2% 53.3%)"
-  primary-foreground: "hsl(0 0% 98%)"
+  # --- Surfaces / action (oklch = linter-parseable wide-gamut form; runtime is color(display-p3 …)) ---
+  primary: "oklch(0.546 0.2153 262.8719)"        # The One Blue — action/ring
+  background: "oklch(1 0 89.8756)"                # pure white canvas (light theme)
+  foreground: "oklch(0.1405 0.0044 285.8238)"     # near-black primary text
+  card: "oklch(1 0 89.8756)"                      # elevated surface (== background in light)
+  card-foreground: "oklch(0.1405 0.0044 285.8238)"
+  popover: "oklch(1 0 89.8756)"
+  popover-foreground: "oklch(0.1405 0.0044 285.8238)"
+  primary-foreground: "oklch(0.9848 0 89.8756)"   # near-white on solid blue
   # --- Quiet UI ---
-  secondary: "hsl(240 4.8% 95.9%)"
-  secondary-foreground: "hsl(240 5.9% 10%)"
-  muted: "hsl(240 4.8% 95.9%)"
-  muted-foreground: "hsl(240 4% 40%)"  # darkened from 46.1%→40% L so muted text clears AA (≥4.5:1) on secondary fills, not just white
-  accent: "hsl(240 4.8% 95.9%)"
-  accent-foreground: "hsl(240 5.9% 10%)"
+  secondary: "oklch(0.9676 0.0013 286.3752)"      # light cool grey — quiet fills
+  secondary-foreground: "oklch(0.2103 0.0059 285.8835)"
+  muted: "oklch(0.9676 0.0013 286.3752)"          # == secondary (shadcn convention)
+  muted-foreground: "oklch(0.4987 0.0128 285.925)" # darkened ~40% L so muted text clears AA on secondary fills
+  accent: "oklch(0.9676 0.0013 286.3752)"         # shadcn "accent" = quiet hover wash (NOT the blue)
+  accent-foreground: "oklch(0.2103 0.0059 285.8835)"
   # --- Status / semantic ---
-  destructive: "hsl(0 84.2% 60.2%)"
-  destructive-foreground: "hsl(0 0% 98%)"
-  warning: "hsl(43 96% 56%)"
-  warning-foreground: "hsl(22 78% 26%)"
-  success: "hsl(142 71% 45%)"
-  success-foreground: "hsl(0 0% 98%)"
+  destructive: "oklch(0.6368 0.2078 25.3259)"     # errors, destructive button, "lost"
+  destructive-foreground: "oklch(0.9848 0 89.8756)"
+  warning: "oklch(0.8334 0.1641 83.8666)"         # amber — aging/overdue caution
+  warning-foreground: "oklch(0.4096 0.1037 46.3142)" # deep brown — AA on amber tints
+  success: "oklch(0.7205 0.192 149.4926)"         # green — "won"/positive
+  success-foreground: "oklch(0.9848 0 89.8756)"
   # --- Lines / fields / focus ---
-  border: "hsl(240 5.9% 90%)"
-  input: "hsl(240 5.9% 90%)"
-  ring: "hsl(221.2 83.2% 53.3%)"
-  # --- Categorical accent (KPI/avatar/timeline only; never primary action) ---
-  violet: "hsl(262 83% 58%)"
-  # --- Gordi brand (OD-P3-7, ratified 2026-06-16; the first owner-approved
-  #     divergence from the adopted RIS near-monochrome) ---
-  brand-navy:        "hsl(218 46% 22%)"   # structural weight; NOT an action color
-  brand-navy-text:   "hsl(218 42% 26%)"   # AA text/label on white & on navy-tint
-  brand-orange:      "hsl(18 80% 48%)"    # brand sprinkle ONLY; never status, never action
+  border: "oklch(0.9197 0.004 286.32)"            # Single-Border Rule: border == input
+  input: "oklch(0.9197 0.004 286.32)"
+  ring: "oklch(0.546 0.2153 262.8719)"            # focus ring == The One Blue
+  # --- Categorical accent (non-interactive) ---
+  violet: "oklch(0.5424 0.2454 293.016)"          # KPI/timeline only — never action
+  # --- Gordi brand (OD-P3-7 — first owner-approved divergence) ---
+  brand-navy: "oklch(0.3154 0.0639 260.7289)"     # structural weight; NOT an action color
+  brand-navy-text: "oklch(0.3527 0.0672 260.7809)" # AA text/label on white (≥7:1)
+  brand-orange: "oklch(0.619 0.1833 39.9351)"     # brand sprinkle ONLY; never status, never action
+  # --- Status-pill AA-darkened text (DESIGN.md §5 / ADR-0008) ---
+  status-open-text: "oklch(0.4301 0.1673 262.7596)"
+  status-won-text: "oklch(0.5217 0.1296 150.642)"
+  status-lost-text: "oklch(0.5314 0.1989 27.3946)"   # == field-error-text
+  status-violet-text: "oklch(0.4312 0.1898 293.5085)"
 typography:
   # OD-P3-9 (2026-06-18): font pairing swapped to Plus Jakarta Sans (display) +
   # DM Sans (body/UI/table). Inter RETIRED as primary family. Jakarta wants looser
@@ -53,7 +57,7 @@ typography:
     fontSize: "20px"
     fontWeight: 600
     lineHeight: 1.25
-    letterSpacing: "normal"
+    letterSpacing: "0px"
   subheading:
     fontFamily: "Plus Jakarta Sans, system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: "18px"
@@ -90,29 +94,27 @@ rounded:
   lg: "12px"           # CARD/CONTAINER/OVERLAY radius — var(--radius)
   full: "999px"
 shadows:
-  # OD-P3-11 (2026-06-18): Soft-Elevation amendment. A single subtle RESTING shadow
-  # is now permitted on cards/KPI/kanban (alongside, not instead of, the border).
-  # All colors stay desaturated near-black / faintly navy-tinted — No-Pure-Black-Shadow
-  # Rule preserved. Hover/pressed/overlay vocabulary unchanged.
-  rest:        "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)"  # NEW resting tier — cards/KPI/kanban
-  hover:       "0 2px 10px hsl(240 6% 10% / 0.06)"      # card/KPI on hover (state lift)
-  pressed:     "0 1px 2px hsl(240 6% 10% / 0.12)"       # active segment / selected pane button
-  brand-button:"0 1px 2px hsl(221.2 83.2% 53.3% / 0.25)" # primary button rest seat
-  kanban-hover:"0 4px 14px hsl(240 6% 10% / 0.10)"      # draggable card hover
-  overlay:     "0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08)"  # popover/toast
+  # OD-P3-11 (2026-06-18): Soft-Elevation — one subtle RESTING shadow on cards/KPI/kanban.
+  # Desaturated near-black / faintly navy-tinted; No-Pure-Black-Shadow Rule preserved.
+  # ADR-0009: values now use color-mix() so they carry both light + dark themes.
+  rest:         "0 1px 2px color-mix(in srgb, var(--brand-navy) 5%, transparent), 0 1px 3px color-mix(in srgb, var(--brand-navy) 4%, transparent)"
+  hover:        "0 2px 10px color-mix(in srgb, var(--ds-font-color-primary) 6%, transparent)"
+  pressed:      "0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent)"
+  brand-button: "0 1px 2px color-mix(in srgb, var(--accent) 25%, transparent)"
+  kanban-hover: "0 4px 14px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent)"
+  overlay:      "0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)"
 gradients:
   # OD-P3-12 (2026-06-18): SUBTLE NAVY gradients only (NEVER purple). Two bounded uses.
-  # Both reuse brand-navy + primary; the gradient is a SHEEN, not a new hue — The One
-  # Blue Rule preserved (primary blue stays the only action color).
-  primary-sheen: "linear-gradient(180deg, hsl(221.2 83.2% 56%) 0%, hsl(221.2 83.2% 51%) 100%)"  # optional primary-button fill; ~±3% L around primary; AA on primary-foreground holds across the whole range
-  surface-wash:  "linear-gradient(180deg, hsl(218 46% 22% / 0.035) 0%, hsl(218 46% 22% / 0) 220px)"  # faint navy top-wash for home/digest surfaces ONLY; fades to transparent — far lighter than the demo's lavender
+  # The gradient is a SHEEN, not a new hue — The One Blue Rule preserved.
+  primary-sheen: "linear-gradient(180deg, color-mix(in srgb, var(--accent) 100%, white 3%) 0%, var(--accent) 100%)"
+  surface-wash:  "linear-gradient(180deg, color-mix(in srgb, var(--brand-navy) 3.5%, transparent) 0%, color-mix(in srgb, var(--brand-navy) 0%, transparent) 220px)"
 spacing:
-  "1": "4px"
-  "2": "8px"
-  "3": "12px"
-  "4": "16px"
-  "5": "20px"
-  "6": "24px"
+  xs: "4px"
+  sm: "8px"
+  md: "12px"
+  base: "16px"   # standard card padding
+  lg: "20px"
+  xl: "24px"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
@@ -152,7 +154,7 @@ components:
     textColor: "{colors.card-foreground}"
     rounded: "{rounded.lg}"
     padding: "16px"
-    shadow: "{shadows.rest}"
+    # shadow semantics live in ## Elevation & Depth (shadow is not a valid component sub-token)
   input:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
@@ -182,8 +184,8 @@ components:
     padding: "0 10px"
     height: "36px"
   nav-item-active:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary}"
+    backgroundColor: "{colors.primary}"   # primary/10% tint at runtime
+    textColor: "{colors.foreground}"       # full-color foreground (fixed: was blue-on-blue)
     rounded: "{rounded.sm}"
     height: "36px"
   kanban-card:
@@ -191,12 +193,22 @@ components:
     textColor: "{colors.foreground}"
     rounded: "{rounded.lg}"
     padding: "11px"
-    shadow: "{shadows.rest}"
+    # shadow semantics live in ## Elevation & Depth
 ---
 
 # Design System: Gordi MOS
 
-## 1. Overview
+> **ADR-0009 (2026-06-19) — token-system adoption.** This file is the identity authority
+> (OD-DIR-8). Runtime tokens live in `mos-app/src/index.css` as `color(display-p3 …)`
+> values ported from the clean-room `mos-design-kit` (990 `--ds-*` tokens, light + dark).
+> The `oklch()` values in the frontmatter above are the **linter-compatible documentation
+> form** of the same colors — OKLab is a wide-gamut space the `@google/design.md` linter
+> parses; `color(display-p3 …)` is not linter-parseable but is the runtime form. Both
+> forms express identical colors. Gordi brand tokens (`brand-navy/orange`, OD-P3-7) are
+> preserved as **additions** on top of the kit. The 10 named rules below are the
+> load-bearing identity, preserved verbatim. See ADR-0009 for the architecture.
+
+## Overview
 
 **Creative North Star: "The Quiet Control Surface."**
 
@@ -213,7 +225,7 @@ The personality is **calm, dense, and data-first.** The surface is white-on-near
 - Plus Jakarta Sans for display/headings, DM Sans for body/UI/table; `tabular-nums` for all money and metrics; SF Mono for IDs/codes only.
 - Status is communicated by a small colored dot + tinted pill, not by loud fills.
 
-## 2. Colors
+## Colors
 
 A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a cool neutral (`240`); the only saturated color in normal use is the primary blue. Status colors (destructive/warning/success) appear only on data state, and a single categorical violet is reserved for KPI/avatar/timeline accents — never as an action color. **Light scheme only** in the source; no dark `:root` block was present (see Open Questions).
 
@@ -260,7 +272,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Orange-Sprinkle Rule (OD-P3-7).** `brand-orange` is a brand sprinkle used **sparingly** (≤2 marks per screen): the logo dot and the **active view-tab underline marker**. It is kept **OFF all status semantics** (it sits hue-wise between the red/amber status hues and would be misread as a warning) and **OFF all actions**. Never a status, never a link, never a button.
 
-## 3. Typography
+## Typography
 
 **Display / Heading Font (OD-P3-9):** Plus Jakarta Sans (with `system-ui, -apple-system, "Segoe UI", sans-serif` fallback) — page titles, section/card headings, subheadings.
 **Body / UI / Table Font (OD-P3-9):** DM Sans (same fallback stack) — body copy, controls, table cells, labels, overlines.
@@ -282,7 +294,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Mono-For-Identifiers Rule.** SF Mono appears only on machine identifiers (deal/project codes) and keyboard chips. Money is DM-Sans-tabular (or the Inter-tabular fallback above), not mono.
 
-## 4. Elevation
+## Elevation & Depth
 
 This is a **borders-first system with a permitted soft resting lift** (amended 2026-06-18, OD-P3-11). Depth is conveyed primarily by 1px borders and surface-tone contrast (white `card` floating on the `secondary`/35% main area) — and now *also* by one subtle, low-opacity **resting shadow** on cards/KPI/kanban that gives the surface a gentle, elegant lift without floating. Heavier shadows remain small, low-opacity, and almost always a *response to state* — a card deepens to ~`0 2px 10px` on hover, a primary button carries a faint `0 1px 2px` brand-tinted shadow, segmented "on" states get a `0 1px 2px` lift to read as pressed. Only true overlays (popover menus, toasts, tooltips) carry a real drop shadow, because they genuinely float above the page. All shadow colors are a desaturated near-black, faintly navy-tinted (`hsl(222 18% 12% / low-alpha)` at rest; `hsl(240 6–10% ~8% / low-alpha)` for state/overlay), never pure black.
 
@@ -299,18 +311,19 @@ This is a **borders-first system with a permitted soft resting lift** (amended 2
 
 **The No-Pure-Black-Shadow Rule.** Shadow color is always desaturated near-black at low alpha — at rest a faint navy tint (`hsl(222 18% 12% / 0.04–0.05)`), for state/overlay `hsl(240 …% ~8–10% / 0.04–0.16)`. Never `rgba(0,0,0,…)` at high opacity — that reads as a 2014 app.
 
-## 4b. Gradients (OD-P3-12, 2026-06-18)
-
+### Gradients (OD-P3-12)
 The system was gradient-free at rest by default. The owner ratified **two bounded, navy-tinted gradients** — explicitly **NOT purple**, far lighter than the demo's lavender, and always within The One Blue Rule.
 
-### Gradient Vocabulary
-- **Primary-button sheen** (`gradients.primary-sheen`, `linear-gradient(180deg, hsl(221.2 83.2% 56%) 0%, hsl(221.2 83.2% 51%) 100%)`): An **optional** whisper-subtle vertical gradient on the primary fill — top ~3% lighter, bottom ~2% darker than the base `primary`. It is a sheen on the *same* blue, not a second hue and not navy-visible; it reuses the `primary` family with a navy lean only in spirit. `primary-foreground` (near-white) clears AA (≥4.5:1) across the *entire* range (the darkest stop, `51% L`, is the worst case and still passes). The faint brand-button rest shadow (§4) sits under it unchanged.
-- **Surface wash** (`gradients.surface-wash`, `linear-gradient(180deg, hsl(218 46% 22% / 0.035) 0%, hsl(218 46% 22% / 0) 220px)`): A very faint navy-tinted top-wash for **home / digest surfaces only** (My Week and any future at-a-glance view). It fades from `brand-navy` at 3.5% alpha to fully transparent within 220px — a breath of tint at the top of the page, NOT a color block, and far lighter than the demo's lavender field. `foreground` and `muted-foreground` text both retain their AA margins over the wash because the tint never exceeds 3.5% alpha (effective background stays within ~1.5 L of white at the very top).
+- **Primary-button sheen** (`gradients.primary-sheen`): An **optional** whisper-subtle vertical gradient on the primary fill — top ~3% lighter, bottom ~2% darker than the base `primary`. It is a sheen on the *same* blue, not a second hue. `primary-foreground` (near-white) clears AA (≥4.5:1) across the *entire* range.
+- **Surface wash** (`gradients.surface-wash`): A very faint navy-tinted top-wash for **home / digest surfaces only** (My Week). It fades from `brand-navy` at 3.5% alpha to fully transparent within 220px.
 
-### Named Rule
-**The Restrained-Gradient Rule (OD-P3-12).** Gradients are permitted in **exactly two places**: the optional primary-button sheen and the home/digest surface wash. Hard bounds: **(1)** never on status (no gradient on pills, KPI deltas, ops rows, progress markers, badges); **(2)** never introduces a new hue — only the `primary` blue (sheen) or `brand-navy` (wash) families, **never purple/indigo/violet**; **(3)** opacity ceiling — the surface wash tops out at **3.5% alpha** and fully fades to transparent; the button sheen stays within **±3% L** of base `primary`; **(4)** AA text contrast must hold across the **full** gradient range, verified at the worst-case stop (button: darkest stop `51% L`; wash: top-most `3.5%`-tinted band). No glassmorphism, no neon, no multi-stop rainbows — these are *whispers* of depth, consistent with the Quiet Control Surface.
+**The Restrained-Gradient Rule (OD-P3-12).** Gradients are permitted in **exactly two places**: the optional primary-button sheen and the home/digest surface wash. Hard bounds: **(1)** never on status; **(2)** never introduces a new hue — only the `primary` blue (sheen) or `brand-navy` (wash) families, **never purple/indigo/violet**; **(3)** opacity ceiling — the surface wash tops out at **3.5% alpha** and fully fades to transparent; the button sheen stays within **±3% L** of base `primary`; **(4)** AA text contrast must hold across the **full** gradient range, verified at the worst-case stop. No glassmorphism, no neon, no multi-stop rainbows — these are *whispers* of depth.
 
-## 5. Components
+## Shapes
+
+Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tight at 8px** (`rounded.sm`) — buttons, inputs, nav-items, badges — so 32px controls don't go bubbly. **Cards / containers / overlays take the 12px card radius** (`rounded.lg`, OD-P3-10). Checkbox / tiny inner corners use 4px (`rounded.xs`). Pills / status badges use `full` (999px). Nested radii compose so inner corners sit inside outer ones.
+
+## Components
 
 All interactive controls are **32px tall** ("h-8") with **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`) unless noted; **cards/containers/overlays use the 12px card radius** (`{rounded.lg}` = `var(--radius)`). Data table rows are deliberately roomier at 54px. Nested radii use `calc(var(--radius) - 2px/4px)` so inner corners sit inside outer ones. *(OD-P3-10 taste guard: the radius bump to 12px applies to the big surfaces only — 32px controls stay tight at 8px so buttons/inputs/badges/nav-items don't go bubbly.)*
 
@@ -393,7 +406,7 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), overlay shadow, 12px radius, bottom-right, slide-in.
 - **Tooltip (`#tip`):** dark surface (`hsl(240 10% 8%)`), near-white text, **8px radius** (control-scale; tooltips are small chips, not card-scale overlays), `0 8px 24px / 0.4` shadow, max 280px; bold title with optional dot, `tabular` key/value rows.
 
-## 6. Do's and Don'ts
+## Do's and Don'ts
 
 ### Do:
 - **Do** drive every interactive affordance with the one `primary` blue, and keep it under ~10% of any screen (The One Blue Rule). The optional primary-button sheen is the *same* blue — not a second action color.
