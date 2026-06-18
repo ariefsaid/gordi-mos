@@ -1,12 +1,36 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+
+// Dev/preview ergonomics: visiting bare "/" or "/mos" (no trailing slash) otherwise
+// shows Vite's "did you mean to visit /mos/ instead?" notice. Redirect those to the
+// based path so the server lands straight on the app. Dev/preview only — production
+// (ops.gordi.id/mos) is handled by the reverse proxy.
+function redirectToBase(base = '/mos/'): Plugin {
+  const bare = base.replace(/\/$/, '') // "/mos"
+  const install = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req, res, next) => {
+      const path = (req.url ?? '').split('?')[0]
+      if (path === '/' || path === bare) {
+        res.writeHead(302, { Location: base })
+        res.end()
+        return
+      }
+      next()
+    })
+  }
+  return {
+    name: 'redirect-to-base',
+    configureServer: install,
+    configurePreviewServer: install,
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/mos/',
-  plugins: [react(), tailwindcss()],
+  plugins: [redirectToBase('/mos/'), react(), tailwindcss()],
   test: {
     environment: 'jsdom',
     globals: true,
