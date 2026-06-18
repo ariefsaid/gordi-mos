@@ -6,6 +6,12 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+import { SHOW_DAILY_LOG } from '../src/config/features'
+
+// Daily Log is flag-hidden for the first rollout (config/features.ts); skip while hidden.
+test.beforeEach(() => {
+  test.skip(!SHOW_DAILY_LOG, 'Daily Log section is flag-hidden (config/features.ts)')
+})
 
 test('AC-090: add a log entry → it appears in the feed with source badge + type', async ({ page }) => {
   // ── 1. Login as VIEWER ─────────────────────────────────────────────────────

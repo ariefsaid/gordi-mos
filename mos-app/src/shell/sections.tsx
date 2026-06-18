@@ -1,5 +1,6 @@
 import type React from 'react'
 import { MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon } from './icons'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
 
 export interface Section {
   path: string
@@ -7,11 +8,13 @@ export interface Section {
   Icon: React.FC
 }
 
+// Rail + breadcrumb consume this. Weekly Updates / Daily Log are conditionally included via
+// the feature flags (config/features.ts) — flip a flag to true to restore that nav entry.
 export const SECTIONS: Section[] = [
   { path: '/', label: 'My Week', Icon: MyWeekIcon },
   { path: '/tasks', label: 'Tasks', Icon: TasksIcon },
-  { path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon },
-  { path: '/ops', label: 'Daily Log', Icon: OpsIcon },
+  ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon }] : []),
+  ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', Icon: OpsIcon }] : []),
 ]
 
 /**

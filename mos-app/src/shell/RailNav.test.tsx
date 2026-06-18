@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import RailNav from './RailNav'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
 
 // Helper component to probe current location
 function LocationDisplay() {
@@ -36,15 +37,18 @@ describe('AC-002: Rail contents', () => {
     expect(screen.getByText('Management OS')).toBeInTheDocument()
   })
 
-  it('renders exactly four nav links in order: My Week / Tasks / Updates / Daily Log', () => {
+  it('renders the visible nav links in order (My Week / Tasks always; Weekly Updates / Daily Log per feature flag)', () => {
     renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links).toHaveLength(4)
-    expect(links[0]).toHaveAccessibleName('My Week')
-    expect(links[1]).toHaveAccessibleName('Tasks')
-    expect(links[2]).toHaveAccessibleName('Weekly Updates')
-    expect(links[3]).toHaveAccessibleName('Daily Log')
+    const expected = [
+      'My Week',
+      'Tasks',
+      ...(SHOW_WEEKLY_UPDATES ? ['Weekly Updates'] : []),
+      ...(SHOW_DAILY_LOG ? ['Daily Log'] : []),
+    ]
+    expect(links).toHaveLength(expected.length)
+    expected.forEach((name, i) => expect(links[i]).toHaveAccessibleName(name))
   })
 
   it('has no badge-count elements', () => {

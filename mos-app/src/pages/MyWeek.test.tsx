@@ -6,6 +6,12 @@ import type { AuthState } from '../auth/context'
 vi.mock('../auth/useAuth')
 import { useAuth } from '../auth/useAuth'
 
+// Weekly Updates + Daily Log are flag-hidden in production (config/features.ts), but the
+// strip/team-module LOGIC is still exercised here under the SHOWN condition — force both
+// flags on so these AC tests keep proving that behavior. The HIDDEN behavior (strips absent,
+// trimmed subtitle) is covered separately in MyWeek.hidden.test.tsx.
+vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG: true }))
+
 // Mock weeklyUpdates data layer for strip wiring (AC-050, AC-051) + team module (RI-CROSS)
 vi.mock('../lib/db/weeklyUpdates', () => ({
   getMyUpdate:     vi.fn(),

@@ -17,6 +17,7 @@ import { ErrorState } from '../components/ui/StateKit'
 import { StatePill } from '../components/weekly/WeeklyUpdateReviewPane'
 import { getTodayOpsSummary } from '../lib/db/opsLog'
 import type { TodayOpsSummary } from '../lib/db/opsLog'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
 
 export default function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
@@ -29,7 +30,14 @@ export default function MyWeek() {
   const wib = weekLabel(now)
   const weekStart = weekStartISO(now, 0)
 
-  const subtitle = `Week of ${wib.range} · ${wib.today} · what needs you, your update, and today on the floor`
+  // Subtitle promises only the surfaces that are actually shown (Weekly Updates + Daily Log
+  // are flag-hidden for the first rollout — see config/features.ts).
+  const focus = SHOW_WEEKLY_UPDATES && SHOW_DAILY_LOG
+    ? 'what needs you, your update, and today on the floor'
+    : SHOW_WEEKLY_UPDATES ? 'what needs you and your update'
+    : SHOW_DAILY_LOG ? 'what needs you and today on the floor'
+    : 'what needs you'
+  const subtitle = `Week of ${wib.range} · ${wib.today} · ${focus}`
 
   // ── Weekly update strip state (AC-050, AC-051) ──────────────────────────────
   const personId = viewer?.person?.id ?? null
@@ -194,24 +202,28 @@ export default function MyWeek() {
           </table>
         </section>
 
-        {/* ===== Auxiliary strip 1: weekly update (AC-050, AC-051) ===== */}
-        <WeeklyUpdateStrip
-          stripLoad={stripLoad}
-          stripStatus={stripStatus}
-          submittedAt={submittedAt}
-          weekStart={weekStart}
-          fridayShort={wib.fridayShort}
-        />
+        {/* ===== Auxiliary strip 1: weekly update (AC-050, AC-051) — flag-hidden ===== */}
+        {SHOW_WEEKLY_UPDATES && (
+          <WeeklyUpdateStrip
+            stripLoad={stripLoad}
+            stripStatus={stripStatus}
+            submittedAt={submittedAt}
+            weekStart={weekStart}
+            fridayShort={wib.fridayShort}
+          />
+        )}
 
-        {/* ===== Auxiliary strip 2: ops (AC-080/081/082) ===== */}
-        <OpsStrip
-          opsLoad={opsLoad}
-          summary={opsSummary}
-          onRetry={loadOpsSummary}
-        />
+        {/* ===== Auxiliary strip 2: ops (AC-080/081/082) — flag-hidden ===== */}
+        {SHOW_DAILY_LOG && (
+          <OpsStrip
+            opsLoad={opsLoad}
+            summary={opsSummary}
+            onRetry={loadOpsSummary}
+          />
+        )}
 
-        {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) ===== */}
-        {isManager && (
+        {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) — weekly-update review, flag-hidden ===== */}
+        {SHOW_WEEKLY_UPDATES && isManager && (
           <>
             <p
               className="text-muted-foreground font-semibold uppercase"

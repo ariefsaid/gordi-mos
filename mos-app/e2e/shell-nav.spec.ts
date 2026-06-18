@@ -9,6 +9,10 @@
 import { test, expect } from '@playwright/test'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { loginAs } from './helpers/login'
+// Weekly Updates + Daily Log are flag-hidden for the first rollout (src/config/features.ts).
+// The nav legs below are gated on the same flags so this journey covers only the visible
+// sections while hidden, and the full journey returns automatically when a flag is flipped on.
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../src/config/features'
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Pre-login: static HTML title is present on the login page ---
@@ -43,40 +47,40 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // regardless of data (populated, empty, loading) — proves the real Tasks surface rendered.
   await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 
-  // --- Navigate to Updates ---
-  // P2-2b + JTBD-1 rename: section is now "Weekly Updates" (rail label, h1, and title).
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }).click()
-  await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
-  await expect(page.locator('header b:text("Weekly Updates")')).toBeVisible()
-  const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' })
-  await expect(updatesLink).toHaveAttribute('aria-current', 'page')
-  // Real write pane is rendered (aria-label from WeeklyUpdateWritePane section)
-  await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
+  // --- Navigate to Weekly Updates (flag-gated — hidden for the first rollout) ---
+  if (SHOW_WEEKLY_UPDATES) {
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }).click()
+    await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
+    await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
+    await expect(page.locator('header b:text("Weekly Updates")')).toBeVisible()
+    const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' })
+    await expect(updatesLink).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
+  }
 
-  // --- Navigate to the Daily Log ---
-  // P2-3b: page title is now "Daily Log — Gordi MOS"; real feed replaces placeholder.
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Daily Log' }).click()
-  await expect(page).toHaveURL(/\/ops$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Daily Log — Gordi MOS')
-  await expect(page.locator('header b:text("Daily Log")')).toBeVisible()
-  const opsLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Daily Log' })
-  await expect(opsLink).toHaveAttribute('aria-current', 'page')
-  // Real feed rendered — heading visible
-  await expect(page.getByRole('heading', { name: 'Daily Log' })).toBeVisible({ timeout: 5_000 })
+  // --- Navigate to the Daily Log (flag-gated — hidden for the first rollout) ---
+  if (SHOW_DAILY_LOG) {
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Daily Log' }).click()
+    await expect(page).toHaveURL(/\/ops$/, { timeout: 5_000 })
+    await expect(page).toHaveTitle('Daily Log — Gordi MOS')
+    await expect(page.locator('header b:text("Daily Log")')).toBeVisible()
+    const opsLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Daily Log' })
+    await expect(opsLink).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('heading', { name: 'Daily Log' })).toBeVisible({ timeout: 5_000 })
+  }
 
-  // --- Deep-link reload on /updates (FR-008) ---
-  // Navigate to updates first, then reload
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }).click()
-  await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
+  // --- Deep-link reload (FR-008) — reload on Weekly Updates if shown, else on Tasks ---
+  const reloadName = SHOW_WEEKLY_UPDATES ? 'Weekly Updates' : 'Tasks'
+  const reloadPath = SHOW_WEEKLY_UPDATES ? /\/updates$/ : /\/tasks$/
+  const reloadTitle = SHOW_WEEKLY_UPDATES ? 'Weekly Updates — Gordi MOS' : 'Tasks — Gordi MOS'
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: reloadName }).click()
+  await expect(page).toHaveURL(reloadPath, { timeout: 5_000 })
   await page.reload()
-
-  // After reload: all three signals should still resolve to Updates (P2-2b title update)
-  await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
-  await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
-  await expect(page.locator('header b:text("Weekly Updates")')).toBeVisible()
+  await expect(page).toHaveURL(reloadPath, { timeout: 5_000 })
+  await expect(page).toHaveTitle(reloadTitle)
+  await expect(page.locator(`header b:text("${reloadName}")`)).toBeVisible()
   await expect(
-    page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }),
+    page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: reloadName }),
   ).toHaveAttribute('aria-current', 'page')
 })
 

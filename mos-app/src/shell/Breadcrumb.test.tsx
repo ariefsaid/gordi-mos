@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Breadcrumb from './Breadcrumb'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
 
 function renderBreadcrumb(path: string) {
   return render(
@@ -34,11 +35,12 @@ describe('FIX-4: Breadcrumb at unknown path — no orphan separator', () => {
 
 // AC-004: breadcrumb shows "Gordi MOS › <Section>" with the section bold/emphasized
 describe('AC-004: Breadcrumb per route', () => {
+  // Hidden sections (config/features.ts) don't resolve to a breadcrumb section — gate them.
   const cases: Array<{ path: string; section: string }> = [
     { path: '/', section: 'My Week' },
     { path: '/tasks', section: 'Tasks' },
-    { path: '/updates', section: 'Weekly Updates' },
-    { path: '/ops', section: 'Daily Log' },
+    ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', section: 'Weekly Updates' }] : []),
+    ...(SHOW_DAILY_LOG ? [{ path: '/ops', section: 'Daily Log' }] : []),
   ]
 
   cases.forEach(({ path, section }) => {
@@ -56,9 +58,12 @@ describe('AC-004: Breadcrumb per route', () => {
 // IA-2 (PR-2): the shell breadcrumb EXTENDS to the leaf on sub-pages, so the
 // redundant in-page `/`-separated crumbs could be removed. One `›` separator.
 describe('IA-2: Breadcrumb extends to the leaf on sub-pages', () => {
+  // /ops/* leaves only resolve when Daily Log is shown (config/features.ts).
   const leafCases: Array<{ path: string; section: string; leaf: string }> = [
-    { path: '/ops/new', section: 'Daily Log', leaf: 'Add log entry' },
-    { path: '/ops/some-id/edit', section: 'Daily Log', leaf: 'Edit log entry' },
+    ...(SHOW_DAILY_LOG ? [
+      { path: '/ops/new', section: 'Daily Log', leaf: 'Add log entry' },
+      { path: '/ops/some-id/edit', section: 'Daily Log', leaf: 'Edit log entry' },
+    ] : []),
     { path: '/tasks/new', section: 'Tasks', leaf: 'New task' },
   ]
 
