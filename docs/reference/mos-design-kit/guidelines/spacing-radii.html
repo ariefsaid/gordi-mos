@@ -1,0 +1,23 @@
+<!-- @dsCard group="Spacing" viewport="700x150" name="Corner radii" subtitle="Tight radii — 4px default control radius, 8px for cards." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--ds-font-family); background: var(--ds-background-primary); padding: 24px; color: var(--ds-font-color-secondary); display:flex; gap:22px; align-items:flex-end; }
+  .col { display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .box { width: 70px; height: 56px; background: var(--ds-color-blue5); border: 1px solid var(--ds-color-blue7); }
+  .l { font-size: 11px; color: var(--ds-font-color-tertiary); font-family: var(--ds-code-font-family); }
+  .pill { width: 90px; }
+</style>
+</head>
+<body>
+  <div class="col"><div class="box" style="border-radius:var(--ds-border-radius-xs)"></div><div class="l">xs · 2</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--ds-border-radius-sm)"></div><div class="l">sm · 4</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--ds-border-radius-md)"></div><div class="l">md · 8</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--ds-border-radius-xl)"></div><div class="l">xl · 20</div></div>
+  <div class="col"><div class="box pill" style="border-radius:var(--ds-border-radius-pill)"></div><div class="l">pill · 999</div></div>
+  <div class="col"><div class="box" style="width:56px;border-radius:var(--ds-border-radius-rounded)"></div><div class="l">round</div></div>
+</body>
+</html>

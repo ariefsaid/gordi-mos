@@ -1,0 +1,24 @@
+<!-- @dsCard group="Type" viewport="700x260" name="Type scale" subtitle="rem-based ramp from xxl (1.85rem) down to xxs (0.625rem)." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--ds-font-family); background: var(--ds-background-primary); padding: 24px; color: var(--ds-font-color-primary); }
+  .row { display: flex; align-items: baseline; gap: 16px; padding: 5px 0; border-bottom: 1px solid var(--ds-border-color-light); }
+  .row:last-child { border-bottom: none; }
+  .tok { width: 130px; font-size: 11px; color: var(--ds-font-color-tertiary); font-family: var(--ds-code-font-family); }
+  .spec { color: var(--ds-font-color-primary); }
+</style>
+</head>
+<body>
+  <div class="row"><div class="tok">xxl · 1.85rem</div><div class="spec" style="font-size:var(--ds-font-size-xxl); font-weight:600;">Page title</div></div>
+  <div class="row"><div class="tok">xl · 1.54rem</div><div class="spec" style="font-size:var(--ds-font-size-xl); font-weight:600;">Section heading</div></div>
+  <div class="row"><div class="tok">lg · 1.23rem</div><div class="spec" style="font-size:var(--ds-font-size-lg); font-weight:500;">Subheading</div></div>
+  <div class="row"><div class="tok">md · 1rem</div><div class="spec" style="font-size:var(--ds-font-size-md);">Body — the default UI size</div></div>
+  <div class="row"><div class="tok">sm · 0.92rem</div><div class="spec" style="font-size:var(--ds-font-size-sm);">Small / dense labels</div></div>
+  <div class="row"><div class="tok">xs · 0.85rem</div><div class="spec" style="font-size:var(--ds-font-size-xs);">Caption &amp; tag text</div></div>
+  <div class="row"><div class="tok">xxs · 0.625rem</div><div class="spec" style="font-size:var(--ds-font-size-xxs); text-transform:uppercase; letter-spacing:.05em;">Overline</div></div>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MOS Design Kit — Acme Inc (prototype)</title>
+  <link rel="stylesheet" href="../../styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+  <style>
+    :root { color-scheme: light; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--ds-font-family);
+      color: var(--ds-font-color-primary);
+      background: var(--ds-background-primary);
+    }
+    #root { height: 100vh; }
+    .mk-shell { display: flex; height: 100%; width: 100%; }
+    .mk-shell__main { flex: 1; min-width: 0; height: 100%; }
+    .mk-tnum { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+
+  <!-- mock data + formatters -->
+  <script src="./data.js"></script>
+
+  <!-- icon helper (global Ti + mkIcon) -->
+  <script type="text/babel" src="./icons.jsx"></script>
+
+  <!-- primitives -->
+  <script type="text/babel" src="../../components/inputs/Button.jsx"></script>
+  <script type="text/babel" src="../../components/inputs/IconButton.jsx"></script>
+  <script type="text/babel" src="../../components/inputs/TextInput.jsx"></script>
+  <script type="text/babel" src="../../components/inputs/Checkbox.jsx"></script>
+  <script type="text/babel" src="../../components/inputs/Toggle.jsx"></script>
+  <script type="text/babel" src="../../components/display/Tag.jsx"></script>
+  <script type="text/babel" src="../../components/display/Avatar.jsx"></script>
+  <script type="text/babel" src="../../components/display/Chip.jsx"></script>
+
+  <!-- screens -->
+  <script type="text/babel" src="./LoginScreen.jsx"></script>
+  <script type="text/babel" src="./Sidebar.jsx"></script>
+  <script type="text/babel" src="./RecordTable.jsx"></script>
+  <script type="text/babel" src="./RecordPage.jsx"></script>
+  <script type="text/babel" src="./Kanban.jsx"></script>
+
+  <script type="text/babel">
+    var { LoginScreen, Sidebar, RecordTable, RecordPage, Kanban } = window.MosDesignKit;
+
+    function App() {
+      var viewState = React.useState({ screen: 'login', entity: 'companies', view: 'table', record: null, nav: 'companies' });
+      var st = viewState[0]; var set = viewState[1];
+      var update = function (patch) { set(Object.assign({}, st, patch)); };
+
+      if (st.screen === 'login') {
+        return <LoginScreen onSignIn={function () { update({ screen: 'app' }); }} />;
+      }
+
+      var onNavigate = function (key) {
+        if (key === 'companies') return update({ entity: 'companies', view: 'table', nav: 'companies' });
+        if (key === 'opportunities') return update({ entity: 'opportunities', view: 'kanban', nav: 'opportunities' });
+        return update({ nav: key });
+      };
+
+      var main;
+      if (st.view === 'record' && st.record) {
+        main = <RecordPage record={st.record} onBack={function () { update({ view: 'table', entity: 'companies', nav: 'companies' }); }} />;
+      } else if (st.view === 'kanban' || st.entity === 'opportunities') {
+        main = <Kanban items={window.MOS_DATA.opportunities} onToggleView={function () { update({ entity: 'companies', view: 'table', nav: 'companies' }); }} />;
+      } else {
+        main = <RecordTable items={window.MOS_DATA.companies}
+                  onOpenRecord={function (c) { update({ view: 'record', record: c }); }}
+                  onToggleView={function () { update({ entity: 'opportunities', view: 'kanban', nav: 'opportunities' }); }} />;
+      }
+
+      return (
+        <div className="mk-shell">
+          <Sidebar active={st.nav} onNavigate={onNavigate} />
+          <main className="mk-shell__main">{main}</main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

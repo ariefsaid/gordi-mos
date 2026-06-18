@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MOS Design Kit — Screen template</title>
+  <!-- This is a STATIC, hand-authored starting point: a sidebar + a record table.
+       No React, no JS. Pure HTML + CSS, every value a --ds-* token. Edit freely. -->
+  <link rel="stylesheet" href="../../styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--ds-font-family);
+      color: var(--ds-font-color-primary);
+      background: var(--ds-background-primary);
+      font-size: var(--ds-font-size-sm);
+    }
+    .shell { display: flex; height: 100vh; width: 100%; }
+
+    /* ---------- LEFT RAIL (236px) ---------- */
+    .rail {
+      width: 236px; flex: none; height: 100%;
+      background: var(--ds-background-secondary);
+      border-right: 1px solid var(--ds-border-color-light);
+      display: flex; flex-direction: column;
+      padding: var(--ds-spacing-2); gap: var(--ds-spacing-2);
+    }
+    .ws { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px; border-radius: var(--ds-border-radius-sm); cursor: pointer; }
+    .ws:hover { background: var(--ds-background-transparent-light); }
+    .ws__mark { width: 24px; height: 24px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue); color: var(--ds-font-color-inverted); display: inline-flex; align-items: center; justify-content: center; font-family: var(--ds-font-display); font-weight: 600; font-size: var(--ds-font-size-sm); }
+    .ws__name { font-size: var(--ds-font-size-md); font-weight: 600; flex: 1; }
+    .ws i { color: var(--ds-font-color-tertiary); }
+
+    .searchrow { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-light); }
+    .searchrow__label { flex: 1; }
+    .kbd { font-family: var(--ds-code-font-family); font-size: var(--ds-font-size-xxs); color: var(--ds-font-color-tertiary); background: var(--ds-background-tertiary); border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs); padding: 1px 5px; }
+
+    .navitem { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary); cursor: pointer; }
+    .navitem i { color: var(--ds-font-color-tertiary); }
+    .navitem__label { flex: 1; }
+    .navitem__count { font-size: var(--ds-font-size-xs); color: var(--ds-font-color-light); }
+    .navitem:hover { background: var(--ds-background-transparent-light); }
+    .navitem.is-active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
+    .navitem.is-active i { color: var(--ds-color-blue); }
+
+    .section__label { font-size: var(--ds-font-size-xs); font-weight: 500; color: var(--ds-font-color-light); padding: 14px 8px 4px; }
+    .spacer { flex: 1; }
+
+    .userchip { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px; border-radius: var(--ds-border-radius-sm); }
+    .avatar { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 500; font-size: var(--ds-font-size-xs); background: var(--ds-color-blue3); color: var(--ds-color-blue11); flex: none; }
+    .userchip__name { font-size: var(--ds-font-size-sm); font-weight: 500; }
+    .userchip__role { font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); }
+
+    /* ---------- MAIN (record table) ---------- */
+    .main { flex: 1; min-width: 0; height: 100%; background: var(--ds-background-primary); display: flex; flex-direction: column; overflow: auto; }
+    .head { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 var(--ds-spacing-4); border-bottom: 1px solid var(--ds-border-color-light); }
+    .head i { color: var(--ds-font-color-tertiary); }
+    .head__title { font-family: var(--ds-font-display); font-size: var(--ds-font-size-md); font-weight: 600; }
+    .head__count { font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-pill); padding: 1px 8px; }
+    .head__actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm); font-family: var(--ds-font-family); font-size: var(--ds-font-size-sm); font-weight: 500; cursor: pointer; border: 1px solid transparent; }
+    .btn--secondary { background: var(--ds-background-primary); border-color: var(--ds-border-color-medium); color: var(--ds-font-color-primary); }
+    .btn--secondary:hover { background: var(--ds-background-transparent-light); }
+    .iconbtn { width: 32px; padding: 0; justify-content: center; }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; padding: 8px var(--ds-spacing-4); border-bottom: 1px solid var(--ds-border-color-light); }
+    .tab { height: 28px; padding: 0 8px; display: inline-flex; align-items: center; border: none; background: transparent; border-radius: var(--ds-border-radius-sm); font-size: var(--ds-font-size-sm); font-weight: 500; color: var(--ds-font-color-secondary); cursor: pointer; }
+    .tab.is-active { color: var(--ds-font-color-primary); box-shadow: inset 0 -2px 0 var(--ds-color-blue); }
+    .tab:hover { background: var(--ds-background-transparent-light); }
+    .chipbtn { height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 6px; background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm); font-size: var(--ds-font-size-sm); font-weight: 500; color: var(--ds-font-color-secondary); cursor: pointer; }
+    .chipbtn:hover { background: var(--ds-background-transparent-light); }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { position: sticky; top: 0; background: var(--ds-background-primary); height: 32px; text-align: left; font-size: var(--ds-font-size-xs); font-weight: 400; color: var(--ds-font-color-light); border-bottom: 1px solid var(--ds-border-color-light); padding: 0 8px; }
+    td { height: 33px; padding: 0 8px; border-bottom: 1px solid var(--ds-border-color-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    tbody tr:hover { background: var(--ds-background-secondary); }
+    tbody tr:hover .rowcheck { visibility: visible; }
+    .rowcheck { visibility: hidden; width: 14px; height: 14px; border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-xs); display: inline-block; }
+    .sec { display: inline-flex; align-items: center; gap: 6px; color: var(--ds-font-color-secondary); }
+    .sec i { color: var(--ds-font-color-tertiary); }
+    .tnum { font-variant-numeric: tabular-nums; }
+    .col-check { width: 32px; padding-left: 12px; }
+    .col-name { width: 30%; }
+    .col-owner { width: 18%; }
+    .col-arr { width: 13%; text-align: right; }
+    .col-emp { width: 11%; text-align: right; }
+    .col-stage { width: 14%; }
+    .col-loc { width: 14%; }
+    th.right { text-align: right; }
+
+    .tag { display: inline-flex; padding: 2px 8px; border-radius: var(--ds-border-radius-pill); font-size: var(--ds-font-size-xs); }
+    .tag-green { background: var(--ds-tag-background-green); color: var(--ds-tag-text-green); }
+    .tag-amber { background: var(--ds-tag-background-amber); color: var(--ds-tag-text-amber); }
+    .tag-iris { background: var(--ds-tag-background-iris); color: var(--ds-tag-text-iris); }
+    .tag-sky { background: var(--ds-tag-background-sky); color: var(--ds-tag-text-sky); }
+    .tag-gray { background: var(--ds-tag-background-gray); color: var(--ds-tag-text-gray); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- ===== RAIL ===== -->
+    <aside class="rail">
+      <div class="ws"><span class="ws__mark">A</span><span class="ws__name">Acme Inc</span><i class="ti ti-chevron-down"></i></div>
+
+      <div class="searchrow"><i class="ti ti-search"></i><span class="searchrow__label">Search</span><span class="kbd">⌘K</span></div>
+
+      <div>
+        <div class="navitem"><i class="ti ti-search"></i><span class="navitem__label">Search</span></div>
+        <div class="navitem"><i class="ti ti-bell"></i><span class="navitem__label">Notifications</span></div>
+        <div class="navitem"><i class="ti ti-settings"></i><span class="navitem__label">Settings</span></div>
+      </div>
+
+      <div>
+        <div class="section__label">Favorites</div>
+        <div class="navitem"><i class="ti ti-star"></i><span class="navitem__label">Globex Corporation</span></div>
+        <div class="navitem"><i class="ti ti-star"></i><span class="navitem__label">Northwind Traders</span></div>
+      </div>
+
+      <div>
+        <div class="section__label">Workspace</div>
+        <div class="navitem is-active"><i class="ti ti-building"></i><span class="navitem__label">Companies</span><span class="navitem__count">10</span></div>
+        <div class="navitem"><i class="ti ti-users"></i><span class="navitem__label">People</span></div>
+        <div class="navitem"><i class="ti ti-target"></i><span class="navitem__label">Opportunities</span><span class="navitem__count">10</span></div>
+        <div class="navitem"><i class="ti ti-checklist"></i><span class="navitem__label">Tasks</span></div>
+        <div class="navitem"><i class="ti ti-notes"></i><span class="navitem__label">Notes</span></div>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="userchip"><span class="avatar">A</span><div><div class="userchip__name">Arief Said</div><div class="userchip__role">Workspace admin</div></div></div>
+    </aside>
+
+    <!-- ===== MAIN: record table ===== -->
+    <main class="main">
+      <div class="head">
+        <i class="ti ti-building" style="font-size:20px"></i>
+        <span class="head__title">Companies</span>
+        <span class="head__count">10</span>
+        <div class="head__actions">
+          <button class="btn btn--secondary iconbtn" title="Layout: kanban"><i class="ti ti-layout-columns"></i></button>
+          <button class="btn btn--secondary"><i class="ti ti-plus"></i> Add</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="tab is-active">All</button>
+        <button class="tab">Customers</button>
+        <button class="tab">Prospects</button>
+        <button class="chipbtn"><i class="ti ti-filter"></i> Filter</button>
+        <button class="chipbtn"><i class="ti ti-arrows-sort"></i> Sort</button>
+      </div>
+
+      <table>
+        <colgroup>
+          <col class="col-check" /><col class="col-name" /><col class="col-owner" />
+          <col class="col-arr" /><col class="col-emp" /><col class="col-stage" /><col class="col-loc" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th><span class="rowcheck" style="visibility:hidden"></span></th>
+            <th>Name</th><th>Account owner</th><th class="right">ARR</th><th class="right">Employees</th><th>Stage</th><th>Location</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Northwind Traders</td>
+            <td><span class="sec"><span class="avatar">M</span> Maya Chen</span></td>
+            <td class="tnum right" style="text-align:right">$1,240,000</td>
+            <td class="tnum right" style="text-align:right">420</td>
+            <td><span class="tag tag-green">Customer</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> Austin, TX</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Contoso Manufacturing</td>
+            <td><span class="sec"><span class="avatar">D</span> Devon Park</span></td>
+            <td class="tnum right" style="text-align:right">$860,000</td>
+            <td class="tnum right" style="text-align:right">1,280</td>
+            <td><span class="tag tag-green">Customer</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> Detroit, MI</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Fabrikam Labs</td>
+            <td><span class="sec"><span class="avatar">P</span> Priya Rao</span></td>
+            <td class="tnum right" style="text-align:right">$312,000</td>
+            <td class="tnum right" style="text-align:right">96</td>
+            <td><span class="tag tag-amber">Proposal</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> Boston, MA</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Globex Corporation</td>
+            <td><span class="sec"><span class="avatar">M</span> Maya Chen</span></td>
+            <td class="tnum right" style="text-align:right">$2,040,000</td>
+            <td class="tnum right" style="text-align:right">2,100</td>
+            <td><span class="tag tag-green">Customer</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> Seattle, WA</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Initech Services</td>
+            <td><span class="sec"><span class="avatar">L</span> Lena Ortiz</span></td>
+            <td class="tnum right" style="text-align:right">$148,000</td>
+            <td class="tnum right" style="text-align:right">54</td>
+            <td><span class="tag tag-sky">Qualified</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> Austin, TX</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Umbrella Logistics</td>
+            <td><span class="sec"><span class="avatar">O</span> Owen Grant</span></td>
+            <td class="tnum right" style="text-align:right">$540,000</td>
+            <td class="tnum right" style="text-align:right">310</td>
+            <td><span class="tag tag-iris">Negotiation</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> Denver, CO</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Stark Industries</td>
+            <td><span class="sec"><span class="avatar">M</span> Maya Chen</span></td>
+            <td class="tnum right" style="text-align:right">—</td>
+            <td class="tnum right" style="text-align:right">5,200</td>
+            <td><span class="tag tag-gray">Lead</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> New York, NY</span></td>
+          </tr>
+          <tr>
+            <td><span class="rowcheck"></span></td>
+            <td>Hooli Cloud</td>
+            <td><span class="sec"><span class="avatar">P</span> Priya Rao</span></td>
+            <td class="tnum right" style="text-align:right">$980,000</td>
+            <td class="tnum right" style="text-align:right">640</td>
+            <td><span class="tag tag-amber">Proposal</span></td>
+            <td><span class="sec"><i class="ti ti-map-pin"></i> San Jose, CA</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+/* ============================================================================
+   MOS Design Kit — global entry point
+   Consumers link THIS file only. It is a manifest of @imports; every token,
+   font, and alias ships through this closure. Do not add rules here.
+   ============================================================================ */
+
+/* Webfonts — Plus Jakarta Sans (display) + DM Sans (UI/body); SF Mono (code) is system */
+@import url('tokens/fonts.css');
+
+/* Raw token scales (light = default on :root, dark = .dark scope) */
+@import url('tokens/theme-light.css');
+@import url('tokens/theme-dark.css');
+
+/* Semantic, intent-based aliases mapped onto the raw tokens */
+@import url('tokens/aliases.css');

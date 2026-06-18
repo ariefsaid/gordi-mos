@@ -1,0 +1,35 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Surfaces & text" subtitle="Background layers and the four-step text hierarchy." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--ds-font-family); background: var(--ds-background-secondary); padding: 20px; display: flex; gap: 24px; }
+  .col { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .label { font-size: 11px; color: var(--ds-font-color-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+  .surf { display: flex; gap: 6px; }
+  .s { flex: 1; height: 44px; border-radius: var(--ds-border-radius-sm); border: 1px solid var(--ds-border-color-medium); display:flex; align-items:flex-end; padding:4px; font-size:10px; color:var(--ds-font-color-tertiary); }
+  .t { font-size: var(--ds-font-size-md); line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="col">
+    <div class="label">Surfaces</div>
+    <div class="surf">
+      <div class="s" style="background:var(--ds-background-primary)">1</div>
+      <div class="s" style="background:var(--ds-background-secondary)">2</div>
+      <div class="s" style="background:var(--ds-background-tertiary)">3</div>
+      <div class="s" style="background:var(--ds-background-quaternary)">4</div>
+      <div class="s" style="background:var(--ds-background-inverted-primary); color:var(--ds-font-color-inverted)">inv</div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="label">Text hierarchy</div>
+    <div class="t" style="color:var(--ds-font-color-primary); font-weight:600">Primary — gray12</div>
+    <div class="t" style="color:var(--ds-font-color-secondary)">Secondary — gray11 (body)</div>
+    <div class="t" style="color:var(--ds-font-color-tertiary)">Tertiary — gray9 (meta)</div>
+    <div class="t" style="color:var(--ds-font-color-light)">Light — gray8 (placeholder)</div>
+  </div>
+</body>
+</html>

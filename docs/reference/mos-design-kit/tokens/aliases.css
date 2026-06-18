@@ -1,0 +1,59 @@
+/* ============================================================================
+   MOS Design Kit — Semantic aliases
+   Friendly, intent-based names mapped onto the raw --ds-* tokens. Prefer these
+   in new work; they read better and keep designs on-system.
+   ========================================================================= */
+
+:root {
+  /* ---- Surfaces / backgrounds ---- */
+  --surface-primary: var(--ds-background-primary);        /* app canvas / cards */
+  --surface-secondary: var(--ds-background-secondary);    /* subtle panels */
+  --surface-tertiary: var(--ds-background-tertiary);      /* hover fills */
+  --surface-quaternary: var(--ds-background-quaternary);  /* pressed fills */
+  --surface-inverted: var(--ds-background-inverted-primary);
+  --surface-danger: var(--ds-background-danger);
+  --surface-overlay: var(--ds-background-overlay-primary); /* modal scrim */
+
+  /* ---- Text ---- */
+  --text-primary: var(--ds-font-color-primary);     /* headings, primary copy */
+  --text-secondary: var(--ds-font-color-secondary); /* body / labels */
+  --text-tertiary: var(--ds-font-color-tertiary);   /* meta, captions */
+  --text-light: var(--ds-font-color-light);         /* placeholder */
+  --text-inverted: var(--ds-font-color-inverted);
+  --text-danger: var(--ds-font-color-danger);
+  --text-accent: var(--ds-color-blue);
+
+  /* ---- Borders ---- */
+  --border-strong: var(--ds-border-color-strong);
+  --border-medium: var(--ds-border-color-medium);
+  --border-light: var(--ds-border-color-light);
+  --border-accent: var(--ds-border-color-blue);
+  --border-danger: var(--ds-border-color-danger);
+
+  /* ---- Accent (indigo) ---- */
+  --accent: var(--ds-color-blue);          /* primary brand action */
+  --accent-hover: var(--ds-color-blue10);
+  --accent-active: var(--ds-color-blue12);
+  --accent-subtle: var(--ds-accent-tertiary);
+
+  /* ---- Radii ---- */
+  --radius-xs: var(--ds-border-radius-xs);   /* 2px */
+  --radius-sm: var(--ds-border-radius-sm);   /* 4px — default control radius */
+  --radius-md: var(--ds-border-radius-md);   /* 8px — cards, menus */
+  --radius-pill: var(--ds-border-radius-pill);
+  --radius-round: var(--ds-border-radius-rounded);
+
+  /* ---- Elevation ---- */
+  --shadow-light: var(--ds-box-shadow-light);
+  --shadow-strong: var(--ds-box-shadow-strong);
+  --shadow-heavy: var(--ds-box-shadow-super-heavy);
+
+  /* ---- Type scale ---- */
+  --text-size-xxs: var(--ds-font-size-xxs); /* 10px */
+  --text-size-xs: var(--ds-font-size-xs);   /* ~13.6px */
+  --text-size-sm: var(--ds-font-size-sm);   /* ~14.7px */
+  --text-size-md: var(--ds-font-size-md);   /* 16px */
+  --text-size-lg: var(--ds-font-size-lg);   /* ~19.7px */
+  --text-size-xl: var(--ds-font-size-xl);   /* ~24.6px */
+  --text-size-xxl: var(--ds-font-size-xxl); /* ~29.6px */
+}

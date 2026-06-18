@@ -60,3 +60,6 @@ supabase/seed.production.sql
 
 # Claude Code local (per-machine) settings — may contain personal tool allowlists
 .claude/settings.local.json
+
+# AGPL firewall — upstream Twenty CRM reference, never commit
+/Twenty Design System/

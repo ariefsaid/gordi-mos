@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MOS Design Kit — Components</title>
+  <!-- tokens + fonts + aliases -->
+  <link rel="stylesheet" href="../styles.css" />
+  <!-- icons (Tabler webfont) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+  <style>
+    :root { color-scheme: light; }
+    html, body { margin: 0; }
+    body {
+      background: var(--ds-background-secondary);
+      font-family: var(--ds-font-family);
+      color: var(--ds-font-color-primary);
+    }
+    .page { padding: 40px 48px 80px; }
+    .page__eyebrow { font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); letter-spacing: .04em; text-transform: uppercase; }
+    .page__title { font-family: var(--ds-font-display); font-size: var(--ds-font-size-xxl); font-weight: 600; margin: 6px 0 4px; letter-spacing: -0.01em; }
+    .page__lead { font-size: var(--ds-font-size-sm); color: var(--ds-font-color-secondary); margin: 0 0 32px; max-width: 640px; }
+
+    .card {
+      background: var(--ds-background-primary);
+      border: 1px solid var(--ds-border-color-light);
+      border-radius: var(--ds-border-radius-md);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      box-shadow: var(--ds-box-shadow-light);
+    }
+    .card__title { font-family: var(--ds-font-display); font-size: var(--ds-font-size-md); font-weight: 600; margin: 0 0 4px; }
+    .card__sub { font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); margin: 0 0 20px; }
+
+    .group { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .group--col { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .label { font-size: var(--ds-font-size-xxs); text-transform: uppercase; letter-spacing: .06em; color: var(--ds-font-color-light); width: 88px; flex: none; }
+    .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+    .stack { display: flex; flex-direction: column; gap: 4px; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .dark {
+      background: var(--ds-background-secondary);
+      border-radius: var(--ds-border-radius-md);
+      padding: 28px 32px;
+      margin-top: 32px;
+      border: 1px solid var(--ds-border-color-medium);
+    }
+    .dark .page__title, .dark .card, .dark .card__title { /* tokens flip inside .dark */ }
+    .theme-tag { display:inline-flex; align-items:center; gap:6px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ds-color-blue); display:inline-block; }
+    .divider { height: 1px; background: var(--ds-border-color-light); margin: 18px 0; }
+  </style>
+</head>
+<body>
+  <div class="page" id="root"></div>
+
+  <!-- runtime -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+
+  <!-- icons helper (global Ti + mkIcon) -->
+  <script type="text/babel" src="../ui_kits/mos/icons.jsx"></script>
+
+  <!-- primitives -->
+  <script type="text/babel" src="./inputs/Button.jsx"></script>
+  <script type="text/babel" src="./inputs/IconButton.jsx"></script>
+  <script type="text/babel" src="./inputs/TextInput.jsx"></script>
+  <script type="text/babel" src="./inputs/Checkbox.jsx"></script>
+  <script type="text/babel" src="./inputs/Toggle.jsx"></script>
+  <script type="text/babel" src="./display/Tag.jsx"></script>
+  <script type="text/babel" src="./display/Avatar.jsx"></script>
+  <script type="text/babel" src="./display/Chip.jsx"></script>
+
+  <script type="text/babel">
+    var { Button, IconButton, TextInput, Checkbox, Toggle, Tag, Avatar, Chip } = window.MosDesignKit;
+    var { Ti, mkIcon } = window;
+
+    var PALETTE = ['gray','blue','green','amber','red','purple','iris','turquoise','orange','pink','jade','brown'];
+
+    function Labeled(_ref) {
+      var label = _ref.label, children = _ref.children;
+      return (
+        <div className="row">
+          <div className="label">{label}</div>
+          <div className="group">{children}</div>
+        </div>
+      );
+    }
+
+    function Card(_ref) {
+      var title = _ref.title, sub = _ref.sub, children = _ref.children;
+      return (
+        <div className="card">
+          <h3 className="card__title">{title}</h3>
+          {sub ? <p className="card__sub">{sub}</p> : null}
+          {children}
+        </div>
+      );
+    }
+
+    function Gallery() {
+      var Plus = mkIcon('plus'), Search = mkIcon('search'), Mail = mkIcon('mail'),
+        Bell = mkIcon('bell'), Settings = mkIcon('settings'), Trash = mkIcon('trash'),
+        Building = mkIcon('building'), User = mkIcon('user');
+      return (
+        <div>
+          <div className="page__eyebrow">MOS Design Kit</div>
+          <h1 className="page__title">Components</h1>
+          <p className="page__lead">Primitive controls, re-implemented from spec. Every value is a <code>--ds-*</code> token. Toggle the dark section at the bottom to see the theme flip.</p>
+
+          <Card title="Button" sub="variants × accents × sizes; primary fills, secondary outlines, tertiary text">
+            <Labeled label="primary">
+              <Button>Default</Button>
+              <Button accent="blue">Continue</Button>
+              <Button accent="danger">Delete</Button>
+              <Button Icon={Plus}>New</Button>
+              <Button disabled>Disabled</Button>
+            </Labeled>
+            <div className="divider" />
+            <Labeled label="secondary">
+              <Button variant="secondary">Default</Button>
+              <Button variant="secondary" accent="blue">Blue</Button>
+              <Button variant="secondary" accent="danger">Danger</Button>
+              <Button variant="secondary" Icon={Plus}>New</Button>
+            </Labeled>
+            <div className="divider" />
+            <Labeled label="tertiary">
+              <Button variant="tertiary">Default</Button>
+              <Button variant="tertiary" accent="blue">Blue</Button>
+              <Button variant="tertiary" accent="danger">Danger</Button>
+            </Labeled>
+            <div className="divider" />
+            <Labeled label="small">
+              <Button size="small">Small</Button>
+              <Button size="small" accent="blue" Icon={Plus}>Add</Button>
+              <Button size="small" variant="secondary">Ghost</Button>
+            </Labeled>
+          </Card>
+
+          <Card title="IconButton" sub="square buttons, same variant/accent system, aria-label">
+            <Labeled label="variants">
+              <IconButton ariaLabel="Add" variant="primary" Icon={Plus} />
+              <IconButton ariaLabel="Add blue" variant="primary" accent="blue" Icon={Plus} />
+              <IconButton ariaLabel="Delete" variant="primary" accent="danger" Icon={Trash} />
+              <IconButton ariaLabel="Search" variant="secondary" Icon={Search} />
+              <IconButton ariaLabel="Bell" variant="secondary" Icon={Bell} />
+              <IconButton ariaLabel="Settings" variant="tertiary" Icon={Settings} />
+              <IconButton ariaLabel="Disabled" variant="secondary" Icon={Settings} disabled />
+              <IconButton ariaLabel="Small" size="small" variant="secondary" Icon={Mail} />
+            </Labeled>
+          </Card>
+
+          <Card title="TextInput" sub="32px control, leading icon, focus ring, error + disabled states">
+            <div className="group" style={{ alignItems: 'flex-start' }}>
+              <div className="stack" style={{ width: 220 }}>
+                <TextInput label="Work email" placeholder="name@acme.example" Icon={Mail} fullWidth />
+              </div>
+              <TextInput placeholder="Search" Icon={Search} />
+              <TextInput defaultValue="bad value" error Icon={Mail} />
+              <TextInput defaultValue="locked" disabled Icon={Search} />
+            </div>
+          </Card>
+
+          <Card title="Checkbox & Toggle" sub="checked / indeterminate / disabled; on/off switches">
+            <Labeled label="checkbox">
+              <Checkbox />
+              <Checkbox checked />
+              <Checkbox indeterminate />
+              <Checkbox checked disabled />
+            </Labeled>
+            <div className="divider" />
+            <Labeled label="small">
+              <Checkbox size="small" />
+              <Checkbox size="small" checked />
+              <Checkbox size="small" indeterminate />
+            </Labeled>
+            <div className="divider" />
+            <Labeled label="toggle">
+              <Toggle />
+              <Toggle value />
+              <Toggle value disabled />
+            </Labeled>
+            <Labeled label="small">
+              <Toggle size="small" />
+              <Toggle size="small" value />
+            </Labeled>
+          </Card>
+
+          <Card title="Tag" sub="soft pills across the full color palette">
+            <div className="swatches">
+              {PALETTE.map(function (c) { return <Tag key={c} text={c} color={c} />; })}
+            </div>
+            <div className="divider" />
+            <div className="swatches">
+              <Tag text="Customer" color="green" weight="medium" Icon={mkIcon('circle-check')} />
+              <Tag text="Renewal" color="blue" Icon={mkIcon('refresh')} />
+              <Tag text="At risk" color="red" Icon={mkIcon('alert-triangle')} />
+              <Tag text="Enterprise" color="purple" />
+              <Tag text="Negotiation" color="amber" />
+            </div>
+          </Card>
+
+          <Card title="Avatar" sub="image or seeded pastel initial; squared + rounded; xs→xl">
+            <Labeled label="squared">
+              <Avatar placeholder="Maya Chen" size="xs" />
+              <Avatar placeholder="Devon Park" size="sm" />
+              <Avatar placeholder="Priya Rao" size="md" />
+              <Avatar placeholder="Alex Kim" size="lg" />
+              <Avatar placeholder="Jordan Lee" size="xl" type="rounded" />
+              <Avatar avatarUrl="https://i.pravatar.cc/96?img=12" size="lg" type="rounded" />
+              <Avatar placeholder="Ops" size="md" Icon={Building} />
+            </Labeled>
+            <div className="divider" />
+            <Labeled label="rounded">
+              <Avatar placeholder="Acme Inc" size="md" type="rounded" />
+              <Avatar placeholder="Northwind" size="lg" type="rounded" />
+              <Avatar placeholder="Contoso" size="xl" type="rounded" />
+            </Labeled>
+          </Card>
+
+          <Card title="Chip" sub="label with leading avatar or icon; clickable underlines on hover">
+            <div className="group">
+              <Chip label="Northwind Traders" avatarColor="blue" clickable onClick={function(){}} />
+              <Chip label="Maya Chen" clickable onClick={function(){}} />
+              <Chip label="Acme Inc" Icon={Building} clickable onClick={function(){}} />
+              <Chip label="Enterprise" Icon={User} />
+              <Chip label="name@acme.example" Icon={Mail} />
+            </div>
+          </Card>
+
+          {/* DARK THEME SECTION — tokens flip because the container is .dark */}
+          <div className="dark">
+            <div className="page__eyebrow">Opt-in dark theme</div>
+            <h1 className="page__title" style={{ fontSize: 'var(--ds-font-size-xl)' }}>Components · dark</h1>
+            <p className="page__lead">Add <code>class="dark"</code> to any container to flip every <code>--ds-*</code> token.</p>
+            <Card title="Button">
+              <Labeled label="primary">
+                <Button>Default</Button>
+                <Button accent="blue">Continue</Button>
+                <Button accent="danger">Delete</Button>
+                <Button Icon={Plus}>New</Button>
+              </Labeled>
+              <Labeled label="secondary">
+                <Button variant="secondary">Default</Button>
+                <Button variant="secondary" accent="blue">Blue</Button>
+                <Button variant="secondary" Icon={Search}>Search</Button>
+              </Labeled>
+            </Card>
+            <Card title="Inputs & Tags">
+              <div className="group" style={{ alignItems: 'flex-start' }}>
+                <TextInput label="Work email" placeholder="name@acme.example" Icon={Mail} fullWidth />
+                <Toggle value />
+                <Checkbox indeterminate />
+              </div>
+              <div className="divider" />
+              <div className="swatches">
+                <Tag text="Customer" color="green" />
+                <Tag text="Negotiation" color="amber" />
+                <Tag text="At risk" color="red" />
+                <Tag text="Enterprise" color="iris" />
+              </div>
+              <div className="divider" />
+              <div className="group">
+                <Chip label="Maya Chen" clickable onClick={function(){}} />
+                <Avatar placeholder="Acme Inc" size="lg" type="rounded" />
+              </div>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Gallery />);
+  </script>
+</body>
+</html>

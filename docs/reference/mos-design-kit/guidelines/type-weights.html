@@ -1,0 +1,19 @@
+<!-- @dsCard group="Type" viewport="700x140" name="Font weights" subtitle="Three weights only: Regular 400, Medium 500, Semibold 600." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--ds-font-family); background: var(--ds-background-primary); padding: 24px; color: var(--ds-font-color-primary); display:flex; gap:40px; }
+  .col { display:flex; flex-direction:column; gap:4px; }
+  .w { font-size: 30px; letter-spacing:-0.01em; }
+  .l { font-size: 11px; color: var(--ds-font-color-tertiary); font-family: var(--ds-code-font-family); }
+</style>
+</head>
+<body>
+  <div class="col"><div class="w" style="font-weight:400">Aa</div><div class="l">Regular · 400</div></div>
+  <div class="col"><div class="w" style="font-weight:500">Aa</div><div class="l">Medium · 500</div></div>
+  <div class="col"><div class="w" style="font-weight:600">Aa</div><div class="l">Semibold · 600</div></div>
+</body>
+</html>
