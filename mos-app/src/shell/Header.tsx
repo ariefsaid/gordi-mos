@@ -30,7 +30,7 @@ export default function Header({ onOpenDrawer, onRegisterHamburgerFocus }: Heade
           ref={hamburgerRef}
           type="button"
           aria-label="Open navigation"
-          className="flex items-center justify-center rounded-md hover:bg-accent flex-none"
+          className="flex items-center justify-center rounded-sm hover:bg-accent flex-none"
           style={{ width: 32, height: 32 }}
           onClick={onOpenDrawer}
         >

@@ -46,7 +46,7 @@ export function OrphanScreen() {
         {/* Sign out — the ONE primary button on this screen (One Blue Rule) */}
         <button
           type="button"
-          className="w-full flex items-center justify-center bg-primary text-primary-foreground rounded-md font-medium"
+          className="w-full flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-medium"
           style={{ height: 32, fontSize: 14 }}
           onClick={() => signOut?.()}
           // autoFocus intentional: single-action blocking screen — keyboard users land on exit (design-plan §5)

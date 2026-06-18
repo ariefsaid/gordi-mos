@@ -499,10 +499,12 @@ export default function OpsPage() {
         /* IA-1: the page head is the shared shell/PageHead.tsx (title + right-aligned meta).
            The bespoke .ops-page-head / .ops-page-title / .ops-count-line classes are gone. */
 
-        /* ── Card assembly ── */
+        /* ── Card assembly (OD-P3-10/11) ── */
         .ops-assembly {
           background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-          border-radius: 8px; overflow: hidden;
+          border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+          box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+          overflow: hidden;
         }
 
         /* ── Toolbar ── */
@@ -514,7 +516,8 @@ export default function OpsPage() {
         .control {
           height: 32px; display: inline-flex; align-items: center; gap: 6px;
           padding: 0 10px; border: 1px solid hsl(var(--input));
-          background: hsl(var(--background)); border-radius: 8px;
+          background: hsl(var(--background));
+          border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
           font-size: 13px; color: hsl(var(--foreground)); cursor: pointer;
           position: relative;
         }
@@ -527,7 +530,8 @@ export default function OpsPage() {
         .archived-toggle {
           display: inline-flex; align-items: center; gap: 6px;
           height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input));
-          background: hsl(var(--background)); border-radius: 8px;
+          background: hsl(var(--background));
+          border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
           font-size: 13px; cursor: pointer; color: hsl(var(--foreground));
         }
         .archived-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); }
@@ -671,7 +675,7 @@ export default function OpsPage() {
           flex: 1;
           padding: 0 12px;
           font-size: 13px;
-          border-radius: 8px;
+          border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
         }
         .ops-edit-btn:focus-visible {
           outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
@@ -680,7 +684,7 @@ export default function OpsPage() {
 
         /* ── Archive button (ghost ⋯, 32px, reveal on hover / always phone) ── */
         .ops-archive-btn {
-          min-width: 32px; height: 32px; border-radius: 8px;
+          min-width: 32px; height: 32px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
           border: 0; background: transparent; color: hsl(var(--muted-foreground));
           font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
           padding: 0 8px;

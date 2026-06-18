@@ -76,11 +76,11 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-// AuthCard — border-only, rounded-md, padding spacing.6 (24px), flat-by-default
+// AuthCard — card surface: rounded-lg (12px, OD-P3-10) + shadow-rest (OD-P3-11), spacing.6 (24px)
 export function AuthCard({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="w-full max-w-[360px] bg-card border border-border rounded-md"
+      className="w-full max-w-[360px] bg-card border border-border rounded-lg shadow-rest"
       style={{ padding: 24 }}
     >
       {children}

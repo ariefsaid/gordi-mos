@@ -90,7 +90,7 @@ export default function UserChip({ compact = false }: UserChipProps) {
         <div
           ref={menuRef}
           role="menu"
-          className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md p-[5px] z-50"
+          className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg p-[5px] z-50"
           style={{
             minWidth: 140,
             boxShadow:

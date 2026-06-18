@@ -87,7 +87,7 @@ export default function UpdatesPage() {
         // Not yet authenticated — render an accessible waiting card
         <section
           aria-label="My weekly update"
-          className="bg-card border border-border rounded-md"
+          className="bg-card border border-border rounded-lg shadow-rest"
           style={{ padding: '16px 20px' }}
         >
           <p style={{ fontSize: 14, color: 'hsl(240 4% 40%)' }}>Loading…</p>

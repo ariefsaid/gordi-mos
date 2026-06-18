@@ -113,12 +113,12 @@ export default function MyWeek() {
   }, [isManager, loadTeam])
 
   return (
-    <PageFrame>
+    <PageFrame surfaceWash>
         <PageHead title="My Week" subtitle={subtitle} />
 
         {/* ===== Dominant module: task-table card ===== */}
         <section
-          className="bg-card border border-border rounded-md mb-4"
+          className="bg-card border border-border rounded-lg shadow-rest mb-4"
           aria-label="My tasks this week"
         >
           {/* Card head (IA-3: shared <CardHead>) */}
@@ -312,7 +312,7 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
 
   return (
     <section
-      className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
+      className="bg-card border border-border rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
       style={{ minHeight: 60, padding: '12px 20px' }}
       aria-label="Today on the Daily Log"
     >
@@ -423,7 +423,7 @@ function WeeklyUpdateStrip({
 
   return (
     <section
-      className="bg-card border border-border rounded-md flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
+      className="bg-card border border-border rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
       style={{ minHeight: 60, padding: '12px 20px' }}
       aria-label="My weekly update"
     >
@@ -465,7 +465,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
   if (loadState === 'loading') {
     return (
       <div
-        className="bg-card border border-border rounded-md"
+        className="bg-card border border-border rounded-lg shadow-rest"
         aria-label="Team weekly updates"
         aria-busy="true"
       >
@@ -482,7 +482,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
   if (loadState === 'error') {
     return (
       <div
-        className="bg-card border border-border rounded-md"
+        className="bg-card border border-border rounded-lg shadow-rest"
         aria-label="Team weekly updates"
       >
         {/* IXD-5 (PR-2): shared <ErrorState> (this is a card, not a 56–64px density
@@ -496,7 +496,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
   if (rows.length === 0) {
     return (
       <div
-        className="bg-card border border-border rounded-md"
+        className="bg-card border border-border rounded-lg shadow-rest"
         aria-label="Team weekly updates"
       >
         <div
@@ -511,7 +511,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
 
   return (
     <div
-      className="bg-card border border-border rounded-md"
+      className="bg-card border border-border rounded-lg shadow-rest"
       aria-label="Team weekly updates"
     >
       <ul role="list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
