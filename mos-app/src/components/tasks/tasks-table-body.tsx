@@ -198,7 +198,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             </th>
             <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('owner')} onClick={() => onSort('owner')}>
-              Owner{sortIndicator('owner')}
+              Owner (R){sortIndicator('owner')}
             </th>
             {!condensed && (
               <th scope="col" className="th-cell">Business unit</th>
@@ -210,7 +210,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             {!condensed && (
               <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
                 aria-sort={ariaSort('activity')} onClick={() => onSort('activity')}>
-                Activity{sortIndicator('activity')}
+                Last activity{sortIndicator('activity')}
               </th>
             )}
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}

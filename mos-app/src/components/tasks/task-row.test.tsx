@@ -3,7 +3,7 @@
 // (RowMenu). The name cell is a real <a href="/tasks/:id"> Chip-link; status is
 // a soft StatusPill that never wraps; body rows are 50px (OD-P3-6).
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -123,6 +123,35 @@ describe('TaskRow — AC-T02 row carries the reveal hooks for checkbox + menu', 
     const row = document.querySelector('tr.task-row')!
     expect(row.querySelector('button.row-checkbox')).toBeTruthy()
     expect(row.querySelector('button.row-menu')).toBeTruthy()
+  })
+})
+
+describe('TaskRow — stopPropagation regression (checkbox + ⋯ must NOT fire row onOpen)', () => {
+  it('clicking the row checkbox does NOT call onOpen (stopPropagation)', () => {
+    const onOpen = vi.fn()
+    renderRow({ onOpen })
+    const checkbox = document.querySelector('button.row-checkbox') as HTMLElement
+    expect(checkbox).toBeTruthy()
+    fireEvent.click(checkbox)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('clicking the ⋯ trigger button does NOT call onOpen (stopPropagation)', () => {
+    const onOpen = vi.fn()
+    renderRow({ onOpen })
+    const menuTrigger = document.querySelector('button.row-menu') as HTMLElement
+    expect(menuTrigger).toBeTruthy()
+    fireEvent.click(menuTrigger)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('clicking the row body (td-status cell) DOES call onOpen', () => {
+    const onOpen = vi.fn()
+    renderRow({ onOpen })
+    const statusCell = document.querySelector('td.td-status') as HTMLElement
+    expect(statusCell).toBeTruthy()
+    fireEvent.click(statusCell)
+    expect(onOpen).toHaveBeenCalledWith('task-7')
   })
 })
 

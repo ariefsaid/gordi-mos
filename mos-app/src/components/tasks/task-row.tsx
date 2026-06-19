@@ -19,7 +19,7 @@ import { formatAge, formatDate } from './task-formatters'
 import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
 
-export interface TaskRowProps {
+export type TaskRowProps = {
   task: TaskListRow
   now: Date
   condensed: boolean

@@ -11,7 +11,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-export interface RowMenuProps {
+export type RowMenuProps = {
   taskId: string
 }
 
@@ -25,7 +25,7 @@ export function RowMenu({ taskId }: RowMenuProps) {
         aria-label="Row actions"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
@@ -33,7 +33,7 @@ export function RowMenu({ taskId }: RowMenuProps) {
       </button>
       {open && (
         <span role="menu" className="row-menu-pop" aria-label={`Row actions for task ${taskId}`}>
-          <Link to={`/tasks/${taskId}`} role="menuitem" className="row-menu-item" onClick={() => setOpen(false)}>
+          <Link to={`/tasks/${taskId}`} role="menuitem" className="row-menu-item" onClick={(e) => { e.stopPropagation(); setOpen(false) }}>
             Open
           </Link>
         </span>

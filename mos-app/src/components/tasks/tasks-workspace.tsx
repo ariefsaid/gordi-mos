@@ -274,8 +274,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     else { setSortCol(col); setSortDir('ascending') }
   }
 
-  const buOptions = useMemo(() => busDirectory, [busDirectory])
-  const personOptions = useMemo(() => peopleDirectory, [peopleDirectory])
 
   // ── RACI disclosure data per task (for the OwnerCell +N tooltip, AC-130) ──
   const buildOthers = useCallback((task: TaskListRow): OwnerCellRaciMember[] => {
@@ -565,8 +563,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             setSearchText={setSearchText}
             includeArchived={includeArchived}
             setIncludeArchived={setIncludeArchived}
-            buOptions={buOptions}
-            personOptions={personOptions}
+            buOptions={busDirectory}
+            personOptions={peopleDirectory}
             showNewTask={showNewTask}
           />
 

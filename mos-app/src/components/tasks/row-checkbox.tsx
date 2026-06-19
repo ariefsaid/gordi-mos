@@ -9,7 +9,7 @@
 //
 // a11y: a real <button role="checkbox"> (keyboard-focusable, roving not needed
 // here) with aria-checked incl. "mixed" for the partial select-all state.
-export interface RowCheckboxProps {
+export type RowCheckboxProps = {
   checked: boolean
   /** Partial selection (the select-all header). Renders aria-checked="mixed". */
   indeterminate?: boolean
@@ -27,7 +27,7 @@ export function RowCheckbox({ checked, indeterminate = false, onChange, label }:
       aria-label={label}
       tabIndex={0}
       className={`row-checkbox${checked || indeterminate ? ' row-checkbox-on' : ''}`}
-      onClick={() => onChange(!checked)}
+      onClick={(e) => { e.stopPropagation(); onChange(!checked) }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
