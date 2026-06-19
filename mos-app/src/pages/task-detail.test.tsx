@@ -147,6 +147,9 @@ function renderDetail(auth: AuthState = authedState) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  // Clear per-task feed-tab memory (sessionStorage) so a Checklist/Notes-tab
+  // test doesn't leak the active feed tab into a later activity-default test.
+  sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
   mockUpdateTaskStatus.mockResolvedValue()
@@ -189,18 +192,20 @@ describe('AC-070 — detail page renders task fields', () => {
     // Business unit (resolved from directory)
     expect(screen.getByText('Cafe Operations')).toBeTruthy()
 
-    // Description
-    expect(screen.getByText(/espresso machine on floor 2 is broken/i)).toBeTruthy()
-
-    // R and A person names (resolved from directory)
+    // R and A person names (resolved from directory) — left details panel
     expect(screen.getAllByText('Cahya Cafe').length).toBeGreaterThan(0)
 
-    // Checklist items
+    // Activity log region (the feed default tab)
+    expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
+
+    // Description now lives behind the Notes feed tab (no new entity)
+    fireEvent.click(screen.getByRole('tab', { name: /notes/i }))
+    expect(screen.getByText(/espresso machine on floor 2 is broken/i)).toBeTruthy()
+
+    // Checklist items behind the Checklist feed tab
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByText('Inspect heating element')).toBeTruthy()
     expect(screen.getByText('Order parts')).toBeTruthy()
-
-    // Activity log region
-    expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
   })
 
   it('renders loading skeleton initially (aria-busy)', () => {
@@ -327,7 +332,8 @@ describe('AC-074 — checklist add / toggle', () => {
   it('adds an item: addChecklistItem called, item appears', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderDetail()
-    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
 
     const input = screen.getByPlaceholderText(/add a step/i)
     fireEvent.change(input, { target: { value: 'Buy a new gasket' } })
@@ -342,6 +348,8 @@ describe('AC-074 — checklist add / toggle', () => {
     const checklist = makeChecklist([{ id: 'item-0', label: 'Inspect coil', is_done: false }])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Inspect coil'))
 
     const checkbox = screen.getByRole('checkbox', { name: /inspect coil/i })
@@ -359,6 +367,8 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Step A'))
 
     // Move "Step A" down (move-down button on the first item)
@@ -379,6 +389,8 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Step B'))
 
     // Move "Step B" up — use the specific aria-label on its move-up button
@@ -397,6 +409,8 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Remove me'))
 
     const deleteBtn = screen.getByRole('button', { name: /delete checklist item remove me/i })

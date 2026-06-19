@@ -117,10 +117,37 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
+    // Left panel: status + RACI always visible (decision-drivers above the fold)
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
-    expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+    // Right feed: Activity is the default tab; Checklist is one tab away
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+  })
+
+  it('AC-R01: full width renders a two-column record page (details panel + feed)', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderSurface()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    // left details panel + right tabbed feed both present
+    expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
+    expect(screen.getByRole('tablist')).toBeInTheDocument()
+    // two-column grid root
+    expect(document.querySelector('.record-2col')).toBeTruthy()
+    // feed column carries the no-bleed min-width:0 guard
+    const feedCol = document.querySelector('.record-feed-col') as HTMLElement | null
+    expect(feedCol).toBeTruthy()
+    expect(feedCol?.style.minWidth).toBe('0')
+  })
+
+  it('AC-R05: full width keeps the archived banner + Unarchive above the two columns', async () => {
+    const { unarchiveTask } = await import('@/lib/db/tasks')
+    vi.mocked(unarchiveTask).mockResolvedValue()
+    mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
+    renderSurface()
+    await waitFor(() => screen.getByText(/this task is archived/i))
+    expect(screen.getByRole('button', { name: /unarchive/i })).toBeInTheDocument()
   })
 
   it('AC-070 (TaskSurface): shows the loading skeleton initially', () => {
@@ -174,6 +201,8 @@ describe('TaskSurface — mutation handlers', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockResolvedValue()
     renderSurface()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Drain reservoir'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Drain reservoir' }))
     await waitFor(() =>
@@ -185,6 +214,8 @@ describe('TaskSurface — mutation handlers', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
     renderSurface()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Drain reservoir'))
     const cb = () => screen.getByRole('checkbox', { name: 'Drain reservoir' }) as HTMLInputElement
     expect(cb().checked).toBe(false)
@@ -280,6 +311,8 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
     renderSurface()
+    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Wipe counter'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Wipe counter' }))
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -312,24 +345,27 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
   }]
 
-  it('renders a pinned header + tablist with Details default selected', async () => {
+  it('AC-R06 (drawer): pinned header + compact details panel + feed with Activity default selected', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByRole('tablist')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /details/i })).toHaveAttribute('aria-selected', 'true')
-    // Details pane shows RACI + Description
+    // Activity is the feed default
+    expect(screen.getByRole('tab', { name: /activity/i })).toHaveAttribute('aria-selected', 'true')
+    // The compact details panel keeps RACI always visible (above the feed)
     expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    expect(document.querySelector('.record-details-compact')).toBeTruthy()
   })
 
-  it('AC-106 (drawer): switching to Checklist shows the checklist pane and hides RACI', async () => {
+  it('AC-R06 (drawer): RACI stays in the panel while the feed tabs switch to Checklist', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => expect(screen.getByText('Inspect coil')).toBeInTheDocument())
-    expect(screen.queryByRole('region', { name: /raci/i })).toBeNull()
+    // RACI lives in the always-visible panel now, not behind a tab
+    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
   })
 
   it('AC-103 (drawer): changing status in the pinned header updates the pill and calls updateTaskStatus', async () => {
