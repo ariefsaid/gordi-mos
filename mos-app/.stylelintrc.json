@@ -1,0 +1,30 @@
+{
+  "rules": {
+    "color-no-invalid-hex": true
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.css"],
+      "rules": {
+        "color-no-hex": true,
+        "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla"]
+      }
+    },
+    {
+      "files": [
+        "src/styles/tokens/theme-light.css",
+        "src/styles/tokens/theme-dark.css",
+        "src/index.css"
+      ],
+      "rules": {
+        "color-no-hex": null,
+        "function-disallowed-list": null
+      }
+    }
+  ],
+  "ignoreFiles": [
+    "dist/**",
+    "coverage/**",
+    "node_modules/**"
+  ]
+}

@@ -19,6 +19,19 @@ export default tseslint.config([
       ecmaVersion: 2022,
       globals: globals.browser,
     },
+    rules: {
+      // Ban literal color values in TS/TSX — colors must come from design tokens (var(--ds-*) / CSS vars).
+      // Allows: var(--…), color-mix(in srgb, var(--…) …%), currentColor, inherit, transparent, named colors.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'Literal[value=/^(#[0-9a-fA-F]{3,8}|(rgb|rgba|hsl|hsla)\\s*\\()/]',
+          message:
+            'Hard-coded color literals are banned. Use a design token (var(--ds-*)) or color-mix() over a token instead.',
+        },
+      ],
+    },
   },
   {
     // Ban relative-parent imports inside src/ — use @/ alias instead.
