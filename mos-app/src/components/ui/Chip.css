@@ -1,0 +1,13 @@
+/* Chip — mos-design-kit display/Chip.jsx. Leading avatar/icon + label, transparent bg.
+   Clickable underlines the label on hover. Truncates with ellipsis. */
+.mk-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 220px; padding: 0; border: 0; background: transparent;
+  font: inherit; font-size: var(--font-size-sm, 13px); color: var(--foreground);
+  cursor: default; vertical-align: middle;
+}
+.mk-chip--clickable { cursor: pointer; }
+.mk-chip--clickable:hover .mk-chip__label { text-decoration: underline; }
+.mk-chip__icon { display: inline-flex; width: 14px; height: 14px; flex-shrink: 0; color: var(--muted-foreground); }
+.mk-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-chip .mk-avatar { width: 20px; height: 20px; font-size: 10px; }

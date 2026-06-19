@@ -12,6 +12,7 @@ import OpsAddForm from './pages/OpsAddForm'
 import NotFoundPage from './pages/NotFoundPage'
 import LoginPage from './pages/LoginPage'
 import RecoveryPage from './pages/RecoveryPage'
+import { UiGallery } from './pages/UiGallery'
 
 // Route layout:
 // / (RedirectIfAuthed gate) — unauthenticated users can access these
@@ -33,6 +34,11 @@ import RecoveryPage from './pages/RecoveryPage'
 // basename: '/mos' matches the Caddy/Vite base (OD-P0-5).
 // replace on every redirect so Back does not re-enter (FR-012 back-guard).
 export const routeConfig: RouteObject[] = [
+  // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell —
+  // for design review. Stripped from the production build via import.meta.env.DEV.
+  ...(import.meta.env.DEV
+    ? [{ path: '/dev/ui', element: <UiGallery /> }]
+    : []),
   {
     element: <RedirectIfAuthed />,
     children: [

@@ -1,0 +1,10 @@
+/* Avatar — mos-design-kit display/Avatar.jsx. Image | seeded-pastel initials | Icon.
+   Sizes xs16/sm20/md24/lg32/xl48. type squared (8px) | rounded (50%). */
+.mk-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden; user-select: none;
+  font-weight: 600; line-height: 1; text-transform: uppercase;
+}
+.mk-avatar--squared { border-radius: var(--radius-sm); }
+.mk-avatar--rounded { border-radius: 50%; }
+.mk-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

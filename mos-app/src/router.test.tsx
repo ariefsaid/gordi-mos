@@ -60,7 +60,13 @@ describe('AC-008: Guard on new routes', () => {
 // establishes the nesting — the rendered output stays identical to today.
 describe('router — tasks nesting (ADR-0007)', () => {
   it('AC-100: tasks is a parent route with :taskId and new as children', () => {
-    const shell = routeConfig[1].children![0] // ProtectedRoute → AppShell
+    // Find the ProtectedRoute (which wraps AppShell) by locating the route whose
+    // children include an AppShell — index-agnostic so a DEV-only /dev/ui route
+    // prepended ahead of it doesn't shift the lookup.
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
     const tasks = shell.children!.find(r => r.path === 'tasks')!
     expect(tasks.children).toBeDefined()
     const childPaths = tasks.children!.map(c => c.path).sort()

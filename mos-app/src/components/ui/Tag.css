@@ -1,0 +1,12 @@
+/* Tag — mos-design-kit display/Tag.jsx. Soft tinted pill from the 30-color palette.
+   No dot (use the Icon slot if you need a marker). padding 2px 8px, radius pill,
+   xs font. weight regular (default) | medium. */
+.mk-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: var(--radius-full);
+  font-size: var(--font-size-xs, 12px); font-weight: 400; line-height: 1.4;
+  white-space: nowrap; vertical-align: middle;
+  /* color/background set inline via the color prop → --ds-tag-{background,text}-{color} */
+}
+.mk-tag--medium { font-weight: 600; }
+.mk-tag__icon { display: inline-flex; width: 14px; height: 14px; flex-shrink: 0; }
