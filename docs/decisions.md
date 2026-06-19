@@ -20,9 +20,19 @@ One Supabase stack for MOS + future Gordi ops apps. Domain separation via Postgr
 (`shared` / `mos` / `ops` / `integrations`) + RLS + `org_id` + app/workspace fields — NOT separate
 Supabase projects.
 
+> **AMENDED 2026-06-19 (OD-P4-2, ADR-0010 D5): schema canon 4 → 5.** A fifth schema **`reporting`**
+> is added — a curated ESB **financial read-model**, copied into Supabase by a scheduled snapshot job
+> (warehouse → Supabase, NOT read-through), RLS-gated to the `finance` + `admin` access roles only
+> (ADR-0011 D5), exposed to PostgREST via the ADR-0004/0006 mechanism. Canon is now
+> `shared` / `mos` / `ops` / `integrations` / `reporting`. See OD-P4-2.
+
 ### OD-DIR-4 — Auth
 Supabase Auth is the shared identity layer. Cloudflare Access is NOT the long-term MOS auth model
 (50-user free-tier cap); CF Access may remain where already useful.
+
+> **REINFORCED 2026-06-19 (ADR-0011 D1):** one auth model — Supabase Auth + RLS — now governs
+> **everything**, including kitchen capture + review (was CF-Access-gated / public). CF Access stops
+> being an app gate; it may remain only as infra-level Cloudflare Tunnel protection. See OD-P4-3.
 
 ### OD-DIR-5 — Lightweight RACI v1
 RACI = fields on tasks (`responsible_person_id`, `accountable_person_id`, `consulted_person_ids`,
@@ -31,6 +41,12 @@ RACI = fields on tasks (`responsible_person_id`, `accountable_person_id`, `consu
 ### OD-DIR-6 — Kitchen stays put
 Kitchen app keeps running unchanged. Near-term: mirror approved kitchen activity into `ops` as daily
 updates. Migration/cockpit ideas deferred until MOS first slice is stable.
+
+> **SUPERSEDED 2026-06-19 by OD-P4-1 (ADR-0010 D10 + ADR-0012).** Kitchen now **migrates into MOS as
+> its first ops Module before user rollout** — driven by RAM (retiring Teable frees ~2 GB on the single
+> `ris-dev` box, the headroom the warehouse needs) and by the reframing of kitchen as a **MOS Module,
+> not a separate app to rewrite**. The mirror-into-`ops` idea survives as the Daily Log summary-row seam
+> (ADR-0012 D3), but "kitchen stays put / migration deferred" no longer holds. See OD-P4-1.
 
 ### OD-DIR-7 — First-slice scope
 Task ownership + lightweight RACI + weekly updates + daily ops updates. Non-goals: Notion visual
@@ -375,6 +391,143 @@ One-Blue Rule preserved.
 > a new theme capability). Gordi brand tokens (OD-P3-7) preserved as additions; OD-P3-9..12 (above) back-filled
 > into this log by the same issue. Spec: `docs/specs/design-system-adoption.spec.md`. **CONTEXT.md untouched** —
 > token/radius/font/shadow names are UI mechanics, not domain vocabulary.
+
+---
+
+## OD-P4 — Platform topology, auth/RBAC, ESB-outbox (LOCKED 2026-06-19, grill-with-docs session — ADR-0010/0011/0012)
+
+Pre-production-deploy grill. MOS (Phase 2 complete, not yet deployed) is becoming Gordi's Management
+Operating System with dashboards + operational **Modules** (kitchen first). Three pre-existing systems
+share one small `ris-dev` box + a near-zero budget: the **ESB analytics warehouse** (`gordi-esb-pg`,
+OLAP, on Arief's Mac), the **kitchen App** (FastAPI + Teable, ESB write-back live since 2026-05-18), and
+**Teable** + its Postgres/Redis. These OD entries record the resolved direction; the ADRs carry the full
+context + alternatives + reversibility. Vocabulary: **App** = MOS (one app); **Modules** = kitchen /
+roastery; **Access role** (app authorization) ≠ **Role** (org chart) ≠ **RACI** (per CONTEXT.md).
+
+### OD-P4-1 — Kitchen migrates into MOS as its first ops Module, before user rollout (supersedes OD-DIR-6)
+Kitchen is **not a separate app to keep running / rewrite** — it is **MOS's first ops Module**. Sequence
+(ADR-0010 D10): stand up prod Supabase on `ris-dev` → build + migrate kitchen into MOS (`ops.*` tables +
+the ESB-outbox, ADR-0012) → **retire Teable** (frees ~2 GB) → bring the warehouse online into the freed
+headroom → **then** MOS user rollout. Drivers: **RAM** (the only pressure window is the transient
+Teable+Supabase overlap; retiring Teable before the warehouse arrives means **no forced box resize** — an
+8→16 GB resize stays a documented trigger, not an action) + the **Module reframing** (kitchen logic is
+*ported*, not rewritten). **Supersedes OD-DIR-6** ("kitchen stays put / migration deferred"). See
+ADR-0010 (topology/sequencing) + ADR-0012 (the migration + outbox).
+
+### OD-P4-2 — Schema canon 4 → 5: add `reporting` (amends OD-DIR-3)
+A fifth Supabase schema **`reporting`** — a curated ESB **financial read-model**, **copied** into
+Supabase by a scheduled snapshot job (warehouse → Supabase, **not** read-through, so dashboard
+latency/uptime decouple from the warehouse), **RLS-gated to `finance` + `admin` access roles only**
+(OD-P4-4 / ADR-0011 D5), exposed to PostgREST via the ADR-0004/0006 mechanism (`[api].schemas` +
+per-schema client). Canon: `shared` / `mos` / `ops` / `integrations` / `reporting`. **Amends OD-DIR-3.**
+Management dashboards are **MOS-native** over these snapshots — **no Metabase** (deferred behind a
+concrete trigger: a non-technical user needing recurring visual self-serve). See ADR-0010 D4/D5.
+*Open (confirm-at-spec): snapshot cadence (lean daily); warehouse→`reporting` contract versioning.*
+
+### OD-P4-3 — One auth model (Supabase Auth + RLS) for everything; reverses umbrella Accepted-Risk A1
+**Supabase Auth + RLS governs all surfaces** — kitchen capture **and** review **and** all MOS — dissolving
+the kitchen-vs-MOS auth collision. **Reverses the umbrella "Ops Gordi Mini-Apps" Accepted-Risk A1**
+(public, no-login `/kitchen/`): kitchen logging now requires login, for **real per-person attribution**
+(owner accepts the login friction; made survivable by a long-lived personal-phone PWA session — 30-day
+rolling + inactivity timeout, *confirm minutes at spec*). The **review queue stays the GIGO gate** via
+RLS: a `member` inserts their own `Submitted` kitchen log; only `ops_lead` approves. CF Access stops being
+an app gate (may remain as infra-level Tunnel protection — reinforces OD-DIR-4). Staff **without email**
+get **synthetic emails** (`name@kitchen.gordi.local`, admin-provisioned password — GoTrue has no username
+credential). PWA = installable + push + **online-only writes** (offline-first deferred — collides with the
+ESB-outbox idempotency model). See ADR-0011 D1–D4.
+
+### OD-P4-4 — RBAC: a fixed access-role set (admin · ops_lead · finance · member); configurable later
+Four **access roles** (the app-authorization layer, distinct from org **Role** and **RACI**):
+**admin** (system administrator — user management + system config; the **only** role that sees the admin
+UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance** (review financial
+data/dashboards from `reporting`/warehouse), **member** (default — own tasks, file own weekly update, log
+ops activity if rostered). A person may hold several; **effective access = assigned roles ∪ derived
+manager** (manager stays *derived from the role chain*, never assigned — OD-P1-7 / CONTEXT.md). Enforced at
+**three layers**: route guard + RLS + backend authz. Granting **admin/finance** is **admin-only, never
+self-assignable**; the **first admin is seeded at deploy**. A configurable role↔permission engine is the
+**deferred upgrade path** (YAGNI at ~15–30 users; fixed enum is RLS-friendly — same posture as OD-P1-3's
+fixed read matrix). **User base widens** to kitchen line staff (`member`), beyond the brief's "managers +
+selected ops". See ADR-0011 D5/D6.
+
+### OD-P4-5 — ESB-outbox: a Module-agnostic transactional outbox in `integrations` (first tenant)
+ESB write-back becomes a **transactional outbox** — `integrations.esb_push`, **App/Module-agnostic** from
+day 1 (`source_module`, `source_ref`, `endpoint`, `payload`, `dedup_key`, `status`, `esb_doc_num`,
+`attempts`, `error`, `posted_at`), **one row per batch** (push fact stored once, **normalized out of**
+operational rows — reverses the Teable-era 13-copies-per-batch denormalization). A **single idempotent
+worker** on the thin backend (ADR-0010 D6) drains it; **`dedup_key` in one place** solves the ESB's
+**no-idempotency** problem **once for all Modules** (ESB has no `X-Idempotency-Key`). Kitchen is the first
+producer (worker stays kitchen-only — YAGNI; grows a handler per Module). Kitchen **operational data** →
+typed, RLS'd `ops.*` tables (`ops.wip_items`, `ops.kitchen_logs`, `ops.kitchen_plans`, `ops.kitchen_stock`)
+— **distinct from `ops.log_entries`** (kitchen logs carry status+qty+owner, so they cannot be `log_entries`
+per OD-P2-16); on **approval**, a **summary `ops.log_entries` row** with `origin` = the kitchen Module
+preserves the Daily Log mirror (OD-P2-17) without duplicating rich data. The **one-time Teable→Postgres
+migration preserves `batch_id` / `esb_doc_num` / posted history / WIP ESB ids** so the audit trail +
+idempotency survive the cutover. Finally **populates the `integrations` schema** (reserved for this since
+P1-2). See ADR-0012. *Open (confirm-at-spec): retry/backoff + dead-letter policy; event-fire-vs-poll
+boundary; `source_ref` shape.*
+
+### OD-P4-6 — Staging-first ESB: all write logic validated against the ESB Staging Sandbox, never prod
+**All ESB write logic is validated against the ESB Staging Sandbox first — the production ERP is never the
+validation target.** The ESB is the immutable system of record (OD-P4-1 / ADR-0010 D1); a logic bug, a
+smoke test, or a botched migration must never mutate production ERP data — the kitchen project's Phase-4
+live-probe-vs-prod pain is exactly what this prevents. **The staging sandbox is real:** ESB branch **`GOO`**,
+base URL **`stg-erp.esb.co.id`** (Phase-4 follow-up); production is **GKID**, served at
+**`services.esb.co.id`**. The **outbox worker (OD-P4-5 / ADR-0012 D2) carries an explicit ESB-target
+setting (staging vs production)**; **non-prod/dev/test environments default to staging (`GOO`)**. Logic
+validation, smoke tests, and the **one-time migration's `posted_to_esb`-survival proof (ADR-0012 D4)** run
+against **staging first**; production GKID is touched only **after** staging-verified, via the proven
+**single-WIP proof-push gate** (dry-run → independent verify → one real push → batch-enable — the Phase-4
+discipline). See ADR-0012 D5. *Open (confirm-at-spec): staging sandbox availability/parity — is `GOO`
+up, credentialed for the MOS worker, and a faithful mirror of GKID's endpoint contracts?*
+
+### OD-P4-7 — Security is a priority: server hardening + a GATING security review before any exposure/rollout
+Security hardening + a security-auditor pass are **gating work — done before internet exposure and user
+rollout, not after** (gates ADR-0010 D10 step 5). **Server-hardening invariants** (ADR-0010 D11): `ufw`
+**default-deny inbound** with **zero inbound ports opened** (all ingress via CF Tunnel, outbound-only —
+OD-P4-2's edge layer / ADR-0010 D3); **Postgres bound to `localhost`** (the `ris-dev` **Teable-port-exposure
+incident** is the anti-pattern to avoid); **Supabase Studio never publicly exposed** (gated, not a public
+route); **SSH key-only + hardened**; **`fail2ban`**; a **patching cadence** (unattended security upgrades +
+a scheduled window — `ris-dev` carried ~50 pending updates; the **n8n-CVE retirement** is the precedent);
+**least-privilege DB roles** (`gordi_readonly` for agents on the warehouse, `service_role` confined to the
+thin backend, never the browser). **Observability/analytics security** (tightens ADR-0010 D7): **PostHog
+must not capture financial data or PII** — session-replay + input masking on financial dashboards and auth
+fields; the **scheduled monitoring agent runs with least-privilege credentials and must NOT read
+sensitive/financial rows** (ties to the open question on agent access to `reporting`); all observability
+tokens via 1Password (OD-P4-8). **The gating audit** (security-auditor, OWASP/STRIDE) covers the auth/RLS/
+provisioning surface (ADR-0011), the thin-backend `service_role` surface, the outbox (incl. the staging-vs-
+prod target seam, OD-P4-6), and the hardened box — **before any internet exposure or user rollout**. See
+ADR-0010 D11.
+
+### OD-P4-8 — All secrets via 1Password `op`; resolve the secret-zero bootstrap
+**Every project `.env` is rendered from 1Password via `op`** (never committed, never baked into an image;
+repo carries only committed coordinates, e.g. `supabase/op.resend.env`) — the project's never-read-secrets
+rule, operationalized on the server. The remaining gap is **secret-zero**: the **op service-account token
+itself** is a secret that must reach the box before anything else can be fetched. **Recommended (lean):** a
+**single resident secret-zero token** — an op **service-account token scoped least-privilege/read-only to
+just the MOS vault items**, stored in a **root-only `0600` file** (e.g. a systemd `EnvironmentFile`),
+**injected once at provisioning over a secure channel**, and **rotatable**; everything else is fetched via
+`op` at deploy/runtime. Never in git, never in an image layer. **Recorded alternative:** **deploy-time
+injection from the authenticated Mac** (the deploy script, run from Arief's already-`op`-authenticated
+machine, renders secrets into the container env so the **server never stores the op token**) — cleaner
+blast radius, but **rotation = redeploy**; a long-running runtime-secret-needing backend (ADR-0010 D6)
+favors the resident token. See ADR-0010 D9 + D12. *Open (confirm-at-deploy-spec): resident secret-zero
+token vs deploy-time render — and whether 1Password Connect is worth it later as services grow.*
+
+---
+
+## Legacy naming to reconcile (do NOT churn now — fix opportunistically on the next relevant migration)
+
+The codebase + brief carry **app-era** naming that predates the **Module** vocabulary (`CONTEXT.md`).
+Reconcile these *when a migration/edit already touches the relevant object*, not as standalone churn:
+
+- **`ops.log_entries.origin` CHECK** is `manual | kitchen_app | roastery_app`
+  (`supabase/migrations/20260612000004_ops_log_entries.sql`; OD-P2-17). The **Module-canonical** values
+  are `kitchen` / `roastery` (no `_app` suffix). Widen/rename the CHECK on the **next `ops` migration**
+  (e.g. the ADR-0012 kitchen-Module migration is a natural home). The summary-row writer (ADR-0012 D3)
+  must write the canonical value once reconciled.
+- **The brief's "kitchen app / roastery app / ops apps" framing** (`docs/project-brief.md`) is **legacy**.
+  Canonical: one **App** (MOS); kitchen / roastery are **Modules**. Update brief copy when it is next
+  edited; do not churn it solely for this rename.
 
 ---
 

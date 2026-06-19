@@ -119,9 +119,10 @@ across MOS and future ops apps.
 _Avoid_: user (except in auth contexts), employee, member
 
 **Role**:
-A named position; a person may hold several roles at once. Roles form the reporting line via
-reports-to between roles. Notion heritage: Roles DB with "Reports to / Subordinate".
-_Avoid_: job title (as a field), position
+A named **org position**; a person may hold several roles at once. Roles form the reporting line via
+reports-to between roles. Notion heritage: Roles DB with "Reports to / Subordinate". Distinct from an
+**Access role** (what a person may *do* in the app) and from a **RACI role** (R/A/C/I task ownership).
+_Avoid_: job title (as a field), position; access role / permission (that's app authorization, below)
 
 **Manager**:
 A person any of whose roles has subordinate roles with current holders; sees the team module and
@@ -130,9 +131,40 @@ A dual-hat person appears in ALL their managers' teams (union), and any of those
 review their one weekly update.
 _Avoid_: supervisor, lead (except inside role names like "Kitchen Lead")
 
+**Access role** (a.k.a. Permission):
+What a person may *do* in the app — the app-authorization layer, distinct from their org **Role**
+(position) and from **RACI** (R/A/C/I task ownership). A person may hold several at once; effective
+access is the union. First-slice set is **fixed** (a configurable role↔permission model is the deferred
+upgrade path): **admin** (the *system administrator* — user management + system config; the only role
+that sees the admin UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance**
+(review financial data/dashboards sourced from the ESB warehouse), **member** (default — own tasks, file
+own weekly update, log operational activity if rostered). **manager** is NOT an assigned access role — it
+is *derived* from the role chain (see **Manager**); effective access = assigned access role(s) ∪ derived
+manager. Granting **admin**/**finance** is admin-only and never self-assignable; the first admin is seeded.
+_Avoid_: role (reserve for org position), permission group, RACI role
+
 ## Surfaces
 
 **My Week**:
 The personal home surface: R-or-A task table grouped by urgency + weekly-update strip + ops strip
 (+ team module for managers).
 _Avoid_: dashboard, home page (in UI copy)
+
+## App structure
+
+**App**:
+There is exactly **one** app — **MOS**. Everything users do lives inside it.
+_Avoid_: kitchen app, roastery app, mini-app, "ops apps" (legacy names from the separate-deployment era — now Modules of MOS)
+
+**Module**:
+A coarse functional area of MOS — e.g. Tasks, Weekly Updates, Daily Log, Kitchen, (future) Roastery.
+What were once standalone "apps" become Modules within the one MOS app. Names the *producer* in
+cross-cutting seams: the ESB-outbox `source_module` and a Daily Log entry's `origin` identify the
+emitting Module. Distinct from a **Feature** (finer capability *within* a Module) and from a
+**Business Unit** (a company operating area, e.g. Kitchen and Bar — a Module may serve one or more BUs).
+_Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained, below)
+
+**Feature**:
+A capability *within* a Module — e.g. task filtering, bulk-approve, the review queue. Finer-grained
+than a Module.
+_Avoid_: module (coarser), app
