@@ -178,7 +178,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockUpdateTaskStatus.mockResolvedValue()
     renderAt('/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
-    // table row shows the Open status tag initially (Twenty soft Tag, .mk-tag)
+    // table row shows the Open status tag initially (soft Tag, .mk-tag)
     const row = () => document.querySelector('tr.task-row.row-selected')
     expect(row()?.querySelector('.mk-tag')?.textContent).toContain('Open')
     // change status in the drawer header (scope to the status popover listbox,

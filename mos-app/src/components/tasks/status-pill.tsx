@@ -1,15 +1,17 @@
-// StatusPill — task lifecycle pill. Twenty IxD migration: renders the soft
-// rounded <Tag> (mos-design-kit 30-color palette) instead of the dotted <Pill>,
-// matching Twenty's record-table status tags. Color mapping keeps the semantic
-// hues: In Progress→blue, Blocked→red, Open→amber, Done→green.
+// StatusPill — task lifecycle pill. Records-workspace IxD: renders the soft
+// rounded <Tag> (mos-design-kit 30-color palette) with a leading status dot,
+// matching the signed records-table status tags. Color mapping keeps the
+// semantic hues: In Progress→blue, Blocked→red, Open→amber, Done→green.
 //
-// (Overrides OD-P3-6's tone-mapped dotted Pill for the status column, per the
-//  Twenty look-and-feel goal — flagged for DESIGN.md ratification. WCAG 1.4.1
-//  stays satisfied: the status word is always the label, so colour is never the
-//  sole cue even without the leading dot.)
+// The leading dot is localized to StatusPill (the base Tag stays dot-less so
+// RACI chips remain markerless). The dot is aria-hidden and inherits the Tag's
+// status-tinted text color, so it is a redundant cue only — the visible status
+// word is always the accessible name. WCAG 1.4.1 stays satisfied even without
+// the dot, so the word remains the non-color cue.
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
+import './status-pill.css'
 
 export type { TaskStatus }
 
@@ -27,7 +29,12 @@ export function StatusPill({ status }: StatusPillProps) {
   // StatusPill inside a role=option / button, and an aria-label would override the
   // option's computed name, breaking status-change (AC-071/103/111).
   return (
-    <Tag color={STATUS_COLOR[status]} weight="medium">
+    <Tag
+      color={STATUS_COLOR[status]}
+      weight="medium"
+      className="status-pill"
+      Icon={<span className="status-dot" aria-hidden="true" />}
+    >
       {status}
     </Tag>
   )

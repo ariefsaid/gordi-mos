@@ -5,6 +5,8 @@
  * These tests mount TasksTable directly to assert PR-2-specific additions.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -667,5 +669,130 @@ describe('Task 22 — mobile grouped cards (AC-129)', () => {
     expect(document.querySelector('[data-testid="task-card"]')).toBeTruthy()
     // A group heading for the status grouping
     expect(document.querySelector('.mgc-group-head')).toBeTruthy()
+  })
+})
+
+// ── PR-2 — Record table craft (overline + hover affordances + Chip-link) ──────
+
+// Helper that reads a CSS rule body from TasksWorkspace.css (jsdom does not compute
+// styles, so we lock the authored rule — same pattern as task-surface.css.test.ts).
+function cssRuleBody(selector: string): string {
+  const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
+  const css = readFileSync(cssPath, 'utf8')
+  const idx = css.indexOf(selector)
+  expect(idx, `expected to find ${selector} in TasksWorkspace.css`).toBeGreaterThanOrEqual(0)
+  const open = css.indexOf('{', idx)
+  const close = css.indexOf('}', open)
+  return css.slice(open + 1, close)
+}
+
+describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-foreground)', () => {
+  it('AC-T01: a populated table columnheader carries the th-cell class', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Overline task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Overline task'))
+    const th = screen.getByRole('columnheader', { name: /Task/ })
+    expect(th.className).toContain('th-cell')
+  })
+
+  it('AC-T01: .th-cell rule is weight 400 + UPPERCASE + 0.06em tracking + text-muted-foreground', () => {
+    const body = cssRuleBody('.th-cell')
+    // OD-P4-10 overline, scoped to thead th only: weight 400 (NOT 600), uppercase,
+    // 0.06em tracking, the --ds-font-color-tertiary crosswalk (text-muted-foreground).
+    expect(body).toMatch(/font-weight:\s*400/)
+    expect(body).not.toMatch(/font-weight:\s*600/)
+    expect(body).toMatch(/text-transform:\s*uppercase/)
+    expect(body).toMatch(/letter-spacing:\s*\.?0*\.?06em/) // 0.06em
+    expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
+    expect(body).toMatch(/font-size:\s*var\(--ds-font-size-xs\)/)
+  })
+})
+
+// ── PR-2 AC-T03..T07 wiring — the kit row craft (name Chip-link, status nowrap,
+//    50px rows, hover-revealed checkbox + ⋯, select-all aria-checked="mixed").
+//    Goal-oracle: the populated row carries the same 8-col anatomy the loading
+//    skeleton already renders, the name is a real <a> with hover-bg + title, and
+//    status never wraps. The app conforms to these; do not weaken them.
+describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
+  it('AC-T03: name cell is a real <a href="/tasks/:id"> Chip-link carrying title', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 't3', title: 'Wire the kit row craft' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Wire the kit row craft'))
+    const link = document.querySelector('tr.task-row a.task-row-link') as HTMLAnchorElement | null
+    expect(link, 'expected a.task-row-link in the populated row').not.toBeNull()
+    expect(link!.getAttribute('href')).toBe('/tasks/t3')
+    // The name is an identity-bearing string → carries a title (no-bleed, AC-D03).
+    expect(link!.getAttribute('title')).toBe('Wire the kit row craft')
+    // Chip = hover-background affordance. The CSS targets .task-row-link; the chip
+    // treatment is asserted via the rule body (hover bg) below.
+  })
+
+  it('AC-T03: the name link rule carries a hover-background (chip treatment, not plain text)', () => {
+    const body = cssRuleBody('.task-row-link')
+    // kit Chip: hover bg + radius. Accept either a :hover rule on .task-row-link or a
+    // background on the link itself; the mockup's .name-chip is hover-bg → tertiary.
+    // We assert the link is NOT bare (display:block + color:inherit only) — it has a
+    // border-radius and/or a hover background rule exists.
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+    const hasHoverBg = /\.task-row-link[^{]*:hover[^{]*\{[^}]*background/.test(css)
+    const hasRadius = /border-radius/.test(body)
+    expect(hasHoverBg || hasRadius, 'name link must have a chip affordance (hover bg or radius)').toBe(true)
+  })
+
+  it('AC-T05: status cell renders StatusPill text + dot, never wraps (td-nowrap)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 't5', title: 'Status row', status: 'Blocked' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Status row'))
+    // The status word is present inside the row's pill (the non-color cue). Scope to
+    // the body row's pill — "Blocked" also appears as a filter dropdown <option>.
+    const pill = document.querySelector('tr.task-row .mk-tag') as HTMLElement | null
+    expect(pill, 'expected a status pill (.mk-tag) in the row').not.toBeNull()
+    expect(pill!.textContent).toContain('Blocked')
+    // StatusPill renders a leading dot (never color-alone) inside the pill.
+    expect(pill!.querySelector('.status-dot'), 'expected a leading status dot').not.toBeNull()
+    // The status cell never wraps (td-nowrap).
+    const statusCell = document.querySelector('tr.task-row td.td-status') as HTMLElement | null
+    expect(statusCell, 'expected a td-status cell').not.toBeNull()
+    expect(statusCell!.className).toContain('td-nowrap')
+  })
+
+  it('AC-T06: body row is 50px tall (OD-P3-6 dense DB-view)', () => {
+    // The row height is owned by .td-main/.td-cell (height:50px). Assert the rule.
+    const body = cssRuleBody('.td-main, .td-cell')
+    expect(body).toMatch(/height:\s*50px/)
+  })
+
+  it('AC-T07: thead has a select-all checkbox exposing aria-checked="mixed" when partial', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'A' }),
+      makeTask({ id: 'b', title: 'B' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('A'))
+    // The select-all lives in the thead's leading cell.
+    const selectAll = document.querySelector('thead [role="checkbox"]') as HTMLElement | null
+    expect(selectAll, 'expected a select-all checkbox in the thead').not.toBeNull()
+    // With nothing selected it reads "false"; toggle one row → "mixed".
+    expect(selectAll!.getAttribute('aria-checked')).toBe('false')
+    // Select one of two rows.
+    const rowCheckboxes = document.querySelectorAll('tbody [role="checkbox"]')
+    expect(rowCheckboxes.length).toBe(2)
+    fireEvent.click(rowCheckboxes[0])
+    expect(selectAll!.getAttribute('aria-checked')).toBe('mixed')
+  })
+
+  it('AC-T02/T07: every row (header, skeleton, body) agrees on column count (no-bleed)', async () => {
+    // The skeleton already renders 8 cells (td-cb + 6 + td-menu). The populated row
+    // and thead must agree, else a long group header colSpan misaligns the grid.
+    mockListTasks.mockResolvedValue([makeTask({ id: 'cc', title: 'Column count' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Column count'))
+    const ths = document.querySelectorAll('thead tr th')
+    const bodyRow = document.querySelector('tr.task-row') as HTMLElement | null
+    expect(bodyRow, 'expected a populated task row').not.toBeNull()
+    const tds = bodyRow!.querySelectorAll('td')
+    // Thead and body row must have the same column count (the checkbox col counts on both).
+    expect(tds.length, 'thead th count must equal body td count').toBe(ths.length)
+    expect(ths.length).toBeGreaterThanOrEqual(7) // 6 data cols + checkbox + (menu is in-row)
   })
 })

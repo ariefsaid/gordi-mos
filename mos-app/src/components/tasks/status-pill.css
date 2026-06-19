@@ -1,0 +1,14 @@
+/* StatusPill — leading status dot inside the soft Tag (records-workspace status
+   tag). The dot inherits the Tag's status-tinted text color (currentColor) so it
+   always matches the hue, and is a redundant cue only (the status word is the
+   accessible name). Scoped to .status-pill so the base Tag stays dot-less. */
+.status-pill .mk-tag__icon {
+  width: auto;
+  height: auto;
+}
+.status-pill .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
