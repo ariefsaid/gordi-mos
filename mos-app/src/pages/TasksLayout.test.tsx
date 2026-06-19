@@ -178,16 +178,16 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockUpdateTaskStatus.mockResolvedValue()
     renderAt('/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
-    // table row shows the Open status pill initially
+    // table row shows the Open status tag initially (Twenty soft Tag, .mk-tag)
     const row = () => document.querySelector('tr.task-row.row-selected')
-    expect(row()?.querySelector('.pill')?.textContent).toContain('Open')
+    expect(row()?.querySelector('.mk-tag')?.textContent).toContain('Open')
     // change status in the drawer header (scope to the status popover listbox,
     // not the toolbar Status <select> which also has a "Blocked" option)
     fireEvent.click(screen.getByRole('button', { name: /change status/i }))
     const listbox = screen.getByRole('listbox', { name: /select status/i })
     fireEvent.click(within(listbox).getByRole('option', { name: 'Blocked' }))
     await waitFor(() => {
-      const pill = row()?.querySelector('.pill')
+      const pill = row()?.querySelector('.mk-tag')
       expect(pill?.textContent).toContain('Blocked')
     })
   })

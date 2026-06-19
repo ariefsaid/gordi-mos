@@ -1,48 +1,41 @@
-// TDD: StatusPill — each status renders correct pill class and text
+// StatusPill — renders the soft <Tag> (Twenty IxD). Each status maps to a
+// semantic tag colour, and the text label is always present.
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StatusPill } from './StatusPill'
 import type { TaskStatus } from '../../lib/db/tasks.types'
 
-describe('StatusPill — status variants (re-skinned onto the shared <Pill>)', () => {
-  // VIS-4 (PR-2): StatusPill maps each status to a shared-Pill tone.
-  const cases: [TaskStatus, import('../../components/ui/Pill').PillTone][] = [
-    ['Open',        'warning'],
-    ['In Progress', 'primary'],
-    ['Blocked',     'destructive'],
-    ['Done',        'success'],
+describe('StatusPill — status variants (soft Tag, Twenty IxD)', () => {
+  // Semantic colour mapping (In Progress→blue, Blocked→red, Open→amber, Done→green).
+  const cases: [TaskStatus, string][] = [
+    ['Open',        'amber'],
+    ['In Progress', 'blue'],
+    ['Blocked',     'red'],
+    ['Done',        'green'],
   ]
 
-  for (const [status, tone] of cases) {
-    it(`renders "${status}" on a shared Pill with tone "${tone}"`, () => {
+  for (const [status, color] of cases) {
+    it(`renders "${status}" as a soft Tag in "${color}"`, () => {
       const { container } = render(<StatusPill status={status} />)
-      const pill = container.querySelector('.pill')
-      expect(pill).toBeTruthy()
-      expect(pill!.classList.contains(`pill--${tone}`)).toBe(true)
+      const tag = container.querySelector('.mk-tag') as HTMLElement | null
+      expect(tag).toBeTruthy()
+      // Colour applied via the tag palette token (background + text).
+      expect(tag!.getAttribute('style') ?? '').toContain(`--ds-tag-background-${color}`)
       expect(screen.getByText(status)).toBeTruthy()
     })
   }
-
-  it('renders a decorative dot inside the pill', () => {
-    const { container } = render(<StatusPill status="Blocked" />)
-    expect(container.querySelector('.dot')).toBeTruthy()
-  })
 })
 
-describe('StatusPill — AC-118 always-label rule (label COEXISTS with the dot)', () => {
-  // The real intent (OBS-120, WCAG 1.4.1): status is a redundant cue = dot + label,
-  // never one alone. Each case asserts the text label AND the dot are present together.
+describe('StatusPill — AC-118 always-label rule (label is the redundant cue)', () => {
+  // WCAG 1.4.1 / OBS-120: status is never colour-alone. The Tag carries no dot,
+  // so the text label IS the non-colour cue — it must always be present.
   const statuses: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
   for (const status of statuses) {
-    it(`AC-118: "${status}" renders the text label AND the dot together (never dot-only, never label-only)`, () => {
+    it(`AC-118: "${status}" always renders its text label (never colour-only)`, () => {
       const { container } = render(<StatusPill status={status} />)
-      const pill = container.querySelector('.pill')!
-      // Label present
+      const tag = container.querySelector('.mk-tag')!
       expect(screen.getByText(status)).toBeInTheDocument()
-      // Dot present as a redundant cue
-      expect(pill.querySelector('.dot')).toBeTruthy()
-      // Both live inside the same pill (coexist)
-      expect(pill.textContent).toContain(status)
+      expect(tag.textContent).toContain(status)
     })
   }
 })
