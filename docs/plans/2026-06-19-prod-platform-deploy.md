@@ -107,7 +107,19 @@ docs/runbooks/ris-dev-rebuild.md         # DR rebuild runbook + RTO (Phase R)
 ## Phase P — Prerequisites & IaC authoring (close G1–G8; nothing touches the live box yet)
 
 > All Phase-P tasks produce committed files / local artifacts only. **No SSH to ris-dev, no live deploy.**
-> Verify commands run locally.
+> Verify commands run locally. (P0 is the exception — an owner account-signup prerequisite.)
+
+### Task P0 — OWNER: provision the free-tier accounts (prerequisite — none exist yet; owner-grill 2026-06-19)
+None of the external free-tier accounts exist yet (owner-confirmed), so the **owner provisions them first** —
+they block the wiring tasks below:
+- **Cloudflare R2** — create a bucket for OLTP backups + mint an S3 API token (Access Key ID + Secret) →
+  store coordinates in `op` (`supabase/op.r2.env`). *Blocks D1/D2/D3.*
+- **PostHog** — create a project; copy the project API key + host → `op` (`supabase/op.posthog.env`). *Blocks P7/C2.*
+- **Healthchecks.io** — create a check for the daily backup cron; copy its ping URL → `op`
+  (`supabase/op.healthchecks.env`). *Blocks D1/D3.*
+These are **owner-executed account signups**, not agent tasks; only the `op://` coordinates land in the
+`op.*.env` files (D9 — no secrets in git). Until done, D1/D3/P7 cannot wire real values.
+**Verify:** each of the three `op://AS/...` coordinates resolves (`op-get.sh` returns non-empty) — run once, never echo the value.
 
 ### Task P1 — Author the trimmed self-hosted Supabase compose
 Create `supabase/docker/docker-compose.yml` from the official Supabase self-hosting compose pinned to the
@@ -439,35 +451,36 @@ the secret-zero rotation cadence (B1) and the backup/restore scripts (Phase D).
 
 ---
 
-## Open questions (for the Director / owner — not resolvable from `docs/environments.md`)
+## Resolved (owner grill 2026-06-19)
 
-- **Q1 — the Supabase API hostname under CF Tunnel.** What public hostname fronts Kong over the tunnel
-  (e.g. `db.gordi.id`, `supabase.gordi.id`, `api.ops.gordi.id`)? This value is `VITE_SUPABASE_URL` (P5/C2)
-  and the cloudflared ingress target (P3/C1). **Blocks C1/C2.** `docs/environments.md` L19 still lists the
-  prod API URL as `https://ops.gordi.id/mos` (the SPA path) — but the **API** needs its own hostname since
-  the SPA is on CF Pages and the API is over the tunnel; confirm the split.
-- **Q2 — exact trimmed-Supabase service list.** D10 says disable Realtime/Storage/analytics/Logflare/vector;
-  confirm `studio` ships (gated over the tunnel for ops, never public) vs. omitted entirely, and whether
-  `meta` is needed without Studio. Current plan: keep `db/kong/auth/rest/meta/studio`, drop the rest (P1).
-- **Q3 — secret-zero: resident `0600` token vs deploy-time render (ADR-0010 D12).** Lean = resident
-  token (B1). Confirm before B1 executes — it determines whether any secret lives on the box at rest.
-- **Q4 — does the production cut (C5) expose `ops.gordi.id/mos` to users immediately, or stay
-  owner-only until GATE B?** This plan assumes **owner-only/preview until GATE B passes** (ADR-0010 D11 —
-  rollout is gated). Confirm the owner agrees the production domain mapping can be *prepared* pre-GATE-B
-  with rollout held.
-- **Q5 — anon/JWT/service key generation + storage.** Confirm the keys are generated once via the Supabase
-  self-hosting generator and stored in op (`supabase/op.supabase.env`, P2) — and that `service_role` is
-  intentionally **unused** in this slice (no thin backend yet, D6 seam left open).
-- **Q6 — Healthchecks.io + PostHog + R2 accounts.** Confirm these free-tier accounts exist (R2 per D3;
-  PostHog project per D7; Healthchecks per D7) or need owner setup before D3/O1/P7 can wire real
-  coordinates.
+All open questions are decided and incorporated into the tasks above:
+
+- **Q1 — Supabase API hostname → `supabase.gordi.id`.** This is `VITE_SUPABASE_URL` (P5/C2),
+  `API_EXTERNAL_URL`/`SUPABASE_PUBLIC_URL` (P2), and the cloudflared ingress target (P3/C1) — distinct from
+  the `/mos` SPA path. `docs/environments.md` L19 (which lists the API URL as `ops.gordi.id/mos`) is
+  **wrong** and must be corrected to split SPA-path from API-host (a doc-fix at deploy time). **C1/C2 unblocked.**
+- **Q2 — trimmed service list → keep `db/kong/auth/rest/meta/studio`** (Studio tunnel-gated, never public —
+  D11); drop `realtime/storage/imgproxy/analytics(Logflare)/vector/edge-runtime/supavisor` (P1).
+- **Q3 — secret-zero → resident `0600` token** on the box (least-priv, read-only to the MOS vault items,
+  rotatable; B1). Deploy-time render is **not** used.
+- **Q4 — exposure → HOLD until GATE B.** The production domain is prepared + owner-verified at the cut (C5),
+  but `ops.gordi.id/mos` is **not exposed to users** until the security-auditor pass (GATE B / O4) is green.
+- **Q5 — keys → generated once** via the Supabase self-hosting generator, stored in `op`
+  (`supabase/op.supabase.env`, P2); `service_role` intentionally **unused** this slice (D6 backend seam open).
+- **Q6 — R2 / PostHog / Healthchecks accounts → NONE exist; the owner provisions them in Task P0**
+  (new prerequisite). Blocks D1/D2/D3/P7.
+
+**Cross-doc note (for the kitchen slice, not this one):** the GoTrue session timebox here is **24h/8h** (P4)
+— conservative for the initial *manager* deploy. The kitchen PWA wants a **30-day** session (ADR-0011 D3);
+GoTrue session config is **global**, so the kitchen slice must revisit the session policy (it can't be
+per-role with a single GoTrue instance).
 
 ---
 
 ## Task count & gate summary
 
-- **Tasks: 27** — Phase P (P1–P8 = 8), Phase B (B1–B6 = 6), Phase C (C1–C5 = 5), Phase D (D1–D3 = 3),
-  Phase O (O1–O4 = 4), Phase R (R1 = 1) = **8+6+5+3+4+1 = 27** discrete tasks.
+- **Tasks: 28** — Phase P (P0–P8 = 9), Phase B (B1–B6 = 6), Phase C (C1–C5 = 5), Phase D (D1–D3 = 3),
+  Phase O (O1–O4 = 4), Phase R (R1 = 1) = **9+6+5+3+4+1 = 28** discrete tasks. (P0 = owner account-signup prereq.)
 - **Owner-gated checkpoints: 2** — **GATE A** (C4: owner logs in at preview, sees own name+role — the
   roadmap acceptance gate) and **GATE B** (O4: security-auditor OWASP/STRIDE pass, HARD BLOCK before
   internet exposure / Phase-3.2 rollout). Secret-zero provisioning (B1) is also owner-executed.
