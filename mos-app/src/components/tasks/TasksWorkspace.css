@@ -102,7 +102,12 @@
   border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
   color: var(--secondary-foreground); cursor: pointer; white-space: nowrap;
 }
-.seg-btn-on { background: var(--background); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); }
+/* Active segment: crisp 1px ring + lift so it's clearly "the one that's on"
+   against the grey track (no layout shift — ring drawn via box-shadow). */
+.seg-btn-on {
+  background: var(--background); font-weight: 600;
+  box-shadow: 0 0 0 1px var(--border-strong), 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+}
 .search-mini {
   height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
