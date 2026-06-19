@@ -11,24 +11,22 @@ export type RecordDetailsPanelProps = {
   people: PersonOption[]
   editable: boolean
   viewerId: string
-  /** [done, total] checklist tally for the summary field */
+  // [done, total] checklist tally for the summary field
   checklistCount: [number, number]
-  /** compact = the drawer-width variant (stacked above the feed). The drawer's
-   *  pinned header already owns the identity row + Status trigger, so the
-   *  compact panel suppresses both to avoid duplicate controls. */
+  // compact = the drawer-width variant (stacked above the feed). The drawer's
+  // pinned header already owns the identity row + Status trigger, so the compact
+  // panel suppresses both to avoid duplicate controls.
   compact?: boolean
   onStatusChange: (s: TaskStatus) => void
   onRaChange: (patch: Partial<Pick<TaskListRow, 'responsible_person_id' | 'accountable_person_id'>>) => void
   onRaciChange: (patch: Partial<Pick<TaskListRow, 'consulted_person_ids' | 'informed_person_ids'>>) => void
 }
 
-/**
- * The left details panel of the two-column record surface (ADR-0013 D3): an
- * identity row (task name + "BU · code" sub-line) above field sections —
- * Status (inline StatusTrigger for editors) · Ownership (R/A/C/I) · Dates ·
- * Checklist count. Status + R/A sit above the fold (Lens-D Q3). A `compact`
- * variant renders the same anatomy for the drawer width.
- */
+// The left details panel of the two-column record surface (ADR-0013 D3): an
+// identity row (task name + "BU · code" sub-line) above field sections —
+// Status (inline StatusTrigger for editors) · Ownership (R/A/C/I) · Dates ·
+// Checklist count. Status + R/A sit above the fold (Lens-D Q3). A `compact`
+// variant renders the same anatomy for the drawer width.
 export function RecordDetailsPanel({
   task, buName, people, editable, viewerId, checklistCount, compact,
   onStatusChange, onRaChange, onRaciChange,

@@ -57,6 +57,12 @@
 .record-actions {
   display: flex; justify-content: flex-end; margin-bottom: 12px;
 }
+/* Promoted-from-drawer chrome (collapse + close) above the two-column card. It
+   reuses .dw-bar/.dw-iconbtn; here it is a standalone strip (no bottom rule of
+   its own — the .record-2col card below carries the border). */
+.record-chrome {
+  border-bottom: 0; padding: 0 0 10px; margin-bottom: 2px;
+}
 .record-2col {
   display: grid; grid-template-columns: 332px 1fr;
   background: var(--card); border: 1px solid var(--border);

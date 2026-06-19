@@ -19,6 +19,24 @@ import { RecordDetailsPanel } from './record-details-panel'
 import { RecordFeed } from './record-feed'
 import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
+import type { TabKey } from './use-tab-memory'
+
+// Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
+// persistence). The two stores name the same three panes differently, so map
+// between them explicitly (clearer than nested ternaries):
+//   slot 'details'  ↔ feed 'activity' (the default pane)
+//   slot 'checklist'↔ feed 'checklist'
+//   slot 'activity' ↔ feed 'notes'    (the description pane)
+const SLOT_TO_FEED: Record<TabKey, FeedTab> = {
+  details: 'activity',
+  checklist: 'checklist',
+  activity: 'notes',
+}
+const FEED_TO_SLOT: Record<FeedTab, TabKey> = {
+  activity: 'details',
+  checklist: 'checklist',
+  notes: 'activity',
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 // PR-A: TaskSurface is the single actionable task editor (ADR-0007 "one UI, two
@@ -69,10 +87,9 @@ function ViewSurface({
   // slot ('details') maps to the feed default 'activity'; the description pane
   // ('activity' slot) presents as 'Notes'.
   const [storedTab, setStoredTab] = useTabMemory(taskId)
-  const feedTab: FeedTab =
-    storedTab === 'checklist' ? 'checklist' : storedTab === 'activity' ? 'notes' : 'activity'
+  const feedTab = SLOT_TO_FEED[storedTab] ?? 'activity'
   const setFeedTab = useCallback((t: FeedTab) => {
-    setStoredTab(t === 'checklist' ? 'checklist' : t === 'notes' ? 'activity' : 'details')
+    setStoredTab(FEED_TO_SLOT[t])
   }, [setStoredTab])
 
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -405,6 +422,46 @@ function ViewSurface({
   return (
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
+
+      {/* Record chrome — when promoted from the drawer (expanded@split) the host
+          passes collapse/close callbacks; carry them in a quiet utility row so the
+          expand control stays reversible (collapse back to split) and the surface
+          is never a dead end. A standalone full-page route host would pass neither
+          and render no chrome bar. (AC-R06 / IxD: post-action feedback + next step.) */}
+      {(onExpandToggle || onClose) && (
+        <div className="dw-bar record-chrome">
+          <span className="dw-crumb-mini">Task · full width</span>
+          <span className="dw-bar-spacer" />
+          {onExpandToggle && (
+            <button
+              type="button"
+              className="dw-iconbtn dw-iconbtn-on"
+              aria-pressed={true}
+              aria-label="Collapse to split (e)"
+              title="Collapse (e)"
+              onClick={() => onExpandToggle()}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7" />
+              </svg>
+            </button>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              className="dw-iconbtn"
+              aria-label="Close (Esc)"
+              title="Close (Esc)"
+              onClick={() => onClose()}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* AC-R05: archived banner + Unarchive sit above the two columns */}
       {isArchived && (
         <div className="archived-banner" role="status">

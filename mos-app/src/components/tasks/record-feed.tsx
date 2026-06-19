@@ -31,14 +31,11 @@ export type RecordFeedProps = {
   onDeleteChecklist: (id: string) => void
 }
 
-/**
- * The right-hand record feed (ADR-0013 D3): a tab strip Activity / Checklist /
- * Notes over the matching pane. Active tab is marked by weight + a 2px
- * border-primary underline (never color-alone). ARIA tabs pattern with roving
- * tabindex + ArrowLeft/Right navigation. The feed NEVER carries a weekly-update
- * write/ack affordance (Lens-D guard A2 — this is a Task, not the upward-review
- * pane).
- */
+// The right-hand record feed (ADR-0013 D3): a tab strip Activity / Checklist /
+// Notes over the matching pane. Active tab is marked by weight + a 2px
+// border-primary underline (never color-alone). ARIA tabs pattern with roving
+// tabindex + ArrowLeft/Right navigation. The feed NEVER carries a weekly-update
+// write/ack affordance (Lens-D guard A2 — this is a Task, not the upward-review pane).
 export function RecordFeed({
   task, checklist, events, people, now, editable, viewerId,
   activeTab, onSelectTab,

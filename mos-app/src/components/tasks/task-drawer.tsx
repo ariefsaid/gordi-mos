@@ -105,11 +105,26 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
 
   const label = mode === 'create' ? 'New task' : 'Task detail'
 
+  // ADR-0013 D3 / AC-R06: the expand control PROMOTES the surface to the full-width
+  // two-column record page — but only where there's room for two columns (the split
+  // regime, ≥1100px). Below split (modal sheet / mobile full-screen) "expanded" keeps
+  // the compact stacked drawer; there isn't horizontal room for the side-by-side grid.
+  // (Pre-fix bug: width was hardcoded "drawer", so .record-2col never mounted live.)
+  const fullWidth = expanded && isSplit
+  const width = fullWidth ? 'full' : 'drawer'
+
+  // TODO(breadcrumb-title, ADR-0013 D1 / OD-P4-9): thread TaskSurface's
+  // onTitleResolved up to the shell Breadcrumb so it reads "Tasks › <task name>".
+  // The shell <Breadcrumb> is route-derived and lives in the persistent TopBar,
+  // ABOVE this Outlet level — there is no dynamic-segment channel today. Wiring it
+  // requires a cross-cutting shell context provider (a heavy mechanism this PR is
+  // scoped to avoid). Deferred to a follow-up so the Critical (two-column mount)
+  // ships clean. The drawer header (.dw-title) already shows the full name + title.
   const surface = (
     <TaskSurface
       taskId={taskId ?? null}
       mode={mode}
-      width="drawer"
+      width={width}
       expanded={expanded}
       onExpandToggle={() => setExpanded(e => !e)}
       onClose={close}

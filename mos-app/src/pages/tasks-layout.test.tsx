@@ -254,8 +254,10 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => {
       expect(document.querySelector('.split.expanded')).toBeTruthy()
     })
-    // and the drawer itself reflects the expanded state
-    expect(document.querySelector('.dw-surface-expanded')).toBeTruthy()
+    // and the surface itself promotes to the full-width two-column record page
+    // (ADR-0013 D3 / AC-R06: expanded@split mounts .record-2col, not the compact stack).
+    expect(document.querySelector('.record-2col')).toBeTruthy()
+    expect(document.querySelector('.dw-surface')).toBeNull()
   })
 
   // RI-2 (C2): after creating a task in the drawer, the table must show the new
