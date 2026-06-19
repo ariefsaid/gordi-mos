@@ -30,6 +30,13 @@ begin
     raise exception 'kitchen log not found' using errcode = 'P0002';
   end if;
 
+  -- (1a) cross-tenant guard. This RPC is SECURITY DEFINER (RLS-bypassing), so the load above can
+  -- lock ANY org's log; an org-B ops_lead's JWT satisfies the role gate below. Enforce org ownership
+  -- here, BEFORE the role check or any write, so neither existence nor role is an oracle.
+  if v_log.org_id is distinct from shared.current_org_id() then
+    raise exception 'cannot approve a log outside your org' using errcode = '42501';
+  end if;
+
   if v_log.status <> 'Submitted' then
     raise exception 'log is not Submitted (current: %)', v_log.status using errcode = 'P0003';
   end if;

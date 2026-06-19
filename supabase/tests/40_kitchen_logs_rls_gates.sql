@@ -1,6 +1,17 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(3);
+select plan(4);
+
+-- Defense-in-depth: the Submitted->Approved/Rejected role gate lives ONLY in the kitchen_logs_guard
+-- trigger (the UPDATE RLS policy is org-only). If the trigger were ever dropped/disabled, a member
+-- could self-approve. Assert the trigger exists AND is enabled so a regression fails the suite.
+select ok(
+  exists(select 1 from pg_trigger t
+           join pg_class c on c.oid = t.tgrelid
+           join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'ops' and c.relname = 'kitchen_logs'
+            and t.tgname = 'kitchen_logs_guard' and t.tgenabled <> 'D'),
+  'kitchen_logs status/role guard trigger is present and enabled (defense-in-depth)');
 
 select mos._test_seed_role_tree();
 select mos._test_seed_access_roles();
