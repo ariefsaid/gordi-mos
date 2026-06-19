@@ -5,6 +5,8 @@
  * These tests mount TasksTable directly to assert PR-2-specific additions.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -667,5 +669,41 @@ describe('Task 22 — mobile grouped cards (AC-129)', () => {
     expect(document.querySelector('[data-testid="task-card"]')).toBeTruthy()
     // A group heading for the status grouping
     expect(document.querySelector('.mgc-group-head')).toBeTruthy()
+  })
+})
+
+// ── PR-2 — Record table craft (overline + hover affordances + Chip-link) ──────
+
+// Helper that reads a CSS rule body from TasksWorkspace.css (jsdom does not compute
+// styles, so we lock the authored rule — same pattern as task-surface.css.test.ts).
+function cssRuleBody(selector: string): string {
+  const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
+  const css = readFileSync(cssPath, 'utf8')
+  const idx = css.indexOf(selector)
+  expect(idx, `expected to find ${selector} in TasksWorkspace.css`).toBeGreaterThanOrEqual(0)
+  const open = css.indexOf('{', idx)
+  const close = css.indexOf('}', open)
+  return css.slice(open + 1, close)
+}
+
+describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-foreground)', () => {
+  it('AC-T01: a populated table columnheader carries the th-cell class', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Overline task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Overline task'))
+    const th = screen.getByRole('columnheader', { name: /Task/ })
+    expect(th.className).toContain('th-cell')
+  })
+
+  it('AC-T01: .th-cell rule is weight 400 + UPPERCASE + 0.06em tracking + text-muted-foreground', () => {
+    const body = cssRuleBody('.th-cell')
+    // OD-P4-10 overline, scoped to thead th only: weight 400 (NOT 600), uppercase,
+    // 0.06em tracking, the --ds-font-color-tertiary crosswalk (text-muted-foreground).
+    expect(body).toMatch(/font-weight:\s*400/)
+    expect(body).not.toMatch(/font-weight:\s*600/)
+    expect(body).toMatch(/text-transform:\s*uppercase/)
+    expect(body).toMatch(/letter-spacing:\s*\.?0*\.?06em/) // 0.06em
+    expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
+    expect(body).toMatch(/font-size:\s*var\(--ds-font-size-xs\)/)
   })
 })
