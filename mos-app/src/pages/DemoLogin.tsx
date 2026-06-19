@@ -18,7 +18,7 @@ export default function DemoLogin({
   return (
     <div
       className="mt-5 rounded-lg border border-border shadow-rest"
-      style={{ backgroundColor: 'hsl(var(--muted) / 0.4)', padding: 16 }}
+      style={{ backgroundColor: 'color-mix(in srgb, var(--muted) 40%, transparent)', padding: 16 }}
     >
       {/* Overline title — 11px/600, uppercase, muted (mirrors AuthShell overline) */}
       <p

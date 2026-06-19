@@ -90,7 +90,7 @@ function ReadOnlyPanel({ row, weekStart }: ReadOnlyPanelProps) {
         <p className="wup-review-panel-body">
           {row.summary_excerpt
             ? row.summary_excerpt
-            : <span style={{ color: 'hsl(240 4% 40%)', fontStyle: 'italic' }}>(no summary)</span>
+            : <span style={{ color: 'var(--muted-foreground)', fontStyle: 'italic' }}>(no summary)</span>
           }
         </p>
       </div>
@@ -344,7 +344,7 @@ export default function WeeklyUpdateReviewPane({
 
           {/* No-reports guard: nothing to review */}
           {rows.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'hsl(240 4% 40%)', padding: '8px 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--muted-foreground)', padding: '8px 0' }}>
               No direct reports to review.
             </p>
           ) : (

@@ -1,0 +1,19 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Elevation" subtitle="Soft, low-contrast shadows. Strong & heavy reserved for menus and modals." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--ds-font-family); background: var(--ds-background-secondary); padding: 28px; color: var(--ds-font-color-secondary); display:flex; gap:28px; }
+  .col { display:flex; flex-direction:column; gap:12px; align-items:center; flex:1; }
+  .box { width: 100%; height: 70px; background: var(--ds-background-primary); border-radius: var(--ds-border-radius-md); }
+  .l { font-size: 11px; color: var(--ds-font-color-tertiary); font-family: var(--ds-code-font-family); }
+</style>
+</head>
+<body>
+  <div class="col"><div class="box" style="box-shadow:var(--ds-box-shadow-light)"></div><div class="l">light</div></div>
+  <div class="col"><div class="box" style="box-shadow:var(--ds-box-shadow-strong)"></div><div class="l">strong</div></div>
+  <div class="col"><div class="box" style="box-shadow:var(--ds-box-shadow-super-heavy)"></div><div class="l">super-heavy</div></div>
+</body>
+</html>

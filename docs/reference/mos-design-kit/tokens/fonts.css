@@ -1,0 +1,16 @@
+/* ============================================================================
+   MOS Design Kit — Webfonts
+   Our adopted pairing (DESIGN.md OD-P3-9): Plus Jakarta Sans for display /
+   headings, DM Sans for body / UI / table, SF Mono (system) for IDs / code.
+   Plus Jakarta Sans + DM Sans load from Google Fonts; SF Mono is a system face.
+   Loaded here so every consumer that links styles.css gets the type automatically.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+
+/* Convenience family tokens. Body/UI default = DM Sans; headings = display. */
+:root {
+  --ds-font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;          /* body / UI / table */
+  --ds-font-display: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; /* page-title / heading / subheading */
+  --ds-code-font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;       /* IDs / codes only */
+}

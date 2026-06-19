@@ -539,7 +539,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         meta={
           <>
             {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}
-            <span data-testid="tasks-count-line" className="tabular-nums" style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>
+            <span data-testid="tasks-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
               {stats === null ? '—' : (
                 <>
                   {stats.total} task{stats.total !== 1 ? 's' : ''}

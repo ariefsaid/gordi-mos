@@ -139,17 +139,18 @@ describe('RI-VIS-2: error text classes use --status-lost-text, not base --destru
     const src = readSrc('pages/OpsAddForm.tsx')
     for (const sel of ['.tc-field-error', '.tc-submit-error']) {
       const body = ruleBody(src, sel)
-      expect(body).toMatch(/color:\s*hsl\(var\(--status-lost-text\)\)/)
-      expect(body).not.toMatch(/color:\s*hsl\(var\(--destructive\)\)/)
+      // ADR-0009: tokens are now resolved color(display-p3 …) consumed as var(--token); hsl() wrapper retired.
+      expect(body).toMatch(/color:\s*var\(--status-lost-text\)/)
+      expect(body).not.toMatch(/color:\s*var\(--destructive\)\s*;/)
     }
   })
 
   it('LoginPage error text (form alert + inline email error) uses --status-lost-text, not --destructive', () => {
     const src = readSrc('pages/LoginPage.tsx')
     // Error TEXT color is the AA token (used for both the form alert and the email error)
-    expect(src).toMatch(/color:\s*'hsl\(var\(--status-lost-text\)\)'/)
+    expect(src).toMatch(/color:\s*'var\(--status-lost-text\)'/)
     // No error TEXT uses base --destructive (the emailInputBorder keeps --destructive — different key)
-    expect(src).not.toMatch(/color:\s*'hsl\(var\(--destructive\)\)'/)
+    expect(src).not.toMatch(/color:\s*'var\(--destructive\)'/)
   })
 })
 

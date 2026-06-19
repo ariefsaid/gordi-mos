@@ -4,25 +4,25 @@
 /* All raw values are DESIGN.md CSS-var tokens — no hardcoded hex/spacing literals.       */
 
 /* ── Breadcrumb ── */
-.breadcrumb { font-size: 13px; color: hsl(var(--muted-foreground)); margin-bottom: 12px; }
-.breadcrumb-link { color: hsl(var(--muted-foreground)); text-decoration: none; }
-.breadcrumb-link:hover { color: hsl(var(--foreground)); }
-.breadcrumb-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.breadcrumb { font-size: 13px; color: var(--muted-foreground); margin-bottom: 12px; }
+.breadcrumb-link { color: var(--muted-foreground); text-decoration: none; }
+.breadcrumb-link:hover { color: var(--foreground); }
+.breadcrumb-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .breadcrumb-sep { margin: 0 6px; }
-.breadcrumb-current { color: hsl(var(--foreground)); font-weight: 500; }
+.breadcrumb-current { color: var(--foreground); font-weight: 500; }
 
 /* ── Archived banner — inline status strip, stays flat (Soft-Elevation Rule) ── */
 .archived-banner {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 16px; margin-bottom: 12px;
-  background: hsl(var(--secondary)); border: 1px solid hsl(var(--border));
+  background: var(--secondary); border: 1px solid var(--border);
   border-radius: var(--radius-sm); /* 8px — banner/strip, OD-P3-10 */
-  font-size: 13px; color: hsl(var(--muted-foreground));
+  font-size: 13px; color: var(--muted-foreground);
 }
 
 /* ── Head card ── */
 .head-card {
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   padding: 16px 20px; margin-bottom: 16px;
@@ -31,7 +31,7 @@
 .head-title-block { flex: 1; min-width: 0; }
 .task-title {
   font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; /* OD-P3-9: Jakarta tracking relaxed */
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 .actions-cluster {
   display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
@@ -53,28 +53,28 @@
 /* ── Status trigger ── */
 .status-trigger-wrap { position: relative; }
 .status-trigger {
-  height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input));
+  height: 32px; padding: 0 10px; border: 1px solid var(--input);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  background: hsl(var(--background)); font: inherit;
+  background: var(--background); font: inherit;
   font-size: 13px; cursor: pointer; display: inline-flex; align-items: center;
-  gap: 8px; color: hsl(var(--foreground));
+  gap: 8px; color: var(--foreground);
 }
-.status-trigger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-.trigger-chev { color: hsl(var(--muted-foreground)); font-size: 10px; }
+.status-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.trigger-chev { color: var(--muted-foreground); font-size: 10px; }
 .status-popover {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   padding: 4px; min-width: 140px;
-  box-shadow: 0 4px 16px hsl(var(--foreground) / 0.10);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--foreground) 10%, transparent);
 }
 .status-option {
   padding: 6px 8px; border-radius: 6px; cursor: pointer;
   display: flex; align-items: center;
 }
-.status-option:hover, .status-option:focus-visible { background: hsl(var(--accent)); }
-.status-option:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
-.status-option-active { background: hsl(var(--accent)); }
+.status-option:hover, .status-option:focus-visible { background: var(--accent); }
+.status-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.status-option-active { background: var(--accent); }
 
 /* ── Btn styles ── */
 /* IXD-4 (PR-2): the one button hierarchy lives in ui/Button.css (.btn .btn-{variant}).
@@ -86,26 +86,26 @@
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 0;
   background: transparent; font: inherit; font-size: 13px; font-weight: 500;
-  color: hsl(var(--muted-foreground)); cursor: pointer;
+  color: var(--muted-foreground); cursor: pointer;
 }
-.btn-ghost:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
-.btn-ghost:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.btn-ghost:hover { background: var(--accent); color: var(--foreground); }
+.btn-ghost:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .btn-outline-sm {
   height: 28px; padding: 0 10px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-  font: inherit; font-size: 12px; cursor: pointer; color: hsl(var(--foreground));
+  border: 1px solid var(--border); background: var(--background);
+  font: inherit; font-size: 12px; cursor: pointer; color: var(--foreground);
 }
 
 /* ── Archive confirm ── */
 .confirm-overlay {
-  position: fixed; inset: 0; background: hsl(var(--foreground) / 0.45);
+  position: fixed; inset: 0; background: color-mix(in srgb, var(--foreground) 45%, transparent);
   display: grid; place-items: center; z-index: 100;
 }
 .confirm-box {
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — modal/overlay, OD-P3-10 */
   padding: 20px 24px; max-width: 360px; width: 90%;
-  box-shadow: 0 8px 32px hsl(var(--foreground) / 0.18);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
 }
 .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
@@ -117,25 +117,25 @@
 .meta-item { display: flex; flex-direction: column; gap: 2px; }
 .meta-label {
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-  text-transform: uppercase; color: hsl(var(--muted-foreground));
+  text-transform: uppercase; color: var(--muted-foreground);
 }
-.meta-value { font-size: 13px; color: hsl(var(--foreground)); }
+.meta-value { font-size: 13px; color: var(--foreground); }
 
 /* ── Generic card (OD-P3-10/11) ── */
 .card {
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   padding: 16px 20px; margin-bottom: 16px;
 }
 .card-h2 {
   font-size: 18px; font-weight: 600; line-height: 1.3; margin-bottom: 12px;
-  display: flex; align-items: center; gap: 10px; color: hsl(var(--foreground));
+  display: flex; align-items: center; gap: 10px; color: var(--foreground);
 }
 
 /* ── Description ── */
-.desc-body { font-size: 14px; line-height: 1.5; color: hsl(var(--foreground)); }
-.empty-substate { font-size: 13px; color: hsl(var(--muted-foreground)); }
+.desc-body { font-size: 14px; line-height: 1.5; color: var(--foreground); }
+.empty-substate { font-size: 13px; color: var(--muted-foreground); }
 
 /* ── RACI ── */
 .raci-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
@@ -149,142 +149,142 @@
 }
 .role-marker {
   width: 15px; height: 15px; border-radius: 999px; display: grid;
-  place-items: center; font-size: 9.5px; font-weight: 700; color: hsl(var(--primary-foreground));
+  place-items: center; font-size: 9.5px; font-weight: 700; color: var(--primary-foreground);
 }
-.role-chip-r { background: hsl(var(--primary) / 0.10); color: hsl(var(--status-open-text)); }
-.role-chip-r .role-marker { background: hsl(var(--primary)); }
-.role-chip-a { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }
-.role-chip-a .role-marker { background: hsl(var(--violet)); }
-.role-chip-ci { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
-.role-marker-ci { background: hsl(var(--muted-foreground)); }
+.role-chip-r { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--status-open-text); }
+.role-chip-r .role-marker { background: var(--primary); }
+.role-chip-a { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
+.role-chip-a .role-marker { background: var(--violet); }
+.role-chip-ci { background: var(--secondary); color: var(--muted-foreground); }
+.role-marker-ci { background: var(--muted-foreground); }
 .person-field {
-  height: 36px; border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  background: hsl(var(--background)); padding: 0 10px;
+  height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  background: var(--background); padding: 0 10px;
   display: flex; align-items: center; gap: 8px;
 }
 /* I2: editable R/A person field — button form of person-field */
 .person-field-btn {
-  height: 36px; border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  background: hsl(var(--background)); padding: 0 10px;
+  height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  background: var(--background); padding: 0 10px;
   display: flex; align-items: center; gap: 8px;
   width: 100%; cursor: pointer; font: inherit; text-align: left;
 }
-.person-field-btn:hover { border-color: hsl(var(--ring)); background: hsl(var(--accent) / 0.5); }
-.person-field-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.person-field-btn:hover { border-color: var(--ring); background: color-mix(in srgb, var(--accent) 50%, transparent); }
+.person-field-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .person-field-edit-hint {
-  margin-left: auto; font-size: 11px; color: hsl(var(--muted-foreground)); flex-shrink: 0;
+  margin-left: auto; font-size: 11px; color: var(--muted-foreground); flex-shrink: 0;
 }
 /* VIS-1: ONE avatar gradient (navy→primary, OD-P3-7) — same as shell/UserChip.tsx.
    Violet (--violet) is KPI/timeline only; no avatar carries it. R and A share the
    canonical gradient; the R/A distinction lives on the role-chip, not the avatar. */
 .person-av {
   width: 22px; height: 22px; border-radius: 999px; flex: none;
-  background: linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)));
-  color: hsl(var(--primary-foreground)); display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--brand-navy), var(--primary));
+  color: var(--primary-foreground); display: grid; place-items: center;
   font-size: 10px; font-weight: 700;
 }
 .person-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .multi-field {
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  padding: 6px 8px; min-height: 36px; border: 1px solid hsl(var(--input));
+  padding: 6px 8px; min-height: 36px; border: 1px solid var(--input);
   border-radius: var(--radius-sm); /* 8px — control/field, OD-P3-10 */
-  background: hsl(var(--background));
+  background: var(--background);
 }
 .chip-person {
   display: inline-flex; align-items: center; gap: 5px; height: 24px;
   padding: 0 8px 0 4px; border-radius: 999px;
-  background: hsl(var(--secondary)); font-size: 12px;
+  background: var(--secondary); font-size: 12px;
 }
 .chip-av {
   width: 16px; height: 16px; font-size: 9px;
 }
 .chip-remove {
-  border: 0; background: transparent; color: hsl(var(--muted-foreground));
+  border: 0; background: transparent; color: var(--muted-foreground);
   cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
   display: flex; align-items: center;
 }
-.chip-remove:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.chip-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .add-person-btn {
   border: 0; background: transparent; font-size: 12px;
-  color: hsl(var(--status-open-text)); cursor: pointer; padding: 2px 4px;
+  color: var(--status-open-text); cursor: pointer; padding: 2px 4px;
 }
-.add-person-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.add-person-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── Person picker ── */
 .person-picker {
-  position: absolute; z-index: 50; background: hsl(var(--card));
-  border: 1px solid hsl(var(--border)); border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
+  position: absolute; z-index: 50; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   padding: 4px;
   min-width: 200px; max-height: 200px; overflow-y: auto;
-  box-shadow: 0 4px 16px hsl(var(--foreground) / 0.10);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--foreground) 10%, transparent);
 }
 .person-picker-option {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
   border-radius: 6px; cursor: pointer; font-size: 13px;
 }
 .person-picker-option:hover, .person-picker-option:focus-visible {
-  background: hsl(var(--accent));
+  background: var(--accent);
 }
-.person-picker-option:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
 /* ── Checklist ── */
-.checklist-count { font-size: 13px; font-weight: 400; color: hsl(var(--muted-foreground)); }
+.checklist-count { font-size: 13px; font-weight: 400; color: var(--muted-foreground); }
 .checklist-list { list-style: none; padding: 0; margin: 0 0 8px; }
 .checklist-item {
   display: flex; align-items: center; gap: 10px;
   min-height: 36px; padding: 4px 0;
-  border-bottom: 1px solid hsl(var(--border) / 0.7);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .checklist-item:last-child { border-bottom: none; }
-.checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
+.checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
 .checklist-label { font-size: 14px; flex: 1; cursor: pointer; }
-.checklist-done { color: hsl(var(--muted-foreground)); text-decoration: line-through; }
+.checklist-done { color: var(--muted-foreground); text-decoration: line-through; }
 .checklist-add-input {
   width: 100%; border: 0; outline: none; background: transparent;
-  font: inherit; font-size: 13px; color: hsl(var(--muted-foreground));
-  padding: 6px 0; border-top: 1px solid hsl(var(--border));
+  font: inherit; font-size: 13px; color: var(--muted-foreground);
+  padding: 6px 0; border-top: 1px solid var(--border);
 }
-.checklist-add-input::placeholder { color: hsl(var(--muted-foreground)); }
-.checklist-add-input:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.checklist-add-input::placeholder { color: var(--muted-foreground); }
+.checklist-add-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .checklist-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
 .checklist-ctrl-btn {
   width: 24px; height: 24px; border: 0; background: transparent;
-  color: hsl(var(--muted-foreground)); cursor: pointer; font-size: 12px;
+  color: var(--muted-foreground); cursor: pointer; font-size: 12px;
   display: grid; place-items: center; border-radius: 4px;
   line-height: 1;
 }
-.checklist-ctrl-btn:hover:not(:disabled) { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
-.checklist-ctrl-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.checklist-ctrl-btn:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
+.checklist-ctrl-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .checklist-ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.checklist-ctrl-delete:hover:not(:disabled) { color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.08); }
+.checklist-ctrl-delete:hover:not(:disabled) { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 8%, transparent); }
 
 /* ── Activity thread ── */
 .thread { display: flex; flex-direction: column; }
 .event-entry {
   display: flex; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid hsl(var(--border) / 0.7);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .event-entry:last-child { border-bottom: none; }
 .event-av {
   width: 26px; height: 26px; border-radius: 999px; flex: none;
-  background: linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)));
-  color: hsl(var(--primary-foreground)); display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--brand-navy), var(--primary));
+  color: var(--primary-foreground); display: grid; place-items: center;
   font-size: 10px; font-weight: 700;
 }
 .event-body { flex: 1; min-width: 0; }
-.event-who { font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); margin-right: 6px; }
-.event-when { font-size: 12px; color: hsl(var(--muted-foreground)); }
-.event-label { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+.event-who { font-size: 13px; font-weight: 600; color: var(--foreground); margin-right: 6px; }
+.event-when { font-size: 12px; color: var(--muted-foreground); }
+.event-label { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Not found ── */
 .not-found-panel { padding: 48px 0; }
-.not-found-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: hsl(var(--foreground)); }
-.not-found-copy { font-size: 14px; color: hsl(var(--muted-foreground)); margin-bottom: 16px; }
+.not-found-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--foreground); }
+.not-found-copy { font-size: 14px; color: var(--muted-foreground); margin-bottom: 16px; }
 
 /* ── Loading skeleton ── */
 .sk-block { margin-bottom: 16px; }
 .sk {
-  background: hsl(var(--secondary)); border-radius: 6px; display: block;
+  background: var(--secondary); border-radius: 6px; display: block;
   animation: sk-pulse 1.4s ease-in-out infinite;
 }
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
@@ -302,11 +302,11 @@
    (and the OpsAddForm in-page crumb) are gone — one breadcrumb, one `›` separator. */
 
 .tc-page-head { margin-bottom: 16px; }
-.tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: hsl(var(--foreground)); } /* OD-P3-9: Jakarta tracking relaxed */
+.tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
 
 .tc-card {
   max-width: 640px;
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   padding: 20px 24px;
@@ -316,40 +316,40 @@
   /* I4: error TEXT uses the AA-darkened red (--field-error-text = --status-lost-text);
      the tinted bg + border keep the saturated --destructive hue (non-text affordances). */
   padding: 10px 12px; margin-bottom: 16px; border-radius: 6px;
-  background: hsl(var(--destructive) / 0.10); color: hsl(var(--status-lost-text));
-  font-size: 13px; border: 1px solid hsl(var(--destructive) / 0.25);
+  background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text);
+  font-size: 13px; border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
 }
 
 .tc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
-.tc-label { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
-.tc-required { color: hsl(var(--destructive)); margin-left: 2px; }
+.tc-label { font-size: 13px; font-weight: 500; color: var(--foreground); }
+.tc-required { color: var(--destructive); margin-left: 2px; }
 
 .tc-input, .tc-select, .tc-textarea {
   width: 100%; height: 36px; padding: 0 12px;
-  border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
-  background: hsl(var(--background)); font: inherit; font-size: 14px;
-  color: hsl(var(--foreground));
+  border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
+  background: var(--background); font: inherit; font-size: 14px;
+  color: var(--foreground);
 }
 .tc-input:focus-visible, .tc-select:focus-visible, .tc-textarea:focus-visible {
-  outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+  outline: 2px solid var(--ring); outline-offset: 2px;
 }
-.tc-input-error { border-color: hsl(var(--destructive)); }
+.tc-input-error { border-color: var(--destructive); }
 .tc-textarea { height: auto; padding: 8px 12px; resize: vertical; }
 .tc-select { cursor: pointer; }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
    --status-lost-text). The invalid field's 1px outline (.tc-input-error) and the
    required asterisk (.tc-required) keep base --destructive — those are non-text. */
-.tc-field-error { font-size: 12px; color: hsl(var(--status-lost-text)); }
+.tc-field-error { font-size: 12px; color: var(--status-lost-text); }
 
 .tc-loading-field {
   height: 36px; display: flex; align-items: center;
-  font-size: 13px; color: hsl(var(--muted-foreground));
+  font-size: 13px; color: var(--muted-foreground);
 }
 
 .tc-actions {
   display: flex; justify-content: flex-end; gap: 8px;
-  padding-top: 8px; border-top: 1px solid hsl(var(--border)); margin-top: 8px;
+  padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;
 }
 /* IXD-4 (PR-2): the create-form Cancel/Submit buttons use the shared .btn .btn-outline /
    .btn .btn-primary (ui/Button.css). The bespoke .tc-btn-cancel / .tc-btn-submit rules
@@ -363,7 +363,7 @@
 
 .dw-surface {
   display: flex; flex-direction: column; min-height: 0;
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card/overlay surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   overflow: hidden;
@@ -373,30 +373,30 @@
 .dw-head { flex: none; }
 .dw-bar {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; border-bottom: 1px solid hsl(var(--border));
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
 }
-.dw-crumb-mini { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.dw-crumb-mini { font-size: 12px; color: var(--muted-foreground); }
 .dw-bar-spacer { flex: 1; }
 .dw-iconbtn {
   width: 30px; height: 30px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: transparent; border: 1px solid transparent;
   display: grid; place-items: center; cursor: pointer;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
-.dw-iconbtn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
-.dw-iconbtn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-.dw-iconbtn-on { color: hsl(var(--primary)); }
+.dw-iconbtn:hover { background: var(--accent); color: var(--foreground); }
+.dw-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dw-iconbtn-on { color: var(--primary); }
 
 /* ── Pinned action header — never scrolls ── */
-.dw-pinned { padding: 16px 16px 12px; border-bottom: 1px solid hsl(var(--border)); flex: none; }
+.dw-pinned { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); flex: none; }
 .dw-pinned-inner { min-width: 0; }
 .dw-titlewrap { min-width: 0; }
 .dw-title {
   font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.dw-unit { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+.dw-unit { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
 .dw-statusrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .dw-activity { margin-left: 0; }
 .dw-ra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
@@ -405,30 +405,30 @@
   width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
   font-size: 10px; font-weight: 700; flex: none;
 }
-.ra-glyph-r { background: hsl(var(--primary) / 0.12); color: hsl(var(--status-open-text)); } /* --raci-responsible */
-.ra-glyph-a { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }       /* --raci-accountable */
-.ra-who { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
-.ra-role { font-size: 11px; color: hsl(var(--muted-foreground)); }
+.ra-glyph-r { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); } /* --raci-responsible */
+.ra-glyph-a { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }       /* --raci-accountable */
+.ra-who { font-size: 13px; font-weight: 500; color: var(--foreground); }
+.ra-role { font-size: 11px; color: var(--muted-foreground); }
 
 /* ── Tabs (sticky under the pinned header) ── */
 .dw-tabs {
   display: flex; gap: 2px; padding: 8px 16px 0;
-  border-bottom: 1px solid hsl(var(--border)); flex: none;
+  border-bottom: 1px solid var(--border); flex: none;
 }
 .dw-tab {
   position: relative; border: 0; background: transparent; font: inherit;
   font-size: 13px; font-weight: 500; padding: 8px 12px 10px;
-  color: hsl(var(--muted-foreground)); cursor: pointer;
+  color: var(--muted-foreground); cursor: pointer;
 }
-.dw-tab:hover { color: hsl(var(--foreground)); }
-.dw-tab:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; border-radius: 4px; }
-.dw-tab .tcount { font-size: 11px; color: hsl(var(--muted-foreground)); margin-left: 5px; }
-.dw-tab.on { color: hsl(var(--foreground)); font-weight: 600; }
+.dw-tab:hover { color: var(--foreground); }
+.dw-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 4px; }
+.dw-tab .tcount { font-size: 11px; color: var(--muted-foreground); margin-left: 5px; }
+.dw-tab.on { color: var(--foreground); font-weight: 600; }
 .dw-tab.on::after {
   content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px;
   height: 2px; border-radius: 2px;
   /* OD-P3-7 / Structural-Navy Rule: drawer active-tab underline → brand-navy (structural, not action) */
-  background: hsl(var(--brand-navy));
+  background: var(--brand-navy);
 }
 
 /* ── Tab pane (the scrolling body) ── */
@@ -436,24 +436,24 @@
 .dw-sec { margin-bottom: 16px; }
 .dw-sec-h3 {
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  color: hsl(var(--muted-foreground)); margin-bottom: 10px;
+  color: var(--muted-foreground); margin-bottom: 10px;
 }
 /* Inside the drawer the reused cards drop their card frame (the drawer is the frame). */
 .dw-tabpane .card {
   background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0;
 }
-.dw-tabpane .card-h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.dw-tabpane .card-h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
 
 /* ── Pinned foot — Archive always reachable ── */
-.dw-foot { padding: 10px 16px; border-top: 1px solid hsl(var(--border)); display: flex; flex: none; }
+.dw-foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; flex: none; }
 .btn-ghost-danger {
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 0;
   background: transparent; font: inherit; font-size: 13px; font-weight: 500;
-  color: hsl(var(--muted-foreground)); cursor: pointer;
+  color: var(--muted-foreground); cursor: pointer;
 }
-.btn-ghost-danger:hover { background: hsl(var(--destructive) / 0.10); color: hsl(var(--status-lost-text)); } /* --status-lost-text */
-.btn-ghost-danger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.btn-ghost-danger:hover { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text); } /* --status-lost-text */
+.btn-ghost-danger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── Expanded (focus mode) reflow ── */
 .dw-surface-expanded .dw-title { font-size: 24px; letter-spacing: -0.01em; } /* OD-P3-9: Jakarta tracking relaxed */

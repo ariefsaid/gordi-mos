@@ -20,10 +20,10 @@
 .pm-picker {
   position: absolute;
   z-index: 50;
-  background: hsl(var(--background)); /* popover */
-  border: 1px solid hsl(var(--border)); /* border */
+  background: var(--background); /* popover */
+  border: 1px solid var(--border); /* border */
   border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
-  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12); /* overlay shadow — overlay response to state, not decoration */
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground) 12%, transparent); /* overlay shadow — overlay response to state, not decoration */
   padding: 4px;
   min-width: 140px;
   /* Reduced motion: no transform animation */
@@ -31,9 +31,9 @@
 
 /* Small standalone marker dots inside picker options (not pills) */
 .pm-option-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
-.pm-option-dot--in_progress { background: hsl(var(--primary)); }
-.pm-option-dot--blocked     { background: hsl(var(--destructive)); }
-.pm-option-dot--done        { background: hsl(var(--success)); }
+.pm-option-dot--in_progress { background: var(--primary); }
+.pm-option-dot--blocked     { background: var(--destructive); }
+.pm-option-dot--done        { background: var(--success); }
 
 .pm-option {
   display: flex; align-items: center; gap: 8px;
@@ -41,7 +41,7 @@
   border-radius: 6px; /* rounded.sm */
   cursor: pointer;
   font-size: 13px; font-weight: 500;
-  color: hsl(var(--foreground)); /* foreground */
+  color: var(--foreground); /* foreground */
   background: transparent;
   border: none;
   width: 100%;
@@ -50,12 +50,12 @@
 }
 .pm-option:hover,
 .pm-option:focus-visible {
-  background: hsl(var(--secondary)); /* accent */
+  background: var(--secondary); /* accent */
   outline: none;
 }
 .pm-option[aria-selected="true"] {
   /* Highlight current selection */
-  background: hsl(var(--primary) / 0.08);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 /* Picker wrapper positioning anchor */

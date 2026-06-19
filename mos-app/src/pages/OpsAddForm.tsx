@@ -341,11 +341,11 @@ export default function OpsAddForm() {
            breadcrumb, one › separator. The .tc-breadcrumb* rules are gone. */
 
         .tc-page-head { margin-bottom: 16px; }
-        .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: hsl(var(--foreground)); } /* OD-P3-9: Jakarta tracking relaxed */
+        .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
 
         .tc-card {
           max-width: 640px;
-          background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+          background: var(--card); border: 1px solid var(--border);
           border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
           box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
           padding: 20px 24px;
@@ -355,49 +355,49 @@ export default function OpsAddForm() {
           /* VIS-2: error TEXT uses the AA-darkened --status-lost-text; the tinted bg +
              border keep base --destructive (non-text affordances). */
           padding: 10px 12px; margin-bottom: 16px; border-radius: 6px;
-          background: hsl(var(--destructive) / 0.10); color: hsl(var(--status-lost-text));
-          font-size: 13px; border: 1px solid hsl(var(--destructive) / 0.25);
+          background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text);
+          font-size: 13px; border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
         }
 
         .tc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
         .tc-field--inline { flex-direction: row; align-items: center; gap: 8px; }
-        .tc-label { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
+        .tc-label { font-size: 13px; font-weight: 500; color: var(--foreground); }
         .tc-inline-label {
           display: flex; align-items: center; gap: 8px;
-          font-size: 13px; color: hsl(var(--foreground)); cursor: pointer;
+          font-size: 13px; color: var(--foreground); cursor: pointer;
         }
-        .tc-required { color: hsl(var(--destructive)); margin-left: 2px; }
+        .tc-required { color: var(--destructive); margin-left: 2px; }
 
         .tc-input, .tc-select, .tc-textarea {
           width: 100%; height: 36px; padding: 0 12px;
-          border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
-          background: hsl(var(--background)); font: inherit; font-size: 14px;
-          color: hsl(var(--foreground));
+          border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
+          background: var(--background); font: inherit; font-size: 14px;
+          color: var(--foreground);
         }
         .tc-input:focus-visible, .tc-select:focus-visible, .tc-textarea:focus-visible {
-          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+          outline: 2px solid var(--ring); outline-offset: 2px;
         }
-        .tc-input-error { border-color: hsl(var(--destructive)); }
+        .tc-input-error { border-color: var(--destructive); }
         .tc-textarea { height: auto; padding: 8px 12px; resize: vertical; }
         .tc-select { cursor: pointer; }
-        .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); flex: none; }
+        .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
 
         /* VIS-2: error TEXT uses the AA-darkened --status-lost-text. The invalid field
            outline (.tc-input-error) + required asterisk (.tc-required) keep base --destructive. */
-        .tc-field-error { font-size: 12px; color: hsl(var(--status-lost-text)); }
+        .tc-field-error { font-size: 12px; color: var(--status-lost-text); }
 
         /* Needs-attention amber hint text (§3.3 — warning-foreground, AA contrast) */
         .ops-attn-hint {
-          font-size: 12px; color: hsl(22 78% 26%); /* warning-foreground */
+          font-size: 12px; color: var(--warning-foreground); /* warning-foreground */
         }
 
         .tc-error-msg {
-          font-size: 14px; color: hsl(var(--foreground)); margin-bottom: 16px;
+          font-size: 14px; color: var(--foreground); margin-bottom: 16px;
         }
 
         .tc-actions {
           display: flex; justify-content: flex-end; gap: 8px;
-          padding-top: 8px; border-top: 1px solid hsl(var(--border)); margin-top: 8px;
+          padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;
         }
         /* IXD-4 (PR-2): the create-form Cancel/Submit buttons use the shared
            .btn .btn-outline / .btn .btn-primary (ui/Button.css). The bespoke

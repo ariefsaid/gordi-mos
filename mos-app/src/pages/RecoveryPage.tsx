@@ -64,8 +64,8 @@ export default function RecoveryPage() {
           <div
             className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
             style={{
-              backgroundColor: 'hsl(var(--warning) / 0.18)',
-              color: 'hsl(var(--warning-foreground))',
+              backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
+              color: 'var(--warning-foreground)',
               fontSize: 13,
             }}
             role="alert"
@@ -105,8 +105,8 @@ export default function RecoveryPage() {
             role="alert"
             className="mb-4 rounded-md px-3 py-2"
             style={{
-              backgroundColor: 'hsl(var(--destructive) / 0.08)',
-              color: 'hsl(var(--destructive))',
+              backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+              color: 'var(--destructive)',
               fontSize: 13,
             }}
           >
@@ -163,7 +163,7 @@ export default function RecoveryPage() {
               style={{
                 height: 32,
                 fontSize: 14,
-                borderColor: mismatchError ? 'hsl(var(--destructive))' : 'hsl(var(--input))',
+                borderColor: mismatchError ? 'var(--destructive)' : 'var(--input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
@@ -172,7 +172,7 @@ export default function RecoveryPage() {
               <p
                 id={mismatchErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'hsl(var(--destructive))' }}
+                style={{ fontSize: 12, color: 'var(--destructive)' }}
               >
                 {mismatchError}
               </p>

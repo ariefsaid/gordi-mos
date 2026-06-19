@@ -23,15 +23,17 @@ function ruleBody(selector: string): string {
 describe('TaskSurface.css — field-error text uses the AA token (I4)', () => {
   it('.tc-field-error color uses --status-lost-text (the AA-darkened red), not base --destructive', () => {
     const body = ruleBody('.tc-field-error')
-    expect(body).toMatch(/color:\s*hsl\(var\(--status-lost-text\)\)/)
-    expect(body).not.toMatch(/color:\s*hsl\(var\(--destructive\)\)/)
+    // ADR-0009: tokens are now resolved color(display-p3 …) values consumed as
+    // var(--token); the hsl() wrapper was retired. The AA intent is unchanged.
+    expect(body).toMatch(/color:\s*var\(--status-lost-text\)/)
+    expect(body).not.toMatch(/color:\s*var\(--destructive\)\s*;/)
   })
 
   it('.tc-submit-error text color uses --status-lost-text, not base --destructive', () => {
     const body = ruleBody('.tc-submit-error')
-    expect(body).toMatch(/color:\s*hsl\(var\(--status-lost-text\)\)/)
+    expect(body).toMatch(/color:\s*var\(--status-lost-text\)/)
     // the tinted background may still reference --destructive (e.g. /0.10),
     // but the standalone text `color:` must be the AA token.
-    expect(body).not.toMatch(/color:\s*hsl\(var\(--destructive\)\)\s*;/)
+    expect(body).not.toMatch(/color:\s*var\(--destructive\)\s*;/)
   })
 })

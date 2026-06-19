@@ -1,99 +1,130 @@
 @import "tailwindcss";
 
-/* ── DESIGN.md tokens — bare H S% L% triplets (canonical runtime form) ──
-   Consumed as hsl(var(--token)) and hsl(var(--token) / <alpha>). */
-:root {
-  /* Surfaces */
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  /* Brand / action */
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 0 0% 98%;
-  /* Quiet UI */
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 4% 40%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
-  /* Status / semantic */
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --warning: 43 96% 56%;
-  --warning-foreground: 22 78% 26%;
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 98%;
-  /* Lines / fields / focus */
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 221.2 83.2% 53.3%;
-  /* Categorical accent (non-interactive) */
-  --violet: 262 83% 58%;
-  /* Gordi brand tokens (OD-P3-7 — first owner-approved divergence from RIS near-monochrome) */
-  --brand-navy: 218 46% 22%;
-  --brand-navy-text: 218 42% 26%;
-  --brand-orange: 18 80% 48%;
-  /* Status-pill darkened-AA text tokens (DESIGN.md §5) */
-  --status-open-text: 221 75% 38%;
-  --status-won-text: 142 64% 30%;
-  --status-lost-text: 0 72% 45%;
-  --status-violet-text: 262 60% 42%;
-  /* Geometry */
-  --radius: 0.75rem; /* OD-P3-10: bumped 8px→12px (cards/containers/overlays) */
-  --rail-w: 224px;
-  --header-h: 56px;
-  /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha */
-  --shadow-rest: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04);
-  /* OD-P3-12 gradients — navy-tinted whispers, never purple */
-  --gradient-primary-sheen: linear-gradient(180deg, hsl(221.2 83.2% 56%) 0%, hsl(221.2 83.2% 51%) 100%);
-  --gradient-surface-wash:  linear-gradient(180deg, hsl(218 46% 22% / 0.035) 0%, hsl(218 46% 22% / 0) 220px);
+/* ════════════════════════════════════════════════════════════════════════════
+   Gordi MOS — global stylesheet entry
+   ════════════════════════════════════════════════════════════════════════════
+   Token source of truth: the mos-design-kit (ADR-0009, 2026-06-19). The kit's
+   --ds-* tokens are authored in color(display-p3 …) and degrade gracefully to
+   sRGB. Light is default (:root); dark is opt-in (.dark on a container).
+   Fonts load via @fontsource packages in main.tsx (Plus Jakarta + DM Sans,
+   OD-P3-9) — NOT via CSS @import, so we do not import the kit's fonts.css here.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Raw token scales — light = :root default, dark = .dark scope. App-owned copies
+   of the clean-room kit values (docs/reference/mos-design-kit/ is the reference
+   of record; the app does not reach into docs/ at runtime). */
+@import "./styles/tokens/theme-light.css";
+@import "./styles/tokens/theme-dark.css";
+@import "./styles/tokens/aliases.css";
+
+/* ── Gordi brand tokens (OD-P3-7 / ADR-0008 D4) — additions on top of the kit.
+   The kit has no brand tokens; navy/orange are ratified Gordi identity.
+   Converted from their ratified HSL values to color(display-p3 …) (ADR-0009 D2).
+   Present in both light and dark; navy-text lightened for AA on dark surfaces. */
+:root,
+.light {
+  --brand-navy:      color(display-p3 0.0313 0.0311 0.0893); /* hsl(218 46% 22%)  — structural weight */
+  --brand-navy-text: color(display-p3 0.0435 0.0436 0.1192); /* hsl(218 42% 26%)  — AA text on light */
+  --brand-orange:    color(display-p3 0.3744 0.2253 0.0138); /* hsl(18 80% 48%)   — brand sprinkle */
+  /* Status-pill darkened-AA text tokens (DESIGN.md §5 / ADR-0008) — P3 form */
+  --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
+  --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
+  --status-lost-text:   color(display-p3 0.2796 0.1396 0.0158); /* hsl(0 72% 45%)   */
+  --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
 }
 
-/* ── Tailwind v4 theme mapping — resolvable colors, NO v3 alpha placeholder ──
-   v4 generates the /alpha modifier itself via color-mix from the bare color. */
+.dark {
+  /* Brand tokens in dark — same hues; navy-text lightened to clear AA on dark. */
+  --brand-navy:      color(display-p3 0.18 0.20 0.30);        /* navy read on dark surfaces */
+  --brand-navy-text: color(display-p3 0.70 0.74 0.86);        /* AA text on dark (≥4.5:1) */
+  --brand-orange:    color(display-p3 0.70 0.42 0.16);        /* brand sprinkle, lightened */
+  --status-open-text:   color(display-p3 0.62 0.72 1.0);      /* blue text on dark */
+  --status-won-text:    color(display-p3 0.55 0.78 0.55);     /* green text on dark */
+  --status-lost-text:   color(display-p3 0.92 0.60 0.60);     /* red text on dark */
+  --status-violet-text: color(display-p3 0.70 0.62 1.0);      /* violet text on dark */
+}
+
+/* ── Layout geometry (raw px — layout dims, not colors; identical in both themes). */
+:root,
+.light,
+.dark {
+  --rail-w: 224px;     /* Issue 3 bumps to 236px */
+  --header-h: 56px;
+  --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
+
+  /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
+     P3 form: brand-navy channel @ low alpha. No-Pure-Black-Shadow Rule preserved. */
+  --shadow-rest:
+    0 1px 2px color-mix(in srgb, var(--brand-navy) 5%, transparent),
+    0 1px 3px color-mix(in srgb, var(--brand-navy) 4%, transparent);
+
+  /* OD-P3-12 gradients — navy-tinted whispers, never purple. Reuse accent (blue)
+     + brand-navy. The gradient is a SHEEN, not a new hue (One-Blue Rule preserved). */
+  --gradient-primary-sheen: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 100%, white 3%) 0%,
+    var(--accent) 100%
+  );
+  --gradient-surface-wash: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-navy) 3.5%, transparent) 0%,
+    color-mix(in srgb, var(--brand-navy) 0%, transparent) 220px
+  );
+
+  /* Scrim + popover shadow tokens — promote the raw literals the codemod replaces
+     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source. */
+  --scrim:           color-mix(in srgb, var(--ds-font-color-primary) 45%, transparent);
+  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent);
+  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+}
+
+/* ── Tailwind v4 theme mapping (ADR-0009 D3). Every --color-* utility resolves to
+   a var(--ds-*) alias (or var(--brand-*)), with NO hsl() wrapper — so Tailwind's
+   /alpha modifier generates color-mix from the resolved Display-P3 color. */
 @theme inline {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-warning: hsl(var(--warning));
-  --color-warning-foreground: hsl(var(--warning-foreground));
-  --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-violet: hsl(var(--violet));
-  --color-brand-navy: hsl(var(--brand-navy));
-  --color-brand-navy-text: hsl(var(--brand-navy-text));
-  --color-brand-orange: hsl(var(--brand-orange));
+  /* shadcn role names → mos-design-kit semantic aliases */
+  --color-background:            var(--surface-primary);
+  --color-foreground:            var(--text-primary);
+  --color-card:                  var(--surface-primary);
+  --color-card-foreground:       var(--text-primary);
+  --color-popover:               var(--surface-primary);
+  --color-popover-foreground:    var(--text-primary);
+  --color-primary:               var(--accent);            /* The One Blue */
+  --color-primary-foreground:    var(--ds-font-color-inverted);
+  --color-secondary:             var(--surface-secondary);
+  --color-secondary-foreground:  var(--text-primary);
+  --color-muted:                 var(--surface-secondary);
+  --color-muted-foreground:      var(--text-secondary);
+  --color-accent:                var(--surface-secondary);  /* shadcn "accent" = quiet hover, NOT the blue action */
+  --color-accent-foreground:     var(--text-primary);
+  --color-destructive:           var(--ds-color-red);
+  --color-destructive-foreground:var(--ds-font-color-inverted);
+  --color-warning:               var(--ds-color-amber);
+  --color-warning-foreground:    var(--status-lost-text);   /* AA-darkened amber text (kept token) */
+  --color-success:               var(--ds-color-green);
+  --color-success-foreground:    var(--ds-font-color-inverted);
+  --color-border:                var(--border-medium);      /* Single-Border Rule: border == input */
+  --color-input:                 var(--border-medium);
+  --color-ring:                  var(--accent);             /* focus ring = The One Blue */
+  --color-violet:                var(--ds-color-violet);    /* categorical, never action */
+  /* Brand tokens exposed as Tailwind utilities (OD-P3-7) */
+  --color-brand-navy:            var(--brand-navy);
+  --color-brand-navy-text:       var(--brand-navy-text);
+  --color-brand-orange:          var(--brand-orange);
 
-  --radius-lg: var(--radius);              /* 12px — cards/containers/overlays */
-  --radius-md: calc(var(--radius) - 2px);  /* 10px — mid nesting */
-  --radius-sm: calc(var(--radius) - 4px);  /* 8px  — CONTROLS (buttons/inputs/nav-items/badges) */
-  --radius-xs: calc(var(--radius) - 8px);  /* 4px  — checkbox/tiny */
+  /* Radii — OD-P3-10 scale: 12px cards / 8px controls / 4px tiny. Kit provides
+     --radius-sm(4)/md(8)/pill; our card radius stays the ratified 12px (literal). */
+  --radius-lg: 0.75rem;          /* 12px — cards/containers/overlays (OD-P3-10) */
+  --radius-md: 0.625rem;         /* 10px — mid nesting */
+  --radius-sm: 0.5rem;           /* 8px  — CONTROLS (buttons/inputs/badges/nav-items) */
+  --radius-xs: 0.25rem;          /* 4px  — checkbox/tiny */
 
+  /* Fonts — OD-P3-9 pairing, unchanged (same stacks the app already loads). */
   --font-sans:    "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 
-  /* Expose resting shadow + gradients as Tailwind utilities */
+  /* Expose resting shadow + gradients as Tailwind utilities. */
   --shadow-rest: var(--shadow-rest);
 }
 
@@ -103,19 +134,19 @@
   }
   body {
     margin: 0;
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: var(--surface-primary);
+    color: var(--text-primary);
     font-size: 14px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
-  /* OD-P3-9: display font binding — Plus Jakarta Sans on all heading-tier elements */
+  /* OD-P3-9: display font binding — Plus Jakarta Sans on all heading-tier elements. */
   h1, h2, h3, .page-head h1, .card-head-title, .heading, .subheading {
     font-family: var(--font-display);
   }
-  /* Single source of truth for focus (DESIGN.md): primary ring, 2px offset. */
+  /* Single source of truth for focus (DESIGN.md): accent ring, 2px offset. */
   *:focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }

@@ -65,7 +65,7 @@ export default function UserChip({ compact = false }: UserChipProps) {
             width: 28,
             height: 28,
             fontSize: 11,
-            background: 'linear-gradient(135deg, hsl(var(--brand-navy)), hsl(var(--primary)))',
+            background: 'linear-gradient(135deg, var(--brand-navy), var(--primary))',
           }}
           aria-hidden="true"
         >
@@ -94,7 +94,7 @@ export default function UserChip({ compact = false }: UserChipProps) {
           style={{
             minWidth: 140,
             boxShadow:
-              '0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08)',
+              '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
           }}
         >
           <button

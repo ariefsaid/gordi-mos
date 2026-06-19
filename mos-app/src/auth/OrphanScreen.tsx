@@ -18,8 +18,8 @@ export function OrphanScreen() {
           style={{
             width: 40,
             height: 40,
-            backgroundColor: 'hsl(var(--warning) / 0.18)',
-            color: 'hsl(var(--warning-foreground))',
+            backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
+            color: 'var(--warning-foreground)',
             fontSize: 18,
           }}
           aria-hidden="true"

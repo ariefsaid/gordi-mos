@@ -1,0 +1,30 @@
+<!-- @dsCard group="Type" viewport="700x210" name="Typefaces" subtitle="Plus Jakarta Sans for display/headings, DM Sans for UI & body, SF Mono for IDs/code." -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--ds-font-family); background: var(--ds-background-primary); padding: 24px; color: var(--ds-font-color-primary); display:flex; flex-direction:column; gap:18px; }
+  .block { display:flex; flex-direction:column; gap:4px; }
+  .meta { font-size: 11px; color: var(--ds-font-color-tertiary); text-transform: uppercase; letter-spacing:.05em; }
+  .display { font-family: var(--ds-font-display); font-size: 34px; font-weight: 600; letter-spacing:-0.01em; }
+  .body { font-family: var(--ds-font-family); font-size: 20px; font-weight: 400; }
+  .mono { font-family: var(--ds-code-font-family); font-size: 18px; color: var(--ds-font-color-secondary); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <div class="block">
+    <div class="meta">Plus Jakarta Sans · Display &amp; Headings</div>
+    <div class="display">The quick brown fox jumps</div>
+  </div>
+  <div class="block">
+    <div class="meta">DM Sans · UI &amp; Body</div>
+    <div class="body">The quick brown fox jumps over the lazy dog</div>
+  </div>
+  <div class="block">
+    <div class="meta">SF Mono · IDs &amp; Code (tabular)</div>
+    <div class="mono">PRJ-1240  ·  $1,240,000</div>
+  </div>
+</body>
+</html>

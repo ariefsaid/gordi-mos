@@ -17,28 +17,28 @@
 }
 
 /* Neutral (default badge-status: secondary + muted-foreground) */
-.pill--neutral { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
-.pill--neutral .dot { background: hsl(var(--muted-foreground)); }
+.pill--neutral { background: var(--secondary); color: var(--muted-foreground); }
+.pill--neutral .dot { background: var(--muted-foreground); }
 
 /* Primary / "in progress" (primary/12% + --status-open-text) */
-.pill--primary { background: hsl(var(--primary) / 0.12); color: hsl(var(--status-open-text)); }
-.pill--primary .dot { background: hsl(var(--primary)); }
+.pill--primary { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); }
+.pill--primary .dot { background: var(--primary); }
 
 /* Success / "done" / "filed" (success/14% + --status-won-text) */
-.pill--success { background: hsl(var(--success) / 0.14); color: hsl(var(--status-won-text)); }
-.pill--success .dot { background: hsl(var(--success)); }
+.pill--success { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--status-won-text); }
+.pill--success .dot { background: var(--success); }
 
 /* Warning / "draft" / "open" (warning/18% + warning-foreground) */
-.pill--warning { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning-foreground)); }
-.pill--warning .dot { background: hsl(var(--warning)); }
+.pill--warning { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
+.pill--warning .dot { background: var(--warning); }
 
 /* Destructive / "blocked" (destructive/12% + --status-lost-text) */
-.pill--destructive { background: hsl(var(--destructive) / 0.12); color: hsl(var(--status-lost-text)); }
-.pill--destructive .dot { background: hsl(var(--destructive)); }
+.pill--destructive { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
+.pill--destructive .dot { background: var(--destructive); }
 
 /* Violet / "roastery" (violet/12% + --status-violet-text) */
-.pill--violet { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }
-.pill--violet .dot { background: hsl(var(--violet)); }
+.pill--violet { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
+.pill--violet .dot { background: var(--violet); }
 
 /* Skeleton shell — loading strips (muted fill, transparent text, pulse) */
-.pill--skeleton { background: hsl(var(--secondary)); color: transparent; }
+.pill--skeleton { background: var(--secondary); color: transparent; }

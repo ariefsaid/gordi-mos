@@ -29,7 +29,7 @@
 
 /* ── Card assembly (OD-P3-10/11) ── */
 .assembly {
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   overflow: hidden; min-width: 0;
@@ -37,7 +37,7 @@
 
 /* ── Drawer pane (the aside hosting TaskSurface, OD-P3-10/11) ── */
 .drawer {
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   overflow: hidden; min-width: 0;
@@ -50,7 +50,7 @@
    Scrim matches the existing .confirm-overlay elevation (consistent overlay token). */
 .drawer-modal-root { position: fixed; inset: 0; z-index: 90; }
 .drawer-scrim {
-  position: absolute; inset: 0; background: hsl(240 10% 3.9% / 0.45);
+  position: absolute; inset: 0; background: var(--scrim);
 }
 @media (prefers-reduced-motion: no-preference) {
   .drawer-scrim { animation: scrim-in 150ms ease; }
@@ -60,8 +60,8 @@
 .drawer-modal.drawer-sheet {
   position: absolute; top: 0; right: 0; bottom: 0;
   width: clamp(360px, 50vw, 520px); border-radius: 0;
-  border: 0; border-left: 1px solid hsl(var(--border));
-  box-shadow: -8px 0 32px hsl(240 10% 3.9% / 0.18);
+  border: 0; border-left: 1px solid var(--border);
+  box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
   display: flex; flex-direction: column;
 }
 /* Full-screen surface (<768px mobile). */
@@ -85,48 +85,48 @@
 /* ── Toolbar ── */
 .toolbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px;
-  border-bottom: 1px solid hsl(var(--border));
+  border-bottom: 1px solid var(--border);
 }
 .control {
   height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
-  border: 1px solid hsl(var(--input)); background: hsl(var(--background));
+  border: 1px solid var(--input); background: var(--background);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  font-size: 13px; color: hsl(var(--foreground)); cursor: pointer; position: relative;
+  font-size: 13px; color: var(--foreground); cursor: pointer; position: relative;
 }
-.ctrl-lbl { color: hsl(var(--muted-foreground)); font-size: 13px; }
-.ctrl-chev { color: hsl(var(--muted-foreground)); pointer-events: none; flex: none; }
+.ctrl-lbl { color: var(--muted-foreground); font-size: 13px; }
+.ctrl-chev { color: var(--muted-foreground); pointer-events: none; flex: none; }
 .ctrl-select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 13px; }
-.seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(var(--secondary)); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */ }
+.seg { display: inline-flex; height: 32px; padding: 3px; background: var(--secondary); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */ }
 .seg-btn {
   border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px;
   border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
-  color: hsl(var(--secondary-foreground)); cursor: pointer; white-space: nowrap;
+  color: var(--secondary-foreground); cursor: pointer; white-space: nowrap;
 }
-.seg-btn-on { background: hsl(var(--background)); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); }
+.seg-btn-on { background: var(--background); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); }
 .search-mini {
   height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
-  border: 1px solid hsl(var(--input)); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  color: hsl(var(--muted-foreground));
+  border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  color: var(--muted-foreground);
   font-size: 13px; min-width: 180px;
 }
-.search-input { border: none; outline: none; background: transparent; font: inherit; font-size: 13px; color: hsl(var(--foreground)); width: 100%; }
-.search-input::placeholder { color: hsl(var(--muted-foreground)); }
+.search-input { border: none; outline: none; background: transparent; font: inherit; font-size: 13px; color: var(--foreground); width: 100%; }
+.search-input::placeholder { color: var(--muted-foreground); }
 .archived-toggle {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
-  border: 1px solid hsl(var(--input)); background: hsl(var(--background));
+  border: 1px solid var(--input); background: var(--background);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  font-size: 13px; cursor: pointer; color: hsl(var(--foreground));
+  font-size: 13px; cursor: pointer; color: var(--foreground);
 }
 /* Custom checkbox (DESIGN.md §5 checkbox spec) so 'Show archived' reads as a deliberate
    control, not a raw native checkbox — consistent with the other toolbar pills. */
 .archived-checkbox {
   appearance: none; -webkit-appearance: none; width: 16px; height: 16px; cursor: pointer;
-  border: 1.5px solid hsl(var(--input)); border-radius: 4px; background: hsl(var(--background));
+  border: 1.5px solid var(--input); border-radius: 4px; background: var(--background);
   display: inline-grid; place-content: center; flex: none; margin: 0;
 }
-.archived-checkbox:checked { background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
-.archived-checkbox:checked::after { content: "✓"; color: hsl(var(--primary-foreground)); font-size: 11px; font-weight: 700; line-height: 1; }
-.archived-checkbox:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.archived-checkbox:checked { background: var(--primary); border-color: var(--primary); }
+.archived-checkbox:checked::after { content: "✓"; color: var(--primary-foreground); font-size: 11px; font-weight: 700; line-height: 1; }
+.archived-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .archived-label { font-size: 13px; }
 
 /* ── M6: condensed (drawer-open) toolbar ──
@@ -149,7 +149,7 @@
    The <thead> with aria-sort stays sticky atop the viewport. */
 .tasks-scroll { min-width: 0; }
 .tasks-scroll-virtual { max-height: 70vh; overflow-y: auto; }
-.tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: hsl(var(--card)); }
+.tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
 /* ── Table ── */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -174,70 +174,70 @@
 
 .th-cell {
   text-align: left; height: 38px; padding: 0 12px; font-size: 11.5px; font-weight: 600;
-  line-height: 1.3; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground));
-  border-bottom: 1px solid hsl(var(--border)); white-space: nowrap;
+  line-height: 1.3; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
 }
 .th-sortable { cursor: pointer; }
-.th-sortable:hover { color: hsl(var(--foreground)); }
-.th-sorted { color: hsl(var(--foreground)); }
+.th-sortable:hover { color: var(--foreground); }
+.th-sorted { color: var(--foreground); }
 /* Sort affordance MUST be inline-block: Tailwind preflight sets `svg { display:block }`,
    and a block-level SVG ignores the cell's text-align and drops to its own line at the left
    (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
-.sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: hsl(var(--primary)); }
+.sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--primary); }
 .td-main, .td-cell {
-  height: 54px; padding: 0 12px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle;
+  height: 54px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle;
 }
 /* Due/Activity: LEFT-aligned like every other column (uniform grid), but never wrap. */
 .td-nowrap { white-space: nowrap; }
 .task-row { cursor: pointer; }
 .task-row:last-child td { border-bottom: none; }
-.task-row:hover td { background: hsl(240 4.8% 95.9% / 0.6); }
-.task-row.row-selected td { background: hsl(var(--secondary)); } /* CONV: neutral-grey selected/open row — de-blued (owner pref + One-Blue Rule) */
+.task-row:hover td { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
+.task-row.row-selected td { background: var(--secondary); } /* CONV: neutral-grey selected/open row — de-blued (owner pref + One-Blue Rule) */
 /* AC-109 keyboard cursor: a plain primary 2px inset rule (no new --kbd-cursor token,
    design-plan §6.2). box-shadow inset keeps the row height stable (no layout shift). */
-.task-row.kfocus td { box-shadow: inset 0 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }
-.task-row.kfocus td:first-child { box-shadow: inset 2px 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }
-.task-row.kfocus td:last-child { box-shadow: inset -2px 2px 0 hsl(var(--primary)), inset 0 -2px 0 hsl(var(--primary)); }
+.task-row.kfocus td { box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+.task-row.kfocus td:first-child { box-shadow: inset 2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+.task-row.kfocus td:last-child { box-shadow: inset -2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
 .task-row-link { display: block; text-decoration: none; color: inherit; }
-.task-row-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.task-row-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .task-name {
   font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  display: block; color: hsl(var(--foreground)); min-width: 0;
+  display: block; color: var(--foreground); min-width: 0;
 }
-.task-name-archived { font-weight: 500; color: hsl(var(--muted-foreground)); }
+.task-name-archived { font-weight: 500; color: var(--muted-foreground); }
 .archived-tag {
   display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px;
-  background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+  background: var(--secondary); color: var(--muted-foreground);
   font-size: 11px; font-weight: 500; white-space: nowrap; flex: none;
 }
-.task-bu { display: block; font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+.task-bu { display: block; font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
 .ownav {
-  width: 26px; height: 26px; border-radius: 999px; background: hsl(var(--accent));
-  color: hsl(var(--brand-navy-text)); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
+  width: 26px; height: 26px; border-radius: 999px; background: var(--accent);
+  color: var(--brand-navy-text); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
 }
 .own-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.own-more { font-size: 12px; font-weight: 600; color: hsl(var(--muted-foreground)); flex: none; }
+.own-more { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
-.td-bu { font-size: 12.5px; color: hsl(var(--muted-foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bu { font-size: 12.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
-.due-overdue { color: hsl(0 72% 45%); font-weight: 600; font-size: 13px; }
-.due-soon    { color: hsl(22 78% 26%); font-weight: 600; font-size: 13px; }
-.due-calm    { color: hsl(var(--muted-foreground)); font-weight: 500; font-size: 13px; }
-.act { color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 500; }
+.due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: 13px; }
+.due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: 13px; }
+.due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: 13px; }
+.act { color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
 
 /* ── Loading skeleton ── */
-.sk-cell { height: 54px; padding: 0 12px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle; }
-.sk { background: hsl(var(--secondary)); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
+.sk-cell { height: 54px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; }
+.sk { background: var(--secondary); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: 999px; display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: 999px; display: block; }
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .skeleton-cards { padding: 8px 12px; }
-.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 54px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); }
+.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 54px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); }
 
 /* ── Error / Empty (IXD-5, PR-2) ── */
 /* The Tasks error + empty states use the shared <ErrorState> / <EmptyState>
@@ -252,13 +252,13 @@
 
 /* ── Mobile card list (OD-P3-10/11) ── */
 .task-card {
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — mobile reflow card, OD-P3-10 */
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   overflow: hidden;
 }
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
-.task-card-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.task-card-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .task-card-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
 .task-card-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
 .task-card-meta dt { display: none; }
@@ -274,16 +274,16 @@
    Tinted to read as the active "database" control: brand-navy/6 bg + brand-navy border
    + brand-navy-text text + 600 weight (The Structural-Navy Rule). */
 .control-groupby {
-  background: hsl(var(--brand-navy) / 0.06);
-  border-color: hsl(var(--brand-navy));
-  color: hsl(var(--brand-navy-text));
+  background: color-mix(in srgb, var(--brand-navy) 6%, transparent);
+  border-color: var(--brand-navy);
+  color: var(--brand-navy-text);
   font-weight: 600;
 }
 .control-groupby .ctrl-lbl {
-  color: hsl(var(--brand-navy-text));
+  color: var(--brand-navy-text);
 }
 .control-groupby .ctrl-chev {
-  color: hsl(var(--brand-navy-text));
+  color: var(--brand-navy-text);
 }
 
 /* ── Segment disabled state (FR-124 / AC-126) ── */
@@ -299,14 +299,14 @@
   padding: 0;
   font: inherit;
   font-size: 13px;
-  color: hsl(var(--status-lost-text));
+  color: var(--status-lost-text);
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .overdue-filter-btn:hover {
-  color: hsl(0 72% 35%);
+  color: color-mix(in srgb, var(--status-lost-text) 78%, black); /* overdue hover darken, stays on-token hue */
 }
 
 /* ── Overdue-only active chip (AC-128 — clearable transient filter) ── */
@@ -316,16 +316,16 @@
   height: 24px;
   padding: 0 8px;
   border-radius: 12px;
-  border: 1px solid hsl(var(--status-lost-text) / 0.4);
-  background: hsl(var(--status-lost-text) / 0.08);
-  color: hsl(var(--status-lost-text));
+  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
+  background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
+  color: var(--status-lost-text);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   gap: 4px;
 }
 .overdue-chip:hover {
-  background: hsl(var(--status-lost-text) / 0.14);
+  background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);
 }
 
 /* ── Empty-state actions (IXD-5/IXD-4, PR-2) ── */
@@ -339,34 +339,34 @@
 tr.grp td { padding: 0; }
 .gbar {
   display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
-  border-top: 1px solid hsl(var(--border)); border-bottom: 1px solid hsl(var(--border));
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
 }
 .gbar .caret {
   display: inline-grid; place-items: center; width: 16px; height: 16px;
   background: transparent; border: 0; padding: 0; cursor: pointer;
-  color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1; flex: none;
+  color: var(--muted-foreground); font-size: 11px; line-height: 1; flex: none;
 }
-.gbar .caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+.gbar .caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 /* IXD-1: the group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
 .gbar .caret .grp-chev { transition: transform 150ms ease; display: block; }
 .gbar .caret .grp-chev.grp-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .gbar .caret .grp-chev { transition: none; }
 }
-.gbar .glabel { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
-.gbar .gcount { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.gbar .glabel { font-size: 13px; font-weight: 700; color: var(--brand-navy-text); }
+.gbar .gcount { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
 .gbar .gsub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
-  color: hsl(var(--status-lost-text)); cursor: pointer;
+  color: var(--status-lost-text); cursor: pointer;
 }
-.gbar .gsub:hover { color: hsl(0 72% 35%); }
+.gbar .gsub:hover { color: color-mix(in srgb, var(--status-lost-text) 78%, black); }
 .gbar .gadd {
   margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
-  font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer;
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
-.gbar .gadd:hover { color: hsl(var(--foreground)); }
+.gbar .gadd:hover { color: var(--foreground); }
 .gbar .gadd:focus-visible, .gbar .gsub:focus-visible {
-  outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px;
+  outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px;
 }
 
 /* ── Owner "+N" RACI disclosure tooltip (AC-130, FR-128) ── */
@@ -374,15 +374,15 @@ tr.grp td { padding: 0; }
 .own-more-btn {
   background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer;
 }
-.own-more-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+.own-more-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .own-tip {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
   display: flex; flex-direction: column; gap: 2px; min-width: 120px; padding: 8px 10px;
-  background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+  background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
-  box-shadow: 0 6px 20px hsl(240 6% 10% / 0.12); white-space: nowrap;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); white-space: nowrap;
 }
-.own-tip-row { font-size: 12px; color: hsl(var(--foreground)); }
+.own-tip-row { font-size: 12px; color: var(--foreground); }
 
 /* ── Mobile grouped cards (AC-129, FR-127) ── */
 .mgc { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
@@ -391,24 +391,24 @@ tr.grp td { padding: 0; }
 .mgc-caret {
   display: inline-grid; place-items: center; width: 28px; height: 28px;
   background: transparent; border: 0; padding: 0; cursor: pointer;
-  color: hsl(var(--muted-foreground)); font-size: 12px; flex: none;
+  color: var(--muted-foreground); font-size: 12px; flex: none;
 }
-.mgc-caret:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+.mgc-caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
 /* IXD-1: the mobile group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
 .mgc-caret .mgc-chev { transition: transform 150ms ease; display: block; }
 .mgc-caret .mgc-chev.mgc-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .mgc-caret .mgc-chev { transition: none; }
 }
-.mgc-label { font-size: 13px; font-weight: 700; color: hsl(var(--brand-navy-text)); }
-.mgc-count { font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.mgc-label { font-size: 13px; font-weight: 700; color: var(--brand-navy-text); }
+.mgc-count { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
-  color: hsl(var(--status-lost-text)); cursor: pointer;
+  color: var(--status-lost-text); cursor: pointer;
 }
 .mgc-add {
   margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
-  font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer;
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 
 /* ── Utility ── */

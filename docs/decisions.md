@@ -347,6 +347,35 @@ Owner agreed (2026-06-16). Refactor the **whole** `TasksTable` onto TanStack **h
 
 > **ADR (eng-planner authors): ADR-0008** — one ADR for the redesign, covering the **navy/orange DESIGN.md amendment** (OD-P3-7), the **full-bleed DB-view IA** (OD-P3-6), and the **`@tanstack/react-table` engine** (OD-P3-8): identity-level + cross-cutting (shared `PageFrame`, the design-system authority doc, a new core dependency + table refactor), genuine trade-offs. **Build phasing (owner):** PR-1 tokens+amendment → PR-2 full-bleed layout + view-tab scaffold + toolbar → PR-3 TanStack refactor + group-by engine + group headers. **CONTEXT.md untouched** — view / group / board are UI mechanics, not domain vocabulary.
 
+### OD-P3-9 — Fonts: Plus Jakarta Sans (display) + DM Sans (body/UI/table) *(back-filled 2026-06-19)*
+Ratified 2026-06-18 (`docs/plans/2026-06-18-demo-aligned-visual-refresh.md`); recorded into `DESIGN.md` at the
+time but back-filled here for log consistency. **Font pairing swapped** to Plus Jakarta Sans (display/headings)
++ DM Sans (body/UI/table). **Inter retired as primary family** (kept only as the `.tabular` numeric fallback —
+DM Sans's tnum doesn't align digits). Jakarta wants looser tracking than Inter — title tracking relaxed from
+`-0.02em`/`-0.01em` toward `-0.01em`/normal. Mono unchanged (SF Mono, IDs/codes only).
+
+### OD-P3-10 — Radius: `--radius` 8px → 12px for cards/containers/overlays *(back-filled 2026-06-19)*
+Ratified 2026-06-18. `--radius` bumped 8px → 12px for **cards/containers/overlays**. **Controls**
+(buttons/inputs/badges/nav-items) stay tight at 8px (taste guard — don't let 32px controls go bubbly). Scale:
+xs 4px / sm 8px (control) / md 10px / lg 12px (card).
+
+### OD-P3-11 — Soft-Elevation: a single resting shadow on cards/KPI/kanban *(back-filled 2026-06-19)*
+Ratified 2026-06-18. A single subtle **resting** shadow is permitted on cards/KPI/kanban (alongside, not
+instead of, the border). All colors stay desaturated near-black / faintly navy-tinted — **No-Pure-Black-Shadow
+Rule preserved**. Hover/pressed/overlay vocabulary unchanged. Token: `--shadow-rest`.
+
+### OD-P3-12 — Restrained-Gradient: subtle navy gradients only, never purple *(back-filled 2026-06-19)*
+Ratified 2026-06-18. **Subtle navy gradients only (NEVER purple).** Two bounded uses: `primary-sheen`
+(optional button fill, ±3% L of primary) + `surface-wash` (home/digest only, 3.5% alpha navy, fades to
+transparent at 220px). Both reuse brand-navy + primary; the gradient is a **sheen, not a new hue** — the
+One-Blue Rule preserved.
+
+> **ADR (eng-planner authors): ADR-0009** — adopt the `mos-design-kit` `--ds-*` token system (`color(display-p3 …)`)
+> + light/dark theme + Google-design.md-formatted `DESIGN.md`. Identity-level + cross-cutting (every CSS call-site;
+> a new theme capability). Gordi brand tokens (OD-P3-7) preserved as additions; OD-P3-9..12 (above) back-filled
+> into this log by the same issue. Spec: `docs/specs/design-system-adoption.spec.md`. **CONTEXT.md untouched** —
+> token/radius/font/shadow names are UI mechanics, not domain vocabulary.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

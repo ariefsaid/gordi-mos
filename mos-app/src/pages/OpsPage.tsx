@@ -359,7 +359,7 @@ export default function OpsPage() {
       <PageHead
         title="Daily Log"
         meta={
-          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>
+          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
             {wib.today}{countLabel}
           </span>
         }
@@ -501,7 +501,7 @@ export default function OpsPage() {
 
         /* ── Card assembly (OD-P3-10/11) ── */
         .ops-assembly {
-          background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+          background: var(--card); border: 1px solid var(--border);
           border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
           box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
           overflow: hidden;
@@ -511,30 +511,30 @@ export default function OpsPage() {
         .ops-toolbar {
           display: flex; align-items: center; gap: 8px;
           flex-wrap: wrap; padding: 10px 12px;
-          border-bottom: 1px solid hsl(var(--border));
+          border-bottom: 1px solid var(--border);
         }
         .control {
           height: 32px; display: inline-flex; align-items: center; gap: 6px;
-          padding: 0 10px; border: 1px solid hsl(var(--input));
-          background: hsl(var(--background));
+          padding: 0 10px; border: 1px solid var(--input);
+          background: var(--background);
           border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-          font-size: 13px; color: hsl(var(--foreground)); cursor: pointer;
+          font-size: 13px; color: var(--foreground); cursor: pointer;
           position: relative;
         }
-        .ctrl-lbl { color: hsl(var(--muted-foreground)); font-size: 13px; }
-        .ctrl-chev { color: hsl(var(--muted-foreground)); font-size: 10px; pointer-events: none; }
+        .ctrl-lbl { color: var(--muted-foreground); font-size: 13px; }
+        .ctrl-chev { color: var(--muted-foreground); font-size: 10px; pointer-events: none; }
         .ctrl-select {
           position: absolute; inset: 0; width: 100%; opacity: 0;
           cursor: pointer; font-size: 13px;
         }
         .archived-toggle {
           display: inline-flex; align-items: center; gap: 6px;
-          height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input));
-          background: hsl(var(--background));
+          height: 32px; padding: 0 10px; border: 1px solid var(--input);
+          background: var(--background);
           border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-          font-size: 13px; cursor: pointer; color: hsl(var(--foreground));
+          font-size: 13px; cursor: pointer; color: var(--foreground);
         }
-        .archived-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: hsl(var(--primary)); }
+        .archived-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
         .archived-label { font-size: 13px; }
         /* IXD-4 (PR-2): the toolbar add button uses .btn .btn-primary (ui/Button.css).
            This thin layout hook right-aligns it (was .ops-add-btn's margin-left:auto). */
@@ -548,7 +548,7 @@ export default function OpsPage() {
         /* ── Log row ── */
         .ops-row {
           position: relative;
-          border-bottom: 1px solid hsl(var(--border) / 0.7);
+          border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
           padding: 11px 12px;
           display: flex; align-items: flex-start; gap: 0;
         }
@@ -556,8 +556,8 @@ export default function OpsPage() {
 
         /* Needs-attention treatment (§3.3): amber 7% fill + 2px warning left rule */
         .ops-row--attn {
-          background: hsl(var(--warning) / 0.07);  /* --ops-attn-row-bg */
-          border-left: 2px solid hsl(var(--warning)); /* --ops-attn-rule */
+          background: color-mix(in srgb, var(--warning) 7%, transparent);  /* --ops-attn-row-bg */
+          border-left: 2px solid var(--warning); /* --ops-attn-rule */
           padding-left: 10px;
           border-radius: 0 6px 6px 0; /* rounded.sm right corners */
         }
@@ -579,7 +579,7 @@ export default function OpsPage() {
           padding-right: 112px;
         }
         .ops-time {
-          color: hsl(var(--muted-foreground)); font-size: 12px;
+          color: var(--muted-foreground); font-size: 12px;
           width: 46px; flex: none; padding-top: 1px;
           font-variant-numeric: tabular-nums;
         }
@@ -610,18 +610,18 @@ export default function OpsPage() {
         /* ── Type text (§3.2) — muted text, no badge ── */
         .ops-type-text {
           font-size: 12px; font-weight: 600;
-          color: hsl(var(--muted-foreground));
+          color: var(--muted-foreground);
         }
 
         /* ── Title / body ── */
         .ops-title {
-          font-size: 14px; color: hsl(var(--foreground));
+          font-size: 14px; color: var(--foreground);
         }
         .ops-title--archived {
-          color: hsl(var(--muted-foreground)); font-weight: 400;
+          color: var(--muted-foreground); font-weight: 400;
         }
         .ops-detail {
-          font-size: 12px; color: hsl(var(--muted-foreground));
+          font-size: 12px; color: var(--muted-foreground);
           font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
           font-weight: 500;
         }
@@ -629,21 +629,21 @@ export default function OpsPage() {
         /* ── Linked task reference (§4.4) ── */
         .ops-linked-task {
           display: flex; align-items: center; gap: 5px;
-          font-size: 13px; color: hsl(var(--muted-foreground)); flex-wrap: wrap;
+          font-size: 13px; color: var(--muted-foreground); flex-wrap: wrap;
         }
-        .ops-linked-icon { color: hsl(var(--muted-foreground)); flex: none; }
+        .ops-linked-icon { color: var(--muted-foreground); flex: none; }
         .ops-task-link {
-          color: hsl(var(--primary)); text-decoration: none;
+          color: var(--primary); text-decoration: none;
           font-weight: 500;
         }
         .ops-task-link:hover { text-decoration: underline; }
-        .ops-task-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+        .ops-task-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
         /* ── Archived tag ── */
         .archived-tag {
           display: inline-flex; align-items: center;
           height: 18px; padding: 0 6px; border-radius: 4px;
-          background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+          background: var(--secondary); color: var(--muted-foreground);
           font-size: 11px; font-weight: 500; white-space: nowrap; flex: none;
         }
 
@@ -666,8 +666,8 @@ export default function OpsPage() {
 
         .ops-edit-btn {
           height: 28px; padding: 0 10px; border-radius: 6px;
-          border: 1px solid hsl(var(--border)); background: hsl(var(--background));
-          font-size: 12px; font-weight: 500; color: hsl(var(--foreground)); cursor: pointer;
+          border: 1px solid var(--border); background: var(--background);
+          font-size: 12px; font-weight: 500; color: var(--foreground); cursor: pointer;
           text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
         }
         .ops-edit-btn--touch {
@@ -678,14 +678,14 @@ export default function OpsPage() {
           border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
         }
         .ops-edit-btn:focus-visible {
-          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+          outline: 2px solid var(--ring); outline-offset: 2px;
         }
-        .ops-edit-btn:hover { background: hsl(var(--accent)); }
+        .ops-edit-btn:hover { background: var(--accent); }
 
         /* ── Archive button (ghost ⋯, 32px, reveal on hover / always phone) ── */
         .ops-archive-btn {
           min-width: 32px; height: 32px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-          border: 0; background: transparent; color: hsl(var(--muted-foreground));
+          border: 0; background: transparent; color: var(--muted-foreground);
           font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
           padding: 0 8px;
         }
@@ -693,22 +693,22 @@ export default function OpsPage() {
           min-height: 46px;
           flex: 1;
           padding: 0 12px;
-          border: 1px solid hsl(var(--border));
-          background: hsl(var(--background));
-          color: hsl(var(--foreground));
+          border: 1px solid var(--border);
+          background: var(--background);
+          color: var(--foreground);
         }
         .ops-archive-btn:focus-visible {
-          outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+          outline: 2px solid var(--ring); outline-offset: 2px;
         }
-        .ops-archive-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+        .ops-archive-btn:hover { background: var(--accent); color: var(--foreground); }
 
         /* ── Skeleton ── */
         .ops-skel-row {
           display: flex; align-items: center; gap: 12px;
-          padding: 14px 12px; border-bottom: 1px solid hsl(var(--border) / 0.7);
+          padding: 14px 12px; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
         }
         .ops-skel {
-          background: hsl(var(--secondary)); border-radius: 6px;
+          background: var(--secondary); border-radius: 6px;
           animation: sk-pulse 1.4s ease-in-out infinite;
           height: 12px;
         }
@@ -728,8 +728,8 @@ export default function OpsPage() {
         .ops-submit-bar {
           position: sticky; bottom: 0; left: 0; right: 0;
           padding: 8px 12px;
-          background: hsl(var(--background));
-          border-top: 1px solid hsl(var(--border));
+          background: var(--background);
+          border-top: 1px solid var(--border);
         }
         /* IXD-4 (PR-2): the submit-bar button uses .btn .btn-primary .btn-touch
            (ui/Button.css). The bespoke .ops-submit-bar-btn rule was removed. */
