@@ -411,7 +411,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // <thead> (with aria-sort) stays outside the window; the j/k cursor uses
   // scrollToIndex on the flat-row position to keep the windowed row mounted.
   const VIRTUALIZE_THRESHOLD = 50
-  const ROW_HEIGHT = 54
+  const ROW_HEIGHT = 50 // OD-P3-6: dense DB-view body row (not the 54px default)
   const virtualize = isDesktop && leafTasks.length >= VIRTUALIZE_THRESHOLD
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const rowVirtualizer = useVirtualizer({
