@@ -50,7 +50,7 @@ const mockRole: RolesRow = {
 }
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
   signOut: async () => {},
 }
 
@@ -558,7 +558,7 @@ describe('TaskSurface — create mode', () => {
     // Auth with no role → no primary-role BU, so the BU select starts empty.
     const noRoleAuth: AuthState = {
       status: 'authenticated',
-      viewer: { person: mockPerson, roles: [], isManager: false },
+      viewer: { person: mockPerson, roles: [], isManager: false, accessRoles: [] },
       signOut: async () => {},
     }
     renderCreate(noRoleAuth)

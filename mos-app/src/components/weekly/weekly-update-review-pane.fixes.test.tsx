@@ -341,6 +341,7 @@ describe('RI-5 (M1) — Submitted strip: no orphan space+period', () => {
       },
       roles: [],
       isManager: false,
+      accessRoles: [],
     },
     signOut: vi.fn(),
   }

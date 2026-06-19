@@ -92,7 +92,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [] })
 
     await act(async () => {
       render(
@@ -111,7 +111,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-orphan' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false })
+    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [] })
 
     await act(async () => {
       render(
@@ -162,7 +162,7 @@ describe('AuthProvider', () => {
       data: { session: null },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [] })
 
     let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
     mockOnAuthStateChange.mockImplementation((cb) => {
@@ -204,7 +204,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [] })
     mockSignOut.mockResolvedValue({ error: null })
 
     const user = userEvent.setup()

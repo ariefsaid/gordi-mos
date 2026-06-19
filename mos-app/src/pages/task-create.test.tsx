@@ -48,7 +48,7 @@ const mockRole: RolesRow = {
 
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
   signOut: async () => {},
 }
 
@@ -162,6 +162,7 @@ describe('AC-081 — create form validation', () => {
         person: mockPerson,
         roles: [],  // no roles → primaryRoleBU = ''
         isManager: false,
+        accessRoles: [],
       },
       signOut: async () => {},
     }
