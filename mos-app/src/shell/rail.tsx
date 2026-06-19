@@ -8,7 +8,7 @@ export function Rail({ onNavigate }: RailProps) {
   return (
     <aside
       className="bg-secondary border-r border-border flex flex-col"
-      style={{ width: 'var(--rail-w)' }}
+      style={{ width: 'var(--rail-w)', gridArea: 'rail' }}
     >
       <RailNav onNavigate={onNavigate} />
     </aside>
