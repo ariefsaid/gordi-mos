@@ -23,11 +23,23 @@
   }
   .topbar {
     grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
-    height: 56px; padding: 0 var(--ds-spacing-4);
+    height: 56px; padding: 0 var(--ds-spacing-4) 0 0;
     border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary);
   }
+  /* Brand lockup — top bar's left column, sized to sit OVER the rail (236px) with a divider */
+  .tb-brand { display: flex; align-items: center; gap: var(--ds-spacing-2);
+    width: 236px; flex: none; height: 100%; padding: 0 var(--ds-spacing-4);
+    border-right: 1px solid var(--ds-border-color-light); }
+  .tb-logo { width: 26px; height: 26px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+    position: relative; flex: none; }
+  .tb-logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
+  .tb-brand .nm { font-family: var(--ds-font-display); font-weight: 700; font-size: 15px;
+    letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tb-search {
-    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 300px;
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 260px;
     padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium);
     border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-tertiary); cursor: text;
     background: var(--ds-background-secondary); flex: none;
@@ -50,7 +62,8 @@
   .tb-user { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px;
     padding: 0 6px 0 4px; border-radius: var(--ds-border-radius-pill); cursor: pointer; flex: none; }
   .tb-user:hover { background: var(--ds-background-transparent-light); }
-  .tb-user .nm { font-size: 13px; font-weight: 500; }
+  .tb-user .nm { font-size: 13px; font-weight: 500;
+    max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* no-bleed */
   .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
   .tb-av { width: 26px; height: 26px; border-radius: var(--ds-border-radius-pill);
     background: linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));
@@ -60,19 +73,9 @@
   .rail { grid-area: rail; background: var(--ds-background-secondary);
     border-right: 1px solid var(--ds-border-color-light);
     padding: var(--ds-spacing-2); display: flex; flex-direction: column; }
-  .ws-switch { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 44px;
-    padding: 0 var(--ds-spacing-2); border-radius: var(--ds-border-radius-sm); cursor: pointer; }
-  .ws-switch:hover { background: var(--ds-background-transparent-light); }
-  .ws-logo { width: 24px; height: 24px; border-radius: var(--ds-border-radius-sm);
-    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;
-    position: relative; flex: none; }
-  .ws-logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
-    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
-  .ws-name { flex: 1; font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
-  .ws-chev { color: var(--ds-font-color-tertiary); }
+  /* Workspace identity (logo + name) now lives in the top-bar brand lockup — the rail is nav-only. */
   .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
-    color: var(--ds-font-color-light); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500; }
+    color: var(--ds-font-color-tertiary); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500; }
   .nav-item { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
     border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary);
     font-size: 13px; cursor: pointer; text-decoration: none; }
@@ -80,7 +83,7 @@
   .nav-item:hover { background: var(--ds-background-transparent-light); }
   .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
   .nav-item.active .ico { color: var(--ds-color-blue); }
-  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-light); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); }
   .rail-spacer { flex: 1; }
   .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
 
@@ -146,7 +149,8 @@
   .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 12px; display: inline-block; }
   .err-field-note { color: var(--ds-font-color-danger); font-size: 12px; margin-top: 4px; }
   .field.invalid .val { border: 1px solid var(--ds-border-color-danger); border-radius: var(--ds-border-radius-xs); padding: 0 4px; }
-  .dark-wrap { background: var(--ds-background-tertiary); }
+  /* Dark base color on the scope itself — see shell mock: inheriting children resolve --primary in dark. */
+  .dark-wrap { background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
 
   /* standalone variant cards (loading / checklist / error) keep the simple card frame */
   .record { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
@@ -163,17 +167,20 @@
 <div class="wrap">
   <div class="mock-label">Surface 3 — task record page (two-column: details panel + tabbed feed) in shell · light</div>
   <div class="shell" style="height:640px">
-    <!-- shared top bar; breadcrumb here shows the record path (OD-P4-9) -->
+    <!-- shared top bar (brand-left); breadcrumb here shows the record path (OD-P4-9) -->
     <header class="topbar">
-      <div class="tb-search" role="button" aria-label="Search — open command menu">
-        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      <div class="tb-brand">
+        <div class="tb-logo">G<span class="dot"></span></div>
+        <span class="nm">Gordi MOS</span>
       </div>
       <nav class="tb-crumb" aria-label="Breadcrumb">
-        <a href="#">Gordi MOS</a><span class="sep">›</span>
         <a href="#">Tasks</a><span class="sep">›</span>
         <span class="cur" aria-current="page">Finalise Q3 roastery output forecast</span>
       </nav>
       <span class="tb-spacer-top"></span>
+      <div class="tb-search" role="button" aria-label="Search — open command menu">
+        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      </div>
       <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
       <div class="tb-user" role="button" aria-label="Account menu">
         <div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span>
@@ -181,10 +188,6 @@
     </header>
 
     <aside class="rail">
-      <div class="ws-switch">
-        <div class="ws-logo">G<span class="dot"></span></div>
-        <span class="ws-name">Gordi MOS</span><span class="ws-chev">▾</span>
-      </div>
       <div class="rail-group">Workspace</div>
       <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
       <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
@@ -310,19 +313,22 @@
     <div class="mock-label">Surface 3 — dark mode (in shell)</div>
     <div class="shell" style="height:560px">
       <header class="topbar">
-        <div class="tb-search" role="button" aria-label="Search — open command menu">
-          <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+        <div class="tb-brand">
+          <div class="tb-logo">G<span class="dot"></span></div>
+          <span class="nm">Gordi MOS</span>
         </div>
         <nav class="tb-crumb" aria-label="Breadcrumb">
-          <a href="#">Gordi MOS</a><span class="sep">›</span><a href="#">Tasks</a><span class="sep">›</span>
+          <a href="#">Tasks</a><span class="sep">›</span>
           <span class="cur" aria-current="page">Finalise Q3 roastery output forecast</span>
         </nav>
         <span class="tb-spacer-top"></span>
+        <div class="tb-search" role="button" aria-label="Search — open command menu">
+          <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+        </div>
         <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
         <div class="tb-user" role="button" aria-label="Account menu"><div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span></div>
       </header>
       <aside class="rail">
-        <div class="ws-switch"><div class="ws-logo">G<span class="dot"></span></div><span class="ws-name">Gordi MOS</span><span class="ws-chev">▾</span></div>
         <div class="rail-group">Workspace</div>
         <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
         <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>

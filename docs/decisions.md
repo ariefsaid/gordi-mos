@@ -541,6 +541,30 @@ generic-entity framing (Task today; Projects/Objectives later) is a *roadmap* as
 glossary. ⌘K-with-record-search (v1, owner-chosen) implies a **search endpoint** — a build dependency
 for the eng-planner ADR, not a term.
 
+### OD-P4-11 — Mockup feedback: brand-left top bar · dark-mode AA legibility · no-bleed (owner, 2026-06-19)
+Owner review of the UI-revamp mockups (against the hand sketch) settled three things:
+
+1. **Top bar is brand-left.** Left→right: **brand lockup** (logo + "Gordi MOS", a 236px column sitting
+   *over* the rail with a divider) · **breadcrumb** · spacer · **⌘K search** · **notification bell**
+   (icon-only stub) · **user chip**. Search moves from the bar's far-left to the **right cluster**
+   (next to bell + user) per the sketch. **The rail loses its workspace switcher** — workspace identity
+   now lives in the top-bar brand; the rail is **navigation-only** (Workspace nav + Settings foot). The
+   breadcrumb **dedups the brand** (drop the leading "Gordi MOS" crumb). Refines OD-P4-9 (which kept the
+   top bar but placed search far-left + workspace switcher in the rail).
+2. **Dark-mode legibility is a gate.** Label/meta text on `--ds-font-color-light` measured ≈3.1:1 on the
+   dark bg (**fails WCAG-AA**). Those roles move to **`--ds-font-color-tertiary`** (≈4.6:1): table overline
+   (OD-P4-10 intent preserved — still lighter than body + weight 400), rail group label, nav counts, ⌘K
+   group labels. **Rule:** a themed scope must **set text color explicitly** — a body-level `var()` bakes
+   the *light-theme* value into the computed color children inherit, so dark children render near-black on
+   dark (this was the dim ⌘K palette the owner flagged). The kit may later add an AA-safe dark "label"
+   step; until then map label roles to `--tertiary`.
+3. **No-bleed is a standing build constraint.** Long brand/user/breadcrumb text must ellipsize; status
+   tags `white-space: nowrap`; the brand column is fixed-width so the breadcrumb can't shove it; content
+   columns scroll, never overflow the shell. Carried into the eng-planner ADR + every UI-revamp PR's
+   design-review (the design-plan "No-bleed guardrails" appendix is the checklist).
+
+Mockups updated (`docs/design-mockups/ui-revamp/`, PR #35) and re-rendered light+dark to verify.
+
 ---
 
 ## Legacy naming to reconcile (do NOT churn now — fix opportunistically on the next relevant migration)

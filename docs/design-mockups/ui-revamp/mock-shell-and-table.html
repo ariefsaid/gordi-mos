@@ -29,18 +29,38 @@
     border-radius: var(--ds-border-radius-md);
   }
 
-  /* GLOBAL TOP BAR (OD-P4-9): ⌘K search · breadcrumb · bell stub · user chip */
+  /* GLOBAL TOP BAR (OD-P4-9 + brand-left refinement): brand · breadcrumb · ⌘K search · bell stub · user chip */
   .topbar {
     grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
-    height: 56px; padding: 0 var(--ds-spacing-4);
+    height: 56px; padding: 0 var(--ds-spacing-4) 0 0;
     border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary);
   }
-  /* ⌘K search trigger — lives in the top bar now */
+  /* Brand lockup — top bar's left column, sized to sit OVER the rail (236px) with a divider */
+  .tb-brand {
+    display: flex; align-items: center; gap: var(--ds-spacing-2);
+    width: 236px; flex: none; height: 100%; padding: 0 var(--ds-spacing-4);
+    border-right: 1px solid var(--ds-border-color-light);
+  }
+  .tb-logo {
+    width: 26px; height: 26px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+    position: relative; flex: none;
+  }
+  .tb-logo .dot {
+    position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange);
+  }
+  .tb-brand .nm {
+    font-family: var(--ds-font-display); font-weight: 700; font-size: 15px; letter-spacing: -.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* ⌘K search trigger — top bar, RIGHT cluster (next to bell + user) */
   .tb-search {
-    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 300px;
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 260px;
     padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium);
     border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-tertiary); cursor: text;
-    background: var(--ds-background-secondary);
+    background: var(--ds-background-secondary); flex: none;
   }
   .tb-search .lbl { flex: 1; font-size: 13px; }
   .kbd {
@@ -69,7 +89,8 @@
     padding: 0 6px 0 4px; border-radius: var(--ds-border-radius-pill); cursor: pointer;
   }
   .tb-user:hover { background: var(--ds-background-transparent-light); }
-  .tb-user .nm { font-size: 13px; font-weight: 500; }
+  .tb-user .nm { font-size: 13px; font-weight: 500;
+    max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* no-bleed */
   .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
 
   /* ---- Rail: navigation + workspace identity ONLY (no search row, no foot chip) ---- */
@@ -79,26 +100,11 @@
     border-right: 1px solid var(--ds-border-color-light);
     padding: var(--ds-spacing-2); display: flex; flex-direction: column;
   }
-  .ws-switch {
-    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 44px;
-    padding: 0 var(--ds-spacing-2); border-radius: var(--ds-border-radius-sm); cursor: pointer;
-  }
-  .ws-switch:hover { background: var(--ds-background-transparent-light); }
-  .ws-logo {
-    width: 24px; height: 24px; border-radius: var(--ds-border-radius-sm);
-    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;
-    position: relative; flex: none;
-  }
-  .ws-logo .dot {
-    position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
-    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange);
-  }
-  .ws-name { flex: 1; font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
-  .ws-chev { color: var(--ds-font-color-tertiary); }
+  /* Workspace identity (logo + name) now lives in the top bar's brand lockup — the rail is nav-only. */
   .rail-group {
+    /* Group label uses --tertiary (not --light) so it clears WCAG-AA in dark (light ramp ≈ 3.1:1). */
     font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
-    color: var(--ds-font-color-light); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500;
+    color: var(--ds-font-color-tertiary); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500;
   }
   .nav-item {
     display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
@@ -109,7 +115,7 @@
   .nav-item:hover { background: var(--ds-background-transparent-light); }
   .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
   .nav-item.active .ico { color: var(--ds-color-blue); }
-  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-light); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); }
   .rail-spacer { flex: 1; }
   /* Settings sits at the rail foot (no user chip — that moved to the top bar) */
   .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
@@ -160,9 +166,10 @@
   .records thead th {
     position: sticky; top: 0; background: var(--ds-background-primary); text-align: left;
     height: 32px; padding: 0 var(--ds-spacing-2);
-    /* OD-P4-10: uppercase + 0.06em tracking overline, WEIGHT 400 + lighter color (softened overline) */
+    /* OD-P4-10: uppercase + 0.06em tracking overline, WEIGHT 400, softened color.
+       Uses --tertiary (not --light) — still lighter than body + weight 400, but clears WCAG-AA in dark. */
     font-weight: 400; text-transform: uppercase; letter-spacing: .06em;
-    font-size: 11px; color: var(--ds-font-color-light);
+    font-size: 11px; color: var(--ds-font-color-tertiary);
     border-bottom: 1px solid var(--ds-border-color-light);
   }
   .records thead th.cbcol { width: 32px; padding-left: 12px; }
@@ -185,6 +192,7 @@
   .tag {
     display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
     border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600;
+    white-space: nowrap; /* no-bleed: status label never wraps in a narrow column */
   }
   .tag .d { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }
   .tag.open  { background: var(--ds-tag-background-blue);  color: var(--ds-tag-text-blue); }
@@ -221,7 +229,9 @@
     background: none; color: var(--ds-font-color-secondary); border: none; font-size: 13px; cursor: pointer; }
 
   .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
-  .dark-wrap { background: var(--ds-background-tertiary); }
+  /* Dark base color set on the scope itself: inheriting children resolve --primary in DARK context
+     (a body-level var() above .dark would bake the LIGHT value into the inherited color → invisible). */
+  .dark-wrap { background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
 </style>
 </head>
 <body>
@@ -229,16 +239,19 @@
 <div class="wrap">
   <div class="mock-label">Surface 1 + 2 — App shell (global top bar + rail) + record table · light</div>
   <div class="shell">
-    <!-- GLOBAL TOP BAR (OD-P4-9): ⌘K search · breadcrumb · bell stub · user chip -->
+    <!-- GLOBAL TOP BAR (OD-P4-9 + brand-left): brand · breadcrumb · … · ⌘K search · bell stub · user chip -->
     <header class="topbar">
-      <div class="tb-search" role="button" aria-label="Search — open command menu">
-        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      <div class="tb-brand">
+        <div class="tb-logo">G<span class="dot"></span></div>
+        <span class="nm">Gordi MOS</span>
       </div>
       <nav class="tb-crumb" aria-label="Breadcrumb">
-        <a href="#">Gordi MOS</a><span class="sep">›</span>
         <span class="cur" aria-current="page">Tasks</span>
       </nav>
       <span class="tb-spacer-top"></span>
+      <div class="tb-search" role="button" aria-label="Search — open command menu">
+        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      </div>
       <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
       <div class="tb-user" role="button" aria-label="Account menu">
         <div class="avatar" style="width:26px;height:26px;border-radius:var(--ds-border-radius-pill);background:linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));color:var(--ds-font-color-inverted);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">AS</div>
@@ -247,13 +260,8 @@
       </div>
     </header>
 
-    <!-- RAIL: navigation + workspace identity only (no search row, no foot user chip) -->
+    <!-- RAIL: navigation only (workspace identity moved to the top-bar brand lockup) -->
     <aside class="rail">
-      <div class="ws-switch">
-        <div class="ws-logo">G<span class="dot"></span></div>
-        <span class="ws-name">Gordi MOS</span>
-        <span class="ws-chev">▾</span>
-      </div>
       <div class="rail-group">Workspace</div>
       <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
       <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
@@ -400,13 +408,17 @@
     <div class="mock-label">Surface 1 + 2 — dark mode (one blue stays the only action color)</div>
     <div class="shell">
       <header class="topbar">
+        <div class="tb-brand">
+          <div class="tb-logo">G<span class="dot"></span></div>
+          <span class="nm">Gordi MOS</span>
+        </div>
+        <nav class="tb-crumb" aria-label="Breadcrumb">
+          <span class="cur" aria-current="page">Tasks</span>
+        </nav>
+        <span class="tb-spacer-top"></span>
         <div class="tb-search" role="button" aria-label="Search — open command menu">
           <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
         </div>
-        <nav class="tb-crumb" aria-label="Breadcrumb">
-          <a href="#">Gordi MOS</a><span class="sep">›</span><span class="cur" aria-current="page">Tasks</span>
-        </nav>
-        <span class="tb-spacer-top"></span>
         <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
         <div class="tb-user" role="button" aria-label="Account menu">
           <div class="avatar" style="width:26px;height:26px;border-radius:var(--ds-border-radius-pill);background:linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));color:var(--ds-font-color-inverted);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">AS</div>
@@ -414,10 +426,6 @@
         </div>
       </header>
       <aside class="rail">
-        <div class="ws-switch">
-          <div class="ws-logo">G<span class="dot"></span></div>
-          <span class="ws-name">Gordi MOS</span><span class="ws-chev">▾</span>
-        </div>
         <div class="rail-group">Workspace</div>
         <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
         <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
@@ -474,15 +482,24 @@ TOKENS USED (--ds-* only; no literal colors):
   Elevation: --ds-box-shadow-light (segmented "on" lift)
   Spacing:   --ds-spacing-{1,2,3,4}
 
-KEY MOVES (this revision):
-  • GLOBAL TOP BAR KEPT (OD-P4-9, reverses the earlier retire-the-top-bar proposal): 56px bar holds
-    ⌘K search · breadcrumb · notification bell (icon-only visual STUB, no function) · user chip.
-  • RAIL = navigation + workspace identity ONLY: workspace switcher (top) + "Workspace" nav
-    (accent-icon active selection) + Settings (foot). The in-rail SEARCH ROW and the foot USER CHIP
-    are REMOVED — they now live in the top bar (reverses part of #29).
-  • Net IA: rail = navigation + workspace identity; top bar = search + breadcrumb + notifications + user.
-  • thead th: UPPERCASE + 0.06em tracking overline, WEIGHT 400 + --ds-font-color-light (OD-P4-10
-    "lighter overline" — overline shape kept, weight softened 600→400). Scoped to thead th only.
+KEY MOVES (this revision — owner mockup feedback 2026-06-19):
+  • GLOBAL TOP BAR, BRAND-LEFT (OD-P4-9 + brand-left refinement): 56px bar, left→right =
+    BRAND LOCKUP (logo + "Gordi MOS", 236px column sitting OVER the rail with a divider) ·
+    breadcrumb · spacer · ⌘K search · notification bell (icon-only STUB) · user chip.
+    Search moved from the bar's far-LEFT to the RIGHT cluster (next to bell + user) per the owner sketch.
+  • RAIL = NAVIGATION ONLY: the workspace switcher (logo + name) is REMOVED from the rail — workspace
+    identity now lives in the top-bar brand lockup. Rail = "Workspace" group nav (accent-icon active
+    selection) + Settings (foot). (Net: rail = nav; top bar = brand + breadcrumb + search + notif + user.)
+  • Breadcrumb dedups the brand: the leading "Gordi MOS" crumb is dropped (the brand lockup already
+    states it) — Tasks list shows "Tasks"; a record shows "Tasks › <record>".
+  • DARK-MODE LEGIBILITY (owner feedback): label roles that used --ds-font-color-light (≈3.1:1 on the
+    dark bg — fails WCAG-AA) move to --ds-font-color-tertiary (≈4.6:1): table overline (OD-P4-10 intent
+    preserved — still lighter than body + weight 400), rail group label, nav counts, ⌘K group labels.
+    Themed scopes set text color explicitly (a body-level var() bakes the light value into the inherited
+    computed color → invisible in dark) — see the command-menu mock for the fixed pattern.
+  • thead th: UPPERCASE + 0.06em tracking overline, WEIGHT 400 + --ds-font-color-tertiary. Scoped to thead th only.
+  • NO-BLEED guardrails baked in: brand/user names + breadcrumb current ellipsize; status tags white-space:nowrap;
+    brand column fixed 236px so the breadcrumb can't shove it.
   • Checkbox + row ⋯ hidden until row hover/selected; name cell = Chip-link; row hover = --ds-background-secondary.
   • 50px dense DB-view rows (OD-P3-6) preserved; status = dot + text (never color-alone).
 

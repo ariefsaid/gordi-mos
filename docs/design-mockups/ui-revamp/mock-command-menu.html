@@ -24,12 +24,16 @@
   .cm-input .ic { color: var(--ds-font-color-tertiary); }
   .cm-input input { flex: 1; border: none; outline: none; font-family: inherit; font-size: 15px;
     color: var(--ds-font-color-primary); background: transparent; }
-  .cm-input input::placeholder { color: var(--ds-font-color-light); }
+  .cm-input input::placeholder { color: var(--ds-font-color-tertiary); }
   .cm-body { max-height: 300px; overflow: auto; padding: 6px; }
   .cm-group { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 500;
-    color: var(--ds-font-color-light); padding: 10px 10px 4px; }
+    /* --tertiary (not --light): group label clears WCAG-AA in dark while staying muted. */
+    color: var(--ds-font-color-tertiary); padding: 10px 10px 4px; }
   .cm-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px;
-    border-radius: var(--ds-border-radius-sm); font-size: 14px; cursor: pointer; }
+    border-radius: var(--ds-border-radius-sm); font-size: 14px; cursor: pointer;
+    /* Set color explicitly: a themed scope must not inherit body's color — a body-level
+       var() bakes the light value into the computed color children inherit (dark = invisible). */
+    color: var(--ds-font-color-primary); }
   .cm-item .ig { color: var(--ds-font-color-tertiary); width: 18px; text-align: center; }
   .cm-item.action .ig { color: var(--ds-color-blue); }
   .cm-item .meta { margin-left: auto; color: var(--ds-font-color-tertiary); font-size: 12px; }
@@ -42,7 +46,8 @@
   .cm-foot .k { font-family: var(--ds-code-font-family); }
   .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 12px; display: inline-block; }
   .pad { padding: 16px; }
-  .dark-wrap { background: var(--ds-background-tertiary); }
+  /* Dark base color on the scope itself — see shell mock: inheriting children resolve --primary in dark. */
+  .dark-wrap { background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 </style>
 </head>

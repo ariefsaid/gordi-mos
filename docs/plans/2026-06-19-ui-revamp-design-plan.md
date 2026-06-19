@@ -71,7 +71,16 @@ the one piece of new shared vocabulary this revamp introduces; it is documentati
   than a separate persistent bar; a free-floating context bar risks becoming the old Header again.*
 
 ### 1.3 Converge → **Alt 1B (remove the global Header; breadcrumb at content-top).**
-**Why:** it is the kit's exact `[rail][main]` shell, recovers ~56px of vertical height on every dense
+
+> **⚠ SUPERSEDED (2026-06-19) — do not build §1.3–§1.8 as written.** The owner reversed this:
+> the **global top bar is KEPT** (OD-P4-9) and is **brand-left** (OD-P4-11). Authoritative shell spec:
+> **`docs/decisions.md` OD-P4-9 + OD-P4-11** and the rendered **`docs/design-mockups/ui-revamp/mock-shell-and-table.html`**
+> (its anchor comment lists the final tokens/moves). Net shell: top bar = **brand lockup · breadcrumb · ⌘K
+> search · notification-bell stub · user chip**; rail = **navigation only** (workspace identity moved into
+> the brand). The exploration below is kept for the rationale trail only. Also see the **No-bleed guardrails**
+> appendix (end of doc) + the dark-mode AA rule in OD-P4-11.
+
+**Why (historical — Alt 1B, NOT adopted):** it is the kit's exact `[rail][main]` shell, recovers ~56px of vertical height on every dense
 surface (serves the manager's scan-many job and Arief's oversight), and removes a chrome strip that
 carries no job. The narrow-width hamburger lives in the content-top row so mobile nav is preserved
 without resurrecting global chrome. Notifications (today a stub) defer to the rail's utility group when
@@ -158,12 +167,17 @@ utility item. → **OD-OVERRIDE-1** below.
   color to `--ds-font-color-light`.** Keeps the recognizable MOS overline rhythm while shedding the
   weight that makes it read as a legacy table header.
 
-### 2.3 Converge → **Alt 2C (UPPERCASE + tracking, but weight 400 + `--ds-font-color-light`).**
+### 2.3 Converge → **Alt 2C (UPPERCASE + tracking, weight 400 + `--ds-font-color-tertiary`).**
+
+> **Updated 2026-06-19 (OD-P4-11):** the overline color is **`--ds-font-color-tertiary`**, NOT
+> `--ds-font-color-light`. The `light` ramp measured ≈3.1:1 on the dark bg (fails WCAG-AA); `tertiary`
+> (≈4.6:1) keeps the softened-overline intent (still lighter than body + weight 400) while passing AA.
+
 **Why:** the uppercase-tracked overline is a deliberate, ratified MOS "section-divider voice"
 (`DESIGN.md` Typography → Overline; used by the view-tab strip + group headers too) — dropping caps
 entirely would fracture that rhythm. But the kit is right that **weight-600 bold headers read heavy** for
-a dense scan surface. Lowering to weight 400 + the lighter `--ds-font-color-light` gets the kit's quiet
-header while keeping the MOS overline shape. This is the minimal, identity-preserving move.
+a dense scan surface. Lowering to weight 400 + the softer `--ds-font-color-tertiary` gets the kit's quiet
+header while keeping the MOS overline shape *and* clearing dark-mode AA. This is the minimal, identity-preserving move.
 
 Everything else in §2.1 (hover-revealed checkbox + `⋯`, name-as-Chip-link, row-hover =
 `--ds-background-secondary`) is adopted straight from the kit — these are craft/discipline, not aesthetic
@@ -572,6 +586,11 @@ A surface is "revamp-done" when:
 
 ## 10. Open questions for the owner
 
+> **Resolved 2026-06-19:** Q1 → hybrid (Alt 3C). Q2 + Q5 → **top bar KEPT, brand-left** (OD-P4-9 + OD-P4-11);
+> notifications = an **icon-only bell stub in the top bar**, not a rail item. Q3 → overline = weight 400 +
+> **`--ds-font-color-tertiary`** (OD-P4-10 + OD-P4-11 AA fix). Q4 → record-search **in v1** (needs a search
+> endpoint — an eng-planner build dependency). The list below is the original ask, kept for the trail.
+
 1. **Detail surface (§3): hybrid (Alt 3C) vs pure record page (Alt 3B)?** I recommend the hybrid (keeps
    manager triage + delivers the kit record page + smallest code delta). If the owner wants the pure
    full-page record (`ia-patterns.md` literal), it loses in-list triage — a deliberate trade.
@@ -585,3 +604,38 @@ A surface is "revamp-done" when:
 5. **Notifications:** today a stub. Confirm it becomes a **rail utility item** (kit: Search /
    Notifications / Settings) rather than returning to a top bar. Out of first-slice scope to build, but
    the IA slot should be reserved.
+
+---
+
+## Appendix A — No-bleed guardrails (OD-P4-11; binding on every UI-revamp PR)
+
+The eng-planner ADR carries these into the build plan; `design-reviewer` checks them on each PR. "Bleed" =
+content that overflows or shoves its container, or text that wraps/clips where it must not.
+
+**Layout**
+- The top-bar **brand column is a fixed 236px** (matches the rail width); the breadcrumb lives in a
+  flexible, `min-width:0` track so a long crumb can shrink/ellipsize and can never push the brand or the
+  right cluster (search · bell · user). The right cluster is `flex:none`.
+- Content columns own their own scroll (`overflow:auto`); the shell never grows past the viewport. Sticky
+  table headers paint an **opaque** background (`--ds-background-primary`) so rows don't ghost through.
+- Two-column record page: the details panel is fixed-width; the feed column is `min-width:0` so long notes
+  wrap inside it rather than widening the grid.
+
+**Text**
+- Single-line, identity-bearing strings **ellipsize** (`overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap`) + carry a `title`: brand wordmark, breadcrumb **current** crumb, user name, task
+  name in a table cell, ⌘K result rows.
+- **Status tags / chips never wrap** (`white-space:nowrap`) — they shrink the neighbour, not their own height.
+- Long-form body (notes, descriptions) wraps normally; never `nowrap` a paragraph.
+
+**Theming (dark-mode AA — OD-P4-11)**
+- Every themed scope **sets its own text `color`**; never rely on inheriting `body`'s computed color (a
+  body-level `var()` resolves the *light* value and bakes near-black into the inherited color → invisible
+  on dark). Verified offender: the ⌘K palette items.
+- Label/meta roles use **`--ds-font-color-tertiary`** (≈4.6:1 on dark), not `--ds-font-color-light` (≈3.1:1,
+  fails AA): table overline, rail group label, nav counts, ⌘K group labels, kbd hints.
+- Status/accent text keeps the `--ds-tag-text-*` pairings (already AA in both themes). Status is **dot +
+  text**, never color-alone.
+
+**Verification:** each UI-revamp PR renders the surface **light + dark** at ≥1280px and a narrow width,
+screenshots both, and confirms no clip/wrap/overflow + AA on label text before review.
