@@ -28,8 +28,8 @@ vi.mock('../lib/db/directory', () => ({
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import TasksLayout from './TasksLayout'
-import TaskDrawer from '@/components/tasks/TaskDrawer'
+import { TasksLayout } from './TasksLayout'
+import { TaskDrawer } from '@/components/tasks/TaskDrawer'
 import { __resetExpandPrefForTests } from '@/components/tasks/useExpandPref'
 
 const mockListTasks = vi.mocked(listTasks)

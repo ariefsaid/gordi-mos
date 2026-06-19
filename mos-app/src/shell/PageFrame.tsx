@@ -21,7 +21,7 @@ interface PageFrameProps {
  * Each page route renders exactly one PageFrame (which owns the <main> landmark).
  * The `variant` prop controls whether content is capped at 1080px (prose) or runs full-bleed (data).
  */
-export default function PageFrame({ children, variant = 'prose', surfaceWash = false }: PageFrameProps) {
+export function PageFrame({ children, variant = 'prose', surfaceWash = false }: PageFrameProps) {
   const isData = variant === 'data'
   // CONV (layout consistency): every page LEFT-aligns at the same 24px gutter (content
   // origin identical across routes — no centered-prose vs left-data jump). Prose caps at

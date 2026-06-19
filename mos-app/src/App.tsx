@@ -3,7 +3,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { ThemeBootstrap } from './theme/ThemeBootstrap'
 import { router } from './router'
 
-export default function App() {
+export function App() {
   return (
     <AuthProvider>
       <ThemeBootstrap />

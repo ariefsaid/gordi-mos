@@ -21,7 +21,7 @@ vi.mock('../lib/db/weeklyUpdates', () => ({
 vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 vi.mock('../lib/db/opsLog', () => ({ getTodayOpsSummary: vi.fn(() => Promise.resolve({ count: 0, needsAttention: false })) }))
 
-import MyWeek from './MyWeek'
+import { MyWeek } from './MyWeek'
 
 beforeEach(() => {
   vi.clearAllMocks()

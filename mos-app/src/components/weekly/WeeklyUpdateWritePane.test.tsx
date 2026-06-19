@@ -4,7 +4,7 @@
 // RI3 — I2: ProgressMarkerPicker trigger touch target ≥44px on mobile.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import WeeklyUpdateWritePane from './WeeklyUpdateWritePane'
+import { WeeklyUpdateWritePane } from './WeeklyUpdateWritePane'
 import { ProgressMarkerPicker } from './ProgressMarker'
 
 // ── Mock Supabase data layer (no live DB) ───────────────────────────────────

@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react'
-import Breadcrumb from './Breadcrumb'
+import { Breadcrumb } from './Breadcrumb'
 import { useIsNarrow } from './useIsNarrow'
 
 interface HeaderProps {
@@ -8,7 +8,7 @@ interface HeaderProps {
   onRegisterHamburgerFocus?: (focusFn: () => void) => void
 }
 
-export default function Header({ onOpenDrawer, onRegisterHamburgerFocus }: HeaderProps) {
+export function Header({ onOpenDrawer, onRegisterHamburgerFocus }: HeaderProps) {
   const isNarrow = useIsNarrow()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
 

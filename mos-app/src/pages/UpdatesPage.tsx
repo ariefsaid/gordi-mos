@@ -4,16 +4,16 @@
 // AC-031..038 owned by WeeklyUpdateWritePane. Review pane AC-040..046 here + WeeklyUpdateReviewPane.
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/auth/useAuth'
-import PageFrame from '@/shell/PageFrame'
-import PageHead from '@/shell/PageHead'
+import { PageFrame } from '@/shell/PageFrame'
+import { PageHead } from '@/shell/PageHead'
 import { useDocumentTitle } from '@/shell/useDocumentTitle'
 import { weekLabel, weekStartISO } from '@/lib/week'
-import WeeklyUpdateWritePane from '@/components/weekly/WeeklyUpdateWritePane'
-import WeeklyUpdateReviewPane from '@/components/weekly/WeeklyUpdateReviewPane'
+import { WeeklyUpdateWritePane } from '@/components/weekly/WeeklyUpdateWritePane'
+import { WeeklyUpdateReviewPane } from '@/components/weekly/WeeklyUpdateReviewPane'
 import { getTeamForManager } from '@/lib/db/team'
 import type { TeamMember } from '@/lib/db/weeklyUpdates'
 
-export default function UpdatesPage() {
+export function UpdatesPage() {
   useDocumentTitle('Weekly Updates — Gordi MOS')
 
   const auth = useAuth()

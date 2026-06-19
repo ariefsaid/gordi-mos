@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import RailNav from './RailNav'
+import { RailNav } from './RailNav'
 
 interface MobileDrawerProps {
   open: boolean
@@ -12,7 +12,7 @@ interface MobileDrawerProps {
  * Mobile navigation drawer with focus trap, Esc close, scrim dismiss.
  * FR-018/019, AC-014.
  */
-export default function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
+export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
   const closeAndReturn = useCallback(() => {

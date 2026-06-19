@@ -48,7 +48,7 @@ const mockGetTodayOpsSummary = vi.mocked(getTodayOpsSummary)
 
 const mockUseAuth = vi.mocked(useAuth)
 
-import MyWeek from './MyWeek'
+import { MyWeek } from './MyWeek'
 
 const nonManagerViewer = {
   status: 'authenticated' as const,

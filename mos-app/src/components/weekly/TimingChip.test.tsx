@@ -2,7 +2,7 @@
 // Partially addresses the backlog TintPill item.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import TimingChip from './TimingChip'
+import { TimingChip } from './TimingChip'
 
 vi.mock('../../lib/week', () => ({
   weeklyUpdateTiming: vi.fn(),

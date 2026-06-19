@@ -26,7 +26,7 @@ vi.mock('../../lib/db/directory', () => ({
 
 import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import TaskDrawer from './TaskDrawer'
+import { TaskDrawer } from './TaskDrawer'
 import { __resetExpandPrefForTests } from './useExpandPref'
 
 const mockGetTask = vi.mocked(getTask)

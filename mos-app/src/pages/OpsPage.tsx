@@ -6,8 +6,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import PageFrame from '@/shell/PageFrame'
-import PageHead from '@/shell/PageHead'
+import { PageFrame } from '@/shell/PageFrame'
+import { PageHead } from '@/shell/PageHead'
 import { Chevron } from '@/shell/icons'
 import { useDocumentTitle } from '@/shell/useDocumentTitle'
 import { useIsDesktop } from '@/shell/useIsDesktop'
@@ -225,7 +225,7 @@ function OpsLogRow({ entry, buName, linkedTask, isDesktop, canEdit, onArchive, i
 }
 
 // ── Main OpsPage ──────────────────────────────────────────────────────────────
-export default function OpsPage() {
+export function OpsPage() {
   useDocumentTitle('Daily Log — Gordi MOS')
   const isDesktop = useIsDesktop()
   const auth = useAuth()

@@ -20,7 +20,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-import LoginPage from './LoginPage'
+import { LoginPage } from './LoginPage'
 import { supabase } from '@/lib/supabase'
 
 const mockSignIn = vi.mocked(supabase.auth.signInWithPassword)

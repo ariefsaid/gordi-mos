@@ -49,6 +49,11 @@ export default tseslint.config([
           ],
         },
       ],
+      // Named exports only inside src/ (config/entry files outside src/ keep their default).
+      'no-restricted-exports': [
+        'error',
+        { restrictDefaultExports: { direct: true, named: true } },
+      ],
     },
   },
 ])

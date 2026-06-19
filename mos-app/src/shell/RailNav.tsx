@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { SECTIONS } from './sections'
 import { SettingsIcon } from './icons'
-import UserChip from './UserChip'
+import { UserChip } from './UserChip'
 
 interface RailNavProps {
   onNavigate?: () => void
@@ -24,7 +24,7 @@ function ChevronDownGlyph() {
   )
 }
 
-export default function RailNav({ onNavigate }: RailNavProps) {
+export function RailNav({ onNavigate }: RailNavProps) {
   return (
     <>
       {/* Workspace switcher — Twenty idiom: logo + workspace name + chevron.

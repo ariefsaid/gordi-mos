@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch } from 'react-router-dom'
-import PageFrame from '@/shell/PageFrame'
+import { PageFrame } from '@/shell/PageFrame'
 import { useDocumentTitle } from '@/shell/useDocumentTitle'
 import { TasksWorkspace } from '@/components/tasks/TasksWorkspace'
 import { useExpandPref } from '@/components/tasks/useExpandPref'
@@ -17,7 +17,7 @@ import type { TaskDrawerOutletContext } from '@/components/tasks/TaskDrawer'
  * Expand is a per-user-global view toggle on the SAME URL (read here so the
  * grid can collapse to full width when the surface is expanded).
  */
-export default function TasksLayout() {
+export function TasksLayout() {
   useDocumentTitle('Tasks — Gordi MOS')
   const { taskId } = useParams()
   const isNew = useMatch('/tasks/new')

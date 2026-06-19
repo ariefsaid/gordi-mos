@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import DemoLogin from './DemoLogin'
+import { DemoLogin } from './DemoLogin'
 import { DEMO_PASSWORD, DEMO_PERSONAS } from './demoPersonas'
 
 describe('DemoLogin — dev-only one-click sign-in panel', () => {

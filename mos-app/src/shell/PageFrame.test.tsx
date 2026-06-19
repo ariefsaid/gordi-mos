@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import PageFrame from './PageFrame'
+import { PageFrame } from './PageFrame'
 
 describe('PageFrame variant', () => {
   it('AC-121: variant="prose" (default) caps content at 1080px', () => {

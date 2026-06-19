@@ -17,7 +17,7 @@ vi.mock('./lib/db/viewer', () => ({
   resolveViewer: vi.fn(),
 }))
 
-import App from './App'
+import { App } from './App'
 
 describe('App smoke', () => {
   it('renders without crashing and shows loading state while auth resolves', () => {

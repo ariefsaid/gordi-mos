@@ -6,7 +6,7 @@
 import { Spinner } from '@/auth/AuthShell'
 import { DEMO_PASSWORD, DEMO_PERSONAS } from './demoPersonas'
 
-export default function DemoLogin({
+export function DemoLogin({
   onPick,
   busyEmail,
   disabled,

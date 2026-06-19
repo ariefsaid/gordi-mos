@@ -30,7 +30,7 @@ import type { TasksGroupBy } from './useTasksViewPref'
 import { GroupHeaderRow } from './GroupHeaderRow'
 import { MobileGroupedCards } from './MobileGroupedCards'
 import { Chevron } from '@/shell/icons'
-import PageHead from '@/shell/PageHead'
+import { PageHead } from '@/shell/PageHead'
 import { ErrorState, EmptyState } from '@/components/ui/StateKit'
 
 // ── Types ─────────────────────────────────────────────────────────────────────

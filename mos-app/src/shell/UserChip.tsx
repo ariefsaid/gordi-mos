@@ -16,7 +16,7 @@ function getInitials(fullName: string): string {
   return (first + second).toUpperCase()
 }
 
-export default function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
+export function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
   const isRail = variant === 'rail'
   const auth = useAuth()
   const [open, setOpen] = useState(false)

@@ -10,10 +10,10 @@ const mockUseAuth = vi.mocked(useAuth)
 
 // Import components used in the route tree to verify guard behavior
 import { ProtectedRoute } from './auth/ProtectedRoute'
-import AppShell from './shell/AppShell'
-import TasksLayout from './pages/TasksLayout'
-import UpdatesPage from './pages/UpdatesPage'
-import OpsPage from './pages/OpsPage'
+import { AppShell } from './shell/AppShell'
+import { TasksLayout } from './pages/TasksLayout'
+import { UpdatesPage } from './pages/UpdatesPage'
+import { OpsPage } from './pages/OpsPage'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>

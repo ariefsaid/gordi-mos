@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import PageFrame from '@/shell/PageFrame'
-import PageHead from '@/shell/PageHead'
+import { PageFrame } from '@/shell/PageFrame'
+import { PageHead } from '@/shell/PageHead'
 import { useDocumentTitle } from '@/shell/useDocumentTitle'
 import { weekLabel, weekStartISO } from '@/lib/week'
 import { getMyUpdate, listTeamUpdates } from '@/lib/db/weeklyUpdates'
@@ -10,7 +10,7 @@ import type { MyUpdate } from '@/lib/db/weeklyUpdates.types'
 import type { TeamMember } from '@/lib/db/weeklyUpdates'
 import type { TeamUpdateRow } from '@/lib/db/weeklyUpdates.types'
 import { getTeamForManager } from '@/lib/db/team'
-import TimingChip from '@/components/weekly/TimingChip'
+import { TimingChip } from '@/components/weekly/TimingChip'
 import { Pill, type PillTone } from '@/components/ui/Pill'
 import { CardHead } from '@/components/ui/CardHead'
 import { ErrorState } from '@/components/ui/StateKit'
@@ -19,7 +19,7 @@ import { getTodayOpsSummary } from '@/lib/db/opsLog'
 import type { TodayOpsSummary } from '@/lib/db/opsLog'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
-export default function MyWeek() {
+export function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
 
   const auth = useAuth()
