@@ -4,6 +4,9 @@ import { useAuth } from '../auth/useAuth'
 interface UserChipProps {
   /** When true, hides name/role text (used at <920px per FR-020). */
   compact?: boolean
+  /** 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
+   *  the sidebar foot with an upward-opening menu (Twenty idiom). */
+  variant?: 'header' | 'rail'
 }
 
 function getInitials(fullName: string): string {
@@ -13,7 +16,8 @@ function getInitials(fullName: string): string {
   return (first + second).toUpperCase()
 }
 
-export default function UserChip({ compact = false }: UserChipProps) {
+export default function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
+  const isRail = variant === 'rail'
   const auth = useAuth()
   const [open, setOpen] = useState(false)
   const chipRef = useRef<HTMLButtonElement>(null)
@@ -45,8 +49,10 @@ export default function UserChip({ compact = false }: UserChipProps) {
   const initials = getInitials(viewer.person.full_name)
   const primaryRole = viewer.roles[0]?.name
 
+  const showText = isRail || !compact
+
   return (
-    <div className="relative flex items-center gap-2">
+    <div className={isRail ? 'relative' : 'relative flex items-center gap-2'}>
       {/* Chip button */}
       <button
         ref={chipRef}
@@ -54,8 +60,12 @@ export default function UserChip({ compact = false }: UserChipProps) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={viewer.person.full_name}
-        className="flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer"
-        style={{ height: 36 }}
+        className={
+          isRail
+            ? 'flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer'
+            : 'flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer'
+        }
+        style={{ height: isRail ? 40 : 36 }}
         onClick={() => setOpen((v) => !v)}
       >
         {/* Avatar: 28px rounded-full, navy→blue gradient (OD-P3-7 / Structural-Navy Rule) */}
@@ -71,13 +81,13 @@ export default function UserChip({ compact = false }: UserChipProps) {
         >
           {initials}
         </div>
-        {!compact && (
-          <div className="text-left">
-            <div className="font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }}>
+        {showText && (
+          <div className={isRail ? 'flex-1 text-left min-w-0' : 'text-left'}>
+            <div className="truncate font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }}>
               {viewer.person.full_name}
             </div>
             {primaryRole && (
-              <div className="text-muted-foreground" style={{ fontSize: 11 }}>
+              <div className="truncate text-muted-foreground" style={{ fontSize: 11 }}>
                 {primaryRole}
               </div>
             )}
@@ -90,9 +100,14 @@ export default function UserChip({ compact = false }: UserChipProps) {
         <div
           ref={menuRef}
           role="menu"
-          className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg p-[5px] z-50"
+          className={
+            (isRail
+              ? 'absolute left-0 bottom-full mb-1 '
+              : 'absolute right-0 top-full mt-1 ') +
+            'bg-popover border border-border rounded-lg p-[5px] z-50'
+          }
           style={{
-            minWidth: 140,
+            minWidth: isRail ? 200 : 140,
             boxShadow:
               '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
           }}

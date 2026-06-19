@@ -29,12 +29,17 @@ function renderRailNav(initialPath: string) {
   )
 }
 
-// AC-002: brand block + 4 nav links + no badges + disabled Settings
+// AC-002: workspace switcher + in-rail search + nav links + no badges + disabled Settings
+// (Twenty-idiom rail — replaces the former "Gordi MOS / Management OS" brand block
+//  with a workspace switcher + Search affordance under a "Workspace" section label.)
 describe('AC-002: Rail contents', () => {
-  it('shows brand block with Gordi MOS and Management OS', () => {
+  it('shows the workspace switcher (Gordi MOS) with search and a Workspace section', () => {
     renderRailNav('/tasks')
+    // Workspace switcher names the workspace…
     expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
-    expect(screen.getByText('Management OS')).toBeInTheDocument()
+    // …with an in-rail search trigger and a Workspace section label (Twenty idiom).
+    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument()
+    expect(screen.getByText('Workspace')).toBeInTheDocument()
   })
 
   it('renders the visible nav links in order (My Week / Tasks always; Weekly Updates / Daily Log per feature flag)', () => {
