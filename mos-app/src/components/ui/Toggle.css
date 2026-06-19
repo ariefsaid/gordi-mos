@@ -1,0 +1,24 @@
+/* Toggle — mos-design-kit inputs/Toggle.jsx. Switch: medium 28×16 / small 22×14.
+   off bg quaternary, on bg primary, knob primary surface, pill radius. role=switch. */
+.mk-toggle {
+  position: relative; display: inline-block; flex-shrink: 0;
+  background: var(--secondary); border: 0; cursor: pointer; padding: 0;
+  border-radius: var(--radius-full);
+  transition: background-color 160ms ease;
+}
+.mk-toggle--medium { width: 28px; height: 16px; }
+.mk-toggle--small { width: 22px; height: 14px; }
+.mk-toggle[aria-checked="true"] { background: var(--primary); }
+.mk-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.mk-toggle__knob {
+  position: absolute; top: 2px; left: 2px;
+  width: calc(100% - 4px); aspect-ratio: 1;
+  background: var(--background); border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  transition: transform 160ms ease;
+}
+/* knob travel = container width - knob width - 2px top offset × 2.
+   For medium: 28 - (16-4) - 4 = 12px. For small: 22 - (14-4) - 4 = 8px. */
+.mk-toggle--medium[aria-checked="true"] .mk-toggle__knob { transform: translateX(12px); }
+.mk-toggle--small[aria-checked="true"] .mk-toggle__knob { transform: translateX(8px); }
+.mk-toggle:disabled { opacity: 0.5; cursor: not-allowed; }

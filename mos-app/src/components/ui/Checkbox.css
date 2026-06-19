@@ -1,0 +1,17 @@
+/* Checkbox — mos-design-kit inputs/Checkbox.jsx. medium 16 / small 14, 4px radius.
+   Checked/indeterminate → primary fill. role=checkbox, keyboard Space/Enter. */
+.mk-checkbox {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border); background: var(--background);
+  border-radius: var(--radius-xs); cursor: pointer; flex-shrink: 0;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.mk-checkbox--medium { width: 16px; height: 16px; }
+.mk-checkbox--small { width: 14px; height: 14px; }
+.mk-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.mk-checkbox[aria-checked="true"],
+.mk-checkbox[aria-checked="mixed"] {
+  background: var(--primary); border-color: var(--primary);
+}
+.mk-checkbox svg { width: 100%; height: 100%; color: var(--primary-foreground); pointer-events: none; }
+.mk-checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
