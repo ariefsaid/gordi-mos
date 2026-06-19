@@ -15,7 +15,7 @@ vi.mock('./lib/db/tasks', () => ({
   listTasks: vi.fn(() => new Promise(() => {})),
   getTaskTitlesByIds: vi.fn(() => Promise.resolve([])),
 }))
-vi.mock('./lib/db/opsLog', () => ({
+vi.mock('./lib/db/ops-log', () => ({
   listLogEntries: vi.fn(() => new Promise(() => {})),
   archiveLogEntry: vi.fn(),
   unarchiveLogEntry: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('./lib/db/directory', () => ({
   getBusinessUnits: vi.fn(() => new Promise(() => {})),
   getPeople: vi.fn(() => new Promise(() => {})),
 }))
-vi.mock('./lib/db/weeklyUpdates', () => ({
+vi.mock('./lib/db/weekly-updates', () => ({
   getMyUpdate: vi.fn(() => new Promise(() => {})),
   upsertDraft: vi.fn(),
   submit: vi.fn(),
@@ -39,11 +39,11 @@ vi.mock('./lib/db/weeklyUpdates', () => ({
 }))
 vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 
-import { MyWeek } from './pages/MyWeek'
-import { UpdatesPage } from './pages/UpdatesPage'
-import { OpsPage } from './pages/OpsPage'
-import { TasksLayout } from './pages/TasksLayout'
-import { PageFrame } from './shell/PageFrame'
+import { MyWeek } from './pages/my-week'
+import { UpdatesPage } from './pages/updates-page'
+import { OpsPage } from './pages/ops-page'
+import { TasksLayout } from './pages/tasks-layout'
+import { PageFrame } from './shell/page-frame'
 
 const authedState: AuthState = {
   status: 'authenticated',
@@ -136,7 +136,7 @@ describe('RI-VIS-1: no avatar gradient contains the violet token', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-2: error text classes use --status-lost-text, not base --destructive', () => {
   it('OpsAddForm inline .tc-field-error / .tc-submit-error text color is --status-lost-text', () => {
-    const src = readSrc('pages/OpsAddForm.tsx')
+    const src = readSrc('pages/ops-add-form.tsx')
     for (const sel of ['.tc-field-error', '.tc-submit-error']) {
       const body = ruleBody(src, sel)
       // ADR-0009: tokens are now resolved color(display-p3 …) consumed as var(--token); hsl() wrapper retired.
@@ -146,7 +146,7 @@ describe('RI-VIS-2: error text classes use --status-lost-text, not base --destru
   })
 
   it('LoginPage error text (form alert + inline email error) uses --status-lost-text, not --destructive', () => {
-    const src = readSrc('pages/LoginPage.tsx')
+    const src = readSrc('pages/login-page.tsx')
     // Error TEXT color is the AA token (used for both the form alert and the email error)
     expect(src).toMatch(/color:\s*'var\(--status-lost-text\)'/)
     // No error TEXT uses base --destructive (the emailInputBorder keeps --destructive — different key)
@@ -176,7 +176,7 @@ describe('RI-IXD-1: no ▸/▾/▴ affordance glyph in any non-test .tsx', () =>
 // ══════════════════════════════════════════════════════════════════════════════
 describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-page-title)', () => {
   it('the shared PageHead exposes the page-head testid', () => {
-    expect(readSrc('shell/PageHead.tsx')).toMatch(/data-testid="page-head"/)
+    expect(readSrc('shell/page-head.tsx')).toMatch(/data-testid="page-head"/)
   })
 
   it('the retired bespoke head classes (.tasks-page-title / .ops-page-title) are not re-defined or re-applied in src', () => {
@@ -244,7 +244,7 @@ describe('RI-IXD-2: sort affordance inline-block + uniform left-aligned grid', (
     expect(body).toMatch(/display:\s*inline-block/)
   })
   it('Due/Activity headers are not right-aligned (no th-right — uniform left grid)', () => {
-    expect(readSrc('components/tasks/TasksWorkspace.tsx')).not.toMatch(/th-sortable th-right/)
+    expect(readSrc('components/tasks/tasks-workspace.tsx')).not.toMatch(/th-sortable th-right/)
   })
 })
 
@@ -258,7 +258,7 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
     expect(readSrc('components/tasks/TasksWorkspace.css')).not.toMatch(/max-width:\s*1280px/)
   })
   it('the Tasks PageHead is not capped at 1280 (full-bleed header)', () => {
-    expect(readSrc('components/tasks/TasksWorkspace.tsx')).not.toMatch(/maxWidth=\{1280\}/)
+    expect(readSrc('components/tasks/tasks-workspace.tsx')).not.toMatch(/maxWidth=\{1280\}/)
   })
 })
 
@@ -269,9 +269,9 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
   it('MyWeek.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
-    const src = readSrc('pages/MyWeek.tsx')
+    const src = readSrc('pages/my-week.tsx')
     expect(src).not.toMatch(/\bpillStyle\b/)
-    expect(src).toMatch(/from '@\/components\/ui\/Pill'/)
+    expect(src).toMatch(/from '@\/components\/ui\/pill'/)
   })
 
   it('no non-test source renders a wup-state-* or ops-source-badge className (raw pill shells)', () => {
@@ -320,7 +320,7 @@ describe('RI-IXD-4: no bespoke button classes duplicating the shared hierarchy',
   })
 
   it('TasksWorkspace.css does not re-define the shared button/error kit classes', () => {
-    const css = readSrc('components/tasks/TasksWorkspace.css')
+    const css = readSrc('components/tasks/TasksWorkspace.css')  // CSS file not renamed
     expect(css).not.toMatch(/\.retry-btn\s*\{/)
     // .btn-primary / .btn-outline are owned globally by ui/Button.css; the local
     // re-definitions were removed (usages now pair .btn .btn-{variant}).
@@ -352,6 +352,6 @@ describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, › separato
   })
 
   it('the shell <Breadcrumb> renders the › separator (single breadcrumb system)', () => {
-    expect(readSrc('shell/Breadcrumb.tsx')).toMatch(/›/)
+    expect(readSrc('shell/breadcrumb.tsx')).toMatch(/›/)
   })
 })

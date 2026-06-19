@@ -2,15 +2,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
-vi.mock('./useAuth')
+vi.mock('./use-auth')
 
-import { useAuth } from './useAuth'
+import { useAuth } from './use-auth'
 
 const mockUseAuth = vi.mocked(useAuth)
 
 // These imports will fail until the files are created (RED)
-import { ProtectedRoute } from './ProtectedRoute'
-import { RedirectIfAuthed } from './RedirectIfAuthed'
+import { ProtectedRoute } from './protected-route'
+import { RedirectIfAuthed } from './redirect-if-authed'
 
 // Minimal page stubs for testing redirects
 function LoginPage() {

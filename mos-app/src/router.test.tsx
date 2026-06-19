@@ -2,18 +2,18 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
-vi.mock('./auth/useAuth')
-import { useAuth } from './auth/useAuth'
+vi.mock('./auth/use-auth')
+import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
 
 const mockUseAuth = vi.mocked(useAuth)
 
 // Import components used in the route tree to verify guard behavior
-import { ProtectedRoute } from './auth/ProtectedRoute'
-import { AppShell } from './shell/AppShell'
-import { TasksLayout } from './pages/TasksLayout'
-import { UpdatesPage } from './pages/UpdatesPage'
-import { OpsPage } from './pages/OpsPage'
+import { ProtectedRoute } from './auth/protected-route'
+import { AppShell } from './shell/app-shell'
+import { TasksLayout } from './pages/tasks-layout'
+import { UpdatesPage } from './pages/updates-page'
+import { OpsPage } from './pages/ops-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>

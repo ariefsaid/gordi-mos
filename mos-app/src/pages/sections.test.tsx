@@ -1,16 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-vi.mock('../components/weekly/WeeklyUpdateWritePane', () => ({
+vi.mock('../components/weekly/weekly-update-write-pane', () => ({
   WeeklyUpdateWritePane: () => <section aria-label="My weekly update">Write pane</section>,
 }))
-vi.mock('../components/weekly/WeeklyUpdateReviewPane', () => ({
+vi.mock('../components/weekly/weekly-update-review-pane', () => ({
   WeeklyUpdateReviewPane: () => <section aria-label="My team updates">Review pane</section>,
 }))
 vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 
-import { UpdatesPage } from './UpdatesPage'
-import { OpsPage } from './OpsPage'
+import { UpdatesPage } from './updates-page'
+import { OpsPage } from './ops-page'
 
 // The /tasks page-shell oracles below were re-homed from the deleted TasksPage host onto
 // the LIVE /tasks surface (TasksLayout → TasksWorkspace). AC-004 (document.title) +
@@ -19,7 +19,7 @@ import { OpsPage } from './OpsPage'
 
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn(() => new Promise(() => {})), getTaskTitlesByIds: vi.fn(() => Promise.resolve([])) }))
 // OpsPage needs these mocked (P2-3b — real page, not placeholder)
-vi.mock('../lib/db/opsLog', () => ({
+vi.mock('../lib/db/ops-log', () => ({
   listLogEntries: vi.fn(() => new Promise(() => {})), // stays loading
   addLogEntry: vi.fn(),
   editLogEntry: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('../lib/db/directory', () => ({
   getPeople: vi.fn(() => new Promise(() => {})),
 }))
 // useAuth needed for OpsPage (viewer context)
-vi.mock('../auth/useAuth', () => ({
+vi.mock('../auth/use-auth', () => ({
   useAuth: vi.fn(() => ({
     status: 'authenticated',
     viewer: {
@@ -43,7 +43,7 @@ vi.mock('../auth/useAuth', () => ({
     signOut: () => {},
   })),
 }))
-import { TasksLayout } from './TasksLayout'
+import { TasksLayout } from './tasks-layout'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { AuthState } from '@/auth/context'

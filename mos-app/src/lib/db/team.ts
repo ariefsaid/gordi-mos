@@ -8,7 +8,7 @@
 // using supabase.schema('shared') (org-readable per OD-P1-3).
 // Directory name resolution is CLIENT-SIDE (Fix C1, P2-1b).
 import { supabase } from '@/lib/supabase'
-import type { TeamMember } from './weeklyUpdates'
+import type { TeamMember } from './weekly-updates'
 
 const shared = () => supabase.schema('shared')
 
