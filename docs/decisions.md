@@ -531,4 +531,33 @@ Reconcile these *when a migration/edit already touches the relevant object*, not
 
 ---
 
+## OD-K — Kitchen ops Module scoping (LOCKED 2026-06-19, grill-with-docs + feature-forge; spec `docs/specs/kitchen-module.spec.md`, ADR-0012)
+
+### OD-K-1 — Full parity, but Teable not retired until fully tested
+The first cut replicates the **entire** current Teable kitchen workflow on MOS/Supabase (logging + daily
+plan + review/approve + stock auto-compute + ESB push + the `pesanan` 14-day upcoming view). The live
+Teable app is **NOT retired** until the Module is fully tested. Parity boundary (exploration-confirmed,
+`gordi-kitchen-app`): **NOT** in scope — receiving/goods-receipt, stock-opname adjustments, ESB-inventory
+reconciliation read-back, multi-plan versioning, opening-balance seed, reports.
+
+### OD-K-2 — Parallel-run → manual-test → manual owner switch (never automatic)
+The Module runs alongside live Teable but is **manual-testing-only** and **never in production** until a
+**manual owner switch**. **No shadow ingestion, no dual-entry** — the two apps share no data flow; the new
+ESB-outbox worker emits **GOO/dry-run only** until the switch. The switch ("the flip") is one atomic,
+owner-gated action that (a) points the worker at production GKID and (b) stops the Teable poller; until
+then the **Teable poller is the sole GKID writer**. In-person training + onboarding precede the switch.
+Guardrail: an `ESB_PUSH_ENABLED`-style flag, default-safe (mirrors the existing app).
+
+### OD-K-3 — GOO staging = functional parity, TEST DATA only
+The ESB staging sandbox (branch `GOO`, `stg-erp.esb.co.id`) validates ESB **call mechanics** but holds only
+test data — NOT GKID's real product/BOM IDs. Real-data/real-ID validation is the **single-WIP proof-push on
+GKID** at the switch. (Refines OD-P4-6.)
+
+### OD-K-4 — No double-post to production GKID (hard safety)
+Across retries, crashes, both push paths, and the migration, the system guarantees **at most one** ESB
+document per batch: central `dedup_key` (one `integrations.esb_push` row per batch) + pre-switch
+GOO/dry-run-only + history-preserving migration (`posted_to_esb`/`esb_doc_num` survive). Spec NFR-001.
+
+---
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

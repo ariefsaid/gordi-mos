@@ -260,6 +260,12 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 - **FR-032** The system shall make the saved plan the **baseline** for the logging variance gate
   (FR-022) and the review variance display (FR-041).
 
+### Upcoming-plan view ("pesanan") — read-only forward horizon
+- **FR-035** The system shall present a read-only **upcoming-plan ("pesanan") view** on the logging surface
+  showing the next **N days** of planned items (default **14** — [oracle] `PESANAN_HORIZON_DAYS`,
+  `main.py:158`), so the kitchen team sees what is coming. It is read-only (no logging/approval affordance),
+  date-scoped, and lists planned (date, WIP item, action_type, `planned_qty`) rows from `ops.kitchen_plans`.
+
 ### Review / approve queue (ops-leads) — the GIGO gate
 - **FR-040** The system shall present a review queue of **Submitted** kitchen logs for a chosen date,
   grouped by action_type, each showing planned vs logged `qty_porsi`, the WIP item, the submitter, and
@@ -491,6 +497,9 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 - **AC-022 [unit]** Given current available stock of 8 for an item, When a Transfer line of 10 is
   submitted, Then it is **rejected** ("produce first"); a Transfer of ≤ 8 is accepted; two transfer
   lines of 5+5 for the same item in one submit are capped at the 8 available — FR-023.
+- **AC-024 [unit]** Given plans exist for today and the next 13 days, When a `member` opens the upcoming-plan
+  ("pesanan") view, Then it shows the 14-day forward horizon of planned items **read-only** (no logging or
+  approve affordance) — FR-035.
 
 ### Increment semantics + stock net math → **Unit**
 - **AC-030 [unit]** Given an existing Submitted Production log of 5 for an item today, When a member logs
