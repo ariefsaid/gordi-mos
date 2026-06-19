@@ -4,6 +4,8 @@ import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
 
 type TopBarProps = {
+  /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
+  drawerOpen?: boolean
   onOpenDrawer: () => void
   /** Receives a function that focuses the hamburger; used by MobileDrawer to restore focus on close. */
   onRegisterHamburgerFocus?: (focusFn: () => void) => void
@@ -84,9 +86,10 @@ function GordiLogoMark() {
 }
 
 // Global top bar (ADR-0013 D1).
-// Layout left→right: [brand 236px] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · user chip]
+// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · user chip]
 // At <920px the leading hamburger appears and calls onOpenDrawer.
-export function TopBar({ onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) {
+// grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
+export function TopBar({ drawerOpen = false, onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) {
   const isNarrow = useIsNarrow()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
 
@@ -98,7 +101,7 @@ export function TopBar({ onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) 
   return (
     <header
       className="bg-background border-b border-border flex items-stretch flex-none"
-      style={{ height: 'var(--header-h)' }}
+      style={{ height: 'var(--header-h)', gridArea: 'topbar' }}
     >
       {/* Hamburger — shown only at <920px, before the brand column */}
       {isNarrow && (
@@ -107,6 +110,7 @@ export function TopBar({ onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) 
             ref={hamburgerRef}
             type="button"
             aria-label="Open navigation"
+            aria-expanded={drawerOpen}
             className="flex items-center justify-center rounded-sm hover:bg-accent flex-none"
             style={{ width: 32, height: 32 }}
             onClick={onOpenDrawer}
@@ -116,11 +120,10 @@ export function TopBar({ onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) 
         </div>
       )}
 
-      {/* Brand lockup — fixed 236px column sitting over the rail (ADR-0013 D1).
-          Right divider aligns with the rail boundary. */}
+      {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1). */}
       <div
         className="flex items-center gap-2 border-r border-border px-3 flex-none"
-        style={{ width: 236 }}
+        style={{ width: 'var(--rail-w)' }}
       >
         <GordiLogoMark />
         <span
@@ -144,7 +147,7 @@ export function TopBar({ onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) 
 
       {/* Right cluster — search · bell · user chip */}
       <div className="flex items-center gap-2 px-3 flex-none">
-        {/* ⌘K search trigger — onClick is a no-op TODO for PR-1; wired in PR-5 */}
+        {/* ⌘K search trigger. TODO(PR-5): wire onClick → open the command menu. */}
         <button
           type="button"
           aria-label="Search"
@@ -167,6 +170,7 @@ export function TopBar({ onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) 
         <button
           type="button"
           aria-label="Notifications"
+          title="Notifications — coming soon"
           disabled
           className="flex items-center justify-center rounded-sm text-muted-foreground"
           style={{ width: 32, height: 32 }}

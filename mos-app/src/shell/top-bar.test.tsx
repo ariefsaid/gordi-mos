@@ -59,6 +59,22 @@ describe('AC-S01: TopBar order — brand · breadcrumb · search · bell · user
     // User chip (the viewer's name as the accessible name)
     expect(screen.getByRole('button', { name: viewer.person.full_name })).toBeInTheDocument()
   })
+
+  it('AC-S01: elements appear in DOM order brand → breadcrumb → search → bell → user', () => {
+    renderTopBar()
+    // DOCUMENT_POSITION_FOLLOWING (4) means the arg comes AFTER the node — assert each precedes the next.
+    const brand = screen.getByText('Gordi MOS')
+    const crumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
+    const search = screen.getByRole('button', { name: /Search/i })
+    const bell = screen.getByRole('button', { name: 'Notifications' })
+    const user = screen.getByRole('button', { name: viewer.person.full_name })
+    const precedes = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(precedes(brand, crumb)).toBe(true)
+    expect(precedes(crumb, search)).toBe(true)
+    expect(precedes(search, bell)).toBe(true)
+    expect(precedes(bell, user)).toBe(true)
+  })
 })
 
 // AC-S07: notification bell is a disabled stub
@@ -93,10 +109,10 @@ describe('AC-S08: TopBar is a banner landmark', () => {
 
 // AC-S02/S03: brand column is fixed 236px with right divider; breadcrumb track is min-w-0
 describe('AC-S02/S03: Brand column is fixed and breadcrumb track is min-w-0', () => {
-  it('AC-S02: brand column has border-r class and fixed 236px width', () => {
+  it('AC-S02: brand column has border-r class and width references --rail-w token (not a literal px)', () => {
     const { container } = renderTopBar()
-    // Brand column — the div containing the logo and wordmark
-    const brandCol = container.querySelector('[style*="width: 236px"]')
+    // Brand column must use the --rail-w CSS variable so it stays aligned with the rail
+    const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null
     expect(brandCol).not.toBeNull()
     expect(brandCol!.className).toMatch(/border-r/)
   })
@@ -106,6 +122,16 @@ describe('AC-S02/S03: Brand column is fixed and breadcrumb track is min-w-0', ()
     // The breadcrumb wrapper div carries min-w-0
     const crumbTrack = container.querySelector('.min-w-0')
     expect(crumbTrack).not.toBeNull()
+  })
+
+  it('AC-S03: current breadcrumb crumb ellipsizes — truncate + title attribute', () => {
+    renderTopBar('/tasks')
+    // The current crumb ("Tasks") must truncate and expose its full text via title.
+    const crumb = screen.getByText('Tasks')
+    const truncating = crumb.classList.contains('truncate') || crumb.closest('[class*="truncate"]') !== null
+    expect(truncating).toBe(true)
+    const titled = crumb.getAttribute('title') === 'Tasks' || crumb.closest('[title="Tasks"]') !== null
+    expect(titled).toBe(true)
   })
 })
 
@@ -125,5 +151,22 @@ describe('AC-S06: Hamburger button at narrow viewports', () => {
     mockUseIsNarrow.mockReturnValue(false)
     renderTopBar()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+  })
+
+  it('AC-S06 a11y: hamburger has aria-expanded reflecting drawer state', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    // drawerOpen defaults to false in the helper render (TopBarProps.drawerOpen not passed)
+    renderTopBar()
+    const hamburger = screen.getByRole('button', { name: 'Open navigation' })
+    expect(hamburger).toHaveAttribute('aria-expanded', 'false')
+  })
+})
+
+// A11y: notification bell title attribute communicates intent when disabled
+describe('A11y: Notification bell title', () => {
+  it('notification bell disabled stub has a title communicating coming-soon intent', () => {
+    renderTopBar()
+    const bell = screen.getByRole('button', { name: 'Notifications' })
+    expect(bell).toHaveAttribute('title', 'Notifications — coming soon')
   })
 })

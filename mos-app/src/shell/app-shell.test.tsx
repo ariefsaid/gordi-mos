@@ -40,6 +40,55 @@ function renderShell(path = '/') {
   )
 }
 
+// RI-shell-1 / AC-S02: AppShell grid structure — topbar spans full width, rail+main are siblings
+describe('RI-shell-1 (AC-S02): AppShell grid structure', () => {
+  it('AC-S02: TopBar is NOT nested inside the main column — it is a direct child of the shell grid', () => {
+    const { container } = renderShell()
+    // The shell grid is the outermost div with display:grid
+    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
+    expect(shellGrid).not.toBeNull()
+    // TopBar renders a <header>; it must be a direct child of the shell grid
+    const header = shellGrid!.querySelector(':scope > header')
+    expect(header).not.toBeNull()
+    // The <header> must NOT be nested inside another div that is a child of the shell grid
+    const directDivChildren = Array.from(shellGrid!.querySelectorAll(':scope > div'))
+    const headerInsideDiv = directDivChildren.some((div) => div.querySelector('header') !== null)
+    expect(headerInsideDiv).toBe(false)
+  })
+
+  it('AC-S02: shell grid uses grid-template-areas placing topbar across both columns at wide width', () => {
+    const { container } = renderShell()
+    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
+    expect(shellGrid).not.toBeNull()
+    const areas = shellGrid!.style.gridTemplateAreas
+    // At wide viewport (useIsNarrow defaults to false in these tests — no mock, real hook returns false)
+    // The areas string must contain "topbar topbar" (topbar spans both cols)
+    expect(areas).toContain('topbar topbar')
+    expect(areas).toContain('rail')
+    expect(areas).toContain('main')
+  })
+
+  it('AC-S02: brand column width token matches rail width token (--rail-w, not a literal)', () => {
+    const { container } = renderShell()
+    // The brand column div inside TopBar must reference --rail-w, not a raw pixel literal
+    // We detect this by checking the inline style uses the CSS variable reference
+    const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null
+    expect(brandCol).not.toBeNull()
+  })
+
+  it('AC-S02: Rail and outlet-wrapper are grid-area siblings (both direct children of shell grid)', () => {
+    const { container } = renderShell()
+    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
+    expect(shellGrid).not.toBeNull()
+    // Rail renders as <aside>; outlet wrapper is the div with grid-area: main
+    const aside = shellGrid!.querySelector(':scope > aside')
+    expect(aside).not.toBeNull()
+    const mainWrapper = shellGrid!.querySelector(':scope > [style*="grid-area"]') as HTMLElement | null
+    // The outlet wrapper div must have grid-area: main
+    expect(mainWrapper).not.toBeNull()
+  })
+})
+
 // AC-015: exactly one nav landmark named "Primary", one banner, one main
 describe('AC-015: Shell landmarks', () => {
   it('has exactly one navigation landmark named "Primary"', () => {
