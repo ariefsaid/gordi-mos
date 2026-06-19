@@ -513,6 +513,34 @@ blast radius, but **rotation = redeploy**; a long-running runtime-secret-needing
 favors the resident token. See ADR-0010 D9 + D12. *Open (confirm-at-deploy-spec): resident secret-zero
 token vs deploy-time render — and whether 1Password Connect is worth it later as services grow.*
 
+### OD-P4-9 — Keep the global top bar (rejects the UI-revamp proposal to retire it)
+The UI-revamp design-plan proposed retiring the §5 global 56px top bar (breadcrumb→content-top,
+everything else into the rail). **Owner rejected** — the top bar stays, populated with:
+**⌘K search · breadcrumb · notification bell (icon-only stub, no function yet) · user chip.** This
+**reverses part of #29**, which had moved ⌘K + the user chip into the rail; both move **back to the
+top bar**, and the rail's in-rail search row + foot user chip are **removed**. The **rail keeps** the
+`Gordi MOS ⌄` workspace switcher + the "Workspace" nav (accent-icon selection) + Settings. Net IA:
+**rail = navigation + workspace identity; top bar = search + breadcrumb + notifications + user.** The
+notification bell is a visual stub (the IA slot; reminders/notifications remain deferred per OD-P2-2).
+Implementation lands in the UI-revamp build (eng-planner ADR covers it alongside the other revamp
+surfaces).
+
+### OD-P4-10 — Table column headers: lighter overline (UPPERCASE + tracking, weight 400)
+Ratifies UI-revamp OD-OVERRIDE-2 as **variant (b)** (Director-decided, owner deferred): `thead th`
+keeps the **UPPERCASE + 0.06em tracking** overline *shape* but drops **600→400 + lighter color**.
+Keeps one "label voice" kin to the rail-group + KPI overlines (just softened) rather than splitting
+into a separate sentence-case header style. **Fix needed:** #29 shipped these sentence-case/400/no-track
+(over-corrected) — re-add uppercase + tracking, keep weight 400. The Overline token stays **600**
+everywhere else (rail groups, KPI). Scoped to `thead th` only.
+
+### Terminology note (grill 2026-06-19, no CONTEXT.md change)
+The hybrid task-detail surface introduces **"record page"** (drawer → expand → full two-column page).
+Per the OD-P3-6 precedent ("view / group / board are UI mechanics, not domain vocabulary"),
+**"record page" / "record" are UI mechanics, not MOS domain terms** — CONTEXT.md is unchanged. The
+generic-entity framing (Task today; Projects/Objectives later) is a *roadmap* aspiration, not current
+glossary. ⌘K-with-record-search (v1, owner-chosen) implies a **search endpoint** — a build dependency
+for the eng-planner ADR, not a term.
+
 ---
 
 ## Legacy naming to reconcile (do NOT churn now — fix opportunistically on the next relevant migration)

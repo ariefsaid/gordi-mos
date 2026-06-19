@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOS revamp — shell (top bar + rail) + record table (Tasks)</title>
+<!-- Kit tokens only. No literal colors below; every color is a --ds-* token. -->
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--ds-font-family);
+    color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary);
+    font-size: var(--ds-font-size-sm);
+  }
+  .mock-label {
+    padding: 12px 16px; font-size: var(--ds-font-size-xs);
+    color: var(--ds-font-color-tertiary); text-transform: uppercase; letter-spacing: .06em;
+  }
+
+  /* ---- Shell: global top bar over [rail | main] (OD-P4-9) ---- */
+  .shell {
+    display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 236px 1fr;
+    grid-template-areas: "topbar topbar" "rail main";
+    height: 760px; background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden;
+    border-radius: var(--ds-border-radius-md);
+  }
+
+  /* GLOBAL TOP BAR (OD-P4-9): ⌘K search · breadcrumb · bell stub · user chip */
+  .topbar {
+    grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
+    height: 56px; padding: 0 var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary);
+  }
+  /* ⌘K search trigger — lives in the top bar now */
+  .tb-search {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 300px;
+    padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-tertiary); cursor: text;
+    background: var(--ds-background-secondary);
+  }
+  .tb-search .lbl { flex: 1; font-size: 13px; }
+  .kbd {
+    font-family: var(--ds-code-font-family); font-size: 11px; padding: 1px 4px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs);
+    color: var(--ds-font-color-tertiary);
+  }
+  /* breadcrumb in the top bar */
+  .tb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+  .tb-crumb a { color: var(--ds-font-color-secondary); text-decoration: none; }
+  .tb-crumb a:hover { color: var(--ds-font-color-primary); }
+  .tb-crumb .sep { color: var(--ds-font-color-light); }
+  .tb-crumb .cur { color: var(--ds-font-color-primary); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-spacer-top { flex: 1; }
+  /* notification bell — icon-only visual stub, no function (OD-P4-9) */
+  .tb-bell {
+    width: 34px; height: 34px; border-radius: var(--ds-border-radius-sm);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    color: var(--ds-font-color-tertiary); border: none; background: none;
+  }
+  .tb-bell:hover { background: var(--ds-background-transparent-light); color: var(--ds-font-color-secondary); }
+  /* user chip — lives in the top bar now */
+  .tb-user {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px;
+    padding: 0 6px 0 4px; border-radius: var(--ds-border-radius-pill); cursor: pointer;
+  }
+  .tb-user:hover { background: var(--ds-background-transparent-light); }
+  .tb-user .nm { font-size: 13px; font-weight: 500; }
+  .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
+
+  /* ---- Rail: navigation + workspace identity ONLY (no search row, no foot chip) ---- */
+  .rail {
+    grid-area: rail;
+    background: var(--ds-background-secondary);
+    border-right: 1px solid var(--ds-border-color-light);
+    padding: var(--ds-spacing-2); display: flex; flex-direction: column;
+  }
+  .ws-switch {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 44px;
+    padding: 0 var(--ds-spacing-2); border-radius: var(--ds-border-radius-sm); cursor: pointer;
+  }
+  .ws-switch:hover { background: var(--ds-background-transparent-light); }
+  .ws-logo {
+    width: 24px; height: 24px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;
+    position: relative; flex: none;
+  }
+  .ws-logo .dot {
+    position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange);
+  }
+  .ws-name { flex: 1; font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
+  .ws-chev { color: var(--ds-font-color-tertiary); }
+  .rail-group {
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ds-font-color-light); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary);
+    font-size: 13px; cursor: pointer; text-decoration: none;
+  }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }
+  .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-light); }
+  .rail-spacer { flex: 1; }
+  /* Settings sits at the rail foot (no user chip — that moved to the top bar) */
+  .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
+
+  /* ---- Main + content-top header (list/breadcrumb header inside the content column) ---- */
+  .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; background: var(--ds-background-primary); }
+  .content-header {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 48px; padding: 0 var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); flex: none;
+  }
+  .ch-icon { color: var(--ds-font-color-tertiary); display: flex; }
+  .ch-title { font-family: var(--ds-font-display); font-weight: 600; font-size: 16px; }
+  .ch-count {
+    font-size: 11px; color: var(--ds-font-color-tertiary); background: var(--ds-background-tertiary);
+    padding: 1px 8px; border-radius: var(--ds-border-radius-pill);
+  }
+  .ch-action {
+    margin-left: auto; height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue); color: var(--ds-font-color-inverted); font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px; border: none; cursor: pointer;
+  }
+
+  /* ---- Toolbar ---- */
+  .toolbar {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); padding: 8px var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); flex: none; flex-wrap: wrap;
+  }
+  .vtab { font-size: 13px; font-weight: 600; padding: 4px 8px; color: var(--ds-font-color-tertiary); cursor: pointer; }
+  .vtab.on { color: var(--ds-font-color-primary); border-bottom: 2px solid var(--ds-color-orange); }
+  .vtab.soon { color: var(--ds-font-color-light); cursor: not-allowed; }
+  .chip {
+    display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+    border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    font-size: 13px; color: var(--ds-font-color-secondary); cursor: pointer; background: var(--ds-background-primary);
+  }
+  .chip .ch-v { color: var(--ds-font-color-primary); }
+  .seg { display: flex; background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-sm); padding: 2px; }
+  .seg button {
+    border: none; background: none; font-size: 13px; padding: 3px 10px; border-radius: var(--ds-border-radius-xs);
+    color: var(--ds-font-color-secondary); cursor: pointer; font-family: inherit;
+  }
+  .seg button.on { background: var(--ds-background-primary); color: var(--ds-font-color-primary); box-shadow: var(--ds-box-shadow-light); }
+  .tb-spacer { flex: 1; }
+
+  /* ---- Record table ---- */
+  .tbl-scroll { overflow: auto; flex: 1; }
+  table.records { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .records thead th {
+    position: sticky; top: 0; background: var(--ds-background-primary); text-align: left;
+    height: 32px; padding: 0 var(--ds-spacing-2);
+    /* OD-P4-10: uppercase + 0.06em tracking overline, WEIGHT 400 + lighter color (softened overline) */
+    font-weight: 400; text-transform: uppercase; letter-spacing: .06em;
+    font-size: 11px; color: var(--ds-font-color-light);
+    border-bottom: 1px solid var(--ds-border-color-light);
+  }
+  .records thead th.cbcol { width: 32px; padding-left: 12px; }
+  .records tbody td {
+    height: 50px; /* OD-P3-6 dense DB-view rows */
+    padding: 0 var(--ds-spacing-2); border-bottom: 1px solid var(--ds-border-color-light);
+    color: var(--ds-font-color-primary); vertical-align: middle;
+  }
+  .records tbody tr { cursor: pointer; }
+  .records tbody tr:hover { background: var(--ds-background-secondary); }
+  .records tbody tr.sel { background: var(--ds-accent-tertiary); }
+  .cb { width: 16px; height: 16px; border: 1.5px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-xs); visibility: hidden; }
+  .records tbody tr:hover .cb, .records tbody tr.sel .cb { visibility: visible; }
+  .records tbody tr.sel .cb { background: var(--ds-color-blue); border-color: var(--ds-color-blue); }
+  .name-chip {
+    display: inline-flex; align-items: center; gap: 8px; padding: 3px 8px 3px 4px;
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-primary); text-decoration: none; font-weight: 500;
+  }
+  .records tbody tr:hover .name-chip { background: var(--ds-background-tertiary); }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600;
+  }
+  .tag .d { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }
+  .tag.open  { background: var(--ds-tag-background-blue);  color: var(--ds-tag-text-blue); }
+  .tag.open .d { background: var(--ds-color-blue); }
+  .tag.prog  { background: var(--ds-tag-background-amber); color: var(--ds-tag-text-amber); }
+  .tag.prog .d { background: var(--ds-color-amber); }
+  .tag.block { background: var(--ds-tag-background-red);   color: var(--ds-tag-text-red); }
+  .tag.block .d { background: var(--ds-color-red); }
+  .tag.done  { background: var(--ds-tag-background-green); color: var(--ds-tag-text-green); }
+  .tag.done .d { background: var(--ds-color-green); }
+  .owner { display: inline-flex; align-items: center; gap: 6px; }
+  .av-sm { width: 20px; height: 20px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; }
+  .plusn { color: var(--ds-font-color-tertiary); font-size: 12px; }
+  .meta { color: var(--ds-font-color-secondary); font-variant-numeric: tabular-nums; }
+  .due-over { color: var(--ds-color-red); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .due-soon { color: var(--ds-tag-text-amber); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .rowmenu { color: var(--ds-font-color-light); visibility: hidden; }
+  .records tbody tr:hover .rowmenu { visibility: visible; }
+
+  /* ---- Skeleton (loading) ---- */
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 12px; display: inline-block; }
+
+  /* ---- Empty / error blocks ---- */
+  .state-block { text-align: center; padding: 56px 16px; color: var(--ds-font-color-secondary); }
+  .state-block .glyph { color: var(--ds-font-color-light); margin-bottom: 8px; }
+  .state-block .act {
+    display: inline-flex; gap: 8px; margin-top: 12px; align-items: center;
+  }
+  .btn-primary { height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue); color: var(--ds-font-color-inverted); border: none; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .btn-ghost { height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm);
+    background: none; color: var(--ds-font-color-secondary); border: none; font-size: 13px; cursor: pointer; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  .dark-wrap { background: var(--ds-background-tertiary); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="mock-label">Surface 1 + 2 — App shell (global top bar + rail) + record table · light</div>
+  <div class="shell">
+    <!-- GLOBAL TOP BAR (OD-P4-9): ⌘K search · breadcrumb · bell stub · user chip -->
+    <header class="topbar">
+      <div class="tb-search" role="button" aria-label="Search — open command menu">
+        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      </div>
+      <nav class="tb-crumb" aria-label="Breadcrumb">
+        <a href="#">Gordi MOS</a><span class="sep">›</span>
+        <span class="cur" aria-current="page">Tasks</span>
+      </nav>
+      <span class="tb-spacer-top"></span>
+      <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+      <div class="tb-user" role="button" aria-label="Account menu">
+        <div class="avatar" style="width:26px;height:26px;border-radius:var(--ds-border-radius-pill);background:linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));color:var(--ds-font-color-inverted);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">AS</div>
+        <span class="nm">Arief Said</span>
+        <span class="tb-chev">▾</span>
+      </div>
+    </header>
+
+    <!-- RAIL: navigation + workspace identity only (no search row, no foot user chip) -->
+    <aside class="rail">
+      <div class="ws-switch">
+        <div class="ws-logo">G<span class="dot"></span></div>
+        <span class="ws-name">Gordi MOS</span>
+        <span class="ws-chev">▾</span>
+      </div>
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <div class="rail-spacer"></div>
+      <div class="rail-foot">
+        <a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a>
+      </div>
+    </aside>
+
+    <!-- MAIN: content-top list header (entity icon + title + count + action) -->
+    <div class="main">
+      <header class="content-header">
+        <span class="ch-icon">☰</span>
+        <span class="ch-title">Tasks</span>
+        <span class="ch-count">42</span>
+        <button class="ch-action">+ New task</button>
+      </header>
+
+      <div class="toolbar">
+        <span class="vtab on">Table</span>
+        <span class="vtab soon">Board</span>
+        <span class="vtab soon">Calendar</span>
+        <span class="tb-spacer"></span>
+        <div class="seg">
+          <button class="on">Mine</button><button>RACI</button><button>All</button>
+        </div>
+        <div class="chip">Status <span class="ch-v">Any</span> ▾</div>
+        <div class="chip">Unit <span class="ch-v">All</span> ▾</div>
+        <div class="chip">⌕ Filter rows</div>
+      </div>
+
+      <div class="tbl-scroll">
+        <table class="records">
+          <thead>
+            <tr>
+              <th class="cbcol"></th>
+              <th>Task</th>
+              <th>Status</th>
+              <th>Owner (R)</th>
+              <th>Unit</th>
+              <th>Due</th>
+              <th>Last activity</th>
+              <th style="width:32px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="sel">
+              <td class="cbcol"><span class="cb"></span></td>
+              <td><a class="name-chip" href="#">Finalise Q3 roastery output forecast</a></td>
+              <td><span class="tag block"><span class="d"></span>Blocked</span></td>
+              <td><span class="owner"><span class="av-sm">RL</span> Rina L. <span class="plusn">+2</span></span></td>
+              <td class="meta">Roastery</td>
+              <td class="due-over">Overdue 3d</td>
+              <td class="meta">5d ago</td>
+              <td><span class="rowmenu">⋯</span></td>
+            </tr>
+            <tr>
+              <td class="cbcol"><span class="cb"></span></td>
+              <td><a class="name-chip" href="#">Approve new bar opening checklist</a></td>
+              <td><span class="tag prog"><span class="d"></span>In progress</span></td>
+              <td><span class="owner"><span class="av-sm">DW</span> Dewi W. <span class="plusn">+1</span></span></td>
+              <td class="meta">Bar</td>
+              <td class="due-soon">Due in 2d</td>
+              <td class="meta">8h ago</td>
+              <td><span class="rowmenu">⋯</span></td>
+            </tr>
+            <tr>
+              <td class="cbcol"><span class="cb"></span></td>
+              <td><a class="name-chip" href="#">Restock single-origin Aceh Gayo green</a></td>
+              <td><span class="tag open"><span class="d"></span>Open</span></td>
+              <td><span class="owner"><span class="av-sm">BS</span> Budi S.</span></td>
+              <td class="meta">Kitchen</td>
+              <td class="meta">Fri 27 Jun</td>
+              <td class="meta">2d ago</td>
+              <td><span class="rowmenu">⋯</span></td>
+            </tr>
+            <tr>
+              <td class="cbcol"><span class="cb"></span></td>
+              <td><a class="name-chip" href="#">Reconcile June supplier invoices</a></td>
+              <td><span class="tag done"><span class="d"></span>Done</span></td>
+              <td><span class="owner"><span class="av-sm">SP</span> Sari P.</span></td>
+              <td class="meta">Finance</td>
+              <td class="meta">Mon 23 Jun</td>
+              <td class="meta">1d ago</td>
+              <td><span class="rowmenu">⋯</span></td>
+            </tr>
+            <tr>
+              <td class="cbcol"><span class="cb"></span></td>
+              <td><a class="name-chip" href="#">Draft August staff roster — all units</a></td>
+              <td><span class="tag open"><span class="d"></span>Open</span></td>
+              <td><span class="owner"><span class="av-sm">AS</span> Arief S. <span class="plusn">+3</span></span></td>
+              <td class="meta">Ops</td>
+              <td class="meta">Wed 2 Jul</td>
+              <td class="meta">4h ago</td>
+              <td><span class="rowmenu">⋯</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING + EMPTY + ERROR variants -->
+<div class="wrap">
+  <div class="mock-label">Record table — loading · empty · error variants</div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px;">
+    <!-- loading -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary); overflow:hidden;" aria-busy="true">
+      <div class="content-header" style="height:40px"><span class="ch-title" style="font-size:14px">Tasks</span></div>
+      <table class="records"><thead><tr><th class="cbcol"></th><th>Task</th><th>Status</th><th>Due</th></tr></thead>
+        <tbody>
+          <tr><td class="cbcol"></td><td><span class="sk" style="width:140px"></span></td><td><span class="sk" style="width:60px"></span></td><td><span class="sk" style="width:40px"></span></td></tr>
+          <tr><td class="cbcol"></td><td><span class="sk" style="width:170px"></span></td><td><span class="sk" style="width:60px"></span></td><td><span class="sk" style="width:40px"></span></td></tr>
+          <tr><td class="cbcol"></td><td><span class="sk" style="width:120px"></span></td><td><span class="sk" style="width:60px"></span></td><td><span class="sk" style="width:40px"></span></td></tr>
+        </tbody></table>
+    </div>
+    <!-- empty (filtered) -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary);">
+      <div class="content-header" style="height:40px"><span class="ch-title" style="font-size:14px">Tasks</span><span class="ch-count">0</span></div>
+      <div class="state-block">
+        <div class="glyph" style="font-size:24px">⃝</div>
+        No tasks match these filters.
+        <div class="act"><button class="btn-ghost">Clear filters</button><button class="btn-primary">+ New task</button></div>
+      </div>
+    </div>
+    <!-- error -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary);">
+      <div class="content-header" style="height:40px"><span class="ch-title" style="font-size:14px">Tasks</span></div>
+      <div class="state-block">
+        <div class="glyph" style="font-size:24px">⚠</div>
+        Couldn't load tasks.
+        <div class="act"><button class="btn-primary">Retry</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK SECTION -->
+<div class="dark dark-wrap">
+  <div class="wrap">
+    <div class="mock-label">Surface 1 + 2 — dark mode (one blue stays the only action color)</div>
+    <div class="shell">
+      <header class="topbar">
+        <div class="tb-search" role="button" aria-label="Search — open command menu">
+          <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+        </div>
+        <nav class="tb-crumb" aria-label="Breadcrumb">
+          <a href="#">Gordi MOS</a><span class="sep">›</span><span class="cur" aria-current="page">Tasks</span>
+        </nav>
+        <span class="tb-spacer-top"></span>
+        <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+        <div class="tb-user" role="button" aria-label="Account menu">
+          <div class="avatar" style="width:26px;height:26px;border-radius:var(--ds-border-radius-pill);background:linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));color:var(--ds-font-color-inverted);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">AS</div>
+          <span class="nm">Arief Said</span><span class="tb-chev">▾</span>
+        </div>
+      </header>
+      <aside class="rail">
+        <div class="ws-switch">
+          <div class="ws-logo">G<span class="dot"></span></div>
+          <span class="ws-name">Gordi MOS</span><span class="ws-chev">▾</span>
+        </div>
+        <div class="rail-group">Workspace</div>
+        <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+        <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+        <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+        <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+        <div class="rail-spacer"></div>
+        <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+      </aside>
+      <div class="main">
+        <header class="content-header">
+          <span class="ch-icon">☰</span><span class="ch-title">Tasks</span><span class="ch-count">42</span>
+          <button class="ch-action">+ New task</button>
+        </header>
+        <div class="toolbar">
+          <span class="vtab on">Table</span><span class="vtab soon">Board</span>
+          <span class="tb-spacer"></span>
+          <div class="seg"><button class="on">Mine</button><button>RACI</button><button>All</button></div>
+          <div class="chip">Status <span class="ch-v">Any</span> ▾</div>
+        </div>
+        <div class="tbl-scroll">
+          <table class="records">
+            <thead><tr><th class="cbcol"></th><th>Task</th><th>Status</th><th>Owner (R)</th><th>Due</th></tr></thead>
+            <tbody>
+              <tr><td class="cbcol"><span class="cb"></span></td><td><a class="name-chip" href="#">Finalise Q3 roastery output forecast</a></td><td><span class="tag block"><span class="d"></span>Blocked</span></td><td><span class="owner"><span class="av-sm">RL</span> Rina L.</span></td><td class="due-over">Overdue 3d</td></tr>
+              <tr><td class="cbcol"><span class="cb"></span></td><td><a class="name-chip" href="#">Approve new bar opening checklist</a></td><td><span class="tag prog"><span class="d"></span>In progress</span></td><td><span class="owner"><span class="av-sm">DW</span> Dewi W.</span></td><td class="due-soon">Due in 2d</td></tr>
+              <tr><td class="cbcol"><span class="cb"></span></td><td><a class="name-chip" href="#">Restock single-origin Aceh Gayo green</a></td><td><span class="tag open"><span class="d"></span>Open</span></td><td><span class="owner"><span class="av-sm">BS</span> Budi S.</span></td><td class="meta">Fri 27 Jun</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-PLAN ANCHOR: docs/plans/2026-06-19-ui-revamp-design-plan.md §1 (shell) + §2 (record table)
+CONVERGED DESIGN — owner sign-off gate. Updated 2026-06-19 for OD-P4-9 + OD-P4-10 (decisions.md),
+which SUPERSEDE the earlier OD-OVERRIDE-1/2 proposals.
+
+TOKENS USED (--ds-* only; no literal colors):
+  Surfaces:  --ds-background-primary, --ds-background-secondary, --ds-background-tertiary,
+             --ds-background-transparent-light, --ds-accent-tertiary
+  Text:      --ds-font-color-primary, --ds-font-color-secondary, --ds-font-color-tertiary,
+             --ds-font-color-light, --ds-font-color-inverted
+  Action:    --ds-color-blue (the one action color), --ds-color-blue9/12 (avatar gradient)
+  Status:    --ds-tag-background-{blue,amber,green,red} + --ds-tag-text-{blue,amber,green,red},
+             --ds-color-{blue,amber,green,red} (status dots)
+  Brand:     --ds-color-blue12 (logo square), --ds-color-orange (logo dot + active view-tab underline)
+  Borders:   --ds-border-color-light, --ds-border-color-medium
+  Radii:     --ds-border-radius-{xs,sm,md,pill}
+  Type:      --ds-font-family (DM Sans body), --ds-font-display (Jakarta headings),
+             --ds-code-font-family (⌘K kbd), --ds-font-size-{xs,sm}
+  Elevation: --ds-box-shadow-light (segmented "on" lift)
+  Spacing:   --ds-spacing-{1,2,3,4}
+
+KEY MOVES (this revision):
+  • GLOBAL TOP BAR KEPT (OD-P4-9, reverses the earlier retire-the-top-bar proposal): 56px bar holds
+    ⌘K search · breadcrumb · notification bell (icon-only visual STUB, no function) · user chip.
+  • RAIL = navigation + workspace identity ONLY: workspace switcher (top) + "Workspace" nav
+    (accent-icon active selection) + Settings (foot). The in-rail SEARCH ROW and the foot USER CHIP
+    are REMOVED — they now live in the top bar (reverses part of #29).
+  • Net IA: rail = navigation + workspace identity; top bar = search + breadcrumb + notifications + user.
+  • thead th: UPPERCASE + 0.06em tracking overline, WEIGHT 400 + --ds-font-color-light (OD-P4-10
+    "lighter overline" — overline shape kept, weight softened 600→400). Scoped to thead th only.
+  • Checkbox + row ⋯ hidden until row hover/selected; name cell = Chip-link; row hover = --ds-background-secondary.
+  • 50px dense DB-view rows (OD-P3-6) preserved; status = dot + text (never color-alone).
+
+STATES SHOWN: populated · selected row · loading (skeleton, chrome stays) · empty (filtered, with Clear/+New) · error (Retry). Dark section included.
+
+PROPOSED NEW TOKENS: none (all from the kit). Brand logo navy uses --ds-color-blue12 in the kit space;
+  runtime maps to --brand-navy per the design-plan §8 crosswalk.
+
+OPEN QUESTIONS (owner): none on the top bar / header treatment — OD-P4-9 + OD-P4-10 are ratified.
+  The notification bell is intentionally a non-functional visual stub (IA slot; notifications deferred).
+================================================================================
+-->
+</body>
+</html>

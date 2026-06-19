@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOS revamp — My Week (calm home) in shell</title>
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; }
+  .pad { padding: 16px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+
+  /* ---- Shared shell (top bar + rail) — consistent across all revamp mockups ---- */
+  .shell {
+    display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 236px 1fr;
+    grid-template-areas: "topbar topbar" "rail main";
+    background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden;
+    border-radius: var(--ds-border-radius-md);
+  }
+  .topbar {
+    grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
+    height: 56px; padding: 0 var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary);
+  }
+  .tb-search {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 300px;
+    padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-tertiary); cursor: text;
+    background: var(--ds-background-secondary); flex: none;
+  }
+  .tb-search .lbl { flex: 1; font-size: 13px; }
+  .kbd { font-family: var(--ds-code-font-family); font-size: 11px; padding: 1px 4px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs);
+    color: var(--ds-font-color-tertiary); }
+  .tb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+  .tb-crumb a { color: var(--ds-font-color-secondary); text-decoration: none; flex: none; }
+  .tb-crumb a:hover { color: var(--ds-font-color-primary); }
+  .tb-crumb .sep { color: var(--ds-font-color-light); flex: none; }
+  .tb-crumb .cur { color: var(--ds-font-color-primary); font-weight: 500; }
+  .tb-spacer-top { flex: 1; }
+  .tb-bell { width: 34px; height: 34px; border-radius: var(--ds-border-radius-sm);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    color: var(--ds-font-color-tertiary); border: none; background: none; flex: none; }
+  .tb-bell:hover { background: var(--ds-background-transparent-light); color: var(--ds-font-color-secondary); }
+  .tb-user { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px;
+    padding: 0 6px 0 4px; border-radius: var(--ds-border-radius-pill); cursor: pointer; flex: none; }
+  .tb-user:hover { background: var(--ds-background-transparent-light); }
+  .tb-user .nm { font-size: 13px; font-weight: 500; }
+  .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
+  .tb-av { width: 26px; height: 26px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; flex: none; }
+
+  .rail { grid-area: rail; background: var(--ds-background-secondary);
+    border-right: 1px solid var(--ds-border-color-light);
+    padding: var(--ds-spacing-2); display: flex; flex-direction: column; }
+  .ws-switch { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 44px;
+    padding: 0 var(--ds-spacing-2); border-radius: var(--ds-border-radius-sm); cursor: pointer; }
+  .ws-switch:hover { background: var(--ds-background-transparent-light); }
+  .ws-logo { width: 24px; height: 24px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;
+    position: relative; flex: none; }
+  .ws-logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
+  .ws-name { flex: 1; font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
+  .ws-chev { color: var(--ds-font-color-tertiary); }
+  .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ds-font-color-light); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500; }
+  .nav-item { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary);
+    font-size: 13px; cursor: pointer; text-decoration: none; }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }
+  .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-light); }
+  .rail-spacer { flex: 1; }
+  .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
+
+  /* ---- Main scrolls; My Week is a single centered column with the navy surface-wash ---- */
+  .main { grid-area: main; min-width: 0; overflow: auto;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--ds-color-blue12) 4%, transparent) 0%, transparent 220px),
+      var(--ds-background-primary);
+  }
+  .home { max-width: 1080px; margin: 0 auto; padding: 28px 32px; }
+  .page-title { font-family: var(--ds-font-display); font-size: 24px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+  .subtitle { color: var(--ds-font-color-tertiary); font-size: 13px; margin: 6px 0 20px; }
+
+  .card { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); box-shadow: var(--ds-box-shadow-light); margin-bottom: 16px; overflow: hidden; }
+  .card-head { display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .card-head .t { font-family: var(--ds-font-display); font-size: 16px; font-weight: 600; }
+  .card-head .m { color: var(--ds-font-color-tertiary); font-size: 12px; margin-left: 10px; }
+  .card-head a { margin-left: auto; color: var(--ds-color-blue); text-decoration: none; font-size: 13px; font-weight: 600; }
+
+  table.mini { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  /* OD-P4-10: shared lighter-overline header — UPPERCASE + 0.06em tracking, WEIGHT 400, light color */
+  .mini thead th { text-align: left; height: 36px; padding: 0 20px;
+    font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 11px;
+    color: var(--ds-font-color-light); border-bottom: 1px solid var(--ds-border-color-light); }
+  .mini tbody td { height: 46px; padding: 0 20px; border-bottom: 1px solid var(--ds-border-color-light);
+    color: var(--ds-font-color-primary); vertical-align: middle; }
+  .mini tbody tr:last-child td { border-bottom: none; }
+  .mini tbody tr:hover { background: var(--ds-background-secondary); cursor: pointer; }
+  .name-chip { color: var(--ds-font-color-primary); text-decoration: none; font-weight: 500; }
+  .mini tbody tr:hover .name-chip { text-decoration: none; }
+
+  .tag { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; }
+  .tag .d { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }
+  .tag.block { background: var(--ds-tag-background-red); color: var(--ds-tag-text-red); } .tag.block .d { background: var(--ds-color-red); }
+  .tag.prog { background: var(--ds-tag-background-amber); color: var(--ds-tag-text-amber); } .tag.prog .d { background: var(--ds-color-amber); }
+  .tag.open { background: var(--ds-tag-background-blue); color: var(--ds-tag-text-blue); } .tag.open .d { background: var(--ds-color-blue); }
+  .owner { display: inline-flex; align-items: center; gap: 6px; }
+  .av-sm { width: 20px; height: 20px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; }
+  .plusn { color: var(--ds-font-color-tertiary); font-size: 12px; }
+  .meta { color: var(--ds-font-color-secondary); font-variant-numeric: tabular-nums; }
+  .due-over { color: var(--ds-color-red); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .due-soon { color: var(--ds-tag-text-amber); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* strips (flat — no resting shadow, per Soft-Elevation Rule) */
+  .strip { display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 12px 20px;
+    background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); margin-bottom: 12px; }
+  .strip .body { flex: 1; font-size: 14px; }
+  .strip a { color: var(--ds-color-blue); text-decoration: none; font-size: 13px; font-weight: 600; flex: none; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; flex: none; }
+  .pill .d { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }
+  .pill.success { background: var(--ds-tag-background-green); color: var(--ds-tag-text-green); } .pill.success .d { background: var(--ds-color-green); }
+  .pill.warning { background: var(--ds-tag-background-amber); color: var(--ds-tag-text-amber); } .pill.warning .d { background: var(--ds-color-amber); }
+  .pill.neutral { background: var(--ds-background-tertiary); color: var(--ds-font-color-secondary); } .pill.neutral .d { background: var(--ds-font-color-light); }
+
+  .team-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 500;
+    color: var(--ds-font-color-light); margin: 22px 4px 8px; }
+  .team-row { display: flex; align-items: center; gap: 12px; padding: 10px 20px; font-size: 14px;
+    border-bottom: 1px solid var(--ds-border-color-light); }
+  .team-row:last-child { border-bottom: none; }
+  .team-row .nm { flex: 1; }
+  .team-row .rl { color: var(--ds-font-color-tertiary); font-size: 12px; margin-left: 6px; }
+  .dark-wrap { background: var(--ds-background-tertiary); padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="mock-label">Surface 4 — My Week (calm at-a-glance home; MOS density mode OD-P0-7) in shell · light</div>
+  <div class="shell" style="height:820px">
+    <!-- shared top bar (OD-P4-9) -->
+    <header class="topbar">
+      <div class="tb-search" role="button" aria-label="Search — open command menu">
+        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      </div>
+      <nav class="tb-crumb" aria-label="Breadcrumb">
+        <a href="#">Gordi MOS</a><span class="sep">›</span>
+        <span class="cur" aria-current="page">My Week</span>
+      </nav>
+      <span class="tb-spacer-top"></span>
+      <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+      <div class="tb-user" role="button" aria-label="Account menu">
+        <div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span>
+      </div>
+    </header>
+
+    <aside class="rail">
+      <div class="ws-switch">
+        <div class="ws-logo">G<span class="dot"></span></div>
+        <span class="ws-name">Gordi MOS</span><span class="ws-chev">▾</span>
+      </div>
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item active" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <div class="rail-spacer"></div>
+      <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+    </aside>
+
+    <!-- MAIN: My Week single centered column on the surface-wash -->
+    <div class="main">
+      <div class="home">
+        <h1 class="page-title">My Week</h1>
+        <p class="subtitle">Week of 16–22 Jun · Thursday · what needs you, your update, and today on the floor</p>
+
+        <!-- dominant module -->
+        <section class="card" aria-label="My tasks this week">
+          <div class="card-head">
+            <span class="t">My tasks</span>
+            <span class="m">Where you're Responsible or Accountable · off track first</span>
+            <a href="#">All tasks →</a>
+          </div>
+          <table class="mini">
+            <colgroup><col style="width:40%"><col style="width:16%"><col style="width:20%"><col style="width:14%"><col style="width:10%"></colgroup>
+            <thead><tr><th>Task</th><th>Status</th><th>Owner (R)</th><th>Due</th><th>Activity</th></tr></thead>
+            <tbody>
+              <tr><td><a class="name-chip" href="#">Finalise Q3 roastery output forecast</a></td><td><span class="tag block"><span class="d"></span>Blocked</span></td><td><span class="owner"><span class="av-sm">RL</span> Rina L. <span class="plusn">+2</span></span></td><td class="due-over">Overdue 3d</td><td class="meta">5d</td></tr>
+              <tr><td><a class="name-chip" href="#">Approve new bar opening checklist</a></td><td><span class="tag prog"><span class="d"></span>In progress</span></td><td><span class="owner"><span class="av-sm">DW</span> Dewi W.</span></td><td class="due-soon">in 2d</td><td class="meta">8h</td></tr>
+              <tr><td><a class="name-chip" href="#">Draft August staff roster — all units</a></td><td><span class="tag open"><span class="d"></span>Open</span></td><td><span class="owner"><span class="av-sm">AS</span> Arief S. <span class="plusn">+3</span></span></td><td class="meta">Wed 2 Jul</td><td class="meta">4h</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- strip 1: weekly update -->
+        <section class="strip" aria-label="My weekly update">
+          <span class="pill success"><span class="d"></span>Submitted</span>
+          <span class="body">Submitted <span class="meta">on time · Thu 16:40 WIB</span>.</span>
+          <a href="#">View update →</a>
+        </section>
+
+        <!-- strip 2: ops -->
+        <section class="strip" aria-label="Today on the Daily Log">
+          <span class="pill warning"><span class="d"></span>5 today</span>
+          <span class="body">5 log entries today · something needs attention.</span>
+          <a href="#">See what needs attention →</a>
+        </section>
+
+        <!-- manager team module -->
+        <div class="team-label">Your team — Week of 16–22 Jun</div>
+        <section class="card" aria-label="Team weekly updates" style="box-shadow:var(--ds-box-shadow-light)">
+          <div class="team-row"><span class="nm">Rina Lestari <span class="rl">Roastery Lead</span></span><span class="pill success"><span class="d"></span>Filed</span></div>
+          <div class="team-row"><span class="nm">Dewi Wahyuni <span class="rl">Bar Lead</span></span><span class="pill warning"><span class="d"></span>Draft</span></div>
+          <div class="team-row"><span class="nm">Budi Santoso <span class="rl">Kitchen Lead</span></span><span class="pill neutral"><span class="d"></span>Not started</span></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING + EMPTY -->
+<div class="pad">
+  <div class="mock-label">My Week — loading (dominant card) · empty (clear)</div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:1080px; margin:0 auto;">
+    <section class="card" aria-busy="true">
+      <div class="card-head"><span class="t">My tasks</span></div>
+      <table class="mini"><thead><tr><th>Task</th><th>Status</th><th>Due</th></tr></thead>
+        <tbody>
+          <tr><td><span style="display:inline-block;width:150px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></td><td><span style="display:inline-block;width:60px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></td><td><span style="display:inline-block;width:40px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></td></tr>
+          <tr><td><span style="display:inline-block;width:180px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></td><td><span style="display:inline-block;width:60px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></td><td><span style="display:inline-block;width:40px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></td></tr>
+        </tbody></table>
+    </section>
+    <section class="card">
+      <div class="card-head"><span class="t">My tasks</span></div>
+      <div style="text-align:center; padding:40px 16px; color:var(--ds-font-color-secondary); font-size:13px">
+        No tasks where you're R or A this week — you're clear.
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="wrap">
+    <div class="mock-label">Surface 4 — dark mode (in shell)</div>
+    <div class="shell" style="height:560px">
+      <header class="topbar">
+        <div class="tb-search" role="button" aria-label="Search — open command menu">
+          <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+        </div>
+        <nav class="tb-crumb" aria-label="Breadcrumb"><a href="#">Gordi MOS</a><span class="sep">›</span><span class="cur" aria-current="page">My Week</span></nav>
+        <span class="tb-spacer-top"></span>
+        <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+        <div class="tb-user" role="button" aria-label="Account menu"><div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span></div>
+      </header>
+      <aside class="rail">
+        <div class="ws-switch"><div class="ws-logo">G<span class="dot"></span></div><span class="ws-name">Gordi MOS</span><span class="ws-chev">▾</span></div>
+        <div class="rail-group">Workspace</div>
+        <a class="nav-item active" href="#"><span class="ico">◫</span> My Week</a>
+        <a class="nav-item" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+        <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+        <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+        <div class="rail-spacer"></div>
+        <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+      </aside>
+      <div class="main">
+        <div class="home">
+          <h1 class="page-title">My Week</h1>
+          <p class="subtitle">Week of 16–22 Jun · Thursday · what needs you</p>
+          <section class="card">
+            <div class="card-head"><span class="t">My tasks</span><span class="m">off track first</span><a href="#">All tasks →</a></div>
+            <table class="mini"><thead><tr><th>Task</th><th>Status</th><th>Owner (R)</th><th>Due</th></tr></thead>
+              <tbody>
+                <tr><td><a class="name-chip" href="#">Finalise Q3 roastery output forecast</a></td><td><span class="tag block"><span class="d"></span>Blocked</span></td><td><span class="owner"><span class="av-sm">RL</span> Rina L.</span></td><td class="due-over">Overdue 3d</td></tr>
+                <tr><td><a class="name-chip" href="#">Approve new bar opening checklist</a></td><td><span class="tag prog"><span class="d"></span>In progress</span></td><td><span class="owner"><span class="av-sm">DW</span> Dewi W.</span></td><td class="due-soon">in 2d</td></tr>
+              </tbody></table>
+          </section>
+          <section class="strip"><span class="pill success"><span class="d"></span>Submitted</span><span class="body">Submitted on time.</span><a href="#">View update →</a></section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-PLAN ANCHOR: docs/plans/2026-06-19-ui-revamp-design-plan.md §4 (My Week — Alt 4B)
+CONVERGED DESIGN — owner sign-off gate. Updated 2026-06-19 for OD-P4-9 (shared shell) + OD-P4-10
+(lighter-overline mini-table header). Preserves MOS density mode (OD-P0-7): single ~1080px column,
+one dominant module, ≤2 strips, role-conditional team module; surface-wash navy top-gradient (OD-P3-12).
+
+SHELL (OD-P4-9 — consistent across all revamp mockups):
+  • Global top bar KEPT: ⌘K search · breadcrumb (Gordi MOS › My Week) · notification bell (STUB) · user chip.
+  • Rail = navigation + workspace identity only (workspace switcher + Workspace nav + Settings foot);
+    no in-rail search, no foot user chip.
+
+TOKENS USED (--ds-* only):
+  Surfaces:  --ds-background-primary, --ds-background-secondary, --ds-background-tertiary, --ds-background-transparent-light
+  Wash:      faint --ds-color-blue12 (navy) top gradient → transparent within 220px (approximates --gradient-surface-wash)
+  Text:      --ds-font-color-primary/secondary/tertiary/light/inverted
+  Action:    --ds-color-blue (links, active nav icon), --ds-color-blue9/12 (avatars)
+  Brand:     --ds-color-blue12 (logo square), --ds-color-orange (logo dot)
+  Status:    --ds-tag-background-{red,amber,blue,green} + --ds-tag-text-* + --ds-color-* dots
+  Borders:   --ds-border-color-light, --ds-border-color-medium
+  Elevation: --ds-box-shadow-light (dominant card + team card rest lift; strips stay FLAT)
+  Type:      --ds-font-display (title/heads), --ds-font-family, --ds-code-font-family (⌘K), --ds-font-size-{xs,sm}
+  Radii:     --ds-border-radius-{xs,sm,md,pill}
+
+KEY MOVE vs today: mini-table thead adopts the OD-P4-10 lighter overline (UPPERCASE + 0.06em tracking,
+  WEIGHT 400, --ds-font-color-light) — same header voice as the Tasks table, just softened.
+
+LENS-D GUARDS: team module links only to up-chain reports' updates (A3 upward-only); strips each carry ONE next action (Q4).
+
+STATES SHOWN: populated · loading (card skeleton) · empty ("you're clear"). Strips degrade independently. Dark section included.
+PROPOSED NEW TOKENS: none.
+================================================================================
+-->
+</body>
+</html>
