@@ -1,6 +1,7 @@
 // KitchenLogPage tests — TDD, AC-tagged
-// Covers: AC-020/021/022/030 (submit/validation), all states (loading, empty,
-// error, submitting, success, offline, unauthenticated)
+// Covers: AC-020/021/022/030 (submit/validation/transfer cap), all states (loading,
+// empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
+// BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
@@ -13,14 +14,24 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('@/lib/db/kitchen-logs', () => ({
   listActiveWipItems: vi.fn(),
   fetchPlanMap: vi.fn(),
+  fetchStockMap: vi.fn(),
+  resolveKitchenBuId: vi.fn(),
   insertKitchenLogBatch: vi.fn(),
 }))
-import { listActiveWipItems, fetchPlanMap, insertKitchenLogBatch } from '@/lib/db/kitchen-logs'
+import {
+  listActiveWipItems,
+  fetchPlanMap,
+  fetchStockMap,
+  resolveKitchenBuId,
+  insertKitchenLogBatch,
+} from '@/lib/db/kitchen-logs'
 import type { WipItemOption } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListActiveWipItems = vi.mocked(listActiveWipItems)
 const mockFetchPlanMap = vi.mocked(fetchPlanMap)
+const mockFetchStockMap = vi.mocked(fetchStockMap)
+const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockInsertKitchenLogBatch = vi.mocked(insertKitchenLogBatch)
 
 const VIEWER_MEMBER: AuthState = {
@@ -53,7 +64,8 @@ const VIEWER_MEMBER: AuthState = {
   signOut: vi.fn(),
 }
 
-const BU_ID = '20000000-0000-0000-0000-000000000001'
+// The Kitchen-and-Bar BU id resolved BY NAME (#3) — NOT viewer.roles[0].business_unit_id.
+const BU_ID = '30000000-0000-0000-0000-0000000000kb'
 
 const WIP_ITEMS: WipItemOption[] = [
   { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
@@ -61,8 +73,14 @@ const WIP_ITEMS: WipItemOption[] = [
 ]
 
 const PLAN_MAP = {
-  w1: { Production: 20 },
+  w1: { Production: 20, 'Transfer to Radiant': 10 },
   w2: { Production: 12 },
+}
+
+// Stock: w1 has 3 on hand, 9 available to transfer.
+const STOCK_MAP = {
+  w1: { stok: 3, tersedia: 9 },
+  w2: { stok: 0, tersedia: 0 },
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -89,6 +107,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockListActiveWipItems.mockResolvedValue(WIP_ITEMS)
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
+  mockFetchStockMap.mockResolvedValue(STOCK_MAP)
+  mockResolveKitchenBuId.mockResolvedValue(BU_ID)
   // Default: online
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
 })
@@ -210,7 +230,7 @@ describe('Populated state — WIP items loaded', () => {
 })
 
 // ── AC-020/021: variance note gate ────────────────────────────────────────────
-describe('AC-020/021: variance-note gate (note required when qty differs from plan)', () => {
+describe('AC-020/021: variance-note gate (note required when qty differs from effective target)', () => {
   it('AC-020: blocks submit and shows note-required cue when qty != plan and no note', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
@@ -228,16 +248,38 @@ describe('AC-020/021: variance-note gate (note required when qty differs from pl
       await Promise.resolve()
     })
 
-    // Should show note-required validation
+    // Should show the ID note-required cue (NFR-012 content)
     await waitFor(() => {
-      expect(screen.getByText(/note required/i)).toBeInTheDocument()
+      expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
     })
     // insertKitchenLogBatch should NOT have been called
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 
+  it('#6: reveals the note field INLINE as soon as qty != target (no submit needed)', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+
+    // No note field before any input
+    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
+
+    // One increment (plan=12, qty=1 → off-target) reveals the note inline
+    const incBtn = screen.getAllByRole('button', { name: /increase nasi goreng/i })[0]
+    await act(async () => {
+      fireEvent.click(incBtn)
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /note for nasi goreng/i })).toBeInTheDocument()
+      expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
+    })
+    // No submit attempt occurred
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+
   it('AC-021: off-plan item (no plan row) requires a note', async () => {
-    // w1 has no plan for Transfer to Bungur
+    // No plans → every staged item is off-target
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -252,9 +294,59 @@ describe('AC-020/021: variance-note gate (note required when qty differs from pl
     })
 
     await waitFor(() => {
-      expect(screen.getByText(/note required/i)).toBeInTheDocument()
+      expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
     })
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+})
+
+// ── AC-022: transfer-availability cap (FR-023) ────────────────────────────────
+describe('AC-022: transfer-availability cap — "Stok kurang — produksi dulu" (FR-023)', () => {
+  it('AC-022: a Transfer line whose qty exceeds tersedia is capped + shows the produce-first cue', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Switch to a Transfer action_type (w1 tersedia=9)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+      await Promise.resolve()
+    })
+
+    // The qty input for Ayam Bakar (w1)
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+
+    // Type 10 (exceeds tersedia 9) — the line caps to 9 and shows the cue
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '10' } })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/stok kurang — produksi dulu/i)).toBeInTheDocument()
+    })
+    // Capped to the available total (9), not 10 (AC-022 — cap, not bypass)
+    expect((qtyInput as HTMLInputElement).value).toBe('9')
+  })
+
+  it('AC-022: a Transfer of <= tersedia is allowed with no cap cue', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+      await Promise.resolve()
+    })
+
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    // effective target = max(plan 10 − stok 3, 0) = 7 → log exactly 7 (on-target, no note, no cap)
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '7' } })
+      await Promise.resolve()
+    })
+
+    expect((qtyInput as HTMLInputElement).value).toBe('7')
+    expect(screen.queryByText(/stok kurang/i)).toBeNull()
+    expect(screen.queryByText(/catatan wajib/i)).toBeNull()
   })
 })
 
@@ -386,5 +478,86 @@ describe('Offline / write-blocked state (NFR-008)', () => {
 
     const submitBtn = screen.getByRole('button', { name: /submit/i })
     expect(submitBtn).toBeDisabled()
+  })
+
+  // RI-2: offline indicator surfaced in EVERY state, including load-failure —
+  // never a bare Retry loop when navigator.onLine === false.
+  it('RI-2: surfaces the offline indicator in the ERROR branch (not a bare Retry loop)', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
+    mockListActiveWipItems.mockRejectedValue(new Error('network error'))
+    await renderPage()
+    await waitFor(() => {
+      // an explicit offline alert is present alongside Retry
+      expect(screen.getByRole('alert', { name: /offline/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    })
+  })
+
+  it('RI-2: surfaces the offline indicator in the LOADING branch', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
+    mockListActiveWipItems.mockReturnValue(new Promise(() => {}))
+    mockFetchPlanMap.mockReturnValue(new Promise(() => {}))
+    mockFetchStockMap.mockReturnValue(new Promise(() => {}))
+    mockResolveKitchenBuId.mockReturnValue(new Promise(() => {}))
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+      expect(screen.getByRole('alert', { name: /offline/i })).toBeInTheDocument()
+    })
+  })
+})
+
+// ── BU resolution (#3) ────────────────────────────────────────────────────────
+describe('#3: Kitchen-and-Bar BU resolution', () => {
+  it('stamps the resolved Kitchen BU id on every submitted line (not viewer.roles[0])', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamIncBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
+    for (let i = 0; i < 20; i++) fireEvent.click(ayamIncBtn)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0][0].business_unit_id).toBe(BU_ID)
+  })
+
+  it('renders an error state (not the form) when the kitchen BU cannot be resolved', async () => {
+    mockResolveKitchenBuId.mockRejectedValue(
+      new Error('Kitchen business unit ("Kitchen and Bar") not found — cannot log without it.'),
+    )
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    })
+    // The capture form must NOT render without a resolved BU
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+})
+
+// ── RI-3: touch floors on error/unauthenticated affordances ───────────────────
+describe('RI-3: interactive controls meet the 44px touch floor', () => {
+  it('Retry carries the .btn-touch floor on the error state', async () => {
+    mockListActiveWipItems.mockRejectedValue(new Error('network error'))
+    await renderPage()
+    const retry = await screen.findByRole('button', { name: /retry/i })
+    expect(retry.className).toMatch(/btn-touch/)
+  })
+
+  it('Sign-in carries the .btn-touch floor on the unauthenticated state', async () => {
+    mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
+    render(
+      <MemoryRouter initialEntries={['/mos/kitchen/log']}>
+        <Routes>
+          <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    const signin = await screen.findByRole('link', { name: /sign in/i })
+    expect(signin.className).toMatch(/btn-touch/)
   })
 })
