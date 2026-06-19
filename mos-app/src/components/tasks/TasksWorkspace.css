@@ -228,6 +228,30 @@
 tr:hover .row-checkbox,
 tr.row-selected .row-checkbox,
 tr:focus-within .row-checkbox { visibility: visible; }
+
+/* PR-2 AC-T02 — hover-revealed ⋯ row menu (same reveal contract as the checkbox). */
+.row-menu {
+  width: 24px; height: 24px; flex: none; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; color: var(--muted-foreground);
+  border-radius: var(--radius-xs); visibility: hidden;
+}
+.row-menu:hover { background: var(--accent); color: var(--foreground); }
+.row-menu:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
+.row-menu-wrap { position: relative; display: inline-flex; }
+.row-menu-pop {
+  position: absolute; right: 0; top: calc(100% + 2px); z-index: 20; min-width: 120px;
+  background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-rest); padding: 4px; display: flex; flex-direction: column;
+}
+.row-menu-item {
+  padding: 6px 10px; border-radius: var(--radius-xs); color: var(--foreground);
+  text-decoration: none; font-size: 13px; white-space: nowrap;
+}
+.row-menu-item:hover { background: var(--accent); }
+tr:hover .row-menu,
+tr.row-selected .row-menu,
+tr:focus-within .row-menu { visibility: visible; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .task-name {
   font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
