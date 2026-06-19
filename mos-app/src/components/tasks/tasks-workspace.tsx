@@ -29,6 +29,8 @@ import { useTasksViewPref } from './use-tasks-view-pref'
 import type { TasksGroupBy } from './use-tasks-view-pref'
 import { GroupHeaderRow } from './group-header-row'
 import { MobileGroupedCards } from './mobile-grouped-cards'
+import { RowCheckbox } from './row-checkbox'
+import { RowMenu } from './row-menu'
 import { Chevron } from '@/shell/icons'
 import { PageHead } from '@/shell/page-head'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
@@ -79,6 +81,8 @@ type RenderGroup = {
 function SkeletonRow({ condensed }: { condensed: boolean }) {
   return (
     <tr>
+      {/* leading checkbox col (empty - hover-reveal is irrelevant while loading) */}
+      <td className="sk-cell td-cb" />
       <td className="sk-cell"><div className="sk" style={{ width: '42%' }} /></td>
       <td className="sk-cell"><div className="sk pill" /></td>
       <td className="sk-cell"><div className="sk av" /></td>
@@ -93,6 +97,8 @@ function SkeletonRow({ condensed }: { condensed: boolean }) {
           <div className="sk" style={{ width: 28, marginLeft: 'auto' }} />
         </td>
       )}
+      {/* trailing row-menu col (empty) */}
+      <td className="sk-cell td-menu" />
     </tr>
   )
 }
@@ -149,6 +155,19 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // ── Sort (UI state; mapped onto the TanStack sorting state below) ──────────
   const [sortCol, setSortCol] = useState<SortCol>('due')
   const [sortDir, setSortDir] = useState<SortDir>('ascending')
+
+  // ── Row selection (PR-2 AC-T02/T07) — presentational scaffolding only.
+  //    A local selected set; NO bulk action ships this PR. The select-all header
+  //    checkbox exposes aria-checked="mixed" when the selection is partial.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
 
   // ── Data ─────────────────────────────────────────────────────────────────
   const [allTasks, setAllTasks] = useState<TaskListRow[]>([])
@@ -367,7 +386,19 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     // collapsedGroups identity changes drive recompute (isCollapsed reads it)
   }, [groups, isCollapsed, collapsedGroups]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Active-filter detection (for no-results-after-filter vs empty-no-tasks) ──
+  // Select-all derived state (PR-2 AC-T07): aria-checked="mixed" when partial,
+  // true only when every visible leaf row is selected. Empty table -> unchecked.
+  const someChecked = selectedIds.size > 0 && leafTasks.some(t => selectedIds.has(t.id))
+  const allChecked = leafTasks.length > 0 && leafTasks.every(t => selectedIds.has(t.id))
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(prev =>
+      leafTasks.length > 0 && leafTasks.every(t => prev.has(t.id))
+        ? new Set()
+        : new Set(leafTasks.map(t => t.id)),
+    )
+  }, [leafTasks])
+
+  // Active-filter detection (for no-results-after-filter vs empty-no-tasks)
   const hasActiveFilter = businessUnitId !== '' || statusFilter !== '' || personFilter !== ''
     || searchText !== '' || overdueOnly || includeArchived
 
@@ -478,6 +509,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     const isArchived = task.archived_at != null
     const isSelected = selectedId === task.id
     const isCursor = cursor === leafIndex
+    const isChecked = selectedIds.has(task.id)
     return (
       <tr key={task.id}
         ref={isCursor ? cursorRowRef : undefined}
@@ -485,19 +517,27 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         // I1: expose cursor to AT via aria-current; isSelected keeps 'true' for the open drawer row.
         aria-current={isSelected ? 'true' : (isCursor ? 'true' : undefined)}
         onClick={() => navigate(`/tasks/${task.id}`)}>
+        {/* PR-2 AC-T02/T07 — hover-revealed row checkbox (presentational scaffolding; no bulk action). */}
+        <td className="td-cell td-cb">
+          <RowCheckbox checked={isChecked} onChange={() => toggleSelected(task.id)} label={`Select ${task.title}`} />
+        </td>
         <td className="td-main">
-          <Link to={`/tasks/${task.id}`} className="task-row-link" tabIndex={0}>
+          <Link to={`/tasks/${task.id}`} className="task-row-link" tabIndex={0} title={task.title}>
             <span className="task-title-line">
               {isArchived && <span className="archived-tag">Archived</span>}
               <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
             </span>
           </Link>
         </td>
-        <td className="td-cell"><StatusPill status={task.status} /></td>
+        <td className="td-cell td-status"><StatusPill status={task.status} /></td>
         <td className="td-cell td-owner"><OwnerCell fullName={rName} otherCount={otherRaciCount(task)} others={buildOthers(task)} /></td>
         {!condensed && <td className="td-cell td-bu">{buName}</td>}
         <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
         {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
+        {/* PR-2 AC-T02 — hover-revealed ⋯ row menu (Open → /tasks/:id, the only action this PR). */}
+        <td className="td-cell td-menu">
+          <RowMenu taskId={task.id} />
+        </td>
       </tr>
     )
   }
@@ -510,7 +550,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         count={group.rows.length}
         overdue={group.overdue}
         collapsed={isCollapsed(group.key)}
-        colSpan={condensed ? 4 : 6}
+        colSpan={condensed ? 6 : 8}
         prefill={group.prefillParam}
         controlsId={`grp-rows-${group.key}`}
         onToggle={() => toggleCollapsed(group.key)}
@@ -727,6 +767,15 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           <table className="tasks-table" aria-label="Tasks">
             <thead>
               <tr>
+                {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}
+                <th scope="col" className="th-cell th-cb">
+                  <RowCheckbox
+                    checked={allChecked}
+                    indeterminate={someChecked && !allChecked}
+                    onChange={() => toggleSelectAll()}
+                    label="Select all tasks"
+                  />
+                </th>
                 <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`}
                   aria-sort={colSort('task')} onClick={() => handleSort('task')}>
                   Task{sortIndicator('task')}
@@ -752,6 +801,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
                     Activity{sortIndicator('activity')}
                   </th>
                 )}
+                {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
+                <th scope="col" className="th-cell th-menu" aria-label="Row actions" />
               </tr>
             </thead>
             {virtualize ? (
