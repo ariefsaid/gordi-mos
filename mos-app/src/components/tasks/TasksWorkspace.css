@@ -185,7 +185,7 @@
    (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
 .sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--primary); }
 .td-main, .td-cell {
-  height: 54px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle;
+  height: 50px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; /* OD-P3-6: dense DB-view row (not the 54px default) */
 }
 /* Due/Activity: LEFT-aligned like every other column (uniform grid), but never wrap. */
 .td-nowrap { white-space: nowrap; }
@@ -231,13 +231,13 @@
 .act { color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
 
 /* ── Loading skeleton ── */
-.sk-cell { height: 54px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; }
+.sk-cell { height: 50px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; }
 .sk { background: var(--secondary); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: 999px; display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: 999px; display: block; }
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .skeleton-cards { padding: 8px 12px; }
-.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 54px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); }
+.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 50px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); }
 
 /* ── Error / Empty (IXD-5, PR-2) ── */
 /* The Tasks error + empty states use the shared <ErrorState> / <EmptyState>
