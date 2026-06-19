@@ -39,6 +39,7 @@ vi.mock('../auth/use-auth', () => ({
       person: { id: 'p1', org_id: 'org1', user_id: 'u1', full_name: 'Test', email: null, archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
       roles: [],
       isManager: false,
+      accessRoles: [],
     },
     signOut: () => {},
   })),
@@ -59,7 +60,7 @@ const mockRole: RolesRow = {
 }
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
   signOut: async () => {},
 }
 

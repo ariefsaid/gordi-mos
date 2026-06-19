@@ -26,3 +26,16 @@ export interface PersonRolesRow {
   role_id: string
   created_at: string
 }
+export type AccessRole = 'admin' | 'ops_lead' | 'finance' | 'member'
+export interface PersonAccessRolesRow {
+  id: string
+  org_id: string
+  person_id: string
+  access_role: AccessRole
+  granted_by: string | null
+  granted_at: string
+  revoked_at: string | null
+  revoked_by: string | null
+  created_at: string
+  updated_at: string
+}

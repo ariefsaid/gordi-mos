@@ -26,6 +26,7 @@ const viewer = {
   },
   roles: [],
   isManager: false,
+  accessRoles: [],
 }
 
 function renderTopBar(path = '/tasks', onOpenDrawer = vi.fn()) {

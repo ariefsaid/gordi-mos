@@ -25,6 +25,7 @@ function renderShell(path = '/') {
       },
       roles: [],
       isManager: false,
+      accessRoles: [],
     },
     signOut: vi.fn(),
   })

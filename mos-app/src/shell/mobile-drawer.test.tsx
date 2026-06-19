@@ -73,6 +73,7 @@ function renderNarrow() {
       },
       roles: [],
       isManager: false,
+      accessRoles: [],
     },
     signOut: vi.fn(),
   })

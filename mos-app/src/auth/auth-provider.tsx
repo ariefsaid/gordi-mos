@@ -38,7 +38,8 @@ export function AuthProvider({ children }: Props) {
       setState({ status: 'unauthenticated' })
       return
     }
-    const result = await resolveViewer(userId)
+    const { data } = await supabase.auth.getSession()
+    const result = await resolveViewer(userId, data.session?.access_token)
     if (result.person === null) {
       setState({ status: 'orphan', signOut: handleSignOut })
     } else {
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: Props) {
           person: result.person,
           roles: result.roles,
           isManager: result.isManager,
+          accessRoles: result.accessRoles,
         },
         signOut: handleSignOut,
       })
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: Props) {
   useEffect(() => {
     let cancelled = false
 
-    async function resolveSession(userId: string | undefined) {
+    async function resolveSession(userId: string | undefined, accessToken?: string) {
       // Bail out if PASSWORD_RECOVERY was already detected — do not overwrite recovering state.
       if (isRecoveringRef.current) return
 
@@ -66,7 +68,7 @@ export function AuthProvider({ children }: Props) {
         return
       }
 
-      const result = await resolveViewer(userId)
+      const result = await resolveViewer(userId, accessToken)
       if (cancelled) return
       // Second check after async boundary — event may have fired while we were awaiting.
       if (isRecoveringRef.current) return
@@ -80,6 +82,7 @@ export function AuthProvider({ children }: Props) {
             person: result.person,
             roles: result.roles,
             isManager: result.isManager,
+            accessRoles: result.accessRoles,
           },
           signOut: handleSignOut,
         })
@@ -88,7 +91,7 @@ export function AuthProvider({ children }: Props) {
 
     // Bootstrap: check existing session
     supabase.auth.getSession().then(({ data }) => {
-      resolveSession(data.session?.user?.id)
+      resolveSession(data.session?.user?.id, data.session?.access_token)
     })
 
     // Subscribe to auth state changes
@@ -100,7 +103,7 @@ export function AuthProvider({ children }: Props) {
         recoveryUserIdRef.current = session?.user?.id
         if (!cancelled) setState({ status: 'recovering', clearRecovering: handleClearRecovering })
       } else if (event === 'SIGNED_IN') {
-        resolveSession(session?.user?.id)
+        resolveSession(session?.user?.id, session?.access_token)
       } else if (event === 'SIGNED_OUT') {
         isRecoveringRef.current = false
         if (!cancelled) setState({ status: 'unauthenticated' })

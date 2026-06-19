@@ -26,18 +26,44 @@ export function deriveIsManager(input: {
   return false
 }
 
+// Decode the access_roles claim from the session JWT payload (decode-only — the token is server-signed
+// by Supabase Auth; the SPA reads the claim, never a client-set value). Fail closed: undecodable /
+// absent / non-array -> []. FR-071, NFR-002.
+function decodeAccessRolesClaim(accessToken: string | undefined): string[] {
+  if (!accessToken) return []
+  try {
+    const payload = accessToken.split('.')[1]
+    if (!payload) return []
+    const json = JSON.parse(
+      decodeURIComponent(
+        atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+          .split('')
+          .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+          .join(''),
+      ),
+    ) as { access_roles?: unknown }
+    return Array.isArray(json.access_roles)
+      ? json.access_roles.filter((r): r is string => typeof r === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
 export interface ViewerResult {
   person: PeopleRow | null
   roles: RolesRow[]
   isManager: boolean
+  accessRoles: string[]
 }
 
 // resolveViewer: read the person by user_id, their held roles, and derive isManager.
 // - Never sends org_id (RLS scopes it — §8, ADR-0002 D2).
-// - Returns { person: null, roles: [], isManager: false } on orphan (no people row) — fail-closed, no throw.
+// - Returns { person: null, roles: [], isManager: false, accessRoles: [] } on orphan — fail-closed, no throw.
 // - Throws on unexpected (non-empty) error from roles/junction reads (§8 "throw on error").
-// FR-014/016.
-export async function resolveViewer(userId: string): Promise<ViewerResult> {
+// - accessToken: optional session JWT; access_roles claim decoded from it (no DB round-trip, FR-071).
+// FR-014/016, FR-070..073.
+export async function resolveViewer(userId: string, accessToken?: string): Promise<ViewerResult> {
   // 1. Fetch the person row
   const { data: person, error: personError } = await supabase
     .from('people')
@@ -49,7 +75,7 @@ export async function resolveViewer(userId: string): Promise<ViewerResult> {
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false }
+    return { person: null, roles: [], isManager: false, accessRoles: [] }
   }
 
   // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
@@ -100,9 +126,14 @@ export async function resolveViewer(userId: string): Promise<ViewerResult> {
       return safeA - safeB
     })
 
+  const assigned = decodeAccessRolesClaim(accessToken)
+  const isManager = deriveIsManager({ viewerRoleIds, roles, heldRoleIds })
+  const accessRoles = isManager ? [...assigned, 'manager'] : assigned
+
   return {
     person,
     roles: viewerRoles,
-    isManager: deriveIsManager({ viewerRoleIds, roles, heldRoleIds }),
+    isManager,
+    accessRoles,
   }
 }

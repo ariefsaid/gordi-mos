@@ -59,6 +59,7 @@ const VIEWER: AuthState = {
       },
     ],
     isManager: false,
+    accessRoles: [],
   },
   signOut: vi.fn(),
 }

@@ -72,12 +72,12 @@ const mockRole: RolesRow = {
 
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
   signOut: async () => {},
 }
 const managerState: AuthState = {
   status: 'authenticated',
-  viewer: { person: { ...mockPerson, id: 'manager-id' }, roles: [mockRole], isManager: true },
+  viewer: { person: { ...mockPerson, id: 'manager-id' }, roles: [mockRole], isManager: true, accessRoles: [] },
   signOut: async () => {},
 }
 
@@ -300,7 +300,7 @@ describe('AC-073 — read-only mode for non-editors', () => {
     // unrelated user is VIEWER (not the one in R/A)
     const nonEditorAuth: AuthState = {
       status: 'authenticated',
-      viewer: { person: mockPerson, roles: [mockRole], isManager: false }, // mockPerson.id = VIEWER_ID, not in R/A
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] }, // mockPerson.id = VIEWER_ID, not in R/A
       signOut: async () => {},
     }
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -535,7 +535,7 @@ describe('RIC-3 — non-editor read-only regression guard', () => {
     })
     const nonEditorAuth: AuthState = {
       status: 'authenticated',
-      viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
       signOut: async () => {},
     }
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -620,7 +620,7 @@ describe('I2 — R and A editable on detail page', () => {
     })
     const nonEditorAuth: AuthState = {
       status: 'authenticated',
-      viewer: { person: mockPerson, roles: [mockRole], isManager: false },
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
       signOut: async () => {},
     }
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })

@@ -36,6 +36,7 @@ beforeEach(() => {
       },
       roles: [],
       isManager: true,
+      accessRoles: [],
     },
     signOut: vi.fn(),
   })
