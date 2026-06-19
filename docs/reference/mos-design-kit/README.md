@@ -5,13 +5,10 @@ It provides design **tokens** (light/dark), foundation **guidelines** (color, ty
 and **IA/IxD patterns** (rail, record page, record table, kanban). Use it to design MOS screens and
 prototypes — and as the source the app's real `DESIGN.md` can adopt from.
 
-> **Provenance & licensing.** The neutral-ramp, scale, and elevation **values** here are derived from an
-> open-source CRM's published design tokens — *factual values*, re-expressed under our own `--ds-*` names
-> with our adopted fonts. This kit contains **no copied source code and no third-party brand assets**
-> (no logos, no illustrations, no vendor icons). For production, **re-implement** tokens/components in the
-> app's own pipeline (shadcn-HSL `:root` + Tailwind v4); do not ship this kit's files as product code.
-> The upstream CRM is AGPL-3.0 — keep the firewall: values are facts, their code is not. See
-> the source-extraction notes under `docs/reference/` for the full analysis vs `DESIGN.md`.
+> **Scope.** MOS's own design kit — `--ds-*` tokens + foundation guidelines + IA/IxD patterns,
+> our naming and our adopted fonts. Contains **no third-party brand assets** (no logos, illustrations,
+> or vendor icons). For production, **re-implement** tokens/components in the app's own pipeline
+> (shadcn-HSL `:root` + Tailwind v4) — this kit is a reference, not shipped product code.
 
 ## Direction in one paragraph
 
