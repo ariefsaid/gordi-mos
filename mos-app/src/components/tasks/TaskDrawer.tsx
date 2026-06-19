@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface } from './TaskSurface'
 import { useExpandPref } from './useExpandPref'
-import { useIsSplitWidth } from '../../shell/useIsSplitWidth'
-import { useIsDesktop } from '../../shell/useIsDesktop'
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import { useIsSplitWidth } from '@/shell/useIsSplitWidth'
+import { useIsDesktop } from '@/shell/useIsDesktop'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */

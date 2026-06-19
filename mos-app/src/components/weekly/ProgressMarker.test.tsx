@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
-import type { ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
+import type { ProgressMarker as ProgressMarkerType } from '@/lib/db/weeklyUpdates.types'
 
 // ── Static (display) form ───────────────────────────────────────────────────
 describe('ProgressMarker — static display (re-skinned onto shared <Pill>)', () => {

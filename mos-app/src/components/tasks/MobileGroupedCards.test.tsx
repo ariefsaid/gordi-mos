@@ -9,7 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './MobileGroupedCards'
 import type { MobileGroupedCardsProps } from './MobileGroupedCards'
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {

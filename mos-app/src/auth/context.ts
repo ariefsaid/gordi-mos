@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
 
 export type AuthState =
   | { status: 'loading' }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { canEdit, canArchive } from './taskPermissions'
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 const t = (o: Partial<TaskListRow>): TaskListRow => ({
   id: 'task-1', org_id: 'org', title: 'T', business_unit_id: 'bu-1',

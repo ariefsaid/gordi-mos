@@ -4,28 +4,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
+import type { AuthState } from '@/auth/context'
 
 vi.mock('../auth/useAuth')
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 
 vi.mock('../lib/db/opsLog', () => ({
   addLogEntry: vi.fn(),
   editLogEntry: vi.fn(),
   getLogEntry: vi.fn(),
 }))
-import { addLogEntry, editLogEntry, getLogEntry } from '../lib/db/opsLog'
+import { addLogEntry, editLogEntry, getLogEntry } from '@/lib/db/opsLog'
 
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
 }))
-import { getBusinessUnits } from '../lib/db/directory'
+import { getBusinessUnits } from '@/lib/db/directory'
 
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
   getTaskTitlesByIds: vi.fn(),
 }))
-import { listTasks } from '../lib/db/tasks'
+import { listTasks } from '@/lib/db/tasks'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockAddLogEntry = vi.mocked(addLogEntry)

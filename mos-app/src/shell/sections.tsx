@@ -1,6 +1,6 @@
 import type React from 'react'
 import { MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon } from './icons'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 export interface Section {
   path: string

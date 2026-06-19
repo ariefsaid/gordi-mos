@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '../../auth/context'
-import { AuthContext } from '../../auth/context'
-import type { PeopleRow, RolesRow } from '../../lib/database.types'
-import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '../../lib/db/tasks.types'
-import type { BusinessUnitOption, PersonOption } from '../../lib/db/directory'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
+import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -26,8 +26,8 @@ vi.mock('../../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask, archiveTask } from '../../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../../lib/db/directory'
+import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask, archiveTask } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { TaskSurface } from './TaskSurface'
 
 const mockGetTask = vi.mocked(getTask)
@@ -138,7 +138,7 @@ describe('TaskSurface — view mode', () => {
   it('calls onClose (not navigate) after a successful archive', async () => {
     const onClose = vi.fn()
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    const { archiveTask } = await import('../../lib/db/tasks')
+    const { archiveTask } = await import('@/lib/db/tasks')
     vi.mocked(archiveTask).mockResolvedValue()
     renderSurface({ onClose })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
@@ -261,7 +261,7 @@ describe('TaskSurface — live region (AC-111)', () => {
 
   it('AC-111: a successful checklist add announces it', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    const { addChecklistItem } = await import('../../lib/db/tasks')
+    const { addChecklistItem } = await import('@/lib/db/tasks')
     vi.mocked(addChecklistItem).mockResolvedValue()
     renderDrawer()
     await waitFor(() => screen.getByRole('tablist'))

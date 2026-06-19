@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
-import { AuthContext } from '../auth/context'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
-import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '../lib/db/tasks.types'
-import type { BusinessUnitOption, PersonOption } from '../lib/db/directory'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
+import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -33,12 +33,12 @@ vi.mock('react-router-dom', async (importOriginal) => {
   }
 })
 
-import { getTask, updateTaskStatus, updateTaskRaci, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../lib/db/directory'
+import { getTask, updateTaskStatus, updateTaskRaci, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 // Re-homed from the deleted TaskDetail host onto the LIVE task surface (TaskSurface view
 // mode, width="full" — identical to what the host rendered). All detail-field ACs
 // (AC-070..075, T-047, RIC-1/2/3, I2, M2) now run against the real component.
-import { TaskSurface } from '../components/tasks/TaskSurface'
+import { TaskSurface } from '@/components/tasks/TaskSurface'
 
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)

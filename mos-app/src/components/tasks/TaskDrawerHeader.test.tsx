@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { TaskDrawerHeader } from './TaskDrawerHeader'
-import type { TaskListRow } from '../../lib/db/tasks.types'
-import type { PersonOption } from '../../lib/db/directory'
+import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { PersonOption } from '@/lib/db/directory'
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {

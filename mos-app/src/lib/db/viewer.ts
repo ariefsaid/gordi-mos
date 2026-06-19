@@ -1,5 +1,5 @@
-import type { RolesRow, PeopleRow } from '../database.types'
-import { supabase } from '../supabase'
+import type { RolesRow, PeopleRow } from '@/lib/database.types'
+import { supabase } from '@/lib/supabase'
 
 // deriveIsManager: true iff any role the viewer holds is the reports_to_role_id of some role
 // that is itself currently held (heldRoleIds). Union over all viewer roles.

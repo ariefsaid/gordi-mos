@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ChecklistItemRow } from '../../lib/db/tasks.types'
+import type { ChecklistItemRow } from '@/lib/db/tasks.types'
 
 // ── Checklist card ───────────────────────────────────────────────────────────
 export type ChecklistCardProps = {

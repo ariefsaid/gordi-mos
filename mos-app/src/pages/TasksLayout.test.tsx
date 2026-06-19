@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
-import { AuthContext } from '../auth/context'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
-import type { TaskListRow } from '../lib/db/tasks.types'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 // ── Mock the data layer (table + drawer both pull from it) ────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -26,11 +26,11 @@ vi.mock('../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../lib/db/directory'
+import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import TasksLayout from './TasksLayout'
-import TaskDrawer from '../components/tasks/TaskDrawer'
-import { __resetExpandPrefForTests } from '../components/tasks/useExpandPref'
+import TaskDrawer from '@/components/tasks/TaskDrawer'
+import { __resetExpandPrefForTests } from '@/components/tasks/useExpandPref'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)

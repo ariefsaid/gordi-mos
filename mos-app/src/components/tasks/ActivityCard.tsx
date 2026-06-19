@@ -1,5 +1,5 @@
-import type { TaskEventRow } from '../../lib/db/tasks.types'
-import type { PersonOption } from '../../lib/db/directory'
+import type { TaskEventRow } from '@/lib/db/tasks.types'
+import type { PersonOption } from '@/lib/db/directory'
 import { formatAge, initials } from './taskFormatters'
 
 // ── Activity event label helper ──────────────────────────────────────────────

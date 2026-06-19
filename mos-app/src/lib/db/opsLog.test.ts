@@ -10,7 +10,7 @@ import {
   listLogEntries, addLogEntry, editLogEntry,
   archiveLogEntry, unarchiveLogEntry, getTodayOpsSummary,
 } from './opsLog'
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
 

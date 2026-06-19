@@ -7,7 +7,7 @@ vi.mock('../supabase', () => {
 })
 
 import { getBusinessUnits, getPeople } from './directory'
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
 

@@ -7,9 +7,9 @@
 // VIS-4/5/6 (PR-2): re-skinned onto the shared <Pill> primitive — one shell (6px radius,
 // 8px dot, 12/600). The picker listbox options keep their own small standalone dots.
 import { useRef, useState, useEffect, useCallback } from 'react'
-import type { ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
-import { Pill } from '../ui/Pill'
-import type { PillTone } from '../ui/Pill'
+import type { ProgressMarker as ProgressMarkerType } from '@/lib/db/weeklyUpdates.types'
+import { Pill } from '@/components/ui/Pill'
+import type { PillTone } from '@/components/ui/Pill'
 import './ProgressMarker.css'
 
 // ── Token mapping (§4.2, ratified in design-plan) ───────────────────────────

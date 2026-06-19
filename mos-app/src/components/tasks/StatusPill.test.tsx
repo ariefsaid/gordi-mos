@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StatusPill } from './StatusPill'
-import type { TaskStatus } from '../../lib/db/tasks.types'
+import type { TaskStatus } from '@/lib/db/tasks.types'
 
 describe('StatusPill — status variants (soft Tag, Twenty IxD)', () => {
   // Semantic colour mapping (In Progress→blue, Blocked→red, Open→amber, Done→green).

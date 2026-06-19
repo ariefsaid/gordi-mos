@@ -44,9 +44,9 @@ vi.mock('../auth/useAuth', () => ({
   })),
 }))
 import TasksLayout from './TasksLayout'
-import { AuthContext } from '../auth/context'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
-import type { AuthState } from '../auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { AuthState } from '@/auth/context'
 
 const mockPerson: PeopleRow = {
   id: 'p1', org_id: 'org', user_id: 'u1', full_name: 'Test User',

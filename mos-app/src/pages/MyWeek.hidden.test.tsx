@@ -10,7 +10,7 @@ import { MemoryRouter } from 'react-router-dom'
 vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: false, SHOW_DAILY_LOG: false }))
 
 vi.mock('../auth/useAuth')
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 const mockUseAuth = vi.mocked(useAuth)
 
 // Data layers the effects still call (rendering is gated, fetches aren't) — keep them quiet.

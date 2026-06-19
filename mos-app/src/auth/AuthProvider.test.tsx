@@ -19,9 +19,9 @@ vi.mock('../lib/db/viewer', () => ({
 
 import { AuthProvider } from './AuthProvider'
 import { useAuth } from './useAuth'
-import { supabase } from '../lib/supabase'
-import { resolveViewer } from '../lib/db/viewer'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
+import { supabase } from '@/lib/supabase'
+import { resolveViewer } from '@/lib/db/viewer'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { Session } from '@supabase/supabase-js'
 
 const mockGetSession = vi.mocked(supabase.auth.getSession)

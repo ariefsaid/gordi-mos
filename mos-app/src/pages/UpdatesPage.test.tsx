@@ -3,10 +3,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
-import { AuthContext } from '../auth/context'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
-import type { MyUpdate, TeamUpdateRow } from '../lib/db/weeklyUpdates.types'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { MyUpdate, TeamUpdateRow } from '@/lib/db/weeklyUpdates.types'
 
 // ── Mock the data layer ───────────────────────────────────────────────────────
 vi.mock('../lib/db/weeklyUpdates', () => ({
@@ -33,7 +33,7 @@ vi.mock('../lib/db/team', () => ({
 
 import {
   getMyUpdate, upsertDraft, submit, reopen, listTeamUpdates,
-} from '../lib/db/weeklyUpdates'
+} from '@/lib/db/weeklyUpdates'
 import UpdatesPage from './UpdatesPage'
 
 const mockGetMyUpdate    = vi.mocked(getMyUpdate)

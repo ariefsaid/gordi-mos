@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Breadcrumb from './Breadcrumb'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 function renderBreadcrumb(path: string) {
   return render(

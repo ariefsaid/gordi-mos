@@ -7,9 +7,9 @@
 //  Twenty look-and-feel goal — flagged for DESIGN.md ratification. WCAG 1.4.1
 //  stays satisfied: the status word is always the label, so colour is never the
 //  sole cue even without the leading dot.)
-import type { TaskStatus } from '../../lib/db/tasks.types'
-import { Tag } from '../ui/Tag'
-import type { TagColor } from '../ui/Tag'
+import type { TaskStatus } from '@/lib/db/tasks.types'
+import { Tag } from '@/components/ui/Tag'
+import type { TagColor } from '@/components/ui/Tag'
 
 export type { TaskStatus }
 

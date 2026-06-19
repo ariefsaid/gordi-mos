@@ -10,7 +10,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import WeeklyUpdateReviewPane from './WeeklyUpdateReviewPane'
 import WeeklyUpdateWritePane from './WeeklyUpdateWritePane'
 import { MemoryRouter } from 'react-router-dom'
-import MyWeek from '../../pages/MyWeek'
+import MyWeek from '@/pages/MyWeek'
 
 // The submitted-strip RI-5 cases render <MyWeek/>, where the weekly-update strip is
 // flag-hidden in production (config/features.ts). Force the flags on so the strip renders
@@ -25,14 +25,14 @@ vi.mock('../../lib/db/weeklyUpdates', () => ({
   submit:          vi.fn().mockResolvedValue(undefined),
   reopen:          vi.fn().mockResolvedValue(undefined),
 }))
-import { listTeamUpdates, getMyUpdate } from '../../lib/db/weeklyUpdates'
-import type { TeamUpdateRow } from '../../lib/db/weeklyUpdates.types'
+import { listTeamUpdates, getMyUpdate } from '@/lib/db/weeklyUpdates'
+import type { TeamUpdateRow } from '@/lib/db/weeklyUpdates.types'
 const mockListTeamUpdates = vi.mocked(listTeamUpdates)
 const mockGetMyUpdate     = vi.mocked(getMyUpdate)
 
 // ── Mock auth (needed for MyWeek) ────────────────────────────────────────────
 vi.mock('../../auth/useAuth')
-import { useAuth } from '../../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 const mockUseAuth = vi.mocked(useAuth)
 
 // ── Fixture data ─────────────────────────────────────────────────────────────

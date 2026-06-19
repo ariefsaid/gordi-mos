@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
-import { AuthContext } from '../auth/context'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
-import type { BusinessUnitOption, PersonOption } from '../lib/db/directory'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -20,12 +20,12 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...mod, useNavigate: vi.fn(() => mockNavigate) }
 })
 
-import { createTask } from '../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../lib/db/directory'
+import { createTask } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 // Re-homed from the deleted TaskCreate host onto the LIVE create surface (TaskSurface
 // create mode, width="full" — identical to what the host rendered). AC-080 (prefills) +
 // AC-081 (validation) now run against the real component.
-import { TaskSurface } from '../components/tasks/TaskSurface'
+import { TaskSurface } from '@/components/tasks/TaskSurface'
 
 const mockCreateTask = vi.mocked(createTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)

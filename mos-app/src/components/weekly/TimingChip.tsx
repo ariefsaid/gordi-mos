@@ -2,7 +2,7 @@
 // Extracted from WeeklyUpdateReviewPane (CSS-class) + WeeklyUpdateWritePane (inline).
 // Partially addresses the backlog TintPill item.
 // Tokens: success/14% bg + --status-won-text for on-time; warning/18% bg + warning-foreground for late.
-import { weeklyUpdateTiming } from '../../lib/week'
+import { weeklyUpdateTiming } from '@/lib/week'
 import './TimingChip.css'
 
 interface TimingChipProps {

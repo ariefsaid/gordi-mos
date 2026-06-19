@@ -4,7 +4,7 @@
 // NEVER send org_id in a filter — DB default stamps it; RLS is the authority.
 // Throws on any PostgREST error so callers can surface failures.
 
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 
 const shared = () => supabase.schema('shared')
 

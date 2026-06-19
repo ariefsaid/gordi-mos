@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import type { TaskStatus } from '../../lib/db/tasks.types'
+import type { TaskStatus } from '@/lib/db/tasks.types'
 import { StatusPill } from './StatusPill'
-import { Chevron } from '../../shell/icons'
+import { Chevron } from '@/shell/icons'
 
 const STATUSES: TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
 

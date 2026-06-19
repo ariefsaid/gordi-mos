@@ -6,16 +6,16 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useParams } from 'react-router-dom'
-import PageFrame from '../shell/PageFrame'
-import { useDocumentTitle } from '../shell/useDocumentTitle'
-import { useAuth } from '../auth/useAuth'
-import { addLogEntry, editLogEntry, getLogEntry } from '../lib/db/opsLog'
-import type { LogEventType } from '../lib/db/opsLog.types'
-import { getBusinessUnits } from '../lib/db/directory'
-import type { BusinessUnitOption } from '../lib/db/directory'
-import { listTasks } from '../lib/db/tasks'
-import type { TaskListRow } from '../lib/db/tasks.types'
-import { toWibInputValue, wibInputToUTCISO } from '../lib/week'
+import PageFrame from '@/shell/PageFrame'
+import { useDocumentTitle } from '@/shell/useDocumentTitle'
+import { useAuth } from '@/auth/useAuth'
+import { addLogEntry, editLogEntry, getLogEntry } from '@/lib/db/opsLog'
+import type { LogEventType } from '@/lib/db/opsLog.types'
+import { getBusinessUnits } from '@/lib/db/directory'
+import type { BusinessUnitOption } from '@/lib/db/directory'
+import { listTasks } from '@/lib/db/tasks'
+import type { TaskListRow } from '@/lib/db/tasks.types'
+import { toWibInputValue, wibInputToUTCISO } from '@/lib/week'
 
 export default function OpsAddForm() {
   const { id: entryId } = useParams<{ id: string }>()

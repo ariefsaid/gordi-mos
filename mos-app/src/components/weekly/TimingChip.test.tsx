@@ -7,7 +7,7 @@ import TimingChip from './TimingChip'
 vi.mock('../../lib/week', () => ({
   weeklyUpdateTiming: vi.fn(),
 }))
-import { weeklyUpdateTiming } from '../../lib/week'
+import { weeklyUpdateTiming } from '@/lib/week'
 const mockTiming = vi.mocked(weeklyUpdateTiming)
 
 describe('TimingChip — on-time', () => {

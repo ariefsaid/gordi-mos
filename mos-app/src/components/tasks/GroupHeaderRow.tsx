@@ -1,4 +1,4 @@
-import { Chevron } from '../../shell/icons'
+import { Chevron } from '@/shell/icons'
 
 type GroupHeaderRowProps = {
   /** The group label (status name, person name, or BU name). */

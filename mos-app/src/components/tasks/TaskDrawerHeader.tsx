@@ -1,9 +1,9 @@
-import type { TaskListRow, TaskStatus } from '../../lib/db/tasks.types'
-import type { PersonOption } from '../../lib/db/directory'
+import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { PersonOption } from '@/lib/db/directory'
 import { StatusPill } from './StatusPill'
 import { StatusTrigger } from './StatusTrigger'
 import { formatAge, formatDate } from './taskFormatters'
-import { dueStatus } from '../../lib/dueStatus'
+import { dueStatus } from '@/lib/dueStatus'
 
 export type TaskDrawerHeaderProps = {
   task: TaskListRow

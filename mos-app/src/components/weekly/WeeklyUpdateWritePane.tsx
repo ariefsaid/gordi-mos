@@ -3,16 +3,16 @@
 // All states: loading skeleton / error+Retry / empty / draft-with-content / submitted-locked.
 // AC-031..038, FR-010/012/013/014/015/016/017/018/019.
 import { useState, useEffect, useCallback, useId, useRef, type MutableRefObject } from 'react'
-import { formatAge } from '../tasks/taskFormatters'
+import { formatAge } from '@/components/tasks/taskFormatters'
 import './WeeklyUpdateWritePane.css'
-import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '../../lib/db/weeklyUpdates.types'
-import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdate } from '../../lib/db/weeklyUpdates'
-import { weekLabel } from '../../lib/week'
+import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '@/lib/db/weeklyUpdates.types'
+import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdate } from '@/lib/db/weeklyUpdates'
+import { weekLabel } from '@/lib/week'
 import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
 import TimingChip from './TimingChip'
-import { CardHead } from '../ui/CardHead'
-import { ErrorState } from '../ui/StateKit'
-import { Pill } from '../ui/Pill'
+import { CardHead } from '@/components/ui/CardHead'
+import { ErrorState } from '@/components/ui/StateKit'
+import { Pill } from '@/components/ui/Pill'
 
 // ── Local item shape (draft lines before persist) ────────────────────────────
 interface DraftLine {

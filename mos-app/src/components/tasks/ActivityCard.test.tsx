@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ActivityCard } from './ActivityCard'
-import type { TaskEventRow } from '../../lib/db/tasks.types'
-import type { PersonOption } from '../../lib/db/directory'
+import type { TaskEventRow } from '@/lib/db/tasks.types'
+import type { PersonOption } from '@/lib/db/directory'
 
 const people: PersonOption[] = [{ id: 'p1', full_name: 'Ada Lovelace' }]
 

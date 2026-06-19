@@ -21,7 +21,7 @@ vi.mock('react-router-dom', async () => {
 })
 
 import LoginPage from './LoginPage'
-import { supabase } from '../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 const mockSignIn = vi.mocked(supabase.auth.signInWithPassword)
 const mockSignInWithOtp = vi.mocked(supabase.auth.signInWithOtp)
@@ -380,7 +380,7 @@ describe('LoginPage — email client-validation (fix-2)', () => {
     await waitFor(() => {
       expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
     })
-    expect(vi.mocked((await import('../lib/supabase')).supabase.auth.signInWithPassword)).not.toHaveBeenCalled()
+    expect(vi.mocked((await import('@/lib/supabase')).supabase.auth.signInWithPassword)).not.toHaveBeenCalled()
   })
 
   it('invalid email on sign-in shows destructive border (aria-invalid)', async () => {
@@ -407,7 +407,7 @@ describe('LoginPage — email client-validation (fix-2)', () => {
     await waitFor(() => {
       expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
     })
-    expect(vi.mocked((await import('../lib/supabase')).supabase.auth.signInWithOtp)).not.toHaveBeenCalled()
+    expect(vi.mocked((await import('@/lib/supabase')).supabase.auth.signInWithOtp)).not.toHaveBeenCalled()
   })
 
   it('invalid email on forgot-password shows field error + no auth call', async () => {
@@ -420,7 +420,7 @@ describe('LoginPage — email client-validation (fix-2)', () => {
     await waitFor(() => {
       expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
     })
-    expect(vi.mocked((await import('../lib/supabase')).supabase.auth.resetPasswordForEmail)).not.toHaveBeenCalled()
+    expect(vi.mocked((await import('@/lib/supabase')).supabase.auth.resetPasswordForEmail)).not.toHaveBeenCalled()
   })
 
   it('invalid email field has aria-describedby pointing to the error message', async () => {

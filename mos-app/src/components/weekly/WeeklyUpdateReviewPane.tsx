@@ -10,17 +10,17 @@
 //   C3 — ARIA: replaced invalid role="row"/"rowgroup" with list semantics (<ul>/<li>).
 //   I1 — 3s client-side timeout surfaces error faster (AbortController + setTimeout).
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { listTeamUpdates, type TeamMember } from '../../lib/db/weeklyUpdates'
-import type { TeamUpdateRow } from '../../lib/db/weeklyUpdates.types'
-import { weekLabel, weekStartISO } from '../../lib/week'
+import { listTeamUpdates, type TeamMember } from '@/lib/db/weeklyUpdates'
+import type { TeamUpdateRow } from '@/lib/db/weeklyUpdates.types'
+import { weekLabel, weekStartISO } from '@/lib/week'
 import TimingChip from './TimingChip'
-import { CardHead } from '../ui/CardHead'
-import { ErrorState } from '../ui/StateKit'
-import { Pill } from '../ui/Pill'
+import { CardHead } from '@/components/ui/CardHead'
+import { ErrorState } from '@/components/ui/StateKit'
+import { Pill } from '@/components/ui/Pill'
 // VIS-4 (PR-2): the weekly-update lifecycle pill now lives in the shared ui module
 // and re-skins onto <Pill>. Re-exported here so existing import sites stay stable.
-export { StatePill } from '../ui/StatePill'
-import { StatePill } from '../ui/StatePill'
+export { StatePill } from '@/components/ui/StatePill'
+import { StatePill } from '@/components/ui/StatePill'
 import './WeeklyUpdateReviewPane.css'
 
 // ── Initials helper ────────────────────────────────────────────────────────────
