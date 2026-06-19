@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Rail } from './rail'
-import { Header } from './header'
+import { TopBar } from './top-bar'
 import { MobileDrawer } from './mobile-drawer'
 import { useIsNarrow } from './use-is-narrow'
 
@@ -17,18 +17,27 @@ export function AppShell() {
         style={{
           display: 'grid',
           gridTemplateColumns: isNarrow ? '1fr' : 'var(--rail-w) 1fr',
+          gridTemplateRows: 'var(--header-h) 1fr',
+          gridTemplateAreas: isNarrow
+            ? '"topbar" "main"'
+            : '"topbar topbar" "rail main"',
         }}
       >
-        {/* Rail — hidden at <920px; drawer is the nav at narrow widths */}
+        {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
+        <TopBar
+          drawerOpen={drawerOpen}
+          onOpenDrawer={() => setDrawerOpen(true)}
+          onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
+        />
+
+        {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav) */}
         {!isNarrow && <Rail />}
 
-        {/* Right column: header + page outlet */}
-        <div className="flex flex-col min-h-screen">
-          <Header
-            onOpenDrawer={() => setDrawerOpen(true)}
-            onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
-          />
-          {/* R3: no <main> wrapper here — each page provides its own */}
+        {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
+        <div
+          className="flex flex-col min-h-0"
+          style={{ gridArea: 'main' }}
+        >
           <Outlet />
         </div>
       </div>

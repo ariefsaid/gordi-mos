@@ -6,10 +6,13 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
+// TopBar (which replaced Header) reads useIsNarrow — override via matchMedia stub below
+vi.mock('./use-is-narrow', () => ({ useIsNarrow: () => true }))
+
 const mockUseAuth = vi.mocked(useAuth)
 
 import { MobileDrawer } from './mobile-drawer'
-import { Header } from './header'
+import { TopBar } from './top-bar'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 // R2: Helper to force narrow viewport (matches:true for useIsNarrow)
@@ -39,7 +42,7 @@ function TestHarness() {
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
   return (
     <>
-      <Header
+      <TopBar
         onOpenDrawer={() => setDrawerOpen(true)}
         onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
       />

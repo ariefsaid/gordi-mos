@@ -14,6 +14,26 @@ function renderBreadcrumb(path: string) {
   )
 }
 
+// AC-S04: breadcrumb drops the leading "Gordi MOS" brand crumb (ADR-0013 D1 — brand lives in top bar)
+describe('AC-S04: Breadcrumb drops the leading brand crumb', () => {
+  it('AC-S04: at /tasks, shows "Tasks" and no "Gordi MOS"', () => {
+    renderBreadcrumb('/tasks')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.queryByText('Gordi MOS')).toBeNull()
+  })
+
+  it('AC-S04: at /tasks/new, text content is "Tasks › New task" (no brand prefix)', () => {
+    const { container } = renderBreadcrumb('/tasks/new')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.getByText('New task')).toBeInTheDocument()
+    expect(screen.queryByText('Gordi MOS')).toBeNull()
+    // Exactly one › separator between Tasks and New task
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '›')
+    expect(separators).toHaveLength(1)
+  })
+})
+
 // FIX-4: 404 breadcrumb — no orphan separator, no aria-current on unknown route
 describe('FIX-4: Breadcrumb at unknown path — no orphan separator', () => {
   it('does NOT render the › separator when no section exists (unknown path)', () => {
@@ -33,9 +53,9 @@ describe('FIX-4: Breadcrumb at unknown path — no orphan separator', () => {
   })
 })
 
-// AC-004: breadcrumb shows "Gordi MOS › <Section>" with the section bold/emphasized
-describe('AC-004: Breadcrumb per route', () => {
-  // Hidden sections (config/features.ts) don't resolve to a breadcrumb section — gate them.
+// AC-004 (updated for ADR-0013 D1 / AC-S04): breadcrumb shows "<Section>" only — no brand prefix.
+// The "Gordi MOS" brand crumb was dropped; it now lives in the TopBar brand column.
+describe('AC-004: Breadcrumb per route (brand-crumb dropped per AC-S04)', () => {
   const cases: Array<{ path: string; section: string }> = [
     { path: '/', section: 'My Week' },
     { path: '/tasks', section: 'Tasks' },
@@ -44,21 +64,20 @@ describe('AC-004: Breadcrumb per route', () => {
   ]
 
   cases.forEach(({ path, section }) => {
-    it(`renders "Gordi MOS › ${section}" at path "${path}"`, () => {
+    it(`renders "${section}" (bold) with no "Gordi MOS" prefix at path "${path}"`, () => {
       renderBreadcrumb(path)
-      // Muted "Gordi MOS" segment
-      expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
-      // Emphasized section segment: rendered as <b> with font-semibold
+      // No brand prefix — brand lives in TopBar
+      expect(screen.queryByText('Gordi MOS')).toBeNull()
+      // Section is the current page — rendered as <b>
       const sectionEl = screen.getByText(section)
       expect(sectionEl.tagName.toLowerCase()).toBe('b')
     })
   })
 })
 
-// IA-2 (PR-2): the shell breadcrumb EXTENDS to the leaf on sub-pages, so the
-// redundant in-page `/`-separated crumbs could be removed. One `›` separator.
-describe('IA-2: Breadcrumb extends to the leaf on sub-pages', () => {
-  // /ops/* leaves only resolve when Daily Log is shown (config/features.ts).
+// IA-2 (updated for AC-S04): breadcrumb EXTENDS to the leaf on sub-pages.
+// No brand prefix — format is "Section › Leaf" (one separator, two segments).
+describe('IA-2: Breadcrumb extends to the leaf on sub-pages (no brand prefix)', () => {
   const leafCases: Array<{ path: string; section: string; leaf: string }> = [
     ...(SHOW_DAILY_LOG ? [
       { path: '/ops/new', section: 'Daily Log', leaf: 'Add log entry' },
@@ -68,16 +87,17 @@ describe('IA-2: Breadcrumb extends to the leaf on sub-pages', () => {
   ]
 
   for (const { path, section, leaf } of leafCases) {
-    it(`renders "Gordi MOS › ${section} › ${leaf}" at "${path}" (leaf bold, section muted)`, () => {
+    it(`renders "${section} › ${leaf}" at "${path}" (leaf bold, section muted, no brand prefix)`, () => {
       const { container } = renderBreadcrumb(path)
-      // Three segments + two › separators
-      expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
+      // No brand prefix (AC-S04 deliberate UX change — brand lives in TopBar)
+      expect(screen.queryByText('Gordi MOS')).toBeNull()
+      // Two segments + one › separator
       expect(screen.getByText(section)).toBeInTheDocument()
       expect(screen.getByText(leaf)).toBeInTheDocument()
       const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-        .filter(el => el.textContent === '›')
-      expect(separators).toHaveLength(2)
-      // The leaf (current page) is bold; the section de-emphasizes to a muted span
+        .filter((el) => el.textContent === '›')
+      expect(separators).toHaveLength(1)
+      // Leaf is bold (current page); section is muted
       const leafEl = screen.getByText(leaf)
       expect(leafEl.tagName.toLowerCase()).toBe('b')
       expect(screen.getByText(section).tagName.toLowerCase()).not.toBe('b')
