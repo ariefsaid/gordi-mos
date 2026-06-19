@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch } from 'react-router-dom'
-import PageFrame from '../shell/PageFrame'
-import { useDocumentTitle } from '../shell/useDocumentTitle'
-import { TasksWorkspace } from '../components/tasks/TasksWorkspace'
-import { useExpandPref } from '../components/tasks/useExpandPref'
-import { useIsSplitWidth } from '../shell/useIsSplitWidth'
-import type { TaskListRow, TaskStatus } from '../lib/db/tasks.types'
-import type { TaskDrawerOutletContext } from '../components/tasks/TaskDrawer'
+import PageFrame from '@/shell/PageFrame'
+import { useDocumentTitle } from '@/shell/useDocumentTitle'
+import { TasksWorkspace } from '@/components/tasks/TasksWorkspace'
+import { useExpandPref } from '@/components/tasks/useExpandPref'
+import { useIsSplitWidth } from '@/shell/useIsSplitWidth'
+import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskDrawerOutletContext } from '@/components/tasks/TaskDrawer'
 
 /**
  * Split-view shell for /tasks (ADR-0007, PR-B). The table persists while the

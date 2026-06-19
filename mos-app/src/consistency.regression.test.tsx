@@ -271,7 +271,7 @@ describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>',
   it('MyWeek.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
     const src = readSrc('pages/MyWeek.tsx')
     expect(src).not.toMatch(/\bpillStyle\b/)
-    expect(src).toMatch(/from '\.\.\/components\/ui\/Pill'/)
+    expect(src).toMatch(/from '@\/components\/ui\/Pill'/)
   })
 
   it('no non-test source renders a wup-state-* or ops-source-badge className (raw pill shells)', () => {

@@ -1,4 +1,4 @@
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 import type {
   TaskStatus, TaskListRow, ChecklistItemRow, TaskEventRow,
 } from './tasks.types'

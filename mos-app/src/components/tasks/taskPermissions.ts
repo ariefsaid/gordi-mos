@@ -1,4 +1,4 @@
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 // ── Permission helpers (optimistic UX gate; DB is authority) ────────────────
 // Mirrors mos.can_edit_task: viewer is R, A, or any manager.

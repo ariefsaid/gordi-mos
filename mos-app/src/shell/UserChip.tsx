@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 
 interface UserChipProps {
   /** When true, hides name/role text (used at <920px per FR-020). */

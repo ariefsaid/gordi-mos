@@ -1,5 +1,5 @@
-import { supabase } from '../supabase'
-import { wibDayRange } from '../week'
+import { supabase } from '@/lib/supabase'
+import { wibDayRange } from '@/lib/week'
 import type { LogEntryRow, LogEventType } from './opsLog.types'
 
 // The ops data layer reaches ops via the PostgREST `ops` profile. RLS stamps org_id + created_by;

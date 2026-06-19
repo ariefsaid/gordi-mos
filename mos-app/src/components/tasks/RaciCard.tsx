@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { TaskListRow } from '../../lib/db/tasks.types'
-import type { PersonOption } from '../../lib/db/directory'
+import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { PersonOption } from '@/lib/db/directory'
 import { initials } from './taskFormatters'
 import { PersonPicker } from './PersonPicker'
-import { Chevron } from '../../shell/icons'
+import { Chevron } from '@/shell/icons'
 
 // ── RACI card ────────────────────────────────────────────────────────────────
 export type RaciCardProps = {

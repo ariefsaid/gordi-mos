@@ -4,13 +4,13 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 vi.mock('../auth/useAuth')
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 
 const mockUseAuth = vi.mocked(useAuth)
 
 import MobileDrawer from './MobileDrawer'
 import Header from './Header'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 // R2: Helper to force narrow viewport (matches:true for useIsNarrow)
 function setNarrowViewport(narrow: boolean) {

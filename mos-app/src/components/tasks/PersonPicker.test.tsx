@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PersonPicker } from './PersonPicker'
-import type { PersonOption } from '../../lib/db/directory'
+import type { PersonOption } from '@/lib/db/directory'
 
 const people: PersonOption[] = [
   { id: 'p1', full_name: 'Ada Lovelace' },

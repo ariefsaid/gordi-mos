@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import PageFrame from '../shell/PageFrame'
-import { useDocumentTitle } from '../shell/useDocumentTitle'
+import PageFrame from '@/shell/PageFrame'
+import { useDocumentTitle } from '@/shell/useDocumentTitle'
 
 export default function NotFoundPage() {
   useDocumentTitle('Page not found — Gordi MOS')

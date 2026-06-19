@@ -9,7 +9,7 @@ import WeeklyUpdateReviewPane from './WeeklyUpdateReviewPane'
 vi.mock('../../lib/db/weeklyUpdates', () => ({
   listTeamUpdates: vi.fn().mockResolvedValue([]),
 }))
-import { listTeamUpdates } from '../../lib/db/weeklyUpdates'
+import { listTeamUpdates } from '@/lib/db/weeklyUpdates'
 const mockListTeamUpdates = vi.mocked(listTeamUpdates)
 
 // ── Shared team fixture ──────────────────────────────────────────────────────

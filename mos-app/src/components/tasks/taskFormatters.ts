@@ -1,4 +1,4 @@
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 /** Get first name from full_name. */
 export function firstName(fullName: string): string {

@@ -1,8 +1,8 @@
 import { useState, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { AuthShell, AuthCard, Spinner } from '../auth/AuthShell'
-import { useAuth } from '../auth/useAuth'
+import { supabase } from '@/lib/supabase'
+import { AuthShell, AuthCard, Spinner } from '@/auth/AuthShell'
+import { useAuth } from '@/auth/useAuth'
 
 const ERR_MISMATCH = "Passwords don't match."
 const ERR_EXPIRED = 'That link has expired — request a new one.'

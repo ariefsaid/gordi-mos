@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { IconButton, Tag, Avatar, Chip, TextInput, Checkbox, Toggle } from '../components/ui'
-import { Button } from '../components/ui/Button'
-import { Pill } from '../components/ui/Pill'
+import { IconButton, Tag, Avatar, Chip, TextInput, Checkbox, Toggle } from '@/components/ui'
+import { Button } from '@/components/ui/Button'
+import { Pill } from '@/components/ui/Pill'
 
 /**
  * Dev-only primitives gallery (AC-147). Rendered at /mos/dev/ui in DEV only

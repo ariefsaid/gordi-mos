@@ -27,7 +27,7 @@ vi.mock('../supabase', () => {
   }
 })
 
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 import { getTeamForManager } from './team'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

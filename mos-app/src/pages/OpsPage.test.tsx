@@ -4,10 +4,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
+import type { AuthState } from '@/auth/context'
 
 vi.mock('../auth/useAuth')
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 
 vi.mock('../lib/db/opsLog', () => ({
   listLogEntries: vi.fn(),
@@ -17,13 +17,13 @@ vi.mock('../lib/db/opsLog', () => ({
   unarchiveLogEntry: vi.fn(),
   getTodayOpsSummary: vi.fn(),
 }))
-import { listLogEntries, addLogEntry, archiveLogEntry } from '../lib/db/opsLog'
+import { listLogEntries, addLogEntry, archiveLogEntry } from '@/lib/db/opsLog'
 
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
-import { getBusinessUnits } from '../lib/db/directory'
+import { getBusinessUnits } from '@/lib/db/directory'
 
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('../lib/db/tasks', () => ({
   updateTaskRaci: vi.fn(),
   getTaskTitlesByIds: vi.fn(),
 }))
-import { getTaskTitlesByIds, listTasks } from '../lib/db/tasks'
+import { getTaskTitlesByIds, listTasks } from '@/lib/db/tasks'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListLogEntries = vi.mocked(listLogEntries)

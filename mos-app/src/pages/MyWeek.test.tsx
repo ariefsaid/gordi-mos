@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '../auth/context'
+import type { AuthState } from '@/auth/context'
 
 vi.mock('../auth/useAuth')
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 
 // Weekly Updates + Daily Log are flag-hidden in production (config/features.ts), but the
 // strip/team-module LOGIC is still exercised here under the SHOWN condition — force both
@@ -23,7 +23,7 @@ vi.mock('../lib/db/weeklyUpdates', () => ({
   removeLine:      vi.fn(),
   listTeamUpdates: vi.fn(),
 }))
-import { getMyUpdate, listTeamUpdates } from '../lib/db/weeklyUpdates'
+import { getMyUpdate, listTeamUpdates } from '@/lib/db/weeklyUpdates'
 const mockGetMyUpdate = vi.mocked(getMyUpdate)
 const mockListTeamUpdates = vi.mocked(listTeamUpdates)
 
@@ -31,7 +31,7 @@ const mockListTeamUpdates = vi.mocked(listTeamUpdates)
 vi.mock('../lib/db/team', () => ({
   getTeamForManager: vi.fn(),
 }))
-import { getTeamForManager } from '../lib/db/team'
+import { getTeamForManager } from '@/lib/db/team'
 const mockGetTeamForManager = vi.mocked(getTeamForManager)
 
 // Mock opsLog data layer for ops-strip wiring (AC-080, AC-081, AC-082)
@@ -43,7 +43,7 @@ vi.mock('../lib/db/opsLog', () => ({
   archiveLogEntry: vi.fn(),
   unarchiveLogEntry: vi.fn(),
 }))
-import { getTodayOpsSummary } from '../lib/db/opsLog'
+import { getTodayOpsSummary } from '@/lib/db/opsLog'
 const mockGetTodayOpsSummary = vi.mocked(getTodayOpsSummary)
 
 const mockUseAuth = vi.mocked(useAuth)

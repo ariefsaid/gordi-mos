@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { PeopleRow, RolesRow } from '../database.types'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
 
 // Mock the supabase module before importing resolveViewer
 vi.mock('../supabase', () => {
@@ -12,7 +12,7 @@ vi.mock('../supabase', () => {
 })
 
 import { resolveViewer } from './viewer'
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 
 const mockFrom = vi.mocked(supabase.from)
 

@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { OwnerCellRaciMember } from './OwnerCell'
 import { OwnerCell } from './OwnerCell'
 import { StatusPill } from './StatusPill'
-import { Chevron } from '../../shell/icons'
-import { dueStatus, isOverdue } from '../../lib/dueStatus'
+import { Chevron } from '@/shell/icons'
+import { dueStatus, isOverdue } from '@/lib/dueStatus'
 import { formatAge, formatDate, otherRaciCount } from './taskFormatters'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────

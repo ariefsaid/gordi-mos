@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ChecklistCard } from './ChecklistCard'
-import type { ChecklistItemRow } from '../../lib/db/tasks.types'
+import type { ChecklistItemRow } from '@/lib/db/tasks.types'
 
 function items(labels: string[]): ChecklistItemRow[] {
   return labels.map((label, i) => ({

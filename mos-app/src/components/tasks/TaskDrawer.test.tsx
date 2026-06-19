@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import type { AuthState } from '../../auth/context'
-import { AuthContext } from '../../auth/context'
-import type { PeopleRow, RolesRow } from '../../lib/database.types'
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 
 vi.mock('../../lib/db/tasks', () => ({
   getTask: vi.fn(),
@@ -24,8 +24,8 @@ vi.mock('../../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { getTask } from '../../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../../lib/db/directory'
+import { getTask } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import TaskDrawer from './TaskDrawer'
 import { __resetExpandPrefForTests } from './useExpandPref'
 

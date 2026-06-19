@@ -2,7 +2,7 @@
 // shared <Pill> primitive. Distinct vocabulary from the task StatusPill: a weekly
 // update's own filed-state (Filed / Draft / Not started), not a task's status.
 // Filed→success, Draft→warning, Not started→neutral.
-import type { TeamUpdateRow } from '../../lib/db/weeklyUpdates.types'
+import type { TeamUpdateRow } from '@/lib/db/weeklyUpdates.types'
 import { Pill } from './Pill'
 
 type UpdateState = TeamUpdateRow['state']

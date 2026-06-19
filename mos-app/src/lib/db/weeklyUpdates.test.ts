@@ -11,7 +11,7 @@ import {
   getMyUpdate, upsertDraft, submit, reopen,
   addLine, updateLine, removeLine, listTeamUpdates,
 } from './weeklyUpdates'
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
 

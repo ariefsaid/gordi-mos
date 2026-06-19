@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
-import { supabase } from '../lib/supabase'
-import { resolveViewer } from '../lib/db/viewer'
+import { supabase } from '@/lib/supabase'
+import { resolveViewer } from '@/lib/db/viewer'
 import { AuthContext, type AuthState } from './context'
 
 // FR-009: session persistence + auto-refresh is configured on the supabase client (T-004) —

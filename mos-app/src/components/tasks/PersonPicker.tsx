@@ -1,4 +1,4 @@
-import type { PersonOption } from '../../lib/db/directory'
+import type { PersonOption } from '@/lib/db/directory'
 import { initials } from './taskFormatters'
 
 // ── Person picker (simple select overlay) ───────────────────────────────────

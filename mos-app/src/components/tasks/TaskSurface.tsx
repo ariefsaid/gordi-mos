@@ -1,17 +1,17 @@
 import './TaskSurface.css'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../../auth/useAuth'
+import { useAuth } from '@/auth/useAuth'
 import {
   getTask, createTask,
   updateTaskStatus, updateTaskRaci, updateTaskFields,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   archiveTask, unarchiveTask,
-} from '../../lib/db/tasks'
-import type { TaskDetail as TaskDetailData, CreateTaskInput } from '../../lib/db/tasks'
-import type { TaskListRow, TaskStatus, ChecklistItemRow } from '../../lib/db/tasks.types'
-import { getBusinessUnits, getPeople } from '../../lib/db/directory'
-import type { BusinessUnitOption, PersonOption } from '../../lib/db/directory'
+} from '@/lib/db/tasks'
+import type { TaskDetail as TaskDetailData, CreateTaskInput } from '@/lib/db/tasks'
+import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { StatusPill } from './StatusPill'
 import { formatAge, formatDate } from './taskFormatters'
 import { StatusTrigger } from './StatusTrigger'

@@ -13,7 +13,7 @@ import {
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
 } from './tasks'
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
 

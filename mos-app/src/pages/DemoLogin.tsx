@@ -3,7 +3,7 @@
 // plaintext password and instant all-roles access, so it must NEVER reach a
 // built/deployed site. The accounts it signs into are the fictional dev
 // personas seeded by supabase/seed.dev-auth.sql (password below).
-import { Spinner } from '../auth/AuthShell'
+import { Spinner } from '@/auth/AuthShell'
 import { DEMO_PASSWORD, DEMO_PERSONAS } from './demoPersonas'
 
 export default function DemoLogin({

@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import RailNav from './RailNav'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 // Helper component to probe current location
 function LocationDisplay() {

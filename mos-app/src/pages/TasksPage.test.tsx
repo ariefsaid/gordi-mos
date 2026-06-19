@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import type { TaskListRow } from '../lib/db/tasks.types'
-import type { AuthState } from '../auth/context'
-import { AuthContext } from '../auth/context'
-import type { PeopleRow, RolesRow } from '../lib/database.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -15,13 +15,13 @@ vi.mock('../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listTasks } from '../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../lib/db/directory'
+import { listTasks } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
 // behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
 // real component the /tasks page renders.
-import { TasksWorkspace } from '../components/tasks/TasksWorkspace'
+import { TasksWorkspace } from '@/components/tasks/TasksWorkspace'
 const mockListTasks = vi.mocked(listTasks)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)

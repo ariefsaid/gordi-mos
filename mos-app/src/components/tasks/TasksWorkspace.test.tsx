@@ -7,10 +7,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '../../auth/context'
-import { AuthContext } from '../../auth/context'
-import type { PeopleRow, RolesRow } from '../../lib/database.types'
-import type { TaskListRow } from '../../lib/db/tasks.types'
+import type { AuthState } from '@/auth/context'
+import { AuthContext } from '@/auth/context'
+import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './useTasksViewPref'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -33,8 +33,8 @@ vi.mock('../../lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listTasks } from '../../lib/db/tasks'
-import { getBusinessUnits, getPeople } from '../../lib/db/directory'
+import { listTasks } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { TasksWorkspace } from './TasksWorkspace'
 import { __resetExpandPrefForTests } from './useExpandPref'
 

@@ -20,4 +20,22 @@ export default tseslint.config([
       globals: globals.browser,
     },
   },
+  {
+    // Ban relative-parent imports inside src/ — use @/ alias instead.
+    // Sibling ./imports remain allowed. Config files outside src/ are exempt.
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../*'],
+              message: 'Relative parent imports are not allowed. Use @/ alias instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])

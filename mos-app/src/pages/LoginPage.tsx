@@ -1,7 +1,7 @@
 import { useState, useId, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { AuthShell, AuthCard, Spinner } from '../auth/AuthShell'
+import { supabase } from '@/lib/supabase'
+import { AuthShell, AuthCard, Spinner } from '@/auth/AuthShell'
 import DemoLogin from './DemoLogin'
 import { DEMO_PASSWORD } from './demoPersonas'
 

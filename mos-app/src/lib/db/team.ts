@@ -7,7 +7,7 @@
 // No cross-schema embed (PGRST200 lesson). Reads shared.person_roles + shared.people
 // using supabase.schema('shared') (org-readable per OD-P1-3).
 // Directory name resolution is CLIENT-SIDE (Fix C1, P2-1b).
-import { supabase } from '../supabase'
+import { supabase } from '@/lib/supabase'
 import type { TeamMember } from './weeklyUpdates'
 
 const shared = () => supabase.schema('shared')
