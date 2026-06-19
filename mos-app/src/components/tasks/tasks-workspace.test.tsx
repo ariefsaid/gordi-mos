@@ -740,14 +740,20 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
   })
 
   it('AC-T05: status cell renders StatusPill text + dot, never wraps (td-nowrap)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ id: 't5', status: 'Blocked' })])
+    mockListTasks.mockResolvedValue([makeTask({ id: 't5', title: 'Status row', status: 'Blocked' })])
     renderTable()
-    await waitFor(() => screen.getByText('Blocked'))
-    // The status text is present (StatusPill renders the status word).
-    expect(screen.getByText('Blocked')).toBeInTheDocument()
-    // StatusPill renders a dot + label (never color-alone). Assert the pill markup.
-    const pill = document.querySelector('.tag, [data-status-pill]') as HTMLElement | null
-    expect(pill, 'expected a status pill (dot + text)').not.toBeNull()
+    await waitFor(() => screen.getByText('Status row'))
+    // The status word is present inside the row's pill (the non-color cue). Scope to
+    // the body row's pill — "Blocked" also appears as a filter dropdown <option>.
+    const pill = document.querySelector('tr.task-row .mk-tag') as HTMLElement | null
+    expect(pill, 'expected a status pill (.mk-tag) in the row').not.toBeNull()
+    expect(pill!.textContent).toContain('Blocked')
+    // StatusPill renders a leading dot (never color-alone) inside the pill.
+    expect(pill!.querySelector('.status-dot'), 'expected a leading status dot').not.toBeNull()
+    // The status cell never wraps (td-nowrap).
+    const statusCell = document.querySelector('tr.task-row td.td-status') as HTMLElement | null
+    expect(statusCell, 'expected a td-status cell').not.toBeNull()
+    expect(statusCell!.className).toContain('td-nowrap')
   })
 
   it('AC-T06: body row is 50px tall (OD-P3-6 dense DB-view)', () => {

@@ -89,7 +89,20 @@ describe('TaskRow — AC-T05 status is a soft pill (dot+text never color-alone) 
     expect(tag.textContent).toContain('Blocked')
   })
 
-  it('AC-T05: the status cell never wraps (Tag.css white-space:nowrap)', () => {
+  it('AC-T05: the status pill carries a leading dot (the redundant non-color marker)', () => {
+    renderRow()
+    const tag = document.querySelector('.mk-tag')!
+    // The dot is aria-hidden (redundant cue only) and lives INSIDE the Tag,
+    // before the label — never the sole signal (the status word is the name).
+    const dot = tag.querySelector('.status-dot')
+    expect(dot, 'expected a leading status dot inside the pill').toBeTruthy()
+    expect(dot!.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('AC-T05: the status cell + the Tag never wrap (td-nowrap cell + Tag.css nowrap)', () => {
+    const { container } = renderRow()
+    // The status <td> carries the no-wrap hook so the pill never breaks across lines.
+    expect(container.querySelector('td.td-status.td-nowrap, td.td-nowrap.td-status')).toBeTruthy()
     const css = readFileSync(resolve(process.cwd(), 'src/components/ui/Tag.css'), 'utf8')
     expect(css).toMatch(/\.mk-tag\b[^}]*white-space:\s*nowrap/)
   })

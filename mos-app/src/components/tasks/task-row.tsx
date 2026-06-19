@@ -88,7 +88,7 @@ export function TaskRow({
           </span>
         </Link>
       </td>
-      <td className="td-cell"><StatusPill status={task.status} /></td>
+      <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
       <td className="td-cell td-owner">
         <OwnerCell fullName={ownerName} otherCount={others.length} others={others} />
       </td>

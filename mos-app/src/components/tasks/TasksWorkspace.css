@@ -333,9 +333,9 @@ tr:focus-within .row-menu { visibility: visible; }
 }
 
 /* ── Group-by control (DB-view toolbar, DESIGN.md §5 toolbar-control treatment) ──
-   Twenty IxD: the group-by is a neutral toolbar control like the rest (no navy
-   tint). Overrides OD-P3-6/OD-P3-7's Structural-Navy group-by, per the Twenty
-   look-and-feel goal — flagged for DESIGN.md ratification. */
+   Records-workspace IxD: the group-by is a neutral toolbar control like the rest
+   (no navy tint). Overrides OD-P3-6/OD-P3-7's Structural-Navy group-by, per the
+   records-workspace look-and-feel goal — flagged for DESIGN.md ratification. */
 .control-groupby {
   font-weight: 500;
 }

@@ -185,7 +185,7 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
 
     await waitFor(() => screen.getByText('SOP stock opname mingguan'))
     expect(screen.getAllByText('Ops Unit')[0]).toBeTruthy()
-    // Status tag (not the select option) — Twenty soft Tag (.mk-tag)
+    // Status tag (not the select option) — soft Tag (.mk-tag)
     expect(screen.getAllByText('In Progress').find(el => el.closest('.mk-tag'))).toBeTruthy()
     expect(screen.getAllByText('Arief')[0]).toBeTruthy() // first name only from directory
     // Activity age rendered as some unit (d/h/m)

@@ -10,30 +10,27 @@ import {
 } from '@tanstack/react-table'
 import type { SortingState, FilterFn } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits } from '@/lib/db/directory'
+import { getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import { dueStatus, isOverdue } from '@/lib/due-status'
+import { isOverdue } from '@/lib/due-status'
 import { raciMember, raciOwner } from '@/lib/raci-member'
-import { StatusPill } from './status-pill'
-import { OwnerCell } from './owner-cell'
 import type { OwnerCellRaciMember } from './owner-cell'
-import { formatAge, formatDate, otherRaciCount } from './task-formatters'
+import { TaskRow } from './task-row'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
-import type { TasksGroupBy } from './use-tasks-view-pref'
 import { GroupHeaderRow } from './group-header-row'
-import { MobileGroupedCards } from './mobile-grouped-cards'
-import { RowCheckbox } from './row-checkbox'
-import { RowMenu } from './row-menu'
-import { Chevron } from '@/shell/icons'
 import { PageHead } from '@/shell/page-head'
-import { ErrorState, EmptyState } from '@/components/ui/state-kit'
+import { TasksToolbar } from './tasks-toolbar'
+import { TasksTableBody } from './tasks-table-body'
+import type { FlatRow } from './tasks-table-body'
+import type { RenderGroup } from './tasks-grouping'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -66,43 +63,8 @@ export type TasksTableProps = {
 // mirroring the signed mockup and the My Week 'off track first' reading.
 const STATUS_ORDER: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
 
-// ── Group model ────────────────────────────────────────────────────────────────
-// A group ready to render: its display label, persistence key, leaf rows (filtered
-// + due-sorted), overdue subtotal, and the "+ Add task" pre-fill query param.
-type RenderGroup = {
-  key: string        // persistence/identity key (status name, person id, or bu id)
-  label: string      // display label
-  rows: TaskListRow[]
-  overdue: number
-  prefillParam: string // e.g. "status=Blocked", "r=<personId>", "bu=<buId>"
-}
-
-// ── Skeleton row ──────────────────────────────────────────────────────────────
-function SkeletonRow({ condensed }: { condensed: boolean }) {
-  return (
-    <tr>
-      {/* leading checkbox col (empty - hover-reveal is irrelevant while loading) */}
-      <td className="sk-cell td-cb" />
-      <td className="sk-cell"><div className="sk" style={{ width: '42%' }} /></td>
-      <td className="sk-cell"><div className="sk pill" /></td>
-      <td className="sk-cell"><div className="sk av" /></td>
-      {!condensed && (
-        <td className="sk-cell"><div className="sk" style={{ width: 60 }} /></td>
-      )}
-      <td className="sk-cell" style={{ textAlign: 'right' }}>
-        <div className="sk" style={{ width: 56, marginLeft: 'auto' }} />
-      </td>
-      {!condensed && (
-        <td className="sk-cell" style={{ textAlign: 'right' }}>
-          <div className="sk" style={{ width: 28, marginLeft: 'auto' }} />
-        </td>
-      )}
-      {/* trailing row-menu col (empty) */}
-      <td className="sk-cell td-menu" />
-    </tr>
-  )
-}
-
+// The RenderGroup shape (group label/key/rows/overdue/prefill) lives in
+// ./tasks-grouping so the orchestrator + body agree on it.
 
 const columnHelper = createColumnHelper<TaskListRow>()
 
@@ -368,9 +330,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
   // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
   // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
-  type FlatRow =
-    | { kind: 'header'; group: RenderGroup }
-    | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
+  // FlatRow shape lives in ./tasks-table-body (shared with the body renderer).
   const { flatRows, leafTasks } = useMemo(() => {
     const flat: FlatRow[] = []
     const leaves: TaskListRow[] = []
@@ -494,51 +454,23 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
   // ── Row renderer (shared by the plain + virtualized bodies) ────────────────
   function renderRow(task: TaskListRow, leafIndex: number) {
-    const ds = dueStatus(task.due_date, now)
-    const taskOverdue = isOverdue(task, now)
-    // C1: only genuinely-overdue (non-Done, non-archived) rows get the red class.
-    const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
-    const dueText = task.due_date
-      ? (taskOverdue
-        // M1: condensed drops the "Overdue · " prefix but keeps a "!" glyph (WCAG 1.4.1).
-        ? (condensed ? `! ${formatDate(task.due_date)}` : `Overdue · ${formatDate(task.due_date)}`)
-        : formatDate(task.due_date))
-      : '—'
-    const buName = buMap.get(task.business_unit_id) ?? ''
-    const rName = personMap.get(task.responsible_person_id) ?? ''
-    const isArchived = task.archived_at != null
-    const isSelected = selectedId === task.id
-    const isCursor = cursor === leafIndex
-    const isChecked = selectedIds.has(task.id)
     return (
-      <tr key={task.id}
-        ref={isCursor ? cursorRowRef : undefined}
-        className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}`}
-        // I1: expose cursor to AT via aria-current; isSelected keeps 'true' for the open drawer row.
-        aria-current={isSelected ? 'true' : (isCursor ? 'true' : undefined)}
-        onClick={() => navigate(`/tasks/${task.id}`)}>
-        {/* PR-2 AC-T02/T07 — hover-revealed row checkbox (presentational scaffolding; no bulk action). */}
-        <td className="td-cell td-cb">
-          <RowCheckbox checked={isChecked} onChange={() => toggleSelected(task.id)} label={`Select ${task.title}`} />
-        </td>
-        <td className="td-main">
-          <Link to={`/tasks/${task.id}`} className="task-row-link" tabIndex={0} title={task.title}>
-            <span className="task-title-line">
-              {isArchived && <span className="archived-tag">Archived</span>}
-              <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
-            </span>
-          </Link>
-        </td>
-        <td className="td-cell td-status"><StatusPill status={task.status} /></td>
-        <td className="td-cell td-owner"><OwnerCell fullName={rName} otherCount={otherRaciCount(task)} others={buildOthers(task)} /></td>
-        {!condensed && <td className="td-cell td-bu">{buName}</td>}
-        <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
-        {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
-        {/* PR-2 AC-T02 — hover-revealed ⋯ row menu (Open → /tasks/:id, the only action this PR). */}
-        <td className="td-cell td-menu">
-          <RowMenu taskId={task.id} />
-        </td>
-      </tr>
+      <TaskRow
+        key={task.id}
+        task={task}
+        now={now}
+        condensed={condensed}
+        isSelected={selectedId === task.id}
+        isCursor={cursor === leafIndex}
+        leafIndex={leafIndex}
+        cursorRowRef={cursor === leafIndex ? cursorRowRef : undefined}
+        buName={buMap.get(task.business_unit_id) ?? ''}
+        ownerName={personMap.get(task.responsible_person_id) ?? ''}
+        others={buildOthers(task)}
+        onOpen={(id) => navigate(`/tasks/${id}`)}
+        checked={selectedIds.has(task.id)}
+        onCheck={() => toggleSelected(task.id)}
+      />
     )
   }
 
@@ -617,228 +549,51 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
       <div className={splitClass}>
         <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label="Tasks">
-      {/* Toolbar */}
-      <div className="toolbar">
-        {/* Group-by control — wired to the grouping engine (FR-122) */}
-        <label htmlFor="group-by-filter" className="sr-only">Group</label>
-        <div className="control control-groupby">
-          <span className="ctrl-lbl">Group</span>
-          <select
-            id="group-by-filter"
-            aria-label="Group"
-            value={groupBy}
-            onChange={e => setGroupBy(e.target.value as TasksGroupBy)}
-            className="ctrl-select"
-          >
-            <option value="status">Status</option>
-            <option value="owner">Owner</option>
-            <option value="bu">Business unit</option>
-          </select>
-          <Chevron className="ctrl-chev" />
-        </div>
+          <TasksToolbar
+            groupBy={groupBy}
+            setGroupBy={setGroupBy}
+            businessUnitId={businessUnitId}
+            setBusinessUnitId={setBusinessUnitId}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            personFilter={personFilter}
+            setPersonFilter={setPersonFilter}
+            segment={segment}
+            setSegment={setSegment}
+            segmentDisabled={segmentDisabled}
+            searchText={searchText}
+            setSearchText={setSearchText}
+            includeArchived={includeArchived}
+            setIncludeArchived={setIncludeArchived}
+            buOptions={buOptions}
+            personOptions={personOptions}
+            showNewTask={showNewTask}
+          />
 
-        <label htmlFor="bu-filter" className="sr-only">Business unit</label>
-        <div className="control">
-          <span className="ctrl-lbl">Business unit</span>
-          <select id="bu-filter" aria-label="Business unit" value={businessUnitId}
-            onChange={e => setBusinessUnitId(e.target.value)} className="ctrl-select">
-            <option value="">All</option>
-            {buOptions.map(bu => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
-          </select>
-          <Chevron className="ctrl-chev" />
-        </div>
-
-        <label htmlFor="status-filter" className="sr-only">Status</label>
-        <div className="control">
-          <span className="ctrl-lbl">Status</span>
-          <select id="status-filter" aria-label="Status" value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as TaskStatus | '')} className="ctrl-select">
-            <option value="">Any</option>
-            <option value="Open">Open</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Blocked">Blocked</option>
-            <option value="Done">Done</option>
-          </select>
-          <Chevron className="ctrl-chev" />
-        </div>
-
-        <label htmlFor="person-filter" className="sr-only">Person</label>
-        <div className="control">
-          <span className="ctrl-lbl">Person</span>
-          <select id="person-filter" aria-label="Person" value={personFilter}
-            onChange={e => setPersonFilter(e.target.value)} className="ctrl-select">
-            <option value="">Anyone</option>
-            {personOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
-          <Chevron className="ctrl-chev" />
-        </div>
-
-        {/* Mine/RACI/All segment — disabled when Person filter is set (FR-124 / AC-126).
-            Per the PR-2-review ruling the disabled segment gets a tooltip
-            ("Scope is set by the Person filter") rather than a literal "Person: me" label. */}
-        <div
-          role="tablist"
-          aria-label="Ownership filter"
-          className={`seg${segmentDisabled ? ' seg-disabled' : ''}`}
-          title={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-          aria-description={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-        >
-          {([
-            { key: 'mine', label: 'Mine' },
-            { key: 'raci', label: 'RACI' },
-            { key: 'all', label: 'All' },
-          ] as { key: Segment; label: string }[]).map(({ key, label }) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={!segmentDisabled && segment === key}
-              aria-disabled={segmentDisabled ? 'true' : undefined}
-              tabIndex={segmentDisabled ? -1 : 0}
-              disabled={segmentDisabled}
-              className={!segmentDisabled && segment === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
-              title={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-              onClick={() => setSegment(key)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <label htmlFor="task-search" className="sr-only">Search tasks</label>
-        <div className="search-mini">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-          </svg>
-          <input id="task-search" type="search" placeholder="Search tasks" value={searchText}
-            onChange={e => setSearchText(e.target.value)} className="search-input" aria-label="Search tasks" />
-        </div>
-
-        <label className="archived-toggle">
-          <input type="checkbox" checked={includeArchived}
-            onChange={e => setIncludeArchived(e.target.checked)} aria-label="Show archived" className="archived-checkbox" />
-          <span className="archived-label">Show archived</span>
-        </label>
-
-        {/* + New task lives in the toolbar as the right-aligned primary action (mockup
-            '.btn-primary.grow'). Rendered only when the table is populated — empty /
-            no-results states own their own CTA, so every state has exactly one create link. */}
-        {showNewTask && (
-          <Link to="/tasks/new" className="btn btn-primary toolbar-new-task">+ New task</Link>
-        )}
-      </div>
-
-      {/* Body */}
-      {loading ? (
-        <div aria-busy="true" aria-label="Loading tasks">
-          <span className="sr-only" role="status">Loading tasks</span>
-          {isDesktop ? (
-            <table className="tasks-table" aria-label="Loading tasks">
-              <tbody>
-                <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
-                <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
-                <SkeletonRow condensed={condensed} />
-              </tbody>
-            </table>
-          ) : (
-            <div className="skeleton-cards">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="sk-card-row"><div className="sk" style={{ width: '50%' }} /><div className="sk pill" /></div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : error ? (
-        <ErrorState message="Couldn't load tasks" onRetry={load} />
-      ) : leafTasks.length === 0 && hasActiveFilter ? (
-        /* No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3) */
-        <EmptyState title="No tasks match these filters" copy="Clear filters to see all tasks.">
-          <button type="button" className="btn btn-outline" onClick={clearFilters}>Clear filters</button>
-          <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
-        </EmptyState>
-      ) : leafTasks.length === 0 ? (
-        /* Empty-no-tasks: no filter is active (segment-aware copy) */
-        <EmptyState title={emptyTitle()} copy={emptyCopy()}>
-          <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
-        </EmptyState>
-      ) : isDesktop ? (
-        <>
-          <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
-          <table className="tasks-table" aria-label="Tasks">
-            <thead>
-              <tr>
-                {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}
-                <th scope="col" className="th-cell th-cb">
-                  <RowCheckbox
-                    checked={allChecked}
-                    indeterminate={someChecked && !allChecked}
-                    onChange={() => toggleSelectAll()}
-                    label="Select all tasks"
-                  />
-                </th>
-                <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`}
-                  aria-sort={colSort('task')} onClick={() => handleSort('task')}>
-                  Task{sortIndicator('task')}
-                </th>
-                <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`}
-                  aria-sort={colSort('status')} onClick={() => handleSort('status')}>
-                  Status{sortIndicator('status')}
-                </th>
-                <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
-                  aria-sort={colSort('owner')} onClick={() => handleSort('owner')}>
-                  Owner{sortIndicator('owner')}
-                </th>
-                {!condensed && (
-                  <th scope="col" className="th-cell">Business unit</th>
-                )}
-                <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
-                  aria-sort={colSort('due')} onClick={() => handleSort('due')}>
-                  Due{sortIndicator('due')}
-                </th>
-                {!condensed && (
-                  <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
-                    aria-sort={colSort('activity')} onClick={() => handleSort('activity')}>
-                    Activity{sortIndicator('activity')}
-                  </th>
-                )}
-                {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
-                <th scope="col" className="th-cell th-menu" aria-label="Row actions" />
-              </tr>
-            </thead>
-            {virtualize ? (
-              (() => {
-                const items = rowVirtualizer.getVirtualItems()
-                const totalSize = rowVirtualizer.getTotalSize()
-                const colSpan = condensed ? 4 : 6
-                const padTop = items.length > 0 ? items[0].start : 0
-                const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
-                return (
-                  <tbody>
-                    {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={colSpan} /></tr>}
-                    {items.map(vi => {
-                      const fr = flatRows[vi.index]
-                      return fr.kind === 'header'
-                        ? renderGroupHeader(fr.group)
-                        : renderRow(fr.task, fr.leafIndex)
-                    })}
-                    {padBottom > 0 && <tr aria-hidden="true" style={{ height: padBottom }}><td colSpan={colSpan} /></tr>}
-                  </tbody>
-                )
-              })()
-            ) : (
-              <tbody>
-                {flatRows.map(fr =>
-                  fr.kind === 'header'
-                    ? renderGroupHeader(fr.group)
-                    : renderRow(fr.task, fr.leafIndex))}
-              </tbody>
-            )}
-          </table>
-          </div>
-        </>
-      ) : (
-        <>
-          <MobileGroupedCards
+          <TasksTableBody
+            loading={loading}
+            error={error}
+            leafTasks={leafTasks}
+            hasActiveFilter={hasActiveFilter}
+            condensed={condensed}
+            isDesktop={isDesktop}
+            onRetry={load}
+            onClearFilters={clearFilters}
+            emptyTitle={emptyTitle()}
+            emptyCopy={emptyCopy()}
+            sortCol={sortCol}
+            onSort={handleSort}
+            ariaSort={colSort}
+            sortIndicator={sortIndicator}
+            allChecked={allChecked}
+            someChecked={someChecked}
+            onToggleSelectAll={toggleSelectAll}
+            flatRows={flatRows}
+            virtualize={virtualize}
+            scrollRef={scrollRef}
+            rowVirtualizer={rowVirtualizer}
+            renderRow={renderRow}
+            renderGroupHeader={renderGroupHeader}
             groups={groups}
             now={now}
             buMap={buMap}
@@ -849,8 +604,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             setOverdueOnly={setOverdueOnly}
             buildOthers={buildOthers}
           />
-        </>
-      )}
         </section>
         {drawerOpen && drawerSlot}
       </div>

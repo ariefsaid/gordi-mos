@@ -1,11 +1,11 @@
-// StatusPill — renders the soft <Tag> (Twenty IxD). Each status maps to a
-// semantic tag colour, and the text label is always present.
+// StatusPill — renders the soft <Tag> (records-workspace IxD). Each status maps
+// to a semantic tag colour, and the text label is always present.
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StatusPill } from './status-pill'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 
-describe('StatusPill — status variants (soft Tag, Twenty IxD)', () => {
+describe('StatusPill — status variants (soft Tag, records-workspace IxD)', () => {
   // Semantic colour mapping (In Progress→blue, Blocked→red, Open→amber, Done→green).
   const cases: [TaskStatus, string][] = [
     ['Open',        'amber'],
@@ -27,8 +27,9 @@ describe('StatusPill — status variants (soft Tag, Twenty IxD)', () => {
 })
 
 describe('StatusPill — AC-118 always-label rule (label is the redundant cue)', () => {
-  // WCAG 1.4.1 / OBS-120: status is never colour-alone. The Tag carries no dot,
-  // so the text label IS the non-colour cue — it must always be present.
+  // WCAG 1.4.1 / OBS-120: status is never colour-alone. The leading dot is an
+  // aria-hidden redundant cue, so the text label remains the non-colour cue —
+  // it must always be present.
   const statuses: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
   for (const status of statuses) {
     it(`AC-118: "${status}" always renders its text label (never colour-only)`, () => {
