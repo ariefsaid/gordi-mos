@@ -513,6 +513,58 @@ blast radius, but **rotation = redeploy**; a long-running runtime-secret-needing
 favors the resident token. See ADR-0010 D9 + D12. *Open (confirm-at-deploy-spec): resident secret-zero
 token vs deploy-time render — and whether 1Password Connect is worth it later as services grow.*
 
+### OD-P4-9 — Keep the global top bar (rejects the UI-revamp proposal to retire it)
+The UI-revamp design-plan proposed retiring the §5 global 56px top bar (breadcrumb→content-top,
+everything else into the rail). **Owner rejected** — the top bar stays, populated with:
+**⌘K search · breadcrumb · notification bell (icon-only stub, no function yet) · user chip.** This
+**reverses part of #29**, which had moved ⌘K + the user chip into the rail; both move **back to the
+top bar**, and the rail's in-rail search row + foot user chip are **removed**. The **rail keeps** the
+`Gordi MOS ⌄` workspace switcher + the "Workspace" nav (accent-icon selection) + Settings. Net IA:
+**rail = navigation + workspace identity; top bar = search + breadcrumb + notifications + user.** The
+notification bell is a visual stub (the IA slot; reminders/notifications remain deferred per OD-P2-2).
+Implementation lands in the UI-revamp build (eng-planner ADR covers it alongside the other revamp
+surfaces).
+
+### OD-P4-10 — Table column headers: lighter overline (UPPERCASE + tracking, weight 400)
+Ratifies UI-revamp OD-OVERRIDE-2 as **variant (b)** (Director-decided, owner deferred): `thead th`
+keeps the **UPPERCASE + 0.06em tracking** overline *shape* but drops **600→400 + lighter color**.
+Keeps one "label voice" kin to the rail-group + KPI overlines (just softened) rather than splitting
+into a separate sentence-case header style. **Fix needed:** #29 shipped these sentence-case/400/no-track
+(over-corrected) — re-add uppercase + tracking, keep weight 400. The Overline token stays **600**
+everywhere else (rail groups, KPI). Scoped to `thead th` only.
+
+### Terminology note (grill 2026-06-19, no CONTEXT.md change)
+The hybrid task-detail surface introduces **"record page"** (drawer → expand → full two-column page).
+Per the OD-P3-6 precedent ("view / group / board are UI mechanics, not domain vocabulary"),
+**"record page" / "record" are UI mechanics, not MOS domain terms** — CONTEXT.md is unchanged. The
+generic-entity framing (Task today; Projects/Objectives later) is a *roadmap* aspiration, not current
+glossary. ⌘K-with-record-search (v1, owner-chosen) implies a **search endpoint** — a build dependency
+for the eng-planner ADR, not a term.
+
+### OD-P4-11 — Mockup feedback: brand-left top bar · dark-mode AA legibility · no-bleed (owner, 2026-06-19)
+Owner review of the UI-revamp mockups (against the hand sketch) settled three things:
+
+1. **Top bar is brand-left.** Left→right: **brand lockup** (logo + "Gordi MOS", a 236px column sitting
+   *over* the rail with a divider) · **breadcrumb** · spacer · **⌘K search** · **notification bell**
+   (icon-only stub) · **user chip**. Search moves from the bar's far-left to the **right cluster**
+   (next to bell + user) per the sketch. **The rail loses its workspace switcher** — workspace identity
+   now lives in the top-bar brand; the rail is **navigation-only** (Workspace nav + Settings foot). The
+   breadcrumb **dedups the brand** (drop the leading "Gordi MOS" crumb). Refines OD-P4-9 (which kept the
+   top bar but placed search far-left + workspace switcher in the rail).
+2. **Dark-mode legibility is a gate.** Label/meta text on `--ds-font-color-light` measured ≈3.1:1 on the
+   dark bg (**fails WCAG-AA**). Those roles move to **`--ds-font-color-tertiary`** (≈4.6:1): table overline
+   (OD-P4-10 intent preserved — still lighter than body + weight 400), rail group label, nav counts, ⌘K
+   group labels. **Rule:** a themed scope must **set text color explicitly** — a body-level `var()` bakes
+   the *light-theme* value into the computed color children inherit, so dark children render near-black on
+   dark (this was the dim ⌘K palette the owner flagged). The kit may later add an AA-safe dark "label"
+   step; until then map label roles to `--tertiary`.
+3. **No-bleed is a standing build constraint.** Long brand/user/breadcrumb text must ellipsize; status
+   tags `white-space: nowrap`; the brand column is fixed-width so the breadcrumb can't shove it; content
+   columns scroll, never overflow the shell. Carried into the eng-planner ADR + every UI-revamp PR's
+   design-review (the design-plan "No-bleed guardrails" appendix is the checklist).
+
+Mockups updated (`docs/design-mockups/ui-revamp/`, PR #35) and re-rendered light+dark to verify.
+
 ---
 
 ## Legacy naming to reconcile (do NOT churn now — fix opportunistically on the next relevant migration)

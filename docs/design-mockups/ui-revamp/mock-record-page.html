@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOS revamp — task record page (two-column) in shell</title>
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+
+  /* ---- Shared shell (top bar + rail) — consistent with mock-shell-and-table ---- */
+  .shell {
+    display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 236px 1fr;
+    grid-template-areas: "topbar topbar" "rail main";
+    background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden;
+    border-radius: var(--ds-border-radius-md);
+  }
+  .topbar {
+    grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
+    height: 56px; padding: 0 var(--ds-spacing-4) 0 0;
+    border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary);
+  }
+  /* Brand lockup — top bar's left column, sized to sit OVER the rail (236px) with a divider */
+  .tb-brand { display: flex; align-items: center; gap: var(--ds-spacing-2);
+    width: 236px; flex: none; height: 100%; padding: 0 var(--ds-spacing-4);
+    border-right: 1px solid var(--ds-border-color-light); }
+  .tb-logo { width: 26px; height: 26px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue12); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+    position: relative; flex: none; }
+  .tb-logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
+  .tb-brand .nm { font-family: var(--ds-font-display); font-weight: 700; font-size: 15px;
+    letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-search {
+    display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 260px;
+    padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-tertiary); cursor: text;
+    background: var(--ds-background-secondary); flex: none;
+  }
+  .tb-search .lbl { flex: 1; font-size: 13px; }
+  .kbd { font-family: var(--ds-code-font-family); font-size: 11px; padding: 1px 4px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs);
+    color: var(--ds-font-color-tertiary); }
+  .tb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+  .tb-crumb a { color: var(--ds-font-color-secondary); text-decoration: none; flex: none; }
+  .tb-crumb a:hover { color: var(--ds-font-color-primary); }
+  .tb-crumb .sep { color: var(--ds-font-color-light); flex: none; }
+  .tb-crumb .cur { color: var(--ds-font-color-primary); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-spacer-top { flex: 1; }
+  .tb-bell { width: 34px; height: 34px; border-radius: var(--ds-border-radius-sm);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    color: var(--ds-font-color-tertiary); border: none; background: none; flex: none; }
+  .tb-bell:hover { background: var(--ds-background-transparent-light); color: var(--ds-font-color-secondary); }
+  .tb-user { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px;
+    padding: 0 6px 0 4px; border-radius: var(--ds-border-radius-pill); cursor: pointer; flex: none; }
+  .tb-user:hover { background: var(--ds-background-transparent-light); }
+  .tb-user .nm { font-size: 13px; font-weight: 500;
+    max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* no-bleed */
+  .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
+  .tb-av { width: 26px; height: 26px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; flex: none; }
+
+  .rail { grid-area: rail; background: var(--ds-background-secondary);
+    border-right: 1px solid var(--ds-border-color-light);
+    padding: var(--ds-spacing-2); display: flex; flex-direction: column; }
+  /* Workspace identity (logo + name) now lives in the top-bar brand lockup — the rail is nav-only. */
+  .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ds-font-color-tertiary); padding: 14px var(--ds-spacing-2) 4px; font-weight: 500; }
+  .nav-item { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary);
+    font-size: 13px; cursor: pointer; text-decoration: none; }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }
+  .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); }
+  .rail-spacer { flex: 1; }
+  .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
+
+  /* ---- Main holds the two-column record (breadcrumb now lives in the top bar) ---- */
+  .main { grid-area: main; min-width: 0; background: var(--ds-background-primary); display: flex; flex-direction: column; }
+
+  .cols { display: grid; grid-template-columns: 332px 1fr; min-height: 520px; flex: 1; }
+  /* LEFT details panel */
+  .details { border-right: 1px solid var(--ds-border-color-light); padding: var(--ds-spacing-4);
+    display: flex; flex-direction: column; gap: var(--ds-spacing-4); }
+  .identity { display: flex; gap: var(--ds-spacing-3); align-items: flex-start; }
+  .id-av {
+    width: 44px; height: 44px; border-radius: var(--ds-border-radius-md); flex: none;
+    background: var(--ds-tag-background-blue); color: var(--ds-tag-text-blue);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .id-name { font-family: var(--ds-font-display); font-size: 24px; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
+  .id-sub { font-size: 13px; color: var(--ds-font-color-tertiary); margin-top: 4px; }
+  .actions { display: flex; gap: 6px; }
+  .icobtn { width: 28px; height: 28px; border: 1px solid var(--ds-border-color-medium);
+    border-radius: var(--ds-border-radius-sm); background: var(--ds-background-primary);
+    color: var(--ds-font-color-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 500;
+    color: var(--ds-font-color-light); margin-bottom: 6px; }
+  .field { display: flex; align-items: center; min-height: 30px; font-size: 13px; }
+  .field .lbl { width: 104px; flex: none; color: var(--ds-font-color-tertiary); display: flex; align-items: center; gap: 6px; }
+  .field .val { color: var(--ds-font-color-primary); }
+  .val.editable:hover { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); padding: 0 4px; margin: 0 -4px; cursor: text; }
+
+  .tag { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; }
+  .tag .d { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }
+  .tag.prog { background: var(--ds-tag-background-amber); color: var(--ds-tag-text-amber); }
+  .tag.prog .d { background: var(--ds-color-amber); }
+
+  /* RACI chips */
+  .raci-row { display: flex; flex-direction: column; gap: 6px; }
+  .raci { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; width: fit-content; }
+  .raci .glyph { font-weight: 700; }
+  .raci.r { background: var(--ds-tag-background-blue);   color: var(--ds-tag-text-blue); }
+  .raci.a { background: var(--ds-tag-background-violet); color: var(--ds-tag-text-violet); }
+  .raci.ci { background: var(--ds-background-tertiary);  color: var(--ds-font-color-secondary); }
+
+  /* RIGHT feed */
+  .feed { display: flex; flex-direction: column; min-width: 0; }
+  .tabs { display: flex; gap: 4px; padding: 0 var(--ds-spacing-4); border-bottom: 1px solid var(--ds-border-color-light); }
+  .tab { font-size: 13px; font-weight: 500; padding: 12px 8px; color: var(--ds-font-color-tertiary); cursor: pointer; }
+  .tab.on { color: var(--ds-font-color-primary); border-bottom: 2px solid var(--ds-color-blue); }
+  .events { padding: var(--ds-spacing-4); display: flex; flex-direction: column; gap: var(--ds-spacing-3); overflow: auto; }
+  .event { display: flex; gap: 10px; font-size: 13px; }
+  .event .eg { color: var(--ds-font-color-tertiary); flex: none; }
+  .event .et { color: var(--ds-font-color-secondary); }
+  .event .ts { margin-left: auto; color: var(--ds-font-color-light); font-size: 12px; flex: none; }
+  .note-card { background: var(--ds-color-yellow1); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); padding: var(--ds-spacing-3); font-size: 13px; }
+  .checkrow { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
+  .ck { width: 16px; height: 16px; border: 1.5px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-xs); flex: none; }
+  .ck.on { background: var(--ds-color-blue); border-color: var(--ds-color-blue); }
+  .ck.on + span { color: var(--ds-font-color-tertiary); text-decoration: line-through; }
+
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 12px; display: inline-block; }
+  .err-field-note { color: var(--ds-font-color-danger); font-size: 12px; margin-top: 4px; }
+  .field.invalid .val { border: 1px solid var(--ds-border-color-danger); border-radius: var(--ds-border-radius-xs); padding: 0 4px; }
+  /* Dark base color on the scope itself — see shell mock: inheriting children resolve --primary in dark. */
+  .dark-wrap { background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
+
+  /* standalone variant cards (loading / checklist / error) keep the simple card frame */
+  .record { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); overflow: hidden; }
+  .crumb { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); font-size: 13px; }
+  .crumb a { color: var(--ds-font-color-secondary); text-decoration: none; }
+  .crumb .sep { color: var(--ds-font-color-light); }
+  .crumb .cur { color: var(--ds-font-color-primary); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="mock-label">Surface 3 — task record page (two-column: details panel + tabbed feed) in shell · light</div>
+  <div class="shell" style="height:640px">
+    <!-- shared top bar (brand-left); breadcrumb here shows the record path (OD-P4-9) -->
+    <header class="topbar">
+      <div class="tb-brand">
+        <div class="tb-logo">G<span class="dot"></span></div>
+        <span class="nm">Gordi MOS</span>
+      </div>
+      <nav class="tb-crumb" aria-label="Breadcrumb">
+        <a href="#">Tasks</a><span class="sep">›</span>
+        <span class="cur" aria-current="page">Finalise Q3 roastery output forecast</span>
+      </nav>
+      <span class="tb-spacer-top"></span>
+      <div class="tb-search" role="button" aria-label="Search — open command menu">
+        <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+      </div>
+      <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+      <div class="tb-user" role="button" aria-label="Account menu">
+        <div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span>
+      </div>
+    </header>
+
+    <aside class="rail">
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <div class="rail-spacer"></div>
+      <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+    </aside>
+
+    <!-- MAIN: two-column record (the breadcrumb is the top bar's, not a separate row) -->
+    <div class="main">
+      <div class="cols">
+        <!-- LEFT -->
+        <div class="details">
+          <div class="identity">
+            <div class="id-av">⊞</div>
+            <div style="min-width:0">
+              <div class="id-name">Finalise Q3 roastery output forecast</div>
+              <div class="id-sub">Roastery · TASK-1042</div>
+            </div>
+          </div>
+          <div class="actions">
+            <span class="icobtn" title="Share">↗</span>
+            <span class="icobtn" title="More">⋯</span>
+            <span class="icobtn" title="Archive">🗑</span>
+          </div>
+
+          <div>
+            <div class="section-label">Status</div>
+            <span class="tag prog"><span class="d"></span>In progress</span>
+          </div>
+
+          <div>
+            <div class="section-label">Ownership (RACI)</div>
+            <div class="raci-row">
+              <span class="raci r"><span class="glyph">R</span> Rina L.</span>
+              <span class="raci a"><span class="glyph">A</span> Arief S.</span>
+              <span class="raci ci"><span class="glyph">C</span> Dewi W.</span>
+              <span class="raci ci"><span class="glyph">I</span> Finance team</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Details</div>
+            <div class="field"><span class="lbl">◷ Due</span><span class="val editable">Fri 27 Jun 2026</span></div>
+            <div class="field"><span class="lbl">⊞ Unit</span><span class="val editable">Roastery</span></div>
+            <div class="field"><span class="lbl">◴ Created</span><span class="val">12 Jun 2026</span></div>
+            <div class="field"><span class="lbl">☑ Checklist</span><span class="val">2 of 5 done</span></div>
+          </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="feed">
+          <div class="tabs" role="tablist">
+            <span class="tab on" role="tab" aria-selected="true">Activity</span>
+            <span class="tab" role="tab" aria-selected="false">Checklist</span>
+            <span class="tab" role="tab" aria-selected="false">Notes</span>
+          </div>
+          <div class="events">
+            <div class="event"><span class="eg">●</span><span class="et"><b>Rina L.</b> moved status to <b>In progress</b></span><span class="ts">8h ago</span></div>
+            <div class="event"><span class="eg">✎</span><span class="et"><b>Arief S.</b> set Accountable to himself</span><span class="ts">1d ago</span></div>
+            <div class="note-card">
+              <div style="color:var(--ds-font-color-tertiary); font-size:12px; margin-bottom:4px;">Note · Dewi W. · 2d ago</div>
+              Green-bean supplier confirmed a 2-week lead time on Aceh Gayo — forecast must assume late-July arrival, not early.
+            </div>
+            <div class="event"><span class="eg">☑</span><span class="et"><b>Rina L.</b> checked off "Pull June actuals"</span><span class="ts">2d ago</span></div>
+            <div class="event"><span class="eg">＋</span><span class="et"><b>Arief S.</b> created this task</span><span class="ts">12 Jun</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VARIANTS: loading · checklist tab · inline-save error (content-only frames; shell omitted for focus) -->
+<div class="wrap">
+  <div class="mock-label">Record page — loading · checklist tab · inline-save error (content frames; breadcrumb crumb in-shell lives in the top bar)</div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+    <!-- loading -->
+    <div class="record" aria-busy="true">
+      <nav class="crumb"><a href="#">☰ Tasks</a><span class="sep">›</span><span class="sk" style="width:120px"></span></nav>
+      <div class="cols" style="min-height:300px">
+        <div class="details">
+          <div class="identity"><div class="id-av" style="background:var(--ds-background-tertiary); color:transparent">·</div>
+            <div><span class="sk" style="width:160px; height:20px"></span><br><br><span class="sk" style="width:90px"></span></div></div>
+          <div><div class="section-label">Status</div><span class="sk" style="width:80px; height:18px"></span></div>
+          <div><div class="section-label">Details</div>
+            <div class="field"><span class="sk" style="width:200px"></span></div>
+            <div class="field"><span class="sk" style="width:160px"></span></div></div>
+        </div>
+        <div class="feed"><div class="tabs"><span class="tab on">Activity</span></div>
+          <div class="events"><span class="sk" style="width:90%"></span><span class="sk" style="width:70%"></span><span class="sk" style="width:80%"></span></div></div>
+      </div>
+    </div>
+    <!-- checklist tab + inline error -->
+    <div class="record">
+      <nav class="crumb"><a href="#">☰ Tasks</a><span class="sep">›</span><span class="cur">Restock Aceh Gayo green</span></nav>
+      <div class="cols" style="min-height:300px">
+        <div class="details">
+          <div><div class="section-label">Details</div>
+            <div class="field invalid"><span class="lbl">◷ Due</span><span class="val">31 Jun 2026</span></div>
+          </div>
+          <div class="err-field-note">Not a valid date — June has 30 days.</div>
+        </div>
+        <div class="feed">
+          <div class="tabs"><span class="tab">Activity</span><span class="tab on">Checklist</span><span class="tab">Notes</span></div>
+          <div class="events">
+            <div class="checkrow"><span class="ck on"></span><span>Confirm supplier lead time</span></div>
+            <div class="checkrow"><span class="ck on"></span><span>Pull June actuals</span></div>
+            <div class="checkrow"><span class="ck"></span><span>Model July arrival scenarios</span></div>
+            <div class="checkrow"><span class="ck"></span><span>Review with Finance</span></div>
+            <div class="checkrow" style="color:var(--ds-color-blue); cursor:pointer">＋ Add item</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="wrap">
+    <div class="mock-label">Surface 3 — dark mode (in shell)</div>
+    <div class="shell" style="height:560px">
+      <header class="topbar">
+        <div class="tb-brand">
+          <div class="tb-logo">G<span class="dot"></span></div>
+          <span class="nm">Gordi MOS</span>
+        </div>
+        <nav class="tb-crumb" aria-label="Breadcrumb">
+          <a href="#">Tasks</a><span class="sep">›</span>
+          <span class="cur" aria-current="page">Finalise Q3 roastery output forecast</span>
+        </nav>
+        <span class="tb-spacer-top"></span>
+        <div class="tb-search" role="button" aria-label="Search — open command menu">
+          <span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span>
+        </div>
+        <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+        <div class="tb-user" role="button" aria-label="Account menu"><div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span></div>
+      </header>
+      <aside class="rail">
+        <div class="rail-group">Workspace</div>
+        <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+        <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+        <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+        <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+        <div class="rail-spacer"></div>
+        <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+      </aside>
+      <div class="main">
+        <div class="cols">
+          <div class="details">
+            <div class="identity"><div class="id-av">⊞</div>
+              <div><div class="id-name">Finalise Q3 roastery output forecast</div><div class="id-sub">Roastery · TASK-1042</div></div></div>
+            <div><div class="section-label">Status</div><span class="tag prog"><span class="d"></span>In progress</span></div>
+            <div><div class="section-label">Ownership (RACI)</div>
+              <div class="raci-row">
+                <span class="raci r"><span class="glyph">R</span> Rina L.</span>
+                <span class="raci a"><span class="glyph">A</span> Arief S.</span>
+                <span class="raci ci"><span class="glyph">C</span> Dewi W.</span>
+              </div></div>
+            <div><div class="section-label">Details</div>
+              <div class="field"><span class="lbl">◷ Due</span><span class="val">Fri 27 Jun 2026</span></div>
+              <div class="field"><span class="lbl">⊞ Unit</span><span class="val">Roastery</span></div></div>
+          </div>
+          <div class="feed">
+            <div class="tabs"><span class="tab on">Activity</span><span class="tab">Checklist</span><span class="tab">Notes</span></div>
+            <div class="events">
+              <div class="event"><span class="eg">●</span><span class="et"><b>Rina L.</b> moved status to <b>In progress</b></span><span class="ts">8h ago</span></div>
+              <div class="note-card">
+                <div style="color:var(--ds-font-color-tertiary); font-size:12px; margin-bottom:4px;">Note · Dewi W. · 2d ago</div>
+                Green-bean supplier confirmed a 2-week lead time on Aceh Gayo.
+              </div>
+              <div class="event"><span class="eg">＋</span><span class="et"><b>Arief S.</b> created this task</span><span class="ts">12 Jun</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-PLAN ANCHOR: docs/plans/2026-06-19-ui-revamp-design-plan.md §3 (record page — Alt 3C hybrid)
+CONVERGED DESIGN — owner sign-off gate. Updated 2026-06-19 for OD-P4-9 (shared shell): the record now
+renders inside the global top bar + rail. Renders as the drawer's internal structure (compressed) AND
+as the full-width record page (this layout) when expanded / deep-linked. One TaskSurface, three widths.
+
+SHELL (OD-P4-9 — consistent across all revamp mockups):
+  • Global top bar KEPT: ⌘K search · breadcrumb · notification bell (icon-only STUB) · user chip.
+  • The record's breadcrumb (Gordi MOS › Tasks › <record>) lives in the TOP BAR — there is no separate
+    in-content breadcrumb row in-shell (the standalone variant cards below keep a card crumb for focus only).
+  • Rail = navigation + workspace identity only (workspace switcher + Workspace nav + Settings foot);
+    no in-rail search, no foot user chip.
+
+TOKENS USED (--ds-* only):
+  Surfaces:  --ds-background-primary, --ds-background-secondary, --ds-background-tertiary, --ds-background-transparent-light
+  Text:      --ds-font-color-primary/secondary/tertiary/light/inverted, --ds-font-color-danger
+  Action:    --ds-color-blue (tab underline, links, checkbox fill, +Add), --ds-color-blue9/12 (avatars)
+  Brand:     --ds-color-blue12 (logo square), --ds-color-orange (logo dot)
+  RACI:      R=--ds-tag-background-blue/--ds-tag-text-blue; A=--ds-tag-background-violet/--ds-tag-text-violet (categorical violet, OD-P2);
+             C/I=--ds-background-tertiary/--ds-font-color-secondary
+  Status:    --ds-tag-background-amber/--ds-tag-text-amber + --ds-color-amber dot
+  Note card: --ds-color-yellow1
+  Error:     --ds-border-color-danger (field outline) + --ds-font-color-danger (helper text) — mirrors DESIGN.md field-error tokens
+  Borders:   --ds-border-color-light, --ds-border-color-medium
+  Type:      --ds-font-display (id name 24/600), --ds-font-family, --ds-code-font-family (⌘K), --ds-font-size-{xs,sm}
+  Radii:     --ds-border-radius-{xs,sm,md,pill}
+
+KEY MOVES:
+  • Two columns: LEFT details panel (~332px: identity + actions + Status + RACI + field rows, inline-editable, 104px label col)
+    | RIGHT tabbed feed (Activity / Checklist / Notes), active tab = 2px --ds-color-blue underline.
+  • Status + R/A above the fold (JTBD Task-detail "decision-drivers first"); change-in-place inline (OD-P2-1/3).
+  • Lens-D A2 guard: NO write/ack affordance on a weekly update here — this is a Task, not the upward review pane.
+
+STATES SHOWN: populated · loading (skeleton, breadcrumb entity crumb stays) · checklist tab · inline-save error (field outline + helper). Dark section included.
+
+PROPOSED NEW TOKENS: none. RACI tokens already ratified (OD-P2).
+
+OPEN QUESTION (owner): design-plan §10 Q1 — hybrid (this) vs pure full-page record. Recommend hybrid (keeps manager triage).
+================================================================================
+-->
+</body>
+</html>

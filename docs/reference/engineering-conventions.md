@@ -2,7 +2,7 @@
 
 > **Status:** the engineering standard for `mos-app` + the code-quality review oracle.
 > Stack-agnostic best practices, written for our stack (React 19 + Vite + TypeScript +
-> Tailwind v4 + shadcn + self-hosted Supabase). Orthogonal to the visual `DESIGN.md`
+> Tailwind v4 + shadcn-derived `--ds-*` tokens [no shadcn/ui package] + self-hosted Supabase). Orthogonal to the visual `DESIGN.md`
 > and the `docs/reference/mos-design-kit` IA/IxD reference.
 > §1 + §1b + §4 are enforced (lint + review); §2 records ratified migrations; §3 lists
 > patterns that don't fit our stack.
@@ -63,8 +63,8 @@ We enforce these with **our own ESLint config** (`@typescript-eslint`, `no-restr
 
 | Rule | What it requires | MOS status / action |
 |---|---|---|
-| `no-restricted-imports` group `../*` | **Ban relative-parent imports; use the `@/` alias.** | ❌ **Not set up.** No `@/` alias in `tsconfig`/`vite`; **258 `../` imports** in `src`. **Action:** (1) add alias — `tsconfig` `paths {"@/*":["./src/*"]}` + `vite`/vitest `resolve.alias`; (2) add the lint rule; (3) codemod the 258 imports `../…`→`@/…`. |
-| no hardcoded colors | **Colors come from tokens, never literal hex/rgb/hsl** | ❌ No rule (would have caught `Toggle.css`'s `rgba(0,0,0,.2)`). **Action:** `no-restricted-syntax`/local rule banning literal colors in `src/**/*.{css,tsx}` outside the token files. |
+| `no-restricted-imports` group `../*` | **Ban relative-parent imports; use the `@/` alias.** | ✅ **Done (merged #30).** `@/*→src/*` in tsconfig + vite + vitest; ESLint bans `../*`; all relative-parent imports codemodded (0 remain in `src`). |
+| no hardcoded colors | **Colors come from tokens, never literal hex/rgb/hsl** | ✅ **Done (merged #31).** Stylelint (`color-no-hex` + rgb/hsl disallowed) on `src/**/*.css` (token files exempt) + ESLint `no-restricted-syntax` on tsx. `Toggle.css` offender fixed. |
 | `@typescript-eslint/consistent-type-imports` (`inline-type-imports`) | `import { type Foo }` | **Action:** enable. |
 | `no-duplicate-imports` / `import/no-duplicates` | One import per module | Verify on. |
 | `no-console` (warn) | No stray `console.*` | **Action:** enable. |

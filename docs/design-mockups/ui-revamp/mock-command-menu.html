@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOS revamp — command menu (⌘K)</title>
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; }
+  .stage { position: relative; height: 440px; border-radius: var(--ds-border-radius-md); overflow: hidden;
+    background: var(--ds-background-secondary); border: 1px solid var(--ds-border-color-light); }
+  .scrim { position: absolute; inset: 0; background: var(--ds-background-overlay-primary); }
+  .panel {
+    position: absolute; left: 50%; top: 64px; transform: translateX(-50%); width: 560px; max-width: calc(100% - 32px);
+    background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); box-shadow: var(--ds-box-shadow-strong); overflow: hidden;
+  }
+  .cm-input { display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 48px;
+    border-bottom: 1px solid var(--ds-border-color-light); }
+  .cm-input .ic { color: var(--ds-font-color-tertiary); }
+  .cm-input input { flex: 1; border: none; outline: none; font-family: inherit; font-size: 15px;
+    color: var(--ds-font-color-primary); background: transparent; }
+  .cm-input input::placeholder { color: var(--ds-font-color-tertiary); }
+  .cm-body { max-height: 300px; overflow: auto; padding: 6px; }
+  .cm-group { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 500;
+    /* --tertiary (not --light): group label clears WCAG-AA in dark while staying muted. */
+    color: var(--ds-font-color-tertiary); padding: 10px 10px 4px; }
+  .cm-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px;
+    border-radius: var(--ds-border-radius-sm); font-size: 14px; cursor: pointer;
+    /* Set color explicitly: a themed scope must not inherit body's color — a body-level
+       var() bakes the light value into the computed color children inherit (dark = invisible). */
+    color: var(--ds-font-color-primary); }
+  .cm-item .ig { color: var(--ds-font-color-tertiary); width: 18px; text-align: center; }
+  .cm-item.action .ig { color: var(--ds-color-blue); }
+  .cm-item .meta { margin-left: auto; color: var(--ds-font-color-tertiary); font-size: 12px; }
+  .cm-item.active { background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
+  .kbd { font-family: var(--ds-code-font-family); font-size: 11px; padding: 1px 4px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs);
+    color: var(--ds-font-color-tertiary); margin-left: auto; }
+  .cm-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--ds-border-color-light);
+    font-size: 12px; color: var(--ds-font-color-tertiary); }
+  .cm-foot .k { font-family: var(--ds-code-font-family); }
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 12px; display: inline-block; }
+  .pad { padding: 16px; }
+  /* Dark base color on the scope itself — see shell mock: inheriting children resolve --primary in dark. */
+  .dark-wrap { background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+</style>
+</head>
+<body>
+
+<div class="pad">
+  <div class="mock-label">Surface 5 — command menu (⌘K): default (Recent + Quick actions + Navigate) · light</div>
+  <div class="stage">
+    <div class="scrim"></div>
+    <div class="panel" role="dialog" aria-modal="true" aria-label="Command menu">
+      <div class="cm-input">
+        <span class="ic">⌕</span>
+        <input role="combobox" aria-expanded="true" aria-controls="cm-list" placeholder="Search tasks, or type a command…" autofocus>
+        <span class="kbd">esc</span>
+      </div>
+      <div class="cm-body" id="cm-list" role="listbox">
+        <div class="cm-group">Recent</div>
+        <div class="cm-item" role="option"><span class="ig">⊞</span>Finalise Q3 roastery output forecast<span class="meta">Roastery</span></div>
+        <div class="cm-item" role="option"><span class="ig">⊞</span>Approve new bar opening checklist<span class="meta">Bar</span></div>
+
+        <div class="cm-group">Quick actions</div>
+        <div class="cm-item action active" role="option" aria-selected="true"><span class="ig">＋</span>New task<span class="meta">⌘N</span></div>
+        <div class="cm-item action" role="option"><span class="ig">✎</span>Write weekly update</div>
+        <div class="cm-item action" role="option"><span class="ig">▤</span>Add Daily Log entry</div>
+
+        <div class="cm-group">Navigate</div>
+        <div class="cm-item" role="option"><span class="ig">◫</span>My Week</div>
+        <div class="cm-item" role="option"><span class="ig">☰</span>Tasks</div>
+        <div class="cm-item" role="option"><span class="ig">▤</span>Daily Log</div>
+      </div>
+      <div class="cm-foot"><span><span class="k">↑↓</span> navigate</span><span><span class="k">↵</span> open</span><span><span class="k">esc</span> close</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- TYPING + NO-MATCH + LOADING(records) -->
+<div class="pad">
+  <div class="mock-label">Command menu — typing (filtered) · no match · records loading</div>
+  <div class="grid2">
+    <!-- typing -->
+    <div class="stage" style="height:300px">
+      <div class="scrim"></div>
+      <div class="panel" style="top:40px">
+        <div class="cm-input"><span class="ic">⌕</span><input value="roast" placeholder=""><span class="kbd">esc</span></div>
+        <div class="cm-body">
+          <div class="cm-group">Records</div>
+          <div class="cm-item active" aria-selected="true"><span class="ig">⊞</span>Finalise Q3 <b>roast</b>ery output forecast<span class="meta">Roastery</span></div>
+          <div class="cm-item"><span class="ig">⊞</span>Restock <b>roast</b>ed Aceh Gayo<span class="meta">Kitchen</span></div>
+          <div class="cm-group">Navigate</div>
+          <div class="cm-item"><span class="ig">▤</span>Daily Log · <b>Roast</b>ery</div>
+        </div>
+      </div>
+    </div>
+    <!-- no match + records loading shown stacked -->
+    <div class="stage" style="height:300px">
+      <div class="scrim"></div>
+      <div class="panel" style="top:40px">
+        <div class="cm-input"><span class="ic">⌕</span><input value="xyzzy" placeholder=""><span class="kbd">esc</span></div>
+        <div class="cm-body">
+          <div style="padding:18px 12px; color:var(--ds-font-color-secondary); font-size:13px">No matches for “xyzzy”.</div>
+          <div class="cm-group">Quick actions</div>
+          <div class="cm-item action"><span class="ig">＋</span>New task</div>
+          <div class="cm-group">Records <span style="color:var(--ds-font-color-light)">· searching…</span></div>
+          <div class="cm-item"><span class="ig">⊞</span><span class="sk" style="width:180px"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="pad">
+    <div class="mock-label">Surface 5 — dark mode</div>
+    <div class="stage">
+      <div class="scrim"></div>
+      <div class="panel" role="dialog" aria-modal="true" aria-label="Command menu">
+        <div class="cm-input"><span class="ic">⌕</span><input placeholder="Search tasks, or type a command…"><span class="kbd">esc</span></div>
+        <div class="cm-body">
+          <div class="cm-group">Quick actions</div>
+          <div class="cm-item action active" aria-selected="true"><span class="ig">＋</span>New task<span class="meta">⌘N</span></div>
+          <div class="cm-item action"><span class="ig">✎</span>Write weekly update</div>
+          <div class="cm-item action"><span class="ig">▤</span>Add Daily Log entry</div>
+          <div class="cm-group">Navigate</div>
+          <div class="cm-item"><span class="ig">◫</span>My Week</div>
+          <div class="cm-item"><span class="ig">☰</span>Tasks</div>
+        </div>
+        <div class="cm-foot"><span><span class="k">↑↓</span> navigate</span><span><span class="k">↵</span> open</span><span><span class="k">esc</span> close</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-PLAN ANCHOR: docs/plans/2026-06-19-ui-revamp-design-plan.md §5 (command menu — Alt 5C)
+CONVERGED DESIGN — owner sign-off gate. Overlay opened from the rail Search trigger + ⌘K (Ctrl+K non-mac).
+Default = Recent + Quick actions + Navigate; typing filters across Records / Navigate / Actions.
+
+TOKENS USED (--ds-* only):
+  Scrim:     --ds-background-overlay-primary
+  Panel:     --ds-background-primary, --ds-border-color-light, --ds-border-radius-md, --ds-box-shadow-strong
+  Text:      --ds-font-color-primary/secondary/tertiary/light
+  Action:    --ds-color-blue (leading glyph on Quick-action items only)
+  Active item: --ds-background-tertiary
+  Group label: --ds-font-color-light (UPPERCASE tracked)
+  ⌘/esc chip: --ds-code-font-family, --ds-border-color-light
+  Type:      --ds-font-family, --ds-font-size-xs
+
+EVERY MOS JOB IS ONE KEYSTROKE: New task / Write weekly update / Add Daily Log entry / jump to any surface or record.
+a11y: role=dialog+aria-modal, focus trap, esc-to-close, return focus to rail trigger; input role=combobox + aria-activedescendant;
+  results role=listbox/option + aria-selected; ↑↓/↵/Home/End. Matched substring bolds (no new color).
+
+STATES SHOWN: default · typing (filtered, bolded match) · no-match (actions still listed) · records loading (skeleton). Dark section included.
+PROPOSED NEW TOKENS: none. Command-menu is an overlay built from existing DESIGN.md §5 Overlay tokens.
+
+OPEN QUESTION (owner): design-plan §10 Q4 — confirm v1 Quick-action set; is record-search in v1 or deferred (needs a search endpoint)?
+================================================================================
+-->
+</body>
+</html>

@@ -3,7 +3,9 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
-> **NEXT SESSION: read `docs/STATUS.md` first.** MVP is feature-complete (tasks+RACI · weekly updates ·
+> **NEXT SESSION: read `docs/ui-revamp-status.md` first** (the current handoff — active UI-revamp +
+> structural-convention workstream). `docs/STATUS.md` is the older pre-2026-06-19 MVP status, kept for history.
+> MVP is feature-complete (tasks+RACI · weekly updates ·
 > Daily Log). Since then (Phase 3, 2026-06-13→16, all merged): **dev demo login (#13)**, **agentic
 > workflow sync w/ PMO** (4-lens/Lens-D + `docs/jtbd.md`, model-discipline), **Tasks split-view redesign
 > (#15→#18, ADR-0007)**, **CI-green clock fix (#16)**. The single remaining gap to a *usable* product is
@@ -151,7 +153,7 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
   Person overrides segment.)*
 - **design-architect notes (review "Minor"):** make "3 overdue"/group subtotals **click-to-filter**; codify status
   **dot ≥8px + text label always** (no dot-only variant — keeps WCAG 1.4.1 when grouping ≠ Status); document
-  **50px rows** vs DESIGN.md 54px; bless the **navy→blue avatar gradient** in the amendment (doc says blue→violet).
+  **50px rows** vs DESIGN.md 54px. *(navy→blue avatar gradient already blessed in DESIGN.md / OD-P3-7 — done.)*
 - **Regression-invariants to test when built:** RI-1 one canonical task home regardless of entry; RI-2 inline
   status change with no view transition; RI-3 every chip renders its text label; RI-4 off-track signal in the row;
   RI-5 role-stable nav/breadcrumb.
@@ -233,3 +235,15 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
 roastery app · ESB write-back visibility · shared UI package extraction.
+
+---
+
+## UI revamp + structural conventions (active 2026-06-19) → see `docs/ui-revamp-status.md`
+
+Full handoff in **`docs/ui-revamp-status.md`**. Open/queued at last checkpoint:
+- **#35 mockup sign-off GATE** (owner) — blocks `ui-implementer`.
+- **#34 named-exports** — merge when CI green.
+- **kebab-case rename** codemod — after #34 (last structural migration; conventions §2).
+- **eng-planner** UI-revamp ADR + build plan (incl. ⌘K **record-search endpoint**).
+- **ui-implementer** surface-by-surface: top-bar repopulate · hybrid record page · My Week · ⌘K palette · states/dark.
+- Carry-over: re-add UPPERCASE+tracking to Tasks `thead th` (OD-P4-10; #29 over-corrected to sentence-case).

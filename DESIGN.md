@@ -227,7 +227,7 @@ The personality is **calm, dense, and data-first.** The surface is white-on-near
 
 ## Colors
 
-A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a cool neutral (`240`); the only saturated color in normal use is the primary blue. Status colors (destructive/warning/success) appear only on data state, and a single categorical violet is reserved for KPI/avatar/timeline accents — never as an action color. **Light scheme only** in the source; no dark `:root` block was present (see Open Questions).
+A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a cool neutral (`240`); the only saturated color in normal use is the primary blue. Status colors (destructive/warning/success) appear only on data state, and a single categorical violet is reserved for KPI/avatar/timeline accents — never as an action color. The light scheme is the default on `:root`; **dark mode shipped in ADR-0009** (`mos-app/src/styles/tokens/theme-dark.css`, opt-in via the `.dark` scope).
 
 ### Primary
 - **Action Blue** (`hsl(221.2 83.2% 53.3%)`): The one interactive color. Primary buttons, active nav item (at 10% tint + full-color text), selected rows (7% tint), focus ring, checkbox fill, links-in-context, the "current" step in steppers, sticky-tab indicators, and the toast accent stripe. Its foreground (`hsl(0 0% 98%)`, near-white) sits on solid blue. **Used sparingly** — see The One Blue Rule. *(OD-P3-12: the primary button may optionally carry a whisper-subtle navy-tinted vertical gradient — a sheen within this same blue, NOT a new hue; see §4 Gradients.)*
@@ -334,7 +334,7 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 - **Ghost:** transparent, `foreground` text. Hover → `accent` wash. Used for icon buttons in the header.
 - **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
-- **Disabled (gap — see Open Questions):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
+- **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 
 ### Badges / Status Pills
 - **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
@@ -366,7 +366,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
   - `--field-error-border` = `destructive` — the field's 1px `input` border swaps to `destructive` while the field is invalid.
   - `--field-error-text` = `--status-lost-text` (`0 72% 45%`, the AA-darkened red) — for the helper/error line below the field. **Not** base `destructive`, which fails AA (~3.6:1) as small text on white; the darkened red clears AA (≥4.5:1), mirroring the Tinted-Status pattern (saturated hue for the marker/outline, darkened variant for the text).
   - Applied on inline-validate-on-blur in the create-task form (OD-P3-4). Base `destructive` stays the field *outline*; the error *text* is always `--status-lost-text`.
-- **Disabled (gap — see Open Questions):** no disabled-field styling in source; proposed `secondary` bg + `muted-foreground` text + `not-allowed` cursor. Not yet ratified (no owner-driven disabled-field need yet); the error pair above is the only §5 Inputs item ratified so far.
+- **Disabled (gap — not yet ratified):** no disabled-field styling in source; proposed `secondary` bg + `muted-foreground` text + `not-allowed` cursor. Not yet ratified (no owner-driven disabled-field need yet); the error pair above is the only §5 Inputs item ratified so far.
 
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`, DM Sans), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
