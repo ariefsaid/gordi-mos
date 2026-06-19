@@ -13,7 +13,7 @@ import './index.css'
 // <Link>/<a> resolve (not just the <Button>/<Pill> component imports). Vite dedupes.
 import './components/ui/Button.css'
 import './components/ui/Pill.css'
-import App from './App.tsx'
+import { App } from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

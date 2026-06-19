@@ -7,10 +7,10 @@
 // RI-5 (M1): orphan period — the Submitted strip reads "Submitted [chip]." not "Submitted [chip] ."
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import WeeklyUpdateReviewPane from './WeeklyUpdateReviewPane'
-import WeeklyUpdateWritePane from './WeeklyUpdateWritePane'
+import { WeeklyUpdateReviewPane } from './WeeklyUpdateReviewPane'
+import { WeeklyUpdateWritePane } from './WeeklyUpdateWritePane'
 import { MemoryRouter } from 'react-router-dom'
-import MyWeek from '@/pages/MyWeek'
+import { MyWeek } from '@/pages/MyWeek'
 
 // The submitted-strip RI-5 cases render <MyWeek/>, where the weekly-update strip is
 // flag-hidden in production (config/features.ts). Force the flags on so the strip renders

@@ -3,7 +3,7 @@
 // AC-NC-03: "Next week" button is disabled when viewing the current week.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import WeeklyUpdateReviewPane from './WeeklyUpdateReviewPane'
+import { WeeklyUpdateReviewPane } from './WeeklyUpdateReviewPane'
 
 // ── Mock data layer ─────────────────────────────────────────────────────────
 vi.mock('../../lib/db/weeklyUpdates', () => ({

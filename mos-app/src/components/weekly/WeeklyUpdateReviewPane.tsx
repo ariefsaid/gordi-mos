@@ -13,7 +13,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { listTeamUpdates, type TeamMember } from '@/lib/db/weeklyUpdates'
 import type { TeamUpdateRow } from '@/lib/db/weeklyUpdates.types'
 import { weekLabel, weekStartISO } from '@/lib/week'
-import TimingChip from './TimingChip'
+import { TimingChip } from './TimingChip'
 import { CardHead } from '@/components/ui/CardHead'
 import { ErrorState } from '@/components/ui/StateKit'
 import { Pill } from '@/components/ui/Pill'
@@ -192,7 +192,7 @@ interface WeeklyUpdateReviewPaneProps {
   currentWeekStart: string
 }
 
-export default function WeeklyUpdateReviewPane({
+export function WeeklyUpdateReviewPane({
   team,
   weekStart,
   onWeekChange,

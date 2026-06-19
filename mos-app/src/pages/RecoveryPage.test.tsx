@@ -24,7 +24,7 @@ vi.mock('../auth/useAuth', () => ({
   useAuth: () => ({ status: 'recovering', clearRecovering: mockClearRecovering }),
 }))
 
-import RecoveryPage from './RecoveryPage'
+import { RecoveryPage } from './RecoveryPage'
 import { supabase } from '@/lib/supabase'
 
 const mockUpdateUser = vi.mocked(supabase.auth.updateUser)

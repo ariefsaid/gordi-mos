@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/useAuth'
 const ERR_MISMATCH = "Passwords don't match."
 const ERR_EXPIRED = 'That link has expired — request a new one.'
 
-export default function RecoveryPage() {
+export function RecoveryPage() {
   const navigate = useNavigate()
   const auth = useAuth()
   const newPasswordId = useId()

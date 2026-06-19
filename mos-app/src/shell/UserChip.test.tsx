@@ -8,7 +8,7 @@ import { useAuth } from '@/auth/useAuth'
 const mockUseAuth = vi.mocked(useAuth)
 
 // We import after mock to get the mocked version
-import UserChip from './UserChip'
+import { UserChip } from './UserChip'
 
 const baseViewer = {
   person: {

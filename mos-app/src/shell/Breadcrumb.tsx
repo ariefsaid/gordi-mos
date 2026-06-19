@@ -18,7 +18,7 @@ function leafForPath(pathname: string): string | null {
   return null
 }
 
-export default function Breadcrumb() {
+export function Breadcrumb() {
   const { pathname } = useLocation()
   const section = sectionForPath(pathname)
   const leaf = leafForPath(pathname)

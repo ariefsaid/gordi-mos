@@ -132,8 +132,8 @@ const ENTRY_3 = {
   needs_attention: true,
 }
 
-import OpsPage from './OpsPage'
-import OpsAddForm from './OpsAddForm'
+import { OpsPage } from './OpsPage'
+import { OpsAddForm } from './OpsAddForm'
 
 async function renderOps(auth: AuthState = VIEWER) {
   mockUseAuth.mockReturnValue(auth)

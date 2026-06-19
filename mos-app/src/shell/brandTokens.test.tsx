@@ -14,7 +14,7 @@ vi.mock('../auth/useAuth')
 import { useAuth } from '@/auth/useAuth'
 const mockUseAuth = vi.mocked(useAuth)
 
-import RailNav from './RailNav'
+import { RailNav } from './RailNav'
 
 function renderRailAtPath(path: string) {
   mockUseAuth.mockReturnValue({

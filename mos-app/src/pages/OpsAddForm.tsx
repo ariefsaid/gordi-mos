@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useParams } from 'react-router-dom'
-import PageFrame from '@/shell/PageFrame'
+import { PageFrame } from '@/shell/PageFrame'
 import { useDocumentTitle } from '@/shell/useDocumentTitle'
 import { useAuth } from '@/auth/useAuth'
 import { addLogEntry, editLogEntry, getLogEntry } from '@/lib/db/opsLog'
@@ -17,7 +17,7 @@ import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { toWibInputValue, wibInputToUTCISO } from '@/lib/week'
 
-export default function OpsAddForm() {
+export function OpsAddForm() {
   const { id: entryId } = useParams<{ id: string }>()
   const isEditMode = !!entryId
   useDocumentTitle(isEditMode ? 'Edit log entry — Gordi MOS' : 'Add log entry — Gordi MOS')

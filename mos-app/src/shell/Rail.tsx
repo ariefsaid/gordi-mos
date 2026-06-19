@@ -1,10 +1,10 @@
-import RailNav from './RailNav'
+import { RailNav } from './RailNav'
 
 interface RailProps {
   onNavigate?: () => void
 }
 
-export default function Rail({ onNavigate }: RailProps) {
+export function Rail({ onNavigate }: RailProps) {
   return (
     <aside
       className="bg-secondary border-r border-border flex flex-col"

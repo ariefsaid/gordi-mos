@@ -84,7 +84,7 @@ const TASK_1 = {
   updated_at: '2026-06-01T00:00:00Z',
 }
 
-import OpsAddForm from './OpsAddForm'
+import { OpsAddForm } from './OpsAddForm'
 
 async function renderAddForm(auth: AuthState = VIEWER) {
   mockUseAuth.mockReturnValue(auth)

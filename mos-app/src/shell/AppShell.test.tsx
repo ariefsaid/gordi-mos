@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/useAuth'
 
 const mockUseAuth = vi.mocked(useAuth)
 
-import AppShell from './AppShell'
+import { AppShell } from './AppShell'
 
 function renderShell(path = '/') {
   mockUseAuth.mockReturnValue({

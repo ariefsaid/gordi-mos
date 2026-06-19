@@ -20,7 +20,7 @@ interface PageHeadProps {
  * The single page header for every route (IA-1, PR-1). Title → content gap is
  * 16px (the list/data value) for all routes; subtitle stays 14px / mt 6px.
  */
-export default function PageHead({ title, subtitle, meta, maxWidth }: PageHeadProps) {
+export function PageHead({ title, subtitle, meta, maxWidth }: PageHeadProps) {
   return (
     <div
       data-testid="page-head"

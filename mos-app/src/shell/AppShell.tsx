@@ -1,11 +1,11 @@
 import { useState, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
-import Rail from './Rail'
-import Header from './Header'
-import MobileDrawer from './MobileDrawer'
+import { Rail } from './Rail'
+import { Header } from './Header'
+import { MobileDrawer } from './MobileDrawer'
 import { useIsNarrow } from './useIsNarrow'
 
-export default function AppShell() {
+export function AppShell() {
   const isNarrow = useIsNarrow()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)

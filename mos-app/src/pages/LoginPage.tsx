@@ -2,7 +2,7 @@ import { useState, useId, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/AuthShell'
-import DemoLogin from './DemoLogin'
+import { DemoLogin } from './DemoLogin'
 import { DEMO_PASSWORD } from './demoPersonas'
 
 // Error-handling table strings (verbatim from spec)
@@ -40,7 +40,7 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
-export default function LoginPage() {
+export function LoginPage() {
   const navigate = useNavigate()
   const emailId = useId()
   const passwordId = useId()

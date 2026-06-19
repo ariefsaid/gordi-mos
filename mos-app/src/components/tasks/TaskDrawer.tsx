@@ -37,7 +37,7 @@ const FOCUSABLE = [
  *    aria-modal, a scrim, focus-trap, Esc-to-close, and return-focus on close —
  *    because the table underneath is covered/inert.
  */
-export default function TaskDrawer({ mode }: TaskDrawerProps) {
+export function TaskDrawer({ mode }: TaskDrawerProps) {
   const { taskId } = useParams<{ taskId: string }>()
   const navigate = useNavigate()
   const ctx = useOutletContext<TaskDrawerOutletContext | null>()

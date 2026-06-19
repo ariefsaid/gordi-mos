@@ -9,7 +9,7 @@ import type { WeeklyUpdateItemRow, ProgressMarker as ProgressMarkerType } from '
 import { getMyUpdate, upsertDraft, submit as submitUpdate, reopen as reopenUpdate } from '@/lib/db/weeklyUpdates'
 import { weekLabel } from '@/lib/week'
 import { ProgressMarker, ProgressMarkerPicker } from './ProgressMarker'
-import TimingChip from './TimingChip'
+import { TimingChip } from './TimingChip'
 import { CardHead } from '@/components/ui/CardHead'
 import { ErrorState } from '@/components/ui/StateKit'
 import { Pill } from '@/components/ui/Pill'
@@ -171,7 +171,7 @@ interface WeeklyUpdateWritePaneProps {
   weekStart: string
 }
 
-export default function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: WeeklyUpdateWritePaneProps) {
+export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: WeeklyUpdateWritePaneProps) {
   // C1 fix: derive the week label from the weekStart prop (not new Date()), so the pill
   // always reflects the week whose data is loaded — never desyncs from the prop.
   const wib = weekLabel(new Date(weekStart + 'T00:00:00+07:00'))

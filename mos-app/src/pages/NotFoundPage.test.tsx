@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import NotFoundPage from './NotFoundPage'
+import { NotFoundPage } from './NotFoundPage'
 
 // AC-009: Unknown route shows "Page not found." + link to My Week
 describe('AC-009: Not-found page', () => {

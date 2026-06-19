@@ -34,7 +34,7 @@ vi.mock('../lib/db/team', () => ({
 import {
   getMyUpdate, upsertDraft, submit, reopen, listTeamUpdates,
 } from '@/lib/db/weeklyUpdates'
-import UpdatesPage from './UpdatesPage'
+import { UpdatesPage } from './UpdatesPage'
 
 const mockGetMyUpdate    = vi.mocked(getMyUpdate)
 const mockUpsertDraft    = vi.mocked(upsertDraft)

@@ -2,15 +2,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 vi.mock('../components/weekly/WeeklyUpdateWritePane', () => ({
-  default: () => <section aria-label="My weekly update">Write pane</section>,
+  WeeklyUpdateWritePane: () => <section aria-label="My weekly update">Write pane</section>,
 }))
 vi.mock('../components/weekly/WeeklyUpdateReviewPane', () => ({
-  default: () => <section aria-label="My team updates">Review pane</section>,
+  WeeklyUpdateReviewPane: () => <section aria-label="My team updates">Review pane</section>,
 }))
 vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 
-import UpdatesPage from './UpdatesPage'
-import OpsPage from './OpsPage'
+import { UpdatesPage } from './UpdatesPage'
+import { OpsPage } from './OpsPage'
 
 // The /tasks page-shell oracles below were re-homed from the deleted TasksPage host onto
 // the LIVE /tasks surface (TasksLayout → TasksWorkspace). AC-004 (document.title) +
@@ -43,7 +43,7 @@ vi.mock('../auth/useAuth', () => ({
     signOut: () => {},
   })),
 }))
-import TasksLayout from './TasksLayout'
+import { TasksLayout } from './TasksLayout'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { AuthState } from '@/auth/context'

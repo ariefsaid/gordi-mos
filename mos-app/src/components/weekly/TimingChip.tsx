@@ -10,7 +10,7 @@ interface TimingChipProps {
   weekStart: string
 }
 
-export default function TimingChip({ submittedAt, weekStart }: TimingChipProps) {
+export function TimingChip({ submittedAt, weekStart }: TimingChipProps) {
   const onTime = weeklyUpdateTiming(submittedAt, weekStart) === 'on-time'
   return (
     <span className={`timing-chip ${onTime ? 'timing-chip-ontime' : 'timing-chip-late'}`}>

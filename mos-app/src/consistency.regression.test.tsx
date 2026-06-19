@@ -39,11 +39,11 @@ vi.mock('./lib/db/weeklyUpdates', () => ({
 }))
 vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 
-import MyWeek from './pages/MyWeek'
-import UpdatesPage from './pages/UpdatesPage'
-import OpsPage from './pages/OpsPage'
-import TasksLayout from './pages/TasksLayout'
-import PageFrame from './shell/PageFrame'
+import { MyWeek } from './pages/MyWeek'
+import { UpdatesPage } from './pages/UpdatesPage'
+import { OpsPage } from './pages/OpsPage'
+import { TasksLayout } from './pages/TasksLayout'
+import { PageFrame } from './shell/PageFrame'
 
 const authedState: AuthState = {
   status: 'authenticated',
