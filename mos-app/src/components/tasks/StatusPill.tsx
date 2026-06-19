@@ -1,24 +1,34 @@
-// StatusPill — task lifecycle pill (VIS-4, PR-2). Re-skinned onto the shared
-// <Pill> primitive (ui/Pill.tsx); the bespoke .pill/.dot tokens moved to Pill.css.
-// Tone mapping: In Progress→primary, Blocked→destructive, Open→warning, Done→success.
+// StatusPill — task lifecycle pill. Twenty IxD migration: renders the soft
+// rounded <Tag> (mos-design-kit 30-color palette) instead of the dotted <Pill>,
+// matching Twenty's record-table status tags. Color mapping keeps the semantic
+// hues: In Progress→blue, Blocked→red, Open→amber, Done→green.
+//
+// (Overrides OD-P3-6's tone-mapped dotted Pill for the status column, per the
+//  Twenty look-and-feel goal — flagged for DESIGN.md ratification. WCAG 1.4.1
+//  stays satisfied: the status word is always the label, so colour is never the
+//  sole cue even without the leading dot.)
 import type { TaskStatus } from '../../lib/db/tasks.types'
-import { Pill } from '../ui/Pill'
+import { Tag } from '../ui/Tag'
+import type { TagColor } from '../ui/Tag'
 
 export type { TaskStatus }
 
 type StatusPillProps = { status: TaskStatus }
 
-const STATUS_TONE: Record<TaskStatus, import('../ui/Pill').PillTone> = {
-  'In Progress': 'primary',
-  'Blocked': 'destructive',
-  'Open': 'warning',
-  'Done': 'success',
+const STATUS_COLOR: Record<TaskStatus, TagColor> = {
+  'In Progress': 'blue',
+  'Blocked': 'red',
+  'Open': 'amber',
+  'Done': 'green',
 }
 
 export function StatusPill({ status }: StatusPillProps) {
-  // NO aria-label here: the visible text IS the accessible name. StatusTrigger renders
-  // StatusPill inside a role=option / button, and an aria-label on the pill would
-  // override the option's computed name ("Status: In Progress" ≠ "In Progress"),
-  // breaking the status-change interaction (AC-071/103/111).
-  return <Pill tone={STATUS_TONE[status]}>{status}</Pill>
+  // NO aria-label: the visible text IS the accessible name. StatusTrigger renders
+  // StatusPill inside a role=option / button, and an aria-label would override the
+  // option's computed name, breaking status-change (AC-071/103/111).
+  return (
+    <Tag color={STATUS_COLOR[status]} weight="medium">
+      {status}
+    </Tag>
+  )
 }

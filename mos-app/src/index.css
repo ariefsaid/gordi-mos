@@ -128,6 +128,46 @@
   --shadow-rest: var(--shadow-rest);
 }
 
+/* ── Bare shadcn-role vars (compat layer) — REGRESSION FIX.
+   ADR-0009 (#24) moved colour mapping into the @theme block above (which emits
+   `--color-*`), but the app's hand-written CSS (TasksWorkspace.css, Pill.css, …)
+   consumes the BARE shadcn names (var(--foreground), var(--border), var(--input),
+   var(--secondary), …). The migration dropped the bare-var :root block the old
+   HSL setup had, so every bare var was UNDEFINED and silently falling back —
+   which is why control/field borders rendered near-invisible. Re-map them here
+   to the kit aliases (mirrors the @theme mapping; flips in dark via the
+   underlying surface / text / ds-color tokens).
+   `--accent` is intentionally left as aliases.css defines it (the blue action —
+   hand-CSS uses it for avatars/focus). */
+:root {
+  --background:            var(--surface-primary);
+  --foreground:            var(--text-primary);
+  --card:                  var(--surface-primary);
+  --card-foreground:       var(--text-primary);
+  --popover:               var(--surface-primary);
+  --popover-foreground:    var(--text-primary);
+  --primary:               var(--ds-color-blue);
+  --primary-foreground:    var(--ds-font-color-inverted);
+  --secondary:             var(--surface-secondary);
+  --secondary-foreground:  var(--text-primary);
+  --muted:                 var(--surface-secondary);
+  --muted-foreground:      var(--text-secondary);
+  --accent-foreground:     var(--text-primary);
+  --destructive:           var(--ds-color-red);
+  --destructive-foreground:var(--ds-font-color-inverted);
+  --warning:               var(--ds-color-amber);
+  --warning-foreground:    var(--status-lost-text);
+  --success:               var(--ds-color-green);
+  --success-foreground:    var(--ds-font-color-inverted);
+  /* Controls/fields get a VISIBLE hairline (#d6d6d6); dividers/cards stay quiet
+     (#ebebeb). Splits the former Single-Border Rule for legibility — Twenty's
+     controls are clearly bordered. Flagged for DESIGN.md ratification. */
+  --border:                var(--border-medium);
+  --input:                 var(--border-strong);
+  --ring:                  var(--ds-color-blue);
+  --violet:                var(--ds-color-violet);
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);

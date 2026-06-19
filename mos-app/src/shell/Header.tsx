@@ -1,6 +1,5 @@
 import { useRef, useEffect } from 'react'
 import Breadcrumb from './Breadcrumb'
-import UserChip from './UserChip'
 import { useIsNarrow } from './useIsNarrow'
 
 interface HeaderProps {
@@ -53,10 +52,8 @@ export default function Header({ onOpenDrawer, onRegisterHamburgerFocus }: Heade
 
       <Breadcrumb />
 
-      {/* Spacer */}
+      {/* Spacer — user chip now lives at the rail foot (Twenty idiom). */}
       <div className="flex-1" />
-
-      <UserChip compact={isNarrow} />
     </header>
   )
 }
