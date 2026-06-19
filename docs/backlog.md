@@ -233,3 +233,15 @@ row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Critical
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
 roastery app · ESB write-back visibility · shared UI package extraction.
+
+---
+
+## UI revamp + structural conventions (active 2026-06-19) → see `docs/ui-revamp-status.md`
+
+Full handoff in **`docs/ui-revamp-status.md`**. Open/queued at last checkpoint:
+- **#35 mockup sign-off GATE** (owner) — blocks `ui-implementer`.
+- **#34 named-exports** — merge when CI green.
+- **kebab-case rename** codemod — after #34 (last structural migration; conventions §2).
+- **eng-planner** UI-revamp ADR + build plan (incl. ⌘K **record-search endpoint**).
+- **ui-implementer** surface-by-surface: top-bar repopulate · hybrid record page · My Week · ⌘K palette · states/dark.
+- Carry-over: re-add UPPERCASE+tracking to Tasks `thead th` (OD-P4-10; #29 over-corrected to sentence-case).
