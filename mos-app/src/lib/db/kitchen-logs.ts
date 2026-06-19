@@ -8,11 +8,22 @@ import type {
   WipItemOption,
   KitchenPlanRow,
   PlanMap,
+  StockMap,
+  ItemStock,
   CreateKitchenLogInput,
   KitchenActionType,
 } from './kitchen-logs.types'
 
 const ops = () => supabase.schema('ops')
+const shared = () => supabase.schema('shared')
+
+/**
+ * The canonical name of the kitchen business unit (spec §3.3/§2). Kitchen logs
+ * belong to this BU; the approval RPC's Daily-Log mirror resolves it by name.
+ * NOTE (owner / eng-planner open item): a stable `code`/slug on
+ * shared.business_units would be more robust than matching on a display name.
+ */
+export const KITCHEN_BU_NAME = 'Kitchen and Bar'
 
 // ── WIP items ────────────────────────────────────────────────────────────────
 
@@ -48,6 +59,54 @@ export async function fetchPlanMap(logDate: string): Promise<PlanMap> {
   for (const row of rows) {
     if (!map[row.wip_item_id]) map[row.wip_item_id] = {} as PlanMap[string]
     map[row.wip_item_id][row.action_type as KitchenActionType] = row.qty_porsi
+  }
+  return map
+}
+
+// ── Kitchen business unit resolution (#3, spec §3.3) ──────────────────────────
+
+/**
+ * Resolve the "Kitchen and Bar" business-unit id by name from shared.business_units.
+ * Kitchen logs belong to this BU — NOT the viewer's first role BU (which is wrong for
+ * kitchen staff who may carry an unrelated reporting BU). RLS scopes the read to the
+ * caller's org (org_id is never sent — directory.ts pattern).
+ * Throws a clear, surfaceable error when the BU can't be resolved (the page renders an
+ * error state rather than stamping a wrong BU).
+ */
+export async function resolveKitchenBuId(): Promise<string> {
+  const { data, error } = await shared()
+    .from('business_units')
+    .select('id,name')
+    .eq('name', KITCHEN_BU_NAME)
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`resolveKitchenBuId failed — ${error.message}`)
+  const row = data as { id: string } | null
+  if (!row?.id) {
+    throw new Error(
+      `Kitchen business unit ("${KITCHEN_BU_NAME}") not found — cannot log without it.`,
+    )
+  }
+  return row.id
+}
+
+// ── Kitchen stock + availability (#4, FR-022/023) ─────────────────────────────
+
+/**
+ * Fetch per-item stock + availability for a date via the #45 DB substrate's
+ * `ops.stock_available_for_date(p_date)` function (built but not deployed in this
+ * worktree — unit-tested with mocked data, same as the other reads here).
+ * Returns a StockMap: { [wip_item_id]: { stok, tersedia } }.
+ * `tersedia` (FR-023) is the transfer-availability the stepper caps against;
+ * `stok` (FR-022) feeds the effective-target `max(plan − stok, 0)`.
+ */
+export async function fetchStockMap(logDate: string): Promise<StockMap> {
+  const { data, error } = await ops().rpc('stock_available_for_date', { p_date: logDate })
+  if (error) throw new Error(`fetchStockMap failed — ${error.message}`)
+  const rows = (data ?? []) as { wip_item_id: string; stok: number; tersedia: number }[]
+  const map: StockMap = {}
+  for (const row of rows) {
+    map[row.wip_item_id] = { stok: row.stok, tersedia: row.tersedia } satisfies ItemStock
   }
   return map
 }

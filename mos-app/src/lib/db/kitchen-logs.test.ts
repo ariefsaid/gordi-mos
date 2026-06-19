@@ -18,6 +18,9 @@ import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
   fetchPlanMap,
+  fetchStockMap,
+  resolveKitchenBuId,
+  KITCHEN_BU_NAME,
   insertKitchenLog,
   insertKitchenLogBatch,
 } from './kitchen-logs'
@@ -31,6 +34,7 @@ interface Recorder {
   eqs: Array<[string, unknown]>
   inserts: unknown[]
   orders: Array<[string, unknown]>
+  rpcCalls: Array<[string, unknown]>
 }
 
 function makeSchema(
@@ -63,16 +67,27 @@ function makeSchema(
       rec.orders.push([c, o])
       return builder
     })
+    builder.limit = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(result()))
+    builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
     builder.then = (resolve: (v: unknown) => unknown) =>
       Promise.resolve(result()).then(resolve)
     return builder
   }
-  return { from: vi.fn(fromImpl) }
+  // rpc(name) keyed in `responses` under the rpc name; resolves like a thenable.
+  const rpcImpl = (name: string, args?: unknown) => {
+    rec.rpcCalls.push([name, args])
+    const i = (counters[`rpc:${name}`] ?? 0)
+    counters[`rpc:${name}`] = i + 1
+    const queue = responses[name] ?? []
+    const value = queue[Math.min(i, queue.length - 1)] ?? { data: null, error: null }
+    return Promise.resolve(value)
+  }
+  return { from: vi.fn(fromImpl), rpc: vi.fn(rpcImpl) }
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], orders: [] }
+  return { fromTables: [], selects: [], eqs: [], inserts: [], orders: [], rpcCalls: [] }
 }
 
 // Payload must NOT carry server-stamped fields
@@ -347,5 +362,96 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
         },
       ]),
     ).rejects.toThrow('qty_porsi must be > 0')
+  })
+})
+
+// ── resolveKitchenBuId — Kitchen and Bar BU resolution (#3, spec §3.3) ─────────
+describe('resolveKitchenBuId — resolves the Kitchen and Bar business unit by name', () => {
+  it('queries shared.business_units by the Kitchen-and-Bar name and returns its id', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          business_units: [
+            { data: { id: 'kb-bu-1', name: KITCHEN_BU_NAME }, error: null },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+
+    const id = await resolveKitchenBuId()
+    expect(id).toBe('kb-bu-1')
+    // resolves BY NAME (not viewer.roles[0]) — spec §3.3
+    expect(rec.fromTables).toContain('business_units')
+    expect(rec.eqs).toContainEqual(['name', KITCHEN_BU_NAME])
+  })
+
+  it('throws a clear "cannot log without the kitchen BU" error when the BU is absent', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ business_units: [{ data: null, error: null }] }, rec) as never,
+    )
+    await expect(resolveKitchenBuId()).rejects.toThrow(/kitchen.*business unit|Kitchen and Bar/i)
+  })
+
+  it('throws on a PostgREST error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { business_units: [{ data: null, error: { message: 'boom' } }] },
+        rec,
+      ) as never,
+    )
+    await expect(resolveKitchenBuId()).rejects.toThrow('resolveKitchenBuId failed')
+  })
+})
+
+// ── fetchStockMap — stock + availability per item (#4, FR-022/023, AC-022) ─────
+describe('fetchStockMap — stock + tersedia per WIP item (FR-022/023)', () => {
+  it('calls the ops stock_available_for_date function and maps stok/tersedia by item', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          stock_available_for_date: [
+            {
+              data: [
+                { wip_item_id: 'w1', stok: 3, tersedia: 9 },
+                { wip_item_id: 'w2', stok: 0, tersedia: 0 },
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+
+    const map = await fetchStockMap('2026-06-20')
+    expect(map['w1']).toEqual({ stok: 3, tersedia: 9 })
+    expect(map['w2']).toEqual({ stok: 0, tersedia: 0 })
+    // dispatched to the #45 contract: stock_available_for_date(p_date)
+    expect(rec.rpcCalls).toContainEqual(['stock_available_for_date', { p_date: '2026-06-20' }])
+  })
+
+  it('returns an empty map when no stock rows', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ stock_available_for_date: [{ data: [], error: null }] }, rec) as never,
+    )
+    const map = await fetchStockMap('2026-06-20')
+    expect(Object.keys(map)).toHaveLength(0)
+  })
+
+  it('throws on error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { stock_available_for_date: [{ data: null, error: { message: 'fn missing' } }] },
+        rec,
+      ) as never,
+    )
+    await expect(fetchStockMap('2026-06-20')).rejects.toThrow('fetchStockMap failed')
   })
 })

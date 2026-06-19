@@ -48,6 +48,19 @@ export interface KitchenPlanRow {
 // Partial<Record<...>> so partial test fixtures type-check (most items won't have all 3 action types).
 export type PlanMap = Record<string, Partial<Record<KitchenActionType, number>>>
 
+// ── ops.kitchen_stock availability (FR-022/023) ──────────────────────────────
+// Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved
+// logs), `tersedia` = available for transfer (FR-023). Stepper shows plan·stok·tersedia.
+export interface ItemStock {
+  /** on-hand usable stock for the date (start-of-day net of approved logs) */
+  stok: number
+  /** available for a transfer right now (FR-023 tersedia) */
+  tersedia: number
+}
+
+// Stock keyed by wip_item_id for O(1) lookup in the capture form.
+export type StockMap = Record<string, ItemStock>
+
 // ── ops.kitchen_logs (insert payload) ────────────────────────────────────────
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.
@@ -90,8 +103,14 @@ export interface KitchenLogLine {
   notes: string
   /** plan qty for the current action_type (0 if no plan row) */
   plan_qty: number
+  /** on-hand usable stock for the item (FR-022 effective-target basis) */
+  stok: number
+  /** available stock for a transfer (FR-023 cap basis) */
+  tersedia: number
   /** true when qty > 0 (line has been touched / is staged for submit) */
   dirty: boolean
-  /** validation error: e.g. 'note required' */
+  /** variance-note validation error: e.g. 'note required' (FR-022, AC-020/021) */
   error: string
+  /** transfer-availability cap cue (FR-023, AC-022): "Stok kurang — produksi dulu" */
+  capError: string
 }
