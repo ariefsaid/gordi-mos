@@ -9,6 +9,7 @@ import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
 import { OpsAddForm } from './pages/ops-add-form'
+import { KitchenLogPage } from './pages/kitchen-log-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -67,6 +68,8 @@ export const routeConfig: RouteObject[] = [
           { path: 'ops', element: SHOW_DAILY_LOG ? <OpsPage /> : <Navigate to="/" replace /> },
           { path: 'ops/new', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           { path: 'ops/:id/edit', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
+          // Kitchen Module (S1 — Log capture; S2-S5 deferred pending RecordTable + rail)
+          { path: 'kitchen/log', element: <KitchenLogPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },
