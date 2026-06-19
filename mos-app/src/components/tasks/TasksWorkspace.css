@@ -210,6 +210,24 @@
 .task-row.kfocus td:last-child { box-shadow: inset -2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
 .task-row-link { display: block; text-decoration: none; color: inherit; }
 .task-row-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* PR-2 AC-T02 — hover-revealed row checkbox + ⋯ menu (kit "quiet at rest" craft).
+   visibility:hidden at rest; revealed on tr:hover / tr.row-selected / tr:focus-within
+   (keyboard reachable via :focus-within, never hover-only — ADR-0013 §2.7). */
+.row-checkbox {
+  width: 16px; height: 16px; flex: none; padding: 0; cursor: pointer;
+  border: 1.5px solid var(--input); border-radius: var(--radius-xs); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  visibility: hidden; /* quiet at rest — revealed by the rules below */
+}
+.row-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
+.row-checkbox-on { background: var(--primary); border-color: var(--primary); }
+.row-checkbox-on::after {
+  content: '✓'; color: var(--primary-foreground); font-size: 11px; font-weight: 700; line-height: 1;
+}
+tr:hover .row-checkbox,
+tr.row-selected .row-checkbox,
+tr:focus-within .row-checkbox { visibility: visible; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .task-name {
   font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
