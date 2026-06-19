@@ -76,6 +76,11 @@
   --scrim:           color-mix(in srgb, var(--ds-font-color-primary) 45%, transparent);
   --shadow-popover:  0 4px 16px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent);
   --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+
+  /* Faint brand-tinted lift on the primary action at rest (OD-P3-12) — the single
+     source for the value .btn-primary inlines. Named so surfaces (e.g. the kitchen
+     Submit) can reference it instead of a hardcoded shadow or an undefined token. */
+  --shadow-brand-button: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 /* ── Tailwind v4 theme mapping (ADR-0009 D3). Every --color-* utility resolves to
