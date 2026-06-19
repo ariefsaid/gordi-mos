@@ -1,20 +1,14 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
 
-/**
- * IA-2 (PR-2): the shell breadcrumb is the single wayfinding home. It renders
- * `Gordi MOS › Section` and EXTENDS to the leaf on sub-pages
- * (`Daily Log › Add log entry`, `Tasks › New task`). One `›` separator throughout
- * (DESIGN.md top-bar). When a leaf is present the section is muted and the leaf is
- * the bold "current"; otherwise the section is the bold current. The redundant
- * in-page `/`-separated crumbs were removed so no page shows two breadcrumbs.
- */
+// Shell breadcrumb — wayfinding only, no brand prefix (ADR-0013 D1, AC-S04).
+// Brand lockup lives in TopBar; breadcrumb starts at the section level.
+// Format: `Section` or `Section › Leaf` — current crumb ellipsizes (truncate + title) per AC-S03.
 function leafForPath(pathname: string): string | null {
   if (pathname === '/ops/new') return 'Add log entry'
   if (/^\/ops\/[^/]+\/edit$/.test(pathname)) return 'Edit log entry'
   if (pathname === '/tasks/new') return 'New task'
-  // /tasks/:id (an open task drawer) keeps the section as current — the task title
-  // lives in the drawer's pinned header, not the breadcrumb.
+  // /tasks/:id — task title lives in the drawer pinned header, not the breadcrumb
   return null
 }
 
@@ -23,26 +17,31 @@ export function Breadcrumb() {
   const section = sectionForPath(pathname)
   const leaf = leafForPath(pathname)
 
+  // No section → nothing to show (unknown/404 path)
+  if (!section) return null
+
   return (
     <span style={{ fontSize: 13 }}>
-      <span className="text-muted-foreground">Gordi MOS</span>
-      {section && (
+      {leaf ? (
+        // Sub-page: section is muted intermediate, leaf is the bold current
         <>
+          <span className="text-muted-foreground">{section.label}</span>
           <span className="mx-[7px]" aria-hidden="true">›</span>
-          {leaf ? (
-            // Leaf present → section is a muted intermediate (not the current page)
-            <span className="text-muted-foreground">{section.label}</span>
-          ) : (
-            // No leaf → section is the bold current
-            <b className="text-foreground font-semibold">{section.label}</b>
-          )}
+          <b
+            className="truncate text-foreground font-semibold"
+            title={leaf}
+          >
+            {leaf}
+          </b>
         </>
-      )}
-      {leaf && (
-        <>
-          <span className="mx-[7px]" aria-hidden="true">›</span>
-          <b className="text-foreground font-semibold">{leaf}</b>
-        </>
+      ) : (
+        // Section is the current page — bold, truncated
+        <b
+          className="truncate text-foreground font-semibold"
+          title={section.label}
+        >
+          {section.label}
+        </b>
       )}
     </span>
   )

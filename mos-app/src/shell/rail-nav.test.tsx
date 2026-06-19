@@ -29,17 +29,15 @@ function renderRailNav(initialPath: string) {
   )
 }
 
-// AC-002: workspace switcher + in-rail search + nav links + no badges + disabled Settings
-// (Twenty-idiom rail — replaces the former "Gordi MOS / Management OS" brand block
-//  with a workspace switcher + Search affordance under a "Workspace" section label.)
+// AC-002: nav-only rail (ADR-0013 D1 — workspace switcher + search + user chip moved to top bar)
 describe('AC-002: Rail contents', () => {
-  it('shows the workspace switcher (Gordi MOS) with search and a Workspace section', () => {
+  it('shows the Workspace section label and nav links (no switcher/search/userchip)', () => {
     renderRailNav('/tasks')
-    // Workspace switcher names the workspace…
-    expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
-    // …with an in-rail search trigger and a Workspace section label (Twenty idiom).
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument()
+    // Workspace section label still present
     expect(screen.getByText('Workspace')).toBeInTheDocument()
+    // Brand / switcher and search are now in the top bar — not in the rail
+    expect(screen.queryByRole('button', { name: /Gordi MOS workspace/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
   })
 
   it('renders the visible nav links in order (My Week / Tasks always; Weekly Updates / Daily Log per feature flag)', () => {
@@ -121,6 +119,23 @@ describe('FIX-5: Settings reachable by assistive technology', () => {
     settings.focus()
     await user.keyboard('{Enter}')
     expect(screen.getByTestId('location').textContent).toBe('/tasks')
+  })
+})
+
+// AC-S05: rail is nav-only after the top-bar revamp — no switcher, no search, no user chip
+describe('AC-S05: rail is navigation-only', () => {
+  it('AC-S05: rail has nav group + Settings only — no switcher/search/userchip', () => {
+    renderRailNav('/tasks')
+    // No workspace switcher button
+    expect(screen.queryByRole('button', { name: /Gordi MOS workspace/ })).toBeNull()
+    // No in-rail search button
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    // Nav group label still present
+    expect(screen.getByText('Workspace')).toBeInTheDocument()
+    // Settings stub still present
+    expect(screen.getByText('Settings')).toBeInTheDocument()
+    // No user chip in the rail — the named button for the viewer should not exist
+    expect(screen.queryByRole('button', { name: /Cahya Cafe/ })).toBeNull()
   })
 })
 

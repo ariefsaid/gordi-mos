@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Rail } from './rail'
-import { Header } from './header'
+import { TopBar } from './top-bar'
 import { MobileDrawer } from './mobile-drawer'
 import { useIsNarrow } from './use-is-narrow'
 
@@ -22,9 +22,11 @@ export function AppShell() {
         {/* Rail — hidden at <920px; drawer is the nav at narrow widths */}
         {!isNarrow && <Rail />}
 
-        {/* Right column: header + page outlet */}
+        {/* Right column: top bar + page outlet.
+            TopBar spans the full right column; at wide viewports the brand column
+            sits over the rail via its fixed 236px left segment (ADR-0013 D1). */}
         <div className="flex flex-col min-h-screen">
-          <Header
+          <TopBar
             onOpenDrawer={() => setDrawerOpen(true)}
             onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
           />
