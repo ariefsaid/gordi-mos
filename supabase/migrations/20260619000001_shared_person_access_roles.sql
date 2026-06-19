@@ -41,6 +41,9 @@ grant select, insert, update on shared.person_access_roles to authenticated;
 --      those roles RAISES 42501 — enforced at the DB, not merely the UI (NFR-001).
 --  (2) org_id / person_id / access_role are IMMUTABLE on UPDATE (only revoked_at/revoked_by may flip)
 --      — prevents re-targeting a grant to escalate a different person.
+--  (3) granted_by / revoked_by are forced server-side: any client-supplied value is overridden with
+--      shared.current_person_id() (NULL under service_role/seed, which is fine — seed rows carry
+--      granted_by NULL per AC-050). This prevents provenance forgery (NFR-006).
 -- SECURITY INVOKER: reads only current_person_id() (a claim helper); nothing to revoke (lint clean).
 create or replace function shared._guard_person_access_roles()
 returns trigger
@@ -60,6 +63,17 @@ begin
     if new.access_role is distinct from old.access_role then
       raise exception 'access_role is immutable on an access-role assignment' using errcode = '42501';
     end if;
+    -- (3) force revoked_by server-side on revoke / clear on re-grant.
+    if new.revoked_at is not null and old.revoked_at is null then
+      new.revoked_by := shared.current_person_id();
+    elsif new.revoked_at is null and old.revoked_at is not null then
+      new.revoked_by := null;
+    end if;
+  end if;
+
+  -- (3) force granted_by server-side on INSERT (overrides any client-supplied value).
+  if tg_op = 'INSERT' then
+    new.granted_by := shared.current_person_id();
   end if;
 
   -- (1) admin/finance never self-assignable, on a GRANT (a live, non-revoked target state).
@@ -73,7 +87,7 @@ begin
 end;
 $$;
 comment on function shared._guard_person_access_roles() is
-  'Guard (ADR-0011 D5): admin/finance never self-assignable on grant (42501, NFR-001); org_id/person_id/access_role immutable on UPDATE (42501). SECURITY INVOKER.';
+  'Guard (ADR-0011 D5): admin/finance never self-assignable on grant (42501, NFR-001); org_id/person_id/access_role immutable on UPDATE (42501); granted_by/revoked_by forced server-side (NFR-006). SECURITY INVOKER.';
 
 create trigger person_access_roles_guard
   before insert or update on shared.person_access_roles
@@ -154,3 +168,5 @@ create policy person_access_roles_update_admin on shared.person_access_roles
 --       drop function shared._guard_person_access_roles(); revoke grants;
 --       drop functions shared.has_access_role(text), shared.current_access_roles(),
 --       shared._claim_text_array(text); drop table shared.person_access_roles cascade.
+--       (Guard responsibilities removed in DOWN: self-escalation block, immutability, provenance
+--       forcing for granted_by/revoked_by.)

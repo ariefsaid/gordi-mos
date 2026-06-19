@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(13);
 
 -- Fixture: GrandMgr (...0d03) -> admin; Author (...0d01) -> member/finance live + ops_lead revoked.
 -- The admin under test is GrandMgr (...0d03). Targets with NO fixture rows: DirectMgr (...0d02),
@@ -57,6 +57,14 @@ select throws_ok($$
   update shared.person_access_roles set access_role = 'ops_lead'
    where person_id='00000000-0000-0000-0000-0000000000d1' and access_role='member'
 $$, '42501', null, 'AC-035: access_role immutable on UPDATE');
+select throws_ok($$
+  update shared.person_access_roles set person_id = '00000000-0000-0000-0000-0000000000d2'
+   where person_id='00000000-0000-0000-0000-0000000000d1' and access_role='member'
+$$, '42501', null, 'AC-035: person_id immutable on UPDATE');
+select throws_ok($$
+  update shared.person_access_roles set org_id = '00000000-0000-0000-0000-0000000000b1'
+   where person_id='00000000-0000-0000-0000-0000000000d1' and access_role='member'
+$$, '42501', null, 'AC-035: org_id immutable on UPDATE');
 select lives_ok($$
   update shared.person_access_roles set revoked_at = now()
    where person_id='00000000-0000-0000-0000-0000000000d1' and access_role='member'
@@ -67,6 +75,19 @@ select throws_ok($$
   insert into shared.person_access_roles (org_id, person_id, access_role)
   values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000d2','ops_lead')
 $$, '42501', null, 'AC-036: foreign org_id rejected by WITH CHECK');
+
+-- AC-031b (provenance, NFR-006): admin (...0d03) INSERTs with an explicit bogus granted_by (...0d04);
+-- the guard must override it to the admin's own person_id (...0d03).
+select lives_ok($$
+  insert into shared.person_access_roles (person_id, access_role, granted_by)
+  values ('00000000-0000-0000-0000-0000000000d2','ops_lead',
+          '00000000-0000-0000-0000-0000000000d4')
+$$, 'AC-031b: admin INSERT with bogus granted_by succeeds (guard overrides)');
+select is(
+  (select granted_by from shared.person_access_roles
+     where person_id='00000000-0000-0000-0000-0000000000d2' and access_role='ops_lead'),
+  '00000000-0000-0000-0000-0000000000d3'::uuid,
+  'AC-031b: guard forced granted_by to admin person_id, not the supplied bogus value');
 
 reset role;
 select * from finish();

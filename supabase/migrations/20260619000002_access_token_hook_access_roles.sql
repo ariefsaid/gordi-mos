@@ -55,6 +55,11 @@ comment on function shared.custom_access_token_hook(jsonb) is
 -- not re-introduced — NFR-007).
 grant select on shared.person_access_roles to supabase_auth_admin;
 
+-- Re-affirm the single-injection-point privilege posture at this CREATE OR REPLACE site (NFR-007;
+-- idempotent — these match …000005). The definer hook stays executable only by the auth admin.
+revoke execute on function shared.custom_access_token_hook(jsonb) from public, anon, authenticated;
+grant execute on function shared.custom_access_token_hook(jsonb) to supabase_auth_admin;
+
 -- DOWN: CREATE OR REPLACE the hook with the …000005 body (drop the access_roles stamp);
 --       revoke select on shared.person_access_roles from supabase_auth_admin.
 --       (The read helpers live in …000001's DOWN.)
