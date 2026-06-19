@@ -92,7 +92,7 @@ export default function MobileDrawer({ open, onClose, focusOpener }: MobileDrawe
         role="dialog"
         aria-modal="true"
         aria-label="Primary navigation"
-        className="fixed inset-y-0 left-0 bg-card flex flex-col z-50"
+        className="fixed inset-y-0 left-0 bg-secondary flex flex-col z-50"
         style={{ width: 'var(--rail-w)' }}
       >
         <RailNav onNavigate={onClose} />

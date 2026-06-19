@@ -7,7 +7,7 @@ interface RailProps {
 export default function Rail({ onNavigate }: RailProps) {
   return (
     <aside
-      className="bg-card border-r border-border flex flex-col"
+      className="bg-secondary border-r border-border flex flex-col"
       style={{ width: 'var(--rail-w)' }}
     >
       <RailNav onNavigate={onNavigate} />

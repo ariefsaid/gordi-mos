@@ -48,7 +48,7 @@
 :root,
 .light,
 .dark {
-  --rail-w: 224px;     /* Issue 3 bumps to 236px */
+  --rail-w: 236px;     /* Issue 3: 224→236 to match the mos-design-kit Sidebar pattern */
   --header-h: 56px;
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
