@@ -1,0 +1,105 @@
+/* my-tasks-card.css — styles for MyTasksCard (PR-4, AC-W01..W06)
+   All values resolve to DESIGN.md tokens (--* CSS vars or Tailwind semantics).
+   No literal hex/rgb/hsl. */
+
+/* ── Shared lighter-overline header (OD-P4-10, AC-W02) ──────────────────────
+   Mirrors TasksWorkspace.css `.th-cell` exactly — same treatment on the
+   mini-table in My Week as in the Tasks workspace. Weight 400 + UPPERCASE +
+   0.06em tracking, color --muted-foreground (clears dark-mode AA per OD-P4-11). */
+.th-overline {
+  text-align: left;
+  height: 36px;
+  padding: 0 20px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--ds-font-size-xs, 11px);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+/* ── Mini-table body row ───────────────────────────────────────────────────── */
+.mini-td {
+  height: 46px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+
+/* Last row: no bottom border */
+.mini-tbody tr:last-child .mini-td {
+  border-bottom: none;
+}
+
+/* Row hover — bg-secondary (kit row-hover token) */
+.mini-tbody tr:hover {
+  background: var(--secondary);
+  cursor: pointer;
+}
+
+/* ── Name chip link (AC-W01 / AC-W06) ────────────────────────────────────────
+   No underline at rest; color = foreground; truncates within the table column;
+   title attr carries the full name for tooltip (no-bleed, OD-P4-11). */
+.mini-name-chip {
+  color: var(--foreground);
+  text-decoration: none;
+  font-weight: 500;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-tbody tr:hover .mini-name-chip {
+  text-decoration: none;
+}
+
+/* ── Due date coloring (mirrors TaskRow treatment) ────────────────────────── */
+.mini-due-overdue {
+  color: var(--status-lost-text);
+  font-weight: 600;
+}
+.mini-due-soon {
+  color: var(--warning-foreground);
+  font-weight: 600;
+}
+.mini-due-calm {
+  color: var(--muted-foreground);
+}
+.mini-due-none {
+  color: var(--muted-foreground);
+}
+
+/* ── Activity / meta (age) — muted ──────────────────────────────────────────  */
+.mini-meta {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── nowrap guard for status column (AC-W06, OD-P4-11) ─────────────────────  */
+.mini-td-nowrap {
+  white-space: nowrap;
+}
+
+/* ── Skeleton row shimmer (AC-W04) ───────────────────────────────────────────
+   Using bg-muted (--muted) which resolves to the design-system secondary fill;
+   no hardcoded color. */
+.mini-skeleton-bar {
+  display: inline-block;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+
+/* ── Error block (AC-W04, mirrors OpsStrip inline error) ──────────────────── */
+.mini-error-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}

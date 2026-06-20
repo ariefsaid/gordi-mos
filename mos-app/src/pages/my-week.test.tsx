@@ -46,6 +46,21 @@ vi.mock('../lib/db/ops-log', () => ({
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
 const mockGetTodayOpsSummary = vi.mocked(getTodayOpsSummary)
 
+// AC-W01..W04/W06: MyTasksCard data layer — mocked so MyWeek-level tests stay
+// fast and isolated. The card's own behavior is covered in my-tasks-card.test.tsx.
+vi.mock('../lib/db/tasks', () => ({
+  listTasks: vi.fn(),
+}))
+vi.mock('../lib/db/directory', () => ({
+  getBusinessUnits: vi.fn(),
+  getPeople:        vi.fn(),
+}))
+import { listTasks }                   from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+const mockListTasks   = vi.mocked(listTasks)
+const mockGetBUs      = vi.mocked(getBusinessUnits)
+const mockGetPeople   = vi.mocked(getPeople)
+
 const mockUseAuth = vi.mocked(useAuth)
 
 import { MyWeek } from './my-week'
@@ -122,50 +137,60 @@ beforeEach(() => {
   mockListTeamUpdates.mockResolvedValue([])
   // Default ops summary: no entries, no needs-attention
   mockGetTodayOpsSummary.mockResolvedValue({ count: 0, needsAttention: false })
+  // Default MyTasksCard data layer: empty task set (viewer sees "you're clear")
+  mockListTasks.mockResolvedValue([])
+  mockGetBUs.mockResolvedValue([])
+  mockGetPeople.mockResolvedValue([])
 })
 
-// AC-011: My Week task-table frame (empty)
-describe('AC-011: Empty task-table frame', () => {
-  it('shows "My tasks" card head', async () => {
+// AC-011: My Week task-table card — now backed by MyTasksCard (data-wired, PR-4).
+// Goal-oracle (unchanged): a clear viewer sees the "you're clear" message.
+// Data source changes from hardcoded stub → listTasks + raciOwner filter.
+describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () => {
+  it('AC-W01/AC-011: shows "My tasks" card head', async () => {
     await renderMyWeek()
-    expect(screen.getByText('My tasks')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
   })
 
-  it('shows subtitle "Where you\'re Responsible or Accountable · off track first"', async () => {
+  it('AC-W01/AC-011: shows card meta subtitle', async () => {
     await renderMyWeek()
-    expect(
-      screen.getByText("Where you're Responsible or Accountable · off track first"),
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.getByText("Where you're Responsible or Accountable · off track first"),
+      ).toBeInTheDocument(),
+    )
   })
 
-  it('has "All tasks →" link targeting /tasks', async () => {
+  it('AC-W01/AC-011: has "All tasks →" link targeting /tasks', async () => {
     await renderMyWeek()
-    const link = screen.getByRole('link', { name: /All tasks/i })
-    expect(link).toBeInTheDocument()
-    expect(link.getAttribute('href')).toBe('/tasks')
+    await waitFor(() => {
+      const link = screen.getByRole('link', { name: /All tasks/i })
+      expect(link.getAttribute('href')).toBe('/tasks')
+    })
   })
 
-  it('renders the 5 column headers: Task / Status / Owner / Due / Activity', async () => {
+  // AC-W03 goal-oracle (deliberate data-source change, goal unchanged):
+  // a clear viewer (no R/A tasks) sees the "you're clear" message.
+  it('AC-W03/AC-011: empty state — "you\'re clear" copy when no R/A tasks', async () => {
+    // Default beforeEach: listTasks returns [] → empty after raciOwner filter
     await renderMyWeek()
-    const headers = screen.getAllByRole('columnheader')
-    const headerTexts = headers.map((h) => h.textContent?.trim())
-    expect(headerTexts).toContain('Task')
-    expect(headerTexts).toContain('Status')
-    expect(headerTexts).toContain('Owner')
-    expect(headerTexts).toContain('Due')
-    expect(headerTexts).toContain('Activity')
-    expect(headers).toHaveLength(5)
+    await waitFor(() =>
+      expect(
+        screen.getByText("No tasks where you're R or A this week — you're clear."),
+      ).toBeInTheDocument(),
+    )
   })
 
-  it('shows empty row copy with no group headers', async () => {
+  it('AC-W02/AC-011: column headers carry the th-overline class (weight-400 overline)', async () => {
     await renderMyWeek()
-    expect(
-      screen.getByText("No tasks where you're R or A this week — you're clear."),
-    ).toBeInTheDocument()
-    // No group headers
-    expect(screen.queryByText(/Overdue/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Due this week/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Later/i)).not.toBeInTheDocument()
+    await waitFor(() => {
+      const { container } = { container: document.body }
+      const ths = container.querySelectorAll('[aria-label="My tasks this week"] thead th')
+      expect(ths.length).toBeGreaterThan(0)
+      ths.forEach(th => {
+        expect(th.className).toMatch(/th-overline/)
+      })
+    })
   })
 })
 
