@@ -12,12 +12,12 @@ import type { TeamUpdateRow } from '@/lib/db/weekly-updates.types'
 import { getTeamForManager } from '@/lib/db/team'
 import { TimingChip } from '@/components/weekly/timing-chip'
 import { Pill, type PillTone } from '@/components/ui/pill'
-import { CardHead } from '@/components/ui/card-head'
 import { ErrorState } from '@/components/ui/state-kit'
 import { StatePill } from '@/components/weekly/weekly-update-review-pane'
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
 import type { TodayOpsSummary } from '@/lib/db/ops-log'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
+import { MyTasksCard } from '@/components/weekly/my-tasks-card'
 
 export function MyWeek() {
   useDocumentTitle('My Week — Gordi MOS')
@@ -116,91 +116,10 @@ export function MyWeek() {
     <PageFrame surfaceWash>
         <PageHead title="My Week" subtitle={subtitle} />
 
-        {/* ===== Dominant module: task-table card ===== */}
-        <section
-          className="bg-card border border-border rounded-lg shadow-rest mb-4"
-          aria-label="My tasks this week"
-        >
-          {/* Card head (IA-3: shared <CardHead>) */}
-          <CardHead
-            title="My tasks"
-            meta="Where you're Responsible or Accountable · off track first"
-            action={
-              <Link
-                to="/tasks"
-                className="font-semibold text-primary no-underline"
-                style={{ fontSize: 13 }}
-              >
-                All tasks →
-              </Link>
-            }
-          />
-
-          {/* Table */}
-          <table
-            className="w-full border-collapse"
-            style={{ tableLayout: 'fixed' }}
-          >
-            <colgroup>
-              <col style={{ width: '38%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '10%' }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th
-                  scope="col"
-                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
-                  style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
-                >
-                  Task
-                </th>
-                <th
-                  scope="col"
-                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
-                  style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
-                >
-                  Status
-                </th>
-                <th
-                  scope="col"
-                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
-                  style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
-                >
-                  Owner
-                </th>
-                <th
-                  scope="col"
-                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
-                  style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
-                >
-                  Due
-                </th>
-                <th
-                  scope="col"
-                  className="text-left text-muted-foreground font-semibold uppercase border-b border-border"
-                  style={{ height: 36, padding: '0 20px', fontSize: 11, letterSpacing: '0.06em' }}
-                >
-                  Activity
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Empty state row — no group headers (FR-014) */}
-              <tr>
-                <td
-                  colSpan={5}
-                  className="text-center text-muted-foreground"
-                  style={{ height: 46, padding: '0 20px', fontSize: 13 }}
-                >
-                  No tasks where you're R or A this week — you're clear.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
+        {/* ===== Dominant module: My-tasks card (AC-W01..W04/W06, PR-4) ===== */}
+        {personId && (
+          <MyTasksCard viewerId={personId} now={now} />
+        )}
 
         {/* ===== Auxiliary strip 1: weekly update (AC-050, AC-051) — flag-hidden ===== */}
         {SHOW_WEEKLY_UPDATES && (
