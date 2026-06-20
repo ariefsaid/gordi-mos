@@ -14,7 +14,8 @@ function ruleBody(css: string, selector: string): string {
   expect(idx, `expected to find ${selector}`).toBeGreaterThanOrEqual(0)
   const open = css.indexOf('{', idx)
   const close = css.indexOf('}', open)
-  return css.slice(open + 1, close)
+  // Strip CSS comments — the rule's explanatory comment mentions the old token by name.
+  return css.slice(open + 1, close).replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
 describe('OwnerCell avatar (.ownav) — legible initials (WCAG-AA)', () => {
