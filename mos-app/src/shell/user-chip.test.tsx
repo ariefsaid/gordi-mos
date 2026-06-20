@@ -57,6 +57,21 @@ describe('AC-005: UserChip and sign-out menu', () => {
     expect(screen.getByText('Kitchen Lead')).toBeInTheDocument()
   })
 
+  // AC-D03 (RI-3, ADR-0013 D2): the identity-bearing user name is a single-line string —
+  // it must ellipsize (truncate) AND carry a `title` so the full name is recoverable on hover
+  // when clipped (no-bleed regression).
+  it('AC-D03: user name truncates and carries a title attribute', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    render(<UserChip />)
+    const name = screen.getByText('Dina Pratiwi')
+    expect(name.className).toMatch(/truncate/)
+    expect(name.getAttribute('title')).toBe('Dina Pratiwi')
+  })
+
   it('opens menu on Enter key and shows Sign out item', async () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',

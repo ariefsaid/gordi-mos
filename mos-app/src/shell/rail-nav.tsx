@@ -9,7 +9,7 @@ type RailNavProps = {
 export function RailNav({ onNavigate }: RailNavProps) {
   return (
     <>
-      {/* Primary nav, grouped under a Workspace section label (Twenty idiom).
+      {/* Primary nav, grouped under a Workspace section label (records-workspace idiom).
           Top bar now owns: brand lockup, ⌘K search trigger, and user chip (ADR-0013 D1). */}
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         <div
@@ -28,7 +28,7 @@ export function RailNav({ onNavigate }: RailNavProps) {
               className={({ isActive }) =>
                 [
                   'flex items-center gap-[10px] rounded-sm px-2 no-underline text-sm',
-                  // Twenty selection: subtle neutral fill + accent-tinted icon + weight 500.
+                  // Records-workspace selection: subtle neutral fill + accent-tinted icon + weight 500.
                   // (Owner-directed override of OD-P3-7's navy tint + inset left-marker.)
                   isActive
                     ? 'bg-accent font-medium text-foreground'

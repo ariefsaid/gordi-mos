@@ -4,8 +4,9 @@ import { useAuth } from '@/auth/use-auth'
 interface UserChipProps {
   /** When true, hides name/role text (used at <920px per FR-020). */
   compact?: boolean
-  /** 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
-   *  the sidebar foot with an upward-opening menu (Twenty idiom). */
+  // 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
+  // the sidebar foot with an upward-opening menu.
+  /** Display variant. */
   variant?: 'header' | 'rail'
 }
 
@@ -83,7 +84,11 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
         </div>
         {showText && (
           <div className={isRail ? 'flex-1 text-left min-w-0' : 'text-left'}>
-            <div className="truncate font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }}>
+            <div
+              className="truncate font-semibold text-foreground"
+              style={{ fontSize: 13, lineHeight: 1.1 }}
+              title={viewer.person.full_name}
+            >
               {viewer.person.full_name}
             </div>
             {primaryRole && (

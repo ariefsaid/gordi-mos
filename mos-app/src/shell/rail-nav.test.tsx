@@ -139,6 +139,28 @@ describe('AC-S05: rail is navigation-only', () => {
   })
 })
 
+// AC-D02 (RI-2): label/meta roles use the tertiary ramp (text-muted-foreground ≈4.6:1
+// on dark), never the failing --ds-font-color-light ramp (≈3.1:1, fails WCAG-AA).
+// ADR-0013 Decision 2. The rail's "Workspace" group label + inactive nav labels are
+// meta roles; they must carry text-muted-foreground.
+describe('AC-D02: rail label/meta roles use the muted-foreground (tertiary) ramp', () => {
+  it('AC-D02: Workspace group label carries text-muted-foreground (not the light ramp)', () => {
+    renderRailNav('/tasks')
+    const label = screen.getByText('Workspace')
+    expect(label.className).toMatch(/text-muted-foreground/)
+    expect(label.className).not.toMatch(/text-light|font-color-light/)
+  })
+
+  it('AC-D02: an inactive nav label uses text-muted-foreground, not the light ramp', () => {
+    // At /tasks, "My Week" is inactive → its link wrapper is muted-foreground.
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const myWeek = within(nav).getByRole('link', { name: /My Week/ })
+    expect(myWeek.className).toMatch(/text-muted-foreground/)
+    expect(myWeek.className).not.toMatch(/text-light|font-color-light/)
+  })
+})
+
 // AC-015: every nav SVG is aria-hidden
 describe('AC-015: Nav icon semantics', () => {
   it('all SVGs inside the nav have aria-hidden=true', () => {

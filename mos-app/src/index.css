@@ -160,8 +160,8 @@
   --success:               var(--ds-color-green);
   --success-foreground:    var(--ds-font-color-inverted);
   /* Controls/fields get a VISIBLE hairline (#d6d6d6); dividers/cards stay quiet
-     (#ebebeb). Splits the former Single-Border Rule for legibility — Twenty's
-     controls are clearly bordered. Flagged for DESIGN.md ratification. */
+     (#ebebeb). Splits the former Single-Border Rule for legibility — controls
+     are clearly bordered. Flagged for DESIGN.md ratification. */
   --border:                var(--border-medium);
   --input:                 var(--border-strong);
   --ring:                  var(--ds-color-blue);

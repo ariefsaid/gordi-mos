@@ -263,6 +263,29 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
   })
 
+  // AC-D04 (PR-6 state-vocabulary lock): the table distinguishes a truly-empty result
+  // ("no tasks" + create CTA) from a filtered-empty result ("no tasks match these filters"
+  // + Clear filters) — they must NOT share copy. This is the durable cross-surface state
+  // invariant the capstone audit verified; tagged here so grep -r AC-D04 finds the proof.
+  it('AC-D04: filtered-empty copy differs from truly-empty copy (distinct state vocabulary)', async () => {
+    // truly-empty
+    mockListTasks.mockResolvedValue([])
+    const { unmount } = renderTable()
+    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks match these filters/i)).toBeNull()
+    unmount()
+
+    // filtered-empty (a task exists but the search matches nothing)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Alpha task'))
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    // distinct from the truly-empty copy + offers Clear filters
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getByRole('button', { name: /clear filters/i })).toBeInTheDocument()
+  })
+
   it('AC-133: zero-overdue omits the overdue segment entirely (no "0 overdue" in count line)', async () => {
     mockListTasks.mockResolvedValue([
       // Switch to All segment to make non-viewer tasks visible
