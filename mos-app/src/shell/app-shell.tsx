@@ -6,6 +6,7 @@ import { MobileDrawer } from './mobile-drawer'
 import { useIsNarrow } from './use-is-narrow'
 import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
+import { BreadcrumbTitleProvider } from './breadcrumb-title'
 
 export function AppShell() {
   const isNarrow = useIsNarrow()
@@ -14,7 +15,9 @@ export function AppShell() {
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
 
   return (
-    <>
+    // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
+    // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
+    <BreadcrumbTitleProvider>
       <div
         className="min-h-screen bg-secondary/35"
         style={{
@@ -55,6 +58,6 @@ export function AppShell() {
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4) */}
       <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
-    </>
+    </BreadcrumbTitleProvider>
   )
 }

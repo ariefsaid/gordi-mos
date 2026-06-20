@@ -635,14 +635,15 @@ describe('Fix M2 — task count suppressed in error state', () => {
     expect(countLine?.textContent).toContain('—')
   })
 
-  it('AC-M2: count line shows correct count once data loads successfully', async () => {
+  it('AC-M2: count shows correct value once data loads successfully', async () => {
     mockListTasks.mockResolvedValue([makeTask(), makeTask({ id: 'task-2', title: 'Task 2' })])
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
-    // count shows the correct value
-    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    // In "Mine" segment default, both tasks are by VIEWER_ID so both appear
-    expect(countLine?.textContent).toMatch(/2 tasks/)
+    // Goal-oracle: the loaded count is visible. UI-fidelity rework moved the count to
+    // the content-header count pill (.ch-count) — read it there (was the count-line).
+    // In "Mine" segment default, both tasks are by VIEWER_ID so both appear.
+    const pill = document.querySelector('.content-header .ch-count')
+    expect(pill?.textContent).toBe('2')
   })
 })
 

@@ -5,10 +5,12 @@ import { useTasksViewPref, __resetTasksViewPrefForTests } from './use-tasks-view
 beforeEach(() => { localStorage.clear(); __resetTasksViewPrefForTests() })
 
 describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
-  it('AC-127: defaults groupBy=status, view=table, collapsedGroups={}', () => {
+  // UI-fidelity rework: the default is FLAT ('none') to match the signed mockup
+  // (mock-shell-and-table.html is ungrouped); grouping is opt-in via the Group chip.
+  it('AC-127: defaults groupBy=none (FLAT), view=table, collapsedGroups={}', () => {
     const { result } = renderHook(() => useTasksViewPref())
     expect(result.current.view).toBe('table')
-    expect(result.current.groupBy).toBe('status')
+    expect(result.current.groupBy).toBe('none')
     expect(result.current.collapsedGroups).toEqual({})
   })
 
@@ -25,8 +27,8 @@ describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
   it('AC-127: multiple consumers share one store — setGroupBy in one updates the other', () => {
     const a = renderHook(() => useTasksViewPref())
     const b = renderHook(() => useTasksViewPref())
-    expect(a.result.current.groupBy).toBe('status')
-    expect(b.result.current.groupBy).toBe('status')
+    expect(a.result.current.groupBy).toBe('none')
+    expect(b.result.current.groupBy).toBe('none')
     act(() => a.result.current.setGroupBy('bu'))
     expect(a.result.current.groupBy).toBe('bu')
     expect(b.result.current.groupBy).toBe('bu') // other consumer also updated
@@ -34,6 +36,7 @@ describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
 
   it('AC-132: toggleCollapsed records the collapsed group key per dimension', () => {
     const { result } = renderHook(() => useTasksViewPref())
+    act(() => result.current.setGroupBy('status')) // collapse is meaningful only under a grouped dimension
     act(() => result.current.toggleCollapsed('Done'))   // collapses under the active groupBy (status)
     expect(JSON.parse(localStorage.getItem('mos.tasks.collapsedGroups')!)).toEqual({ status: ['Done'] })
     expect(result.current.isCollapsed('Done')).toBe(true)
@@ -42,6 +45,7 @@ describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
 
   it('AC-132: toggleCollapsed twice removes the key (toggle = expand back)', () => {
     const { result } = renderHook(() => useTasksViewPref())
+    act(() => result.current.setGroupBy('status'))
     act(() => result.current.toggleCollapsed('Done'))
     act(() => result.current.toggleCollapsed('Done'))
     expect(result.current.isCollapsed('Done')).toBe(false)
@@ -58,6 +62,7 @@ describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
   it('AC-127: collapsedGroups are scoped per dimension (status vs owner)', () => {
     const { result } = renderHook(() => useTasksViewPref())
     // Collapse 'Done' under status
+    act(() => result.current.setGroupBy('status'))
     act(() => result.current.toggleCollapsed('Done'))
     // Switch to owner groupBy
     act(() => result.current.setGroupBy('owner'))
@@ -77,7 +82,7 @@ describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
     localStorage.setItem('mos.tasks.groupBy', 'invalid-value')
     __resetTasksViewPrefForTests()
     const { result } = renderHook(() => useTasksViewPref())
-    expect(result.current.groupBy).toBe('status') // invalid → default
+    expect(result.current.groupBy).toBe('none') // invalid → default (FLAT)
     expect(result.current.collapsedGroups).toEqual({})
   })
 })

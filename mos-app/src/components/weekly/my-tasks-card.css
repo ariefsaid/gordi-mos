@@ -13,7 +13,8 @@
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: var(--ds-font-size-xs, 11px);
+  /* Mockup mini-table overline = literal 11px (matches the Tasks .th-cell overline). */
+  font-size: 11px;
   color: var(--muted-foreground);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;

@@ -25,7 +25,7 @@
 .light {
   --brand-navy:      color(display-p3 0.0313 0.0311 0.0893); /* hsl(218 46% 22%)  — structural weight */
   --brand-navy-text: color(display-p3 0.0435 0.0436 0.1192); /* hsl(218 42% 26%)  — AA text on light */
-  --brand-orange:    color(display-p3 0.3744 0.2253 0.0138); /* hsl(18 80% 48%)   — brand sprinkle */
+  --brand-orange:    color(display-p3 0.9 0.45 0.2);          /* vivid orange — brand sprinkle / active-tab accent (was a bad dark-brown p3 conversion) */
   /* Status-pill darkened-AA text tokens (DESIGN.md §5 / ADR-0008) — P3 form */
   --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
@@ -112,15 +112,17 @@
   --color-brand-navy-text:       var(--brand-navy-text);
   --color-brand-orange:          var(--brand-orange);
 
-  /* Radii — OD-P3-10 scale: 12px cards / 8px controls / 4px tiny. Kit provides
-     --radius-sm(4)/md(8)/pill; our card radius stays the ratified 12px (literal). */
-  --radius-lg: 0.75rem;          /* 12px — cards/containers/overlays (OD-P3-10) */
+  /* Radii — cards 8px (signed mockup = --ds-border-radius-md; SUPERSEDES OD-P3-10's 12px,
+     per owner "as per the mockup" 2026-06-20) / 8px controls / 4px tiny. */
+  --radius-lg: 0.5rem;           /* 8px — cards/containers/overlays (mockup md; was 12px OD-P3-10) */
   --radius-md: 0.625rem;         /* 10px — mid nesting */
   --radius-sm: 0.5rem;           /* 8px  — CONTROLS (buttons/inputs/badges/nav-items) */
   --radius-xs: 0.25rem;          /* 4px  — checkbox/tiny */
 
-  /* Fonts — OD-P3-9 pairing, unchanged (same stacks the app already loads). */
-  --font-sans:    "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Fonts — OD-P3-9 pairing. NOTE: @fontsource-variable/dm-sans registers the family
+     as "DM Sans Variable" — it MUST lead the stack or the UI silently falls back to
+     system-ui (the bug that made the app render in the OS font, not DM Sans). */
+  --font-sans:    "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 

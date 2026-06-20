@@ -10,6 +10,34 @@
    no maxWidth cap). The bespoke .page-head-row / .tasks-page-title / .tasks-count-line
    classes were removed; only the head-owned controls below remain. */
 
+/* ── Content header (mockup `.content-header`) ──────────────────────────────────
+   The list/DB-view header chrome: a single clean row = entity icon + title +
+   count pill + right-aligned inline action. Pixel oracle:
+   docs/design-mockups/ui-revamp/mock-shell-and-table.html `.content-header`.
+   Every value resolves to a DESIGN.md token (crosswalk of the mockup's --ds-*). */
+.content-header {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 48px; margin-bottom: 16px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.content-header .ch-icon { color: var(--muted-foreground); display: inline-flex; flex: none; }
+.content-header .ch-title {
+  font-weight: 600; font-size: 18px; letter-spacing: -0.01em; color: var(--foreground);
+  margin: 0; line-height: 1.2;
+}
+/* Count pill (mockup `.ch-count`) — small muted pill on the tertiary surface. */
+.content-header .ch-count {
+  font-size: 11px; font-weight: 600; color: var(--muted-foreground);
+  background: var(--secondary); padding: 2px 9px; border-radius: 999px;
+  flex: none; line-height: 1.4;
+}
+/* Overdue/blocked subtotals + clearable filter chips ride just after the pill. */
+.content-header .ch-meta { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Right-aligned inline action (mockup `.ch-action`) — pushed to the far edge. */
+.content-header .ch-action { margin-left: auto; flex: none; }
+/* Off-track subtotals (blocked / overdue) ride beside the count pill. */
+.ch-submeta { color: var(--muted-foreground); font-size: 13px; }
+
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
@@ -82,20 +110,43 @@
 .drawer-modal.drawer-fullscreen .btn-ghost-danger,
 .drawer-modal.drawer-fullscreen .checklist-checkbox { min-height: 44px; }
 
-/* ── Toolbar ── */
+/* ── Toolbar ── (mockup `.toolbar`: view-tabs · spacer · segment · chips · search) */
 .toolbar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px;
   border-bottom: 1px solid var(--border);
 }
-.control {
-  height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
-  border: 1px solid var(--input); background: var(--background);
-  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  font-size: 13px; color: var(--foreground); cursor: pointer; position: relative;
+.tb-spacer { flex: 1 1 0; min-width: 8px; }
+
+/* View-tabs (mockup `.vtab`): Table active with the brand-orange underline; Board /
+   Calendar are disabled "soon" placeholders. */
+.vtabs { display: inline-flex; align-items: center; gap: 2px; }
+.vtab {
+  border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600;
+  padding: 4px 8px; color: var(--muted-foreground); cursor: pointer; line-height: 1.4;
+  border-bottom: 2px solid transparent; border-radius: 0;
 }
-.ctrl-lbl { color: var(--muted-foreground); font-size: 13px; }
-.ctrl-chev { color: var(--muted-foreground); pointer-events: none; flex: none; }
-.ctrl-select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 13px; }
+.vtab:hover:not(.vtab-soon) { color: var(--foreground); }
+/* Active view-tab — orange underline (brand sprinkle = the active-tab accent). */
+.vtab-on { color: var(--foreground); border-bottom-color: var(--brand-orange); }
+.vtab-soon { color: var(--muted-foreground); opacity: 0.55; cursor: not-allowed; }
+.vtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+
+/* Chip-style filter control (mockup `.chip`): bordered pill = label + current value
+   + ▾; a transparent native <select> overlay preserves full filter capability + a11y. */
+.chip {
+  position: relative; display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 10px;
+  border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  background: var(--background); font-size: 13px; color: var(--secondary-foreground); cursor: pointer;
+}
+.chip:hover { border-color: var(--border-strong); }
+.chip:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
+.chip .ch-k { color: var(--muted-foreground); }
+.chip .ch-v { color: var(--foreground); font-weight: 500; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip .chip-chev { color: var(--muted-foreground); pointer-events: none; flex: none; }
+/* The native select sits invisibly over the chip — clicks open the native menu. */
+.chip-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 13px; border: 0; }
+
 .seg { display: inline-flex; height: 32px; padding: 3px; background: var(--secondary); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */ }
 .seg-btn {
   border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px;
@@ -141,9 +192,9 @@
    Person — never collapsing to anonymous '▾' stubs), let the search flex, and
    tighten gaps. (Recognition failure > row count.) */
 .assembly.condensed .toolbar { gap: 6px; padding: 8px 10px; }
-/* Keep the in-control labels in condensed mode so the four filter controls retain their
-   identity (Group / Business unit / Status / Person) — never collapse to anonymous '▾' stubs. */
-.assembly.condensed .toolbar .control { padding: 0 8px; }
+/* Keep the in-chip labels in condensed mode so the four filter chips retain their
+   identity (Group / Unit / Status / Person) — never collapse to anonymous '▾' stubs. */
+.assembly.condensed .toolbar .chip { padding: 0 8px; }
 .assembly.condensed .toolbar .seg-btn { padding: 0 8px; }
 .assembly.condensed .toolbar .search-mini { min-width: 120px; flex: 1 1 120px; }
 .assembly.condensed .toolbar .archived-toggle { padding: 0 8px; }
@@ -190,9 +241,10 @@
    --muted-foreground (the --ds-font-color-tertiary crosswalk — clears dark-mode AA,
    ADR-0013 Decision 2). Mockup: mock-shell-and-table.html `.records thead th`. */
 .th-cell {
-  text-align: left; height: 36px; padding: 0 12px; line-height: 1.3;
+  text-align: left; height: 32px; padding: 0 12px; line-height: 1.3;
   font-weight: 400; text-transform: uppercase; letter-spacing: 0.06em;
-  font-size: var(--ds-font-size-xs); color: var(--muted-foreground);
+  /* Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role). */
+  font-size: 11px; color: var(--muted-foreground);
   border-bottom: 1px solid var(--border); white-space: nowrap;
 }
 .th-sortable { cursor: pointer; }
@@ -281,8 +333,13 @@ tr:focus-within .row-menu { visibility: visible; }
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
 .ownav {
-  width: 26px; height: 26px; border-radius: 999px; background: var(--accent);
-  color: var(--brand-navy-text); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
+  width: 26px; height: 26px; border-radius: 999px;
+  /* Mockup .av-sm avatar: blue12→blue9 gradient + inverted text. blue12 flips with the theme
+     (dark navy in light / light blue in dark), so the inverted initials always clear WCAG-AA
+     (~8:1 light, ~7:1 dark at the gradient centre). The prior solid --accent + dark
+     --brand-navy-text was only ~3.67:1 — the illegible initials. Keep this pairing. */
+  background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
 }
 .own-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .own-more { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex: none; }
@@ -333,14 +390,6 @@ tr:focus-within .row-menu { visibility: visible; }
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
 @media (max-width: 1099.98px) {
   .split, .split.expanded { grid-template-columns: 1fr; }
-}
-
-/* ── Group-by control (DB-view toolbar, DESIGN.md §5 toolbar-control treatment) ──
-   Records-workspace IxD: the group-by is a neutral toolbar control like the rest
-   (no navy tint). Overrides OD-P3-6/OD-P3-7's Structural-Navy group-by, per the
-   records-workspace look-and-feel goal — flagged for DESIGN.md ratification. */
-.control-groupby {
-  font-weight: 500;
 }
 
 /* ── Segment disabled state (FR-124 / AC-126) ── */

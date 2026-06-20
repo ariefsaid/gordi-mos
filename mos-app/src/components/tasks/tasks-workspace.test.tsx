@@ -112,6 +112,97 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
 })
 
+// ── Visual-fidelity chrome (feat/ui-fidelity-tasks-chrome) ────────────────────
+// Restores the signed mockup's toolbar/header idiom (mock-shell-and-table.html):
+// view-tabs (Table active; Board/Calendar disabled "soon"), the Mine/RACI/All
+// segmented pill, chip-style filter controls, the content-header (count + inline
+// New task), and a FLAT default list. Behavioral goal-oracles (filtering, segment
+// scope, overdue filter, New task) are unchanged — these assert the new chrome.
+describe('UI-fidelity chrome — view tabs (mockup `.vtab`)', () => {
+  it('renders Table / Board / Calendar view-tabs with Table active', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('A task'))
+    const tabs = screen.getByRole('tablist', { name: /view/i })
+    expect(tabs).toBeInTheDocument()
+    const table = screen.getByRole('tab', { name: /table/i })
+    expect(table.getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('Board and Calendar view-tabs are disabled placeholders ("soon")', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('A task'))
+    const board = screen.getByRole('tab', { name: /board/i })
+    const calendar = screen.getByRole('tab', { name: /calendar/i })
+    expect(board).toBeDisabled()
+    expect(calendar).toBeDisabled()
+    expect(board.getAttribute('aria-disabled')).toBe('true')
+    expect(calendar.getAttribute('aria-disabled')).toBe('true')
+  })
+})
+
+describe('UI-fidelity chrome — chip-style filter controls (mockup `.chip`)', () => {
+  it('Status / Business unit / Person / Group filters render as .chip controls', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
+    const { container } = renderTable()
+    await waitFor(() => screen.getByText('A task'))
+    // At least 4 chip controls (Group, Business unit, Status, Person)
+    expect(container.querySelectorAll('.toolbar .chip').length).toBeGreaterThanOrEqual(4)
+    // Each filter is still a reachable, labelled combobox (capability preserved)
+    expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /status/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /person/i })).toBeInTheDocument()
+  })
+
+  it('the chip shows the current value (Status chip reflects the chosen status)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
+    const { container } = renderTable()
+    await waitFor(() => screen.getByText('A task'))
+    const statusSelect = screen.getByRole('combobox', { name: /status/i })
+    fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
+    await waitFor(() => {
+      const chip = container.querySelector('.toolbar .chip .ch-v')
+      // Some chip's current-value span reads "Blocked" after the change
+      const values = Array.from(container.querySelectorAll('.toolbar .chip .ch-v')).map(n => n.textContent)
+      expect(values).toContain('Blocked')
+      expect(chip).toBeTruthy()
+    })
+  })
+})
+
+describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () => {
+  it('defaults to a FLAT list — no group-header rows on first paint', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 'b', title: 'Blocked one', status: 'Blocked', responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+    // Flat: leaf rows render, but NO group header rows by default.
+    expect(document.querySelector('tr.task-row')).toBeTruthy()
+    expect(document.querySelectorAll('tr.grp').length).toBe(0)
+    // Group-by control still defaults to a flat (none) value.
+    const groupSelect = screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement
+    expect(groupSelect.value).toBe('none')
+  })
+
+  it('choosing a group dimension brings grouping back (capability preserved)', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Open one', status: 'Open' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+    await switchToAll()
+    const groupSelect = screen.getByRole('combobox', { name: /group/i })
+    fireEvent.change(groupSelect, { target: { value: 'status' } })
+    await waitFor(() => {
+      expect(document.querySelectorAll('tr.grp').length).toBeGreaterThanOrEqual(4)
+    })
+  })
+})
+
 // ── Task 9 — group-by control in toolbar (view-tab strip removed per owner — the table IS the view, PMO-style)
 
 describe('Task 9 — group-by control in toolbar', () => {
@@ -129,12 +220,13 @@ describe('Task 9 — group-by control in toolbar', () => {
     expect(options.some(o => o && /business unit/i.test(o))).toBe(true)
   })
 
-  it('group-by control defaults to "status" (from useTasksViewPref)', async () => {
+  it('group-by control defaults to "none" / FLAT (UI-fidelity: mockup is ungrouped)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     const groupSelect = screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement
-    expect(groupSelect.value).toBe('status')
+    // Default is FLAT to match the signed mockup; grouping is opt-in via the chip.
+    expect(groupSelect.value).toBe('none')
   })
 
   it('changing group-by persists the choice to localStorage (flat — no grouping output in PR-2)', async () => {
@@ -374,6 +466,14 @@ async function switchToAll() {
   if (allBtn) fireEvent.click(allBtn as Element)
 }
 
+// Helper: opt into a group-by dimension (the default is FLAT after the UI-fidelity
+// rework — grouping is now an explicit choice via the Group chip). Tests that assert
+// grouping behavior select the dimension as a step; the GOAL-oracles are unchanged.
+function selectGroupBy(value: 'none' | 'status' | 'owner' | 'bu') {
+  const groupSelect = screen.getByRole('combobox', { name: /group/i })
+  fireEvent.change(groupSelect, { target: { value } })
+}
+
 describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
   it('AC-116: clicking a row navigates to the one canonical /tasks/:id surface', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-9', title: 'Canonical task' })])
@@ -397,6 +497,7 @@ describe('Task 14/15 — grouping engine (AC-123, AC-119)', () => {
     renderTable()
     await waitFor(() => screen.getByText('Open one'))
     await switchToAll()
+    selectGroupBy('status') // opt into grouping (default is flat)
     await waitFor(() => screen.getByText('Blocked one'))
     // Group header rows (tr.grp) for each status, never .task-row
     const groups = document.querySelectorAll('tr.grp')
@@ -462,6 +563,7 @@ describe('Task 18 — group collapse persists (AC-132)', () => {
     renderTable()
     await waitFor(() => screen.getByText('Open visible'))
     await switchToAll()
+    selectGroupBy('status') // opt into grouping (default is flat)
     await waitFor(() => screen.getByText('Open visible'))
     // Find the Open group header's caret toggle
     const groups = Array.from(document.querySelectorAll('tr.grp'))
@@ -563,8 +665,8 @@ describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task', status: 'Open' })])
     const { container } = renderTable()
     await waitFor(() => screen.getByText('Mine task'))
-    // Default groupBy is 'status' — group headers should already be present.
     await switchToAll()
+    selectGroupBy('status') // opt into grouping (default is flat) — then assert Status-group prefill
     await waitFor(() => {
       const groups = Array.from(container.querySelectorAll('tr.grp'))
       expect(groups.length).toBeGreaterThanOrEqual(1)
@@ -629,6 +731,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
     const seg = screen.getByRole('tablist', { name: /ownership filter/i })
     const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
     if (allBtn) fireEvent.click(allBtn as Element)
+    selectGroupBy('status') // opt into grouping (default is flat) — then assert the Done group subtotal
     await waitFor(() => screen.getByText('Done past due'))
     // Done group header must not render an overdue subtotal button
     const grps = Array.from(document.querySelectorAll('tr.grp'))
@@ -686,6 +789,7 @@ describe('Task 22 — mobile grouped cards (AC-129)', () => {
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
     await switchToAll()
+    selectGroupBy('status') // opt into grouping (default is flat) — then assert grouped cards
     await waitFor(() => screen.getByText('Mobile task'))
     // Group headings present (the chosen group-by: status)
     expect(screen.getByText('Mobile task')).toBeInTheDocument()
@@ -727,7 +831,8 @@ describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-for
     expect(body).toMatch(/text-transform:\s*uppercase/)
     expect(body).toMatch(/letter-spacing:\s*\.?0*\.?06em/) // 0.06em
     expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
-    expect(body).toMatch(/font-size:\s*var\(--ds-font-size-xs\)/)
+    // Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role).
+    expect(body).toMatch(/font-size:\s*11px/)
   })
 })
 

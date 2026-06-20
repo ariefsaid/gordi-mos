@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface } from './task-surface'
 import { useExpandPref } from './use-expand-pref'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 export type TaskDrawerOutletContext = {
@@ -17,6 +18,16 @@ export type TaskDrawerOutletContext = {
 
 export type TaskDrawerProps = {
   mode: 'view' | 'create'
+}
+
+/**
+ * Mounts only when the task title has been resolved. Calls useSetBreadcrumbTitle
+ * so the shell Breadcrumb shows "Tasks › <title>" (ADR-0013 D1 / OD-P4-9, AC-S04b).
+ * Unmounts (and thus clears the title) when the drawer closes or the title is unknown.
+ */
+function BreadcrumbTitleSync({ title }: { title: string }) {
+  useSetBreadcrumbTitle(title)
+  return null
 }
 
 const FOCUSABLE = [
@@ -44,6 +55,11 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const [expanded, setExpanded] = useExpandPref()
   const isSplit = useIsSplitWidth()
   const isDesktop = useIsDesktop()
+
+  // ADR-0013 D1 / OD-P4-9: track the resolved task title so BreadcrumbTitleSync can
+  // push it to the shell Breadcrumb. Resets on taskId change (new record opens).
+  const [resolvedTitle, setResolvedTitle] = useState<string | null>(null)
+  useEffect(() => { setResolvedTitle(null) }, [taskId])
 
   const isModal = !isSplit
   const isFullScreen = !isDesktop // <768px: full-screen modal (design-plan §1.5)
@@ -113,25 +129,25 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const fullWidth = expanded && isSplit
   const width = fullWidth ? 'full' : 'drawer'
 
-  // TODO(breadcrumb-title, ADR-0013 D1 / OD-P4-9): thread TaskSurface's
-  // onTitleResolved up to the shell Breadcrumb so it reads "Tasks › <task name>".
-  // The shell <Breadcrumb> is route-derived and lives in the persistent TopBar,
-  // ABOVE this Outlet level — there is no dynamic-segment channel today. Wiring it
-  // requires a cross-cutting shell context provider (a heavy mechanism this PR is
-  // scoped to avoid). Deferred to a follow-up so the Critical (two-column mount)
-  // ships clean. The drawer header (.dw-title) already shows the full name + title.
+  // ADR-0013 D1 / OD-P4-9: BreadcrumbTitleSync mounts when the title is resolved and
+  // calls useSetBreadcrumbTitle so the shell Breadcrumb shows "Tasks › <task name>".
+  // It unmounts (clearing the crumb) when the drawer closes or taskId changes.
   const surface = (
-    <TaskSurface
-      taskId={taskId ?? null}
-      mode={mode}
-      width={width}
-      expanded={expanded}
-      onExpandToggle={() => setExpanded(e => !e)}
-      onClose={close}
-      onTaskChanged={ctx?.onTaskChanged}
-      onTaskCreated={ctx?.onTaskCreated}
-      onTaskArchived={ctx?.onTaskArchived}
-    />
+    <>
+      {resolvedTitle && <BreadcrumbTitleSync title={resolvedTitle} />}
+      <TaskSurface
+        taskId={taskId ?? null}
+        mode={mode}
+        width={width}
+        expanded={expanded}
+        onExpandToggle={() => setExpanded(e => !e)}
+        onClose={close}
+        onTaskChanged={ctx?.onTaskChanged}
+        onTaskCreated={ctx?.onTaskCreated}
+        onTaskArchived={ctx?.onTaskArchived}
+        onTitleResolved={setResolvedTitle}
+      />
+    </>
   )
 
   // ── Non-modal split (≥1100px): plain <aside>, no scrim, no trap ─────────────

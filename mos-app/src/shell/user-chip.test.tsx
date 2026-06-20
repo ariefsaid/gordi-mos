@@ -3,9 +3,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 vi.mock('../auth/use-auth')
+vi.mock('../theme/theme-provider')
 import { useAuth } from '@/auth/use-auth'
+import { useThemeContext } from '@/theme/theme-provider'
 
 const mockUseAuth = vi.mocked(useAuth)
+const mockUseThemeContext = vi.mocked(useThemeContext)
 
 // We import after mock to get the mocked version
 import { UserChip } from './user-chip'
@@ -41,6 +44,12 @@ function makeRole(id: string, name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Provide a default theme context so AppearanceControl renders without throwing
+  mockUseThemeContext.mockReturnValue({
+    theme: 'light',
+    resolvedTheme: 'light',
+    setTheme: vi.fn(),
+  })
 })
 
 // AC-005: user chip + keyboard sign-out menu
@@ -147,5 +156,62 @@ describe('AC-006: Role-title rule', () => {
     expect(screen.getByText('Dina Pratiwi')).toBeInTheDocument()
     // No role text rendered at all
     expect(screen.queryByText(/Lead|Manager|Director/i)).not.toBeInTheDocument()
+  })
+})
+
+// AC-138 integration: appearance control in the account menu
+describe('AC-138: Appearance control is in the account menu above Sign out', () => {
+  it('menu shows Light / Dark / System radios when opened', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    const chip = screen.getByRole('button', { name: /dina pratiwi/i })
+    chip.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('menuitemradio', { name: /light/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: /dark/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: /system/i })).toBeInTheDocument()
+  })
+
+  it('clicking a theme option keeps menu open', async () => {
+    const setThemeMock = vi.fn()
+    mockUseThemeContext.mockReturnValue({
+      theme: 'light',
+      resolvedTheme: 'light',
+      setTheme: setThemeMock,
+    })
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await user.click(screen.getByRole('menuitemradio', { name: /dark/i }))
+    // Menu stays open after selecting a theme option
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(setThemeMock).toHaveBeenCalledWith('dark')
+  })
+
+  it('Sign out appears below the appearance options (separator present)', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    // Both appearance and sign out are in the menu
+    expect(screen.getByRole('menuitemradio', { name: /light/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+    // Separator present (aria-hidden so not in the accessible tree; verify via DOM)
+    const menu = screen.getByRole('menu')
+    expect(menu.querySelector('[role="separator"]')).toBeInTheDocument()
   })
 })

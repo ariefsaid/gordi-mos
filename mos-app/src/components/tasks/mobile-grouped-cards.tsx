@@ -86,6 +86,27 @@ export function MobileGroupedCards({
   groups, now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly, buildOthers,
 }: MobileGroupedCardsProps) {
+  // Flat default (mockup): the single implicit group renders as a plain card list
+  // with NO group-header chrome (no caret / label / count / add).
+  const isFlat = groups.length === 1 && groups[0].key === '__flat__'
+  if (isFlat) {
+    return (
+      <div className="mgc" role="list" aria-label="Tasks">
+        {groups[0].rows.map(task => (
+          <div key={task.id} role="listitem">
+            <TaskCard
+              task={task}
+              now={now}
+              buName={buMap.get(task.business_unit_id) ?? ''}
+              rName={personMap.get(task.responsible_person_id) ?? ''}
+              others={buildOthers(task)}
+            />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="mgc" role="list" aria-label="Tasks">
       {groups.map(group => (
