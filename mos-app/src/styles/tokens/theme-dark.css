@@ -168,7 +168,7 @@
   --ds-font-weight-regular: 400;
   --ds-font-weight-medium: 500;
   --ds-font-weight-semi-bold: 600;
-  --ds-font-family: 'DM Sans', system-ui, sans-serif;
+  --ds-font-family: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
   --ds-font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
   --ds-name: dark; /* @kind other */
   --ds-snack-bar-success-color: color(display-p3 0.297 0.637 0.581);

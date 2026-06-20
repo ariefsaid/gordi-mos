@@ -831,7 +831,8 @@ describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-for
     expect(body).toMatch(/text-transform:\s*uppercase/)
     expect(body).toMatch(/letter-spacing:\s*\.?0*\.?06em/) // 0.06em
     expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
-    expect(body).toMatch(/font-size:\s*var\(--ds-font-size-xs\)/)
+    // Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role).
+    expect(body).toMatch(/font-size:\s*11px/)
   })
 })
 
