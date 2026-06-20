@@ -28,7 +28,7 @@ export function RailNav({ onNavigate }: RailNavProps) {
               className={({ isActive }) =>
                 [
                   'flex items-center gap-[10px] rounded-sm px-2 no-underline text-sm',
-                  // Twenty selection: subtle neutral fill + accent-tinted icon + weight 500.
+                  // Records-workspace selection: subtle neutral fill + accent-tinted icon + weight 500.
                   // (Owner-directed override of OD-P3-7's navy tint + inset left-marker.)
                   isActive
                     ? 'bg-accent font-medium text-foreground'

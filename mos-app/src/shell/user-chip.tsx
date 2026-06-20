@@ -4,8 +4,9 @@ import { useAuth } from '@/auth/use-auth'
 interface UserChipProps {
   /** When true, hides name/role text (used at <920px per FR-020). */
   compact?: boolean
-  /** 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
-   *  the sidebar foot with an upward-opening menu (Twenty idiom). */
+  // 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
+  // the sidebar foot with an upward-opening menu.
+  /** Display variant. */
   variant?: 'header' | 'rail'
 }
 
