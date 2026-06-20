@@ -346,7 +346,7 @@ Owner approved closing the DESIGN.md §5 Inputs gap: `--field-error-border` = `d
 The post-split-view Tasks screen still read as a **personal to-do app**; root cause was **IA + layout width**, not color (owner, grill 2026-06-16; mockups `docs/design-mockups/tasks-dbview-{A,B,final}.html`). Adopt the **monday.com *information architecture*** (explicitly **not** its color), rendered in the restrained DESIGN.md register:
 - **Full-bleed workspace** — kill the 1080px centered cap in `PageFrame.tsx` for **data/list surfaces** (Tasks now; My Week / Daily Log to follow). **Prose surfaces (Weekly-update write) keep a readable max-width** — full-bleed is for tables, not paragraphs.
 - **View-tab strip** — **Table** (built) · **Board** / **Calendar** (visible but **stubbed/disabled** — owner deferred; separate later slices).
-- **Collapsible group-by** — default **group-by Status**; each group header carries a **count + overdue subtotal**. Group-by is the "database" signature; switchable to Owner / BU.
+- **Collapsible group-by** — each group header carries a **count + overdue subtotal**. Group-by is the "database" signature; field = Status / Owner / BU. **⚠ The "default group-by = Status" clause is SUPERSEDED by OD-P5-1** (group-by is now a toolbar TOGGLE; default = flat/None).
 - **Real toolbar** — Group · Business unit · Person · Mine/RACI/All · Search · New task.
 - **Open paradigm unchanged** — the shipped split-view **drawer (ADR-0007) is kept** (it *is* Notion's side-peek); inline-cell editing is **not** adopted (drawer remains the editor).
 - **Visual register (owner-iterated 2026-06-16, `tasks-dbview-final.html`):** **A's chrome** — bordered filter controls, thin **horizontal** gridlines only (no vertical "stripes"), denser rows, hover quick-actions — combined with **B's table-body simplicity**: clean hairline group headers (NO navy bands, NO left-edge swatch — left stripes removed as distracting), flat-grey selected row (no left bar). **Status chips = soft-tinted** (DESIGN.md "Tinted-Status Rule": In-Progress soft-blue, Blocked soft-red, Open soft-amber, Done soft-green) — the one place soft color lives; everything else neutral grey (grey owner avatars). Overdue dates stay red (off-track signal).
@@ -564,6 +564,30 @@ Owner review of the UI-revamp mockups (against the hand sketch) settled three th
    design-review (the design-plan "No-bleed guardrails" appendix is the checklist).
 
 Mockups updated (`docs/design-mockups/ui-revamp/`, PR #35) and re-rendered light+dark to verify.
+
+---
+
+## OD-P5 — Tasks group-by = first-class toolbar toggle (LOCKED 2026-06-20)
+
+### OD-P5-1 — Group-by is a TOGGLE, default = flat/None (supersedes OD-P3-6's "default Status"; refines AC-123)
+Group-by becomes a **first-class toolbar control** in the records-workspace / spreadsheet-style group-toggle
+idiom — a `Group` chip that opens a small menu (**None · Status · Owner · Business unit**) — **not** a fixed
+default. **This supersedes OD-P3-6's "default group-by = Status (the database signature)"** and **refines
+AC-123** (the ratified default flips Status → None). Owner preference (2026-06-20): surfacing grouping as a
+clean on/off + field-picker beats a fixed grouping; the toggle persists, so the default is no longer
+load-bearing.
+- **Default = None (flat).** Honors the signed mockup's clean first impression
+  (`docs/design-mockups/ui-revamp/mock-shell-and-table.html` renders flat) **and** matches shipped code
+  (`use-tasks-view-pref.ts` default `'none'`). A Status-first user flips the chip once; it sticks
+  per-user-global.
+- **Active read:** the chip reads `Group · <field> ▾`; grouped render = hairline `GroupHeaderRow`s
+  (caret + label + count + `· N overdue` click-to-filter + "+ Add task" pre-fill), all groups shown incl.
+  empty (layout stability), collapse state per-user-global. Flat render = a single Due-asc list.
+- **No new behavior:** the app already supports group-by Status/Owner/BU + collapsible groups + per-group
+  "+ Add task" (`tasks-toolbar.tsx`, `group-header-row.tsx`); this OD **ratifies the toggle framing + the
+  flat default** and retires the OD-P3-6 "default Status" clause. **Not an ADR** — a UI control over existing
+  grouping, no schema/routing/cross-cutting change. CONTEXT.md untouched (group/toggle are UI mechanics).
+  Tokens: all from the design-plan §2.8 `--ds-*` set — **no new tokens.**
 
 ---
 
