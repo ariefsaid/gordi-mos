@@ -23,6 +23,8 @@ import { isOverdue } from '@/lib/due-status'
 import { raciMember, raciOwner } from '@/lib/raci-member'
 import type { OwnerCellRaciMember } from './owner-cell'
 import { TaskRow } from './task-row'
+// OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
+import { STATUS_ORDER } from './task-formatters'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
 import { GroupHeaderRow } from './group-header-row'
@@ -59,9 +61,6 @@ export type TasksTableProps = {
   drawerSlot?: ReactNode
 }
 
-// OD-P3-6 / mockup: OFF-TRACK-FIRST group order (In Progress → Blocked → Open → Done),
-// mirroring the signed mockup and the My Week 'off track first' reading.
-const STATUS_ORDER: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
 
 // The RenderGroup shape (group label/key/rows/overdue/prefill) lives in
 // ./tasks-grouping so the orchestrator + body agree on it.

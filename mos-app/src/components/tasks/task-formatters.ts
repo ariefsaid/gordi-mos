@@ -1,4 +1,8 @@
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+
+// OFF-TRACK-FIRST status order (OD-P3-6 / signed mockup): In Progress → Blocked → Open → Done.
+// Shared by the tasks workspace + the My Week mini-table so the two never drift.
+export const STATUS_ORDER: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
 
 /** Get first name from full_name. */
 export function firstName(fullName: string): string {

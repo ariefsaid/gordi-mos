@@ -6,20 +6,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
+import { getPeople } from '@/lib/db/directory'
+import type { PersonOption } from '@/lib/db/directory'
 import { raciOwner } from '@/lib/raci-member'
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
 import { StatusPill } from '@/components/tasks/status-pill'
 import { OwnerCell } from '@/components/tasks/owner-cell'
-import { formatDate, formatAge, otherRaciCount } from '@/components/tasks/task-formatters'
+import { formatDate, formatAge, otherRaciCount, STATUS_ORDER } from '@/components/tasks/task-formatters'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
 import './my-tasks-card.css'
-
-// OFF-TRACK-FIRST order: In Progress → Blocked → Open → Done, matching the
-// Tasks workspace STATUS_ORDER (OD-P3-6 / mockup signed order).
-const STATUS_ORDER: TaskStatus[] = ['In Progress', 'Blocked', 'Open', 'Done']
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -30,7 +26,6 @@ type MyTasksCardProps = {
 
 type FetchedData = {
   tasks: TaskListRow[]
-  buMap: Map<string, string>
   personMap: Map<string, string>
 }
 
@@ -41,16 +36,13 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const load = useCallback(() => {
     let cancelled = false
     setLoadState('loading')
-    Promise.all([listTasks({}), getBusinessUnits(), getPeople()])
-      .then(([tasks, bus, people]) => {
+    Promise.all([listTasks({}), getPeople()])
+      .then(([tasks, people]) => {
         if (cancelled) return
-        const buMap = new Map<string, string>(
-          (bus as BusinessUnitOption[]).map(b => [b.id, b.name]),
-        )
         const personMap = new Map<string, string>(
           (people as PersonOption[]).map(p => [p.id, p.full_name]),
         )
-        setData({ tasks, buMap, personMap })
+        setData({ tasks, personMap })
         setLoadState('ready')
       })
       .catch(() => {
@@ -167,7 +159,6 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
                   key={task.id}
                   task={task}
                   now={now}
-                  buMap={data!.buMap}
                   personMap={data!.personMap}
                 />
               ))
@@ -183,7 +174,6 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
 type MiniTaskRowProps = {
   task: TaskListRow
   now: Date
-  buMap: Map<string, string>
   personMap: Map<string, string>
 }
 
@@ -207,7 +197,7 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
         {/* AC-W01/W06: Chip-link, truncate + title (no-bleed) */}
         <Link
           to={`/tasks/${task.id}`}
-          className="mini-name-chip truncate name-chip"
+          className="mini-name-chip truncate"
           title={task.title}
         >
           {task.title}
