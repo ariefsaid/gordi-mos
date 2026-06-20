@@ -7,6 +7,8 @@ type TopBarProps = {
   /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
   drawerOpen?: boolean
   onOpenDrawer: () => void
+  /** Opens the ⌘K command menu (wired in AppShell). */
+  onOpenSearch?: () => void
   /** Receives a function that focuses the hamburger; used by MobileDrawer to restore focus on close. */
   onRegisterHamburgerFocus?: (focusFn: () => void) => void
 }
@@ -89,7 +91,7 @@ function GordiLogoMark() {
 // Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · user chip]
 // At <920px the leading hamburger appears and calls onOpenDrawer.
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
-export function TopBar({ drawerOpen = false, onOpenDrawer, onRegisterHamburgerFocus }: TopBarProps) {
+export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegisterHamburgerFocus }: TopBarProps) {
   const isNarrow = useIsNarrow()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
 
@@ -147,12 +149,13 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onRegisterHamburgerFo
 
       {/* Right cluster — search · bell · user chip */}
       <div className="flex items-center gap-2 px-3 flex-none">
-        {/* ⌘K search trigger. TODO(PR-5): wire onClick → open the command menu. */}
+        {/* ⌘K search trigger — opens the command menu (AC-K02). */}
         <button
           type="button"
           aria-label="Search"
           className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
           style={{ height: 32, width: 200 }}
+          onClick={onOpenSearch}
         >
           <SearchIcon />
           <span className="flex-1 text-left" style={{ fontSize: 13 }}>

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+
+vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -113,5 +115,25 @@ describe('AC-015: Shell landmarks', () => {
   it('renders outlet content', () => {
     renderShell()
     expect(screen.getByText('page')).toBeInTheDocument()
+  })
+})
+
+// AC-K02: the command menu mounts at the shell level and opens via the trigger + ⌘K hotkey
+describe('AC-K02: AppShell mounts the command menu', () => {
+  it('AC-K02: the menu is closed by default (no dialog named "Command menu")', () => {
+    renderShell()
+    expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
+  })
+
+  it('AC-K02: clicking the Search trigger opens the command menu', () => {
+    renderShell()
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+  })
+
+  it('AC-K02: ⌘K opens the command menu globally', () => {
+    renderShell()
+    fireEvent.keyDown(document, { key: 'k', metaKey: true })
+    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
   })
 })

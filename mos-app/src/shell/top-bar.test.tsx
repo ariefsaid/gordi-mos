@@ -29,11 +29,11 @@ const viewer = {
   accessRoles: [],
 }
 
-function renderTopBar(path = '/tasks', onOpenDrawer = vi.fn()) {
+function renderTopBar(path = '/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} />} />
+        <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -75,6 +75,16 @@ describe('AC-S01: TopBar order — brand · breadcrumb · search · bell · user
     expect(precedes(crumb, search)).toBe(true)
     expect(precedes(search, bell)).toBe(true)
     expect(precedes(bell, user)).toBe(true)
+  })
+})
+
+// AC-K02: the ⌘K search trigger opens the command menu
+describe('AC-K02: Search trigger opens the command menu', () => {
+  it('AC-K02: clicking the Search trigger calls onOpenSearch', () => {
+    const onOpenSearch = vi.fn()
+    renderTopBar('/tasks', vi.fn(), onOpenSearch)
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    expect(onOpenSearch).toHaveBeenCalledOnce()
   })
 })
 

@@ -184,6 +184,22 @@ export async function getTaskTitlesByIds(ids: string[]): Promise<TaskTitleRef[]>
   return (data ?? []) as unknown as TaskTitleRef[]
 }
 
+/** Search tasks by title for the command palette (ADR-0013 D4). RLS-governed read —
+ *  reuses the org-visibility policy that governs listTasks; org_id is never sent. */
+export async function searchTasksByTitle(q: string, limit = 20): Promise<TaskTitleRef[]> {
+  const term = q.trim()
+  if (!term) return []
+  const { data, error } = await mos()
+    .from('tasks')
+    .select('id,title,status')
+    .ilike('title', `%${term}%`)
+    .is('archived_at', null)
+    .order('last_activity_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`searchTasksByTitle failed — ${error.message}`)
+  return (data ?? []) as unknown as TaskTitleRef[]
+}
+
 /** Unarchive (clear archived_at), then log an `unarchived` event (FR-052/054). */
 export async function unarchiveTask(id: string, actor: string): Promise<void> {
   await updateTask(id, { archived_at: null })
