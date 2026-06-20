@@ -1,0 +1,148 @@
+/* ── Command palette (⌘K) — ADR-0013 D4 / design-plan §5. All raw values are
+   DESIGN.md CSS-var tokens (no hex/rgb/hsl literals). Mirrors mock-command-menu.html. */
+
+.cm-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.cm-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-overlay); /* --ds-background-overlay-primary */
+}
+
+.cm-panel {
+  position: absolute;
+  left: 50%;
+  top: 64px;
+  transform: translateX(-50%);
+  width: 560px;
+  max-width: calc(100% - 32px);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-strong); /* --ds-box-shadow-strong */
+  overflow: hidden;
+  /* Themed scope sets color explicitly so children don't inherit a body-baked
+     light value (dark = invisible). ADR-0013 D2. */
+  color: var(--text-primary);
+}
+
+@media (max-width: 600px) {
+  .cm-panel { top: 16px; }
+}
+
+/* ── Input row ── */
+.cm-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: 48px;
+  border-bottom: 1px solid var(--border-light);
+}
+.cm-input-icon { color: var(--text-tertiary); display: flex; }
+.cm-input input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: var(--text-size-sm);
+  color: var(--text-primary); /* explicit — see ADR-0013 D2 */
+  background: transparent;
+}
+.cm-input input::placeholder { color: var(--text-tertiary); }
+
+/* ── Body / listbox ── */
+.cm-body {
+  max-height: 300px;
+  overflow: auto;
+  padding: 6px;
+}
+
+/* Inner group list — reset browser ul defaults without inline styles. */
+.cm-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */
+.cm-group {
+  font-size: var(--text-size-xxs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 10px 10px 4px;
+}
+
+.cm-empty {
+  padding: 18px 12px;
+  color: var(--text-secondary);
+  font-size: var(--text-size-xs);
+}
+
+.cm-records-error {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-size: var(--text-size-xs);
+}
+
+/* ── Item ── */
+.cm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-size-sm);
+  cursor: pointer;
+  color: var(--text-primary); /* explicit — see ADR-0013 D2 */
+}
+.cm-item:hover { background: var(--surface-tertiary); }
+.cm-item.active { background: var(--surface-tertiary); color: var(--text-primary); }
+
+.cm-item-glyph {
+  color: var(--text-tertiary);
+  width: 18px;
+  text-align: center;
+  flex: none;
+}
+.cm-item.action .cm-item-glyph { color: var(--text-accent); }
+
+.cm-item-label {
+  flex: 1;
+  min-width: 0;
+}
+.cm-item-meta {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-tertiary);
+  font-size: var(--text-size-xs);
+  flex: none;
+}
+
+/* Skeleton row while records are loading. */
+.cm-skeleton {
+  background: var(--surface-tertiary);
+  border-radius: var(--radius-xs);
+  height: 12px;
+  width: 180px;
+  display: inline-block;
+}
+
+/* ── Footer key hints ── */
+.cm-foot {
+  display: flex;
+  gap: 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-light);
+  font-size: var(--text-size-xs);
+  color: var(--text-tertiary);
+}
+.cm-foot-key { font-family: var(--ds-code-font-family); }

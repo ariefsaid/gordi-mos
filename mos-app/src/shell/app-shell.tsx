@@ -4,10 +4,13 @@ import { Rail } from './rail'
 import { TopBar } from './top-bar'
 import { MobileDrawer } from './mobile-drawer'
 import { useIsNarrow } from './use-is-narrow'
+import { CommandMenu } from '@/components/command/command-menu'
+import { useCommandMenu } from '@/components/command/use-command-menu'
 
 export function AppShell() {
   const isNarrow = useIsNarrow()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
 
   return (
@@ -27,6 +30,7 @@ export function AppShell() {
         <TopBar
           drawerOpen={drawerOpen}
           onOpenDrawer={() => setDrawerOpen(true)}
+          onOpenSearch={() => setSearchOpen(true)}
           onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
         />
 
@@ -48,6 +52,9 @@ export function AppShell() {
         onClose={() => setDrawerOpen(false)}
         focusOpener={() => focusHamburgerRef.current?.()}
       />
+
+      {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4) */}
+      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   )
 }

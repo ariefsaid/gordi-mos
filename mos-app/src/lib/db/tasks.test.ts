@@ -12,6 +12,7 @@ import {
   updateTaskStatus, updateTaskFields, updateTaskRaci,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
+  searchTasksByTitle,
 } from './tasks'
 import { supabase } from '@/lib/supabase'
 
@@ -29,6 +30,8 @@ interface Recorder {
   updates: unknown[]
   deletes: string[]
   orders: Array<[string, unknown]>
+  ilikes: Array<[string, unknown]>
+  limits: number[]
 }
 
 function makeSchema(responses: Record<string, { data: unknown; error: unknown }[]>, rec: Recorder) {
@@ -50,6 +53,9 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.delete = vi.fn(() => { rec.deletes.push(table); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.in = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.ilike = vi.fn((c: string, v: unknown) => { rec.ilikes.push([c, v]); return builder })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
@@ -62,7 +68,10 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [], orders: [] }
+  return {
+    fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [],
+    orders: [], ilikes: [], limits: [],
+  }
 }
 
 const TASK_ID = '00000000-0000-0000-0000-00000000a000'
@@ -371,5 +380,53 @@ describe('checklist mutations', () => {
       task_checklist_items: [{ data: null, error: { message: 'delete boom' } }],
     }, rec) as never)
     await expect(deleteChecklistItem('item-1', TASK_ID, ACTOR)).rejects.toThrow(/delete boom/)
+  })
+})
+
+// ── searchTasksByTitle (command palette read path, ADR-0013 D4) ─────────────────
+describe('searchTasksByTitle', () => {
+  const titleRow = { id: TASK_ID, title: 'Finalise Q3 forecast', status: 'Open' as const }
+
+  it('AC-K01: searchTasksByTitle queries mos.tasks ilike title, limited, id/title/status', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [titleRow], error: null }] }, rec) as never)
+
+    const rows = await searchTasksByTitle('forecast')
+
+    expect(rec.fromTables).toContain('tasks')
+    // selects only id,title,status (no cross-schema embeds)
+    expect(rec.selects).toContain('id,title,status')
+    // ilike on title with the wrapped term
+    expect(rec.ilikes).toContainEqual(['title', '%forecast%'])
+    // active-only (archived_at null) + ordered by recency
+    expect(rec.eqs).toContainEqual(['archived_at', null])
+    expect(rec.orders).toContainEqual(['last_activity_at', { ascending: false }])
+    // default limit ≤ 20
+    expect(rec.limits).toContain(20)
+    // returns the TaskTitleRef[] shape
+    expect(rows).toEqual([titleRow])
+    noOrgId(rec)
+  })
+
+  it('AC-K01: trims the term and returns [] for a blank query (no server call)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [titleRow], error: null }] }, rec) as never)
+    expect(await searchTasksByTitle('   ')).toEqual([])
+    // blank-guard short-circuits before any from()
+    expect(rec.fromTables).not.toContain('tasks')
+  })
+
+  it('AC-K01: respects a custom limit and trims surrounding whitespace from the term', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, rec) as never)
+    await searchTasksByTitle('  roast  ', 5)
+    expect(rec.ilikes).toContainEqual(['title', '%roast%'])
+    expect(rec.limits).toContain(5)
+  })
+
+  it('AC-K01: throws a contextful error on a PostgREST failure', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: { message: 'search boom' } }] }, rec) as never)
+    await expect(searchTasksByTitle('x')).rejects.toThrow(/searchTasksByTitle failed — search boom/)
   })
 })
