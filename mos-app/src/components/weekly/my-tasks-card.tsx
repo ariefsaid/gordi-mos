@@ -12,7 +12,7 @@ import { raciOwner } from '@/lib/raci-member'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { StatusPill } from '@/components/tasks/status-pill'
 import { OwnerCell } from '@/components/tasks/owner-cell'
-import { formatDate, formatAge, otherRaciCount, STATUS_ORDER } from '@/components/tasks/task-formatters'
+import { formatDate, formatAge, otherRaciCount } from '@/components/tasks/task-formatters'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
 import './my-tasks-card.css'
@@ -59,16 +59,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const myTasks: TaskListRow[] = data
     ? data.tasks
       .filter(t => raciOwner(t, viewerId))
-      .sort((a, b) => {
-        const sa = STATUS_ORDER.indexOf(a.status)
-        const sb = STATUS_ORDER.indexOf(b.status)
-        if (sa !== sb) return sa - sb
-        // Within same status: due asc (nulls last)
-        if (!a.due_date && !b.due_date) return 0
-        if (!a.due_date) return 1
-        if (!b.due_date) return -1
-        return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
-      })
+      .sort((a, b) => compareOffTrackFirst(a, b, now))
     : []
 
   return (
@@ -226,6 +217,36 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Off-track-first comparator for the "My tasks" card (OD-P0-8, AC-W01).
+ *
+ * Regression-invariant: an OVERDUE task outranks any NON-OVERDUE task regardless of
+ * status — so the card's "off track first" subtitle is honoured. We do NOT key on the
+ * workspace STATUS_ORDER here (that constant status-GROUPS the full table — a different
+ * purpose); using it as the primary key sank overdue-Blocked rows below calm In-Progress
+ * rows.
+ *
+ * Order, in precedence:
+ *   1. Done always last (never off-track — isOverdue() already excludes Done).
+ *   2. Off-track (overdue OR Blocked) before on-track.
+ *   3. Due date ascending (nulls last).
+ */
+function compareOffTrackFirst(a: TaskListRow, b: TaskListRow, now: Date): number {
+  const aDone = a.status === 'Done'
+  const bDone = b.status === 'Done'
+  if (aDone !== bDone) return aDone ? 1 : -1
+
+  const aOff = isOverdue(a, now) || a.status === 'Blocked'
+  const bOff = isOverdue(b, now) || b.status === 'Blocked'
+  if (aOff !== bOff) return aOff ? -1 : 1
+
+  // Due date ascending, nulls last.
+  if (!a.due_date && !b.due_date) return 0
+  if (!a.due_date) return 1
+  if (!b.due_date) return -1
+  return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
+}
 
 /** Build the "others" list for OwnerCell (A + C + I persons who are NOT the R). */
 function buildOthers(

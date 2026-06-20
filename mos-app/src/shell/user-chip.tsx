@@ -83,7 +83,11 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
         </div>
         {showText && (
           <div className={isRail ? 'flex-1 text-left min-w-0' : 'text-left'}>
-            <div className="truncate font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }}>
+            <div
+              className="truncate font-semibold text-foreground"
+              style={{ fontSize: 13, lineHeight: 1.1 }}
+              title={viewer.person.full_name}
+            >
               {viewer.person.full_name}
             </div>
             {primaryRole && (

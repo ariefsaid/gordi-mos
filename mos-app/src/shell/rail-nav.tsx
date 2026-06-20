@@ -9,7 +9,7 @@ type RailNavProps = {
 export function RailNav({ onNavigate }: RailNavProps) {
   return (
     <>
-      {/* Primary nav, grouped under a Workspace section label (Twenty idiom).
+      {/* Primary nav, grouped under a Workspace section label (records-workspace idiom).
           Top bar now owns: brand lockup, ⌘K search trigger, and user chip (ADR-0013 D1). */}
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         <div

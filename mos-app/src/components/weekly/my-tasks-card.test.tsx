@@ -59,6 +59,18 @@ const taskOpen = {
   created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-20T01:00:00Z',
 }
 
+// taskDone: viewer is A, status Done — must always sort LAST (never off-track).
+const taskDone = {
+  id: 'task-104', org_id: 'org-1', title: 'Close out May inventory audit',
+  business_unit_id: 'bu-1', status: 'Done' as const,
+  responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID,
+  consulted_person_ids: [], informed_person_ids: [],
+  description: null, due_date: '2026-06-10', // a past due date, but Done ⇒ not overdue
+  last_activity_at: '2026-06-18T08:00:00Z',
+  archived_at: null, created_by: VIEWER_ID,
+  created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-18T08:00:00Z',
+}
+
 // taskOther: viewer is neither R nor A — must be filtered OUT
 const taskOther = {
   id: 'task-103', org_id: 'org-1', title: 'Unrelated task someone else owns',
@@ -129,6 +141,45 @@ describe('AC-W01: lists R/A tasks off-track-first as name-chip links', () => {
     const blockedIdx = titles.findIndex(t => t?.includes('Finalise Q3'))
     const openIdx    = titles.findIndex(t => t?.includes('Draft August'))
     expect(blockedIdx).toBeLessThan(openIdx)
+  })
+
+  // RI (regression-invariant): an OVERDUE task outranks any NON-OVERDUE task regardless
+  // of status. The old comparator keyed on STATUS_ORDER (In Progress → Blocked → …), so an
+  // overdue-Blocked task sorted BELOW a calm In-Progress task — contradicting the card's
+  // own "off track first" subtitle, OD-P0-8, and the signed mockup. This is the exact case
+  // the weak "Blocked before Open" assertion masked.
+  it('AC-W01/RI: an overdue Blocked task outranks a calm (future-due) In-Progress task', async () => {
+    // taskBlocked is Blocked + OVERDUE (due 2026-06-17, now 2026-06-20).
+    // taskInProgress is In Progress + CALM (due 2026-06-22 — future, not overdue).
+    // Under the old status-primary sort, In Progress (index 0) would come first → WRONG.
+    await renderCard()
+    await waitFor(() =>
+      expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
+    )
+    const titles = screen.getAllByRole('link')
+      .filter(l => l.closest('td') !== null)
+      .map(l => l.textContent)
+    const overdueBlockedIdx = titles.findIndex(t => t?.includes('Finalise Q3')) // overdue Blocked
+    const calmInProgressIdx = titles.findIndex(t => t?.includes('Approve new bar')) // calm In Progress
+    expect(overdueBlockedIdx).toBeGreaterThanOrEqual(0)
+    expect(calmInProgressIdx).toBeGreaterThanOrEqual(0)
+    expect(overdueBlockedIdx).toBeLessThan(calmInProgressIdx)
+  })
+
+  // RI: Done is never off-track — it always sorts LAST, below every active row,
+  // even when its due date is in the past (isOverdue() excludes Done).
+  it('AC-W01/RI: Done always sorts last (below every active row)', async () => {
+    mockListTasks.mockResolvedValue([taskDone, taskBlocked, taskInProgress, taskOpen, taskOther])
+    await renderCard()
+    await waitFor(() =>
+      expect(screen.getByText('Close out May inventory audit')).toBeInTheDocument(),
+    )
+    const titles = screen.getAllByRole('link')
+      .filter(l => l.closest('td') !== null)
+      .map(l => l.textContent)
+    const doneIdx = titles.findIndex(t => t?.includes('Close out May inventory audit'))
+    // Done is last among the four R/A rows (taskOther is filtered out).
+    expect(doneIdx).toBe(titles.length - 1)
   })
 
   it('AC-W01: task name cell is a link to /tasks/:id', async () => {

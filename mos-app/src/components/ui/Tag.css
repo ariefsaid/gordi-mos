@@ -3,7 +3,7 @@
    xs font. weight regular (default) | medium. */
 .mk-tag {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: var(--radius-full);
+  padding: 2px 8px; border-radius: var(--radius-pill);
   font-size: var(--font-size-xs, 12px); font-weight: 400; line-height: 1.4;
   white-space: nowrap; vertical-align: middle;
   /* color/background set inline via the color prop → --ds-tag-{background,text}-{color} */

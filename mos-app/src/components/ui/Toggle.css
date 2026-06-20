@@ -3,7 +3,7 @@
 .mk-toggle {
   position: relative; display: inline-block; flex-shrink: 0;
   background: var(--secondary); border: 0; cursor: pointer; padding: 0;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   transition: background-color 160ms ease;
 }
 .mk-toggle--medium { width: 28px; height: 16px; }

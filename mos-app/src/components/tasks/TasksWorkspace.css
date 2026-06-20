@@ -203,11 +203,14 @@
    (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
 .sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--primary); }
 .td-main, .td-cell {
-  height: 50px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; /* OD-P3-6: dense DB-view row (not the 54px default) */
+  height: 50px; line-height: 1.4; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; /* OD-P3-6: dense DB-view row (not the 54px default); line-height pins the box so a short single-line cell can't collapse the 50px below ~38px (capstone regression). */
 }
 /* Due/Activity: LEFT-aligned like every other column (uniform grid), but never wrap. */
 .td-nowrap { white-space: nowrap; }
-.task-row { cursor: pointer; }
+/* OD-P3-6 robust pin: also set the height on the ROW. `height` on a <td> is only a
+   minimum and the live capstone review measured ~38.5px; pinning the <tr> (higher
+   specificity context for the cells) holds the dense 50px regardless of cell content. */
+.task-row { cursor: pointer; height: 50px; }
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
 .task-row.row-selected td { background: var(--secondary); } /* CONV: neutral-grey selected/open row — de-blued (owner pref + One-Blue Rule) */
