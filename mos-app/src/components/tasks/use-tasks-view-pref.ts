@@ -7,7 +7,9 @@ const KEY_GROUP_BY = 'mos.tasks.groupBy'
 const KEY_COLLAPSED = 'mos.tasks.collapsedGroups'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-export type TasksGroupBy = 'status' | 'owner' | 'bu'
+// 'none' = a FLAT, ungrouped list (the signed mockup default — mock-shell-and-table.html
+// is not status-grouped). status/owner/bu remain available via the Group chip.
+export type TasksGroupBy = 'none' | 'status' | 'owner' | 'bu'
 export type TasksView = 'table'
 
 export interface TasksViewPref {
@@ -23,7 +25,7 @@ export interface TasksViewPref {
 
 // ── Storage helpers (guarded try/catch for SSR / privacy-mode) ──────────────
 
-const VALID_GROUP_BY: TasksGroupBy[] = ['status', 'owner', 'bu']
+const VALID_GROUP_BY: TasksGroupBy[] = ['none', 'status', 'owner', 'bu']
 
 function readView(): TasksView {
   // Only 'table' is valid in v1 (Board/Calendar are stubs); the stored value is
@@ -34,9 +36,10 @@ function readView(): TasksView {
 function readGroupBy(): TasksGroupBy {
   try {
     const v = localStorage.getItem(KEY_GROUP_BY) as TasksGroupBy | null
-    return v && VALID_GROUP_BY.includes(v) ? v : 'status'
+    // Default = 'none' (FLAT) to match the signed mockup; grouping is opt-in via the chip.
+    return v && VALID_GROUP_BY.includes(v) ? v : 'none'
   } catch {
-    return 'status'
+    return 'none'
   }
 }
 

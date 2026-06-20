@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 import type { SortingState, FilterFn } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { listTasks } from '@/lib/db/tasks'
@@ -297,6 +297,12 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // Empty groups (Owner/BU with zero rows) are injected from the full directory
   // (Status uses the fixed 4-status set) so all groups always show (OD-P3-6).
   const groups = useMemo<RenderGroup[]>(() => {
+    // Flat default (mockup): one implicit group, NO header row — rendered as a plain
+    // leaf list (the flatRows builder below skips the header for groupBy === 'none').
+    if (groupBy === 'none') {
+      const overdue = sortedTasks.filter(t => isOverdue(t, now)).length
+      return [{ key: '__flat__', label: '', rows: sortedTasks, overdue, prefillParam: '' }]
+    }
     const byKey = new Map<string, TaskListRow[]>()
     const keyFor = (t: TaskListRow): string =>
       groupBy === 'status' ? t.status
@@ -331,9 +337,13 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const { flatRows, leafTasks } = useMemo(() => {
     const flat: FlatRow[] = []
     const leaves: TaskListRow[] = []
+    // Flat default (mockup): emit leaf rows only — no group-header rows, no collapse.
+    const flatList = groupBy === 'none'
     for (const g of groups) {
-      flat.push({ kind: 'header', group: g })
-      if (isCollapsed(g.key)) continue
+      if (!flatList) {
+        flat.push({ kind: 'header', group: g })
+        if (isCollapsed(g.key)) continue
+      }
       for (const t of g.rows) {
         flat.push({ kind: 'leaf', task: t, leafIndex: leaves.length })
         leaves.push(t)
@@ -341,7 +351,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     }
     return { flatRows: flat, leafTasks: leaves }
     // collapsedGroups identity changes drive recompute (isCollapsed reads it)
-  }, [groups, isCollapsed, collapsedGroups]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [groups, groupBy, isCollapsed, collapsedGroups]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Select-all derived state (PR-2 AC-T07): aria-checked="mixed" when partial,
   // true only when every visible leaf row is selected. Empty table -> unchecked.
@@ -497,34 +507,45 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     return <SortArrow dir={sortDir} />
   }
 
-  // + New task lives in the toolbar only when the table is populated (empty / no-results
-  // states own their own create CTA).
+  // + New task lives in the content-header (mockup `.ch-action`) only when the table
+  // is populated — empty / no-results states own their own create CTA, so every
+  // state has exactly one create link.
   const showNewTask = !loading && !error && leafTasks.length > 0
 
   return (
     <>
       <PageHead
+        variant="content"
         title="Tasks"
+        count={stats === null ? null : stats.total}
+        action={
+          showNewTask ? (
+            <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+          ) : undefined
+        }
         meta={
           <>
-            {/* Count line with clickable "N overdue" button (AC-128 / FR-126) */}
-            <span data-testid="tasks-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
+            {/* Blocked + clickable "N overdue" subtotals (AC-128 / FR-126). The task
+                count itself rides the count pill; this slot carries the off-track meta. */}
+            <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
               {stats === null ? '—' : (
                 <>
-                  {stats.total} task{stats.total !== 1 ? 's' : ''}
                   {stats.blocked > 0 && (
-                    <> · {stats.blocked} blocked</>
+                    <>{stats.blocked} blocked</>
                   )}
                   {/* Zero-overdue: omit entirely (AC-133). Non-zero: render as click-to-filter button */}
                   {stats.overdue > 0 && (
-                    <> · <button
-                      type="button"
-                      className="overdue-filter-btn"
-                      aria-label={`Filter to ${stats.overdue} overdue tasks`}
-                      onClick={() => setOverdueOnly(true)}
-                    >
-                      {stats.overdue} overdue
-                    </button></>
+                    <>
+                      {stats.blocked > 0 && ' · '}
+                      <button
+                        type="button"
+                        className="overdue-filter-btn"
+                        aria-label={`Filter to ${stats.overdue} overdue tasks`}
+                        onClick={() => setOverdueOnly(true)}
+                      >
+                        {stats.overdue} overdue
+                      </button>
+                    </>
                   )}
                 </>
               )}
@@ -564,7 +585,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             setIncludeArchived={setIncludeArchived}
             buOptions={busDirectory}
             personOptions={peopleDirectory}
-            showNewTask={showNewTask}
           />
 
           <TasksTableBody
