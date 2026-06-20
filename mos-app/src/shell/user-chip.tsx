@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@/auth/use-auth'
+import { AppearanceControl } from './appearance-control'
 
 interface UserChipProps {
   /** When true, hides name/role text (used at <920px per FR-020). */
@@ -117,6 +118,13 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
               '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
           }}
         >
+          {/* Appearance switcher */}
+          <AppearanceControl />
+
+          {/* Divider */}
+          <div className="my-[5px] border-t border-border" role="separator" aria-hidden="true" />
+
+          {/* Sign out */}
           <button
             role="menuitem"
             type="button"
