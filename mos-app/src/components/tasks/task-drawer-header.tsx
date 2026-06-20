@@ -83,7 +83,7 @@ export function TaskDrawerHeader({
       <div className="dw-pinned">
         <div className="dw-pinned-inner">
           <div className="dw-titlewrap">
-            <h2 className="dw-title">{task.title}</h2>
+            <h2 className="dw-title" title={task.title}>{task.title}</h2>
             <p className="dw-unit">
               {buName} · due <span className={`${dueClass} tabular-nums`}>{dueText}</span>
             </p>

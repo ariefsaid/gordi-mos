@@ -12,17 +12,31 @@ import type { TaskDetail as TaskDetailData, CreateTaskInput } from '@/lib/db/tas
 import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import { StatusPill } from './status-pill'
-import { formatAge, formatDate } from './task-formatters'
-import { StatusTrigger } from './status-trigger'
 import { ConfirmArchive } from './confirm-archive'
-import { RaciCard } from './raci-card'
-import { ChecklistCard } from './checklist-card'
-import { ActivityCard } from './activity-card'
 import { canEdit, canArchive } from './task-permissions'
 import { TaskDrawerHeader } from './task-drawer-header'
-import { TaskTabStrip } from './task-tab-strip'
+import { RecordDetailsPanel } from './record-details-panel'
+import { RecordFeed } from './record-feed'
+import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
+import type { TabKey } from './use-tab-memory'
+
+// Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
+// persistence). The two stores name the same three panes differently, so map
+// between them explicitly (clearer than nested ternaries):
+//   slot 'details'  ↔ feed 'activity' (the default pane)
+//   slot 'checklist'↔ feed 'checklist'
+//   slot 'activity' ↔ feed 'notes'    (the description pane)
+const SLOT_TO_FEED: Record<TabKey, FeedTab> = {
+  details: 'activity',
+  checklist: 'checklist',
+  activity: 'notes',
+}
+const FEED_TO_SLOT: Record<FeedTab, TabKey> = {
+  activity: 'details',
+  checklist: 'checklist',
+  notes: 'activity',
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 // PR-A: TaskSurface is the single actionable task editor (ADR-0007 "one UI, two
@@ -68,7 +82,15 @@ function ViewSurface({
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
-  const [tab, setTab] = useTabMemory(taskId)
+  // The feed tabs (Activity / Checklist / Notes) ride the existing per-task
+  // useTabMemory store (ADR-0013 D3 — reuse, no new persistence). Its default
+  // slot ('details') maps to the feed default 'activity'; the description pane
+  // ('activity' slot) presents as 'Notes'.
+  const [storedTab, setStoredTab] = useTabMemory(taskId)
+  const feedTab = SLOT_TO_FEED[storedTab] ?? 'activity'
+  const setFeedTab = useCallback((t: FeedTab) => {
+    setStoredTab(FEED_TO_SLOT[t])
+  }, [setStoredTab])
 
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const isManager = auth.status === 'authenticated' ? auth.viewer.isManager : false
@@ -340,53 +362,36 @@ function ViewSurface({
           </div>
         )}
 
-        <TaskTabStrip
-          active={tab}
-          checklistCount={[checklistDone, localChecklist.length]}
-          activityCount={events.length}
-          onSelect={setTab}
-        />
-
-        <div
-          className="dw-tabpane"
-          role="tabpanel"
-          id={`dw-tabpanel-${tab}`}
-          aria-labelledby={`dw-tab-${tab}`}
-        >
-          {tab === 'details' && (
-            <>
-              <section className="dw-sec" aria-label="Description">
-                <h3 className="dw-sec-h3">Description</h3>
-                {task.description
-                  ? <p className="desc-body">{task.description}</p>
-                  : <p className="empty-substate">No description.</p>
-                }
-              </section>
-              <RaciCard
-                task={task}
-                people={peopleDirectory}
-                canEdit={editable}
-                viewerId={viewerId}
-                onRaciChange={handleRaciChange}
-                onRaChange={handleRaChange}
-              />
-            </>
-          )}
-          {tab === 'checklist' && (
-            <ChecklistCard
-              items={localChecklist}
-              canEdit={editable}
-              taskId={task.id}
-              viewerId={viewerId}
-              onAdd={handleAddChecklist}
-              onToggle={handleToggle}
-              onReorder={handleReorder}
-              onDelete={handleDeleteChecklist}
-            />
-          )}
-          {tab === 'activity' && (
-            <ActivityCard events={events} people={peopleDirectory} now={now} />
-          )}
+        {/* AC-R06: the same two-column anatomy, compressed — the compact details
+            panel stacked above the tabbed feed. */}
+        <div className="dw-tabpane">
+          <RecordDetailsPanel
+            task={task}
+            buName={buName}
+            people={peopleDirectory}
+            editable={editable}
+            viewerId={viewerId}
+            checklistCount={[checklistDone, localChecklist.length]}
+            compact
+            onStatusChange={handleStatusChange}
+            onRaChange={handleRaChange}
+            onRaciChange={handleRaciChange}
+          />
+          <RecordFeed
+            task={task}
+            checklist={localChecklist}
+            events={events}
+            people={peopleDirectory}
+            now={now}
+            editable={editable}
+            viewerId={viewerId}
+            activeTab={feedTab}
+            onSelectTab={setFeedTab}
+            onAddChecklist={handleAddChecklist}
+            onToggleChecklist={handleToggle}
+            onReorderChecklist={handleReorder}
+            onDeleteChecklist={handleDeleteChecklist}
+          />
         </div>
 
         {/* Pinned foot — Archive always reachable (collapsed only; expanded shows it in the header) */}
@@ -413,11 +418,51 @@ function ViewSurface({
     )
   }
 
-  // ── Full width (the historical stacked layout — unchanged) ─────────────────
+  // ── Full width: the two-column record page (ADR-0013 D3) ───────────────────
   return (
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
-      {/* Archived banner */}
+
+      {/* Record chrome — when promoted from the drawer (expanded@split) the host
+          passes collapse/close callbacks; carry them in a quiet utility row so the
+          expand control stays reversible (collapse back to split) and the surface
+          is never a dead end. A standalone full-page route host would pass neither
+          and render no chrome bar. (AC-R06 / IxD: post-action feedback + next step.) */}
+      {(onExpandToggle || onClose) && (
+        <div className="dw-bar record-chrome">
+          <span className="dw-crumb-mini">Task · full width</span>
+          <span className="dw-bar-spacer" />
+          {onExpandToggle && (
+            <button
+              type="button"
+              className="dw-iconbtn dw-iconbtn-on"
+              aria-pressed={true}
+              aria-label="Collapse to split (e)"
+              title="Collapse (e)"
+              onClick={() => onExpandToggle()}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7" />
+              </svg>
+            </button>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              className="dw-iconbtn"
+              aria-label="Close (Esc)"
+              title="Close (Esc)"
+              onClick={() => onClose()}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* AC-R05: archived banner + Unarchive sit above the two columns */}
       {isArchived && (
         <div className="archived-banner" role="status">
           <span>This task is archived.</span>
@@ -429,92 +474,56 @@ function ViewSurface({
         </div>
       )}
 
-      {/* Head card */}
-      <div className="card head-card">
-        {/* I1: actions-cluster stacks below title at <768px via CSS media query */}
-        <div className="head-top">
-          <div className="head-title-block">
-            <h1 className="task-title">{task.title}</h1>
-          </div>
-          <div className="actions-cluster" role="group" aria-label="Task actions">
-            {editable && (
-              <StatusTrigger
-                status={task.status}
-                onChange={handleStatusChange}
-              />
-            )}
-            {!editable && (
-              <StatusPill status={task.status} />
-            )}
-            {archiveable && !isArchived && (
-              <button
-                type="button"
-                className="btn-ghost"
-                aria-label="Archive task"
-                onClick={() => setShowConfirm(true)}
-              >
-                Archive task
-              </button>
-            )}
-          </div>
+      {/* Record actions — Archive stays reachable above the columns (the panel
+          owns identity/status, the feed owns the activity; archive is the one
+          consequential action and lives in a quiet action row). */}
+      {archiveable && !isArchived && (
+        <div className="record-actions" role="group" aria-label="Task actions">
+          <button
+            type="button"
+            className="btn-ghost"
+            aria-label="Archive task"
+            onClick={() => setShowConfirm(true)}
+          >
+            Archive task
+          </button>
         </div>
+      )}
 
-        {/* Meta row */}
-        <div className="meta-row" aria-label="Task metadata">
-          <div className="meta-item">
-            <span className="meta-label">Due</span>
-            <span className="meta-value tabular-nums">
-              {task.due_date ? formatDate(task.due_date) : '—'}
-            </span>
-          </div>
-          <div className="meta-item">
-            <span className="meta-label">Business unit</span>
-            <span className="meta-value">{buName}</span>
-          </div>
-          <div className="meta-item">
-            <span className="meta-label">Activity</span>
-            <span className="meta-value tabular-nums">{formatAge(task.last_activity_at, now)}</span>
-          </div>
+      <div className="record-2col">
+        {/* LEFT — details panel (~332px) */}
+        <RecordDetailsPanel
+          task={task}
+          buName={buName}
+          people={peopleDirectory}
+          editable={editable}
+          viewerId={viewerId}
+          checklistCount={[checklistDone, localChecklist.length]}
+          onStatusChange={handleStatusChange}
+          onRaChange={handleRaChange}
+          onRaciChange={handleRaciChange}
+        />
+
+        {/* RIGHT — tabbed feed (Activity / Checklist / Notes); min-width:0 so
+            long notes wrap inside the column, never widen the grid (Appendix A). */}
+        <div className="record-feed-col" style={{ minWidth: 0 }}>
+          <RecordFeed
+            task={task}
+            checklist={localChecklist}
+            events={events}
+            people={peopleDirectory}
+            now={now}
+            editable={editable}
+            viewerId={viewerId}
+            activeTab={feedTab}
+            onSelectTab={setFeedTab}
+            onAddChecklist={handleAddChecklist}
+            onToggleChecklist={handleToggle}
+            onReorderChecklist={handleReorder}
+            onDeleteChecklist={handleDeleteChecklist}
+          />
         </div>
       </div>
-
-      {/* Description card */}
-      <section className="card" aria-label="Description">
-        <h2 className="card-h2">Description</h2>
-        {task.description
-          ? <p className="desc-body">{task.description}</p>
-          : <p className="empty-substate">No description.</p>
-        }
-      </section>
-
-      {/* RACI card — I2: R/A now editable for editors */}
-      <RaciCard
-        task={task}
-        people={peopleDirectory}
-        canEdit={editable}
-        viewerId={viewerId}
-        onRaciChange={handleRaciChange}
-        onRaChange={handleRaChange}
-      />
-
-      {/* Checklist card */}
-      <ChecklistCard
-        items={localChecklist}
-        canEdit={editable}
-        taskId={task.id}
-        viewerId={viewerId}
-        onAdd={handleAddChecklist}
-        onToggle={handleToggle}
-        onReorder={handleReorder}
-        onDelete={handleDeleteChecklist}
-      />
-
-      {/* Activity card */}
-      <ActivityCard
-        events={events}
-        people={peopleDirectory}
-        now={now}
-      />
 
       {/* Archive confirm */}
       {showConfirm && (

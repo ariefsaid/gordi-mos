@@ -50,6 +50,116 @@
   .btn-ghost { height: 44px; width: 100%; text-align: left; }
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   Two-column record page (ADR-0013 D3) — left details panel + right tabbed feed.
+   All raw values are DESIGN.md CSS-var tokens.
+   ════════════════════════════════════════════════════════════════════════════ */
+.record-actions {
+  display: flex; justify-content: flex-end; margin-bottom: 12px;
+}
+/* Promoted-from-drawer chrome (collapse + close) above the two-column card. It
+   reuses .dw-bar/.dw-iconbtn; here it is a standalone strip (no bottom rule of
+   its own — the .record-2col card below carries the border). */
+.record-chrome {
+  border-bottom: 0; padding: 0 0 10px; margin-bottom: 2px;
+}
+.record-2col {
+  display: grid; grid-template-columns: 332px 1fr;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+  box-shadow: var(--shadow-rest);  /* OD-P3-11 resting lift */
+  overflow: hidden;
+}
+/* <1100px (modal sheet) → stack the panel above the feed (AC-R06). */
+@media (max-width: 1099px) {
+  .record-2col { grid-template-columns: 1fr; }
+}
+
+/* ── Left details panel ── */
+.record-details {
+  border-right: 1px solid var(--border);
+  padding: 20px; min-width: 0;
+  display: flex; flex-direction: column; gap: 20px;
+  color: var(--foreground); /* themed scope sets its own color (ADR-0013 D2) */
+}
+@media (max-width: 1099px) {
+  .record-details { border-right: 0; border-bottom: 1px solid var(--border); }
+}
+/* Compact (drawer) variant — the drawer chrome is the frame, so drop the panel
+   padding/border; the drawer header owns identity + status. */
+.record-details-compact {
+  border: 0; padding: 0 0 4px; gap: 16px;
+}
+
+.rd-identity { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.rd-id-av {
+  width: 44px; height: 44px; flex: none;
+  border-radius: var(--radius-md); /* 10px */
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--status-open-text);
+  display: grid; place-items: center; font-size: 14px; font-weight: 600;
+}
+.rd-id-text { min-width: 0; }
+.rd-id-name {
+  font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em;
+  color: var(--foreground);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* no-bleed */
+}
+.rd-id-sub {
+  font-size: 13px; color: var(--muted-foreground); margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* no-bleed */
+}
+
+.rd-section { display: flex; flex-direction: column; gap: 8px; }
+.rd-section-label {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--muted-foreground); /* label/meta role → muted-foreground (ADR-0013 D2) */
+}
+/* Inside the panel the reused RaciCard drops its card frame (the panel is the frame). */
+.record-details .card {
+  background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
+}
+.record-details .card-h2 { display: none; } /* the section-label already names it */
+
+.rd-fields { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.rd-field {
+  display: flex; align-items: center; min-height: 30px; font-size: 13px; gap: 8px;
+}
+.rd-field-label { width: 96px; flex: none; color: var(--muted-foreground); margin: 0; }
+.rd-field-val { color: var(--foreground); margin: 0; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Right tabbed feed ── */
+.record-feed-col { display: flex; flex-direction: column; min-width: 0; }
+.record-feed { display: flex; flex-direction: column; min-width: 0; flex: 1;
+  color: var(--foreground); }
+.rf-tabs {
+  display: flex; gap: 2px; padding: 8px 16px 0;
+  border-bottom: 1px solid var(--border); flex: none;
+}
+.rf-tab {
+  position: relative; border: 0; background: transparent; font: inherit;
+  font-size: 13px; font-weight: 500; padding: 8px 12px 10px;
+  color: var(--muted-foreground); cursor: pointer;
+}
+.rf-tab:hover { color: var(--foreground); }
+.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 4px; }
+.rf-tcount { font-size: 11px; color: var(--muted-foreground); margin-left: 5px; }
+/* Active tab: weight + a 2px primary underline (never color-alone) — AC-R03. */
+.rf-tab.on { color: var(--foreground); font-weight: 600; }
+.rf-tab.on::after {
+  content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px;
+  height: 2px; border-radius: 2px; background: var(--primary);
+}
+.rf-tabpane { overflow: auto; padding: 16px; flex: 1; min-width: 0; }
+.rf-tabpane .card {
+  background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
+}
+.rf-notes { min-width: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .rf-tab.on::after { transition: left 150ms ease, right 150ms ease; }
+}
+
 /* ── Status trigger ── */
 .status-trigger-wrap { position: relative; }
 .status-trigger {
@@ -410,34 +520,11 @@
 .ra-who { font-size: 13px; font-weight: 500; color: var(--foreground); }
 .ra-role { font-size: 11px; color: var(--muted-foreground); }
 
-/* ── Tabs (sticky under the pinned header) ── */
-.dw-tabs {
-  display: flex; gap: 2px; padding: 8px 16px 0;
-  border-bottom: 1px solid var(--border); flex: none;
-}
-.dw-tab {
-  position: relative; border: 0; background: transparent; font: inherit;
-  font-size: 13px; font-weight: 500; padding: 8px 12px 10px;
-  color: var(--muted-foreground); cursor: pointer;
-}
-.dw-tab:hover { color: var(--foreground); }
-.dw-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 4px; }
-.dw-tab .tcount { font-size: 11px; color: var(--muted-foreground); margin-left: 5px; }
-.dw-tab.on { color: var(--foreground); font-weight: 600; }
-.dw-tab.on::after {
-  content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px;
-  height: 2px; border-radius: 2px;
-  /* OD-P3-7 / Structural-Navy Rule: drawer active-tab underline → brand-navy (structural, not action) */
-  background: var(--brand-navy);
-}
-
-/* ── Tab pane (the scrolling body) ── */
+/* ── Tab pane (the scrolling body — now hosts the compact panel + RecordFeed) ── */
 .dw-tabpane { overflow: auto; padding: 16px; flex: 1; min-height: 0; }
-.dw-sec { margin-bottom: 16px; }
-.dw-sec-h3 {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--muted-foreground); margin-bottom: 10px;
-}
+/* The drawer-hosted RecordFeed tab strip aligns flush with the pane padding. */
+.dw-tabpane .rf-tabs { padding-left: 0; padding-right: 0; }
+.dw-tabpane .rf-tabpane { padding-left: 0; padding-right: 0; }
 /* Inside the drawer the reused cards drop their card frame (the drawer is the frame). */
 .dw-tabpane .card {
   background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0;
@@ -460,13 +547,8 @@
 .dw-surface-expanded .dw-pinned { padding: 18px 28px 14px; }
 .dw-surface-expanded .dw-pinned-inner { max-width: 880px; margin: 0 auto; width: 100%; }
 .dw-surface-expanded .dw-head-expanded .dw-pinned-inner { }
-.dw-surface-expanded .dw-tabs { padding-left: 28px; padding-right: 28px; }
 .dw-surface-expanded .dw-tabpane { max-width: 880px; margin: 0 auto; width: 100%; padding: 22px 28px 36px; }
 .dw-surface-expanded .desc-body { max-width: 62ch; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .dw-tab.on::after { transition: left 150ms ease, right 150ms ease; }
-}
 
 /* ── Create mode inside the drawer (no double card frame) ── */
 .tc-create-drawer { max-width: none; }
