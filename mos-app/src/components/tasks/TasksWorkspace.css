@@ -333,8 +333,13 @@ tr:focus-within .row-menu { visibility: visible; }
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
 .ownav {
-  width: 26px; height: 26px; border-radius: 999px; background: var(--accent);
-  color: var(--brand-navy-text); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
+  width: 26px; height: 26px; border-radius: 999px;
+  /* Mockup .av-sm avatar: blue12→blue9 gradient + inverted text. blue12 flips with the theme
+     (dark navy in light / light blue in dark), so the inverted initials always clear WCAG-AA
+     (~8:1 light, ~7:1 dark at the gradient centre). The prior solid --accent + dark
+     --brand-navy-text was only ~3.67:1 — the illegible initials. Keep this pairing. */
+  background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
 }
 .own-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .own-more { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex: none; }
