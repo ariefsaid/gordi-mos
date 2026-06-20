@@ -112,9 +112,9 @@
   --color-brand-navy-text:       var(--brand-navy-text);
   --color-brand-orange:          var(--brand-orange);
 
-  /* Radii — OD-P3-10 scale: 12px cards / 8px controls / 4px tiny. Kit provides
-     --radius-sm(4)/md(8)/pill; our card radius stays the ratified 12px (literal). */
-  --radius-lg: 0.75rem;          /* 12px — cards/containers/overlays (OD-P3-10) */
+  /* Radii — cards 8px (signed mockup = --ds-border-radius-md; SUPERSEDES OD-P3-10's 12px,
+     per owner "as per the mockup" 2026-06-20) / 8px controls / 4px tiny. */
+  --radius-lg: 0.5rem;           /* 8px — cards/containers/overlays (mockup md; was 12px OD-P3-10) */
   --radius-md: 0.625rem;         /* 10px — mid nesting */
   --radius-sm: 0.5rem;           /* 8px  — CONTROLS (buttons/inputs/badges/nav-items) */
   --radius-xs: 0.25rem;          /* 4px  — checkbox/tiny */
