@@ -196,6 +196,50 @@ describe('CommandMenu (AC-K06): scoped search failure', () => {
   })
 })
 
+// ── AC-K04 (race safety) ─────────────────────────────────────────────────────
+describe('CommandMenu (AC-K04): stale response cannot clobber newer query results', () => {
+  it('AC-K04: a slow first response does not overwrite the results of a faster second query', async () => {
+    // Deferred promise for the FIRST (slow) search — "old" query.
+    let resolveOld!: (rows: { id: string; title: string; status: 'Open' }[]) => void
+    const slowPromise = new Promise<{ id: string; title: string; status: 'Open' }[]>(
+      (r) => { resolveOld = r },
+    )
+
+    // Second search returns immediately with a resolved promise — "new" query.
+    const fastResult = [{ id: 'new-1', title: 'New task result', status: 'Open' as const }]
+
+    mockSearch
+      .mockReturnValueOnce(slowPromise)      // first call: slow, never resolves before the guard fires
+      .mockResolvedValue(fastResult)          // second+ call: resolves fast
+
+    renderMenu()
+    const input = screen.getByRole('combobox')
+
+    // Type "old" — fires first debounce → first search call (slow).
+    fireEvent.change(input, { target: { value: 'old' } })
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('old'))
+
+    // Type "new" — cleanup cancels the first search's effect; second search call fires.
+    fireEvent.change(input, { target: { value: 'new' } })
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('new'))
+
+    // Wait for the "new" results to render.
+    await waitFor(() => expect(screen.getByText('Records')).toBeInTheDocument())
+    expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument()
+
+    // Now resolve the OLD slow promise with stale data.
+    resolveOld([{ id: 'old-1', title: 'Old stale result', status: 'Open' }])
+
+    // Allow any pending microtasks / state updates to flush.
+    await waitFor(() => {
+      // The NEW result is still shown.
+      expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument()
+    })
+    // The stale OLD result must NOT appear.
+    expect(screen.queryByRole('option', { name: /Old stale result/i })).toBeNull()
+  })
+})
+
 // ── AC-K09 ──────────────────────────────────────────────────────────────────
 describe('CommandMenu (AC-K09): no-bleed + muted group labels', () => {
   it('AC-K09: long record titles truncate and carry a title attribute', async () => {

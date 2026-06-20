@@ -63,6 +63,13 @@
   padding: 6px;
 }
 
+/* Inner group list — reset browser ul defaults without inline styles. */
+.cm-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 /* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */
 .cm-group {
   font-size: var(--text-size-xxs);

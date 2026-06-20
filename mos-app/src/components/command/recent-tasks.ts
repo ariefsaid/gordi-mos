@@ -6,7 +6,7 @@ export type RecentTask = { id: string; title: string }
 export const RECENT_TASKS_KEY = 'mos.command.recentTasks'
 const MAX_RECENT = 5
 
-/** Read the recent-tasks buffer, newest-first. Tolerates absent/corrupt storage. */
+// Read the recent-tasks buffer, newest-first. Tolerates absent/corrupt storage.
 export function readRecentTasks(): RecentTask[] {
   try {
     const raw = localStorage.getItem(RECENT_TASKS_KEY)
@@ -24,7 +24,7 @@ export function readRecentTasks(): RecentTask[] {
   }
 }
 
-/** Push a task to the front of the buffer (de-duped by id, capped at MAX_RECENT). */
+// Push a task to the front of the buffer (de-duped by id, capped at MAX_RECENT).
 export function pushRecentTask(task: RecentTask): void {
   try {
     const next = [task, ...readRecentTasks().filter((r) => r.id !== task.id)].slice(0, MAX_RECENT)

@@ -184,8 +184,8 @@ export async function getTaskTitlesByIds(ids: string[]): Promise<TaskTitleRef[]>
   return (data ?? []) as unknown as TaskTitleRef[]
 }
 
-/** Search tasks by title for the command palette (ADR-0013 D4). RLS-governed read —
- *  reuses the org-visibility policy that governs listTasks; org_id is never sent. */
+// Search tasks by title for the command palette (ADR-0013 D4). RLS-governed read —
+// reuses the org-visibility policy that governs listTasks; org_id is never sent.
 export async function searchTasksByTitle(q: string, limit = 20): Promise<TaskTitleRef[]> {
   const term = q.trim()
   if (!term) return []

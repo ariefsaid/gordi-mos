@@ -47,15 +47,12 @@ function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
 }
 
-/**
- * The ⌘K command palette (ADR-0013 D4). One overlay, every routine MOS job a keystroke
- * away: jump to a record, run a quick action, or navigate. Default = Recent + Quick
- * actions + Navigate; typing filters Navigate/Actions and async-loads matching Records.
- *
- * a11y: role=dialog + aria-modal + focus trap + Esc (returns focus to the trigger).
- * The input is a combobox; the body is a listbox; the active option is tracked via
- * aria-activedescendant while focus STAYS in the input (↑↓/Home/End move, ↵ activates).
- */
+// ⌘K command palette (ADR-0013 D4). One overlay, every routine MOS job a keystroke away:
+// jump to a record, run a quick action, or navigate. Default = Recent + Quick actions +
+// Navigate; typing filters Navigate/Actions and async-loads matching Records.
+// a11y: role=dialog + aria-modal + focus trap + Esc (returns focus to the trigger).
+// The input is a combobox; the body is a listbox; the active option is tracked via
+// aria-activedescendant while focus STAYS in the input (↑↓/Home/End move, ↵ activates).
 export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -214,7 +211,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
           {groups.map((group) => (
             <li key={group.key}>
               <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
-              <ul role="presentation" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              <ul role="presentation" className="cm-group-list">
                 {group.items.map((item) => {
                   const isActive = item.id === activeId
                   return (
