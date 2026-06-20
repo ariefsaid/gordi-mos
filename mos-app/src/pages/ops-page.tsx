@@ -359,7 +359,7 @@ export function OpsPage() {
       <PageHead
         title="Daily Log"
         meta={
-          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
+          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 15 }}>
             {wib.today}{countLabel}
           </span>
         }

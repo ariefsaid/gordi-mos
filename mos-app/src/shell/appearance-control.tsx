@@ -139,7 +139,7 @@ export function AppearanceControl() {
                   ? 'text-foreground bg-accent'
                   : 'text-foreground hover:bg-accent')
               }
-              style={{ height: 32, fontSize: 13 }}
+              style={{ height: 32, fontSize: 15 }}
               onClick={() => setTheme(value)}
             >
               {/* Icon */}

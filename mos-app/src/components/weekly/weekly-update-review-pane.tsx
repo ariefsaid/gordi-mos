@@ -344,7 +344,7 @@ export function WeeklyUpdateReviewPane({
 
           {/* No-reports guard: nothing to review */}
           {rows.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--muted-foreground)', padding: '8px 0' }}>
+            <p style={{ fontSize: 15, color: 'var(--muted-foreground)', padding: '8px 0' }}>
               No direct reports to review.
             </p>
           ) : (

@@ -159,11 +159,11 @@
   --ds-font-color-inverted: color(display-p3 0.09 0.09 0.09);
   --ds-font-color-danger: color(display-p3 0.83 0.329 0.324);
   --ds-font-size-xxs: 0.625rem;
-  --ds-font-size-xs: 0.85rem;
-  --ds-font-size-sm: 0.92rem;
-  --ds-font-size-md: 1rem;
-  --ds-font-size-lg: 1.23rem;
-  --ds-font-size-xl: 1.54rem;
+  --ds-font-size-xs: 0.975rem;
+  --ds-font-size-sm: 1.045rem;
+  --ds-font-size-md: 1.125rem;
+  --ds-font-size-lg: 1.355rem;
+  --ds-font-size-xl: 1.665rem;
   --ds-font-size-xxl: 1.85rem;
   --ds-font-weight-regular: 400;
   --ds-font-weight-medium: 500;

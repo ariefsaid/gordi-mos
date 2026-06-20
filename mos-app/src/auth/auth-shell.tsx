@@ -40,7 +40,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         {/* Logo square: 28px, primary bg, primary-foreground glyph, rounded-sm */}
         <div
           className="flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-bold select-none"
-          style={{ width: 28, height: 28, fontSize: 14, letterSpacing: '-0.01em' }}
+          style={{ width: 28, height: 28, fontSize: 16, letterSpacing: '-0.01em' }}
           aria-hidden="true"
         >
           G
@@ -49,7 +49,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           {/* Brand name: 14px/700, ls -0.01em (heading weight, not page-title) */}
           <span
             className="text-foreground font-bold"
-            style={{ fontSize: 14, letterSpacing: '-0.01em' }}
+            style={{ fontSize: 16, letterSpacing: '-0.01em' }}
           >
             Gordi MOS
           </span>
@@ -68,7 +68,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       {/* Foot line: body 13px, muted-foreground */}
       <p
         className="mt-6 text-muted-foreground text-center"
-        style={{ fontSize: 13 }}
+        style={{ fontSize: 15 }}
       >
         Trouble signing in? Contact Arief.
       </p>

@@ -182,18 +182,18 @@ export function LoginPage() {
                 height: 28,
                 backgroundColor: 'color-mix(in srgb, var(--success) 14%, transparent)',
                 color: 'var(--status-won-text)',
-                fontSize: 14,
+                fontSize: 16,
               }}
               aria-hidden="true"
             >
               ✓
             </div>
             <div>
-              <p className="text-foreground font-semibold" style={{ fontSize: 14 }}>
+              <p className="text-foreground font-semibold" style={{ fontSize: 16 }}>
                 {confirmText}
               </p>
               {email && (
-                <p className="text-muted-foreground mt-1" style={{ fontSize: 13 }}>
+                <p className="text-muted-foreground mt-1" style={{ fontSize: 15 }}>
                   Sent to {email}
                 </p>
               )}
@@ -204,7 +204,7 @@ export function LoginPage() {
           <button
             type="button"
             className="text-primary font-medium hover:underline focus-visible:underline"
-            style={{ fontSize: 14 }}
+            style={{ fontSize: 16 }}
             onClick={() => {
               setMode('credentials')
               setError('')
@@ -228,7 +228,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 13,
+              fontSize: 15,
             }}
             role="alert"
           >
@@ -240,13 +240,13 @@ export function LoginPage() {
         {/* Card title — subheading (18px/600) per design-plan §1 */}
         <h1
           className="text-foreground font-semibold"
-          style={{ fontSize: 18, lineHeight: 1.3, marginBottom: 4 }}
+          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
         >
           Sign in
         </h1>
         <p
           className="text-muted-foreground mb-5"
-          style={{ fontSize: 14 }}
+          style={{ fontSize: 16 }}
         >
           Use your Gordi MOS account.
         </p>
@@ -262,7 +262,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
               color: 'var(--status-lost-text)',
-              fontSize: 13,
+              fontSize: 15,
             }}
           >
             {error}
@@ -295,7 +295,7 @@ export function LoginPage() {
               className="w-full bg-background text-foreground rounded-sm px-2.5 border"
               style={{
                 height: 32,
-                fontSize: 14,
+                fontSize: 16,
                 borderColor: emailError ? 'var(--destructive)' : 'var(--input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
@@ -333,7 +333,7 @@ export function LoginPage() {
               className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
               style={{
                 height: 32,
-                fontSize: 14,
+                fontSize: 16,
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
@@ -374,7 +374,7 @@ export function LoginPage() {
             className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
             style={{
               height: 32,
-              fontSize: 14,
+              fontSize: 16,
               boxShadow: '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
               opacity: (isDisabled && loading !== 'sign-in') ? 0.5 : 1,
               cursor: isDisabled ? 'not-allowed' : undefined,
@@ -396,7 +396,7 @@ export function LoginPage() {
         {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
         <div className="my-5 flex items-center gap-3">
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
-          <span className="text-muted-foreground" style={{ fontSize: 13 }}>or</span>
+          <span className="text-muted-foreground" style={{ fontSize: 15 }}>or</span>
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
         </div>
 
@@ -406,7 +406,7 @@ export function LoginPage() {
           disabled={isDisabled}
           className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
           style={{
-            fontSize: 14,
+            fontSize: 16,
             minHeight: 44, // fix-3 / touch target ≥44px (design-plan §4)
             opacity: (isDisabled && loading !== 'magic') ? 0.5 : 1,
             cursor: isDisabled ? 'not-allowed' : undefined,

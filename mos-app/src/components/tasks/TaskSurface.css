@@ -4,7 +4,7 @@
 /* All raw values are DESIGN.md CSS-var tokens — no hardcoded hex/spacing literals.       */
 
 /* ── Breadcrumb ── */
-.breadcrumb { font-size: 13px; color: var(--muted-foreground); margin-bottom: 12px; }
+.breadcrumb { font-size: 15px; color: var(--muted-foreground); margin-bottom: 12px; }
 .breadcrumb-link { color: var(--muted-foreground); text-decoration: none; }
 .breadcrumb-link:hover { color: var(--foreground); }
 .breadcrumb-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -17,7 +17,7 @@
   padding: 10px 16px; margin-bottom: 12px;
   background: var(--secondary); border: 1px solid var(--border);
   border-radius: var(--radius-sm); /* 8px — banner/strip, OD-P3-10 */
-  font-size: 13px; color: var(--muted-foreground);
+  font-size: 15px; color: var(--muted-foreground);
 }
 
 /* ── Head card ── */
@@ -30,7 +30,7 @@
 .head-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .head-title-block { flex: 1; min-width: 0; }
 .task-title {
-  font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; /* OD-P3-9: Jakarta tracking relaxed */
+  font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; /* OD-P3-9: Jakarta tracking relaxed */
   color: var(--foreground);
 }
 .actions-cluster {
@@ -97,16 +97,16 @@
   border-radius: var(--radius-md); /* 10px */
   background: color-mix(in srgb, var(--primary) 12%, transparent);
   color: var(--status-open-text);
-  display: grid; place-items: center; font-size: 14px; font-weight: 600;
+  display: grid; place-items: center; font-size: 16px; font-weight: 600;
 }
 .rd-id-text { min-width: 0; }
 .rd-id-name {
-  font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em;
+  font-size: 26px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em;
   color: var(--foreground);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* no-bleed */
 }
 .rd-id-sub {
-  font-size: 13px; color: var(--muted-foreground); margin-top: 4px;
+  font-size: 15px; color: var(--muted-foreground); margin-top: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* no-bleed */
 }
 
@@ -123,7 +123,7 @@
 
 .rd-fields { display: flex; flex-direction: column; gap: 0; margin: 0; }
 .rd-field {
-  display: flex; align-items: center; min-height: 30px; font-size: 13px; gap: 8px;
+  display: flex; align-items: center; min-height: 30px; font-size: 15px; gap: 8px;
 }
 .rd-field-label { width: 96px; flex: none; color: var(--muted-foreground); margin: 0; }
 .rd-field-val { color: var(--foreground); margin: 0; min-width: 0;
@@ -139,7 +139,7 @@
 }
 .rf-tab {
   position: relative; border: 0; background: transparent; font: inherit;
-  font-size: 13px; font-weight: 500; padding: 8px 12px 10px;
+  font-size: 15px; font-weight: 500; padding: 8px 12px 10px;
   color: var(--muted-foreground); cursor: pointer;
 }
 .rf-tab:hover { color: var(--foreground); }
@@ -166,7 +166,7 @@
   height: 32px; padding: 0 10px; border: 1px solid var(--input);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: var(--background); font: inherit;
-  font-size: 13px; cursor: pointer; display: inline-flex; align-items: center;
+  font-size: 15px; cursor: pointer; display: inline-flex; align-items: center;
   gap: 8px; color: var(--foreground);
 }
 .status-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -195,7 +195,7 @@
 .btn-ghost {
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 0;
-  background: transparent; font: inherit; font-size: 13px; font-weight: 500;
+  background: transparent; font: inherit; font-size: 15px; font-weight: 500;
   color: var(--muted-foreground); cursor: pointer;
 }
 .btn-ghost:hover { background: var(--accent); color: var(--foreground); }
@@ -217,7 +217,7 @@
   padding: 20px 24px; max-width: 360px; width: 90%;
   box-shadow: 0 8px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
 }
-.confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
+.confirm-msg { font-size: 16px; line-height: 1.5; margin-bottom: 16px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 /* IXD-4 (PR-2): confirm buttons use the shared .btn .btn-outline / .btn .btn-destructive
    from ui/Button.css. The bespoke .confirm-cancel / .btn-archive rules were removed. */
@@ -229,7 +229,7 @@
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--muted-foreground);
 }
-.meta-value { font-size: 13px; color: var(--foreground); }
+.meta-value { font-size: 15px; color: var(--foreground); }
 
 /* ── Generic card (OD-P3-10/11) ── */
 .card {
@@ -239,13 +239,13 @@
   padding: 16px 20px; margin-bottom: 16px;
 }
 .card-h2 {
-  font-size: 18px; font-weight: 600; line-height: 1.3; margin-bottom: 12px;
+  font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 12px;
   display: flex; align-items: center; gap: 10px; color: var(--foreground);
 }
 
 /* ── Description ── */
-.desc-body { font-size: 14px; line-height: 1.5; color: var(--foreground); }
-.empty-substate { font-size: 13px; color: var(--muted-foreground); }
+.desc-body { font-size: 16px; line-height: 1.5; color: var(--foreground); }
+.empty-substate { font-size: 15px; color: var(--muted-foreground); }
 
 /* ── RACI ── */
 .raci-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
@@ -293,7 +293,7 @@
   color: var(--primary-foreground); display: grid; place-items: center;
   font-size: 10px; font-weight: 700;
 }
-.person-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .multi-field {
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   padding: 6px 8px; min-height: 36px; border: 1px solid var(--input);
@@ -310,7 +310,7 @@
 }
 .chip-remove {
   border: 0; background: transparent; color: var(--muted-foreground);
-  cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
+  cursor: pointer; font-size: 16px; padding: 0 2px; line-height: 1;
   display: flex; align-items: center;
 }
 .chip-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -330,7 +330,7 @@
 }
 .person-picker-option {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-  border-radius: 6px; cursor: pointer; font-size: 13px;
+  border-radius: 6px; cursor: pointer; font-size: 15px;
 }
 .person-picker-option:hover, .person-picker-option:focus-visible {
   background: var(--accent);
@@ -338,7 +338,7 @@
 .person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
 /* ── Checklist ── */
-.checklist-count { font-size: 13px; font-weight: 400; color: var(--muted-foreground); }
+.checklist-count { font-size: 15px; font-weight: 400; color: var(--muted-foreground); }
 .checklist-list { list-style: none; padding: 0; margin: 0 0 8px; }
 .checklist-item {
   display: flex; align-items: center; gap: 10px;
@@ -347,11 +347,11 @@
 }
 .checklist-item:last-child { border-bottom: none; }
 .checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
-.checklist-label { font-size: 14px; flex: 1; cursor: pointer; }
+.checklist-label { font-size: 16px; flex: 1; cursor: pointer; }
 .checklist-done { color: var(--muted-foreground); text-decoration: line-through; }
 .checklist-add-input {
   width: 100%; border: 0; outline: none; background: transparent;
-  font: inherit; font-size: 13px; color: var(--muted-foreground);
+  font: inherit; font-size: 15px; color: var(--muted-foreground);
   padding: 6px 0; border-top: 1px solid var(--border);
 }
 .checklist-add-input::placeholder { color: var(--muted-foreground); }
@@ -382,14 +382,14 @@
   font-size: 10px; font-weight: 700;
 }
 .event-body { flex: 1; min-width: 0; }
-.event-who { font-size: 13px; font-weight: 600; color: var(--foreground); margin-right: 6px; }
+.event-who { font-size: 15px; font-weight: 600; color: var(--foreground); margin-right: 6px; }
 .event-when { font-size: 12px; color: var(--muted-foreground); }
 .event-label { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Not found ── */
 .not-found-panel { padding: 48px 0; }
 .not-found-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--foreground); }
-.not-found-copy { font-size: 14px; color: var(--muted-foreground); margin-bottom: 16px; }
+.not-found-copy { font-size: 16px; color: var(--muted-foreground); margin-bottom: 16px; }
 
 /* ── Loading skeleton ── */
 .sk-block { margin-bottom: 16px; }
@@ -412,7 +412,7 @@
    (and the OpsAddForm in-page crumb) are gone — one breadcrumb, one `›` separator. */
 
 .tc-page-head { margin-bottom: 16px; }
-.tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
+.tc-page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
 
 .tc-card {
   max-width: 640px;
@@ -427,17 +427,17 @@
      the tinted bg + border keep the saturated --destructive hue (non-text affordances). */
   padding: 10px 12px; margin-bottom: 16px; border-radius: 6px;
   background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text);
-  font-size: 13px; border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  font-size: 15px; border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
 }
 
 .tc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
-.tc-label { font-size: 13px; font-weight: 500; color: var(--foreground); }
+.tc-label { font-size: 15px; font-weight: 500; color: var(--foreground); }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
 .tc-input, .tc-select, .tc-textarea {
   width: 100%; height: 36px; padding: 0 12px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
-  background: var(--background); font: inherit; font-size: 14px;
+  background: var(--background); font: inherit; font-size: 16px;
   color: var(--foreground);
 }
 .tc-input:focus-visible, .tc-select:focus-visible, .tc-textarea:focus-visible {
@@ -454,7 +454,7 @@
 
 .tc-loading-field {
   height: 36px; display: flex; align-items: center;
-  font-size: 13px; color: var(--muted-foreground);
+  font-size: 15px; color: var(--muted-foreground);
 }
 
 .tc-actions {
@@ -502,7 +502,7 @@
 .dw-pinned-inner { min-width: 0; }
 .dw-titlewrap { min-width: 0; }
 .dw-title {
-  font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em;
+  font-size: 19px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em;
   color: var(--foreground);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
@@ -517,7 +517,7 @@
 }
 .ra-glyph-r { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); } /* --raci-responsible */
 .ra-glyph-a { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }       /* --raci-accountable */
-.ra-who { font-size: 13px; font-weight: 500; color: var(--foreground); }
+.ra-who { font-size: 15px; font-weight: 500; color: var(--foreground); }
 .ra-role { font-size: 11px; color: var(--muted-foreground); }
 
 /* ── Tab pane (the scrolling body — now hosts the compact panel + RecordFeed) ── */
@@ -536,14 +536,14 @@
 .btn-ghost-danger {
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 0;
-  background: transparent; font: inherit; font-size: 13px; font-weight: 500;
+  background: transparent; font: inherit; font-size: 15px; font-weight: 500;
   color: var(--muted-foreground); cursor: pointer;
 }
 .btn-ghost-danger:hover { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text); } /* --status-lost-text */
 .btn-ghost-danger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── Expanded (focus mode) reflow ── */
-.dw-surface-expanded .dw-title { font-size: 24px; letter-spacing: -0.01em; } /* OD-P3-9: Jakarta tracking relaxed */
+.dw-surface-expanded .dw-title { font-size: 26px; letter-spacing: -0.01em; } /* OD-P3-9: Jakarta tracking relaxed */
 .dw-surface-expanded .dw-pinned { padding: 18px 28px 14px; }
 .dw-surface-expanded .dw-pinned-inner { max-width: 880px; margin: 0 auto; width: 100%; }
 .dw-surface-expanded .dw-head-expanded .dw-pinned-inner { }

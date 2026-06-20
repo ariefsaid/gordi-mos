@@ -7,7 +7,7 @@
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control radius, OD-P3-10 */
-  font: inherit; font-size: 13px; font-weight: 600;
+  font: inherit; font-size: 15px; font-weight: 600;
   cursor: pointer; text-decoration: none; border: 0; white-space: nowrap;
 }
 .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -47,4 +47,4 @@
 
 /* Full-width mobile touch variant (44px) — pairs with any .btn-{variant}.
    Used by the phone submit bars where the action must span the viewport. */
-.btn-touch { width: 100%; min-height: 44px; font-size: 14px; }
+.btn-touch { width: 100%; min-height: 44px; font-size: 16px; }

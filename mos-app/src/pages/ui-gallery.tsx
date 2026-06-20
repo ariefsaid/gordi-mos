@@ -15,8 +15,8 @@ export function UiGallery() {
   return (
     <div className={dark ? 'dark' : ''} style={{ minHeight: '100vh', background: 'var(--surface-primary)', color: 'var(--text-primary)', padding: 32, fontFamily: 'var(--font-sans)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, margin: 0 }}>MOS Primitives Gallery</h1>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, margin: 0 }}>MOS Primitives Gallery</h1>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15 }}>
           <Toggle value={dark} onChange={setDark} aria-label="Dark mode" /> Dark
         </label>
       </header>
@@ -98,7 +98,7 @@ export function UiGallery() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ marginBottom: 28 }}>
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h2>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h2>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>{children}</div>
     </section>
   )

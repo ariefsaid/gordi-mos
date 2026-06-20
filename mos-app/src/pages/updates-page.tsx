@@ -90,7 +90,7 @@ export function UpdatesPage() {
           className="bg-card border border-border rounded-lg shadow-rest"
           style={{ padding: '16px 20px' }}
         >
-          <p style={{ fontSize: 14, color: 'var(--muted-foreground)' }}>Loading…</p>
+          <p style={{ fontSize: 16, color: 'var(--muted-foreground)' }}>Loading…</p>
         </section>
       )}
 
