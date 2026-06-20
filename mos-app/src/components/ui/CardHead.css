@@ -7,23 +7,23 @@
   padding: 16px 20px 14px; border-bottom: 1px solid var(--border);
 }
 .card-head-title {
-  font-size: 18px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
+  font-size: 20px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
   color: var(--foreground); margin: 0;
 }
-.card-head-meta { font-size: 13px; color: var(--muted-foreground); }
+.card-head-meta { font-size: 15px; color: var(--muted-foreground); }
 .card-head-action { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    StateKit — the ONE error/empty/skeleton kit (IXD-5, PR-2).
    ════════════════════════════════════════════════════════════════════════════ */
 .error-state {
-  display: flex; align-items: center; gap: 12px; padding: 16px 20px; font-size: 13px;
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px; font-size: 15px;
 }
 .error-state-text { color: var(--destructive); flex: 1; }
 
 .empty-state { text-align: left; padding: 28px 20px; }
-.empty-title { font-size: 15px; font-weight: 600; margin: 0 0 4px; color: var(--foreground); }
-.empty-copy { font-size: 13px; color: var(--muted-foreground); margin: 0 0 12px; }
+.empty-title { font-size: 17px; font-weight: 600; margin: 0 0 4px; color: var(--foreground); }
+.empty-copy { font-size: 15px; color: var(--muted-foreground); margin: 0 0 12px; }
 .empty-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* Skeleton shimmer — shared pulse (reduced-motion aware) */

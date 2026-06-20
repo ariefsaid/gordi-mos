@@ -111,7 +111,7 @@ function LineRow({ line, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDo
         style={{
           flex: '1 1 100%', minWidth: 0,
           border: 'none', background: 'transparent',
-          fontSize: 14, color: 'var(--foreground)', /* foreground */
+          fontSize: 16, color: 'var(--foreground)', /* foreground */
           fontFamily: 'inherit',
           padding: 0,
           /* Focus ring via global *:focus-visible */
@@ -155,7 +155,7 @@ function StaticLineRow({ item, isLast }: { item: WeeklyUpdateItemRow; isLast: bo
         borderBottom: !isLast ? '1px solid color-mix(in srgb, var(--border) 70%, transparent)' : undefined,
       }}
     >
-      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--foreground)' }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 16, color: 'var(--foreground)' }}>
         {item.label}
       </span>
       <ProgressMarker progress={item.progress} />
@@ -434,7 +434,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: 6 }}>
             This week's summary
           </div>
-          <p style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--foreground)', whiteSpace: 'pre-wrap' }}>
+          <p style={{ fontSize: 16, lineHeight: 1.5, color: 'var(--foreground)', whiteSpace: 'pre-wrap' }}>
             {summary || <span style={{ color: 'var(--muted-foreground)' }}>(no summary)</span>}
           </p>
         </div>
@@ -493,7 +493,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
     >
       {/* Head row (§2.1) */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3 }}>My weekly update</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.3 }}>My weekly update</h2>
         {WeekPill}
       </div>
 
@@ -517,7 +517,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
             borderRadius: 'var(--radius-sm)', /* 8px — control/input, OD-P3-10 */
             padding: 10,
             minHeight: 96,
-            fontSize: 14, lineHeight: 1.5, /* body */
+            fontSize: 16, lineHeight: 1.5, /* body */
             color: 'var(--foreground)', /* foreground */
             background: 'var(--background)',
             fontFamily: 'inherit',
@@ -554,7 +554,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
             height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
             border: '1px solid var(--border)', /* input border */
             background: 'var(--background)', cursor: 'pointer',
-            fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
             color: 'var(--foreground)',
           }}
         >
@@ -567,7 +567,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
 
       {/* Save error */}
       {saveError && (
-        <div role="alert" style={{ fontSize: 13, color: 'var(--status-lost-text)', marginBottom: 8 }}>
+        <div role="alert" style={{ fontSize: 15, color: 'var(--status-lost-text)', marginBottom: 8 }}>
           {saveError}
         </div>
       )}
@@ -585,7 +585,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
               height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
               border: '1px solid var(--border)',
               background: 'var(--background)', cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+              fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
               color: 'var(--foreground)',
               opacity: saving ? 0.5 : 1,
             }}
@@ -609,7 +609,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
               color: 'var(--primary-foreground)', /* primary-foreground */
               cursor: submitDisabled || saving ? 'not-allowed' : 'pointer',
               opacity: submitDisabled || saving ? 0.5 : 1,
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+              fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
               boxShadow: submitDisabled || saving ? 'none' : '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
               pointerEvents: submitDisabled ? 'none' : undefined,
             }}

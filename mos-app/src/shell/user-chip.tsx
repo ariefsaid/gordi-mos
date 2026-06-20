@@ -87,7 +87,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           <div className={isRail ? 'flex-1 text-left min-w-0' : 'text-left'}>
             <div
               className="truncate font-semibold text-foreground"
-              style={{ fontSize: 13, lineHeight: 1.1 }}
+              style={{ fontSize: 15, lineHeight: 1.1 }}
               title={viewer.person.full_name}
             >
               {viewer.person.full_name}
@@ -129,7 +129,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
             role="menuitem"
             type="button"
             className="w-full text-left px-3 rounded-sm hover:bg-accent text-foreground"
-            style={{ height: 32, fontSize: 13 }}
+            style={{ height: 32, fontSize: 15 }}
             onClick={() => {
               close()
               signOut?.()

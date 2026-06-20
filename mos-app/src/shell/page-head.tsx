@@ -97,7 +97,7 @@ export function PageHead({
       <div className="flex items-baseline gap-3 flex-wrap">
         <h1
           className="font-semibold text-foreground"
-          style={{ fontSize: 24, lineHeight: 1.2, letterSpacing: '-0.01em' }}
+          style={{ fontSize: 26, lineHeight: 1.2, letterSpacing: '-0.01em' }}
         >
           {title}
         </h1>
@@ -106,7 +106,7 @@ export function PageHead({
         {meta && <span>{meta}</span>}
       </div>
       {subtitle && (
-        <p className="text-muted-foreground mt-[6px]" style={{ fontSize: 14 }}>
+        <p className="text-muted-foreground mt-[6px]" style={{ fontSize: 16 }}>
           {subtitle}
         </p>
       )}

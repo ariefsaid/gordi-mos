@@ -74,7 +74,7 @@ function GordiLogoMark() {
     <div className="relative flex-none" style={{ width: 26, height: 26 }}>
       <div
         className="flex h-full w-full items-center justify-center rounded-sm bg-brand-navy font-bold text-primary-foreground"
-        style={{ fontSize: 13 }}
+        style={{ fontSize: 15 }}
       >
         G
       </div>
@@ -131,7 +131,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         <span
           className="truncate font-semibold text-foreground"
           title="Gordi MOS"
-          style={{ fontSize: 14, letterSpacing: '-0.01em' }}
+          style={{ fontSize: 16, letterSpacing: '-0.01em' }}
         >
           Gordi MOS
         </span>
@@ -154,11 +154,11 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           type="button"
           aria-label="Search"
           className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
-          style={{ height: 32, width: 200 }}
+          style={{ height: 34, width: 200 }}
           onClick={onOpenSearch}
         >
           <SearchIcon />
-          <span className="flex-1 text-left" style={{ fontSize: 13 }}>
+          <span className="flex-1 text-left" style={{ fontSize: 15 }}>
             Search
           </span>
           <kbd

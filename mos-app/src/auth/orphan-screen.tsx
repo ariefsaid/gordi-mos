@@ -20,7 +20,7 @@ export function OrphanScreen() {
             height: 40,
             backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
             color: 'var(--warning-foreground)',
-            fontSize: 18,
+            fontSize: 20,
           }}
           aria-hidden="true"
         >
@@ -30,7 +30,7 @@ export function OrphanScreen() {
         {/* Title — subheading (18px/600) */}
         <h1
           className="text-foreground font-semibold text-center mb-2"
-          style={{ fontSize: 18, lineHeight: 1.3 }}
+          style={{ fontSize: 20, lineHeight: 1.3 }}
         >
           Your account isn't set up yet
         </h1>
@@ -38,7 +38,7 @@ export function OrphanScreen() {
         {/* Body — 14px, muted-foreground */}
         <p
           className="text-muted-foreground text-center mb-6"
-          style={{ fontSize: 14 }}
+          style={{ fontSize: 16 }}
         >
           We couldn't find your Gordi MOS profile. Contact Arief to get set up.
         </p>
@@ -47,7 +47,7 @@ export function OrphanScreen() {
         <button
           type="button"
           className="w-full flex items-center justify-center bg-primary text-primary-foreground rounded-sm font-medium"
-          style={{ height: 32, fontSize: 14 }}
+          style={{ height: 34, fontSize: 16 }}
           onClick={() => signOut?.()}
           // autoFocus intentional: single-action blocking screen — keyboard users land on exit (design-plan §5)
           autoFocus

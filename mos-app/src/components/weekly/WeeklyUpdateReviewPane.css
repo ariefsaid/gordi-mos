@@ -72,7 +72,7 @@
   min-width: 0;
 }
 .wup-review-name {
-  font-size: 13.5px;
+  font-size: 15.5px;
   font-weight: 600;
   color: var(--foreground);
 }
@@ -82,7 +82,7 @@
   font-weight: 400;
 }
 .wup-review-excerpt {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--muted-foreground);
   margin-top: 2px;
   overflow: hidden;
@@ -157,7 +157,7 @@
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 10px;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--muted-foreground);
 }
 .wup-review-counts b {
@@ -203,7 +203,7 @@
   flex-wrap: wrap;
 }
 .wup-review-panel-name {
-  font-size: 13.5px;
+  font-size: 15.5px;
   font-weight: 600;
   color: var(--foreground); /* foreground */
 }
@@ -219,7 +219,7 @@
   margin-bottom: 4px;
 }
 .wup-review-panel-body {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   color: var(--foreground); /* foreground */
   white-space: pre-wrap;

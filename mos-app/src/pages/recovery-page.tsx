@@ -66,7 +66,7 @@ export function RecoveryPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 13,
+              fontSize: 15,
             }}
             role="alert"
           >
@@ -76,7 +76,7 @@ export function RecoveryPage() {
           <a
             href="/mos/login"
             className="text-primary font-medium hover:underline"
-            style={{ fontSize: 14 }}
+            style={{ fontSize: 16 }}
           >
             Back to sign in
           </a>
@@ -91,11 +91,11 @@ export function RecoveryPage() {
         {/* Card title */}
         <h1
           className="text-foreground font-semibold"
-          style={{ fontSize: 18, lineHeight: 1.3, marginBottom: 4 }}
+          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
         >
           Set a new password
         </h1>
-        <p className="text-muted-foreground mb-5" style={{ fontSize: 14 }}>
+        <p className="text-muted-foreground mb-5" style={{ fontSize: 16 }}>
           Choose a strong password for your account.
         </p>
 
@@ -107,7 +107,7 @@ export function RecoveryPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
               color: 'var(--destructive)',
-              fontSize: 13,
+              fontSize: 15,
             }}
           >
             {serverError}
@@ -134,7 +134,7 @@ export function RecoveryPage() {
               className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
               style={{
                 height: 32,
-                fontSize: 14,
+                fontSize: 16,
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
@@ -162,7 +162,7 @@ export function RecoveryPage() {
               className="w-full bg-background text-foreground border rounded-sm px-2.5"
               style={{
                 height: 32,
-                fontSize: 14,
+                fontSize: 16,
                 borderColor: mismatchError ? 'var(--destructive)' : 'var(--input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
@@ -187,7 +187,7 @@ export function RecoveryPage() {
             className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
             style={{
               height: 32,
-              fontSize: 14,
+              fontSize: 16,
               opacity: isDisabled ? 0.5 : 1,
               cursor: isDisabled ? 'not-allowed' : undefined,
             }}

@@ -203,7 +203,7 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
           type="button"
           onClick={onRetry}
           className="font-semibold text-primary"
-          style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          style={{ fontSize: 15, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
           Retry
         </button>
@@ -245,7 +245,7 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
       </span>
 
       {/* Body sentence */}
-      <span className="flex-1 min-w-[160px]" style={{ fontSize: 14 }}>
+      <span className="flex-1 min-w-[160px]" style={{ fontSize: 16 }}>
         {sentence}
       </span>
 
@@ -253,7 +253,7 @@ function OpsStrip({ opsLoad, summary, onRetry }: OpsStripProps) {
       <Link
         to="/ops"
         className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
-        style={{ fontSize: 13 }}
+        style={{ fontSize: 15 }}
         aria-label={linkLabel.replace(' →', '')}
       >
         {linkLabel}
@@ -354,7 +354,7 @@ function WeeklyUpdateStrip({
       </span>
 
       {/* Body sentence */}
-      <span className="flex-1 min-w-[160px]" style={{ fontSize: 14 }}>
+      <span className="flex-1 min-w-[160px]" style={{ fontSize: 16 }}>
         {sentence}
       </span>
 
@@ -362,7 +362,7 @@ function WeeklyUpdateStrip({
       <Link
         to="/updates"
         className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
-        style={{ fontSize: 13 }}
+        style={{ fontSize: 15 }}
         aria-label={linkLabel.replace(' →', '')}
       >
         {linkLabel}
@@ -390,7 +390,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
       >
         <div
           className="flex items-center text-muted-foreground"
-          style={{ height: 46, padding: '0 20px', fontSize: 13 }}
+          style={{ height: 46, padding: '0 20px', fontSize: 15 }}
         >
           Loading…
         </div>
@@ -420,7 +420,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
       >
         <div
           className="flex items-center text-muted-foreground"
-          style={{ height: 46, padding: '0 20px', fontSize: 13 }}
+          style={{ height: 46, padding: '0 20px', fontSize: 15 }}
         >
           No direct reports found.
         </div>
@@ -441,7 +441,7 @@ function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
             style={{
               padding: '10px 20px',
               borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : undefined,
-              fontSize: 14,
+              fontSize: 16,
             }}
           >
             {/* Name + role */}

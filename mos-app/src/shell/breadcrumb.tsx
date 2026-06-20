@@ -26,7 +26,7 @@ export function Breadcrumb() {
   if (!section) return null
 
   return (
-    <span style={{ fontSize: 13 }}>
+    <span style={{ fontSize: 15 }}>
       {leaf ? (
         // Sub-page: section is muted intermediate, leaf is the bold current
         <>

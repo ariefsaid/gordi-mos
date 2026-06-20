@@ -75,7 +75,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
           <Link
             to="/tasks"
             className="font-semibold text-primary no-underline"
-            style={{ fontSize: 13 }}
+            style={{ fontSize: 15 }}
           >
             All tasks →
           </Link>
@@ -103,7 +103,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
           <button
             type="button"
             className="font-semibold text-primary"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 15 }}
             onClick={load}
           >
             Retry
@@ -115,7 +115,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       {loadState === 'ready' && (
         <table
           className="w-full border-collapse"
-          style={{ tableLayout: 'fixed', fontSize: 13 }}
+          style={{ tableLayout: 'fixed', fontSize: 15 }}
         >
           <colgroup>
             <col style={{ width: '40%' }} />
