@@ -22,25 +22,10 @@
   box-sizing: border-box;
 }
 
-/* ── Content header (Fix #9: reuse the shell page-head grammar — 24px display) ── */
-.kl-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-.kl-head-title {
-  /* matches shell PageHead h1: 24px display font, -0.01em (index.css binds the family) */
-  font-size: 24px;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  font-weight: 600;
-  color: var(--foreground);
-  margin: 0;
-}
-.kl-head-date {
+/* ── Content header: the ONE shared PageHead variant="content" (shell/page-head.tsx),
+   same as S2–S5. The log date rides in its meta slot as this pill (mirrors the
+   .kp-date / .ks-date date chips). ── */
+.kl-date {
   font-size: 13px;
   color: var(--muted-foreground);
   background: var(--muted);

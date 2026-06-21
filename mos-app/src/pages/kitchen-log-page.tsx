@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { PageFrame } from '@/shell/page-frame'
+import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import {
@@ -303,7 +304,11 @@ export function KitchenLogPage() {
       <PageFrame>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          <ContentHeader title="Kitchen · Log" logDate={logDate} />
+          <PageHead
+            variant="content"
+            title="Kitchen · Log"
+            meta={<span className="kl-date tabular">{logDate}</span>}
+          />
           <EmptyState
             title="No active WIP items"
             copy="Ask an ops lead to add items."
@@ -321,7 +326,11 @@ export function KitchenLogPage() {
       <div className="kl-page">
         <OfflineBanner show={!isOnline} />
 
-        <ContentHeader title="Kitchen · Log" logDate={logDate} />
+        <PageHead
+          variant="content"
+          title="Kitchen · Log"
+          meta={<span className="kl-date tabular">{logDate}</span>}
+        />
 
         <div className="kl-seg-wrap kl-block">
           <ActionTypeSeg
@@ -403,15 +412,6 @@ function OfflineBanner({ show }: { show: boolean }) {
   return (
     <div role="alert" aria-label="Offline" className="kl-banner kl-banner-offline kl-block">
       You're offline — logging needs a connection. Your entries are kept on screen; reconnect to submit.
-    </div>
-  )
-}
-
-function ContentHeader({ title, logDate }: { title: string; logDate: string }) {
-  return (
-    <div className="kl-head kl-block">
-      <h1 className="kl-head-title">{title}</h1>
-      <span className="kl-head-date tabular">{logDate}</span>
     </div>
   )
 }

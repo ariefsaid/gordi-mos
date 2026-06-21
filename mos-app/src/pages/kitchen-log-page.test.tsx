@@ -4,7 +4,7 @@
 // BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -536,6 +536,25 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
     })
     // The capture form must NOT render without a resolved BU
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+})
+
+// ── I3: S1 uses the ONE shared content PageHead (not a bespoke .kl-head) ───────
+describe('I3: shared PageHead variant="content"', () => {
+  it('renders the shared content PageHead (testid + content-header chrome + h1 title + date in meta)', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const head = screen.getByTestId('page-head')
+    // the signed mockup .content-header chrome (icon + title + count/meta), same as S2–S5
+    expect(head).toHaveClass('content-header')
+    // ONE accessible heading carrying the page title (RI-IA-1)
+    const h1 = within(head).getByRole('heading', { level: 1 })
+    expect(h1).toHaveTextContent('Kitchen · Log')
+    // the log date rides in the meta slot (today, WIB) — a YYYY-MM-DD string
+    expect(within(head).getByText(/^\d{4}-\d{2}-\d{2}$/)).toBeInTheDocument()
+    // the bespoke hand-rolled header is gone
+    expect(document.querySelector('.kl-head')).toBeNull()
   })
 })
 
