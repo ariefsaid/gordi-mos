@@ -36,6 +36,7 @@ Goal: daily/weekly management workflow usable by managers + selected ops users.
   feed populated).
 
 ## Phase 3 — Rollout & hardening (CURRENT)
+> **Platform-foundation workstream (pre-rollout, OD-P4):** prod deploy → access-roles → backend → provisioning → outbox → kitchen migration runs in parallel with Phase 3. Tracked in `docs/platform-workstream-status.md`.
 - **3.1** Production deploy to `ops.gordi.id/mos` on ris-dev (Caddy path-route; owner-approved). Runbook: `docs/environments.md`.
 - **3.2** Onboard managers + selected ops users; collect friction → Human-UX loop
   (`docs/design-workflow.md` §3).
@@ -47,3 +48,5 @@ Objectives/outcomes · programs/processes · Standard Work Packages · full RACI
 role/job-description clarity · OKR cascade · kitchen backend migration · roastery app (separate,
 Supabase-native from day one) · ESB write-back visibility · shared UI package extraction (only after
 both PMO and MOS show repeated use of the same components).
+
+> **Note on "kitchen backend migration":** **Superseded 2026-06-19 by OD-P4-1 / ADR-0010 D10:** the kitchen app migrates into MOS as its first ops Module **before** user rollout (a pre-rollout foundation slice), not Post-MVP. Foundation sequence + status: `docs/platform-workstream-status.md`.

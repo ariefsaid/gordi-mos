@@ -12,7 +12,7 @@ and Notion fidelity.**
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
 - `docs/design-mockups/` — Phase 0 static HTML mockups (IA proposals + key screens).
 - `docs/backlog.md` `docs/decisions.md` `docs/roadmap.md` — what's next, owner decisions, phasing.
-- `supabase/migrations/` — Postgres schema + RLS (schemas: `shared` / `mos` / `ops` / `integrations`).
+- `supabase/migrations/` — Postgres schema + RLS (schemas: `shared` / `mos` / `ops` / `integrations` / `reporting`). (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migration not yet written.)
 - `.claude/agents/`, `.claude/skills/` — role agents and vendored skills (skills are gitignored; re-create with `scripts/vendor-skills.sh`).
 
 ## Operating model: Owner → Director → role agents
@@ -103,6 +103,6 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
 
 ## Tech stack & commands (Phase 1 on; run inside `mos-app/`)
 - React 19, Vite, TypeScript, react-router-dom 7. Backend: **self-hosted Supabase** (Postgres + Auth +
-  RLS), shared with future Gordi ops apps via schemas `shared` / `mos` / `ops` / `integrations`.
+  RLS), shared with future Gordi ops apps via schemas `shared` / `mos` / `ops` / `integrations` / `reporting`. (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migration not yet written.)
 - `npm run dev` · `npm run build` · `npm run typecheck` · `npm test` (Vitest) · `npx playwright test` (e2e).
 - Commit trailer: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.

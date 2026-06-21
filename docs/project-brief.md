@@ -59,7 +59,7 @@ MOS eventually becomes the full management package:
 - Do not clone the old Notion visual layout.
 - Do not build the full RACI matrix UI first.
 - Do not build the full OKR / Strategy-to-Execution cascade first.
-- Do not migrate or rewrite the live kitchen app first.
+- Do not migrate or rewrite the live kitchen app first. (**Superseded 2026-06-19 (OD-P4-1, ADR-0010 D10):** kitchen now migrates into MOS as its first ops Module before rollout; see `docs/decisions.md` OD-P4-1 and `docs/platform-workstream-status.md`.)
 - Do not embed this inside the PMO codebase.
 
 ## Codebase Direction
@@ -90,6 +90,7 @@ Recommended schemas:
 - `mos`: tasks, lightweight RACI, weekly updates, programs/processes later
 - `ops`: daily ops events from kitchen, roastery, and future ops apps
 - `integrations`: ESB write-back logs, idempotency keys, external references, pipeline state
+- `reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS (OD-P4-2 / ADR-0010 D5; migration not yet written)
 
 ## Auth Direction
 
@@ -110,6 +111,8 @@ Later:
 
 - MOS can become the review/approval cockpit if that becomes useful.
 - A kitchen backend migration to Supabase should happen only after MOS first-slice workflows are stable and the benefit is clear.
+
+**Superseded 2026-06-19 (OD-P4-1, ADR-0010 D10):** kitchen now migrates into MOS as its first ops Module before rollout; see `docs/decisions.md` OD-P4-1 and `docs/platform-workstream-status.md`.
 
 ## Roastery App Direction
 
