@@ -200,12 +200,10 @@
 
 @layer utilities {
   /* Mandatory on all money/%/counts/deltas/ages (DESIGN.md Tabular-Numbers Rule).
-     Inter-tabular fallback (OD-P3-9): DM Sans's "tnum" doesn't align digits, so
-     numeric cells render in Inter Variable (verified tabular figures); proportional
-     body/UI text stays DM Sans. Numeric-only scope, never proportional. */
+     Numeric cells use the theme mono token — monospace digits column-align by
+     construction (DM Sans's "tnum" no-ops in its build). Numeric-only scope. */
   .tabular {
-    font-family: "Inter Variable", var(--font-sans);
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum";
   }
 }
