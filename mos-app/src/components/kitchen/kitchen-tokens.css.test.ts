@@ -14,8 +14,10 @@ const SRC = resolve(process.cwd(), 'src')
 // Kitchen CSS surfaces (co-located .css for the page + components).
 const KITCHEN_CSS = [
   join(SRC, 'pages', 'kitchen-log-page.css'),
+  join(SRC, 'pages', 'kitchen-review-page.css'),
   join(SRC, 'components', 'kitchen', 'wip-item-stepper.css'),
   join(SRC, 'components', 'kitchen', 'action-type-seg.css'),
+  join(SRC, 'components', 'kitchen', 'kitchen-review-row.css'),
 ]
 
 // Where tokens may be DEFINED: index.css + the token css + Button.css (.btn-touch etc).

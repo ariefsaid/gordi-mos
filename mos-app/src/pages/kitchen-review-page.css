@@ -1,0 +1,177 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Kitchen Review/Approve queue (S3) — desktop-first ops_lead surface.
+   Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S3.
+   Token-only (DESIGN.md) — no raw hex/spacing/shadow literals. Mirrors the
+   records-table grammar (sticky overline thead, dense rows, hairline borders).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kr-block {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.kr-date {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Banners (offline / notice / error) ── */
+.kr-banner {
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.kr-banner-offline {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  color: var(--warning-foreground);
+}
+.kr-banner-notice {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--status-won-text);
+}
+.kr-banner-error {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  color: var(--status-lost-text);
+}
+
+/* ── Queue groups ── */
+.kr-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.kr-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.kr-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--secondary);
+}
+.kr-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-navy-text, var(--foreground));
+}
+.kr-group-count {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+/* production-first gate banner — calm info text (NOT warning/destructive — it's a
+   sequencing rule, not an error). FR-042 / design-plan §S3. */
+.kr-group-gate {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.kr-info-glyph {
+  color: var(--muted-foreground);
+}
+
+/* ── Queue table ── */
+.kr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.kr-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* ── States ── */
+.kr-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0;
+}
+.kr-skeleton {
+  height: 56px;
+  background: var(--muted);
+  border-radius: var(--radius-md);
+  opacity: 0.6;
+  animation: kr-skeleton-pulse 1.5s ease-in-out infinite;
+}
+@keyframes kr-skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kr-skeleton { animation: none; }
+}
+
+.kr-empty {
+  padding: 32px 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.kr-error { padding: 24px 0; }
+.kr-error-msg {
+  color: var(--status-lost-text);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+/* ── Forbidden (non-lead) panel ── */
+.kr-forbidden {
+  padding: 48px 24px;
+  text-align: center;
+}
+.kr-forbidden-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 8px;
+}
+.kr-forbidden-msg {
+  color: var(--muted-foreground);
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* ── Mobile (<768px): the queue table reflows to a horizontally-scrollable card. ── */
+@media (max-width: 767px) {
+  .kr-group {
+    overflow-x: auto;
+  }
+  .kr-table {
+    min-width: 560px;
+  }
+}
+
+/* screen-reader-only caption helper (if not already global) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
