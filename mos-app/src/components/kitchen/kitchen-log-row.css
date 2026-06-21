@@ -11,7 +11,7 @@
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   transition: background 120ms ease;
 }
-.klr:hover { background: color-mix(in srgb, var(--accent) 60%, transparent); }
+.klr:hover { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
 @media (prefers-reduced-motion: reduce) {
   .klr { transition: none; }
 }

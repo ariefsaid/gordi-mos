@@ -35,7 +35,7 @@
 }
 .qcell-btn:hover:not(:disabled) {
   opacity: 1;
-  background: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
 }
 .qcell-btn:disabled { cursor: not-allowed; }
 
