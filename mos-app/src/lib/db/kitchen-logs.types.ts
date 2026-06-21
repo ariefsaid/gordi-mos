@@ -138,6 +138,45 @@ export interface ApproveResult {
   batch_id: string
 }
 
+// ── Daily Plan editor + pesanan horizon (S2 — FR-030/031/035, AC-024) ─────────
+
+/** The forward "pesanan" horizon length in days (FR-035, [oracle] PESANAN_HORIZON_DAYS). */
+export const PESANAN_HORIZON_DAYS = 14
+
+// One editable plan cell in the S2 editor: the qty_porsi for an (item, action_type)
+// on the selected date. `id` is the existing ops.kitchen_plans row id when a plan
+// already exists for that key (drives the select-then-update upsert path), else null.
+export interface PlanCell {
+  wip_item_id: string
+  action_type: KitchenActionType
+  /** planned porsi (≥ 0 — note: kitchen_plans allows 0, unlike logs' > 0) */
+  qty_porsi: number
+  /** existing row id (null = no plan row yet for this key) */
+  id: string | null
+}
+
+// What the client sends to upsert ONE plan cell. The client NEVER sends org_id or
+// plan_by — both are server-stamped (org_id default current_org_id(); plan_by from
+// the session). Mirrors the kitchen-logs insert posture (NFR-003).
+export interface UpsertKitchenPlanInput {
+  log_date: string // 'YYYY-MM-DD' WIB → DB column `date`
+  wip_item_id: string
+  action_type: KitchenActionType
+  qty_porsi: number // ≥ 0
+  notes?: string | null
+}
+
+// One row in the read-only pesanan (14-day forward horizon) view (FR-035, AC-024).
+// A flat display shape: date + item + action + planned qty. The WIP item name is
+// embedded same-schema (ops.kitchen_plans → ops.wip_items); RLS scopes to the org.
+export interface PesananRow {
+  log_date: string // 'YYYY-MM-DD' WIB
+  wip_item_id: string
+  wip_item_name: string
+  action_type: KitchenActionType
+  qty_porsi: number
+}
+
 // ── Per-line form state (one stepper row per WIP item) ───────────────────────
 export interface KitchenLogLine {
   wip_item_id: string
