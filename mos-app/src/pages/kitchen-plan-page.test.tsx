@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -81,8 +82,15 @@ describe('KitchenPlanPage — auth', () => {
 
   it('unauthenticated: prompts sign-in, never reads', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
-    render(<KitchenPlanPage />)
-    expect(await screen.findByRole('link', { name: /sign in/i })).toBeInTheDocument()
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/plan']}>
+        <KitchenPlanPage />
+      </MemoryRouter>,
+    )
+    const link = await screen.findByRole('link', { name: /sign in/i })
+    expect(link).toBeInTheDocument()
+    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
+    expect(link).toHaveAttribute('href', '/mos/login')
     expect(mockPlans).not.toHaveBeenCalled()
     expect(mockPesanan).not.toHaveBeenCalled()
   })

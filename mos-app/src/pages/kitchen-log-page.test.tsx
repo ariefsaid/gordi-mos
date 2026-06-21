@@ -142,14 +142,17 @@ describe('Unauthenticated state', () => {
   it('shows sign-in prompt when unauthenticated', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
     render(
-      <MemoryRouter initialEntries={['/mos/kitchen/log']}>
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
         <Routes>
-          <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/kitchen/log" element={<KitchenLogPage />} />
         </Routes>
       </MemoryRouter>,
     )
     // Check for the sign-in link (the action element)
-    expect(await screen.findByRole('link', { name: /sign in/i })).toBeInTheDocument()
+    const link = await screen.findByRole('link', { name: /sign in/i })
+    expect(link).toBeInTheDocument()
+    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
+    expect(link).toHaveAttribute('href', '/mos/login')
   })
 })
 
@@ -630,9 +633,9 @@ describe('RI-3: interactive controls meet the 44px touch floor', () => {
   it('Sign-in carries the .btn-touch floor on the unauthenticated state', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
     render(
-      <MemoryRouter initialEntries={['/mos/kitchen/log']}>
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
         <Routes>
-          <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/kitchen/log" element={<KitchenLogPage />} />
         </Routes>
       </MemoryRouter>,
     )

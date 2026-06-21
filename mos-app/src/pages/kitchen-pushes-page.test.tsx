@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -126,8 +127,15 @@ describe('KitchenPushesPage — auth', () => {
 
   it('unauthenticated: prompts sign-in, never reads pushes', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
-    render(<KitchenPushesPage />)
-    expect(await screen.findByRole('link', { name: /sign in/i })).toBeInTheDocument()
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+        <KitchenPushesPage />
+      </MemoryRouter>,
+    )
+    const link = await screen.findByRole('link', { name: /sign in/i })
+    expect(link).toBeInTheDocument()
+    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
+    expect(link).toHaveAttribute('href', '/mos/login')
     expect(mockListPushes).not.toHaveBeenCalled()
   })
 })
@@ -137,7 +145,11 @@ describe('KitchenPushesPage — auth', () => {
 describe('KitchenPushesPage — role gate (AC-007)', () => {
   it('member → forbidden panel, no read call', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
-    render(<KitchenPushesPage />)
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+        <KitchenPushesPage />
+      </MemoryRouter>,
+    )
     expect(await screen.findByRole('region', { name: /access restricted/i })).toBeInTheDocument()
     expect(screen.getByText(/available to ops leads/i)).toBeInTheDocument()
     expect(mockListPushes).not.toHaveBeenCalled()
@@ -159,8 +171,13 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
 
   it('forbidden panel has a back-to-log link', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
-    render(<KitchenPushesPage />)
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+        <KitchenPushesPage />
+      </MemoryRouter>,
+    )
     const backLink = await screen.findByRole('link', { name: /back to log/i })
+    // Link must resolve via the SPA router (basename applied) — not a full-reload raw anchor
     expect(backLink).toHaveAttribute('href', '/mos/kitchen/log')
   })
 })

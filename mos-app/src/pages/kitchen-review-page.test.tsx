@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -88,10 +89,17 @@ beforeEach(() => {
 describe('KitchenReviewPage — role gate (FR-003/044)', () => {
   it('a member sees a forbidden panel — NOT an empty table', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
-    render(<KitchenReviewPage />)
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/review']}>
+        <KitchenReviewPage />
+      </MemoryRouter>,
+    )
     expect(await screen.findByText(/available to ops leads/i)).toBeInTheDocument()
     // the queue read is never even attempted for a member
     expect(mockList).not.toHaveBeenCalled()
+    // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
+    const backLink = screen.getByRole('link', { name: /back to log/i })
+    expect(backLink).toHaveAttribute('href', '/mos/kitchen/log')
   })
 
   it('an admin is allowed (not forbidden)', async () => {

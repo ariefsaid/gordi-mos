@@ -12,6 +12,7 @@
 // - NEVER sends status / org_id / submitted_by (server-stamped, NFR-003).
 
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -254,7 +255,7 @@ export function KitchenLogPage() {
       <PageFrame>
         <div className="kl-page kl-unauth kl-block">
           <p className="kl-unauth-msg">You need to sign in to use Kitchen Log.</p>
-          <a href="/login" className="btn btn-primary btn-touch kl-touch">Sign in</a>
+          <Link to="/login" className="btn btn-primary btn-touch kl-touch">Sign in</Link>
         </div>
       </PageFrame>
     )

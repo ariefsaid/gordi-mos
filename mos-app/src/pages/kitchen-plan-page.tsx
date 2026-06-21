@@ -10,6 +10,7 @@
 // saving/saved, offline (online-only writes, NFR-008), read-only, unauthenticated.
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -53,7 +54,7 @@ export function KitchenPlanPage() {
       <PageFrame>
         <div className="kp-block kp-forbidden">
           <p className="kp-forbidden-msg">You need to sign in to view the kitchen plan.</p>
-          <a href="/login" className="btn btn-primary">Sign in</a>
+          <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFrame>
     )

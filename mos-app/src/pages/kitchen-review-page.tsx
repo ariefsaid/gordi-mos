@@ -12,6 +12,7 @@
 // - Online-only writes (NFR-008): actions blocked + a banner when offline.
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -242,7 +243,7 @@ export function KitchenReviewPage() {
       <PageFrame>
         <div className="kr-block kr-forbidden">
           <p className="kr-forbidden-msg">You need to sign in to review kitchen logs.</p>
-          <a href="/login" className="btn btn-primary">Sign in</a>
+          <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFrame>
     )
@@ -258,7 +259,7 @@ export function KitchenReviewPage() {
           <p className="kr-forbidden-msg">
             Ask an ops lead to review your submitted kitchen logs.
           </p>
-          <a href="/mos/kitchen/log" className="btn btn-outline">Back to Log</a>
+          <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
         </div>
       </PageFrame>
     )

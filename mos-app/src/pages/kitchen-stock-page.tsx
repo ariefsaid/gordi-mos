@@ -8,6 +8,7 @@
 // today (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
 
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -65,7 +66,7 @@ export function KitchenStockPage() {
       <PageFrame>
         <div className="ks-block ks-forbidden">
           <p className="ks-forbidden-msg">You need to sign in to view kitchen stock.</p>
-          <a href="/login" className="btn btn-primary">Sign in</a>
+          <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFrame>
     )
