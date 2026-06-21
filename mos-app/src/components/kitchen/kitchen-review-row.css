@@ -1,0 +1,148 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenReviewRow — one Submitted-log queue row (S3 review/approve).
+   Mirrors the records-table row grammar (task-row): dense row, hairline border,
+   bg-secondary on hover. Token-only (DESIGN.md) — no raw hex/spacing literals.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.krow {
+  border-bottom: 1px solid var(--border);
+}
+.krow:last-child {
+  border-bottom: none;
+}
+.krow:hover td {
+  background: color-mix(in srgb, var(--secondary) 60%, transparent);
+}
+
+.krow-cell {
+  padding: 10px 12px;
+  vertical-align: top;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+/* ── WIP name + variance Tag ── */
+.krow-main {
+  min-width: 0;
+}
+.krow-name {
+  font-weight: 500;
+  color: var(--foreground);
+  margin-right: 8px;
+}
+.krow-variance {
+  display: inline-flex;
+  align-items: center;
+}
+/* dot inside the variance Tag — status carries dot+text, never color alone (WCAG 1.4.1) */
+.krow-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+/* ── plan-vs-logged ── */
+.krow-qty {
+  white-space: nowrap;
+}
+.krow-qty strong {
+  font-weight: 600;
+  margin: 0 2px;
+}
+.krow-meta {
+  color: var(--muted-foreground);
+}
+
+/* ── submitter ── */
+.krow-by {
+  white-space: nowrap;
+}
+.krow-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.krow-byname {
+  color: var(--foreground);
+}
+
+.krow-time {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* ── submit note ── */
+.krow-note {
+  max-width: 220px;
+  color: var(--muted-foreground);
+}
+.krow-submitnote {
+  font-style: italic;
+}
+.krow-nonote {
+  color: var(--muted-foreground);
+}
+
+/* ── actions ── */
+.krow-actions {
+  white-space: nowrap;
+}
+.krow-btn {
+  margin-left: 6px;
+}
+.krow-actions > .krow-btn:first-child {
+  margin-left: 0;
+}
+
+/* ── inline decide (note gate) ── */
+.krow-decide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+.krow-note-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.krow-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+/* required-but-empty cue: destructive outline + AA-darkened red helper text */
+.krow-note-input-error {
+  border-color: var(--destructive);
+}
+.krow-note-cue {
+  font-size: 12px;
+  color: var(--status-lost-text);
+}
+.krow-decide-actions {
+  display: flex;
+  gap: 6px;
+}
+.krow-decide-actions .krow-btn {
+  margin-left: 0;
+}
+
+/* ── Mobile (<768px): the queue table reflows; keep cells stacked + readable ── */
+@media (max-width: 767px) {
+  .krow-note {
+    max-width: 100%;
+  }
+}

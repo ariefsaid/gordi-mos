@@ -77,6 +77,9 @@ export default defineConfig({
         // P2-2b: weekly update components
         'src/components/weekly/**',
         'src/components/tasks/**',
+        // Kitchen Module (S1..S5)
+        'src/pages/kitchen-*.tsx',
+        'src/components/kitchen/**',
       ],
       exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },

@@ -1,0 +1,108 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Kitchen Stock view (S4) — read-only, auto-computed.
+   Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
+   Token-only (DESIGN.md) — no raw hex/spacing/shadow literals. Mirrors the
+   records-table grammar of the review queue (sticky overline thead, dense rows,
+   hairline borders). Read-only is the signal — no editable affordances.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.ks-block {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ks-date {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Stock table ── */
+.ks-tablewrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.ks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ks-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--secondary);
+}
+.ks-num-head {
+  text-align: right;
+}
+.ks-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+}
+.ks-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.ks-item {
+  font-weight: 500;
+}
+.ks-num {
+  text-align: right;
+  color: var(--foreground);
+}
+/* Negative balances preserved + tinted (AA-safe destructive text) — FR-061/AC-032.
+   Never the base --destructive (fails AA as small text); --status-lost-text is the
+   darkened AA-safe variant, per the design-plan a11y note. */
+.ks-num-neg {
+  color: var(--status-lost-text);
+  font-weight: 600;
+}
+
+/* ── States: loading / empty / error are the shared StateKit
+   (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
+   tokens live in CardHead.css; no kitchen-local skeleton/empty/error CSS here. ── */
+
+/* ── Sign-in / blocked panel ── */
+.ks-forbidden {
+  padding: 48px 24px;
+  text-align: center;
+}
+.ks-forbidden-msg {
+  color: var(--muted-foreground);
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* ── Mobile (<768px): the table reflows to a horizontally-scrollable card. ── */
+@media (max-width: 767px) {
+  .ks-tablewrap {
+    overflow-x: auto;
+  }
+  .ks-table {
+    min-width: 420px;
+  }
+}
+
+/* screen-reader-only caption helper (mirrors the review-page surface) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

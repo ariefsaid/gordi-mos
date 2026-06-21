@@ -9,6 +9,11 @@ import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
 import { OpsAddForm } from './pages/ops-add-form'
+import { KitchenLogPage } from './pages/kitchen-log-page'
+import { KitchenPlanPage } from './pages/kitchen-plan-page'
+import { KitchenReviewPage } from './pages/kitchen-review-page'
+import { KitchenStockPage } from './pages/kitchen-stock-page'
+import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -67,6 +72,15 @@ export const routeConfig: RouteObject[] = [
           { path: 'ops', element: SHOW_DAILY_LOG ? <OpsPage /> : <Navigate to="/" replace /> },
           { path: 'ops/new', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           { path: 'ops/:id/edit', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
+          // Kitchen Module (S1 — Log capture; S2 — Plan editor (ops_lead/admin) +
+          // read-only "pesanan" horizon (member); S3 — Review/approve queue, ops_lead/admin;
+          // S4 — Stock view, read-only, any authed member;
+          // S5 — Pushes/outbox, ops_lead/admin, read-only dead-letter monitoring)
+          { path: 'kitchen/log', element: <KitchenLogPage /> },
+          { path: 'kitchen/plan', element: <KitchenPlanPage /> },
+          { path: 'kitchen/review', element: <KitchenReviewPage /> },
+          { path: 'kitchen/stock', element: <KitchenStockPage /> },
+          { path: 'kitchen/pushes', element: <KitchenPushesPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

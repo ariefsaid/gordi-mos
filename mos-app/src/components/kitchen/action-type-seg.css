@@ -1,0 +1,56 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   ActionTypeSeg — segmented control for kitchen action_type (S1 capture).
+   role=tablist; on-state = background lift + shadow-rest. Token-only (DESIGN.md).
+   Fix #7: 44px touch floor per tab. Fix #1: viewport-safe (box-sizing, no overflow).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kseg {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.kseg-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px; /* touch target on phone (Fix #7) */
+  padding: 0 8px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--muted-foreground);
+  box-shadow: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+.kseg-tab:disabled { cursor: not-allowed; opacity: 0.5; }
+.kseg-tab[aria-selected='true'] {
+  font-weight: 600;
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-rest);
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kseg-tab { transition: none; }
+}
+
+/* Full label by default; short "→ Radiant" label on small phones. */
+.kseg-full { display: inline; }
+.kseg-short { display: none; }
+@media (max-width: 400px) {
+  .kseg-full { display: none; }
+  .kseg-short { display: inline; }
+}
