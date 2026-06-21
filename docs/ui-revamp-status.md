@@ -21,10 +21,10 @@ TasksWorkspace decomposition · #49 two-column hybrid record page · #50 My Week
 - **#54** — global **+2px font** (body 14→16, token scale, 144 literals; 11px overline/labels kept).
 
 **Verification:** render-verify via a throwaway **Playwright** spec (`loginAs` + `page.screenshot`) — the
-only reliable render path (agent-browser auth is broken). **BUT it clobbers the owner's dev login** (e2e
-`global-setup` re-links shared person IDs to e2e users). See `mos-dev-gotchas` for the robust dev-login
-restore (admin-API create + SQL link; `supabase db reset` alone does NOT work — `seed.dev-auth.sql` is
-brittle on current GoTrue).
+only reliable render path (agent-browser auth is broken). **(2026-06-21: e2e no longer breaks the owner's
+dev login.** The e2e auth model was reworked PMO-style — e2e logs in AS the seeded `*.dev` personas and
+`global-setup` ensures+links them idempotently instead of stealing their person rows, so a run now *heals*
+dev login. Only ORPHAN/RECOVERY keep dedicated e2e-only users. See `mos-dev-gotchas`.)
 
 **Bug classes to keep catching:** *structural* (reference doesn't resolve) → CI-guarded now; *value-level*
 (defined but wrong value/contrast) → only render+measure (getComputedStyle/eye) catches it.
@@ -35,8 +35,9 @@ brittle on current GoTrue).
 - Shared `useFocusTrap` hook (command-menu + mobile-drawer dedup).
 - Mono webfont never loaded (SF Mono = system-only); `Chip/Tag/TextInput.css` use `--font-size-sm` (missing
   `--ds-` prefix → silent fallback).
-- **Dev-env hardening:** isolate the e2e Supabase + replace brittle `seed.dev-auth.sql` with admin-API
-  provisioning, so e2e stops breaking the owner's dev login.
+- **Dev-env hardening (mostly DONE 2026-06-21):** e2e no longer breaks dev login (PMO-style auth model —
+  e2e logs in as the `*.dev` personas; `global-setup` self-heals their links). Remaining: scope e2e data to
+  its own org so a run stops wiping the demo org's task/weekly/log data.
 - Record-page full-page two-column at deep-link/expand reportedly still reads as a wide drawer (≈996px) —
   needs an owner/render check (couldn't resolve blind).
 

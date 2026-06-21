@@ -164,6 +164,9 @@ test.beforeEach(async ({ page }) => {
   await page.waitForURL(/\/tasks$/)
   // Switch to "All" so Dewi sees the full seeded dataset (not just her R/A tasks).
   await page.getByRole('tab', { name: 'All' }).click()
+  // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
+  // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
+  await page.locator('#group-by-filter').selectOption('status')
   // Wait for at least one group header to appear (TanStack row model, one render cycle).
   await page.waitForSelector('tr.grp', { timeout: 10_000 })
 })
