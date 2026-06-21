@@ -4,13 +4,13 @@
 //   • the read-only "pesanan" HORIZON   → listPesanan(from, days) (the forward 14-day read)
 // The client NEVER sends org_id or plan_by — both are server-stamped (org_id default
 // current_org_id(); plan_by from the session), mirroring kitchen-logs' NFR-003 posture.
-// Snake_case DB columns consumed directly; the DB column is `date`, mapped at the boundary.
+// Snake_case DB columns consumed directly; the DB column is `log_date`.
 //
-// UPSERT MECHANISM (see report): the unique index is (org_id, date, wip_item_id, action_type),
+// UPSERT MECHANISM (see report): the unique index is (org_id, log_date, wip_item_id, action_type),
 // but org_id is server-defaulted and never sent by the client. A bare PostgREST
 // .upsert({ onConflict }) would force the client to send org_id into the conflict target.
 // Rather than weaken the "client never sends org_id" guarantee, upsertKitchenPlan does a
-// clean select-then-insert/update: probe for the existing row by (date, wip_item_id,
+// clean select-then-insert/update: probe for the existing row by (log_date, wip_item_id,
 // action_type) — RLS scopes the probe to the caller's org — then UPDATE by id (replace,
 // FR-031) or INSERT (org_id + plan_by server-stamped). This is the same idempotent
 // replace semantics the spec requires, with no org_id ever leaving the client.
@@ -37,7 +37,7 @@ export async function listKitchenPlans(logDate: string): Promise<PlanCell[]> {
   const { data, error } = await ops()
     .from('kitchen_plans')
     .select('id,wip_item_id,action_type,qty_porsi')
-    .eq('date', logDate)
+    .eq('log_date', logDate)
   if (error) throw new Error(`listKitchenPlans failed — ${error.message}`)
   type Raw = { id: string; wip_item_id: string; action_type: KitchenActionType; qty_porsi: number }
   return ((data ?? []) as Raw[]).map(r => ({
@@ -70,14 +70,14 @@ export async function listPesanan(from: string, days: number): Promise<PesananRo
   const to = addDays(from, days - 1) // inclusive window: [from, from+days-1]
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('date,wip_item_id,action_type,qty_porsi,wip_items(name)')
-    .gte('date', from)
-    .lte('date', to)
-    .order('date', { ascending: true })
+    .select('log_date,wip_item_id,action_type,qty_porsi,wip_items(name)')
+    .gte('log_date', from)
+    .lte('log_date', to)
+    .order('log_date', { ascending: true })
   if (error) throw new Error(`listPesanan failed — ${error.message}`)
 
   type Raw = {
-    date: string
+    log_date: string
     wip_item_id: string
     action_type: KitchenActionType
     qty_porsi: number
@@ -87,7 +87,7 @@ export async function listPesanan(from: string, days: number): Promise<PesananRo
   return ((data ?? []) as unknown as Raw[]).map((r): PesananRow => {
     const embed = Array.isArray(r.wip_items) ? r.wip_items[0] : r.wip_items
     return {
-      log_date: r.date,
+      log_date: r.log_date,
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
       action_type: r.action_type,
@@ -111,7 +111,7 @@ export async function upsertKitchenPlan(input: UpsertKitchenPlanInput): Promise<
   const { data: existing, error: probeErr } = await ops()
     .from('kitchen_plans')
     .select('id')
-    .eq('date', input.log_date)
+    .eq('log_date', input.log_date)
     .eq('wip_item_id', input.wip_item_id)
     .eq('action_type', input.action_type)
     .maybeSingle()
@@ -133,7 +133,7 @@ export async function upsertKitchenPlan(input: UpsertKitchenPlanInput): Promise<
 
   // Insert a new key — org_id (default current_org_id()) + plan_by (session) server-stamped.
   const row: Record<string, unknown> = {
-    date: input.log_date, // DB column is `date`
+    log_date: input.log_date,
     wip_item_id: input.wip_item_id,
     action_type: input.action_type,
     qty_porsi: input.qty_porsi,

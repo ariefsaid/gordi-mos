@@ -120,7 +120,7 @@ describe('listKitchenPlans', () => {
     const cells = await listKitchenPlans('2026-06-20')
     expect(cells).toHaveLength(2)
     expect(cells[0]).toEqual({ id: 'pl1', wip_item_id: 'w1', action_type: 'Production', qty_porsi: 12 })
-    expect(rec.eqs).toContainEqual(['date', '2026-06-20'])
+    expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
   })
 
   it('returns [] when no plan rows', async () => {
@@ -150,8 +150,8 @@ describe('listPesanan (AC-024)', () => {
           kitchen_plans: [
             {
               data: [
-                { date: '2026-06-20', wip_item_id: 'w1', action_type: 'Production', qty_porsi: 12, wip_items: { name: 'Ayam Bakar' } },
-                { date: '2026-06-27', wip_item_id: 'w2', action_type: 'Production', qty_porsi: 8, wip_items: [{ name: 'Nasi Goreng' }] },
+                { log_date: '2026-06-20', wip_item_id: 'w1', action_type: 'Production', qty_porsi: 12, wip_items: { name: 'Ayam Bakar' } },
+                { log_date: '2026-06-27', wip_item_id: 'w2', action_type: 'Production', qty_porsi: 8, wip_items: [{ name: 'Nasi Goreng' }] },
               ],
               error: null,
             },
@@ -169,8 +169,8 @@ describe('listPesanan (AC-024)', () => {
     // tolerates the embed as object OR array (PostgREST to-one variance)
     expect(rows[1].wip_item_name).toBe('Nasi Goreng')
     // window: gte from, lte from+13 (14-day inclusive horizon)
-    expect(rec.gtes).toContainEqual(['date', '2026-06-20'])
-    expect(rec.ltes).toContainEqual(['date', '2026-07-03'])
+    expect(rec.gtes).toContainEqual(['log_date', '2026-06-20'])
+    expect(rec.ltes).toContainEqual(['log_date', '2026-07-03'])
   })
 
   it('returns [] when nothing planned in the horizon', async () => {
@@ -199,7 +199,7 @@ describe('upsertKitchenPlan', () => {
     qty_porsi: 15,
   }
 
-  it('INSERTs a new key — never sends org_id/plan_by/date-as-other; sends qty_porsi', async () => {
+  it('INSERTs a new key — never sends org_id/plan_by; sends log_date + qty_porsi', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -220,7 +220,7 @@ describe('upsertKitchenPlan', () => {
     assertNoServerStamps(rec.inserts)
     const payload = (rec.inserts[0] as Record<string, unknown>)
     expect(payload.qty_porsi).toBe(15)
-    expect(payload.date).toBe('2026-06-20') // mapped log_date → DB `date`
+    expect(payload.log_date).toBe('2026-06-20') // DB column is `log_date`
     expect(payload.action_type).toBe('Production')
   })
 
