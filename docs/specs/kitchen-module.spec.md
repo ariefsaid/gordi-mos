@@ -352,8 +352,22 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
   **only test data, not GKID's real product/BOM IDs** (OD-K-3); therefore real-data/real-ID validation
   shall be done by a **single-WIP proof-push on GKID at flip** (one minimal real batch, verified end to
   end), recorded as the flip's acceptance step (FR-082, AC-094).
+- **FR-084 (GOO is an UNTRUSTED ENVIRONMENT — confidentiality).** ESB's GOO staging
+  (`stg-erp.esb.co.id`) is **open to all ESB tenants**, so the **environment** is not secure — anything we
+  send there is exposed to other parties. (ESB's *responses* from GOO are legitimate and trusted; the risk
+  is **confidentiality of what we send**, not response integrity.) The worker shall therefore send **test
+  data only** to `goo` — **never** real product/BOM IDs, secrets, credentials, customer/PII, or any
+  GKID-real identifiers, since those would be exposed in the open env. `dry_run` performs **no network call
+  at all** (it is NOT a send to GOO). Real/production data flows to `gkid` **only**, and only at the flip
+  (FR-081/FR-082). **Security-auditor checkpoint (when the worker is built):** prove no code path can emit
+  real data or secrets to `goo`, and that the default/unset target is the safe one (`dry_run`/`goo`), never
+  `gkid` (FR-081). (Owner constraint, 2026-06-20 — strengthens OD-K-3.)
 
-### Daily Log summary mirror (ADR-0012)
+### Daily Log summary mirror (ADR-0012) — ⚠️ DEFERRED (parity-first, 2026-06-20)
+> The OLD kitchen app has no Daily Log, and MOS's Daily Log UI is currently flag-hidden, so this
+> cross-Module mirror is **net-new logic** and has been **deferred** (stripped from `approve_kitchen_log`,
+> migration `…0014`; AC-060/AC-061 deferred). Re-add when the Daily Log Module ships (the migration's
+> `-- DOWN:` restores the mirror body). FR-090..092 below describe the intended behavior for that re-add.
 - **FR-090** When a kitchen batch is Approved, the system shall write a **summary `ops.log_entries`**
   row (`origin = 'kitchen'`, `event_type = 'production'`, business unit = Kitchen and Bar,
   `occurred_at` = approval time, `title` = a human one-line summary, `detail` = batch/quantity context)
