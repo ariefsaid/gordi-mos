@@ -7,27 +7,27 @@
    side-stripe exception — "Ops Log tokens", DESIGN.md MOS-density §555–567).
    ════════════════════════════════════════════════════════════════════════════ */
 
-.kp-block {
+.kpu-block {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
 /* ── Table wrapper ── */
-.kp-tablewrap {
+.kpu-tablewrap {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--card);
 }
 
-.kp-table {
+.kpu-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
 
-.kp-table thead th {
+.kpu-table thead th {
   text-align: left;
   font-size: 11px;
   font-weight: 600;
@@ -39,35 +39,35 @@
   background: var(--secondary);
 }
 
-.kp-table tbody td {
+.kpu-table tbody td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--foreground);
   vertical-align: top;
 }
 
-.kp-table tbody tr:last-child td {
+.kpu-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.kp-table tbody tr:hover td {
+.kpu-table tbody tr:hover td {
   background: var(--accent);
 }
 
 /* ── Dead-letter row treatment (DESIGN.md "Ops Log tokens" exception).
    warning/7% fill + 2px warning left rule — the one owner-approved side-stripe.
    Paired with text label + fill (never color-alone, WCAG 1.4.1). ── */
-.kp-row-dead-letter td {
+.kpu-row-dead-letter td {
   background: color-mix(in srgb, var(--warning) 7%, transparent);
 }
 
-.kp-row-dead-letter td:first-child {
+.kpu-row-dead-letter td:first-child {
   border-left: 2px solid var(--warning);
   padding-left: 12px; /* 14px - 2px border = same optical alignment */
 }
 
 /* Dead-letter hover keeps the tint (don't erase the attention signal on hover) */
-.kp-row-dead-letter:hover td {
+.kpu-row-dead-letter:hover td {
   background: color-mix(in srgb, var(--warning) 11%, transparent);
 }
 
@@ -88,13 +88,13 @@
 }
 
 /* Muted tertiary text for last_error and dash placeholders */
-.kp-cell-muted {
+.kpu-cell-muted {
   color: var(--muted-foreground);
   font-size: 12px;
 }
 
 /* Escalate hint (dead-letter read-only cue) */
-.kp-escalate-hint {
+.kpu-escalate-hint {
   display: block;
   font-size: 11px;
   color: var(--warning-foreground);
@@ -102,73 +102,73 @@
 }
 
 /* Time cell */
-.kp-time {
+.kpu-time {
   color: var(--muted-foreground);
   font-size: 12px;
   white-space: nowrap;
 }
 
 /* Dash placeholder for empty cells */
-.kp-dash {
+.kpu-dash {
   color: var(--muted-foreground);
 }
 
 /* ── States ── */
 
-.kp-loading {
+.kpu-loading {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 16px 0;
 }
 
-.kp-skeleton {
+.kpu-skeleton {
   height: 48px;
   background: var(--muted);
   border-radius: var(--radius-md);
   opacity: 0.6;
-  animation: kp-skeleton-pulse 1.5s ease-in-out infinite;
+  animation: kpu-skeleton-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes kp-skeleton-pulse {
+@keyframes kpu-skeleton-pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 0.3; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kp-skeleton { animation: none; }
+  .kpu-skeleton { animation: none; }
 }
 
-.kp-empty {
+.kpu-empty {
   padding: 32px 0;
   color: var(--muted-foreground);
   font-size: 14px;
 }
 
-.kp-error {
+.kpu-error {
   padding: 24px 0;
 }
 
-.kp-error-msg {
+.kpu-error-msg {
   color: var(--status-lost-text);
   margin-bottom: 12px;
   font-size: 14px;
 }
 
 /* ── Forbidden (non-lead) panel — a clean "not for your role" message ── */
-.kp-forbidden {
+.kpu-forbidden {
   padding: 48px 24px;
   text-align: center;
 }
 
-.kp-forbidden-title {
+.kpu-forbidden-title {
   font-size: 16px;
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 8px;
 }
 
-.kp-forbidden-msg {
+.kpu-forbidden-msg {
   color: var(--muted-foreground);
   margin-bottom: 16px;
   font-size: 14px;
@@ -176,11 +176,11 @@
 
 /* ── Mobile (<768px): horizontally scrollable table card ── */
 @media (max-width: 767px) {
-  .kp-tablewrap {
+  .kpu-tablewrap {
     overflow-x: auto;
   }
 
-  .kp-table {
+  .kpu-table {
     min-width: 640px;
   }
 }

@@ -280,7 +280,7 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
 // ── Dead-letter row treatment (design-plan §S5 "needs-attention") ─────────────
 
 describe('KitchenPushesPage — dead-letter row treatment', () => {
-  it('dead_letter row has the kp-row-dead-letter class for the warning tint + left rule', async () => {
+  it('dead_letter row has the kpu-row-dead-letter class for the warning tint + left rule', async () => {
     mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
     render(<KitchenPushesPage />)
     await screen.findByText('PR-20260621-002')
@@ -289,7 +289,7 @@ describe('KitchenPushesPage — dead-letter row treatment', () => {
     const table = screen.getByRole('table')
     const rows = within(table).getAllByRole('row')
     const deadRow = rows.find(r => r.textContent?.includes('PR-20260621-002'))
-    expect(deadRow?.classList.contains('kp-row-dead-letter')).toBe(true)
+    expect(deadRow?.classList.contains('kpu-row-dead-letter')).toBe(true)
   })
 
   it('dead_letter row shows the escalate hint (read-only, no retry action)', async () => {
@@ -306,7 +306,7 @@ describe('KitchenPushesPage — dead-letter row treatment', () => {
     const table = screen.getByRole('table')
     const rows = within(table).getAllByRole('row')
     const postedRow = rows.find(r => r.textContent?.includes('PR-20260621-001'))
-    expect(postedRow?.classList.contains('kp-row-dead-letter')).toBe(false)
+    expect(postedRow?.classList.contains('kpu-row-dead-letter')).toBe(false)
   })
 })
 

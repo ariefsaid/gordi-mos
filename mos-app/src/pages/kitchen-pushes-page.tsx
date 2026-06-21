@@ -127,8 +127,8 @@ export function KitchenPushesPage() {
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
       <PageFrame>
-        <div className="kp-block kp-forbidden">
-          <p className="kp-forbidden-msg">You need to sign in to view kitchen pushes.</p>
+        <div className="kpu-block kpu-forbidden">
+          <p className="kpu-forbidden-msg">You need to sign in to view kitchen pushes.</p>
           <a href="/login" className="btn btn-primary">Sign in</a>
         </div>
       </PageFrame>
@@ -140,9 +140,9 @@ export function KitchenPushesPage() {
     return (
       <PageFrame>
         <PageHead variant="content" title="Kitchen · Pushes" count={null} />
-        <div className="kp-block kp-forbidden" role="region" aria-label="Access restricted">
-          <p className="kp-forbidden-title">Pushes is available to ops leads only.</p>
-          <p className="kp-forbidden-msg">
+        <div className="kpu-block kpu-forbidden" role="region" aria-label="Access restricted">
+          <p className="kpu-forbidden-title">Pushes is available to ops leads only.</p>
+          <p className="kpu-forbidden-msg">
             The ESB outbox is visible to ops leads and admins.
           </p>
           <a href="/mos/kitchen/log" className="btn btn-outline">Back to Log</a>
@@ -162,8 +162,8 @@ export function KitchenPushesPage() {
       {load.kind === 'loading' && <LoadingState />}
 
       {load.kind === 'error' && (
-        <div className="kp-block kp-error" role="alert">
-          <p className="kp-error-msg">Couldn't load pushes — check your connection.</p>
+        <div className="kpu-block kpu-error" role="alert">
+          <p className="kpu-error-msg">Couldn't load pushes — check your connection.</p>
           <button
             type="button"
             className="btn btn-outline"
@@ -176,14 +176,14 @@ export function KitchenPushesPage() {
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <div className="kp-block kp-empty">
+        <div className="kpu-block kpu-empty">
           No pushes yet — ESB outbox is empty.
         </div>
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        <div className="kp-block kp-tablewrap">
-          <table className="kp-table">
+        <div className="kpu-block kpu-tablewrap">
+          <table className="kpu-table">
             <caption className="sr-only">Kitchen ESB push outbox</caption>
             <thead>
               <tr>
@@ -219,14 +219,14 @@ function PushRow({ row }: { row: EsbPushRow }) {
   const eCfg = envConfig(row.target_env)
 
   return (
-    <tr className={isDeadLetter ? 'kp-row-dead-letter' : undefined}>
+    <tr className={isDeadLetter ? 'kpu-row-dead-letter' : undefined}>
       {/* Batch ID (batch_id / source_ref) — mono, as per Mono-For-IDs rule */}
       <td>
         <span className="mono">{row.source_ref}</span>
       </td>
 
       {/* Endpoint */}
-      <td className="kp-cell-muted">{row.endpoint}</td>
+      <td className="kpu-cell-muted">{row.endpoint}</td>
 
       {/* target_env — shown prominently (dry_run vs real target) */}
       <td>
@@ -249,15 +249,15 @@ function PushRow({ row }: { row: EsbPushRow }) {
       <td>
         {showError && row.last_error ? (
           <>
-            <span className="kp-cell-muted">{row.last_error}</span>
+            <span className="kpu-cell-muted">{row.last_error}</span>
             {isDeadLetter && (
-              <span className="kp-escalate-hint" aria-label="Manual intervention required">
+              <span className="kpu-escalate-hint" aria-label="Manual intervention required">
                 Escalate to platform
               </span>
             )}
           </>
         ) : (
-          <span className="kp-dash">—</span>
+          <span className="kpu-dash">—</span>
         )}
       </td>
 
@@ -266,15 +266,15 @@ function PushRow({ row }: { row: EsbPushRow }) {
         {row.esb_doc_num ? (
           <span className="mono">{row.esb_doc_num}</span>
         ) : (
-          <span className="kp-dash">—</span>
+          <span className="kpu-dash">—</span>
         )}
       </td>
 
       {/* created_at — WIB-formatted, tabular */}
-      <td className="kp-time tabular">{formatDate(row.created_at)}</td>
+      <td className="kpu-time tabular">{formatDate(row.created_at)}</td>
 
       {/* posted_at — WIB-formatted, tabular; only present on posted rows */}
-      <td className="kp-time tabular">{formatTime(row.posted_at)}</td>
+      <td className="kpu-time tabular">{formatTime(row.posted_at)}</td>
     </tr>
   )
 }
@@ -283,9 +283,9 @@ function PushRow({ row }: { row: EsbPushRow }) {
 
 function LoadingState() {
   return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kp-loading kp-block">
+    <div role="status" aria-label="Loading" aria-busy="true" className="kpu-loading kpu-block">
       {[1, 2, 3].map(i => (
-        <div key={i} className="kp-skeleton" />
+        <div key={i} className="kpu-skeleton" />
       ))}
     </div>
   )
