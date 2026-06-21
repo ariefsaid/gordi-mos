@@ -75,6 +75,7 @@ export function KitchenReviewPage() {
   const [retryKey, setRetryKey] = useState(0)
 
   const [submittingId, setSubmittingId] = useState<string | null>(null)
+  const [bulkAction, setBulkAction] = useState<KitchenActionType | null>(null) // group with a batch in flight
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('') // friendly post-action confirmation / P0003 refresh
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -155,6 +156,64 @@ export function KitchenReviewPage() {
       handleDecisionError(err)
     } finally {
       setSubmittingId(null)
+    }
+  }
+
+  // ── Bulk approve (FR-043) ──────────────────────────────────────────────────
+  // "Approve all (N)" per group. Eligible = note-free ON-PLAN Submitted logs in
+  // scope (qty === plan), excluding off-plan rows that need a per-row variance note
+  // (FR-040/AC-040). There is NO bulk RPC — iterate approveKitchenLog(id, null) per
+  // eligible row (each atomic server-side). Partial outcomes: P0003 (already actioned)
+  // → drop + continue; other errors → keep the row + a succeeded/failed notice.
+  const bulkEligible = useCallback(
+    (action: KitchenActionType): ReviewLogRow[] => {
+      // Transfer groups respect the production-first gate — zero eligible while pending.
+      if (isTransfer(action) && productionPending) return []
+      return logs.filter(
+        l => l.action_type === action && l.qty_porsi === planQtyFor(planMap, l),
+      )
+    },
+    [logs, planMap, productionPending],
+  )
+
+  async function handleBulkApprove(action: KitchenActionType) {
+    if (!isOnline) return
+    const eligible = bulkEligible(action)
+    if (eligible.length === 0) return
+    setBulkAction(action)
+    setActionError('')
+    setNotice('')
+    let approved = 0
+    let failed = 0
+    let lastBatch = ''
+    const stale: string[] = [] // P0003 rows — drop them
+    for (const log of eligible) {
+      try {
+        const { batch_id } = await approveKitchenLog(log.id, null)
+        approved += 1
+        lastBatch = batch_id
+        removeRow(log.id)
+      } catch (err) {
+        if (err instanceof KitchenRpcError && err.code === 'P0003') {
+          stale.push(log.id)
+          removeRow(log.id) // someone else actioned it — drop, continue
+        } else {
+          failed += 1 // keep the row in the queue for a retry
+        }
+      }
+    }
+    setBulkAction(null)
+    if (failed > 0) {
+      setNotice(`${approved} approved · ${failed} failed — the failed rows remain in the queue.`)
+    } else if (approved > 0) {
+      setNotice(
+        approved === 1
+          ? `Approved · batch ${lastBatch}`
+          : `${approved} approved · last batch ${lastBatch}`,
+      )
+    } else if (stale.length > 0) {
+      setNotice('Already reviewed by someone else — refreshing the queue…')
+      setRetryKey(k => k + 1)
     }
   }
 
@@ -259,6 +318,8 @@ export function KitchenReviewPage() {
         <div className="kr-queue kr-block">
           {groups.map(group => {
             const transferGated = isTransfer(group.action) && productionPending
+            const eligibleCount = bulkEligible(group.action).length
+            const bulkBusy = bulkAction === group.action
             return (
               <section key={group.action} className="kr-group" aria-label={ACTION_LABEL[group.action]}>
                 <div className="kr-group-head">
@@ -269,6 +330,19 @@ export function KitchenReviewPage() {
                       <span aria-hidden="true" className="kr-info-glyph">ⓘ</span>
                       {' '}Blocked until Production approved
                     </span>
+                  )}
+                  {/* Bulk approve (FR-043): only when eligible on-plan logs exist. N counts
+                      note-free on-plan Submitted logs; off-plan rows need a per-row note. */}
+                  {eligibleCount > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-primary kr-bulk-btn"
+                      aria-label={`Approve all (${eligibleCount}) — ${ACTION_LABEL[group.action]}`}
+                      disabled={!isOnline || submittingId !== null || bulkAction !== null}
+                      onClick={() => handleBulkApprove(group.action)}
+                    >
+                      {bulkBusy ? 'Approving…' : `Approve all (${eligibleCount})`}
+                    </button>
                   )}
                 </div>
                 <table className="kr-table">

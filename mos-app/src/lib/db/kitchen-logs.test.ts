@@ -647,6 +647,10 @@ describe('rejectKitchenLog — guarded UPDATE to Rejected with a required note (
     expect(payload).not.toHaveProperty('org_id')
     // targets the row id
     expect(rec.eqs).toContainEqual(['id', 'log-1'])
+    // idempotency guard: only a still-Submitted log can be rejected — the UPDATE
+    // carries .eq('status','Submitted') so a re-reject (already actioned) is a no-op
+    // instead of clobbering an Approved/Rejected row (FR-041, mirrors approve's P0003)
+    expect(rec.eqs).toContainEqual(['status', 'Submitted'])
   })
 
   it('AC-041: requires a non-blank review note (the reject note gate)', async () => {

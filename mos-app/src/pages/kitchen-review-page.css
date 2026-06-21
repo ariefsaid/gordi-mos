@@ -83,6 +83,17 @@
 .kr-info-glyph {
   color: var(--muted-foreground);
 }
+/* Bulk "Approve all (N)" — group-header primary action (FR-043). Sits at the right
+   edge of the header; when a production-first gate banner is present it follows it. */
+.kr-bulk-btn {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 4px 12px;
+}
+/* when the gate banner already claimed margin-left:auto, the bulk button just trails it */
+.kr-group-gate ~ .kr-bulk-btn {
+  margin-left: 10px;
+}
 
 /* ── Queue table ── */
 .kr-table {
