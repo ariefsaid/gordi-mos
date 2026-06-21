@@ -634,6 +634,18 @@ Across retries, crashes, both push paths, and the migration, the system guarante
 document per batch: central `dedup_key` (one `integrations.esb_push` row per batch) + pre-switch
 GOO/dry-run-only + history-preserving migration (`posted_to_esb`/`esb_doc_num` survive). Spec NFR-001.
 
+### OD-K-5 — Kitchen Log capture screen redesign (Phase-0 mockup pick, 2026-06-21)
+Owner rejected the shipped kitchen UI (single-column 32-row steppers, no density, One-Blue violation).
+Diverged 3 directions (GLM-generated mockups, `docs/design-mockups/kitchen/`): A dense data-table,
+B floor-fast phone, C plan-vs-actual dashboard. **Owner pick: A + C-KPI + B hybrid** — one *responsive*
+Log capture screen: the **A dense data-table** (desktop/tablet ≥768px) with **C's KPI strip** on top
+(Planned total · Made so far · % complete · Items remaining), reflowing to **B's floor-fast cards** on
+phone (<768px) via the existing DataTable reflow (`shell/use-is-desktop.ts`). Mirrors the Tasks-table
+architecture; reuses `<Pill>`, `action-type-seg`, `wip-item-stepper`, `state-kit`. **Parity guardrails:**
+the KPI strip is a **derived display only** (sums + made/plan %, no new tables/persistence/logic); capture
++ submit behavior **unchanged**; **drop** A's net-new "variance note" chip. Scope = Log screen first;
+Plan/Stock/Review are fast-follows inheriting the same components.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
