@@ -1,20 +1,43 @@
-// E2E global setup — creates test users via Admin API (ADR-0002 D3).
-// Avoids GoTrue seed fragility (playbook §9): idempotent delete-then-create via service_role.
-// Runs once before all Playwright tests; stack must be up (`supabase start`).
+// E2E global setup — PMO-aligned auth model (ADR-0002 D3 + 2026-06-21 dev/e2e isolation fix).
 //
-// Note on shared.people UPDATE: service_role has no explicit UPDATE grant on shared.people
-// (only SELECT is granted to authenticated; postgres owns the table). We use the local
-// Supabase /pg/query endpoint (runs as postgres) to perform the user_id link UPDATE.
+// OLD flakiness root cause: the previous setup created SEPARATE e2e auth users and then re-pointed
+// the SHARED dev person rows (Dewi 4000…0, Cahya 4000…1, Sari 4000…4) at them on EVERY run —
+// orphaning the *.dev@example.test demo personas, so the owner's one-click dev login broke after any
+// `npx playwright test`. PMO never had this: it logs e2e in as the seeded demo users and never
+// re-links per run. We now do the same on MOS's single local stack.
+//
+// This setup is ADDITIVE / idempotent toward dev:
+//   • ensures every *.dev@example.test persona has an auth user (CREATE-IF-MISSING, never delete)
+//     and is linked to its shared.people row → running e2e now HEALS dev login instead of breaking it;
+//   • e2e specs log in AS the dev personas (VIEWER = cahya.dev, MANAGER = dewi.dev);
+//   • only the dedicated, e2e-OWNED users (ORPHAN, RECOVERY) are delete-then-create — they touch NO
+//     dev person row, so the destructive AC-005 password rotation can't affect any dev login.
+//
+// shared.people writes go via the local /pg/query endpoint (postgres role): service_role has only
+// SELECT on shared.people. This endpoint is local-only — never available in production.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { VIEWER, ORPHAN, RECOVERY_VIEWER, MANAGER } from './fixtures/users'
+import { ORPHAN, RECOVERY_VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
+
+const ORG = '10000000-0000-0000-0000-000000000001'
+
+// The seeded dev personas e2e logs in as / heals. Mirrors supabase/seed.sql + DemoLogin.tsx.
+const DEV_PASSWORD = 'Passw0rd!dev'
+const DEV_PERSONAS = [
+  'dewi.dev@example.test',
+  'cahya.dev@example.test',
+  'krishna.dev@example.test',
+  'rama.dev@example.test',
+  'sari.dev@example.test',
+  'fitri.dev@example.test',
+]
 
 function loadEnvFile(path: string): Record<string, string> {
   try {
@@ -25,9 +48,7 @@ function loadEnvFile(path: string): Record<string, string> {
       if (!trimmed || trimmed.startsWith('#')) continue
       const eq = trimmed.indexOf('=')
       if (eq === -1) continue
-      const key = trimmed.slice(0, eq).trim()
-      const val = trimmed.slice(eq + 1).trim()
-      vars[key] = val
+      vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
     }
     return vars
   } catch {
@@ -37,11 +58,13 @@ function loadEnvFile(path: string): Record<string, string> {
 
 // Load .env.e2e (preferred) then fall back to process.env
 const envFile = loadEnvFile(resolve(__dir, '../.env.e2e'))
-const SUPABASE_URL = envFile.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:55321'
+const SUPABASE_URL = envFile.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
 const SERVICE_ROLE_KEY = envFile.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function deleteUserByEmail(adminClient: SupabaseClient<any, any, any, any, any>, email: string) {
+type Admin = SupabaseClient<any, any, any, any, any>
+
+async function deleteUserByEmail(adminClient: Admin, email: string) {
   const { data, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
   if (error) {
     console.warn(`[global-setup] listUsers error: ${error.message}`)
@@ -50,26 +73,34 @@ async function deleteUserByEmail(adminClient: SupabaseClient<any, any, any, any,
   const existing = data.users.find((u) => u.email === email)
   if (existing) {
     const { error: delErr } = await adminClient.auth.admin.deleteUser(existing.id)
-    if (delErr) {
-      console.warn(`[global-setup] deleteUser(${email}) error: ${delErr.message}`)
-    } else {
-      console.log(`[global-setup] deleted existing user: ${email}`)
-    }
+    if (delErr) console.warn(`[global-setup] deleteUser(${email}) error: ${delErr.message}`)
+    else console.log(`[global-setup] deleted existing user: ${email}`)
   }
 }
 
+/** Create the auth user only if it doesn't already exist (idempotent; never deletes/rotates). */
+async function ensureUser(
+  adminClient: Admin,
+  existing: { id: string; email?: string }[],
+  email: string,
+  password: string,
+): Promise<string> {
+  const found = existing.find((u) => u.email === email)
+  if (found) return found.id
+  const { data, error } = await adminClient.auth.admin.createUser({ email, password, email_confirm: true })
+  if (error) throw new Error(`[global-setup] createUser ${email} failed: ${error.message}`)
+  console.log(`[global-setup] created missing user: ${email}`)
+  return data.user.id
+}
+
 /**
- * Execute a SQL statement via the local Supabase /pg/query endpoint (runs as postgres role).
- * Used to UPDATE shared.people.user_id since service_role lacks the write grant on custom schemas.
- * This endpoint is only exposed by the local dev stack — not available in production.
+ * Execute SQL via the local Supabase /pg/query endpoint (runs as postgres). Used for shared.people
+ * writes since service_role lacks the grant on custom schemas. Local-only — not available in prod.
  */
 async function execSql(url: string, serviceKey: string, query: string): Promise<void> {
   const res = await fetch(`${url}/pg/query`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: serviceKey,
-    },
+    headers: { 'Content-Type': 'application/json', apikey: serviceKey },
     body: JSON.stringify({ query }),
   })
   if (!res.ok) {
@@ -88,26 +119,25 @@ export default async function globalSetup() {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
-  // ── VIEWER (e2e.viewer@example.test → linked to Cahya Cafe person row) ──────
-  await deleteUserByEmail(adminClient, VIEWER.email)
-  const { data: viewerData, error: viewerErr } = await adminClient.auth.admin.createUser({
-    email: VIEWER.email,
-    password: VIEWER.password,
-    email_confirm: true,
-  })
-  if (viewerErr) throw new Error(`[global-setup] createUser VIEWER failed: ${viewerErr.message}`)
-  const viewerUid = viewerData.user.id
-  console.log(`[global-setup] created VIEWER user: ${VIEWER.email} (uid=${viewerUid})`)
+  const { data: list, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+  if (listErr) throw new Error(`[global-setup] listUsers failed: ${listErr.message}`)
+  const existingUsers = list.users
 
-  // Link VIEWER auth user to the Cahya Cafe people row via /pg/query (postgres role, bypasses grants)
+  // ── 1. Ensure the dev personas exist + are linked (SELF-HEALING; never deletes) ───────────────
+  // e2e logs in as these; ensuring them here also repairs the owner's dev login on every run.
+  for (const email of DEV_PERSONAS) {
+    await ensureUser(adminClient, existingUsers, email, DEV_PASSWORD)
+  }
   await execSql(
     SUPABASE_URL,
     SERVICE_ROLE_KEY,
-    `UPDATE shared.people SET user_id = '${viewerUid}' WHERE id = '${VIEWER.personId}'`,
+    `UPDATE shared.people p SET user_id = u.id
+       FROM auth.users u
+      WHERE u.email = p.email AND p.email LIKE '%.dev@example.test'`,
   )
-  console.log(`[global-setup] linked VIEWER uid to person ${VIEWER.personId}`)
+  console.log('[global-setup] ensured + linked all *.dev personas (dev login self-healed)')
 
-  // ── ORPHAN (e2e.orphan@example.test → no people link, user_id stays NULL) ───
+  // ── 2. ORPHAN (dedicated e2e user, NO people link → orphan screen) ─────────────────────────────
   await deleteUserByEmail(adminClient, ORPHAN.email)
   const { error: orphanErr } = await adminClient.auth.admin.createUser({
     email: ORPHAN.email,
@@ -117,89 +147,49 @@ export default async function globalSetup() {
   if (orphanErr) throw new Error(`[global-setup] createUser ORPHAN failed: ${orphanErr.message}`)
   console.log(`[global-setup] created ORPHAN user: ${ORPHAN.email} (no people link)`)
 
-  // ── RECOVERY_VIEWER (e2e.recovery@example.test → linked to Sari Sales person row) ──
-  // Dedicated fixture for AC-005 recovery journey — password rotation in that test will NOT
-  // affect VIEWER, keeping auth-password-login and auth-signout-back stable.
+  // ── 3. RECOVERY (dedicated e2e user + dedicated e2e person row) ────────────────────────────────
+  // AC-005 rotates this password — isolated from the dev canon so it can't break any dev login.
+  // delete-then-create resets the password drift from the previous run.
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.people (id, org_id, full_name, email)
+     VALUES ('${RECOVERY_VIEWER.personId}', '${ORG}', '${RECOVERY_VIEWER.displayName}', '${RECOVERY_VIEWER.email}')
+     ON CONFLICT (id) DO NOTHING`,
+  )
   await deleteUserByEmail(adminClient, RECOVERY_VIEWER.email)
   const { data: recoveryData, error: recoveryErr } = await adminClient.auth.admin.createUser({
     email: RECOVERY_VIEWER.email,
     password: RECOVERY_VIEWER.password,
     email_confirm: true,
   })
-  if (recoveryErr) throw new Error(`[global-setup] createUser RECOVERY_VIEWER failed: ${recoveryErr.message}`)
-  const recoveryUid = recoveryData.user.id
-  console.log(`[global-setup] created RECOVERY_VIEWER user: ${RECOVERY_VIEWER.email} (uid=${recoveryUid})`)
-
+  if (recoveryErr) throw new Error(`[global-setup] createUser RECOVERY failed: ${recoveryErr.message}`)
   await execSql(
     SUPABASE_URL,
     SERVICE_ROLE_KEY,
-    `UPDATE shared.people SET user_id = '${recoveryUid}' WHERE id = '${RECOVERY_VIEWER.personId}'`,
+    `UPDATE shared.people SET user_id = '${recoveryData.user.id}' WHERE id = '${RECOVERY_VIEWER.personId}'`,
   )
-  console.log(`[global-setup] linked RECOVERY_VIEWER uid to person ${RECOVERY_VIEWER.personId}`)
+  console.log(`[global-setup] created + linked RECOVERY user → dedicated person ${RECOVERY_VIEWER.personId}`)
 
-  // ── MANAGER (e2e.manager@example.test → linked to Dewi Director person row) ──
-  // Dewi Director holds the Managing Director role; Cahya (VIEWER) holds roles that report to it.
-  // Ensures MANAGER resolves isManager=true for the team-module e2e assertion.
-  // Idempotent: delete-then-create.
-  await deleteUserByEmail(adminClient, MANAGER.email)
-  const { data: managerData, error: managerErr } = await adminClient.auth.admin.createUser({
-    email: MANAGER.email,
-    password: MANAGER.password,
-    email_confirm: true,
-  })
-  if (managerErr) throw new Error(`[global-setup] createUser MANAGER failed: ${managerErr.message}`)
-  const managerUid = managerData.user.id
-  console.log(`[global-setup] created MANAGER user: ${MANAGER.email} (uid=${managerUid})`)
-
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `UPDATE shared.people SET user_id = '${managerUid}' WHERE id = '${MANAGER.personId}'`,
-  )
-  console.log(`[global-setup] linked MANAGER uid to person ${MANAGER.personId}`)
-
-  // Ensure VIEWER's person (Cahya Cafe) holds their roles so Dewi's isManager resolves correctly.
-  // The person_roles rows are seeded by supabase/seed.sql; this is an idempotent guard to ensure
-  // the junction rows exist even if seed ran before person rows had UUIDs set.
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `INSERT INTO shared.person_roles (org_id, person_id, role_id)
-     VALUES
-       ('10000000-0000-0000-0000-000000000001','${MANAGER.personId}','30000000-0000-0000-0000-000000000000'),
-       ('10000000-0000-0000-0000-000000000001','${VIEWER.personId}','30000000-0000-0000-0000-000000000001'),
-       ('10000000-0000-0000-0000-000000000001','${VIEWER.personId}','30000000-0000-0000-0000-000000000004')
-     ON CONFLICT (person_id, role_id) DO NOTHING`,
-  )
-  console.log('[global-setup] ensured MANAGER and VIEWER person_roles rows exist (idempotent)')
-
-  // ── Clear mos.weekly_updates for P2-2 e2e journeys (idempotent clean slate) ──
-  // Each e2e run starts with no weekly updates so write→submit→review journeys are deterministic.
+  // ── 4. Clear mos.weekly_updates for P2-2 e2e journeys (idempotent clean slate) ─────────────────
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.weekly_update_items
-     WHERE org_id = '10000000-0000-0000-0000-000000000001';
-    DELETE FROM mos.weekly_updates
-     WHERE org_id = '10000000-0000-0000-0000-000000000001';
+    DELETE FROM mos.weekly_update_items WHERE org_id = '${ORG}';
+    DELETE FROM mos.weekly_updates      WHERE org_id = '${ORG}';
   `)
   console.log('[global-setup] cleared mos.weekly_updates for e2e org')
 
-  // ── Clear ops.log_entries for P2-3 e2e journeys (idempotent clean slate) ──
-  // The AC-090/091 journeys create entries; wipe them so re-runs are deterministic.
+  // ── 5. Clear ops.log_entries for P2-3 e2e journeys (idempotent clean slate) ────────────────────
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM ops.log_entries
-     WHERE org_id = '10000000-0000-0000-0000-000000000001';
+    DELETE FROM ops.log_entries WHERE org_id = '${ORG}';
   `)
   console.log('[global-setup] cleared ops.log_entries for e2e org')
 
-  // ── Seed mos.tasks for P2-1c e2e journeys ──────────────────────────────────
-  // Deterministic: delete all mos.tasks for the Gordi e2e org, then seed fixed rows.
-  // (service_role bypasses RLS via postgres; the org_id is fixed in seed.sql.)
+  // ── 6. Seed mos.tasks for P2-1c e2e journeys (deterministic clean slate) ───────────────────────
   const orgId = TASKS.VIEWER_ACCOUNTABLE.orgId
-
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.task_events         WHERE org_id = '${orgId}';
+    DELETE FROM mos.task_events          WHERE org_id = '${orgId}';
     DELETE FROM mos.task_checklist_items WHERE org_id = '${orgId}';
-    DELETE FROM mos.tasks               WHERE org_id = '${orgId}';
+    DELETE FROM mos.tasks                WHERE org_id = '${orgId}';
   `)
   console.log('[global-setup] cleared mos.tasks for e2e org')
 
