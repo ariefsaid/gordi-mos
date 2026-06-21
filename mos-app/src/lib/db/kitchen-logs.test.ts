@@ -19,6 +19,7 @@ import {
   listActiveWipItems,
   fetchPlanMap,
   fetchStockMap,
+  fetchKitchenStock,
   resolveKitchenBuId,
   KITCHEN_BU_NAME,
   insertKitchenLog,
@@ -416,17 +417,20 @@ describe('resolveKitchenBuId — resolves the Kitchen and Bar business unit by n
 })
 
 // ── fetchStockMap — stock + availability per item (#4, FR-022/023, AC-022) ─────
-describe('fetchStockMap — stock + tersedia per WIP item (FR-022/023)', () => {
-  it('calls the ops stock_available_for_date function and maps stok/tersedia by item', async () => {
+// FIX 1: wired to the corrected #45 contract — ops.kitchen_stock_for_date(p_as_of)
+// returning { wip_item_id, usable_qty, available_qty }, mapped to the StockMap shape
+// { stok: usable_qty, tersedia: available_qty }.
+describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_date (FR-022/023)', () => {
+  it('calls ops.kitchen_stock_for_date(p_as_of) and maps usable_qty/available_qty by item', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          stock_available_for_date: [
+          kitchen_stock_for_date: [
             {
               data: [
-                { wip_item_id: 'w1', stok: 3, tersedia: 9 },
-                { wip_item_id: 'w2', stok: 0, tersedia: 0 },
+                { wip_item_id: 'w1', usable_qty: 3, available_qty: 9 },
+                { wip_item_id: 'w2', usable_qty: 0, available_qty: 0 },
               ],
               error: null,
             },
@@ -439,14 +443,14 @@ describe('fetchStockMap — stock + tersedia per WIP item (FR-022/023)', () => {
     const map = await fetchStockMap('2026-06-20')
     expect(map['w1']).toEqual({ stok: 3, tersedia: 9 })
     expect(map['w2']).toEqual({ stok: 0, tersedia: 0 })
-    // dispatched to the #45 contract: stock_available_for_date(p_date)
-    expect(rec.rpcCalls).toContainEqual(['stock_available_for_date', { p_date: '2026-06-20' }])
+    // dispatched to the corrected #45 contract: kitchen_stock_for_date(p_as_of)
+    expect(rec.rpcCalls).toContainEqual(['kitchen_stock_for_date', { p_as_of: '2026-06-20' }])
   })
 
   it('returns an empty map when no stock rows', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema({ stock_available_for_date: [{ data: [], error: null }] }, rec) as never,
+      makeSchema({ kitchen_stock_for_date: [{ data: [], error: null }] }, rec) as never,
     )
     const map = await fetchStockMap('2026-06-20')
     expect(Object.keys(map)).toHaveLength(0)
@@ -456,11 +460,101 @@ describe('fetchStockMap — stock + tersedia per WIP item (FR-022/023)', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
-        { stock_available_for_date: [{ data: null, error: { message: 'fn missing' } }] },
+        { kitchen_stock_for_date: [{ data: null, error: { message: 'fn missing' } }] },
         rec,
       ) as never,
     )
     await expect(fetchStockMap('2026-06-20')).rejects.toThrow('fetchStockMap failed')
+  })
+})
+
+// ── fetchKitchenStock — the read-only Stock view's list shape (S4, FR-060/061) ─
+describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/061)', () => {
+  it('joins active WIP item names with kitchen_stock_for_date rows (stok/tersedia)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          // listActiveWipItems read
+          wip_items: [
+            {
+              data: [
+                { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+                { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+              ],
+              error: null,
+            },
+          ],
+          // kitchen_stock_for_date rpc
+          kitchen_stock_for_date: [
+            {
+              data: [
+                { wip_item_id: 'w1', usable_qty: 12, available_qty: 8 },
+                { wip_item_id: 'w2', usable_qty: -3, available_qty: -3 },
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+
+    const rows = await fetchKitchenStock('2026-06-20')
+    expect(rec.rpcCalls).toContainEqual(['kitchen_stock_for_date', { p_as_of: '2026-06-20' }])
+    expect(rows).toEqual([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8 },
+      // negative balances preserved, not clamped (FR-061, AC-032)
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: -3, tersedia: -3 },
+    ])
+  })
+
+  it('lists every active item even when it has no stock row (defaults to 0/0)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          wip_items: [
+            { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
+          ],
+          kitchen_stock_for_date: [{ data: [], error: null }],
+        },
+        rec,
+      ) as never,
+    )
+    const rows = await fetchKitchenStock('2026-06-20')
+    expect(rows).toEqual([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0 },
+    ])
+  })
+
+  it('returns [] when there are no active items', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          wip_items: [{ data: [], error: null }],
+          kitchen_stock_for_date: [{ data: [], error: null }],
+        },
+        rec,
+      ) as never,
+    )
+    const rows = await fetchKitchenStock('2026-06-20')
+    expect(rows).toEqual([])
+  })
+
+  it('throws on a stock-fetch error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          wip_items: [{ data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null }],
+          kitchen_stock_for_date: [{ data: null, error: { message: 'fn missing' } }],
+        },
+        rec,
+      ) as never,
+    )
+    await expect(fetchKitchenStock('2026-06-20')).rejects.toThrow('fetchStockMap failed')
   })
 })
 

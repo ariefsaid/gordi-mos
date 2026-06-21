@@ -61,6 +61,20 @@ export interface ItemStock {
 // Stock keyed by wip_item_id for O(1) lookup in the capture form.
 export type StockMap = Record<string, ItemStock>
 
+// ── Stock view (S4) — one display row per active WIP item ─────────────────────
+// The read-only Stock view (FR-060/061) lists every active WIP item with its two
+// cuts for the selected date: `stok` (usable_qty) and `tersedia` (available_qty).
+// Negative balances are preserved (they surface real data issues — FR-061/AC-032).
+export interface KitchenStockRow {
+  wip_item_id: string
+  /** WIP item display name (from ops.wip_items). */
+  wip_item_name: string
+  /** usable_qty — the net of approved logs for the date (FR-060). */
+  stok: number
+  /** available_qty — usable net of transfers already committed (FR-061). */
+  tersedia: number
+}
+
 // ── ops.kitchen_logs (insert payload) ────────────────────────────────────────
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.

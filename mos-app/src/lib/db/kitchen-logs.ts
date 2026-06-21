@@ -14,6 +14,7 @@ import type {
   KitchenActionType,
   ReviewLogRow,
   ApproveResult,
+  KitchenStockRow,
 } from './kitchen-logs.types'
 
 const ops = () => supabase.schema('ops')
@@ -95,22 +96,66 @@ export async function resolveKitchenBuId(): Promise<string> {
 // ── Kitchen stock + availability (#4, FR-022/023) ─────────────────────────────
 
 /**
- * Fetch per-item stock + availability for a date via the #45 DB substrate's
- * `ops.stock_available_for_date(p_date)` function (built but not deployed in this
- * worktree — unit-tested with mocked data, same as the other reads here).
- * Returns a StockMap: { [wip_item_id]: { stok, tersedia } }.
+ * The corrected #45 stock contract row (one per active WIP item, org-scoped by RLS):
+ *   ops.kitchen_stock_for_date(p_as_of date)
+ *     returns table(wip_item_id uuid, usable_qty numeric, available_qty numeric)
+ * `usable_qty` → `stok` (FR-022 effective-target basis); `available_qty` → `tersedia`
+ * (FR-023 transfer cap basis). Negative balances are preserved (FR-061/AC-032).
+ */
+interface StockForDateRow {
+  wip_item_id: string
+  usable_qty: number
+  available_qty: number
+}
+
+/**
+ * Fetch the corrected #45 stock rows for a date.
+ * Calls `ops.kitchen_stock_for_date(p_as_of)` (the corrected signature — the prior
+ * `stock_available_for_date(p_date)` form did not exist and failed at runtime).
+ * Returns one row per active WIP item; RLS scopes them to the caller's org.
+ */
+async function fetchStockForDate(asOf: string): Promise<StockForDateRow[]> {
+  const { data, error } = await ops().rpc('kitchen_stock_for_date', { p_as_of: asOf })
+  if (error) throw new Error(`fetchStockMap failed — ${error.message}`)
+  return (data ?? []) as StockForDateRow[]
+}
+
+/**
+ * Fetch per-item stock + availability for a date as a StockMap keyed by wip_item_id
+ * for O(1) lookup in the capture form (S1). Maps the corrected #45 contract's
+ * `usable_qty`/`available_qty` → the existing `{ stok, tersedia }` shape.
  * `tersedia` (FR-023) is the transfer-availability the stepper caps against;
  * `stok` (FR-022) feeds the effective-target `max(plan − stok, 0)`.
  */
 export async function fetchStockMap(logDate: string): Promise<StockMap> {
-  const { data, error } = await ops().rpc('stock_available_for_date', { p_date: logDate })
-  if (error) throw new Error(`fetchStockMap failed — ${error.message}`)
-  const rows = (data ?? []) as { wip_item_id: string; stok: number; tersedia: number }[]
+  const rows = await fetchStockForDate(logDate)
   const map: StockMap = {}
   for (const row of rows) {
-    map[row.wip_item_id] = { stok: row.stok, tersedia: row.tersedia } satisfies ItemStock
+    map[row.wip_item_id] = { stok: row.usable_qty, tersedia: row.available_qty } satisfies ItemStock
   }
   return map
+}
+
+/**
+ * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061).
+ * Lists **every active WIP item** (FR-011, sorted by name) with its two cuts —
+ * `stok` (usable_qty) and `tersedia` (available_qty) — for the selected date.
+ * An active item with no stock row defaults to 0/0 (it simply has no approved
+ * activity yet). Negative balances are preserved, never clamped (FR-061/AC-032).
+ * Reuses `fetchStockForDate` + `listActiveWipItems` (DRY with the capture path).
+ */
+export async function fetchKitchenStock(asOf: string): Promise<KitchenStockRow[]> {
+  const [items, stockRows] = await Promise.all([listActiveWipItems(), fetchStockForDate(asOf)])
+  const byItem = new Map(stockRows.map(r => [r.wip_item_id, r]))
+  return items.map(item => {
+    const s = byItem.get(item.id)
+    return {
+      wip_item_id: item.id,
+      wip_item_name: item.name,
+      stok: s?.usable_qty ?? 0,
+      tersedia: s?.available_qty ?? 0,
+    }
+  })
 }
 
 // ── Kitchen log insert ────────────────────────────────────────────────────────
