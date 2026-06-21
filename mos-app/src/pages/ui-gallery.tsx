@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { IconButton, Tag, Avatar, Chip, TextInput, Checkbox, Toggle } from '@/components/ui'
+import { IconButton } from '@/components/ui/icon-button'
+import { Tag } from '@/components/ui/tag'
+import { Avatar } from '@/components/ui/avatar'
+import { Chip } from '@/components/ui/chip'
+import { TextInput } from '@/components/ui/text-input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
 
