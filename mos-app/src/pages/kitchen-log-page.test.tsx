@@ -300,9 +300,12 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
   })
 })
 
-// ── AC-022: transfer-availability cap (FR-023) ────────────────────────────────
-describe('AC-022: transfer-availability cap — "Stok kurang — produksi dulu" (FR-023)', () => {
-  it('AC-022: a Transfer line whose qty exceeds tersedia is capped + shows the produce-first cue', async () => {
+// ── AC-022: transfer over-availability REJECTS the submit (FR-023) ─────────────
+// Parity with the OLD app (app/main.py ~L618-661): an over-`tersedia` transfer is a
+// HARD STOP ("Produksi dulu sebelum transfer"), NOT a silent clamp. The typed qty is
+// kept; Submit is blocked + the offending line shows the produce-first cue.
+describe('AC-022: transfer over-availability rejects submit — "Stok kurang — produksi dulu" (FR-023)', () => {
+  it('AC-022: an over-tersedia Transfer qty is NOT clamped — keeps the typed value + shows the cue', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -315,7 +318,7 @@ describe('AC-022: transfer-availability cap — "Stok kurang — produksi dulu" 
     // The qty input for Ayam Bakar (w1)
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
 
-    // Type 10 (exceeds tersedia 9) — the line caps to 9 and shows the cue
+    // Type 10 (exceeds tersedia 9) — the value is KEPT (not clamped) and the cue shows
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '10' } })
       await Promise.resolve()
@@ -324,8 +327,65 @@ describe('AC-022: transfer-availability cap — "Stok kurang — produksi dulu" 
     await waitFor(() => {
       expect(screen.getByText(/stok kurang — produksi dulu/i)).toBeInTheDocument()
     })
-    // Capped to the available total (9), not 10 (AC-022 — cap, not bypass)
-    expect((qtyInput as HTMLInputElement).value).toBe('9')
+    // NOT clamped: the input keeps the real typed value (10), unlike the old silent-cap behavior
+    expect((qtyInput as HTMLInputElement).value).toBe('10')
+  })
+
+  it('AC-022: an over-tersedia Transfer line blocks Submit (button disabled)', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+      await Promise.resolve()
+    })
+
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '10' } }) // > tersedia 9
+      await Promise.resolve()
+    })
+
+    // Submit is blocked while the line exceeds availability
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).toBeDisabled()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+
+  it('AC-022: an at-tersedia Transfer qty submits fine (no reject)', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+      await Promise.resolve()
+    })
+
+    // w1: plan 10, stok 3 → effective target 7; tersedia 9. Log 9 with a note (off-target
+    // 9 != 7 needs a note, but 9 <= tersedia so it's NOT rejected for availability).
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '9' } })
+      await Promise.resolve()
+    })
+    expect(screen.queryByText(/stok kurang/i)).toBeNull()
+    const note = screen.getByRole('textbox', { name: /note for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(note, { target: { value: 'extra ship' } })
+      await Promise.resolve()
+    })
+
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).not.toBeDisabled()
+    await act(async () => {
+      fireEvent.click(submit)
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ wip_item_id: 'w1', qty_porsi: 9, action_type: 'Transfer to Radiant' }),
+    ])
   })
 
   it('AC-022: a Transfer of <= tersedia is allowed with no cap cue', async () => {

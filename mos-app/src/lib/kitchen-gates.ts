@@ -2,8 +2,10 @@
 // The two FR-022/023 gates the S1 Log screen enforces inline:
 //  - Variance-note gate (FR-022): a note is required when qty != the EFFECTIVE
 //    target. For stock-consuming actions the effective target is max(plan − stok, 0).
-//  - Transfer-availability cap (FR-023, AC-022): a Transfer line cannot exceed the
-//    available stock (`tersedia`); excess is capped and a "produce first" cue shows.
+//  - Transfer-availability REJECT (FR-023, AC-022): a Transfer line cannot exceed the
+//    available stock (`tersedia`). Over-availability is a HARD STOP — the typed qty is
+//    kept, Submit is blocked, and a "produce first" cue shows (parity with the OLD app's
+//    "Produksi dulu sebelum transfer" — it never silently caps the entered amount).
 // Kept pure + co-located so the AC-020/021/022 unit tests prove the rules, not mocks.
 
 import type { KitchenActionType, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
@@ -40,25 +42,17 @@ export function needsVarianceNote(line: KitchenLogLine, action: KitchenActionTyp
   return line.qty_porsi !== target
 }
 
-/** FR-023 / AC-022: a transfer line whose qty exceeds available stock (`tersedia`). */
+/**
+ * FR-023 / AC-022: a transfer line whose qty exceeds available stock (`tersedia`).
+ * When true the submit is REJECTED (the offending line shows TRANSFER_SHORT_CUE and
+ * Submit is disabled) — the entered qty is never silently capped. `tersedia` is the
+ * hard ceiling; since the Log screen shows one action_type at a time there is one
+ * transfer line per item, so the line's own qty vs its tersedia is the full check.
+ */
 export function transferExceedsAvailable(
   line: KitchenLogLine,
   action: KitchenActionType,
 ): boolean {
   if (!isStockConsuming(action)) return false
   return line.qty_porsi > line.tersedia
-}
-
-/**
- * FR-023 / AC-022: cap a transfer qty at the available total. Non-transfers pass
- * through untouched. Multi-line submits of the same item must not bypass the cap —
- * the caller caps per line and the available total is the hard ceiling.
- */
-export function cappedTransferQty(
-  qty: number,
-  tersedia: number,
-  action: KitchenActionType,
-): number {
-  if (!isStockConsuming(action)) return qty
-  return Math.min(qty, tersedia)
 }

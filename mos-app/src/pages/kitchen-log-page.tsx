@@ -1,7 +1,8 @@
 // KitchenLogPage — /mos/kitchen/log — S1 Kitchen Log capture (phone-first).
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S1.
 // Proves (unit layer): AC-020/021 (variance-note gate), AC-022 (transfer-availability
-// cap), AC-030 (increment-semantics submit payload — no status/org_id/submitted_by).
+// REJECT — over-tersedia keeps the typed qty + blocks Submit, parity with the OLD app),
+// AC-030 (increment-semantics submit payload — no status/org_id/submitted_by).
 // (AC-090/091 are the e2e cross-stack journeys — owned at the Playwright layer, not here.)
 // - Phone-first (≤640px): pinned 44px submit bar, full-width steppers.
 // - Desktop (≥768px): centered ~720px, un-pinned submit at form foot.
@@ -32,7 +33,6 @@ import type {
 import {
   needsVarianceNote,
   transferExceedsAvailable,
-  cappedTransferQty,
   VARIANCE_NOTE_CUE,
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
@@ -172,14 +172,12 @@ export function KitchenLogPage() {
   function handleQtyChange(itemId: string, qty: number) {
     setLines(prev => {
       const cur = prev[itemId]
-      // FR-023 / AC-022: cap a transfer line at the available total (multi-line safe).
-      const capped = cappedTransferQty(qty, cur.tersedia, actionType)
-      // The requested qty hit the availability ceiling — surface "produce first" even
-      // though the value is now capped (the cue explains WHY they can't go higher).
-      const hitCap = capped < qty
-      const staged = capped > 0
-      const gated = gateLine({ ...cur, qty_porsi: capped, dirty: staged }, actionType)
-      return { ...prev, [itemId]: { ...gated, capError: hitCap ? TRANSFER_SHORT_CUE : gated.capError } }
+      // FR-023 / AC-022: do NOT clamp — keep the entered qty. An over-`tersedia` transfer
+      // sets capError (TRANSFER_SHORT_CUE) which blocks Submit (parity with the OLD app's
+      // hard stop "Produksi dulu sebelum transfer"); the user types the real number.
+      const staged = qty > 0
+      const gated = gateLine({ ...cur, qty_porsi: qty, dirty: staged }, actionType)
+      return { ...prev, [itemId]: gated }
     })
   }
 
@@ -319,7 +317,13 @@ export function KitchenLogPage() {
   }
 
   const isSubmitting = status.kind === 'submitting'
-  const stagedCount = Object.values(lines).filter(l => l.qty_porsi > 0).length
+  const stagedLines = Object.values(lines).filter(l => l.qty_porsi > 0)
+  const stagedCount = stagedLines.length
+  // FR-023 / AC-022: an over-`tersedia` transfer line is a hard stop — Submit stays
+  // disabled while any staged line exceeds availability (the line shows the cue).
+  const hasBlockingError = stagedLines.some(
+    l => transferExceedsAvailable(l, actionType),
+  )
 
   return (
     <PageFrame>
@@ -387,7 +391,12 @@ export function KitchenLogPage() {
 
           {/* Desktop: un-pinned submit at form foot */}
           <div className="kl-submit-desktop">
-            <SubmitButton stagedCount={stagedCount} isSubmitting={isSubmitting} isOnline={isOnline} />
+            <SubmitButton
+              stagedCount={stagedCount}
+              isSubmitting={isSubmitting}
+              isOnline={isOnline}
+              blocked={hasBlockingError}
+            />
           </div>
         </form>
 
@@ -397,6 +406,7 @@ export function KitchenLogPage() {
             stagedCount={stagedCount}
             isSubmitting={isSubmitting}
             isOnline={isOnline}
+            blocked={hasBlockingError}
             formId="kitchen-log-form"
           />
         </div>
@@ -420,14 +430,17 @@ function SubmitButton({
   stagedCount,
   isSubmitting,
   isOnline,
+  blocked = false,
   formId,
 }: {
   stagedCount: number
   isSubmitting: boolean
   isOnline: boolean
+  /** true when a staged line exceeds transfer availability (FR-023 hard stop) */
+  blocked?: boolean
   formId?: string
 }) {
-  const disabled = isSubmitting || !isOnline || stagedCount === 0
+  const disabled = isSubmitting || !isOnline || stagedCount === 0 || blocked
   return (
     <button
       type="submit"

@@ -1,14 +1,14 @@
 // Kitchen capture gate logic — pure functions, TDD (AC-tagged).
 // Proves: effective target = max(plan − stok, 0) for stock-consuming actions (FR-022),
 // the variance-note gate against THAT target (AC-020/021), and the transfer-availability
-// cap against `tersedia` (FR-023, AC-022 — the real proof).
+// REJECT against `tersedia` (FR-023, AC-022 — over-availability blocks submit, never caps;
+// matches the OLD app's hard-stop "Produksi dulu sebelum transfer").
 
 import { describe, it, expect } from 'vitest'
 import {
   isStockConsuming,
   effectiveTarget,
   needsVarianceNote,
-  cappedTransferQty,
   transferExceedsAvailable,
 } from './kitchen-gates'
 import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
@@ -72,23 +72,14 @@ describe('needsVarianceNote — note required when qty != effective target (FR-0
   })
 })
 
-describe('transferExceedsAvailable + cappedTransferQty — FR-023 / AC-022', () => {
-  it('AC-022: a Transfer of 10 against tersedia 8 exceeds availability', () => {
+describe('transferExceedsAvailable — FR-023 / AC-022 (reject, not cap)', () => {
+  it('AC-022: a Transfer of 10 against tersedia 8 exceeds availability (→ rejects submit)', () => {
     expect(transferExceedsAvailable(line({ qty_porsi: 10, tersedia: 8 }), 'Transfer to Radiant')).toBe(true)
   })
   it('AC-022: a Transfer of <= tersedia is allowed', () => {
     expect(transferExceedsAvailable(line({ qty_porsi: 8, tersedia: 8 }), 'Transfer to Radiant')).toBe(false)
   })
-  it('Production is never capped by tersedia (it makes stock)', () => {
+  it('Production is never gated by tersedia (it makes stock)', () => {
     expect(transferExceedsAvailable(line({ qty_porsi: 999, tersedia: 0 }), 'Production')).toBe(false)
-  })
-  it('AC-022: cappedTransferQty caps a transfer to the available total', () => {
-    expect(cappedTransferQty(10, 8, 'Transfer to Radiant')).toBe(8)
-  })
-  it('AC-022: cappedTransferQty leaves an under-cap qty untouched', () => {
-    expect(cappedTransferQty(5, 8, 'Transfer to Radiant')).toBe(5)
-  })
-  it('cappedTransferQty does not cap Production', () => {
-    expect(cappedTransferQty(50, 8, 'Production')).toBe(50)
   })
 })
