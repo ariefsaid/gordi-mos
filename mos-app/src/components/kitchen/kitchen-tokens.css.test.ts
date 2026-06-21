@@ -11,14 +11,17 @@ import { resolve, join } from 'node:path'
 
 const SRC = resolve(process.cwd(), 'src')
 
-// Kitchen CSS surfaces (co-located .css for the page + components).
+// Kitchen CSS surfaces — GLOBBED so a NEW kitchen .css (page or component) is
+// auto-covered by this guard the moment it lands (no manual list to drift). Covers
+// every `pages/kitchen-*.css` (log/plan/review/stock/pushes) + every
+// `components/kitchen/*.css`.
 const KITCHEN_CSS = [
-  join(SRC, 'pages', 'kitchen-log-page.css'),
-  join(SRC, 'pages', 'kitchen-review-page.css'),
-  join(SRC, 'pages', 'kitchen-stock-page.css'),
-  join(SRC, 'components', 'kitchen', 'wip-item-stepper.css'),
-  join(SRC, 'components', 'kitchen', 'action-type-seg.css'),
-  join(SRC, 'components', 'kitchen', 'kitchen-review-row.css'),
+  ...readdirSync(join(SRC, 'pages'))
+    .filter((f) => f.startsWith('kitchen-') && f.endsWith('.css'))
+    .map((f) => join(SRC, 'pages', f)),
+  ...readdirSync(join(SRC, 'components', 'kitchen'))
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => join(SRC, 'components', 'kitchen', f)),
 ]
 
 // Where tokens may be DEFINED: index.css + the token css + Button.css (.btn-touch etc).
