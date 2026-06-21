@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import {
-  IconButton, Tag, Avatar, Chip, TextInput, Checkbox, Toggle,
-} from './index'
+import { IconButton } from './icon-button'
+import { Tag } from './tag'
+import { Avatar } from './avatar'
+import { Chip } from './chip'
+import { TextInput } from './text-input'
+import { Checkbox } from './checkbox'
+import { Toggle } from './toggle'
 
 /**
  * Issue 2 primitives — AC-145 (variants + a11y) and AC-146 (Avatar seeded-pastel determinism).
