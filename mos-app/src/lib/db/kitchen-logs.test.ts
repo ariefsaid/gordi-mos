@@ -23,6 +23,9 @@ import {
   KITCHEN_BU_NAME,
   insertKitchenLog,
   insertKitchenLogBatch,
+  listSubmittedKitchenLogs,
+  approveKitchenLog,
+  rejectKitchenLog,
 } from './kitchen-logs'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -33,6 +36,7 @@ interface Recorder {
   selects: string[]
   eqs: Array<[string, unknown]>
   inserts: unknown[]
+  updates: unknown[]
   orders: Array<[string, unknown]>
   rpcCalls: Array<[string, unknown]>
 }
@@ -57,6 +61,10 @@ function makeSchema(
     })
     builder.insert = vi.fn((rows: unknown) => {
       rec.inserts.push(rows)
+      return builder
+    })
+    builder.update = vi.fn((row: unknown) => {
+      rec.updates.push(row)
       return builder
     })
     builder.eq = vi.fn((c: string, v: unknown) => {
@@ -87,7 +95,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], orders: [], rpcCalls: [] }
+  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], orders: [], rpcCalls: [] }
 }
 
 // Payload must NOT carry server-stamped fields
@@ -453,5 +461,207 @@ describe('fetchStockMap — stock + tersedia per WIP item (FR-022/023)', () => {
       ) as never,
     )
     await expect(fetchStockMap('2026-06-20')).rejects.toThrow('fetchStockMap failed')
+  })
+})
+
+// ── listSubmittedKitchenLogs — review queue read (FR-040, AC-040/090) ──────────
+describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () => {
+  const SUBMITTED_ROWS = [
+    {
+      id: 'log-1',
+      date: '2026-06-20',
+      action_type: 'Production',
+      wip_item_id: 'w1',
+      wip_items: { name: 'Nasi Goreng' },
+      qty_porsi: 8,
+      notes: 'kurang bahan',
+      status: 'Submitted',
+      submitted_by: 'p1',
+      business_unit_id: 'kb',
+      created_at: '2026-06-20T09:12:00Z',
+    },
+    {
+      id: 'log-2',
+      date: '2026-06-20',
+      action_type: 'Transfer to Radiant',
+      wip_item_id: 'w2',
+      wip_items: { name: 'Cold Brew' },
+      qty_porsi: 42,
+      notes: null,
+      status: 'Submitted',
+      submitted_by: 'p2',
+      business_unit_id: 'kb',
+      created_at: '2026-06-20T13:02:00Z',
+    },
+  ]
+
+  it('FR-040: queries kitchen_logs filtered to status=Submitted for the date, embedding the WIP name', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: SUBMITTED_ROWS, error: null }] }, rec) as never,
+    )
+
+    const rows = await listSubmittedKitchenLogs('2026-06-20')
+
+    // ONLY Submitted logs (the GIGO queue, FR-040)
+    expect(rec.eqs).toContainEqual(['status', 'Submitted'])
+    expect(rec.eqs).toContainEqual(['date', '2026-06-20'])
+    expect(rec.fromTables).toContain('kitchen_logs')
+    // same-schema embed of the WIP item name (FR-040 plan-vs-logged display)
+    expect(rec.selects.join(' ')).toMatch(/wip_items/)
+
+    // Flattened display shape
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      id: 'log-1',
+      wip_item_name: 'Nasi Goreng',
+      log_date: '2026-06-20',
+      action_type: 'Production',
+      qty_porsi: 8,
+      submitted_by: 'p1',
+    })
+    expect(rows[1].wip_item_name).toBe('Cold Brew')
+  })
+
+  it('returns [] when nothing is Submitted (the good-empty queue)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const rows = await listSubmittedKitchenLogs('2026-06-20')
+    expect(rows).toEqual([])
+  })
+
+  it('throws on PostgREST error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: null, error: { message: 'RLS denied' } }] }, rec) as never,
+    )
+    await expect(listSubmittedKitchenLogs('2026-06-20')).rejects.toThrow('listSubmittedKitchenLogs failed')
+  })
+
+  it('tolerates a missing embedded wip_items (renders a dash placeholder name)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          kitchen_logs: [
+            {
+              data: [{ ...SUBMITTED_ROWS[0], wip_items: null }],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const rows = await listSubmittedKitchenLogs('2026-06-20')
+    expect(rows[0].wip_item_name).toBe('—')
+  })
+})
+
+// ── approveKitchenLog — the atomic approve RPC (FR-050, AC-090) ────────────────
+describe('approveKitchenLog — calls the approve RPC, returns the minted batch_id (FR-050)', () => {
+  it('AC-090: dispatches approve_kitchen_log with the log id + review note, returns batch_id', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { approve_kitchen_log: [{ data: 'PR-20260620-003', error: null }] },
+        rec,
+      ) as never,
+    )
+
+    const result = await approveKitchenLog('log-1', 'looks good')
+
+    expect(rec.rpcCalls).toContainEqual([
+      'approve_kitchen_log',
+      { p_log_id: 'log-1', p_review_note: 'looks good' },
+    ])
+    expect(result).toEqual({ batch_id: 'PR-20260620-003' })
+  })
+
+  it('sends a null review note when omitted (approve note optional unless variance)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { approve_kitchen_log: [{ data: 'PR-20260620-004', error: null }] },
+        rec,
+      ) as never,
+    )
+
+    await approveKitchenLog('log-9')
+    expect(rec.rpcCalls).toContainEqual([
+      'approve_kitchen_log',
+      { p_log_id: 'log-9', p_review_note: null },
+    ])
+  })
+
+  it('surfaces P0003 (already actioned by someone else) as a typed code so the UI can refresh', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          approve_kitchen_log: [
+            { data: null, error: { code: 'P0003', message: 'log not Submitted' } },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+
+    await expect(approveKitchenLog('log-1')).rejects.toMatchObject({ code: 'P0003' })
+  })
+
+  it('surfaces 42501 (not ops_lead / wrong org) as a typed code', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          approve_kitchen_log: [
+            { data: null, error: { code: '42501', message: 'permission denied' } },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    await expect(approveKitchenLog('log-1')).rejects.toMatchObject({ code: '42501' })
+  })
+})
+
+// ── rejectKitchenLog — guarded Submitted→Rejected UPDATE (FR-041, AC-041) ──────
+describe('rejectKitchenLog — guarded UPDATE to Rejected with a required note (FR-041)', () => {
+  it('AC-041: updates status=Rejected + review_note on the row id, scoped to Submitted', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: { id: 'log-1' }, error: null }] }, rec) as never,
+    )
+
+    await rejectKitchenLog('log-1', 'wrong item')
+
+    expect(rec.updates).toHaveLength(1)
+    const payload = rec.updates[0] as Record<string, unknown>
+    expect(payload.status).toBe('Rejected')
+    expect(payload.review_note).toBe('wrong item')
+    // NEVER stamps reviewed_by/reviewed_at client-side (server/provenance, NFR-003)
+    expect(payload).not.toHaveProperty('reviewed_by')
+    expect(payload).not.toHaveProperty('org_id')
+    // targets the row id
+    expect(rec.eqs).toContainEqual(['id', 'log-1'])
+  })
+
+  it('AC-041: requires a non-blank review note (the reject note gate)', async () => {
+    await expect(rejectKitchenLog('log-1', '   ')).rejects.toThrow(/note/i)
+    await expect(rejectKitchenLog('log-1', '')).rejects.toThrow(/note/i)
+  })
+
+  it('throws on PostgREST error (e.g. RLS denial / already actioned)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { kitchen_logs: [{ data: null, error: { message: 'RLS denied' } }] },
+        rec,
+      ) as never,
+    )
+    await expect(rejectKitchenLog('log-1', 'note')).rejects.toThrow('rejectKitchenLog failed')
   })
 })

@@ -12,6 +12,8 @@ import type {
   ItemStock,
   CreateKitchenLogInput,
   KitchenActionType,
+  ReviewLogRow,
+  ApproveResult,
 } from './kitchen-logs.types'
 
 const ops = () => supabase.schema('ops')
@@ -179,4 +181,126 @@ export async function insertKitchenLogBatch(
 
   if (error) throw new Error(`insertKitchenLogBatch failed — ${error.message}`)
   return ((data ?? []) as { id: string }[]).map(r => r.id)
+}
+
+// ── Review / approve queue (S3 — ops_lead, FR-040..044/050) ───────────────────
+
+/** A PostgREST error that carries the Postgres SQLSTATE / app error code so the UI
+ *  can distinguish P0003 (already actioned), 42501 (forbidden), P0002 (not found). */
+export class KitchenRpcError extends Error {
+  code: string
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = 'KitchenRpcError'
+    this.code = code
+  }
+}
+
+// The review-queue select. Embeds the WIP item name from the SAME ops schema
+// (ops.kitchen_logs → ops.wip_items is FK-embeddable; cross-schema submitter →
+// shared.people is NOT — PGRST200 — so the submitter NAME is resolved client-side
+// from the directory, mirroring tasks.ts).
+const REVIEW_SELECT =
+  'id,date,action_type,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+
+/**
+ * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
+ * Only `status = 'Submitted'` rows (the GIGO queue, FR-024/040); RLS scopes to the
+ * caller's org. Returns a flat display shape (WIP name embedded; plan-vs-logged is
+ * merged at the page from fetchPlanMap; submitter name from the directory).
+ */
+export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewLogRow[]> {
+  const { data, error } = await ops()
+    .from('kitchen_logs')
+    .select(REVIEW_SELECT)
+    .eq('status', 'Submitted')
+    .eq('date', logDate)
+    .order('action_type', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
+
+  type RawRow = {
+    id: string
+    date: string
+    action_type: KitchenActionType
+    wip_item_id: string
+    qty_porsi: number
+    notes: string | null
+    status: ReviewLogRow['status']
+    submitted_by: string | null
+    business_unit_id: string
+    created_at: string
+    // PostgREST returns the embed as an object (to-one) — tolerate array-or-object-or-null.
+    wip_items: { name: string } | { name: string }[] | null
+  }
+
+  return ((data ?? []) as unknown as RawRow[]).map((r): ReviewLogRow => {
+    const embed = Array.isArray(r.wip_items) ? r.wip_items[0] : r.wip_items
+    return {
+      id: r.id,
+      log_date: r.date, // DB column is `date`
+      action_type: r.action_type,
+      wip_item_id: r.wip_item_id,
+      wip_item_name: embed?.name ?? '—',
+      qty_porsi: r.qty_porsi,
+      notes: r.notes,
+      status: r.status,
+      submitted_by: r.submitted_by,
+      business_unit_id: r.business_unit_id,
+      created_at: r.created_at,
+    }
+  })
+}
+
+/**
+ * Approve a Submitted kitchen log via the atomic `approve_kitchen_log` RPC (FR-050).
+ * The RPC mints the batch_id, recomputes stock, enqueues the ESB push, and writes
+ * the Daily-Log mirror server-side (atomic, confirmed-only) — the UI just reflects
+ * the returned batch_id or the typed error. `reviewNote` is optional (the spec only
+ * requires it on a plan-deviating approve — the page enforces that gate, FR-041).
+ *
+ * Re-throws PostgREST errors as KitchenRpcError so the page can branch on the code:
+ *   P0003 → log no longer Submitted (someone else actioned it) → refresh the queue
+ *   42501 → not ops_lead / wrong org → forbidden
+ *   P0002 → not found
+ */
+export async function approveKitchenLog(
+  logId: string,
+  reviewNote?: string | null,
+): Promise<ApproveResult> {
+  const { data, error } = await ops().rpc('approve_kitchen_log', {
+    p_log_id: logId,
+    p_review_note: reviewNote ?? null,
+  })
+  if (error) {
+    const code = (error as { code?: string }).code ?? 'UNKNOWN'
+    throw new KitchenRpcError(code, `approveKitchenLog failed — ${error.message}`)
+  }
+  return { batch_id: data as string }
+}
+
+/**
+ * Reject a Submitted kitchen log (FR-041) — a guarded Submitted→Rejected UPDATE
+ * (the `kitchen_logs_update_reviewer` RLS policy allows ops_lead/admin to make this
+ * transition). A review note is ALWAYS required on reject (FR-041, AC-041) — gated
+ * client-side here and re-asserted server-side.
+ *
+ * The client sends ONLY `status` + `review_note`. `reviewed_by` / `reviewed_at` are
+ * NOT sent — they are reviewer provenance that must be server-stamped (NFR-003).
+ * NOTE (substrate gap — see report): FR-044 requires reviewer provenance on the
+ * review transition; the approve RPC stamps it, but reject is a plain UPDATE whose
+ * policy only accepts status + review_note. If provenance on reject is required, the
+ * #45 SQL (a trigger or the policy) must stamp it server-side — flagged, not patched
+ * from the UI tree.
+ */
+export async function rejectKitchenLog(logId: string, reviewNote: string): Promise<void> {
+  if (!reviewNote.trim()) {
+    throw new Error('A review note is required to reject a kitchen log.')
+  }
+  const { error } = await ops()
+    .from('kitchen_logs')
+    .update({ status: 'Rejected', review_note: reviewNote.trim() })
+    .eq('id', logId)
+    .eq('status', 'Submitted') // guard: only a Submitted log can be rejected (idempotency)
+  if (error) throw new Error(`rejectKitchenLog failed — ${error.message}`)
 }

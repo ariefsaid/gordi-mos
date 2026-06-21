@@ -96,6 +96,34 @@ export interface KitchenLogRow {
   updated_at: string
 }
 
+// ── Review queue (S3) — Submitted log + display fields ───────────────────────
+// One row in the ops_lead review queue. Joins the WIP item name (same-schema
+// embed: ops.kitchen_logs → ops.wip_items, FR-040). The plan baseline (plan-vs-
+// logged) is merged in at the page from fetchPlanMap, and the submitter's display
+// name is resolved client-side from the shared.people directory (cross-schema
+// embed is impossible under the ops PostgREST profile — PGRST200), mirroring
+// tasks.ts. This keeps the data fn a single ops-schema read.
+export interface ReviewLogRow {
+  id: string
+  log_date: string
+  action_type: KitchenActionType
+  wip_item_id: string
+  /** WIP item display name (embedded from ops.wip_items). */
+  wip_item_name: string
+  qty_porsi: number
+  notes: string | null
+  status: KitchenLogStatus
+  /** submitter person id (display name resolved client-side via directory). */
+  submitted_by: string | null
+  business_unit_id: string
+  created_at: string
+}
+
+/** Result of an approve RPC — the minted batch_id (FR-050). */
+export interface ApproveResult {
+  batch_id: string
+}
+
 // ── Per-line form state (one stepper row per WIP item) ───────────────────────
 export interface KitchenLogLine {
   wip_item_id: string
