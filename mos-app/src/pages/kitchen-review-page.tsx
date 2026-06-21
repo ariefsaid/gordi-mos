@@ -161,20 +161,20 @@ export function KitchenReviewPage() {
   }
 
   // ── Bulk approve (FR-043) ──────────────────────────────────────────────────
-  // "Approve all (N)" per group. Eligible = note-free ON-PLAN Submitted logs in
-  // scope (qty === plan), excluding off-plan rows that need a per-row variance note
-  // (FR-040/AC-040). There is NO bulk RPC — iterate approveKitchenLog(id, null) per
-  // eligible row (each atomic server-side). Partial outcomes: P0003 (already actioned)
-  // → drop + continue; other errors → keep the row + a succeeded/failed notice.
+  // "Approve all (N)" per group. Parity with the OLD app (review_bulk): eligible = EVERY
+  // Submitted row in the section, gated ONLY by production-first (a Transfer section's bulk
+  // stays disabled while any Production row is still Submitted). Off-plan rows ARE included
+  // and approved with a null note (the bulk path never forces per-row notes — only the
+  // single-approve flow keeps its variance-note gate). There is NO bulk RPC — iterate
+  // approveKitchenLog(id, null) per row (each atomic server-side). Partial outcomes:
+  // P0003 (already actioned) → drop + continue; other errors → keep the row + a notice.
   const bulkEligible = useCallback(
     (action: KitchenActionType): ReviewLogRow[] => {
       // Transfer groups respect the production-first gate — zero eligible while pending.
       if (isTransfer(action) && productionPending) return []
-      return logs.filter(
-        l => l.action_type === action && l.qty_porsi === planQtyFor(planMap, l),
-      )
+      return logs.filter(l => l.action_type === action)
     },
-    [logs, planMap, productionPending],
+    [logs, productionPending],
   )
 
   async function handleBulkApprove(action: KitchenActionType) {
@@ -326,8 +326,9 @@ export function KitchenReviewPage() {
                       {' '}Blocked until Production approved
                     </span>
                   )}
-                  {/* Bulk approve (FR-043): only when eligible on-plan logs exist. N counts
-                      note-free on-plan Submitted logs; off-plan rows need a per-row note. */}
+                  {/* Bulk approve (FR-043): N counts ALL Submitted logs in the section
+                      (off-plan included, parity with the OLD app). Transfer sections stay
+                      gated by production-first. Per-row approve keeps its variance-note gate. */}
                   {eligibleCount > 0 && (
                     <button
                       type="button"

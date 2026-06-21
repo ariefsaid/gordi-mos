@@ -197,9 +197,12 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
 })
 
 // ── Bulk approve (FR-043, AC-042 extension) ──────────────────────────────────
-// "Approve all (N)" per group header. N = the count of note-free ON-PLAN Submitted
-// logs in scope. Off-plan logs (need a per-row variance note, FR-040/AC-040) are
-// NEVER bulk-approved. Transfer groups respect the production-first gate (FR-042).
+// Parity with the OLD app (app/main.py review_bulk ~L1031-1034, L1210-1273): bulk
+// "Approve all (N)" approves EVERY Submitted row in the section — incl. off-plan rows
+// (approved with null note, no per-row note forced) — gated only by production-first
+// (a Transfer section's bulk stays disabled while Production is pending). N counts all
+// Submitted rows in the section. The per-row single-approve flow keeps its variance-note
+// gate (only bulk approves-all without per-row notes, mirroring the oracle).
 const PROD_ONPLAN_A: ReviewLogRow = {
   id: 'log-a', log_date: '2026-06-20', action_type: 'Production',
   wip_item_id: 'wA', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
@@ -217,44 +220,44 @@ const PROD_OFFPLAN: ReviewLogRow = {
 }
 
 describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
-  it('"Approve all (N)" approves only the note-free ON-PLAN logs, leaving off-plan rows', async () => {
-    // 2 on-plan (A=20==plan, B=5==plan) + 1 off-plan (C=7 != plan 10) → N = 2
+  it('AC-042: "Approve all (N)" approves EVERY Submitted row in the section — incl. off-plan', async () => {
+    // 2 on-plan (A=20==plan, B=5==plan) + 1 off-plan (C=7 != plan 10) → N = 3 (ALL Submitted)
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B, PROD_OFFPLAN])
     mockPlan.mockResolvedValue({ wA: { Production: 20 }, wB: { Production: 5 }, wC: { Production: 10 } })
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-007' })
     render(<KitchenReviewPage />)
     await screen.findByText('Ayam Bakar')
 
-    // the group-header bulk button counts only the 2 eligible on-plan logs
-    const bulk = screen.getByRole('button', { name: /approve all \(2\)/i })
+    // the group-header bulk button counts ALL 3 Submitted logs (off-plan included)
+    const bulk = screen.getByRole('button', { name: /approve all \(3\)/i })
     expect(bulk).not.toBeDisabled()
     fireEvent.click(bulk)
 
-    // exactly the two on-plan logs are approved (null note each); off-plan never touched
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2))
+    // all three rows are approved with a null note (off-plan included, no per-row note forced)
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(3))
     expect(mockApprove).toHaveBeenCalledWith('log-a', null)
     expect(mockApprove).toHaveBeenCalledWith('log-b', null)
-    expect(mockApprove).not.toHaveBeenCalledWith('log-c', expect.anything())
+    expect(mockApprove).toHaveBeenCalledWith('log-c', null)
 
-    // the on-plan rows leave the queue; the off-plan row stays for individual note+approve
+    // every row leaves the queue
     await waitFor(() => expect(screen.queryByText('Ayam Bakar')).not.toBeInTheDocument())
     expect(screen.queryByText('Sambal')).not.toBeInTheDocument()
-    expect(screen.getByText('Tahu')).toBeInTheDocument()
+    expect(screen.queryByText('Tahu')).not.toBeInTheDocument()
   })
 
   it('AC-042: a Transfer group bulk-approve is blocked while a Production log is still Submitted', async () => {
-    // one Submitted Production (blocks transfers) + one ON-PLAN transfer
-    const XFER_ONPLAN: ReviewLogRow = {
+    // one Submitted Production (blocks transfers) + one off-plan transfer
+    const XFER_OFFPLAN: ReviewLogRow = {
       ...XFER_LOG, id: 'log-x2', wip_item_name: 'Latte', wip_item_id: 'wX', qty_porsi: 30,
     }
-    mockList.mockResolvedValue([PROD_LOG, XFER_ONPLAN])
-    mockPlan.mockResolvedValue({ w1: { Production: 8 }, wX: { 'Transfer to Radiant': 30 } })
+    mockList.mockResolvedValue([PROD_LOG, XFER_OFFPLAN])
+    mockPlan.mockResolvedValue({ w1: { Production: 8 }, wX: { 'Transfer to Radiant': 25 } }) // 30 != 25 → off-plan
     render(<KitchenReviewPage />)
     await screen.findByText('Latte')
 
-    // Production bulk is offered (on-plan, qty 8 == plan 8) and live
+    // Production bulk is offered (1 Submitted) and live
     expect(screen.getByRole('button', { name: /approve all \(1\)/i })).not.toBeDisabled()
-    // the Transfer group's bulk approve is NOT offered while Production pending (N would be 0 → no button)
+    // the Transfer group's bulk approve is NOT offered while Production pending (production-first gate)
     expect(screen.queryByRole('button', { name: /approve all transfer to radiant/i })).not.toBeInTheDocument()
   })
 
@@ -278,12 +281,16 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     expect(await screen.findByText(/1 approved.*1 failed|approved 1.*failed 1/i)).toBeInTheDocument()
   })
 
-  it('no "Approve all" button when no eligible (all off-plan) logs in the group', async () => {
+  it('AC-042: an off-plan-only group IS bulk-eligible — "Approve all (1)" is offered', async () => {
+    // Parity: off-plan rows are no longer excluded from bulk (oracle approves all Submitted).
     mockList.mockResolvedValue([PROD_OFFPLAN])
-    mockPlan.mockResolvedValue({ wC: { Production: 10 } }) // 7 != 10 → off-plan, not bulk-eligible
+    mockPlan.mockResolvedValue({ wC: { Production: 10 } }) // 7 != 10 → off-plan, still bulk-eligible
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-008' })
     render(<KitchenReviewPage />)
     await screen.findByText('Tahu')
-    expect(screen.queryByRole('button', { name: /approve all/i })).not.toBeInTheDocument()
+    const bulk = screen.getByRole('button', { name: /approve all \(1\)/i })
+    fireEvent.click(bulk)
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-c', null))
   })
 })
 
