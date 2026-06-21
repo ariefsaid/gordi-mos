@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { KitchenLogTable } from './kitchen-log-table'
-import type { WipItemOption, KitchenLogLine, KitchenActionType } from '@/lib/db/kitchen-logs.types'
+import type { WipItemOption, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 
 const ITEMS: WipItemOption[] = [
   { id: 'w1', name: 'Nasi Putih', category: 'Rice' },

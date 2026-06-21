@@ -4,7 +4,7 @@
 // line.error && line.dirty (FR-022). Mirrors task-row.tsx conventions.
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { KitchenLogRow } from './kitchen-log-row'
 import type { WipItemOption, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 

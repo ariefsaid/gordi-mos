@@ -1,21 +1,25 @@
-// KitchenLogPage — /mos/kitchen/log — S1 Kitchen Log capture (phone-first).
-// Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S1.
-// Proves (unit layer): AC-020/021 (variance-note gate), AC-022 (transfer-availability
-// REJECT — over-tersedia keeps the typed qty + blocks Submit, parity with the OLD app),
-// AC-030 (increment-semantics submit payload — no status/org_id/submitted_by).
-// (AC-090/091 are the e2e cross-stack journeys — owned at the Playwright layer, not here.)
-// - Phone-first (≤640px): pinned 44px submit bar, full-width steppers.
-// - Desktop (≥768px): centered ~720px, un-pinned submit at form foot.
-// - Online-only writes (NFR-008): offline indicator surfaced in EVERY state.
-// - Confirmed-only (NOT optimistic): spinner → confirmed toast.
-// - Validation inline-on-change: variance-note gate revealed as soon as qty ≠ target.
-// - NEVER sends status / org_id / submitted_by (server-stamped, NFR-003).
+// KitchenLogPage — /mos/kitchen/log — Log capture screen (OD-K-5 redesign).
+// Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md.
+// ONE responsive screen: desktop dense <table> + KPI strip (≥768px) ↔ phone
+// floor-fast cards (<768px), chosen via useIsDesktop() — ONE branch in the DOM (P-4).
+//
+// PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
+//  - Data hooks unchanged (listActiveWipItems / fetchPlanMap / fetchStockMap /
+//    resolveKitchenBuId / insertKitchenLogBatch).
+//  - Gates unchanged (needsVarianceNote / transferExceedsAvailable / effectiveTarget).
+//  - Submit payload byte-identical (NEVER sends status / org_id / submitted_by — NFR-003).
+//  - AC-020/021 (variance-note gate), AC-022 (transfer cap REJECT — keeps typed qty),
+//    AC-030 (submit payload) preserved.
+// NEW (presentational only, P-1/P-3): the derived KPI strip (pure useMemo over `lines`),
+// Planned/Off-plan grouping, client-side search + category filter, group collapse,
+// Discard (confirmed). No new fetch/RPC/table/persistence/ESB.
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import {
   listActiveWipItems,
@@ -37,8 +41,11 @@ import {
   VARIANCE_NOTE_CUE,
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
+import { useKitchenKpis } from '@/lib/kitchen-kpis'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
-import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
+import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { KitchenLogTable } from '@/components/kitchen/kitchen-log-table'
+import { KitchenLogCards } from '@/components/kitchen/kitchen-log-cards'
 import { EmptyState, SkeletonRows } from '@/components/ui/state-kit'
 import './kitchen-log-page.css'
 
@@ -95,6 +102,7 @@ type PageStatus =
 export function KitchenLogPage() {
   useDocumentTitle('Kitchen Log — Gordi MOS')
   const auth = useAuth()
+  const isDesktop = useIsDesktop()
 
   const [actionType, setActionType] = useState<KitchenActionType>('Production')
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
@@ -107,6 +115,14 @@ export function KitchenLogPage() {
   const [submitError, setSubmitError] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
+
+  // NEW presentational state (P-3): client-side search + category + group collapse.
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('All')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
+
+  // Derived KPIs (P-1) — pure useMemo over `lines`; no fetch/RPC/persistence.
+  const kpis = useKitchenKpis(lines)
 
   // Online/offline detection (NFR-008)
   useEffect(() => {
@@ -189,6 +205,26 @@ export function KitchenLogPage() {
     })
   }
 
+  // Discard all staged entries (consequential — confirmed). OQ-4: native confirm (v1).
+  function handleDiscard() {
+    const stagedCount = Object.values(lines).filter(l => l.qty_porsi > 0).length
+    if (stagedCount === 0) return
+    const ok = typeof window !== 'undefined' ? window.confirm('Discard all staged entries?') : true
+    if (!ok) return
+    setLines(buildLines(wipItems, planMap, stockMap, actionType))
+    setSearch('')
+    setCategory('All')
+  }
+
+  function handleToggleGroup(key: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!isOnline) return
@@ -264,7 +300,7 @@ export function KitchenLogPage() {
   // ── Data loading state — offline indicator surfaced here too (#2, RI-2) ──────
   if (status.kind === 'loading') {
     return (
-      <PageFrame>
+      <PageFrame variant="data">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingState />
@@ -276,7 +312,7 @@ export function KitchenLogPage() {
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFrame>
+      <PageFrame variant="data">
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -297,10 +333,10 @@ export function KitchenLogPage() {
     )
   }
 
-  // ── Empty state ──────────────────────────────────────────────────────────────
+  // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFrame>
+      <PageFrame variant="data">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <PageHead
@@ -327,7 +363,7 @@ export function KitchenLogPage() {
   )
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <div className="kl-page">
         <OfflineBanner show={!isOnline} />
 
@@ -337,6 +373,10 @@ export function KitchenLogPage() {
           meta={<span className="kl-date tabular">{logDate}</span>}
         />
 
+        {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}
+        <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} actionType={actionType} />
+
+        {/* Toolbar: action_type segmented control (shared desktop/phone) */}
         <div className="kl-seg-wrap kl-block">
           <ActionTypeSeg
             value={actionType}
@@ -357,8 +397,6 @@ export function KitchenLogPage() {
           </div>
         )}
 
-        <div className="kl-overline kl-block">Active WIP Items</div>
-
         <form
           id="kitchen-log-form"
           onSubmit={handleSubmit}
@@ -366,51 +404,65 @@ export function KitchenLogPage() {
           aria-label="Kitchen log capture"
           className="kl-form"
         >
-          <div className="kl-list">
-            {wipItems.map(item => (
-              <WipItemStepper
-                key={item.id}
-                itemName={item.name}
-                actionType={actionType}
-                line={lines[item.id] ?? {
-                  wip_item_id: item.id,
-                  qty_porsi: 0,
-                  notes: '',
-                  plan_qty: 0,
-                  stok: 0,
-                  tersedia: 0,
-                  dirty: false,
-                  error: '',
-                  capError: '',
-                }}
-                onQtyChange={qty => handleQtyChange(item.id, qty)}
-                onNotesChange={note => handleNotesChange(item.id, note)}
-                disabled={isSubmitting}
-              />
-            ))}
-          </div>
-
-          {/* Desktop: un-pinned submit at form foot */}
-          <div className="kl-submit-desktop">
-            <SubmitButton
-              stagedCount={stagedCount}
-              isSubmitting={isSubmitting}
-              isOnline={isOnline}
-              blocked={hasBlockingError}
+          {/* Reflow (P-4): ONE branch in the DOM — desktop <table> OR phone cards */}
+          {isDesktop ? (
+            <KitchenLogTable
+              items={wipItems}
+              lines={lines}
+              actionType={actionType}
+              search={search}
+              category={category}
+              collapsedGroups={collapsedGroups}
+              onQtyChange={handleQtyChange}
+              onNotesChange={handleNotesChange}
+              onToggleGroup={handleToggleGroup}
+              onSearchChange={setSearch}
+              onCategoryChange={setCategory}
+              disabled={isSubmitting}
             />
+          ) : (
+            <KitchenLogCards
+              items={wipItems}
+              lines={lines}
+              actionType={actionType}
+              search={search}
+              category={category}
+              collapsedGroups={collapsedGroups}
+              onQtyChange={handleQtyChange}
+              onNotesChange={handleNotesChange}
+              onToggleGroup={handleToggleGroup}
+              onSearchChange={setSearch}
+              onCategoryChange={setCategory}
+              disabled={isSubmitting}
+            />
+          )}
+
+          {/* Sticky action footer — ONE branch; tally + Discard + Submit */}
+          <div className="kl-footer">
+            <div className="kl-tally">
+              <span className="kl-tally-num tabular">
+                {stagedCount} {stagedCount === 1 ? 'dish' : 'dishes'} · {kpis.madeSoFar} units
+              </span>
+              <span className="kl-tally-sub">pending review on Submit</span>
+            </div>
+            <div className="kl-footer-actions">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={handleDiscard}
+                disabled={isSubmitting || stagedCount === 0}
+              >
+                Discard
+              </button>
+              <SubmitButton
+                stagedCount={stagedCount}
+                isSubmitting={isSubmitting}
+                isOnline={isOnline}
+                blocked={hasBlockingError}
+              />
+            </div>
           </div>
         </form>
-
-        {/* Phone: pinned submit bar — outside the form but bound via form= */}
-        <div className="kl-submit-phone">
-          <SubmitButton
-            stagedCount={stagedCount}
-            isSubmitting={isSubmitting}
-            isOnline={isOnline}
-            blocked={hasBlockingError}
-            formId="kitchen-log-form"
-          />
-        </div>
       </div>
     </PageFrame>
   )
@@ -432,28 +484,25 @@ function SubmitButton({
   isSubmitting,
   isOnline,
   blocked = false,
-  formId,
 }: {
   stagedCount: number
   isSubmitting: boolean
   isOnline: boolean
   /** true when a staged line exceeds transfer availability (FR-023 hard stop) */
   blocked?: boolean
-  formId?: string
 }) {
   const disabled = isSubmitting || !isOnline || stagedCount === 0 || blocked
   return (
     <button
       type="submit"
-      form={formId}
-      className="btn btn-primary btn-touch"
+      className="btn btn-primary btn-touch kl-submit"
       disabled={disabled}
       aria-busy={isSubmitting}
     >
       {isSubmitting
         ? 'Submitting…'
         : stagedCount > 0
-          ? `Submit ${stagedCount} ${stagedCount === 1 ? 'line' : 'lines'}`
+          ? `Submit ${stagedCount} ${stagedCount === 1 ? 'entry' : 'entries'}`
           : 'Submit'}
     </button>
   )

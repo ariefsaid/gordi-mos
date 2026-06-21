@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { computeKitchenKpis } from './kitchen-kpis'
-import type { KitchenLogLine, KitchenActionType } from '@/lib/db/kitchen-logs.types'
+import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 
 function line(
   wip_item_id: string,
@@ -39,10 +39,8 @@ const MOCK_C_LINES: Record<string, KitchenLogLine> = {
   sambal: line('sambal', 8, 0),
 }
 
-const PROD: KitchenActionType = 'Production'
-
 describe('computeKitchenKpis — mock-C fixture (plan §5.1)', () => {
-  const kpis = computeKitchenKpis(MOCK_C_LINES, PROD)
+  const kpis = computeKitchenKpis(MOCK_C_LINES)
 
   it('plannedTotal = Σ plan_qty over planned items = 180', () => {
     expect(kpis.plannedTotal).toBe(180)
@@ -83,7 +81,7 @@ describe('computeKitchenKpis — edge cases', () => {
       a: line('a', 5, 0),
       b: line('b', 0, 0),
     }
-    const k = computeKitchenKpis(onlyOffPlan, PROD)
+    const k = computeKitchenKpis(onlyOffPlan)
     expect(k.plannedTotal).toBe(0)
     expect(k.madeOfPlan).toBe(0)
     expect(k.madeSoFar).toBe(5)
@@ -99,7 +97,7 @@ describe('computeKitchenKpis — edge cases', () => {
       a: line('a', 0, 10),
       b: line('b', 0, 5),
     }
-    const k = computeKitchenKpis(zero, PROD)
+    const k = computeKitchenKpis(zero)
     expect(k.madeSoFar).toBe(0)
     expect(k.madeOfPlan).toBe(0)
     expect(k.plannedTotal).toBe(15)
@@ -112,14 +110,14 @@ describe('computeKitchenKpis — edge cases', () => {
     const over: Record<string, KitchenLogLine> = {
       a: line('a', 12, 10),
     }
-    const k = computeKitchenKpis(over, PROD)
+    const k = computeKitchenKpis(over)
     expect(k.pctComplete).toBe(120)
     expect(k.itemsRemaining).toBe(0)
     expect(k.unitsShort).toBe(0)
   })
 
   it('empty lines map → all zeros', () => {
-    const k = computeKitchenKpis({}, PROD)
+    const k = computeKitchenKpis({})
     expect(k).toEqual({
       plannedTotal: 0,
       madeOfPlan: 0,

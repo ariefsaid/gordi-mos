@@ -9,7 +9,7 @@
 //   pctComplete=78% · itemsRemaining=4 · unitsShort=46 · plannedDishCount=6
 
 import { useMemo } from 'react'
-import type { KitchenLogLine, KitchenActionType } from '@/lib/db/kitchen-logs.types'
+import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 
 export interface KitchenKpis {
   /** Σ plan_qty over planned items (plan>0), current action_type */
@@ -32,10 +32,12 @@ export interface KitchenKpis {
 
 /**
  * The pure derived-KPI core (plan §5.1). Unit-tested directly — no React, no mocks.
+ * `lines` is already scoped to the current action_type (built by buildLines()), so the
+ * action scope is implicit; the action_type is carried by the useKitchenKpis() hook's
+ * useMemo dep (it recomputes when the action changes).
  */
 export function computeKitchenKpis(
   lines: Record<string, KitchenLogLine>,
-  _actionType: KitchenActionType,
 ): KitchenKpis {
   let plannedTotal = 0
   let madeOfPlan = 0
@@ -74,11 +76,12 @@ export function computeKitchenKpis(
 
 /**
  * Thin memoized hook wrapper for the page (plan §4.3 N2). The pure core is
- * computeKitchenKpis() above; this just memoizes over (lines, actionType).
+ * computeKitchenKpis() above. `lines` already rebuilds when the action_type changes
+ * (the page's action_type effect), so it is the sole memo dependency — an explicit
+ * actionType dep would be redundant (react-hooks/exhaustive-deps).
  */
 export function useKitchenKpis(
   lines: Record<string, KitchenLogLine>,
-  actionType: KitchenActionType,
 ): KitchenKpis {
-  return useMemo(() => computeKitchenKpis(lines, actionType), [lines, actionType])
+  return useMemo(() => computeKitchenKpis(lines), [lines])
 }

@@ -115,6 +115,20 @@ beforeEach(() => {
 
 afterEach(() => {
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
+  // Restore the default (phone → matches:false) matchMedia stub after any
+  // setDesktopMatchMedia(true) override, so test order can't leak the branch.
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
 })
 
 // ── loading state ─────────────────────────────────────────────────────────────
@@ -641,5 +655,176 @@ describe('RI-3: interactive controls meet the 44px touch floor', () => {
     )
     const signin = await screen.findByRole('link', { name: /sign in/i })
     expect(signin.className).toMatch(/btn-touch/)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OD-K-5 redesign tests (plan §10 task 10): KPI strip, group split, search,
+// category filter, Discard, tally, reflow branch (P-4: one branch in the DOM).
+// The AC goal-oracles above are unchanged; these cover the NEW presentational
+// behavior. Default render = phone (jsdom matchMedia → false).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Force the useIsDesktop() hook to read "desktop" by overriding matchMedia before
+// render. The hook reads matchMedia synchronously in its useState initializer.
+function setDesktopMatchMedia(desktop: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: desktop && query === '(min-width: 768px)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
+// extra item with NO plan → exercises the Off-plan group
+const WIP_ITEMS_WITH_OFFPLAN: WipItemOption[] = [
+  { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+  { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+  { id: 'w3', name: 'Sambal Matah', category: 'Side' }, // off-plan for Production
+]
+
+// task 10a — KPI strip renders the derived values (phone summary + desktop tiles)
+describe('OD-K-5: KPI strip renders derived values from `lines`', () => {
+  it('phone: summary shows the planned dish count + % complete (nothing staged → 0%)', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    // 2 planned dishes (w1:20, w2:12), nothing staged → 0%
+    expect(screen.getByText(/2 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/0%/i)).toBeInTheDocument()
+  })
+
+  it('desktop: the 4 tiles render plannedTotal/madeSoFar/%/itemsRemaining', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
+    // plannedTotal = 20 + 12 = 32; madeSoFar = 0; pct = 0%; itemsRemaining = 2
+    expect(within(region).getByText('32')).toBeInTheDocument()
+    expect(within(region).getByText('0%')).toBeInTheDocument()
+    expect(within(region).getByText('2')).toBeInTheDocument()
+  })
+})
+
+// task 10b — Planned/Off-plan group split
+describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
+  it('a planned item lands in Planned; an unplanned one lands in Off-plan', async () => {
+    setDesktopMatchMedia(true)
+    mockListActiveWipItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    await renderPage()
+    await waitFor(() => screen.getByText('Sambal Matah'))
+
+    // both group headers render with the right counts (2 planned, 1 off-plan)
+    const plannedHead = screen.getByRole('button', { name: /collapse planned today/i }).closest('tr')!
+    expect(within(plannedHead).getByText('2')).toBeInTheDocument()
+    const offplanHead = screen.getByRole('button', { name: /collapse off-plan/i }).closest('tr')!
+    expect(within(offplanHead).getByText('1')).toBeInTheDocument()
+  })
+})
+
+// task 10c — search-mini filters rows (desktop)
+describe('OD-K-5: search-mini filters', () => {
+  it('typing in Find a dish narrows the table to matching dishes', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.change(screen.getByRole('searchbox', { name: /find a dish/i }), { target: { value: 'nasi' } })
+    // only Nasi Goreng remains
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+})
+
+// task 10d — category chip filters (desktop)
+describe('OD-K-5: category filter narrows rows', () => {
+  it('choosing a category shows only that category\'s dishes', async () => {
+    setDesktopMatchMedia(true)
+    mockListActiveWipItems.mockResolvedValue([
+      { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+      { id: 'w2', name: 'Nasi Goreng', category: 'Rice' },
+    ])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Rice' } })
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+})
+
+// task 10e — Discard (confirmed) resets all staged qty_porsi to 0
+describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
+  it('confirmed Discard clears every staged qty back to 0', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // stage Ayam Bakar to 20 (on-plan, no note)
+    const ayamInc = screen.getAllByRole('button', { name: /increase ayam bakar quantity/i })[0]
+    for (let i = 0; i < 20; i++) fireEvent.click(ayamInc)
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    expect((ayamInput as HTMLInputElement).value).toBe('20')
+
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    expect(confirmSpy).toHaveBeenCalled()
+    // qty reset to 0
+    await waitFor(() => {
+      expect((ayamInput as HTMLInputElement).value).toBe('0')
+    })
+    confirmSpy.mockRestore()
+  })
+
+  it('cancelled Discard keeps the staged entries', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInc = screen.getAllByRole('button', { name: /increase ayam bakar quantity/i })[0]
+    for (let i = 0; i < 20; i++) fireEvent.click(ayamInc)
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
+    confirmSpy.mockRestore()
+  })
+})
+
+// task 10f — sticky-footer tally reads {stagedCount} dishes · {madeSoFar} units
+describe('OD-K-5: sticky-footer tally', () => {
+  it('tally reads the staged dish count + units made so far', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // stage Ayam Bakar (plan=20) to 20 → stagedCount=1, madeSoFar=20
+    const ayamInc = screen.getAllByRole('button', { name: /increase ayam bakar quantity/i })[0]
+    for (let i = 0; i < 20; i++) fireEvent.click(ayamInc)
+
+    expect(screen.getByText(/1 dish/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 units/i)).toBeInTheDocument()
+  })
+})
+
+// task 10g — reflow branch (P-4): exactly ONE of table|cards in the DOM
+describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
+  it('phone: the cards render; the desktop <table> is absent (no aria-hidden dual-render)', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    // phone has the off-plan expander; no production-log <table>
+    expect(screen.queryByRole('table', { name: /kitchen production log/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /add another dish/i })).toBeInTheDocument()
+  })
+
+  it('desktop: the <table> renders; the phone off-plan expander is absent', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(screen.getByRole('table', { name: /kitchen production log/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add another dish/i })).toBeNull()
   })
 })
