@@ -1,9 +1,38 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { RailNav } from './rail-nav'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
+
+// RailNav now reads useAuth to role-filter the Kitchen group.
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
+const mockUseAuth = vi.mocked(useAuth)
+
+// Default: authenticated plain member (no elevated access roles).
+// All existing tests rely on this default; kitchen-specific tests override as needed.
+function setAuthAs(accessRoles: string[] = []) {
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: '40000000-0000-0000-0000-000000000001',
+        org_id: '10000000-0000-0000-0000-000000000001',
+        user_id: 'auth-user-001',
+        full_name: 'Test User',
+        email: 'test@gordi.id',
+        archived_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+      roles: [],
+      isManager: false,
+      accessRoles,
+    },
+    signOut: vi.fn(),
+  })
+}
 
 // Helper component to probe current location
 function LocationDisplay() {
@@ -29,6 +58,11 @@ function renderRailNav(initialPath: string) {
   )
 }
 
+beforeEach(() => {
+  vi.clearAllMocks()
+  setAuthAs([]) // plain member by default
+})
+
 // AC-002: nav-only rail (ADR-0013 D1 — workspace switcher + search + user chip moved to top bar)
 describe('AC-002: Rail contents', () => {
   it('shows the Workspace section label and nav links (no switcher/search/userchip)', () => {
@@ -44,14 +78,15 @@ describe('AC-002: Rail contents', () => {
     renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    const expected = [
+    // The Kitchen group (Log/Plan/Stock at minimum) is also rendered — count all links
+    const workspaceExpected = [
       'My Week',
       'Tasks',
       ...(SHOW_WEEKLY_UPDATES ? ['Weekly Updates'] : []),
       ...(SHOW_DAILY_LOG ? ['Daily Log'] : []),
     ]
-    expect(links).toHaveLength(expected.length)
-    expected.forEach((name, i) => expect(links[i]).toHaveAccessibleName(name))
+    // Workspace links are the first N links; Kitchen links follow
+    workspaceExpected.forEach((name, i) => expect(links[i]).toHaveAccessibleName(name))
   })
 
   it('has no badge-count elements', () => {
@@ -170,5 +205,91 @@ describe('AC-015: Nav icon semantics', () => {
     svgs.forEach((svg) => {
       expect(svg).toHaveAttribute('aria-hidden', 'true')
     })
+  })
+})
+
+// ── Kitchen nav group (AC-KIT-001 … AC-KIT-004) ───────────────────────────────
+describe('AC-KIT-001: Kitchen group renders in the nav', () => {
+  it('AC-KIT-001: "Kitchen" group heading is visible in the nav', () => {
+    renderRailNav('/kitchen/log')
+    expect(screen.getByText('Kitchen')).toBeInTheDocument()
+  })
+
+  it('AC-KIT-001: Kitchen group heading uses text-muted-foreground (same as Workspace)', () => {
+    renderRailNav('/tasks')
+    const heading = screen.getByText('Kitchen')
+    expect(heading.className).toMatch(/text-muted-foreground/)
+  })
+
+  it('AC-KIT-001: Log link is active (aria-current=page) when at /kitchen/log', () => {
+    renderRailNav('/kitchen/log')
+    const links = screen.getAllByRole('link')
+    const active = links.filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(active).toHaveLength(1)
+    expect(active[0]).toHaveAccessibleName('Log')
+  })
+})
+
+describe('AC-KIT-002: plain member sees Log, Plan, Stock but NOT Review or Pushes', () => {
+  it('AC-KIT-002: Log, Plan, Stock links are present for a plain member', () => {
+    setAuthAs([])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Log' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Plan' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
+  })
+
+  it('AC-KIT-002: Review and Pushes links are NOT present for a plain member', () => {
+    setAuthAs([])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
+  })
+})
+
+describe('AC-KIT-003: ops_lead viewer sees all 5 Kitchen links', () => {
+  it('AC-KIT-003: ops_lead sees Log, Plan, Stock, Review, Pushes', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Log' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Plan' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Review' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Pushes' })).toBeInTheDocument()
+  })
+})
+
+describe('AC-KIT-004: admin viewer sees all 5 Kitchen links', () => {
+  it('AC-KIT-004: admin sees Log, Plan, Stock, Review, Pushes', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Log' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Plan' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Review' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Pushes' })).toBeInTheDocument()
+  })
+})
+
+describe('AC-KIT-005: Kitchen group Kitchen links have correct hrefs', () => {
+  it('AC-KIT-005: Log href is /kitchen/log, Plan is /kitchen/plan, Stock is /kitchen/stock', () => {
+    setAuthAs([])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Log' })).toHaveAttribute('href', '/kitchen/log')
+    expect(within(nav).getByRole('link', { name: 'Plan' })).toHaveAttribute('href', '/kitchen/plan')
+    expect(within(nav).getByRole('link', { name: 'Stock' })).toHaveAttribute('href', '/kitchen/stock')
+  })
+
+  it('AC-KIT-005: Review href is /kitchen/review, Pushes is /kitchen/pushes for ops_lead', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/kitchen/review')
+    expect(within(nav).getByRole('link', { name: 'Pushes' })).toHaveAttribute('href', '/kitchen/pushes')
   })
 })
