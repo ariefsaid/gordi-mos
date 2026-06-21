@@ -248,7 +248,14 @@ function PlanRow({
             const v = parseInt(e.target.value, 10)
             setDraft(Number.isNaN(v) ? 0 : Math.max(0, v))
           }}
-          onBlur={() => onSave(draft)}
+          onBlur={e => {
+            // Read e.target.value directly so the save always uses the current
+            // DOM value, not the draft closure (which may be stale if React's
+            // commit of the onChange re-render is deferred under concurrent mode
+            // or coverage instrumentation).
+            const v = parseInt(e.target.value, 10)
+            onSave(Number.isNaN(v) ? 0 : Math.max(0, v))
+          }}
         />
         <button
           type="button"

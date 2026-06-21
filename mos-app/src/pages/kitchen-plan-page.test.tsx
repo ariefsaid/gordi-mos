@@ -153,7 +153,16 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     const input = within(ayamRow).getByRole('spinbutton')
     fireEvent.change(input, { target: { value: '15' } })
     fireEvent.blur(input)
-    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
+    // Under CI/coverage the rejected-Promise → catch → setState → re-render chain
+    // can exceed findByRole's default 1 s timeout. waitFor retries both the upsert
+    // call and the resulting alert together, making this deterministic regardless of
+    // event-loop pressure.
+    await waitFor(() => {
+      expect(mockUpsert).toHaveBeenCalledOnce()
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
+    })
+    // the edited row must still be on screen — no navigation on error
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
   it('empty: ops_lead sees an editable blank grid (items, all qty 0) — not "no plan"', async () => {
