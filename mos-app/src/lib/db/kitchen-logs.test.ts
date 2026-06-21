@@ -179,7 +179,7 @@ describe('fetchPlanMap', () => {
     expect(map['w1']['Transfer to Radiant']).toBe(5)
     expect(map['w2']['Production']).toBe(20)
     expect(map['w1']['Transfer to Bungur']).toBeUndefined()
-    expect(rec.eqs).toContainEqual(['date', '2026-06-20'])
+    expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
   })
 
   it('returns empty map when no plan rows', async () => {
@@ -231,7 +231,7 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
 
     // Required fields
     expect(payload.business_unit_id).toBe(BU_ID)
-    expect(payload.date).toBe('2026-06-20')       // DB column is `date`
+    expect(payload.log_date).toBe('2026-06-20')   // DB column is `log_date`
     expect(payload.action_type).toBe('Production')
     expect(payload.wip_item_id).toBe(WIP_ID)
     expect(payload.qty_porsi).toBe(8)
@@ -239,8 +239,8 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
 
     // MUST NOT send server-stamped fields (NFR-003)
     assertNoServerStamps([payload])
-    // should not send log_date (DB column is `date`)
-    expect(payload).not.toHaveProperty('log_date')
+    // should not send the old (wrong) 'date' key
+    expect(payload).not.toHaveProperty('date')
   })
 
   it('AC-020: rejects when qty_porsi = 0', async () => {
@@ -563,7 +563,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
   const SUBMITTED_ROWS = [
     {
       id: 'log-1',
-      date: '2026-06-20',
+      log_date: '2026-06-20',
       action_type: 'Production',
       wip_item_id: 'w1',
       wip_items: { name: 'Nasi Goreng' },
@@ -576,7 +576,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     },
     {
       id: 'log-2',
-      date: '2026-06-20',
+      log_date: '2026-06-20',
       action_type: 'Transfer to Radiant',
       wip_item_id: 'w2',
       wip_items: { name: 'Cold Brew' },
@@ -599,7 +599,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
 
     // ONLY Submitted logs (the GIGO queue, FR-040)
     expect(rec.eqs).toContainEqual(['status', 'Submitted'])
-    expect(rec.eqs).toContainEqual(['date', '2026-06-20'])
+    expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
     expect(rec.fromTables).toContain('kitchen_logs')
     // same-schema embed of the WIP item name (FR-040 plan-vs-logged display)
     expect(rec.selects.join(' ')).toMatch(/wip_items/)

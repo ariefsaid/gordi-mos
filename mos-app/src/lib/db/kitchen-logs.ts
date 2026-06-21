@@ -55,7 +55,7 @@ export async function fetchPlanMap(logDate: string): Promise<PlanMap> {
   const { data, error } = await ops()
     .from('kitchen_plans')
     .select('wip_item_id,action_type,qty_porsi')
-    .eq('date', logDate)
+    .eq('log_date', logDate)
   if (error) throw new Error(`fetchPlanMap failed — ${error.message}`)
   const rows = (data ?? []) as Pick<KitchenPlanRow, 'wip_item_id' | 'action_type' | 'qty_porsi'>[]
   const map: PlanMap = {}
@@ -165,8 +165,6 @@ export async function fetchKitchenStock(asOf: string): Promise<KitchenStockRow[]
  * Sends ONLY: business_unit_id, log_date, action_type, wip_item_id, qty_porsi, notes.
  * status defaults to 'Submitted' at DB. org_id + submitted_by are server-stamped.
  * Throws on PostgREST error. Returns the inserted row's id.
- *
- * DB column name is `date` not `log_date` — map here at the boundary.
  */
 export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<string> {
   // Validate client-side before hitting the DB (qty > 0)
@@ -176,7 +174,7 @@ export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<st
 
   const row: Record<string, unknown> = {
     business_unit_id: input.business_unit_id,
-    date: input.log_date,           // DB column is `date`
+    log_date: input.log_date,
     action_type: input.action_type,
     wip_item_id: input.wip_item_id,
     qty_porsi: input.qty_porsi,
@@ -210,7 +208,7 @@ export async function insertKitchenLogBatch(
     if (input.qty_porsi <= 0) throw new Error('qty_porsi must be > 0')
     return {
       business_unit_id: input.business_unit_id,
-      date: input.log_date,
+      log_date: input.log_date,
       action_type: input.action_type,
       wip_item_id: input.wip_item_id,
       qty_porsi: input.qty_porsi,
@@ -246,7 +244,7 @@ export class KitchenRpcError extends Error {
 // shared.people is NOT — PGRST200 — so the submitter NAME is resolved client-side
 // from the directory, mirroring tasks.ts).
 const REVIEW_SELECT =
-  'id,date,action_type,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+  'id,log_date,action_type,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
 
 /**
  * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
@@ -259,14 +257,14 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     .from('kitchen_logs')
     .select(REVIEW_SELECT)
     .eq('status', 'Submitted')
-    .eq('date', logDate)
+    .eq('log_date', logDate)
     .order('action_type', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
 
   type RawRow = {
     id: string
-    date: string
+    log_date: string
     action_type: KitchenActionType
     wip_item_id: string
     qty_porsi: number
@@ -283,7 +281,7 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     const embed = Array.isArray(r.wip_items) ? r.wip_items[0] : r.wip_items
     return {
       id: r.id,
-      log_date: r.date, // DB column is `date`
+      log_date: r.log_date,
       action_type: r.action_type,
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
