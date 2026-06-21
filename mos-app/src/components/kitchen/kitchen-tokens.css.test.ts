@@ -15,6 +15,7 @@ const SRC = resolve(process.cwd(), 'src')
 const KITCHEN_CSS = [
   join(SRC, 'pages', 'kitchen-log-page.css'),
   join(SRC, 'pages', 'kitchen-review-page.css'),
+  join(SRC, 'pages', 'kitchen-stock-page.css'),
   join(SRC, 'components', 'kitchen', 'wip-item-stepper.css'),
   join(SRC, 'components', 'kitchen', 'action-type-seg.css'),
   join(SRC, 'components', 'kitchen', 'kitchen-review-row.css'),
