@@ -26,6 +26,7 @@ import {
 import type { ReviewLogRow, KitchenActionType, PlanMap } from '@/lib/db/kitchen-logs.types'
 import { getPeople } from '@/lib/db/directory'
 import { KitchenReviewRow } from '@/components/kitchen/kitchen-review-row'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import './kitchen-review-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture page.
@@ -295,23 +296,17 @@ export function KitchenReviewPage() {
       {load.kind === 'loading' && <LoadingState />}
 
       {load.kind === 'error' && (
-        <div className="kr-block kr-error" role="alert">
-          <p className="kr-error-msg">Couldn't load the queue — check your connection.</p>
-          <button
-            type="button"
-            className="btn btn-outline"
-            aria-label="Retry loading the queue"
-            onClick={() => setRetryKey(k => k + 1)}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          message="Couldn't load the queue — check your connection."
+          onRetry={() => setRetryKey(k => k + 1)}
+        />
       )}
 
       {load.kind === 'ready' && submittedCount === 0 && (
-        <div className="kr-block kr-empty">
-          Nothing to review — no submitted logs for {logDate}. ✓
-        </div>
+        <EmptyState
+          title="Nothing to review"
+          copy={`No submitted logs for ${logDate}.`}
+        />
       )}
 
       {load.kind === 'ready' && submittedCount > 0 && (
@@ -384,8 +379,8 @@ export function KitchenReviewPage() {
 
 function LoadingState() {
   return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kr-loading kr-block">
-      {[1, 2, 3].map(i => <div key={i} className="kr-skeleton" />)}
+    <div role="status" aria-label="Loading" aria-busy="true" className="kr-block">
+      <SkeletonRows count={3} />
     </div>
   )
 }

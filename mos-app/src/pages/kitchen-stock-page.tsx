@@ -14,6 +14,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -82,23 +83,17 @@ export function KitchenStockPage() {
       {load.kind === 'loading' && <LoadingState />}
 
       {load.kind === 'error' && (
-        <div className="ks-block ks-error" role="alert">
-          <p className="ks-error-msg">Couldn't compute stock — check your connection.</p>
-          <button
-            type="button"
-            className="btn btn-outline"
-            aria-label="Retry loading stock"
-            onClick={() => setRetryKey(k => k + 1)}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          message="Couldn't compute stock — check your connection."
+          onRetry={() => setRetryKey(k => k + 1)}
+        />
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <div className="ks-block ks-empty">
-          No stock to show — no approved kitchen activity for {asOf} yet.
-        </div>
+        <EmptyState
+          title="No stock to show"
+          copy={`No approved kitchen activity for ${asOf} yet.`}
+        />
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
@@ -141,8 +136,8 @@ function StockCell({ value }: { value: number }) {
 
 function LoadingState() {
   return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="ks-loading ks-block">
-      {[1, 2, 3].map(i => <div key={i} className="ks-skeleton" />)}
+    <div role="status" aria-label="Loading" aria-busy="true" className="ks-block">
+      <SkeletonRows count={3} />
     </div>
   )
 }

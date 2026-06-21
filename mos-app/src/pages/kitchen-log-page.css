@@ -117,11 +117,12 @@
 }
 .kl-submit-desktop { display: none; }
 
-/* ── Error / empty / loading / unauth blocks — viewport-safe + touch floors ── */
+/* ── Error / unauth blocks — viewport-safe + touch floors. (Loading + empty are the
+   shared StateKit — SkeletonRows / EmptyState, tokens in CardHead.css. The data-error
+   block stays bespoke here: it must surface the OfflineBanner in-state and carry the
+   44px touch-floored Retry — RI-2 / RI-3 — which the generic ErrorState can't.) ── */
 .kl-error,
-.kl-empty,
-.kl-unauth,
-.kl-loading {
+.kl-unauth {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -132,11 +133,6 @@
   margin-bottom: 12px;
   font-size: 14px;
 }
-.kl-empty {
-  padding: 32px 0;
-  color: var(--muted-foreground);
-  font-size: 14px;
-}
 .kl-unauth {
   text-align: center;
   padding: 48px 24px;
@@ -144,26 +140,6 @@
 .kl-unauth-msg {
   color: var(--muted-foreground);
   margin-bottom: 16px;
-}
-.kl-loading {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 24px 0;
-}
-.kl-skeleton {
-  height: 76px;
-  background: var(--muted);
-  border-radius: var(--radius-md);
-  opacity: 0.6;
-  animation: kl-skeleton-pulse 1.5s ease-in-out infinite;
-}
-@keyframes kl-skeleton-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 0.3; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .kl-skeleton { animation: none; }
 }
 
 /* Fix #7: 44px touch floor on every interactive control on the small states. */

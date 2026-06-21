@@ -177,39 +177,9 @@
   text-align: right;
 }
 
-/* ── States ── */
-.kp-loading {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 0;
-}
-.kp-skeleton {
-  height: 48px;
-  background: var(--muted);
-  border-radius: var(--radius-md);
-  opacity: 0.6;
-  animation: kp-skeleton-pulse 1.5s ease-in-out infinite;
-}
-@keyframes kp-skeleton-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 0.3; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .kp-skeleton { animation: none; }
-}
-
-.kp-empty {
-  padding: 32px 0;
-  color: var(--muted-foreground);
-  font-size: 14px;
-}
-.kp-error { padding: 24px 0; }
-.kp-error-msg {
-  color: var(--status-lost-text);
-  margin-bottom: 12px;
-  font-size: 14px;
-}
+/* ── States: loading / empty / error are the shared StateKit
+   (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
+   tokens live in CardHead.css; no kitchen-local skeleton/empty/error CSS here. ── */
 
 /* ── Sign-in / blocked panel ── */
 .kp-forbidden {

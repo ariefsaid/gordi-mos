@@ -37,6 +37,7 @@ import {
 } from '@/lib/kitchen-gates'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
+import { EmptyState, SkeletonRows } from '@/components/ui/state-kit'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -303,9 +304,10 @@ export function KitchenLogPage() {
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <ContentHeader title="Kitchen · Log" logDate={logDate} />
-          <div className="kl-empty kl-block">
-            No active WIP items configured — ask an ops lead to add items.
-          </div>
+          <EmptyState
+            title="No active WIP items"
+            copy="Ask an ops lead to add items."
+          />
         </div>
       </PageFrame>
     )
@@ -445,10 +447,8 @@ function SubmitButton({
 
 function LoadingState() {
   return (
-    <div role="status" aria-label="Loading" className="kl-loading kl-block">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="kl-skeleton" />
-      ))}
+    <div role="status" aria-label="Loading" aria-busy="true" className="kl-block">
+      <SkeletonRows count={3} />
     </div>
   )
 }

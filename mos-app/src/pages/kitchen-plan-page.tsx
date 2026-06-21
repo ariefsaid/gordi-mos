@@ -24,6 +24,7 @@ import type {
 } from '@/lib/db/kitchen-logs.types'
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other kitchen pages.
@@ -167,19 +168,17 @@ function PlanEditor() {
       {load.kind === 'loading' && <LoadingState />}
 
       {load.kind === 'error' && (
-        <div className="kp-block kp-error" role="alert">
-          <p className="kp-error-msg">Couldn't load the plan — check your connection.</p>
-          <button type="button" className="btn btn-outline" aria-label="Retry loading the plan"
-            onClick={() => setRetryKey(k => k + 1)}>
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          message="Couldn't load the plan — check your connection."
+          onRetry={() => setRetryKey(k => k + 1)}
+        />
       )}
 
       {load.kind === 'ready' && items.length === 0 && (
-        <div className="kp-block kp-empty">
-          No active WIP items configured — ask an admin to add kitchen items first.
-        </div>
+        <EmptyState
+          title="No active WIP items"
+          copy="Ask an admin to add kitchen items first."
+        />
       )}
 
       {load.kind === 'ready' && items.length > 0 && (
@@ -311,19 +310,17 @@ function PesananView() {
       {load.kind === 'loading' && <LoadingState />}
 
       {load.kind === 'error' && (
-        <div className="kp-block kp-error" role="alert">
-          <p className="kp-error-msg">Couldn't load the upcoming plan — check your connection.</p>
-          <button type="button" className="btn btn-outline" aria-label="Retry loading the upcoming plan"
-            onClick={() => setRetryKey(k => k + 1)}>
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          message="Couldn't load the upcoming plan — check your connection."
+          onRetry={() => setRetryKey(k => k + 1)}
+        />
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <div className="kp-block kp-empty">
-          Nothing planned in the next {PESANAN_HORIZON_DAYS} days yet.
-        </div>
+        <EmptyState
+          title="Nothing planned"
+          copy={`No planned items in the next ${PESANAN_HORIZON_DAYS} days yet.`}
+        />
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
@@ -363,8 +360,8 @@ function PesananView() {
 
 function LoadingState() {
   return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kp-loading kp-block">
-      {[1, 2, 3].map(i => <div key={i} className="kp-skeleton" />)}
+    <div role="status" aria-label="Loading" aria-busy="true" className="kp-block">
+      <SkeletonRows count={3} />
     </div>
   )
 }

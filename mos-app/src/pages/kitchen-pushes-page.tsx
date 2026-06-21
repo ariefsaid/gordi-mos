@@ -21,6 +21,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { Tag } from '@/components/ui/tag'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
 import './kitchen-pushes-page.css'
@@ -162,23 +163,14 @@ export function KitchenPushesPage() {
       {load.kind === 'loading' && <LoadingState />}
 
       {load.kind === 'error' && (
-        <div className="kpu-block kpu-error" role="alert">
-          <p className="kpu-error-msg">Couldn't load pushes — check your connection.</p>
-          <button
-            type="button"
-            className="btn btn-outline"
-            aria-label="Retry loading pushes"
-            onClick={() => setRetryKey(k => k + 1)}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          message="Couldn't load pushes — check your connection."
+          onRetry={() => setRetryKey(k => k + 1)}
+        />
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <div className="kpu-block kpu-empty">
-          No pushes yet — ESB outbox is empty.
-        </div>
+        <EmptyState title="No pushes yet" copy="The ESB outbox is empty." />
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
@@ -283,10 +275,8 @@ function PushRow({ row }: { row: EsbPushRow }) {
 
 function LoadingState() {
   return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kpu-loading kpu-block">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="kpu-skeleton" />
-      ))}
+    <div role="status" aria-label="Loading" aria-busy="true" className="kpu-block">
+      <SkeletonRows count={3} />
     </div>
   )
 }
