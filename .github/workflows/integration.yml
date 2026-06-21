@@ -41,13 +41,17 @@ jobs:
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
         # Defense-in-depth: prevents a recurrence of the _test_seed_role_tree audit Critical
         # (2026-06-11) where a SECURITY DEFINER function was reachable via PostgREST because
-        # it lacked an explicit REVOKE. Each file with 'security definer' must contain a
-        # matching 'revoke execute on function' in the same file.
+        # it lacked an explicit REVOKE. Each file that DEFINES a 'security definer' function
+        # must contain a matching 'revoke execute on function' in the same file.
+        # SQL line comments are stripped first so a mere *mention* of "security definer" in a
+        # comment (e.g. "writes are RPC-only via the SECURITY DEFINER approval RPC") is not a
+        # false positive — only an actual definer clause in executable SQL is flagged.
         run: |
           failed=0
           for f in supabase/migrations/*.sql; do
-            if grep -qi 'security definer' "$f"; then
-              if ! grep -qi 'revoke execute on function' "$f"; then
+            body=$(sed 's/--.*//' "$f")
+            if echo "$body" | grep -qi 'security definer'; then
+              if ! echo "$body" | grep -qi 'revoke execute on function'; then
                 echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
                 failed=1
               fi
