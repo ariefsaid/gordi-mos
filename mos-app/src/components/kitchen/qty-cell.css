@@ -1,0 +1,81 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   QtyCell — desktop inline-editable "Made today" cell (plan §4.1 N5, §8.1).
+   The −/+ stepper flanks the input; at rest the input is the quiet number, on
+   :hover / :focus-within the buttons lift to full opacity (the compact stepper).
+   One-Blue focus ring on the input only. Token-only (DESIGN.md).
+   Spacing follows the sibling kitchen CSS idiom (literal px).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.qcell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.qcell-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* compact −/+ (28px) — subtle at rest, full opacity on hover/focus-within */
+.qcell-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+.qcell-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.qcell-btn:disabled { cursor: not-allowed; }
+
+/* the qty input — the quiet tabular number; One-Blue focus ring */
+.qcell-input {
+  width: 48px;
+  height: 28px;
+  box-sizing: border-box;
+  text-align: right;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  padding: 0 4px;
+}
+.qcell-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+  background: var(--card);
+}
+
+/* reveal the full stepper opacity when the cell is hovered/focused */
+.qcell-stepper:hover .qcell-btn,
+.qcell-stepper:focus-within .qcell-btn {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qcell-btn { transition: none; }
+}
+
+/* transfer-cap cue (FR-023 / AC-022) */
+.qcell-cap-cue {
+  font-size: 11px;
+  color: var(--status-lost-text);
+}
+.qcell-cap .qcell-input {
+  border-color: var(--destructive);
+}
