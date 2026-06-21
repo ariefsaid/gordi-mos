@@ -5,50 +5,9 @@
 > `docs/platform-workstream-status.md`. This file is kept as historical record of the revamp
 > decisions and gotchas.
 
-<<<<<<< HEAD
 Single source of truth for the records-workspace UI/UX/IA/IxD revamp + the structural-convention
 migration. Pairs with `docs/decisions.md` (OD entries),
 `docs/reference/engineering-conventions.md`, and `docs/reference/mos-design-kit/`.
-=======
-## CURRENT STATE (2026-06-20) — revamp + fidelity pass DONE, on `main`, green
-**Build PRs (records-workspace):** #42 shell (brand-left top bar, nav-only rail) · #47 table craft +
-TasksWorkspace decomposition · #49 two-column hybrid record page · #50 My Week wired to R/A data ·
-#51 ⌘K palette + `searchTasksByTitle` · #52 states + dark-AA capstone. Conventions baseline: @/ alias
-(#30), no-hardcoded-colors (#31), named-exports (#34), kebab-case (#40); ADR-0013 + build plan (#39).
-
-**Fidelity pass (owner: merged app still "looked no different / not like the mockup"):**
-- **#53** — root cause: **DM Sans never loaded** (`@fontsource-variable/dm-sans` family is `'DM Sans
-  Variable'`, tokens said `'DM Sans'` → system-font fallback); fixed → "much better". + Tasks chrome
-  rebuilt to mockup (view-tabs + orange underline, chip filters, `☰ Tasks [count] + New task` header,
-  flat default); `--brand-orange` brown→vivid; overlines 13.6→11px; breadcrumb `Tasks › <task>`; card
-  radius 12→8; **avatar 3.67:1 → gradient+inverted ~8:1**; **OD-P5-1** (group-by toggle, default flat);
-  **`css-var-wiring.test.ts`** guard (catches silent `var()`/font reference failures).
-- **#54** — global **+2px font** (body 14→16, token scale, 144 literals; 11px overline/labels kept).
-
-**Verification:** render-verify via a throwaway **Playwright** spec (`loginAs` + `page.screenshot`) — the
-only reliable render path (agent-browser auth is broken). **(2026-06-21: e2e no longer breaks the owner's
-dev login.** The e2e auth model was reworked PMO-style — e2e logs in AS the seeded `*.dev` personas and
-`global-setup` ensures+links them idempotently instead of stealing their person rows, so a run now *heals*
-dev login. Only ORPHAN/RECOVERY keep dedicated e2e-only users. See `mos-dev-gotchas`.)
-
-**Bug classes to keep catching:** *structural* (reference doesn't resolve) → CI-guarded now; *value-level*
-(defined but wrong value/contrast) → only render+measure (getComputedStyle/eye) catches it.
-
-## OUTSTANDING (none blocking)
-- Light-mode amber/green tag-text AA (4.33/4.37 < 4.5; shared kit token).
-- `pg_trgm` index for ⌘K search (deferred per ADR-0013 D4 until row counts warrant).
-- Shared `useFocusTrap` hook (command-menu + mobile-drawer dedup).
-- Mono webfont never loaded (SF Mono = system-only); `Chip/Tag/TextInput.css` use `--font-size-sm` (missing
-  `--ds-` prefix → silent fallback).
-- **Dev-env hardening (mostly DONE 2026-06-21):** e2e no longer breaks dev login (PMO-style auth model —
-  e2e logs in as the `*.dev` personas; `global-setup` self-heals their links). Remaining: scope e2e data to
-  its own org so a run stops wiping the demo org's task/weekly/log data.
-- Record-page full-page two-column at deep-link/expand reportedly still reads as a wide drawer (≈996px) —
-  needs an owner/render check (couldn't resolve blind).
-
----
-### (history — 2026-06-19 baseline)
->>>>>>> a1ef3e7 (fix(e2e): PMO-style auth model so e2e no longer breaks dev login)
 
 ## Goal (owner directive)
 Revamp MOS to a calm, dense **records-workspace** look/feel + IA/IxD, using our **own de-referenced**
