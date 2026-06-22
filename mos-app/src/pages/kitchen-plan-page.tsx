@@ -26,6 +26,11 @@ import type {
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { useIsDesktop } from '@/shell/use-is-desktop'
+import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { KitchenPlanTable } from '@/components/kitchen/kitchen-plan-table'
+import { KitchenPlanCards } from '@/components/kitchen/kitchen-plan-cards'
+import { usePlanKpis } from '@/lib/kitchen-plan-kpis'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other kitchen pages.
@@ -77,6 +82,12 @@ function PlanEditor() {
   const [notice, setNotice] = useState('')
   const [saveError, setSaveError] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  // NEW presentational state (P-3): reflow branch + client-side search/category filter.
+  const isDesktop = useIsDesktop()
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('All')
+  // Derived plan KPIs (P-1) — pure view over `cells` for the current action.
+  const kpis = usePlanKpis(cells, action)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -140,7 +151,7 @@ function PlanEditor() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
         variant="content"
         title="Kitchen · Plan"
@@ -148,7 +159,12 @@ function PlanEditor() {
         meta={<span className="kp-date tabular">{logDate}</span>}
       />
 
-      <div className="kp-toolbar kp-block">
+      {/* Derived KPI strip (P-1) — only when populated (plan §4.4) */}
+      {load.kind === 'ready' && items.length > 0 && (
+        <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
+      )}
+
+      <div className="kp-seg-wrap kp-block">
         <ActionTypeSeg value={action} onChange={setAction} disabled={load.kind !== 'ready'} />
       </div>
 
@@ -183,95 +199,38 @@ function PlanEditor() {
       )}
 
       {load.kind === 'ready' && items.length > 0 && (
-        <div className="kp-editor kp-block">
-          {items.map(item => (
-            <PlanRow
-              key={item.id}
-              item={item}
-              qty={qtyOf(item.id)}
-              saving={savingId === item.id}
-              disabled={!isOnline}
-              onSave={next => saveCell(item.id, next)}
-            />
-          ))}
-        </div>
+        isDesktop ? (
+          <KitchenPlanTable
+            items={items}
+            qtyOf={qtyOf}
+            savingId={savingId}
+            disabled={!isOnline}
+            onSave={saveCell}
+            search={search}
+            onSearchChange={setSearch}
+            category={category}
+            onCategoryChange={setCategory}
+          />
+        ) : (
+          <KitchenPlanCards
+            items={items}
+            qtyOf={qtyOf}
+            savingId={savingId}
+            disabled={!isOnline}
+            onSave={saveCell}
+            search={search}
+            onSearchChange={setSearch}
+            category={category}
+            onCategoryChange={setCategory}
+          />
+        )
       )}
     </PageFrame>
   )
 }
 
-// One editable plan row: an item name + a qty stepper for the selected action_type.
-// Local draft state so typing is smooth; commits on blur or +/- (quiet save).
-function PlanRow({
-  item, qty, saving, disabled, onSave,
-}: {
-  item: WipItemOption
-  qty: number
-  saving: boolean
-  disabled: boolean
-  onSave: (next: number) => void
-}) {
-  const [draft, setDraft] = useState<number>(qty)
-  // Keep the draft in sync when the committed qty changes (e.g. after a confirmed save).
-  useEffect(() => { setDraft(qty) }, [qty])
-
-  function commit(next: number) {
-    const clamped = Math.max(0, next)
-    setDraft(clamped)
-    onSave(clamped)
-  }
-
-  return (
-    <div className="kpe-row">
-      <span className="kpe-name">{item.name}</span>
-      <div className="kpe-stepper">
-        <button
-          type="button"
-          aria-label={`Decrease ${item.name} planned quantity`}
-          className="kpe-step"
-          data-touch-target="true"
-          disabled={disabled || draft <= 0}
-          onClick={() => commit(draft - 1)}
-        >
-          −
-        </button>
-        <input
-          type="number"
-          role="spinbutton"
-          aria-label={`Planned quantity for ${item.name}`}
-          className="kpe-qty tabular"
-          value={draft}
-          min={0}
-          step={1}
-          disabled={disabled}
-          onChange={e => {
-            const v = parseInt(e.target.value, 10)
-            setDraft(Number.isNaN(v) ? 0 : Math.max(0, v))
-          }}
-          onBlur={e => {
-            // Read e.target.value directly so the save always uses the current
-            // DOM value, not the draft closure (which may be stale if React's
-            // commit of the onChange re-render is deferred under concurrent mode
-            // or coverage instrumentation).
-            const v = parseInt(e.target.value, 10)
-            onSave(Number.isNaN(v) ? 0 : Math.max(0, v))
-          }}
-        />
-        <button
-          type="button"
-          aria-label={`Increase ${item.name} planned quantity`}
-          className="kpe-step"
-          data-touch-target="true"
-          disabled={disabled}
-          onClick={() => commit(draft + 1)}
-        >
-          +
-        </button>
-        {saving && <span className="kpe-saving" role="status" aria-live="polite">Saving…</span>}
-      </div>
-    </div>
-  )
-}
+// (The plan editor's inline PlanRow was lifted into PlanQtyCell (desktop) +
+// PlanQtyStepper (phone) — see components/kitchen/.)
 
 // ════════════════════════════════════════════════════════════════════════════
 // member — the read-only PESANAN horizon (FR-035 / AC-024)

@@ -103,17 +103,16 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     await waitFor(() => expect(mockPlans).toHaveBeenCalled())
-    // editable qty inputs exist (the editor affordance)
+    // editable qty inputs exist (the editor affordance) — one per item
     expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(2)
     // pre-filled with the existing plan qty for Ayam Bakar / Production
-    const ayamRow = screen.getByText('Ayam Bakar').closest('.kpe-row') as HTMLElement
-    expect(within(ayamRow).getByRole('spinbutton')).toHaveValue(12)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(12)
   })
 
   it('FR-031: editing a cell + save calls upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
     render(<KitchenPlanPage />)
-    const ayamRow = (await screen.findByText('Ayam Bakar')).closest('.kpe-row') as HTMLElement
-    const input = within(ayamRow).getByRole('spinbutton')
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
@@ -128,8 +127,8 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   it('does not save when the value is unchanged (no needless write)', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
     render(<KitchenPlanPage />)
-    const ayamRow = (await screen.findByText('Ayam Bakar')).closest('.kpe-row') as HTMLElement
-    const input = within(ayamRow).getByRole('spinbutton')
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.blur(input) // blur with the same value 12
     await new Promise(r => setTimeout(r, 0))
     expect(mockUpsert).not.toHaveBeenCalled()
@@ -137,8 +136,8 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('shows a quiet saved confirmation after a successful save (no view transition)', async () => {
     render(<KitchenPlanPage />)
-    const ayamRow = (await screen.findByText('Ayam Bakar')).closest('.kpe-row') as HTMLElement
-    const input = within(ayamRow).getByRole('spinbutton')
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
     fireEvent.blur(input)
     expect(await screen.findByText(/saved/i)).toBeInTheDocument()
@@ -149,14 +148,10 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   it('save error: surfaces a message, keeps the edit on screen', async () => {
     mockUpsert.mockRejectedValueOnce(new Error('denied'))
     render(<KitchenPlanPage />)
-    const ayamRow = (await screen.findByText('Ayam Bakar')).closest('.kpe-row') as HTMLElement
-    const input = within(ayamRow).getByRole('spinbutton')
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
     fireEvent.blur(input)
-    // Under CI/coverage the rejected-Promise → catch → setState → re-render chain
-    // can exceed findByRole's default 1 s timeout. waitFor retries both the upsert
-    // call and the resulting alert together, making this deterministic regardless of
-    // event-loop pressure.
     await waitFor(() => {
       expect(mockUpsert).toHaveBeenCalledOnce()
       expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
@@ -169,8 +164,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     mockPlans.mockResolvedValue([])
     render(<KitchenPlanPage />)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-    const ayamRow = screen.getByText('Ayam Bakar').closest('.kpe-row') as HTMLElement
-    expect(within(ayamRow).getByRole('spinbutton')).toHaveValue(0)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(0)
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
@@ -186,9 +180,85 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
     expect(screen.getByText(/offline/i)).toBeInTheDocument()
-    const input = within(screen.getByText('Ayam Bakar').closest('.kpe-row') as HTMLElement).getByRole('spinbutton')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     expect(input).toBeDisabled()
     spy.mockRestore()
+  })
+})
+
+// ── C5: editor new-behavior (KPI strip + reflow branch + category grouping) ─────
+describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+  })
+  // Restore the default phone matchMedia stub after any desktop override so test
+  // order can't leak the branch (mirrors the log page test's afterEach).
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+  })
+
+  it('renders the derived KPI strip with the planned total (Σ qty_porsi for the action)', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+    // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → planned total = 12
+    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
+    expect(region).toHaveTextContent('12')
+  })
+
+  it('groups dishes by category (F2 categories render as group headers)', async () => {
+    const { container } = render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+    // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards)
+    const labels = Array.from(container.querySelectorAll('.kgh-label')).map(el => el.textContent)
+    expect(labels).toContain('Main')
+  })
+
+  it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+    // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
+    expect(screen.queryByRole('table', { name: /kitchen plan/i })).toBeNull()
+  })
+
+  it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    render(<KitchenPlanPage />)
+    expect(await screen.findByRole('table', { name: /kitchen plan/i })).toBeInTheDocument()
   })
 })
 

@@ -1,0 +1,13 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenPlanTable — the desktop editable PLAN <table> (OD-K-5 redesign §4.2/§4.6).
+   Imports the shared kitchen-table.css grammar (.kt-table / .kt-th-num / .kt-num /
+   .kt-name / .kt-cat / .kt-empty). Own additions under .kpt-* only. Token-only.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kpt { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+/* the dish cell — name + category sub-label (stacked) */
+.kpt-dish { min-width: 180px; }
+
+/* the plan cell — right-aligned, hosts the inline PlanQtyCell */
+.kpt-plan { text-align: right; }
