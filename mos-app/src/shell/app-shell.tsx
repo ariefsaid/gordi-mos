@@ -19,7 +19,7 @@ export function AppShell() {
     // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
     <BreadcrumbTitleProvider>
       <div
-        className="min-h-screen bg-secondary/35"
+        className="h-screen bg-secondary/35"
         style={{
           display: 'grid',
           gridTemplateColumns: isNarrow ? '1fr' : 'var(--rail-w) 1fr',
