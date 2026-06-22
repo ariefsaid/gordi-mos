@@ -5,18 +5,19 @@
    ════════════════════════════════════════════════════════════════════════════ */
 
 .krow {
-  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .krow:last-child {
   border-bottom: none;
 }
 .krow:hover td {
-  background: color-mix(in srgb, var(--secondary) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
 }
 
 .krow-cell {
   padding: 10px 12px;
-  vertical-align: top;
+  vertical-align: middle;
   font-size: 13px;
   color: var(--foreground);
 }

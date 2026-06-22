@@ -1,0 +1,13 @@
+@import './kitchen-table.css';
+
+.krt,
+.krc {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.krt-table thead th:last-child,
+.krt-table tbody td:last-child {
+  text-align: right;
+}
