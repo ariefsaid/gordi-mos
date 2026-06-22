@@ -22,7 +22,10 @@ export function AppShell() {
         className="h-screen bg-secondary/35"
         style={{
           display: 'grid',
-          gridTemplateColumns: isNarrow ? '1fr' : 'var(--rail-w) 1fr',
+          // minmax(0, 1fr) (not bare 1fr) so the content column can shrink below its
+          // min-content — bare 1fr's implicit min-width:auto lets wide content (a dense
+          // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
+          gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'var(--rail-w) minmax(0, 1fr)',
           gridTemplateRows: 'var(--header-h) 1fr',
           gridTemplateAreas: isNarrow
             ? '"topbar" "main"'
