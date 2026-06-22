@@ -5,6 +5,8 @@
    Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
 
+.kptn-item { min-width: 180px; }
+
 .kptn-action {
   color: var(--muted-foreground);
   font-size: 13px;

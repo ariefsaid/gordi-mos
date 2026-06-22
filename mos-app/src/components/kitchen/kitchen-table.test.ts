@@ -26,11 +26,12 @@ describe('B1: kitchen-table.css — shared dense-table grammar contract', () => 
     expect(CSS).toMatch(/\.kt-th-num\s*\{/)
     expect(CSS).toMatch(/\.kt-num\s*\{/)
     expect(CSS).toMatch(/tabular-nums/)
+    expect(CSS).toMatch(/\.kt-table\s+thead\s+\.kt-th-num\s*\{[^}]*text-align:\s*right/i)
   })
 
   it('defines the dish name + category sub-label helpers (.kt-name + .kt-cat)', () => {
-    expect(CSS).toMatch(/\.kt-name\s*\{/)
-    expect(CSS).toMatch(/\.kt-cat\s*\{/)
+    expect(CSS).toMatch(/\.kt-name\s*\{[^}]*display:\s*block/i)
+    expect(CSS).toMatch(/\.kt-cat\s*\{[^}]*display:\s*block/i)
   })
 
   it('defines the empty-filter row + negative-number tint (.kt-empty + .kt-neg)', () => {

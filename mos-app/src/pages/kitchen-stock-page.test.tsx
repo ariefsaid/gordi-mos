@@ -107,7 +107,7 @@ describe('KitchenStockPage — states', () => {
 })
 
 describe('KitchenStockPage — populated (FR-060/061)', () => {
-  // The structural cut/negative tests run against the desktop <table> branch.
+    // The structural cut/negative tests run against the desktop <table> branch.
   afterEach(() => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -136,6 +136,20 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
       }),
     })
   }
+
+  it('renders stock-specific KPI labels (not Log labels)', async () => {
+    setDesktop()
+    mockFetch.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText(/total on-hand/i)).toBeInTheDocument()
+    expect(screen.getByText(/items in stock/i)).toBeInTheDocument()
+    expect(screen.getByText(/negative balances/i)).toBeInTheDocument()
+    expect(screen.getByText(/available total/i)).toBeInTheDocument()
+    expect(screen.queryByText(/made so far/i)).toBeNull()
+    expect(screen.queryByText(/% complete/i)).toBeNull()
+  })
 
   it('renders a semantic table with the two cuts (stok + tersedia) per item', async () => {
     setDesktop()

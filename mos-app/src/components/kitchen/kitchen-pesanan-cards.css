@@ -37,6 +37,10 @@
   font-size: 14px;
   color: var(--foreground);
 }
+.kpcn-cat {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
 .kpcn-action {
   font-size: 12px;
   color: var(--muted-foreground);

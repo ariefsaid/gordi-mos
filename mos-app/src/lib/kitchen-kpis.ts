@@ -9,7 +9,27 @@
 //   pctComplete=78% · itemsRemaining=4 · unitsShort=46 · plannedDishCount=6
 
 import { useMemo } from 'react'
+import type { ReactNode } from 'react'
 import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
+
+export type KitchenKpiTone = 'neutral' | 'success' | 'destructive'
+
+export interface KitchenKpiTileData {
+  label: string
+  value: string
+  delta?: ReactNode
+  deltaTone?: KitchenKpiTone
+  deltaDot?: boolean
+  sub?: string
+}
+
+export interface KitchenKpiStripData {
+  ariaLabel: string
+  phoneLabel: string
+  phoneValue: string
+  phoneMeta: string
+  tiles: [KitchenKpiTileData, KitchenKpiTileData, KitchenKpiTileData, KitchenKpiTileData]
+}
 
 export interface KitchenKpis {
   /** Σ plan_qty over planned items (plan>0), current action_type */

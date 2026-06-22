@@ -44,9 +44,12 @@ export function KitchenPesananTable({ groups }: KitchenPesananTableProps) {
             />
             {group.items.map(r => (
               <tr key={`${r.log_date}-${r.wip_item_id}-${r.action_type}`} className="kptn-row">
-                <td className="kt-name">{r.wip_item_name}</td>
+                <td className="kptn-item">
+                  <span className="kt-name">{r.wip_item_name}</span>
+                  {r.category && <span className="kt-cat">{r.category}</span>}
+                </td>
                 <td className="kptn-action">{r.action_type}</td>
-                <td className="kt-num kptn-qty">{r.qty_porsi}</td>
+                <td className="kt-num kptn-qty tabular">{r.qty_porsi}</td>
               </tr>
             ))}
           </Fragment>

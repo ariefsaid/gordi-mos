@@ -152,6 +152,7 @@ export async function fetchKitchenStock(asOf: string): Promise<KitchenStockRow[]
     return {
       wip_item_id: item.id,
       wip_item_name: item.name,
+      category: item.category,
       stok: s?.usable_qty ?? 0,
       tersedia: s?.available_qty ?? 0,
     }

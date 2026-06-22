@@ -29,7 +29,7 @@
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
-.kt-th-num { text-align: right; }
+.kt-table thead .kt-th-num { text-align: right; }
 
 /* 50px dense body rows (OD-P3-6 DB-view); divider = border/70% */
 .kt-table tbody td {
@@ -54,7 +54,12 @@
 }
 
 /* dish name + category sub-label */
-.kt-name { font-weight: 500; }
+.kt-name {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+}
 .kt-cat {
   display: block;
   font-size: 11px;

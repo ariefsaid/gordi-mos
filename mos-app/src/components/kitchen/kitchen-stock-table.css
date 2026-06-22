@@ -6,4 +6,5 @@
    ════════════════════════════════════════════════════════════════════════════ */
 
 .kst { width: 100%; max-width: 100%; box-sizing: border-box; }
+.kst-dish { min-width: 180px; }
 .kst-num { font-weight: 500; }

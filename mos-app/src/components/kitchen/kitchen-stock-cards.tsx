@@ -33,7 +33,10 @@ export function KitchenStockCards({ rows, search, onSearchChange }: KitchenStock
         <div className="ksc-cards">
           {visible.map(row => (
             <div key={row.wip_item_id} className="ksc-card">
-              <span className="ksc-name">{row.wip_item_name}</span>
+              <div className="ksc-head">
+                <span className="ksc-name">{row.wip_item_name}</span>
+                {row.category && <span className="ksc-cat">{row.category}</span>}
+              </div>
               <div className="ksc-cuts">
                 <StockStat label="Stok" value={row.stok} />
                 <StockStat label="Tersedia" value={row.tersedia} />

@@ -76,6 +76,32 @@ describe('KitchenKpiStrip — phone branch (one-line summary)', () => {
   })
 })
 
+describe('KitchenKpiStrip — custom screen labels', () => {
+  it('renders the provided per-screen tile labels instead of the Log defaults', () => {
+    render(
+      <KitchenKpiStrip
+        isDesktop
+        data={{
+          ariaLabel: 'Stock summary',
+          phoneLabel: 'Stock',
+          phoneValue: '2 items',
+          phoneMeta: '9 available',
+          tiles: [
+            { label: 'Total on-hand', value: '9', delta: '2 items', deltaTone: 'neutral', sub: 'portions' },
+            { label: 'Items in stock', value: '1', delta: '1 empty', deltaTone: 'neutral' },
+            { label: 'Negative balances', value: '1', delta: 'needs review', deltaTone: 'destructive' },
+            { label: 'Available total', value: '5', delta: 'read-only', deltaTone: 'success' },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByRole('region', { name: /stock summary/i })).toBeInTheDocument()
+    expect(screen.getByText(/total on-hand/i)).toBeInTheDocument()
+    expect(screen.getByText(/items in stock/i)).toBeInTheDocument()
+    expect(screen.queryByText(/made so far/i)).toBeNull()
+  })
+})
+
 describe('KitchenKpiStrip — edge: no plan for this action_type', () => {
   const noPlan: KitchenKpis = {
     plannedTotal: 0,

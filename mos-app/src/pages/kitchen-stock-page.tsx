@@ -20,7 +20,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenStockTable } from '@/components/kitchen/kitchen-stock-table'
 import { KitchenStockCards } from '@/components/kitchen/kitchen-stock-cards'
-import { useStockKpis } from '@/lib/kitchen-stock-kpis'
+import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -48,7 +48,7 @@ export function KitchenStockPage() {
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useState('')
   // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
-  const kpis = useStockKpis(rows)
+  const kpiData = useStockKpiStripData(rows)
 
   const fetchStock = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -93,7 +93,7 @@ export function KitchenStockPage() {
 
       {/* Derived KPI strip (P-1, OQ-5 default ON) — only when populated */}
       {load.kind === 'ready' && rows.length > 0 && (
-        <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
+        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
       )}
 
       {load.kind === 'loading' && <LoadingState />}

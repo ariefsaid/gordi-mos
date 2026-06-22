@@ -32,7 +32,7 @@ import { KitchenPlanTable } from '@/components/kitchen/kitchen-plan-table'
 import { KitchenPlanCards } from '@/components/kitchen/kitchen-plan-cards'
 import { KitchenPesananTable } from '@/components/kitchen/kitchen-pesanan-table'
 import { KitchenPesananCards } from '@/components/kitchen/kitchen-pesanan-cards'
-import { usePlanKpis } from '@/lib/kitchen-plan-kpis'
+import { usePlanKpiStripData } from '@/lib/kitchen-plan-kpis'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other kitchen pages.
@@ -89,7 +89,7 @@ function PlanEditor() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   // Derived plan KPIs (P-1) — pure view over `cells` for the current action.
-  const kpis = usePlanKpis(cells, action)
+  const kpiData = usePlanKpiStripData(cells, action)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -163,7 +163,7 @@ function PlanEditor() {
 
       {/* Derived KPI strip (P-1) — only when populated (plan §4.4) */}
       {load.kind === 'ready' && items.length > 0 && (
-        <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
+        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
       )}
 
       <div className="kp-seg-wrap kp-block">

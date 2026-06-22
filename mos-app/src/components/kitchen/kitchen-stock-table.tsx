@@ -51,7 +51,10 @@ export function KitchenStockTable({ rows, asOf, search, onSearchChange }: Kitche
           <tbody>
             {visible.map(row => (
               <tr key={row.wip_item_id} className="kst-row">
-                <td className="kt-name">{row.wip_item_name}</td>
+                <td className="kst-dish">
+                  <span className="kt-name">{row.wip_item_name}</span>
+                  {row.category && <span className="kt-cat">{row.category}</span>}
+                </td>
                 <StockCell value={row.stok} />
                 <StockCell value={row.tersedia} />
               </tr>

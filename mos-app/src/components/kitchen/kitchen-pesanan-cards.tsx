@@ -32,6 +32,7 @@ export function KitchenPesananCards({ groups }: KitchenPesananCardsProps) {
               <div key={`${r.log_date}-${r.wip_item_id}-${r.action_type}`} className="kpcn-row">
                 <div className="kpcn-itemwrap">
                   <span className="kpcn-item">{r.wip_item_name}</span>
+                  {r.category && <span className="kpcn-cat">{r.category}</span>}
                   <span className="kpcn-action">{r.action_type}</span>
                 </div>
                 <span className="kpcn-qty tabular">{r.qty_porsi}</span>

@@ -225,8 +225,32 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
     // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → planned total = 12
-    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
+    const region = screen.getByRole('region', { name: /planning summary/i })
     expect(region).toHaveTextContent('12')
+  })
+
+  it('renders plan-specific KPI labels (not Log labels)', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText(/planned total/i)).toBeInTheDocument()
+    expect(screen.getByText(/dishes planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/active action/i)).toBeInTheDocument()
+    expect(screen.getByText(/plan status/i)).toBeInTheDocument()
+    expect(screen.queryByText(/made so far/i)).toBeNull()
+    expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
