@@ -51,71 +51,7 @@
   border: 1px solid var(--border);
 }
 
-/* ── Pesanan read view (grouped by date) — lifted into components in §5 (Phase D) ── */
-.kp-pesanan {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.kp-day-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
-}
-.kp-day-date {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--primary);
-}
-.kp-day-count {
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.kp-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--card);
-}
-.kp-table thead th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--secondary);
-}
-.kp-num-head {
-  text-align: right;
-}
-.kp-table tbody td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  color: var(--foreground);
-}
-.kp-table tbody tr:last-child td {
-  border-bottom: none;
-}
-.kp-item {
-  font-weight: 500;
-}
-.kp-action {
-  color: var(--muted-foreground);
-}
-.kp-num {
-  text-align: right;
-}
+/* ── Pesanan read view lifted into KitchenPesananTable/Cards (OD-K-5 §5). ── */
 
 /* ── States: loading / empty / error are the shared StateKit
    (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
@@ -132,14 +68,8 @@
   font-size: 14px;
 }
 
-/* ── Mobile (<768px): pesanan tables scroll horizontally. ── */
-@media (max-width: 767px) {
-  .kp-table {
-    display: block;
-    overflow-x: auto;
-    min-width: 0;
-  }
-}
+/* ── Mobile (<768px): the useIsDesktop() branch handles reflow at the component
+   level (KitchenPesananCards) — no page-level mobile overrides needed. ── */
 
 /* screen-reader-only caption helper (mirrors the stock/review surfaces) */
 .sr-only {

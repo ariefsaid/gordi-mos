@@ -30,6 +30,8 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenPlanTable } from '@/components/kitchen/kitchen-plan-table'
 import { KitchenPlanCards } from '@/components/kitchen/kitchen-plan-cards'
+import { KitchenPesananTable } from '@/components/kitchen/kitchen-pesanan-table'
+import { KitchenPesananCards } from '@/components/kitchen/kitchen-pesanan-cards'
 import { usePlanKpis } from '@/lib/kitchen-plan-kpis'
 import './kitchen-plan-page.css'
 
@@ -240,6 +242,7 @@ function PesananView() {
   const [rows, setRows] = useState<PesananRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const isDesktop = useIsDesktop()
 
   const fetchHorizon = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -266,7 +269,7 @@ function PesananView() {
   }, [rows])
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
         variant="content"
         title="Kitchen · Pesanan"
@@ -291,35 +294,11 @@ function PesananView() {
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        <div className="kp-pesanan kp-block">
-          {groups.map(group => (
-            <section key={group.date} className="kp-day" aria-label={`Plan for ${group.date}`}>
-              <div className="kp-day-head">
-                <span className="kp-day-date tabular">{group.date}</span>
-                <span className="kp-day-count tabular">{group.items.length}</span>
-              </div>
-              <table className="kp-table">
-                <caption className="sr-only">Planned items for {group.date}</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Item</th>
-                    <th scope="col">Action</th>
-                    <th scope="col" className="kp-num-head">Planned</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.items.map(r => (
-                    <tr key={`${r.wip_item_id}-${r.action_type}`}>
-                      <td className="kp-item">{r.wip_item_name}</td>
-                      <td className="kp-action">{r.action_type}</td>
-                      <td className="kp-num tabular">{r.qty_porsi}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ))}
-        </div>
+        isDesktop ? (
+          <KitchenPesananTable groups={groups} />
+        ) : (
+          <KitchenPesananCards groups={groups} />
+        )
       )}
     </PageFrame>
   )

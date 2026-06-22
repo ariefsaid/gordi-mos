@@ -1,0 +1,48 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenPesananCards — the phone reflow for pesanan (OD-K-5 §5.2 PN-2).
+   One card per date with a compact item list. Card: --shadow-rest, --card, --border.
+   Read-only — no affordance. Token-only (DESIGN.md); .kpcn-* namespace.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kpcn { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+.kpcn-section { margin-bottom: 16px; }
+
+.kpcn-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
+  overflow: hidden;
+}
+
+.kpcn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.kpcn-row:last-child { border-bottom: none; }
+
+.kpcn-itemwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kpcn-item {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--foreground);
+}
+.kpcn-action {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.kpcn-qty {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
