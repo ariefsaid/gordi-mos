@@ -19,13 +19,9 @@ interface KitchenLogCardsProps {
   lines: Record<string, KitchenLogLine>
   actionType: KitchenActionType
   search: string
-  category: string
-  collapsedGroups: Set<string>
   onQtyChange: (itemId: string, qty: number) => void
   onNotesChange: (itemId: string, note: string) => void
-  onToggleGroup: (key: string) => void
   onSearchChange: (s: string) => void
-  onCategoryChange: (c: string) => void
   disabled?: boolean
 }
 

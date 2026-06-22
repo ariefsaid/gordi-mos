@@ -30,13 +30,9 @@ function renderCards(over: Partial<Parameters<typeof KitchenLogCards>[0]> = {}) 
       lines={lines()}
       actionType="Production"
       search=""
-      category="All"
-      collapsedGroups={new Set<string>()}
       onQtyChange={() => {}}
       onNotesChange={() => {}}
-      onToggleGroup={() => {}}
       onSearchChange={() => {}}
-      onCategoryChange={() => {}}
       {...over}
     />,
   )
@@ -104,13 +100,9 @@ describe('KitchenLogCards — no planned items → off-plan is the primary conte
         lines={lines(0, 0)}
         actionType="Production"
         search=""
-        category="All"
-        collapsedGroups={new Set<string>()}
         onQtyChange={() => {}}
         onNotesChange={() => {}}
-        onToggleGroup={() => {}}
         onSearchChange={() => {}}
-        onCategoryChange={() => {}}
       />,
     )
     // all three off-plan items visible without expanding

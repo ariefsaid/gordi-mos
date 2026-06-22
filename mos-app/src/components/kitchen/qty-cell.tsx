@@ -6,13 +6,12 @@
 // works. The transfer-cap cue (TRANSFER_SHORT_CUE) renders inline when capError is set.
 // Token-only (DESIGN.md); One-Blue focus ring only.
 
-import type { KitchenActionType, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
+import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 import './qty-cell.css'
 
 interface QtyCellProps {
   itemName: string
   line: KitchenLogLine
-  actionType: KitchenActionType
   onQtyChange: (qty: number) => void
   disabled?: boolean
 }

@@ -244,6 +244,16 @@ describe('Populated state — WIP items loaded', () => {
       expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument()
     })
   })
+
+  it('F1: the sticky action bar (.kl-footer) is the last child of the form so position:sticky pins', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+    const form = document.getElementById('kitchen-log-form') as HTMLFormElement
+    const footer = form.querySelector('.kl-footer') as HTMLElement
+    expect(footer).not.toBeNull()
+    const lastChild = form.lastElementChild as HTMLElement
+    expect(lastChild).toBe(footer)
+  })
 })
 
 // ── AC-020/021: variance note gate ────────────────────────────────────────────
@@ -314,6 +324,48 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
       expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
     })
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+})
+
+// ── F3: Submit disabled while a required variance-note is unresolved (FR-022) ─────
+// The click-re-gate stays (defense in depth — AC-020/021 above); F3 surfaces the same
+// gate as an EXPLICIT disabled control so "not ready" reads as disabled, not enabled-
+// until-bounced. needsVarianceNote is the existing pure gate (lib/kitchen-gates.ts).
+describe('F3: Submit disabled while a required variance-note is unresolved', () => {
+  it('a staged off-plan line with no note disables Submit (the blocking state is visible)', async () => {
+    // No plans → every staged item is off-target (needs a note)
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Stage an off-plan line (qty=1, no plan → needs a variance note)
+    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
+    fireEvent.click(incBtn)
+
+    // Submit is disabled while the note is unresolved (F3 explicit disabled state)
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).toBeDisabled()
+  })
+
+  it('entering the required note re-enables Submit', async () => {
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Stage an off-plan line
+    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
+    fireEvent.click(incBtn)
+
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).toBeDisabled()
+
+    // Reveal the note field (it shows inline once off-target) and fill it
+    const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
+    fireEvent.change(note, { target: { value: 'extra batch' } })
+
+    await waitFor(() => {
+      expect(submit).not.toBeDisabled()
+    })
   })
 })
 

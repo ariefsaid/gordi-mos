@@ -27,7 +27,6 @@ function renderTable(over: Partial<Parameters<typeof KitchenLogTable>[0]> = {}) 
     <KitchenLogTable
       items={ITEMS}
       lines={lines()}
-      actionType="Production"
       search=""
       category="All"
       collapsedGroups={new Set<string>()}

@@ -31,7 +31,7 @@ function renderRow(over: Partial<KitchenLogLine> = {}) {
       <KitchenLogRow
         item={ITEM}
         line={line(over)}
-        actionType="Production"
+       
         onQtyChange={() => {}}
         onNotesChange={() => {}}
       />
@@ -66,7 +66,7 @@ describe('KitchenLogRow — cells', () => {
     const onQtyChange = vi.fn()
     render(
       <table><tbody>
-        <KitchenLogRow item={ITEM} line={line({ qty_porsi: 3 })} actionType="Production" onQtyChange={onQtyChange} onNotesChange={() => {}} />
+        <KitchenLogRow item={ITEM} line={line({ qty_porsi: 3 })} onQtyChange={onQtyChange} onNotesChange={() => {}} />
       </tbody></table>,
     )
     fireEvent.click(screen.getByRole('button', { name: /increase ayam bakar quantity/i }))
@@ -113,7 +113,7 @@ describe('KitchenLogRow — variance note (FR-022)', () => {
     const onNotesChange = vi.fn()
     render(
       <table><tbody>
-        <KitchenLogRow item={ITEM} line={line({ qty_porsi: 5, dirty: true, error: 'Catatan wajib — di luar rencana' })} actionType="Production" onQtyChange={() => {}} onNotesChange={onNotesChange} />
+        <KitchenLogRow item={ITEM} line={line({ qty_porsi: 5, dirty: true, error: 'Catatan wajib — di luar rencana' })} onQtyChange={() => {}} onNotesChange={onNotesChange} />
       </tbody></table>,
     )
     fireEvent.change(screen.getByRole('textbox', { name: /note for ayam bakar/i }), { target: { value: 'extra batch' } })

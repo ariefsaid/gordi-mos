@@ -7,15 +7,12 @@
 // Token-only (DESIGN.md). Tinted-Status deltas; Soft-Elevation: tiles get --shadow-rest.
 
 import type { KitchenKpis } from '@/lib/kitchen-kpis'
-import type { KitchenActionType } from '@/lib/db/kitchen-logs.types'
 import { Pill } from '@/components/ui/pill'
 import './kitchen-kpi-strip.css'
 
 interface KitchenKpiStripProps {
   kpis: KitchenKpis
   isDesktop: boolean
-  /** labels the tiles ("of plan" etc.) — drives copy, not logic */
-  actionType: KitchenActionType
 }
 
 export function KitchenKpiStrip({ kpis, isDesktop }: KitchenKpiStripProps) {

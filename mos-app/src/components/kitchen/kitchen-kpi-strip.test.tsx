@@ -21,14 +21,14 @@ const KPIS: KitchenKpis = {
 
 describe('KitchenKpiStrip — desktop branch', () => {
   it('renders a section labelled "Plan vs actual summary"', () => {
-    const { container } = render(<KitchenKpiStrip kpis={KPIS} isDesktop actionType="Production" />)
+    const { container } = render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
     expect(screen.getByRole('region', { name: /plan vs actual summary/i })).toBeInTheDocument()
     // no live region (plan §8.1/§9 — user-driven updates, announcing is noise)
     expect(container.querySelector('[aria-live]')).toBeNull()
   })
 
   it('renders 4 KPI tiles with the fixture values', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop actionType="Production" />)
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
     // Planned total = 180
     expect(within(region).getByText('180')).toBeInTheDocument()
@@ -41,7 +41,7 @@ describe('KitchenKpiStrip — desktop branch', () => {
   })
 
   it('renders the delta chips: "6 dishes", off-plan "+35", short "−46 units short"', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop actionType="Production" />)
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
     // Planned-total delta: dish count
     expect(within(region).getByText(/6 dishes/i)).toBeInTheDocument()
@@ -54,7 +54,7 @@ describe('KitchenKpiStrip — desktop branch', () => {
   })
 
   it('renders tile captions (portions / of plan / of target)', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop actionType="Production" />)
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
     expect(screen.getByText(/portions/i)).toBeInTheDocument()
     expect(screen.getAllByText(/of plan/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/of target/i)).toBeInTheDocument()
@@ -63,14 +63,14 @@ describe('KitchenKpiStrip — desktop branch', () => {
 
 describe('KitchenKpiStrip — phone branch (one-line summary)', () => {
   it('renders the compact "Today · N planned · NN%" summary line', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} actionType="Production" />)
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} />)
     expect(screen.getByText(/today/i)).toBeInTheDocument()
     expect(screen.getByText(/6 planned/i)).toBeInTheDocument()
     expect(screen.getByText(/78%/i)).toBeInTheDocument()
   })
 
   it('does NOT render the 4 desktop tiles on phone', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} actionType="Production" />)
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} />)
     // the desktop region is absent on phone (one branch in the DOM — P-4)
     expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
   })
@@ -89,14 +89,14 @@ describe('KitchenKpiStrip — edge: no plan for this action_type', () => {
   }
 
   it('desktop: renders 0 / 0 / —% / 0 with "no plan set" deltas', () => {
-    render(<KitchenKpiStrip kpis={noPlan} isDesktop actionType="Production" />)
+    render(<KitchenKpiStrip kpis={noPlan} isDesktop />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
     expect(within(region).getByText('—%')).toBeInTheDocument()
     expect(within(region).getAllByText(/no plan set/i).length).toBeGreaterThan(0)
   })
 
   it('phone: summary shows 0 planned and —%', () => {
-    render(<KitchenKpiStrip kpis={noPlan} isDesktop={false} actionType="Production" />)
+    render(<KitchenKpiStrip kpis={noPlan} isDesktop={false} />)
     expect(screen.getByText(/0 planned/i)).toBeInTheDocument()
     expect(screen.getByText(/—%/i)).toBeInTheDocument()
   })

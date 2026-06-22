@@ -361,6 +361,13 @@ export function KitchenLogPage() {
   const hasBlockingError = stagedLines.some(
     l => transferExceedsAvailable(l, actionType),
   )
+  // F3 (FR-022): surface the variance-note gate as an EXPLICIT disabled control — a
+  // staged off-plan line whose required note is empty disables Submit (the blocking
+  // state is visible up front, not enabled-until-bounced). handleSubmit still re-gates
+  // on click (defense in depth — the re-gate is the authority, this is the UX cue).
+  const noteUnresolved = stagedLines.some(
+    l => needsVarianceNote(l, actionType) && !l.notes.trim(),
+  )
 
   return (
     <PageFrame variant="data">
@@ -374,7 +381,7 @@ export function KitchenLogPage() {
         />
 
         {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}
-        <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} actionType={actionType} />
+        <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
 
         {/* Toolbar: action_type segmented control (shared desktop/phone) */}
         <div className="kl-seg-wrap kl-block">
@@ -409,7 +416,6 @@ export function KitchenLogPage() {
             <KitchenLogTable
               items={wipItems}
               lines={lines}
-              actionType={actionType}
               search={search}
               category={category}
               collapsedGroups={collapsedGroups}
@@ -426,13 +432,9 @@ export function KitchenLogPage() {
               lines={lines}
               actionType={actionType}
               search={search}
-              category={category}
-              collapsedGroups={collapsedGroups}
               onQtyChange={handleQtyChange}
               onNotesChange={handleNotesChange}
-              onToggleGroup={handleToggleGroup}
               onSearchChange={setSearch}
-              onCategoryChange={setCategory}
               disabled={isSubmitting}
             />
           )}
@@ -458,7 +460,7 @@ export function KitchenLogPage() {
                 stagedCount={stagedCount}
                 isSubmitting={isSubmitting}
                 isOnline={isOnline}
-                blocked={hasBlockingError}
+                blocked={hasBlockingError || noteUnresolved}
               />
             </div>
           </div>

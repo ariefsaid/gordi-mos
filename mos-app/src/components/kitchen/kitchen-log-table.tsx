@@ -4,7 +4,7 @@
 // Group collapse hides rows. Loading/empty handled by the page; this component renders
 // the populated table (or an empty-filter message). Token-only (DESIGN.md).
 
-import type { WipItemOption, KitchenLogLine, KitchenActionType } from '@/lib/db/kitchen-logs.types'
+import type { WipItemOption, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 import { KitchenLogRow } from './kitchen-log-row'
 import { KitchenGroupHeader } from './kitchen-group-header'
 import './kitchen-log-table.css'
@@ -12,7 +12,6 @@ import './kitchen-log-table.css'
 interface KitchenLogTableProps {
   items: WipItemOption[]
   lines: Record<string, KitchenLogLine>
-  actionType: KitchenActionType
   search: string
   category: string
   collapsedGroups: Set<string>
@@ -28,7 +27,7 @@ const PLANNED_KEY = 'planned'
 const OFFPLAN_KEY = 'offplan'
 
 export function KitchenLogTable({
-  items, lines, actionType, search, category, collapsedGroups,
+  items, lines, search, category, collapsedGroups,
   onQtyChange, onNotesChange, onToggleGroup, onSearchChange, onCategoryChange, disabled,
 }: KitchenLogTableProps) {
   const q = search.trim().toLowerCase()
@@ -93,7 +92,6 @@ export function KitchenLogTable({
                 key={item.id}
                 item={item}
                 line={lines[item.id]}
-                actionType={actionType}
                 onQtyChange={qty => onQtyChange(item.id, qty)}
                 onNotesChange={note => onNotesChange(item.id, note)}
                 disabled={disabled}
@@ -113,7 +111,6 @@ export function KitchenLogTable({
                 key={item.id}
                 item={item}
                 line={lines[item.id]}
-                actionType={actionType}
                 onQtyChange={qty => onQtyChange(item.id, qty)}
                 onNotesChange={note => onNotesChange(item.id, note)}
                 disabled={disabled}
