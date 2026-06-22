@@ -3,13 +3,18 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
-> **NEXT SESSION: read `docs/ui-revamp-status.md` first** (the current handoff — active UI-revamp +
-> structural-convention workstream). `docs/STATUS.md` is the older pre-2026-06-19 MVP status, kept for history.
-> MVP is feature-complete (tasks+RACI · weekly updates ·
-> Daily Log). Since then (Phase 3, 2026-06-13→16, all merged): **dev demo login (#13)**, **agentic
-> workflow sync w/ PMO** (4-lens/Lens-D + `docs/jtbd.md`, model-discipline), **Tasks split-view redesign
-> (#15→#18, ADR-0007)**, **CI-green clock fix (#16)**. The single remaining gap to a *usable* product is
-> **▶ P3-1 production deploy** (ris-dev, owner-gated) — see "Phase 3" below. P2-4 stays owner-deferred.
+> **NEXT SESSION: read `docs/platform-workstream-status.md` first** (the current handoff — active
+> kitchen UI redesign on `feat/kitchen-log-redesign`, awaiting owner sign-off + Director merge).
+> `docs/ui-revamp-status.md` covers the records-workspace UI revamp (still relevant). `docs/STATUS.md`
+> is the pre-2026-06-19 MVP status, kept for history.
+>
+> **Current state (2026-06-22):** MVP feature-complete (tasks+RACI · weekly updates · Daily Log).
+> Platform foundation shipped: ADRs 0010/0011/0012 · access-role layer (PR-a #41, PR-b #43) ·
+> Kitchen Module DB + UI (PR-k1 #45, k3 #62, #64/#65/#66 — all 5 screens on main, stepper UI).
+> **Active branch:** `feat/kitchen-log-redesign` — OD-K-5 redesign (dense-table + KPI strip + phone
+> cards, all 4 screens rebuilt) — built and verified, awaiting owner sign-off.
+> Remaining gaps to usable product: **▶ kitchen UI merge** (owner sign-off) → **P3-1 production deploy**
+> (owner-gated). P2-4 stays owner-deferred; WALL-3/WALL-4 open.
 > Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main before
 > merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset` relinks.
 
@@ -100,9 +105,26 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 - [x] **CI-green fix — PR #16.** Froze the clock in 3 date-relative weekly-update "late signal" tests
   (failed by run-date); test-only. `main` green on any date.
 
-## ▶ NOW — Phase 3: production deploy (the only gap to a usable product)
+## ✅ Platform foundation (2026-06-19 → 21, all merged to `main`)
+- [x] **ADR-0010/0011/0012 + OD-P4-1..8** — platform topology, auth model, ESB outbox. Docs PR #32/#33.
+- [x] **Access-role layer — PR-a #41 · PR-b #43** — `shared.person_access_roles` DB + JWT-claim helpers + `accessRoles` in `resolveViewer`. JWT staleness (~1h) accepted.
+- [x] **Kitchen Module DB substrate — PR-k1 #45** — `ops.wip_items` / `ops.kitchen_logs` / `ops.kitchen_plans` / `ops.kitchen_stock` + `integrations.esb_push` outbox table + approval RPC.
+- [x] **Kitchen Module UI — k3 #62** — all 5 screens (Log · Plan · Pesanan · Stock · Review) with the original stepper UI. Phase-0 mockup pick (OD-K-5) then triggered the redesign (see below).
+- [x] **Kitchen nav + seed + fix — #64/#65/#66** — sidebar rail Kitchen group + 32 real WIP items + `log_date` column fix.
+
+## ⏳ Kitchen UI redesign — branch `feat/kitchen-log-redesign` (NOT merged; awaiting owner sign-off)
+OD-K-5: owner rejected the stepper UI (2026-06-21); picked A+C-KPI+B hybrid. Full redesign built on the branch — dense-table ≥768px + KPI strip + phone cards <768px across all 4 functional screens:
+- **All 4 functional screens** rebuilt: Log · Plan · Pesanan · Stock · Review. ESB-pushes page untouched.
+- **Shared primitives**: `KitchenToolbar`, `kitchen-table.css` grammar, per-screen KPI selectors.
+- **4 Log fixes** (F1 sticky bar shell fix, F2 seed categories, F3 disabled Submit, F4 dead props).
+- 100 files, ~8 900 insertions; all gates (typecheck / lint / unit) verified green on branch.
+- Design-plans: `docs/plans/2026-06-21-kitchen-log-redesign.md` + `docs/plans/2026-06-22-kitchen-screens-redesign.md`.
+- [ ] **NEXT:** owner visual sign-off → Director merges `feat/kitchen-log-redesign` to main.
+- After merge: **ESB worker** (FastAPI outbox) · **curated kitchen e2e** (#57) · **user provisioning** (prereq for kitchen go-live) · then production deploy gate.
+
+## ▶ NOW — Phase 3: production deploy (owner-gated; kitchen redesign merge first)
 - [ ] **P3-1 — ris-dev production deploy** to `https://ops.gordi.id/mos` (self-hosted Supabase + Caddy at `/mos`).
-  **Owner-gated** (irreversible infra). Runbook: `docs/environments.md` (§Production deploy) + `supabase/README.md`
+  **Owner-gated** (irreversible infra; schedule after kitchen redesign merges). Runbook: `docs/environments.md` (§Production deploy) + `supabase/README.md`
   (§Production email). Hardening before exposure (the **L5 checklist**, detailed under "Security-audit deferrals"
   below): disable open signup both keys + live 422 self-signup probe · password policy (≥8, mixed) · session
   `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password

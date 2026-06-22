@@ -21,30 +21,49 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Companion to `docs/ui-revamp-s
   role vs RACI).
 - **Kitchen Module spec** (`docs/specs/kitchen-module.spec.md`, PR #32) · **Phase-3.1 prod-deploy plan**
   (`docs/plans/2026-06-19-prod-platform-deploy.md`, PR #33).
+- **Access-role layer** — **SHIPPED** (PR-a #41 DB substrate · PR-b #43 viewer, both merged 2026-06-19/20):
+  `shared.person_access_roles` + JWT-claim helpers + hook; `accessRoles` in `resolveViewer`. JWT-claim
+  staleness (~1h) accepted.
+- **Kitchen Module UI** — **SHIPPED to main** (PR-k1 #45 DB, k3 #62 S1–S5 UI, #64 nav, #65 seed, #66 fix;
+  2026-06-19 → 2026-06-21). All 5 screens live on main with the original stepper UI. **The OD-K-5
+  redesign (dense-table + KPI strip + phone cards across all 4 screens) is built on branch
+  `feat/kitchen-log-redesign` — NOT yet merged.** See "Mid-flight" below.
 
-## Mid-flight (working tree, awaiting owner sign-off — NOT landed)
-- `docs/specs/access-roles.spec.md` + `docs/plans/2026-06-19-access-roles.md` — the **access-role layer**
-  (next slice). Close-reviewed + schema-verified. **Blocked on:** owner spec sign-off + confirming the
-  **JWT-claim-staleness trade** (helpers read the `access_roles` JWT claim → a role change applies on next
-  token refresh, ~1h; alt = live table-read). Build = PR-a (DB substrate) then PR-b (viewer).
+## Mid-flight (branch `feat/kitchen-log-redesign`, NOT merged — awaiting owner sign-off)
+The OD-K-5 kitchen UI redesign is built, reviewed, and verified on `feat/kitchen-log-redesign`. The
+original shipped kitchen UI (stepper-style) is replaced by a dense-table + KPI strip + phone cards
+language across all 4 functional screens + the ESB-pushes page untouched. Key branch additions:
+- **Log** — `KitchenLogTable` / `KitchenLogCards` / `KitchenKpiStrip` / `KitchenGroupHeader` /
+  `KitchenLogRow` / `QtyCell` — dense ≥768px, floor-fast <768px, 4-tile KPI strip.
+- **Plan** — `KitchenPlanTable` / `KitchenPlanCards` + `PlanQtyCell` / `PlanQtyStepper`.
+- **Pesanan** — `KitchenPesananTable` / `KitchenPesananCards` — 14-day read-only horizon.
+- **Stock** — `KitchenStockTable` / `KitchenStockCards`.
+- **Review/approve** — `KitchenReviewTable` / `KitchenReviewCards`.
+- **Shared primitives** — `KitchenToolbar`, `kitchen-table.css`, per-screen KPI selectors.
+- **Four Log review fixes** (F1 sticky bar via `page-frame.tsx`, F2 seed categories, F3 disabled Submit
+  on unresolved notes, F4 dead-prop cleanup).
+- Design-plans: `docs/plans/2026-06-21-kitchen-log-redesign.md` + `docs/plans/2026-06-22-kitchen-screens-redesign.md`.
+- Phase-0 mockups + screenshots: `docs/design-mockups/kitchen/`.
 
-## Outstanding — foundation-first build order (kitchen is LAST, on top)
-1. **Prod platform deploy (Phase 3.1)** — plan #33 ready; **owner-gated**. Blocked on owner P0 items below.
-2. **Access-role layer** — spec+plan ready; awaiting sign-off. ← *next to build*
+**NEXT:** owner visual sign-off → Director merges `feat/kitchen-log-redesign` to main.
+
+## Outstanding — updated sequence (as of 2026-06-22)
+1. **Kitchen UI redesign merge** — branch `feat/kitchen-log-redesign`; owner sign-off + Director merge.
+2. **Prod platform deploy (Phase 3.1)** — plan #33 ready; **owner-gated**. Blocked on owner P0 items below.
 3. **Thin FastAPI backend + secret-zero/`op`** — hosts the outbox worker + provisioning.
 4. **User-management / provisioning** — creates kitchen `member` accounts (prereq for kitchen go-live).
-5. **`integrations.esb_push` outbox + worker.**
-6. **Kitchen Module** — full parity port (+ the **`pesanan` 14-day view**, a parity gap the spec flagged).
-   Parity = current app only: **no** receiving/GR, stock-opname, or ESB-inventory reconciliation.
-7. **Rollout** — Teable→Supabase migration → **manual testing only** → in-person training → **manual**
-   owner switch of ESB push (`ESB_PUSH_ENABLED`-style guardrail; never auto). Then Teable retires.
+5. **`integrations.esb_push` outbox + worker** — DB outbox table landed (PR-k1 #45); worker not yet built.
+6. **Kitchen e2e + ESB validation** — curated kitchen e2e journeys (#57); pesanan 14-day view already
+   in the redesign branch; ESB worker → staging-first GOO validation.
+7. **Rollout** — Teable→Supabase migration → manual testing only → in-person training → manual owner
+   switch of ESB push (`ESB_PUSH_ENABLED`-style guardrail; never auto). Then Teable retires.
 
 ## Owner-gated open questions (block execution)
+- **Kitchen redesign:** owner visual sign-off on `feat/kitchen-log-redesign` before Director merges.
 - **Deploy (plan #33):** Q1 the Supabase **API hostname** under CF Tunnel — `environments.md:19` wrongly
   reuses the `/mos` SPA path; the API needs its own host. Q3 secret-zero (resident `0600` token vs
   deploy-time render). Q6 do the free-tier **R2 / PostHog / Healthchecks** accounts exist? Owner deferred
   account signups.
-- **Access-role:** confirm the ~1h JWT-claim staleness trade.
 
 ## Gates & conventions
 - **Spec sign-off** = owner. **Merge-to-main within signed spec** = Director. **Prod deploy / exposure** =
@@ -52,9 +71,11 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Companion to `docs/ui-revamp-s
 - **security-auditor (OWASP/STRIDE) is a hard gate** before any internet exposure / rollout (ADR-0010 D11).
 - One PR per slice; Director merges green PRs.
 
-## PRs
-#32 (kitchen spec) · #33 (deploy plan) · #34 (named-exports) — **merged**. #35 (ui-revamp planning) —
-**held; other agents' workstream, not for this workstream to merge.**
+## PRs (all merged unless noted)
+#32 (kitchen spec) · #33 (deploy plan) · #34 (named-exports) · #35 (ui-revamp planning) · PR-a #41
+(access-role DB) · PR-b #43 (viewer) · PR-k1 #45 (kitchen DB) · k3 #62 (kitchen UI) · #64 (kitchen nav)
+· #65 (seed) · #66 (log_date fix) — **all merged to main**.
+**`feat/kitchen-log-redesign`** — open; awaiting owner sign-off + Director merge.
 
 ## Gotchas (multi-agent repo)
 See memory `mos-multiagent-git-gotchas` — subagents only read the current working tree (not other

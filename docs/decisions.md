@@ -646,6 +646,13 @@ the KPI strip is a **derived display only** (sums + made/plan %, no new tables/p
 + submit behavior **unchanged**; **drop** A's net-new "variance note" chip. Scope = Log screen first;
 Plan/Stock/Review are fast-follows inheriting the same components.
 
+> **AMENDED 2026-06-22 (owner directive — expanded scope):** the owner directed that the full Kitchen
+> Module UI be redesigned to the locked Log-screen language before merge ("redesign the whole kitchen
+> module to the locked design language before merge"). All 4 functional screens (Log · Plan · Pesanan ·
+> Stock · Review) rebuilt on `feat/kitchen-log-redesign`. ESB-pushes page is out of scope (no redesign).
+> Plan: `docs/plans/2026-06-22-kitchen-screens-redesign.md`. The original "Scope = Log screen first"
+> clause is superseded; all other OD-K-5 guardrails remain unchanged.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
