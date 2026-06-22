@@ -107,7 +107,38 @@ describe('KitchenStockPage — states', () => {
 })
 
 describe('KitchenStockPage — populated (FR-060/061)', () => {
+  // The structural cut/negative tests run against the desktop <table> branch.
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+  })
+  function setDesktop() {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+  }
+
   it('renders a semantic table with the two cuts (stok + tersedia) per item', async () => {
+    setDesktop()
     mockFetch.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
@@ -119,15 +150,16 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
     expect(within(table).getByRole('columnheader', { name: /tersedia/i })).toBeInTheDocument()
 
     // Each item is a row showing its two numbers
-    const ayamRow = screen.getByText('Ayam Bakar').closest('tr')!
+    const ayamRow = screen.getByText('Ayam Bakar').closest('tr') as HTMLElement
     expect(within(ayamRow).getByText('12')).toBeInTheDocument()
     expect(within(ayamRow).getByText('8')).toBeInTheDocument()
   })
 
   it('AC-032: preserves negative balances (does not clamp to 0)', async () => {
+    setDesktop()
     mockFetch.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />)
-    const nasiRow = (await screen.findByText('Nasi Goreng')).closest('tr')!
+    const nasiRow = (await screen.findByText('Nasi Goreng')).closest('tr') as HTMLElement
     // -3 shown, not 0
     expect(within(nasiRow).getAllByText('-3').length).toBeGreaterThan(0)
   })
@@ -142,6 +174,7 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
   })
 
   it('numeric cells carry the .tabular class for aligned digits', async () => {
+    setDesktop()
     mockFetch.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />)
     const ayamRow = (await screen.findByText('Ayam Bakar')).closest('tr')!

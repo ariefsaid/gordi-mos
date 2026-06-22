@@ -1,0 +1,51 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenStockCards — the phone reflow for stock (OD-K-5 §6.2 KS-2).
+   One card per dish: name + two big tabular cuts (Stok/Tersedia). Card: --shadow-rest,
+   --card, --border. Negatives .kt-neg (shared grammar). Token-only; .ksc-* namespace.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.ksc { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+.ksc-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ksc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ksc-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--foreground);
+  min-width: 0;
+}
+
+.ksc-cuts {
+  display: inline-flex;
+  gap: 16px;
+}
+.ksc-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.ksc-stat-label {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.ksc-stat-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--foreground);
+}
