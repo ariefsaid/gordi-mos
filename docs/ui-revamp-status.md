@@ -1,7 +1,12 @@
 # UI Revamp — Workstream Status & Handoff (2026-06-19)
 
+> ⚠️ **STALE (2026-06-19). The UI-revamp workstream is fully merged to `main` as of 2026-06-21**
+> (PRs #29..#56 + fidelity pass #53/#54 + kitchen Module UI #62). For the current handoff read
+> `docs/platform-workstream-status.md`. This file is kept as historical record of the revamp
+> decisions and gotchas.
+
 Single source of truth for the records-workspace UI/UX/IA/IxD revamp + the structural-convention
-migration. Read this first when resuming. Pairs with `docs/decisions.md` (OD entries),
+migration. Pairs with `docs/decisions.md` (OD entries),
 `docs/reference/engineering-conventions.md`, and `docs/reference/mos-design-kit/`.
 
 ## Goal (owner directive)

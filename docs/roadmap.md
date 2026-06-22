@@ -36,7 +36,11 @@ Goal: daily/weekly management workflow usable by managers + selected ops users.
   feed populated).
 
 ## Phase 3 — Rollout & hardening (CURRENT)
-> **Platform-foundation workstream (pre-rollout, OD-P4):** prod deploy → access-roles → backend → provisioning → outbox → kitchen migration runs in parallel with Phase 3. Tracked in `docs/platform-workstream-status.md`.
+> **Platform-foundation workstream (pre-rollout, OD-P4):** foundation-first build sequence tracked in
+> `docs/platform-workstream-status.md`. **As of 2026-06-21:** access-role layer (SHIPPED) + kitchen
+> Module fully on `main` (DB substrate + UI 5 screens + nav + seed + log_date fix). Outstanding:
+> kitchen e2e layer · ESB push worker · prod platform deploy (owner-gated) · FastAPI backend +
+> provisioning.
 - **3.1** Production deploy to `ops.gordi.id/mos` on ris-dev (Caddy path-route; owner-approved). Runbook: `docs/environments.md`.
 - **3.2** Onboard managers + selected ops users; collect friction → Human-UX loop
   (`docs/design-workflow.md` §3).
