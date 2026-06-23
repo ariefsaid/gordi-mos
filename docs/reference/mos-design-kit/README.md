@@ -13,7 +13,7 @@ prototypes — and as the source the app's real `DESIGN.md` can adopt from.
 ## Direction in one paragraph
 
 A **data workspace**: customizable records rendered as dense **tables** and **kanban boards**, with rich
-**record pages**. The aesthetic is calm, neutral, and information-dense — closer to Linear/Notion than to
+**record pages**. The aesthetic is calm, neutral, and information-dense — closer to modern productivity tools than to
 legacy enterprise tools. Light + flat + tightly-spaced; color is used sparingly and functionally (mostly
 through record **tags**). Sentence case throughout; the user is addressed as an implied "you."
 

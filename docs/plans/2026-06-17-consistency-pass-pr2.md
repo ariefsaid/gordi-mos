@@ -29,7 +29,7 @@ top-right) account chip detached from the content. Release it:
   absorbs the extra width (no ugly balloon — that was the old %-column problem, now gone).
 - **Prose pages stay capped at 1080px** (My Week / Weekly Updates / Daily Log): readability for
   forms/text. The account chip is the conventional global top-right user menu and is ACCEPTED as-is on
-  capped prose pages (Gmail/Linear/Notion all do this) — do NOT full-bleed prose.
+  capped prose pages (standard pattern for prose/form surfaces) — do NOT full-bleed prose.
 - Verify at 1920px (drawer open AND closed): Task column fills, drawer sits at the right gutter, nothing
   clips. Sanity-check ≥2560 isn't absurd; if the Task column looks comically wide, add a generous
   `max-width: 1760px` to `.split` (NOT 1280) — otherwise leave uncapped.
