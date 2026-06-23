@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workload — Entry B: standalone Workload surface (person-picked, dense table)</title>
+<!-- Kit tokens only. No literal colors below; every color is a --ds-* token (+ proposed --lane-* additions, flagged). -->
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  .pad { padding: 16px; }
+
+  /* ===== PROPOSED lane token set — identical to Entry A (DESIGN.md GAP, flagged in footer) ===== */
+  :root {
+    --lane-run-bg:   var(--ds-tag-background-gray);   --lane-run-text:   var(--ds-tag-text-gray);   --lane-run-dot:   var(--ds-font-color-light);
+    --lane-opt-bg:   var(--ds-tag-background-bronze); --lane-opt-text:   var(--ds-tag-text-bronze); --lane-opt-dot:   var(--ds-color-bronze);
+    --lane-tra-bg:   var(--ds-tag-background-iris);   --lane-tra-text:   var(--ds-tag-text-iris);   --lane-tra-dot:   var(--ds-color-iris);
+  }
+
+  /* ---- Shared shell ---- */
+  .shell { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 236px 1fr;
+    grid-template-areas: "topbar topbar" "rail main"; background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden; border-radius: var(--ds-border-radius-md); }
+  .topbar { grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
+    height: 56px; padding: 0 var(--ds-spacing-4) 0 0; border-bottom: 1px solid var(--ds-border-color-light);
+    background: var(--ds-background-primary); }
+  .tb-brand { display: flex; align-items: center; gap: var(--ds-spacing-2); width: 236px; flex: none; height: 100%;
+    padding: 0 var(--ds-spacing-4); border-right: 1px solid var(--ds-border-color-light); }
+  .tb-logo { width: 26px; height: 26px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue12);
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; position: relative; flex: none; }
+  .tb-logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
+  .tb-brand .nm { font-family: var(--ds-font-display); font-weight: 700; font-size: 15px; letter-spacing: -.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+  .tb-crumb a { color: var(--ds-font-color-secondary); text-decoration: none; flex: none; }
+  .tb-crumb a:hover { color: var(--ds-font-color-primary); }
+  .tb-crumb .sep { color: var(--ds-font-color-light); flex: none; }
+  .tb-crumb .cur { color: var(--ds-font-color-primary); font-weight: 500; }
+  .tb-spacer-top { flex: 1; }
+  .tb-search { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 260px;
+    padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    color: var(--ds-font-color-tertiary); cursor: text; background: var(--ds-background-secondary); flex: none; }
+  .tb-search .lbl { flex: 1; font-size: 13px; }
+  .kbd { font-family: var(--ds-code-font-family); font-size: 11px; padding: 1px 4px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs); color: var(--ds-font-color-tertiary); }
+  .tb-bell { width: 34px; height: 34px; border-radius: var(--ds-border-radius-sm); display: flex; align-items: center;
+    justify-content: center; cursor: pointer; color: var(--ds-font-color-tertiary); border: none; background: none; flex: none; }
+  .tb-bell:hover { background: var(--ds-background-transparent-light); color: var(--ds-font-color-secondary); }
+  .tb-user { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; padding: 0 6px 0 4px;
+    border-radius: var(--ds-border-radius-pill); cursor: pointer; flex: none; }
+  .tb-user:hover { background: var(--ds-background-transparent-light); }
+  .tb-user .nm { font-size: 13px; font-weight: 500; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
+  .tb-av { width: 26px; height: 26px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex: none; }
+
+  .rail { grid-area: rail; background: var(--ds-background-secondary); border-right: 1px solid var(--ds-border-color-light);
+    padding: var(--ds-spacing-2); display: flex; flex-direction: column; }
+  .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary);
+    padding: 14px var(--ds-spacing-2) 4px; font-weight: 500; }
+  .nav-item { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary); font-size: 13px; cursor: pointer; text-decoration: none; }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }
+  .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); }
+  .rail-spacer { flex: 1; }
+  .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
+
+  .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; background: var(--ds-background-primary); overflow: auto; }
+  .content-header { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 48px; padding: 0 var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); flex: none; }
+  .ch-icon { color: var(--ds-font-color-tertiary); display: flex; }
+  .ch-title { font-family: var(--ds-font-display); font-weight: 600; font-size: 16px; }
+
+  /* ---- Toolbar: PERSON picker is the primary control on this surface ---- */
+  .toolbar { display: flex; align-items: center; gap: var(--ds-spacing-2); padding: 8px var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); flex: none; flex-wrap: wrap; }
+  .person-picker { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 10px;
+    border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-background-primary); cursor: pointer; font-size: 13px; }
+  .person-picker .pk-k { color: var(--ds-font-color-tertiary); }
+  .person-picker .pk-av { width: 22px; height: 22px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; }
+  .person-picker .pk-nm { font-weight: 500; }
+  .person-picker .pk-chev { color: var(--ds-font-color-tertiary); }
+  .chip { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+    border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    font-size: 13px; color: var(--ds-font-color-secondary); cursor: pointer; background: var(--ds-background-primary); }
+  .chip .ch-v { color: var(--ds-font-color-primary); }
+  .tb-spacer { flex: 1; }
+
+  /* ---- Subject header band: who + the headline answer ---- */
+  .subject { display: flex; align-items: center; gap: 14px; padding: 18px 28px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .subject .av-lg { width: 44px; height: 44px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; flex: none; }
+  .subject .who { min-width: 0; }
+  .subject .who .nm { font-family: var(--ds-font-display); font-size: 18px; font-weight: 600; }
+  .subject .who .rl { color: var(--ds-font-color-tertiary); font-size: 13px; }
+  .subject .spacer { flex: 1; }
+  /* split summary: the JTBD answer, big and tabular */
+  .split { display: flex; align-items: stretch; gap: 0; flex: none; }
+  .split .seg { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 18px; min-width: 96px; }
+  .split .seg + .seg { border-left: 1px solid var(--ds-border-color-light); }
+  .split .seg .n { font-family: var(--ds-font-display); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .split .seg .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ds-font-color-tertiary); margin-top: 2px; }
+  .split .seg.proc .n { color: var(--lane-run-text); }
+  .split .seg.proj .n { color: var(--lane-tra-text); }
+  .answer { padding: 14px 28px 0; font-size: 13px; color: var(--ds-font-color-secondary); max-width: 1080px; margin: 0 auto; }
+  .answer b { color: var(--ds-font-color-primary); font-weight: 600; }
+
+  /* ---- The dense Workload table (grouped by lane, then type) ---- */
+  .surface { max-width: 1080px; margin: 0 auto; padding: 14px 28px 28px; }
+  table.wl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .wl thead th { text-align: left; height: 36px; padding: 0 12px; font-weight: 400; text-transform: uppercase;
+    letter-spacing: .06em; font-size: 11px; color: var(--ds-font-color-tertiary); border-bottom: 1px solid var(--ds-border-color-light); }
+  .wl thead th.num { text-align: right; }
+  /* group header row (lane) — hairline, no band, per OD-P3-6 group-header grammar */
+  .wl tr.grp td { padding: 14px 12px 6px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .grp-inner { display: flex; align-items: center; gap: 10px; }
+  .lane-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px;
+    border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .lane-pill .d { width: 7px; height: 7px; border-radius: var(--ds-border-radius-pill); }
+  .lane-pill.run { background: var(--lane-run-bg); color: var(--lane-run-text); } .lane-pill.run .d { background: var(--lane-run-dot); }
+  .lane-pill.opt { background: var(--lane-opt-bg); color: var(--lane-opt-text); } .lane-pill.opt .d { background: var(--lane-opt-dot); }
+  .lane-pill.tra { background: var(--lane-tra-bg); color: var(--lane-tra-text); } .lane-pill.tra .d { background: var(--lane-tra-dot); }
+  .grp-inner .ct { color: var(--ds-font-color-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .wl tbody td { height: 50px; padding: 0 12px; border-bottom: 1px solid var(--ds-border-color-light);
+    color: var(--ds-font-color-primary); vertical-align: middle; }
+  .wl tbody tr.row:hover { background: var(--ds-background-secondary); cursor: pointer; }
+  .pp-name { font-weight: 500; }
+  .type-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ds-font-color-secondary); }
+  .raci-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
+    border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .raci-chip .g { width: 14px; height: 14px; border-radius: var(--ds-border-radius-pill); display: flex; align-items: center;
+    justify-content: center; font-size: 9px; font-weight: 700; color: var(--ds-font-color-inverted); }
+  .raci-chip.r { background: var(--ds-accent-tertiary); color: var(--ds-color-blue11); } .raci-chip.r .g { background: var(--ds-color-blue); }
+  .raci-chip.a { background: var(--ds-tag-background-violet); color: var(--ds-tag-text-violet); } .raci-chip.a .g { background: var(--ds-color-violet); }
+  .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
+  .num-cell .big { font-family: var(--ds-font-display); font-size: 16px; font-weight: 600; }
+  .num-cell .big.zero { color: var(--ds-font-color-light); }
+  /* footer totals */
+  .wl tfoot td { height: 44px; padding: 0 12px; background: var(--ds-background-secondary); border-top: 1.5px solid var(--ds-border-color-medium);
+    font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wl tfoot td.num { text-align: right; }
+
+  /* ---- Phone-card reflow (<768px) — shown explicitly at a phone width ---- */
+  .phone { width: 380px; margin: 0 auto; border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md);
+    background: var(--ds-background-primary); overflow: hidden; box-shadow: var(--ds-box-shadow-light); }
+  .phone .ph-head { padding: 14px 16px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .phone .ph-head .nm { font-family: var(--ds-font-display); font-size: 16px; font-weight: 600; }
+  .phone .ph-head .ans { font-size: 12px; color: var(--ds-font-color-secondary); margin-top: 4px; }
+  .phone .ph-head .ans b { color: var(--ds-font-color-primary); }
+  .ph-lane { padding: 12px 16px 4px; }
+  .ph-lane .lh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .ph-lane .lh .ct { color: var(--ds-font-color-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .ph-card { border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md);
+    padding: 12px; margin-bottom: 8px; box-shadow: var(--ds-box-shadow-light); }
+  .ph-card .t { font-weight: 600; margin-bottom: 8px; }
+  .ph-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; }
+  .ph-card dt { color: var(--ds-font-color-tertiary); font-size: 12px; }
+  .ph-card dd { margin: 0; font-size: 13px; display: flex; justify-content: flex-end; }
+  .ph-card dd .big { font-family: var(--ds-font-display); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .touch-target { min-height: 44px; }
+
+  .state-block { text-align: center; padding: 48px 16px; color: var(--ds-font-color-secondary); font-size: 13px; }
+  .state-block .glyph { color: var(--ds-font-color-light); font-size: 24px; margin-bottom: 8px; }
+  .btn-primary { height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue);
+    color: var(--ds-font-color-inverted); border: none; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .sk { display:inline-block; background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 12px; }
+  .dark-wrap { background: var(--ds-background-tertiary); padding: 16px 0; color: var(--ds-font-color-primary); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="mock-label">Entry B — STANDALONE Workload surface · person-picked, dense table grouped by lane×type · light</div>
+  <div class="shell" style="height:900px">
+    <header class="topbar">
+      <div class="tb-brand"><div class="tb-logo">G<span class="dot"></span></div><span class="nm">Gordi MOS</span></div>
+      <nav class="tb-crumb" aria-label="Breadcrumb"><a href="#">Workload</a><span class="sep">›</span><span class="cur" aria-current="page">Maya Rahmawati</span></nav>
+      <span class="tb-spacer-top"></span>
+      <div class="tb-search" role="button" aria-label="Search — open command menu"><span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span></div>
+      <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+      <div class="tb-user" role="button" aria-label="Account menu"><div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span></div>
+    </header>
+
+    <aside class="rail">
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <div class="rail-group">Cascade</div>
+      <a class="nav-item" href="#"><span class="ico">◎</span> Objectives</a>
+      <a class="nav-item" href="#"><span class="ico">▦</span> Projects &amp; Processes</a>
+      <a class="nav-item active" href="#"><span class="ico">⚖</span> Workload</a>
+      <div class="rail-spacer"></div>
+      <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+    </aside>
+
+    <div class="main">
+      <header class="content-header">
+        <span class="ch-icon">⚖</span><span class="ch-title">Workload</span>
+      </header>
+
+      <div class="toolbar">
+        <div class="person-picker" role="button" aria-label="Choose person — currently Maya Rahmawati">
+          <span class="pk-k">Person</span><span class="pk-av">MR</span><span class="pk-nm">Maya Rahmawati</span><span class="pk-chev">▾</span>
+        </div>
+        <div class="chip">Lane <span class="ch-v">All</span> ▾</div>
+        <div class="chip">Type <span class="ch-v">All</span> ▾</div>
+        <span class="tb-spacer"></span>
+        <div class="chip" aria-label="Include archived">Archived <span class="ch-v">Hidden</span> ▾</div>
+      </div>
+
+      <!-- subject band: who + the JTBD split answer -->
+      <div class="subject">
+        <div class="av-lg">MR</div>
+        <div class="who"><div class="nm">Maya Rahmawati</div><div class="rl">Designer · Sales – CRM · reports to Arief Said</div></div>
+        <span class="spacer"></span>
+        <div class="split" aria-label="Workload split">
+          <div class="seg proc"><span class="n">1</span><span class="k">Process</span></div>
+          <div class="seg proj"><span class="n">2</span><span class="k">Projects</span></div>
+        </div>
+      </div>
+      <p class="answer">Maya is <b>mostly on project work</b>: one daily Process she runs (4 open tasks) and two change Projects she's Accountable for (3 open tasks across them). <b>Day-to-day she's not heavily tied to recurring work</b> — her load is project-shaped.</p>
+
+      <div class="surface">
+        <table class="wl">
+          <thead>
+            <tr><th>Project / Process</th><th>Type</th><th>Your role</th><th class="num">Open tasks</th></tr>
+          </thead>
+          <tbody>
+            <!-- RUN -->
+            <tr class="grp"><td colspan="4"><div class="grp-inner"><span class="lane-pill run"><span class="d"></span>Run</span><span class="ct">1 Process · 4 open tasks</span></div></td></tr>
+            <tr class="row">
+              <td class="pp-name">Daily IG Content</td>
+              <td><span class="type-label">Process</span></td>
+              <td><span class="raci-chip r"><span class="g">R</span>Responsible</span></td>
+              <td class="num-cell"><span class="big">4</span></td>
+            </tr>
+            <!-- OPTIMIZE -->
+            <tr class="grp"><td colspan="4"><div class="grp-inner"><span class="lane-pill opt"><span class="d"></span>Optimize</span><span class="ct">1 Project · 1 open task</span></div></td></tr>
+            <tr class="row">
+              <td class="pp-name">Brand Refresh</td>
+              <td><span class="type-label">Project</span></td>
+              <td><span class="raci-chip a"><span class="g">A</span>Accountable</span></td>
+              <td class="num-cell"><span class="big">1</span></td>
+            </tr>
+            <!-- TRANSFORM -->
+            <tr class="grp"><td colspan="4"><div class="grp-inner"><span class="lane-pill tra"><span class="d"></span>Transform</span><span class="ct">1 Project · 2 open tasks</span></div></td></tr>
+            <tr class="row">
+              <td class="pp-name">New Menu Design</td>
+              <td><span class="type-label">Project</span></td>
+              <td><span class="raci-chip a"><span class="g">A</span>Accountable</span></td>
+              <td class="num-cell"><span class="big">2</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr><td colspan="3">3 Projects &amp; Processes · 1 Process, 2 Projects</td><td class="num">7</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHONE REFLOW (<768px, OD-W4-4 grammar) -->
+<div class="pad">
+  <div class="mock-label">Entry B — phone reflow (&lt;768px): lane blocks, each Project/Process a card with label:value dl</div>
+  <div class="phone">
+    <div class="ph-head">
+      <div class="nm">Maya Rahmawati</div>
+      <div class="ans"><b>Mostly project work</b> · 1 Process (4 tasks) · 2 Projects (3 tasks)</div>
+    </div>
+    <div class="ph-lane">
+      <div class="lh"><span class="lane-pill run"><span class="d"></span>Run</span><span class="ct">1 Process · 4 open</span></div>
+      <div class="ph-card touch-target">
+        <div class="t">Daily IG Content</div>
+        <dl>
+          <dt>Type</dt><dd><span class="type-label">Process</span></dd>
+          <dt>Your role</dt><dd><span class="raci-chip r"><span class="g">R</span>Responsible</span></dd>
+          <dt>Open tasks</dt><dd><span class="big">4</span></dd>
+        </dl>
+      </div>
+    </div>
+    <div class="ph-lane">
+      <div class="lh"><span class="lane-pill opt"><span class="d"></span>Optimize</span><span class="ct">1 Project · 1 open</span></div>
+      <div class="ph-card touch-target">
+        <div class="t">Brand Refresh</div>
+        <dl>
+          <dt>Type</dt><dd><span class="type-label">Project</span></dd>
+          <dt>Your role</dt><dd><span class="raci-chip a"><span class="g">A</span>Accountable</span></dd>
+          <dt>Open tasks</dt><dd><span class="big">1</span></dd>
+        </dl>
+      </div>
+    </div>
+    <div class="ph-lane" style="padding-bottom:14px">
+      <div class="lh"><span class="lane-pill tra"><span class="d"></span>Transform</span><span class="ct">1 Project · 2 open</span></div>
+      <div class="ph-card touch-target">
+        <div class="t">New Menu Design</div>
+        <dl>
+          <dt>Type</dt><dd><span class="type-label">Project</span></dd>
+          <dt>Your role</dt><dd><span class="raci-chip a"><span class="g">A</span>Accountable</span></dd>
+          <dt>Open tasks</dt><dd><span class="big">2</span></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATES: empty · own-workload · loading · error -->
+<div class="pad">
+  <div class="mock-label">Entry B — states: empty (FR-233) · own-workload (FR-234) · loading · error</div>
+  <div style="max-width:1080px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+    <!-- EMPTY -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary);">
+      <div class="subject" style="padding:14px 18px">
+        <div class="av-lg" style="width:36px;height:36px;font-size:13px">SP</div>
+        <div class="who"><div class="nm" style="font-size:15px">Sari Putri</div><div class="rl">Finance Officer</div></div>
+        <span class="spacer"></span>
+        <div class="split"><div class="seg proc"><span class="n" style="color:var(--ds-font-color-light)">0</span><span class="k">Process</span></div><div class="seg proj"><span class="n" style="color:var(--ds-font-color-light)">0</span><span class="k">Projects</span></div></div>
+      </div>
+      <div class="state-block">
+        <div class="glyph">⃝</div>
+        Sari isn't Accountable or Responsible on any Project or Process yet.<br>Nothing in the cascade points to her — her work shows on her Tasks.
+      </div>
+    </div>
+
+    <!-- OWN-WORKLOAD -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary);">
+      <div class="subject" style="padding:14px 18px">
+        <div class="av-lg" style="width:36px;height:36px;font-size:13px">AS</div>
+        <div class="who"><div class="nm" style="font-size:15px">Arief Said <span class="rl" style="font-weight:400">(You)</span></div><div class="rl">Founder</div></div>
+        <span class="spacer"></span>
+        <div class="split"><div class="seg proc"><span class="n">0</span><span class="k">Process</span></div><div class="seg proj"><span class="n">4</span><span class="k">Projects</span></div></div>
+      </div>
+      <table class="wl">
+        <tbody>
+          <tr class="grp"><td colspan="4"><div class="grp-inner"><span class="lane-pill tra"><span class="d"></span>Transform</span><span class="ct">2 Projects · 5 open tasks</span></div></td></tr>
+          <tr class="row"><td class="pp-name" style="padding-left:12px">MOS Rollout</td><td><span class="type-label">Project</span></td><td><span class="raci-chip a"><span class="g">A</span>Accountable</span></td><td class="num-cell" style="padding-right:12px"><span class="big">3</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- LOADING -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary);" aria-busy="true">
+      <div class="subject" style="padding:14px 18px">
+        <div class="av-lg" style="width:36px;height:36px;background:var(--ds-background-tertiary)"></div>
+        <div class="who"><span class="sk" style="width:120px"></span></div>
+      </div>
+      <table class="wl"><tbody>
+        <tr class="grp"><td colspan="4"><span class="sk" style="width:80px;height:18px"></span></td></tr>
+        <tr class="row"><td><span class="sk" style="width:150px"></span></td><td><span class="sk" style="width:50px"></span></td><td><span class="sk" style="width:80px"></span></td><td class="num-cell"><span class="sk" style="width:20px"></span></td></tr>
+        <tr class="row"><td><span class="sk" style="width:120px"></span></td><td><span class="sk" style="width:50px"></span></td><td><span class="sk" style="width:80px"></span></td><td class="num-cell"><span class="sk" style="width:20px"></span></td></tr>
+      </tbody></table>
+    </div>
+
+    <!-- ERROR -->
+    <div style="border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary);">
+      <div class="state-block">
+        <div class="glyph" style="color:var(--ds-font-color-danger)">⚠</div>
+        Couldn't load this workload.
+        <div style="margin-top:12px"><button class="btn-primary">Retry</button></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="wrap">
+    <div class="mock-label">Entry B — dark mode (lane = tinted categorical pills; one blue stays the only action color)</div>
+    <div style="max-width:1080px; margin:0 auto; border:1px solid var(--ds-border-color-light); border-radius:var(--ds-border-radius-md); background:var(--ds-background-primary); overflow:hidden">
+      <div class="subject">
+        <div class="av-lg">MR</div>
+        <div class="who"><div class="nm">Maya Rahmawati</div><div class="rl">Designer · Sales – CRM</div></div>
+        <span class="spacer"></span>
+        <div class="split"><div class="seg proc"><span class="n">1</span><span class="k">Process</span></div><div class="seg proj"><span class="n">2</span><span class="k">Projects</span></div></div>
+      </div>
+      <table class="wl">
+        <thead><tr><th style="padding-left:12px">Project / Process</th><th>Type</th><th>Your role</th><th class="num" style="padding-right:12px">Open tasks</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="4"><div class="grp-inner" style="padding-left:12px"><span class="lane-pill run"><span class="d"></span>Run</span><span class="ct">1 Process · 4 open tasks</span></div></td></tr>
+          <tr class="row"><td class="pp-name" style="padding-left:12px">Daily IG Content</td><td><span class="type-label">Process</span></td><td><span class="raci-chip r"><span class="g">R</span>Responsible</span></td><td class="num-cell" style="padding-right:12px"><span class="big">4</span></td></tr>
+          <tr class="grp"><td colspan="4"><div class="grp-inner" style="padding-left:12px"><span class="lane-pill tra"><span class="d"></span>Transform</span><span class="ct">1 Project · 2 open tasks</span></div></td></tr>
+          <tr class="row"><td class="pp-name" style="padding-left:12px">New Menu Design</td><td><span class="type-label">Project</span></td><td><span class="raci-chip a"><span class="g">A</span>Accountable</span></td><td class="num-cell" style="padding-right:12px"><span class="big">2</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-MOCKUP: Workload view — ENTRY POINT B (standalone Workload surface, person-picked).
+Spec: docs/specs/cascade-foundation.spec.md FR-230..234, AC-230 · ADR-0014 · CONTEXT.md §Cascade/§Ownership.
+Vocabulary follows CONTEXT.md (owner 2026-06-23): Project/Process PAIR, type ∈ {project,process};
+  "Initiative" is DROPPED (spec body still says Initiative — stale; CONTEXT.md wins). Lanes Run/Optimize/Transform.
+
+THE ONE QUESTION: "Is this person tied up in daily recurring work (Processes) or project work (Projects)?"
+  Answered: (1) subject-band split summary (N Process | N Projects, big tabular); (2) plain-language answer line;
+  (3) the dense table grouped by lane (Run/Optimize/Transform), each Project/Process a row with type label,
+  the viewer's A/R role, and its OPEN-TASK COUNT; (4) a totals tfoot. Dense list/detail posture (MOS density mode
+  governs HOME only — this is a working surface, so PMO's data-dense DataTable posture applies).
+
+TOKENS USED (--ds-* kit tokens only; no literal colors): same set as Entry A, plus:
+  --ds-background-secondary (tfoot totals bg, group-row hover), --ds-border-color-medium (tfoot top rule, picker border).
+  Action: --ds-color-blue (links, active nav, person-picker accent, Retry). Status: green (n/a here). RACI as in A.
+
+PROPOSED NEW TOKENS (DESIGN.md GAP — flagged, identical to Entry A; NO new hue):
+  --lane-run-* → gray · --lane-opt-* → bronze · --lane-tra-* → iris  (aliases of existing kit tag tokens).
+  Lane PILL carries text + dot (never color-alone, WCAG 1.4.1). TYPE = text label only (never colored).
+
+A11Y (WCAG-AA, NFR-204): semantic <table> with <thead>/<tfoot> + numeric column right-aligned tabular-nums;
+  group rows readable as lane label TEXT (color is redundant); type text label; RACI chip = letter + word;
+  person-picker is role=button aria-label; global :focus-visible ring; AA-darkened tag text tokens on all pills.
+  Phone reflow uses label:value <dl> (each cell appears once in the AT tree — single-render, no aria-hidden), 44px touch targets.
+
+STATES SHOWN: populated · phone reflow · empty (FR-233) · own-workload (FR-234) · loading (skeleton) · error (Retry). Dark section.
+
+RESPONSIVE: ≥768px = dense table (as shown); <768px = the phone-card reflow block (lane blocks → Project/Process cards
+  with dl label:value, open-task count the trailing value). Rail collapses at 920px to a hamburger (shell grammar, not redrawn here).
+
+OPEN QUESTIONS (owner):
+  1. Lane token names + hue picks (Run=gray, Optimize=bronze, Transform=iris) — confirm or pick alternates. (Same gap as A.)
+  2. Nav placement: this mock puts Workload under a new "Cascade" rail group (Objectives · Projects & Processes · Workload).
+     Confirm that group, or fold Workload elsewhere.
+  3. Person-picker scope: a manager sees their reports + self; an admin sees everyone; a member sees only self
+     (FR-234 / NFR-200). When the viewer can only see themselves, the picker should collapse to a static "You" label —
+     confirm that degradation.
+  4. Should the subject band link each Project/Process row through to that Project/Process detail (out of first slice)?
+     This mock makes rows hoverable/clickable as a forward seam but the target screen is deferred.
+
+RECOMMENDATION (Director-facing): see the cross-mock recommendation in the design-architect report. In short —
+  B (standalone) is the cleaner long-term home: it scales to admin "anyone" lookups, gives the JTBD its own
+  addressable URL, and keeps the Team module focused on weekly-update review. A (inline) wins ONLY if the owner
+  wants zero new nav surface in the first slice and side-by-side report comparison as the primary job.
+  A pragmatic path: ship B's panel as a reusable component now, and later embed it inline in Team (A) as the
+  "expand" target — same component, two entry points, no rework.
+================================================================================
+-->
+</body>
+</html>

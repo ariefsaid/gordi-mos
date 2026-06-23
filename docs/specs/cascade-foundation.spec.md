@@ -3,6 +3,13 @@
 - Status: Draft (2026-06-23) — awaiting owner sign-off
 - Source decisions: **ADR-0014** (cascade foundation, additive topology), **OD-C-1** (`docs/decisions.md`)
 - Vocabulary: `CONTEXT.md` § Cascade · § Ownership
+
+> **Naming reconciliation (read first).** This spec was drafted before the 2026-06-23 owner decision to
+> drop the umbrella term "Initiative" for the **Project/Process pair**. Where the body below says
+> *Initiative*, read **Project/Process** (the layer-4 entity, `type ∈ {project, process}`). The physical
+> table is **`mos.work_lines`** (recommended, pending owner Q1 vs `mos.projects_processes`) and the Task
+> bridge column is **`work_line_id`**. CONTEXT.md and the plan (`docs/plans/2026-06-23-cascade-foundation.md`)
+> carry the canonical names; the full in-body rename lands with ADR-0015 once Q1 is locked.
 - Supersedes/extends: ADR-0003 (Task is the cascade-bridgeable unit; this adds its parent layer)
 
 ## 1. Overview & user value
