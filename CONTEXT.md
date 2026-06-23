@@ -8,9 +8,10 @@ OS constellation (see `docs/decisions.md` OD-P0-9).
 ## Work
 
 **Task**:
-The unit of owned work and the **cascade-bridgeable unit** — always carries R and A people, a
-business unit, and a status. The only first-slice work entity; it is what will later link UP to an
-Output/Objective (additive seam, ADR-0003), so the cascade grows in without reshaping the task.
+The unit of owned work and the **cascade-bridgeable unit** (layer 6) — always carries R and A people, a
+business unit, and a status. Its permanent cascade parent is an **Initiative** (Program/Process); the
+link is an additive nullable seam (ADR-0003/0014) so the cascade grows in without reshaping the task. A
+Task never routes *through* an Output — Output is an optional side-grouping, not a link in the chain.
 _Avoid_: action item, to-do, work item, ticket
 
 **Checklist item** (a.k.a. subtask):
@@ -40,7 +41,64 @@ A task that cannot proceed until something outside the R person's control resolv
 old Notion "Waiting Internal / Waiting External / Waiting Approval" family.
 _Avoid_: waiting, on hold, stuck
 
+## Cascade (Strategy-to-Execution Stack)
+
+The six-level spine the MOS grows into — **Strategy → Objective → Outcome → Program/Process → Output →
+Task** (vault: Strategy-to-Execution Stack). Each level has its own owner, timebox, and measure; lower
+levels *contribute* up, they don't copy down. The first slice builds three (Objective · Initiative ·
+Task); the rest are vocabulary that folds in additively (ADR-0014). Adopted because a 3-level model
+collapses the two cuts that make recurring work trackable — aspiration≠measurement (Objective≠Outcome)
+and work-system≠artifact (Program/Process≠Output).
+
+**Objective** (layer 2):
+A yearly, measurable goal that work rolls up to — the "what we want this year." Carries A/R ownership and
+a lane; it is the grouping a person's work is read against. (Strategy, layer 1, folds in above later as
+the same self-similar shape, via a nullable parent.)
+_Avoid_: goal, mission, OKR (that's the measurement layers)
+
+**Outcome** (layer 3 — vocabulary now, table later):
+The KPI/KR target that *proves* an Objective is being met — the number, distinct from the aspiration.
+Deferred; folds in between Objective and Initiative additively.
+_Avoid_: metric (the measurement act), KR (one kind), result
+
+**Initiative** (layer 4 — canonical entity; **name provisional, owner to confirm**):
+The owned work-system that moves an Outcome — one entity with a **type: Program | Process**. Carries A/R
+ownership, a business unit, a lane, and a nullable Objective link. It is a Task's permanent cascade parent.
+_Avoid_: project (superseded as the single shape), workstream, work (rejected umbrella term)
+
+**Program** (an Initiative `type`):
+Bounded, time-boxed **change** work (Transform/Optimize lane) — scope, an end, milestones. E.g. designing
+a new menu.
+_Avoid_: project (say Program), initiative (that's the entity, not the type)
+
+**Process** (an Initiative `type`):
+Standing, recurring **run** work (BAU lane) — never "done," produces repeating Outputs. E.g. daily IG
+content, daily fulfillment. The home for daily ongoing *assigned* work — NOT the reserved term
+**Activity** (a task timestamp), and distinct from the **Daily Log** (the factual record that something
+*happened*, owner-less; a Process is owned recurring work). Person-load reads from Processes/Programs a
+person is A/R on, never from Daily Log entries. A Process *uses* SOPs but is not one.
+_Avoid_: SWP (the wiki's term — say Process), routine, SOP (that's documentation), activity (reserved)
+
+**Output** (layer 5 — vocabulary now, table later):
+A discrete deliverable a Program/Process produces in a week/month — the unit of committed load ("2–5 per
+person per week; tasks are infinite, outputs are not"). Deferred; folds in as an optional grouping that
+*also* belongs to the Initiative — never inserted between Task and Initiative (ADR-0014).
+_Avoid_: deliverable, milestone (one kind), artifact
+
+**Lane**:
+*Why* a piece of work exists — **Run/BAU** (keep service steady, KPI-measured), **Optimize** (harden /
+improve, OKR-measured), **Transform** (new capability, OKR-measured). A classification on Objectives and
+Initiatives; incidents/fires sit inside Run as a sub-queue.
+_Avoid_: category, stream, type (reserve `type` for Program|Process)
+
 ## Ownership (RACI)
+
+**Accountable / Responsible per layer**:
+The A/R split is not task-only — every cascade layer (Objective · Initiative · Output · Task) carries an
+Accountable and a Responsible owner (the wiki's per-layer ownership model; a cross-functional Outcome gets
+a single **DRI**). C/I stay task-level. A person's "load" is read from the layers they are A or R on — so
+RACI-on-a-task is one instance of a uniform ownership shape, not the product's headline.
+_Avoid_: owner (ambiguous as a field), single-owner-per-layer
 
 **Responsible (R)**:
 The one person doing the task. Notion heritage: "Assigned to" / "PIC". Shown as the row avatar in
