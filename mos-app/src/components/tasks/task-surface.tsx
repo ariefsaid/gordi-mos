@@ -865,8 +865,11 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
               aria-label="Work-line"
             >
               <option value="">— None —</option>
+              {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}
               {workLinesDir.map(wl => (
-                <option key={wl.id} value={wl.id}>{wl.name}</option>
+                <option key={wl.id} value={wl.id}>
+                  {wl.name} ({wl.type === 'project' ? 'project' : 'daily'})
+                </option>
               ))}
             </select>
           </div>

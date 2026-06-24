@@ -200,15 +200,20 @@
 .assembly.condensed .toolbar .archived-toggle { padding: 0 8px; }
 
 /* ── Table scroll container ──
-   Non-virtual: a passthrough wrapper (no scroll). Virtual (AC-114, 50+ rows):
-   a bounded scroll viewport so @tanstack/react-virtual can window the rows.
-   The <thead> with aria-sort stays sticky atop the viewport. */
-.tasks-scroll { min-width: 0; }
+   Non-virtual: a passthrough wrapper with overflow-x:auto so a 10-column fixed
+   layout scrolls horizontally instead of starving the Task column (RI-3 fix).
+   Virtual (AC-114, 50+ rows): a bounded scroll viewport so @tanstack/react-virtual
+   can window the rows. The <thead> with aria-sort stays sticky atop the viewport. */
+.tasks-scroll { min-width: 0; overflow-x: auto; }
 .tasks-scroll-virtual { max-height: 70vh; overflow-y: auto; }
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
 /* ── Table ── */
-.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+/* min-width: sum of the 9 fixed cols (40+150+200+150+150+128+150+92+40 = 1100px) so
+   the table never compresses below that width and the Task (width:auto) col always
+   retains non-zero space; the .tasks-scroll overflow-x:auto then scrolls the table
+   when the container is narrower (RI-3). */
+.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 1100px; }
 /* Base col widths: cols 1-4 stable; cols 5-10 overridden below (Cascade D1 added
    Work-line + Objective cols). cb+menu fixed 40px; Task absorbs the remainder. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
@@ -376,9 +381,18 @@ tr:focus-within .row-menu { visibility: visible; }
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
 .task-card-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .task-card-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+/* Fix-5: mobile card dl — label:value pairs visible per mockup (not sr-only hiding).
+   Each .task-card-meta-pair spans are inline-flex so "Label value" stay on one line
+   within the wrapping flex container; gap between pairs for scanability. */
 .task-card-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
-.task-card-meta dt { display: none; }
-.task-card-meta dd { margin: 0; font-size: 12px; }
+.task-card-meta-pair { display: inline-flex; align-items: baseline; gap: 4px; }
+.task-card-meta dt {
+  display: inline;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.task-card-meta dd { display: inline; margin: 0; font-size: 12px; }
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */

@@ -128,8 +128,11 @@ export function RecordDetailsPanel({
                   aria-label="Work-line"
                 >
                   <option value="">— None —</option>
+                  {/* Fix-6: (project) / (daily) cue so attribution intent is visible at selection */}
                   {workLines.map(wl => (
-                    <option key={wl.id} value={wl.id}>{wl.name}</option>
+                    <option key={wl.id} value={wl.id}>
+                      {wl.name} ({wl.type === 'project' ? 'project' : 'daily'})
+                    </option>
                   ))}
                 </select>
               ) : (

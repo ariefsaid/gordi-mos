@@ -4,6 +4,7 @@ import type { OwnerCellRaciMember } from './owner-cell'
 import { OwnerCell } from './owner-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
+import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { formatAge, formatDate, otherRaciCount } from './task-formatters'
 
@@ -14,6 +15,29 @@ export type MobileRenderGroup = {
   rows: TaskListRow[]
   overdue: number
   prefillParam: string
+  /**
+   * Work-line type tag (only when groupBy==='workline').
+   * 'project' → "Project"; 'process' → "Daily / ongoing".
+   * null = "No work-line" group; undefined = not a workline grouping.
+   * Text label is always present (never color-only) — WCAG 1.4.1.
+   */
+  workLineType?: 'project' | 'process' | null
+}
+
+// ── Work-line type label tag (mirrors desktop WorkLineTypeTag in group-header-row) ──
+function MobileWorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
+  if (type === 'project') {
+    return (
+      <Tag color="blue" weight="medium" className="wl-type-tag">
+        Project
+      </Tag>
+    )
+  }
+  return (
+    <Tag color="gray" weight="medium" className="wl-type-tag">
+      Daily / ongoing
+    </Tag>
+  )
 }
 
 export type MobileGroupedCardsProps = {
@@ -64,18 +88,29 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
+        {/* Fix-5: dt labels are visible (label:value) per mockup — not sr-only */}
         <dl className="task-card-meta">
-          <dt className="sr-only">Owner</dt>
-          <dd><OwnerCell fullName={rName} otherCount={n} others={others} /></dd>
+          <span className="task-card-meta-pair">
+            <dt>Owner</dt>
+            <dd><OwnerCell fullName={rName} otherCount={n} others={others} /></dd>
+          </span>
           {/* FR-234: Work-line + Objective in mobile card */}
-          <dt className="sr-only">Work-line</dt>
-          <dd className="td-empty-inline">{workLineName || '—'}</dd>
-          <dt className="sr-only">Objective</dt>
-          <dd className="td-empty-inline">{objectiveName || '—'}</dd>
-          <dt className="sr-only">Due</dt>
-          <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
-          <dt className="sr-only">Activity</dt>
-          <dd className="act tabular-nums">{age}</dd>
+          <span className="task-card-meta-pair">
+            <dt>Work-line</dt>
+            <dd className="td-empty-inline">{workLineName || '—'}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Objective</dt>
+            <dd className="td-empty-inline">{objectiveName || '—'}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Due</dt>
+            <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Activity</dt>
+            <dd className="act tabular-nums">{age}</dd>
+          </span>
         </dl>
       </Link>
     </article>
@@ -137,6 +172,10 @@ export function MobileGroupedCards({
               <Chevron className={`mgc-chev${isCollapsed(group.key) ? ' mgc-chev-collapsed' : ''}`} />
             </button>
             <span className="mgc-label">{group.label}</span>
+            {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
+            {group.workLineType != null && (
+              <MobileWorkLineTypeTag type={group.workLineType} />
+            )}
             <span className="mgc-count tabular-nums">{group.rows.length}</span>
             {group.overdue > 0 && (
               <button

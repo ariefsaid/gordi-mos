@@ -158,10 +158,11 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     // Work-line options load asynchronously — wait for them
     const wlSelect = await screen.findByRole('combobox', { name: /work-line/i })
     expect(wlSelect).toBeInTheDocument()
-    const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent)
+    const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
     expect(options[0]).toBe('— None —')
-    expect(options).toContain('Daily IG Content')
-    expect(options).toContain('New Menu Design')
+    // Fix-6: options now include a (project)/(daily) type cue; match by name substring.
+    expect(options.some(o => o.includes('Daily IG Content'))).toBe(true)
+    expect(options.some(o => o.includes('New Menu Design'))).toBe(true)
   })
 
   it('FR-242: shows an Objective select with "— None —" as the first option', async () => {

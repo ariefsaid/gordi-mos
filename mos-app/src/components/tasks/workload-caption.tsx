@@ -10,6 +10,12 @@ export type WorkloadSummary = {
   firstName: string
   projectCount: number
   dailyCount: number
+  /**
+   * RI-4: open tasks that have no work_line_id (unclassified).
+   * When > 0, the caption appends "and N unassigned" so the sentence reconciles
+   * with all visible tasks (no silent omissions — NFR-206 literacy bar).
+   */
+  unassignedCount: number
 }
 
 type WorkloadCaptionProps = {
@@ -21,12 +27,16 @@ function pluralise(n: number, singular: string, plural: string): string {
 }
 
 export function WorkloadCaption({ summary }: WorkloadCaptionProps) {
-  const { isSelf, firstName, projectCount, dailyCount } = summary
+  const { isSelf, firstName, projectCount, dailyCount, unassignedCount } = summary
 
   const subject = isSelf ? 'Your work' : `${firstName}'s work`
   const parts: string[] = []
   if (projectCount > 0) parts.push(pluralise(projectCount, 'project', 'projects'))
   if (dailyCount > 0) parts.push(pluralise(dailyCount, 'daily job', 'daily jobs'))
+
+  // RI-4: append "and N unassigned" when there are open unclassified tasks so the
+  // sentence reconciles with reality and nothing is silently omitted (NFR-206).
+  if (unassignedCount > 0) parts.push(`${unassignedCount} unassigned`)
 
   const body = parts.length > 0 ? parts.join(' and ') + '.' : 'no work-lines yet.'
   const sentence = `${subject}: ${body}`

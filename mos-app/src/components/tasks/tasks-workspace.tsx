@@ -19,10 +19,6 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import { getBusinessUnits } from '@/lib/db/directory'
 import { getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import { listObjectives } from '@/lib/db/objectives'
-import type { ObjectiveRow } from '@/lib/db/objectives'
-import { listWorkLines } from '@/lib/db/work-lines'
-import type { WorkLineRow } from '@/lib/db/work-lines'
 import { isOverdue } from '@/lib/due-status'
 import { raciMember, raciOwner } from '@/lib/raci-member'
 import type { OwnerCellRaciMember } from './owner-cell'
@@ -31,6 +27,7 @@ import { TaskRow } from './task-row'
 import { STATUS_ORDER } from './task-formatters'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
+import { useCascadeCatalogs } from './use-cascade-catalogs'
 import { GroupHeaderRow } from './group-header-row'
 import { PageHead } from '@/shell/page-head'
 import { TasksToolbar } from './tasks-toolbar'
@@ -139,10 +136,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const [allTasks, setAllTasks] = useState<TaskListRow[]>([])
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
-  const [objectivesDirectory, setObjectivesDirectory] = useState<ObjectiveRow[]>([])
-  const [workLinesDirectory, setWorkLinesDirectory] = useState<WorkLineRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Fix-7: cascade catalog load is mount-once via useCascadeCatalogs — never
+  // refetched on filter changes (the prior inline loads in load() re-triggered on
+  // every BU/status/includeArchived change — a performance regression).
+  const { workLines: workLinesDirectory, objectiveMap, workLineMap } =
+    useCascadeCatalogs()
 
   const now = useMemo(() => new Date(), [allTasks]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -158,21 +159,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     return m
   }, [peopleDirectory])
 
-  // FR-234: objective + work-line lookup maps (id → name).
-  // Loaded once per session; passed as Maps to avoid re-resolving per row.
-  const objectiveMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const o of objectivesDirectory) m.set(o.id, o.name)
-    return m
-  }, [objectivesDirectory])
-
-  const workLineMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const wl of workLinesDirectory) m.set(wl.id, wl.name)
-    return m
-  }, [workLinesDirectory])
-
-
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
@@ -183,7 +169,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     }
     let cancelled = false
     // Critical load: tasks + directory (BUs, people). The table's loading gate hangs off
-    // ONLY these — never the cascade catalogs below.
+    // ONLY these — never the cascade catalogs (those are mount-once via useCascadeCatalogs).
     Promise.all([
       listTasks(filters),
       getBusinessUnits(),
@@ -200,11 +186,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       .catch((err: Error) => {
         if (!cancelled) { console.error('[TasksWorkspace] load failed:', err); setError('load-failed'); setLoading(false) }
       })
-    // Cascade catalogs (objectives + work-lines, Task B) are NON-CRITICAL: load them
-    // independently so a slow/failed catalog fetch never blocks the table from rendering.
-    // Work-line/objective ids render as "—" until (or if) the names arrive.
-    listObjectives().then(o => { if (!cancelled) setObjectivesDirectory(o) }).catch(() => {})
-    listWorkLines().then(w => { if (!cancelled) setWorkLinesDirectory(w) }).catch(() => {})
     return () => { cancelled = true }
   }, [businessUnitId, statusFilter, includeArchived])
 
@@ -368,15 +349,22 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       // FR-232: group by work_line_id; null → trailing "No work-line" group.
       // Named groups appear in work-line alphabetical order (from workLinesDirectory),
       // then the null group always trails (clear separation of "assigned" vs "unassigned").
-      const named = workLinesDirectory.map(wl =>
-        mk(wl.id, wl.name, '', wl.type)
-      )
+      // RI-2 fix: when a person filter is active, suppress zero-count work-line groups
+      // (empty groups contradict the per-person caption and clutter the one-question read).
+      // Empty-group injection stays for the other dimensions / no-person-filter (layout stability).
+      const filterZeroWhenPerson = personFilter !== ''
+      const named = workLinesDirectory
+        .map(wl => mk(wl.id, wl.name, '', wl.type))
+        .filter(g => !filterZeroWhenPerson || g.rows.length > 0)
       const noGroup = mk('__no_workline__', 'No work-line', '', null)
-      return [...named, noGroup]
+      // Also suppress the "No work-line" group when person-filtered and it has no rows
+      const groups: typeof named = [...named]
+      if (!filterZeroWhenPerson || noGroup.rows.length > 0) groups.push(noGroup)
+      return groups
     }
     // bu
     return busDirectory.map(b => mk(b.id, b.name, `bu=${b.id}`))
-  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory])
+  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter])
 
   // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
   // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
@@ -496,17 +484,23 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     // Build a local type map from workLinesDirectory (avoids an extra useMemo dep)
     const typeMap = new Map<string, 'project' | 'process'>()
     for (const wl of workLinesDirectory) typeMap.set(wl.id, wl.type)
-    // Count distinct project / process work-line ids among open visible leaf tasks
+    // Count distinct project / process work-line ids among OPEN, NON-ARCHIVED visible tasks.
+    // RI-4: also count tasks with no work_line_id (unassigned) for the reconciliation clause.
     const projectIds = new Set<string>()
     const dailyIds = new Set<string>()
+    let unassignedCount = 0
     for (const t of leafTasks) {
-      if (!t.work_line_id) continue
-      if (t.status === 'Done') continue // exclude done tasks from the count
+      if (t.status === 'Done') continue           // exclude Done tasks
+      if (t.archived_at != null) continue         // RI-4: exclude archived tasks
+      if (!t.work_line_id) {
+        unassignedCount++                         // RI-4: open unclassified task
+        continue
+      }
       const wlType = typeMap.get(t.work_line_id)
       if (wlType === 'project') projectIds.add(t.work_line_id)
       else if (wlType === 'process') dailyIds.add(t.work_line_id)
     }
-    return { isSelf, firstName, projectCount: projectIds.size, dailyCount: dailyIds.size }
+    return { isSelf, firstName, projectCount: projectIds.size, dailyCount: dailyIds.size, unassignedCount }
   }, [groupBy, personFilter, peopleDirectory, leafTasks, workLinesDirectory, viewerId])
 
   const splitClass = `split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`
