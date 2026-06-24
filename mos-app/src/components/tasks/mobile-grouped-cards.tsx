@@ -26,6 +26,10 @@ export type MobileGroupedCardsProps = {
   openAddTask: (prefillParam: string) => void
   setOverdueOnly: (value: boolean) => void
   buildOthers: (task: TaskListRow) => OwnerCellRaciMember[]
+  /** FR-234: resolved work-line names (id → name). */
+  workLineMap: Map<string, string>
+  /** FR-234: resolved objective names (id → name). */
+  objectiveMap: Map<string, string>
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
@@ -35,9 +39,11 @@ type TaskCardProps = {
   buName: string
   rName: string
   others: OwnerCellRaciMember[]
+  workLineName: string
+  objectiveName: string
 }
 
-function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, others, workLineName, objectiveName }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
@@ -61,6 +67,11 @@ function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
         <dl className="task-card-meta">
           <dt className="sr-only">Owner</dt>
           <dd><OwnerCell fullName={rName} otherCount={n} others={others} /></dd>
+          {/* FR-234: Work-line + Objective in mobile card */}
+          <dt className="sr-only">Work-line</dt>
+          <dd className="td-empty-inline">{workLineName || '—'}</dd>
+          <dt className="sr-only">Objective</dt>
+          <dd className="td-empty-inline">{objectiveName || '—'}</dd>
           <dt className="sr-only">Due</dt>
           <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
           <dt className="sr-only">Activity</dt>
@@ -85,6 +96,7 @@ function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
 export function MobileGroupedCards({
   groups, now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly, buildOthers,
+  workLineMap, objectiveMap,
 }: MobileGroupedCardsProps) {
   // Flat default (mockup): the single implicit group renders as a plain card list
   // with NO group-header chrome (no caret / label / count / add).
@@ -100,6 +112,8 @@ export function MobileGroupedCards({
               buName={buMap.get(task.business_unit_id) ?? ''}
               rName={personMap.get(task.responsible_person_id) ?? ''}
               others={buildOthers(task)}
+              workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
+              objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
             />
           </div>
         ))}
@@ -151,6 +165,8 @@ export function MobileGroupedCards({
                 buName={buMap.get(task.business_unit_id) ?? ''}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
                 others={buildOthers(task)}
+                workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
+                objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
               />
             </div>
           ))}

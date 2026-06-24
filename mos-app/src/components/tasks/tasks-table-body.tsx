@@ -18,6 +18,8 @@ import { MobileGroupedCards } from './mobile-grouped-cards'
 import { RowCheckbox } from './row-checkbox'
 import type { RenderGroup } from './tasks-grouping'
 import type { OwnerCellRaciMember } from './owner-cell'
+import type { WorkloadSummary } from './workload-caption'
+import { WorkloadCaption } from './workload-caption'
 
 type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
 
@@ -99,6 +101,12 @@ export type TasksTableBodyProps = {
   openAddTask: (prefillParam: string) => void
   setOverdueOnly: (next: boolean) => void
   buildOthers: (task: TaskListRow) => OwnerCellRaciMember[]
+  /** FR-234: resolved work-line names (id → name). */
+  workLineMap: Map<string, string>
+  /** FR-234: resolved objective names (id → name). */
+  objectiveMap: Map<string, string>
+  /** FR-236: workload summary for the caption (workline groupBy + single person). */
+  workloadSummary: WorkloadSummary | null
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
@@ -110,6 +118,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     groups, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly, buildOthers,
+    workLineMap, objectiveMap, workloadSummary,
   } = props
 
   if (loading) {
@@ -170,12 +179,18 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         openAddTask={openAddTask}
         setOverdueOnly={setOverdueOnly}
         buildOthers={buildOthers}
+        workLineMap={workLineMap}
+        objectiveMap={objectiveMap}
       />
     )
   }
 
+  // FR-236: workload summary caption (workline groupBy + single person filter)
+  const captionEl = workloadSummary ? <WorkloadCaption summary={workloadSummary} /> : null
+
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
+      {captionEl}
       <table className="tasks-table" aria-label="Tasks">
         <thead>
           <tr>
@@ -200,6 +215,13 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               aria-sort={ariaSort('owner')} onClick={() => onSort('owner')}>
               Owner (R){sortIndicator('owner')}
             </th>
+            {/* FR-234: Work-line + Objective columns — shown in non-condensed view */}
+            {!condensed && (
+              <th scope="col" className="th-cell">Work-line</th>
+            )}
+            {!condensed && (
+              <th scope="col" className="th-cell">Objective</th>
+            )}
             {!condensed && (
               <th scope="col" className="th-cell">Business unit</th>
             )}
@@ -221,7 +243,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            const colSpan = condensed ? 4 : 6
+            // condensed = 6 cols (cb + task + status + owner + due + menu)
+            // non-condensed = 10 cols (+ work-line + objective + bu + activity)
+            const colSpan = condensed ? 6 : 10
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (

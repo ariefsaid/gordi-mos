@@ -25,9 +25,16 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+// Cascade catalogs (Task B) — the workspace loads these non-blocking; mock to empty so the
+// unit test never reaches the real supabase client. (Resolution set in beforeEach — resetAllMocks
+// would otherwise wipe a factory-set implementation, leaving listObjectives() === undefined.)
+vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksLayout } from './tasks-layout'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { __resetExpandPrefForTests } from '@/components/tasks/use-expand-pref'
@@ -105,6 +112,8 @@ beforeEach(() => {
   stubMatchMedia(true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(listWorkLines).mockResolvedValue([])
 })
 
 function renderAt(path: string) {

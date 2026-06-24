@@ -209,18 +209,12 @@
 
 /* ── Table ── */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-/* Default 8-col widths (PR-2 kit table): [cb] Task Status Owner BU Due Activity [menu].
-   The checkbox + menu cols are fixed 40px; Task absorbs the full-bleed remainder; the
-   data cols hold fixed px so the page does not balloon and no gulf opens between
-   Due/Activity (OD-P3-6 colgroup model). */
+/* Base col widths: cols 1-4 stable; cols 5-10 overridden below (Cascade D1 added
+   Work-line + Objective cols). cb+menu fixed 40px; Task absorbs the remainder. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
 .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: auto; }   /* Task */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 150px; }  /* Status */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 200px; }  /* Owner */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 128px; }  /* Business unit */
-.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 150px; }  /* Due (fits "Overdue · Fri 12 Jun", no clip) */
-.tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 92px; }   /* Activity */
-.tasks-table th:nth-child(8), .tasks-table td:nth-child(8) { width: 40px; }   /* row menu */
 /* Condensed 6-col widths (drawer-open: BU + Activity dropped; Owner narrows to avatar).
    %-based so the cols flex to the narrow split; cb + menu stay fixed 40px. */
 .assembly.condensed .tasks-table th:nth-child(1), .assembly.condensed .tasks-table td:nth-child(1) { width: 40px; }
@@ -516,6 +510,57 @@ tr.grp td { padding: 0; }
   margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
   font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
+
+/* ── Cascade D1: Work-line type tag in group headers (FR-233) ────────────────
+   The tag is a light categorical tint (never action blue). Sits inline in the
+   .gbar beside the group name; does not affect the 38px gbar height. The tag
+   color tokens --ds-tag-background/text-{blue,gray} are set via the Tag component
+   style prop — no literal colors here, token-purity maintained. */
+.wl-type-tag {
+  flex: none; /* never stretch */
+  font-size: 11px; /* slightly smaller than gbar body text, clear hierarchy */
+}
+
+/* ── Cascade D1: Work-line + Objective table columns (FR-234/235) ────────────
+   - td-workline: truncates long work-line names (same as td-bu treatment)
+   - td-objective: muted secondary text, truncates
+   - td-empty: the "—" placeholder (muted, not primary text weight)
+   Column widths sit in the nth-child colgroup rules below. */
+.td-workline {
+  font-size: 12.5px; color: var(--muted-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-objective {
+  font-size: 12.5px; color: var(--muted-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-empty { color: var(--muted-foreground); }
+
+/* Cascade D1: summary caption (FR-236 / NFR-206 literacy bar).
+   One short plain-text sentence; quiet — not a heading, not a warning.
+   Sits between the toolbar and the table (rendered by TasksTableBody before
+   the <table>). Uses surface-secondary wash to distinguish from the table.   */
+.workload-caption {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  background: var(--surface-secondary);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+/* ── Cascade D1: expanded column grid (non-condensed now = 10 cols) ──────────
+   Added 2 new cols: Work-line (col 5) and Objective (col 6).
+   Existing columns shift right by 2. Previous col 5=BU → now col 7.
+   Condensed (6 col) layout is unchanged — new cols are hidden via !condensed. */
+/* Work-line col — fixed width, same class as td-bu */
+.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 150px; }  /* Work-line */
+.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 150px; }  /* Objective */
+.tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 128px; }  /* Business unit */
+.tasks-table th:nth-child(8), .tasks-table td:nth-child(8) { width: 150px; }  /* Due */
+.tasks-table th:nth-child(9), .tasks-table td:nth-child(9) { width: 92px; }   /* Activity */
+.tasks-table th:nth-child(10), .tasks-table td:nth-child(10) { width: 40px; } /* row menu */
 
 /* ── Utility ── */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }

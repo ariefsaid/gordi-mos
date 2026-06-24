@@ -50,6 +50,8 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   openAddTask: () => {},
   setOverdueOnly: () => {},
   buildOthers: () => [],
+  workLineMap: new Map<string, string>(),
+  objectiveMap: new Map<string, string>(),
 }
 
 function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {

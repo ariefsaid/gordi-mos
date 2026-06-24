@@ -41,6 +41,8 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   onOpen: () => {},
   checked: false,
   onCheck: () => {},
+  workLineName: '',
+  objectiveName: '',
   ...overrides,
 })
 
