@@ -79,3 +79,45 @@ begin
 
   raise notice 'seed.dev-tasks: inserted 11 demo tasks';
 end $$;
+
+-- ─── Cascade lookup seed (objectives + work_lines + FK links on tasks) ────────
+-- Fixed UUIDs for deterministic dev / design-review usage.
+-- Objectives: 2 canonical examples.
+-- Work-lines: designer canon from plan (process + project + project).
+-- A handful of existing tasks are linked so the grouped Tasks view renders with data.
+do $$
+declare
+  v_org uuid := '10000000-0000-0000-0000-000000000001';
+  wl_ig   uuid := 'c0000000-0000-0000-0000-000000000001';  -- Daily IG Content (process)
+  wl_menu uuid := 'c0000000-0000-0000-0000-000000000002';  -- New Menu Design (project)
+  wl_brand uuid := 'c0000000-0000-0000-0000-000000000003'; -- Brand Refresh (project)
+  obj_q3  uuid := 'c0000000-0000-0000-0000-000000000010';  -- Q3 Growth
+  obj_ops uuid := 'c0000000-0000-0000-0000-000000000011';  -- Operational Excellence
+begin
+  if exists (select 1 from mos.work_lines where org_id = v_org limit 1) then
+    raise notice 'seed.dev-tasks: cascade lookups not empty — skipping';
+    return;
+  end if;
+
+  insert into mos.objectives (id, org_id, name) values
+    (obj_q3,  v_org, 'Q3 Growth'),
+    (obj_ops, v_org, 'Operational Excellence');
+
+  insert into mos.work_lines (id, org_id, name, type) values
+    (wl_ig,    v_org, 'Daily IG Content', 'process'),
+    (wl_menu,  v_org, 'New Menu Design',  'project'),
+    (wl_brand, v_org, 'Brand Refresh',    'project');
+
+  -- Link a sample of the existing dev tasks to work-lines + objectives so the
+  -- grouped Tasks view and per-person split render with data.
+  update mos.tasks set work_line_id = wl_menu,  objective_id = obj_q3
+    where title = 'Photograph new pastry line'  and org_id = v_org;
+  update mos.tasks set work_line_id = wl_brand, objective_id = obj_q3
+    where title = 'Q3 wholesale price list'     and org_id = v_org;
+  update mos.tasks set work_line_id = wl_ig,    objective_id = obj_ops
+    where title = 'Update espresso recipe cards' and org_id = v_org;
+  update mos.tasks set work_line_id = wl_ig,    objective_id = obj_ops
+    where title = 'Dial in new Brazil single-origin' and org_id = v_org;
+
+  raise notice 'seed.dev-tasks: inserted cascade lookups (2 objectives, 3 work_lines, 4 task links)';
+end $$;
