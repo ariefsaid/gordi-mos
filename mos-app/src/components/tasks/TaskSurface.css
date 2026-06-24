@@ -128,6 +128,18 @@
 .rd-field-label { width: 96px; flex: none; color: var(--muted-foreground); margin: 0; }
 .rd-field-val { color: var(--foreground); margin: 0; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* D4: inline select value cell — overflow must not clip the select control */
+.rd-field-val-select { overflow: visible; white-space: normal; }
+/* D4: inline select in the details panel — 32px control radius (OD-P3-10) */
+.rd-inline-select {
+  height: 32px; padding: 0 8px;
+  border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px control radius */
+  background: var(--background); font: inherit; font-size: 14px;
+  color: var(--foreground); cursor: pointer; max-width: 100%;
+}
+.rd-inline-select:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
 
 /* ── Right tabbed feed ── */
 .record-feed-col { display: flex; flex-direction: column; min-width: 0; }

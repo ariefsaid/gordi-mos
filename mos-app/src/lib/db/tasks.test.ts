@@ -82,6 +82,7 @@ const sampleTask: TaskListRow = {
   id: TASK_ID, org_id: 'org', title: 'T', business_unit_id: 'bu', status: 'Open',
   responsible_person_id: ACTOR, accountable_person_id: ACTOR,
   consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
+  objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-10T00:00:00Z', archived_at: null, created_by: ACTOR,
   created_at: '2026-06-10T00:00:00Z', updated_at: '2026-06-10T00:00:00Z',
 }
@@ -222,6 +223,45 @@ describe('createTask', () => {
       responsiblePersonId: ACTOR, accountablePersonId: ACTOR, createdBy: ACTOR,
     })).rejects.toThrow(/event failed/)
   })
+
+  it('includes objective_id and work_line_id in the insert payload when provided', async () => {
+    const OBJ_ID = '00000000-0000-0000-0000-00000000b001'
+    const WL_ID = '00000000-0000-0000-0000-00000000b002'
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: { id: TASK_ID }, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+
+    await createTask({
+      title: 'Cascade task', businessUnitId: 'bu',
+      responsiblePersonId: ACTOR, accountablePersonId: ACTOR, createdBy: ACTOR,
+      objectiveId: OBJ_ID, workLineId: WL_ID,
+    })
+
+    const taskInsert = rec.inserts[0] as Record<string, unknown>
+    expect(taskInsert.objective_id).toBe(OBJ_ID)
+    expect(taskInsert.work_line_id).toBe(WL_ID)
+    noOrgId(rec)
+  })
+
+  it('defaults objective_id and work_line_id to null when not provided', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: { id: TASK_ID }, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+
+    await createTask({
+      title: 'No cascade', businessUnitId: 'bu',
+      responsiblePersonId: ACTOR, accountablePersonId: ACTOR, createdBy: ACTOR,
+    })
+
+    const taskInsert = rec.inserts[0] as Record<string, unknown>
+    expect(taskInsert.objective_id).toBeNull()
+    expect(taskInsert.work_line_id).toBeNull()
+    noOrgId(rec)
+  })
 })
 
 // ── update status / fields / raci ───────────────────────────────────────────────
@@ -250,6 +290,32 @@ describe('update mutations', () => {
     }, rec) as never)
     await updateTaskFields(TASK_ID, { description: 'updated', due_date: '2026-06-20' }, ACTOR)
     expect(rec.updates[0]).toEqual({ description: 'updated', due_date: '2026-06-20' })
+    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
+    noOrgId(rec)
+  })
+
+  it('updateTaskFields sets work_line_id and objective_id then logs a field_edited event', async () => {
+    const OBJ_ID = '00000000-0000-0000-0000-00000000c001'
+    const WL_ID = '00000000-0000-0000-0000-00000000c002'
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: null, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+    await updateTaskFields(TASK_ID, { objective_id: OBJ_ID, work_line_id: WL_ID }, ACTOR)
+    expect(rec.updates[0]).toEqual({ objective_id: OBJ_ID, work_line_id: WL_ID })
+    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
+    noOrgId(rec)
+  })
+
+  it('updateTaskFields clears work_line_id and objective_id (null) then logs a field_edited event', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: null, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+    await updateTaskFields(TASK_ID, { objective_id: null, work_line_id: null }, ACTOR)
+    expect(rec.updates[0]).toEqual({ objective_id: null, work_line_id: null })
     expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
     noOrgId(rec)
   })

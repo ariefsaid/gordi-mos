@@ -12,6 +12,10 @@ import type { TaskDetail as TaskDetailData, CreateTaskInput } from '@/lib/db/tas
 import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
+import type { ObjectiveRow } from '@/lib/db/objectives'
+import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { canEdit, canArchive } from './task-permissions'
 import { TaskDrawerHeader } from './task-drawer-header'
@@ -100,6 +104,8 @@ function ViewSurface({
   const [data, setData] = useState<TaskDetailData | null>(null)
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+  const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
+  const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
 
   // Optimistic local state
   const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
@@ -135,6 +141,9 @@ function ViewSurface({
       setNotFound(true)
       setLoading(false)
     })
+    // Non-blocking catalog loads — a slow catalog must never block the form.
+    listObjectives().then(setObjectivesDir).catch(() => {})
+    listWorkLines().then(setWorkLinesDir).catch(() => {})
   }, [taskId])
 
   useEffect(() => { load() }, [load])
@@ -218,6 +227,36 @@ function ViewSurface({
       await updateTaskFields(localTask.id, patch, viewerId)
       await refetchEvents(localTask.id)
       announce('Owner updated')
+    } catch {
+      setLocalTask(prev)
+      announce(ROLLBACK_MSG)
+    }
+  }
+
+  // ── Work-line change (D4) ────────────────────────────────────────────────
+  async function handleWorkLineChange(workLineId: string | null) {
+    if (!localTask) return
+    const prev = { ...localTask }
+    setLocalTask(t => t ? { ...t, work_line_id: workLineId } : t)
+    try {
+      await updateTaskFields(localTask.id, { work_line_id: workLineId }, viewerId)
+      await refetchEvents(localTask.id)
+      announce('Work-line updated')
+    } catch {
+      setLocalTask(prev)
+      announce(ROLLBACK_MSG)
+    }
+  }
+
+  // ── Objective change (D4) ────────────────────────────────────────────────
+  async function handleObjectiveChange(objectiveId: string | null) {
+    if (!localTask) return
+    const prev = { ...localTask }
+    setLocalTask(t => t ? { ...t, objective_id: objectiveId } : t)
+    try {
+      await updateTaskFields(localTask.id, { objective_id: objectiveId }, viewerId)
+      await refetchEvents(localTask.id)
+      announce('Objective updated')
     } catch {
       setLocalTask(prev)
       announce(ROLLBACK_MSG)
@@ -372,10 +411,14 @@ function ViewSurface({
             editable={editable}
             viewerId={viewerId}
             checklistCount={[checklistDone, localChecklist.length]}
+            objectives={objectivesDir}
+            workLines={workLinesDir}
             compact
             onStatusChange={handleStatusChange}
             onRaChange={handleRaChange}
             onRaciChange={handleRaciChange}
+            onWorkLineChange={handleWorkLineChange}
+            onObjectiveChange={handleObjectiveChange}
           />
           <RecordFeed
             task={task}
@@ -499,9 +542,13 @@ function ViewSurface({
           editable={editable}
           viewerId={viewerId}
           checklistCount={[checklistDone, localChecklist.length]}
+          objectives={objectivesDir}
+          workLines={workLinesDir}
           onStatusChange={handleStatusChange}
           onRaChange={handleRaChange}
           onRaciChange={handleRaciChange}
+          onWorkLineChange={handleWorkLineChange}
+          onObjectiveChange={handleObjectiveChange}
         />
 
         {/* RIGHT — tabbed feed (Activity / Checklist / Notes); min-width:0 so
@@ -560,6 +607,8 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
+  const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
+  const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
 
   useEffect(() => {
     Promise.all([getBusinessUnits(), getPeople()]).then(([bus, people]) => {
@@ -567,6 +616,9 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
       setPeopleDirectory(people)
       setDirLoading(false)
     }).catch(() => setDirLoading(false))
+    // Non-blocking catalog loads — a slow catalog must never block the form.
+    listObjectives().then(setObjectivesDir).catch(() => {})
+    listWorkLines().then(setWorkLinesDir).catch(() => {})
   }, [])
 
   // ── Form state ────────────────────────────────────────────────────────────
@@ -578,6 +630,8 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   const [accountablePersonId, setAccountablePersonId] = useState(viewerId)
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
+  const [workLineId, setWorkLineId] = useState('')
+  const [objectiveId, setObjectiveId] = useState('')
 
   // Set BU once directory loads (in case primaryRoleBU wasn't set at mount).
   // A pre-filled BU (deep-link) is never overwritten.
@@ -633,6 +687,8 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
         createdBy: viewerId,
         description: description.trim() || undefined,
         dueDate: dueDate || null,
+        workLineId: workLineId || null,
+        objectiveId: objectiveId || null,
       }
       const newId = await createTask(input)
       onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
@@ -795,6 +851,49 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
             </select>
           )}
         </div>
+
+        {/* Work-line (optional) — non-blocking; renders once lookups arrive */}
+        {workLinesDir.length > 0 && (
+          <div className="tc-field">
+            <label htmlFor="task-workline" className="tc-label">Work-line</label>
+            <select
+              id="task-workline"
+              className="tc-select"
+              value={workLineId}
+              onChange={e => setWorkLineId(e.target.value)}
+              disabled={submitting}
+              aria-label="Work-line"
+            >
+              <option value="">— None —</option>
+              {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}
+              {workLinesDir.map(wl => (
+                <option key={wl.id} value={wl.id}>
+                  {wl.name} ({wl.type === 'project' ? 'project' : 'daily'})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Objective (optional) — non-blocking; renders once lookups arrive */}
+        {objectivesDir.length > 0 && (
+          <div className="tc-field">
+            <label htmlFor="task-objective" className="tc-label">Objective</label>
+            <select
+              id="task-objective"
+              className="tc-select"
+              value={objectiveId}
+              onChange={e => setObjectiveId(e.target.value)}
+              disabled={submitting}
+              aria-label="Objective"
+            >
+              <option value="">— None —</option>
+              {objectivesDir.map(obj => (
+                <option key={obj.id} value={obj.id}>{obj.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Due date (optional) */}
         <div className="tc-field">

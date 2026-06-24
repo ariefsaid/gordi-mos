@@ -78,6 +78,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     consulted_person_ids: [],
     informed_person_ids: [],
     description: null, due_date: null,
+    objective_id: null, work_line_id: null,
     last_activity_at: '2026-06-11T10:00:00Z',
     archived_at: null, created_by: VIEWER_ID,
     created_at: '2026-06-11T00:00:00Z',

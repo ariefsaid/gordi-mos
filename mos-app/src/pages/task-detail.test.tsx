@@ -95,6 +95,8 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     informed_person_ids: [],
     description: 'The espresso machine on floor 2 is broken.',
     due_date: '2026-06-20',
+    objective_id: null,
+    work_line_id: null,
     last_activity_at: '2026-06-11T08:00:00Z',
     archived_at: null,
     created_by: VIEWER_ID,

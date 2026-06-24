@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workload — Entry A: inside the manager Team module (row expands inline)</title>
+<!-- Kit tokens only. No literal colors below; every color is a --ds-* token (+ proposed --lane-* additions, flagged). -->
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  .pad { padding: 16px; }
+
+  /* ===== PROPOSED lane token set (DESIGN.md GAP — flagged for owner sign-off in the footer) =====
+     Lane is a NON-interactive categorization → qualifies for the Tinted-Status pattern.
+     Chosen OUTSIDE the status quartet (blue/amber/red/green) and OUTSIDE action-blue / KPI-violet:
+       Run      = neutral grey  (BAU "steady", reads calm; also keeps blue free for action)
+       Optimize = bronze        (warm categorical, distinct from amber-status)
+       Transform= iris          (cool indigo categorical, distinct from action-blue & KPI-violet)
+     All three are aliased onto existing kit tag tokens — NO new hue is introduced. */
+  :root {
+    --lane-run-bg:   var(--ds-tag-background-gray);   --lane-run-text:   var(--ds-tag-text-gray);   --lane-run-dot:   var(--ds-font-color-light);
+    --lane-opt-bg:   var(--ds-tag-background-bronze); --lane-opt-text:   var(--ds-tag-text-bronze); --lane-opt-dot:   var(--ds-color-bronze);
+    --lane-tra-bg:   var(--ds-tag-background-iris);   --lane-tra-text:   var(--ds-tag-text-iris);   --lane-tra-dot:   var(--ds-color-iris);
+  }
+
+  /* ---- Shared shell (matches the revamp shell mock) ---- */
+  .shell { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 236px 1fr;
+    grid-template-areas: "topbar topbar" "rail main"; background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden; border-radius: var(--ds-border-radius-md); }
+  .topbar { grid-area: topbar; display: flex; align-items: center; gap: var(--ds-spacing-3);
+    height: 56px; padding: 0 var(--ds-spacing-4) 0 0; border-bottom: 1px solid var(--ds-border-color-light);
+    background: var(--ds-background-primary); }
+  .tb-brand { display: flex; align-items: center; gap: var(--ds-spacing-2); width: 236px; flex: none; height: 100%;
+    padding: 0 var(--ds-spacing-4); border-right: 1px solid var(--ds-border-color-light); }
+  .tb-logo { width: 26px; height: 26px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue12);
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; position: relative; flex: none; }
+  .tb-logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px;
+    border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
+  .tb-brand .nm { font-family: var(--ds-font-display); font-weight: 700; font-size: 15px; letter-spacing: -.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+  .tb-crumb a { color: var(--ds-font-color-secondary); text-decoration: none; flex: none; }
+  .tb-crumb a:hover { color: var(--ds-font-color-primary); }
+  .tb-crumb .sep { color: var(--ds-font-color-light); flex: none; }
+  .tb-crumb .cur { color: var(--ds-font-color-primary); font-weight: 500; }
+  .tb-spacer-top { flex: 1; }
+  .tb-search { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; width: 260px;
+    padding: 0 var(--ds-spacing-3); border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    color: var(--ds-font-color-tertiary); cursor: text; background: var(--ds-background-secondary); flex: none; }
+  .tb-search .lbl { flex: 1; font-size: 13px; }
+  .kbd { font-family: var(--ds-code-font-family); font-size: 11px; padding: 1px 4px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-xs); color: var(--ds-font-color-tertiary); }
+  .tb-bell { width: 34px; height: 34px; border-radius: var(--ds-border-radius-sm); display: flex; align-items: center;
+    justify-content: center; cursor: pointer; color: var(--ds-font-color-tertiary); border: none; background: none; flex: none; }
+  .tb-bell:hover { background: var(--ds-background-transparent-light); color: var(--ds-font-color-secondary); }
+  .tb-user { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 34px; padding: 0 6px 0 4px;
+    border-radius: var(--ds-border-radius-pill); cursor: pointer; flex: none; }
+  .tb-user:hover { background: var(--ds-background-transparent-light); }
+  .tb-user .nm { font-size: 13px; font-weight: 500; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-user .tb-chev { color: var(--ds-font-color-tertiary); font-size: 11px; }
+  .tb-av { width: 26px; height: 26px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex: none; }
+
+  .rail { grid-area: rail; background: var(--ds-background-secondary); border-right: 1px solid var(--ds-border-color-light);
+    padding: var(--ds-spacing-2); display: flex; flex-direction: column; }
+  .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary);
+    padding: 14px var(--ds-spacing-2) 4px; font-weight: 500; }
+  .nav-item { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 var(--ds-spacing-2);
+    border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary); font-size: 13px; cursor: pointer; text-decoration: none; }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }
+  .nav-item.active { background: var(--ds-background-transparent-light); color: var(--ds-font-color-primary); font-weight: 500; }
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); }
+  .rail-spacer { flex: 1; }
+  .rail-foot { border-top: 1px solid var(--ds-border-color-light); margin-top: var(--ds-spacing-1); padding-top: var(--ds-spacing-1); }
+
+  /* ---- Main / content header ---- */
+  .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; background: var(--ds-background-primary); overflow: auto; }
+  .content-header { display: flex; align-items: center; gap: var(--ds-spacing-2); height: 48px; padding: 0 var(--ds-spacing-4);
+    border-bottom: 1px solid var(--ds-border-color-light); flex: none; }
+  .ch-icon { color: var(--ds-font-color-tertiary); display: flex; }
+  .ch-title { font-family: var(--ds-font-display); font-weight: 600; font-size: 16px; }
+  .ch-count { font-size: 11px; color: var(--ds-font-color-tertiary); background: var(--ds-background-tertiary);
+    padding: 1px 8px; border-radius: var(--ds-border-radius-pill); }
+  .ch-meta { margin-left: auto; color: var(--ds-font-color-tertiary); font-size: 12px; }
+
+  /* ---- Team module: roster of direct reports; a row expands inline to Workload ---- */
+  .team { max-width: 1080px; margin: 0 auto; padding: 24px 28px; }
+  .team-intro { color: var(--ds-font-color-tertiary); font-size: 13px; margin: 4px 0 18px; }
+  .roster { border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md);
+    background: var(--ds-background-primary); box-shadow: var(--ds-box-shadow-light); overflow: hidden; }
+  .person { border-bottom: 1px solid var(--ds-border-color-light); }
+  .person:last-child { border-bottom: none; }
+  /* the always-visible person header row (click toggles the inline Workload) */
+  .person-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 18px; cursor: pointer;
+    background: none; border: none; width: 100%; text-align: left; font-family: inherit; font-size: 14px; color: var(--ds-font-color-primary); }
+  .person-row:hover { background: var(--ds-background-secondary); }
+  .person-row .caret { color: var(--ds-font-color-tertiary); font-size: 11px; width: 12px; flex: none; transition: none; }
+  .av-md { width: 30px; height: 30px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex: none; }
+  .person-row .who { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .person-row .who .nm { font-weight: 500; }
+  .person-row .who .rl { color: var(--ds-font-color-tertiary); font-size: 12px; }
+  .person-row .spacer { flex: 1; }
+  /* summary chips at right of the collapsed row — load-at-a-glance even when collapsed */
+  .load-summary { display: flex; align-items: center; gap: 8px; flex: none; }
+  .lc { display: inline-flex; align-items: baseline; gap: 5px; height: 24px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .lc .n { font-variant-numeric: tabular-nums; }
+  .lc .k { font-weight: 500; color: var(--ds-font-color-tertiary); font-size: 11px; }
+  .lc.proc { background: var(--lane-run-bg); color: var(--lane-run-text); }
+  .lc.proj { background: var(--lane-tra-bg); color: var(--lane-tra-text); }
+  .filed-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; flex: none; }
+  .filed-pill .d { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }
+  .filed-pill.ok { background: var(--ds-tag-background-green); color: var(--ds-tag-text-green); } .filed-pill.ok .d { background: var(--ds-color-green); }
+
+  /* ---- Inline Workload panel (revealed when a row is expanded) ---- */
+  .workload { padding: 4px 18px 20px 42px; background: var(--ds-background-secondary); border-top: 1px solid var(--ds-border-color-light); }
+  .wl-q { font-size: 12px; color: var(--ds-font-color-secondary); margin: 14px 0 12px; }
+  .wl-q b { color: var(--ds-font-color-primary); font-weight: 600; }
+  /* lane group block */
+  .lane { margin-bottom: 14px; }
+  .lane-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+  .lane-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px;
+    border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .lane-pill .d { width: 7px; height: 7px; border-radius: var(--ds-border-radius-pill); }
+  .lane-pill.run { background: var(--lane-run-bg); color: var(--lane-run-text); } .lane-pill.run .d { background: var(--lane-run-dot); }
+  .lane-pill.opt { background: var(--lane-opt-bg); color: var(--lane-opt-text); } .lane-pill.opt .d { background: var(--lane-opt-dot); }
+  .lane-pill.tra { background: var(--lane-tra-bg); color: var(--lane-tra-text); } .lane-pill.tra .d { background: var(--lane-tra-dot); }
+  .lane-head .ct { color: var(--ds-font-color-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+  /* the Project/Process card list inside a lane */
+  .ppcard { display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 8px 14px;
+    background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); margin-bottom: 8px; box-shadow: var(--ds-box-shadow-light); }
+  .ppcard:last-child { margin-bottom: 0; }
+  .ppcard .ppname { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .ppcard .ppname .t { font-weight: 500; color: var(--ds-font-color-primary); }
+  .ppcard .ppname .sub { display: flex; align-items: center; gap: 8px; }
+  /* TYPE is a TEXT LABEL — never color-only (brief constraint + WCAG 1.4.1) */
+  .type-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ds-font-color-secondary); }
+  .raci-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
+    border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .raci-chip .g { width: 14px; height: 14px; border-radius: var(--ds-border-radius-pill); display: flex;
+    align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--ds-font-color-inverted); }
+  /* R = action-blue (mirrors list R-avatar; categorical, never an action here); A = violet (categorical) */
+  .raci-chip.r { background: var(--ds-accent-tertiary); color: var(--ds-color-blue11); } .raci-chip.r .g { background: var(--ds-color-blue); }
+  .raci-chip.a { background: var(--ds-tag-background-violet); color: var(--ds-tag-text-violet); } .raci-chip.a .g { background: var(--ds-color-violet); }
+  /* open-task count — the headline number per Project/Process */
+  .opentasks { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex: none; min-width: 92px; }
+  .opentasks .n { font-family: var(--ds-font-display); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+  .opentasks .n.zero { color: var(--ds-font-color-light); }
+  .opentasks .lbl { font-size: 11px; color: var(--ds-font-color-tertiary); }
+  /* empty / own-workload note */
+  .wl-empty { padding: 22px 14px; text-align: center; color: var(--ds-font-color-secondary); font-size: 13px;
+    background: var(--ds-background-primary); border: 1px dashed var(--ds-border-color-medium); border-radius: var(--ds-border-radius-md); }
+
+  .dark-wrap { background: var(--ds-background-tertiary); padding: 16px 0; color: var(--ds-font-color-primary); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="mock-label">Entry A — Workload INSIDE the manager Team module · a person row expands inline · light</div>
+  <div class="shell" style="height:880px">
+    <header class="topbar">
+      <div class="tb-brand"><div class="tb-logo">G<span class="dot"></span></div><span class="nm">Gordi MOS</span></div>
+      <nav class="tb-crumb" aria-label="Breadcrumb"><a href="#">My Week</a><span class="sep">›</span><span class="cur" aria-current="page">Team</span></nav>
+      <span class="tb-spacer-top"></span>
+      <div class="tb-search" role="button" aria-label="Search — open command menu"><span>⌕</span><span class="lbl">Search</span><span class="kbd">⌘K</span></div>
+      <button class="tb-bell" aria-label="Notifications" title="Notifications">◔</button>
+      <div class="tb-user" role="button" aria-label="Account menu"><div class="tb-av">AS</div><span class="nm">Arief Said</span><span class="tb-chev">▾</span></div>
+    </header>
+
+    <aside class="rail">
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <div class="rail-group">Manage</div>
+      <a class="nav-item active" href="#"><span class="ico">👥</span> Team <span class="count">5</span></a>
+      <div class="rail-spacer"></div>
+      <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+    </aside>
+
+    <div class="main">
+      <header class="content-header">
+        <span class="ch-icon">👥</span>
+        <span class="ch-title">Team</span>
+        <span class="ch-count">5</span>
+        <span class="ch-meta">Week of 16–22 Jun · expand a person to see their workload</span>
+      </header>
+
+      <div class="team">
+        <p class="team-intro">Your direct reports. Each row shows their weekly-update status and a workload summary; expand to see <b>which Projects &amp; Processes</b> they own, split by lane — <b>is this person tied up in daily recurring work, or project work?</b></p>
+
+        <div class="roster" role="list">
+
+          <!-- ===== EXPANDED person: the canon designer (AC-230) ===== -->
+          <div class="person" role="listitem">
+            <button class="person-row" aria-expanded="true" aria-controls="wl-maya">
+              <span class="caret">▾</span>
+              <span class="av-md">MR</span>
+              <span class="who"><span class="nm">Maya Rahmawati</span><span class="rl">Designer · Sales – CRM</span></span>
+              <span class="spacer"></span>
+              <span class="load-summary">
+                <span class="lc proc"><span class="n">1</span> <span class="k">Process</span></span>
+                <span class="lc proj"><span class="n">2</span> <span class="k">Projects</span></span>
+                <span class="filed-pill ok"><span class="d"></span>Submitted</span>
+              </span>
+            </button>
+
+            <div class="workload" id="wl-maya" role="region" aria-label="Maya Rahmawati workload">
+              <p class="wl-q">Maya is <b>mostly on project work</b> — one daily Process (Run) and two change Projects (one Transform, one Optimize). <b>3 open tasks across projects vs 4 on her daily process.</b></p>
+
+              <!-- RUN lane -->
+              <div class="lane">
+                <div class="lane-head">
+                  <span class="lane-pill run"><span class="d"></span>Run</span>
+                  <span class="ct">1 Process · 4 open tasks</span>
+                </div>
+                <div class="ppcard">
+                  <div class="ppname">
+                    <span class="t">Daily IG Content</span>
+                    <span class="sub"><span class="type-label">Process</span><span class="raci-chip r"><span class="g">R</span>Responsible</span></span>
+                  </div>
+                  <div class="opentasks"><span class="n">4</span><span class="lbl">open tasks</span></div>
+                </div>
+              </div>
+
+              <!-- OPTIMIZE lane -->
+              <div class="lane">
+                <div class="lane-head">
+                  <span class="lane-pill opt"><span class="d"></span>Optimize</span>
+                  <span class="ct">1 Project · 1 open task</span>
+                </div>
+                <div class="ppcard">
+                  <div class="ppname">
+                    <span class="t">Brand Refresh</span>
+                    <span class="sub"><span class="type-label">Project</span><span class="raci-chip a"><span class="g">A</span>Accountable</span></span>
+                  </div>
+                  <div class="opentasks"><span class="n">1</span><span class="lbl">open tasks</span></div>
+                </div>
+              </div>
+
+              <!-- TRANSFORM lane -->
+              <div class="lane">
+                <div class="lane-head">
+                  <span class="lane-pill tra"><span class="d"></span>Transform</span>
+                  <span class="ct">1 Project · 2 open tasks</span>
+                </div>
+                <div class="ppcard">
+                  <div class="ppname">
+                    <span class="t">New Menu Design</span>
+                    <span class="sub"><span class="type-label">Project</span><span class="raci-chip a"><span class="g">A</span>Accountable</span></span>
+                  </div>
+                  <div class="opentasks"><span class="n">2</span><span class="lbl">open tasks</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- collapsed people (load summary still legible) -->
+          <div class="person" role="listitem">
+            <button class="person-row" aria-expanded="false" aria-controls="wl-budi">
+              <span class="caret">▸</span><span class="av-md">BS</span>
+              <span class="who"><span class="nm">Budi Santoso</span><span class="rl">Kitchen Lead · Kitchen and Bar</span></span>
+              <span class="spacer"></span>
+              <span class="load-summary">
+                <span class="lc proc"><span class="n">3</span> <span class="k">Processes</span></span>
+                <span class="lc proj"><span class="n">0</span> <span class="k">Projects</span></span>
+                <span class="filed-pill ok"><span class="d"></span>Submitted</span>
+              </span>
+            </button>
+            <div class="workload" id="wl-budi" hidden></div>
+          </div>
+
+          <div class="person" role="listitem">
+            <button class="person-row" aria-expanded="false" aria-controls="wl-rina">
+              <span class="caret">▸</span><span class="av-md">RL</span>
+              <span class="who"><span class="nm">Rina Lestari</span><span class="rl">Roastery Lead · Roastery</span></span>
+              <span class="spacer"></span>
+              <span class="load-summary">
+                <span class="lc proc"><span class="n">1</span> <span class="k">Process</span></span>
+                <span class="lc proj"><span class="n">3</span> <span class="k">Projects</span></span>
+                <span class="filed-pill ok"><span class="d"></span>Submitted</span>
+              </span>
+            </button>
+            <div class="workload" id="wl-rina" hidden></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATES: empty workload · own-workload · loading · error -->
+<div class="pad">
+  <div class="mock-label">Entry A — workload states: empty (owns nothing) · own-workload (self, always available) · loading · error</div>
+  <div style="max-width:1080px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+    <!-- EMPTY (FR-233) -->
+    <div class="roster">
+      <div class="person">
+        <button class="person-row" aria-expanded="true">
+          <span class="caret">▾</span><span class="av-md">SP</span>
+          <span class="who"><span class="nm">Sari Putri</span><span class="rl">Finance Officer · Finance and People</span></span>
+          <span class="spacer"></span>
+          <span class="load-summary"><span class="lc proc"><span class="n">0</span> <span class="k">Processes</span></span><span class="lc proj"><span class="n">0</span> <span class="k">Projects</span></span></span>
+        </button>
+        <div class="workload">
+          <div class="wl-empty">Sari isn't Accountable or Responsible on any Project or Process yet.<br>Her work shows on her Tasks, but nothing in the cascade points to her.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OWN-WORKLOAD (FR-234) — self, "(You)" -->
+    <div class="roster">
+      <div class="person">
+        <button class="person-row" aria-expanded="true">
+          <span class="caret">▾</span><span class="av-md">AS</span>
+          <span class="who"><span class="nm">Arief Said <span class="rl">(You)</span></span><span class="rl">Founder · Cafe Ops – General</span></span>
+          <span class="spacer"></span>
+          <span class="load-summary"><span class="lc proc"><span class="n">0</span> <span class="k">Processes</span></span><span class="lc proj"><span class="n">4</span> <span class="k">Projects</span></span></span>
+        </button>
+        <div class="workload">
+          <p class="wl-q">You're <b>all project work</b> — no daily Process load.</p>
+          <div class="lane">
+            <div class="lane-head"><span class="lane-pill tra"><span class="d"></span>Transform</span><span class="ct">2 Projects · 5 open tasks</span></div>
+            <div class="ppcard"><div class="ppname"><span class="t">MOS Rollout</span><span class="sub"><span class="type-label">Project</span><span class="raci-chip a"><span class="g">A</span>Accountable</span></span></div><div class="opentasks"><span class="n">3</span><span class="lbl">open tasks</span></div></div>
+            <div class="ppcard"><div class="ppname"><span class="t">Second Outlet Fit-out</span><span class="sub"><span class="type-label">Project</span><span class="raci-chip r"><span class="g">R</span>Responsible</span></span></div><div class="opentasks"><span class="n">2</span><span class="lbl">open tasks</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOADING -->
+    <div class="roster" aria-busy="true">
+      <div class="person">
+        <div class="person-row" style="cursor:default">
+          <span class="caret">▾</span><span class="av-md" style="background:var(--ds-background-tertiary)"></span>
+          <span class="who"><span style="display:inline-block;width:120px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span></span>
+        </div>
+        <div class="workload">
+          <div class="ppcard"><span style="display:inline-block;width:160px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span><span class="spacer"></span><span style="display:inline-block;width:24px;height:18px;background:var(--ds-background-tertiary);border-radius:2px"></span></div>
+          <div class="ppcard"><span style="display:inline-block;width:130px;height:12px;background:var(--ds-background-tertiary);border-radius:2px"></span><span class="spacer"></span><span style="display:inline-block;width:24px;height:18px;background:var(--ds-background-tertiary);border-radius:2px"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ERROR -->
+    <div class="roster">
+      <div class="person">
+        <div class="person-row" style="cursor:default">
+          <span class="caret">▾</span><span class="av-md">RL</span>
+          <span class="who"><span class="nm">Rina Lestari</span><span class="rl">Roastery Lead</span></span>
+        </div>
+        <div class="workload">
+          <div class="wl-empty" style="border-style:solid; border-color:var(--ds-border-color-danger)">
+            <span style="color:var(--ds-font-color-danger); font-weight:600">⚠ Couldn't load this workload.</span><br>
+            <button style="margin-top:10px; height:30px; padding:0 12px; border-radius:var(--ds-border-radius-sm); background:var(--ds-color-blue); color:var(--ds-font-color-inverted); border:none; font-size:13px; font-weight:500; cursor:pointer">Retry</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="wrap">
+    <div class="mock-label">Entry A — dark mode (one blue stays the only action color; lane = tinted categorical pills)</div>
+    <div class="roster" style="max-width:1080px; margin:0 auto">
+      <div class="person">
+        <button class="person-row" aria-expanded="true">
+          <span class="caret">▾</span><span class="av-md">MR</span>
+          <span class="who"><span class="nm">Maya Rahmawati</span><span class="rl">Designer · Sales – CRM</span></span>
+          <span class="spacer"></span>
+          <span class="load-summary"><span class="lc proc"><span class="n">1</span> <span class="k">Process</span></span><span class="lc proj"><span class="n">2</span> <span class="k">Projects</span></span><span class="filed-pill ok"><span class="d"></span>Submitted</span></span>
+        </button>
+        <div class="workload">
+          <p class="wl-q">Maya is <b>mostly on project work</b> — 3 open project tasks vs 4 on her daily process.</p>
+          <div class="lane"><div class="lane-head"><span class="lane-pill run"><span class="d"></span>Run</span><span class="ct">1 Process · 4 open tasks</span></div>
+            <div class="ppcard"><div class="ppname"><span class="t">Daily IG Content</span><span class="sub"><span class="type-label">Process</span><span class="raci-chip r"><span class="g">R</span>Responsible</span></span></div><div class="opentasks"><span class="n">4</span><span class="lbl">open tasks</span></div></div></div>
+          <div class="lane"><div class="lane-head"><span class="lane-pill tra"><span class="d"></span>Transform</span><span class="ct">1 Project · 2 open tasks</span></div>
+            <div class="ppcard"><div class="ppname"><span class="t">New Menu Design</span><span class="sub"><span class="type-label">Project</span><span class="raci-chip a"><span class="g">A</span>Accountable</span></span></div><div class="opentasks"><span class="n">2</span><span class="lbl">open tasks</span></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-MOCKUP: Workload view — ENTRY POINT A (inline inside the manager Team module).
+Spec: docs/specs/cascade-foundation.spec.md FR-230..234, AC-230 · ADR-0014 · CONTEXT.md §Cascade/§Ownership.
+Vocabulary follows CONTEXT.md (owner 2026-06-23): Project/Process PAIR, type ∈ {project,process};
+  "Initiative" is DROPPED (spec body still says Initiative — stale; CONTEXT.md wins). Lanes Run/Optimize/Transform.
+
+THE ONE QUESTION this answers: "Is this person tied up in daily recurring work (Processes) or project work (Projects)?"
+  Answered three ways, redundantly (a11y + glance): (1) collapsed-row load-summary chips (N Process / N Projects);
+  (2) the plain-language wl-q sentence; (3) the lane×type grouping with per-Project/Process open-task counts.
+
+TOKENS USED (--ds-* kit tokens only; no literal colors):
+  Surfaces:  --ds-background-primary/secondary/tertiary/transparent-light, --ds-accent-tertiary
+  Text:      --ds-font-color-primary/secondary/tertiary/light/inverted/danger
+  Action:    --ds-color-blue (the ONE action color: links, active nav icon, Retry, R-glyph categorical),
+             --ds-color-blue9/11/12 (avatars, R-chip text)
+  Status:    --ds-tag-background-green + --ds-tag-text-green + --ds-color-green (Submitted pill)
+  RACI:      R = --ds-accent-tertiary bg + --ds-color-blue glyph (mirrors list R-avatar; categorical, never action);
+             A = --ds-tag-background-violet + --ds-tag-text-violet + --ds-color-violet glyph (categorical violet, allowed)
+  Brand:     --ds-color-blue12 (logo), --ds-color-orange (logo dot)
+  Borders:   --ds-border-color-light/medium/danger
+  Type:      --ds-font-display (titles, the big open-task number), --ds-font-family, --ds-code-font-family (⌘K)
+  Elevation: --ds-box-shadow-light (roster card + ppcards rest lift; workload panel & lane-heads stay flat)
+  Radii:     --ds-border-radius-xs/sm/md/pill   Spacing: --ds-spacing-2/3/4
+
+PROPOSED NEW TOKENS (DESIGN.md GAP — flagged for owner sign-off; NO new hue, all alias existing kit tags):
+  Lane is a non-interactive categorization → Tinted-Status pattern, chosen OUTSIDE the status quartet
+  (blue/amber/red/green) and OUTSIDE action-blue / KPI-violet so it never reads as status or action:
+    --lane-run-{bg,text,dot}   → alias --ds-tag-*-gray   (BAU "steady" = calm neutral)
+    --lane-opt-{bg,text,dot}   → alias --ds-tag-*-bronze (warm categorical, distinct from amber-status)
+    --lane-tra-{bg,text,dot}   → alias --ds-tag-*-iris   (cool indigo, distinct from action-blue & KPI-violet)
+  Rationale mirrors the established OD-P2 RACI / OD-P2-10 progress-marker / OD-P2-15 Ops-Log token additions:
+  reuse existing palette, no new brand, Tinted-Status + always-paired text. The lane PILL carries a text label,
+  so color is never the sole carrier (WCAG 1.4.1). TYPE (Project/Process) is a TEXT LABEL only — never colored.
+
+A11Y (WCAG-AA, NFR-204): lane conveyed by pill TEXT + dot (never color-alone); type = text label; RACI chip carries
+  the role letter + word; person-row is a <button aria-expanded aria-controls> (keyboard toggle, focus ring inherits
+  global :focus-visible); workload panel is role=region aria-label; tabular-nums on every count; AA contrast on all
+  tinted pills (kit tag text tokens are the AA-darkened variants).
+
+STATES SHOWN: populated (expanded canon designer) · collapsed (summary chips legible) · empty (FR-233) ·
+  own-workload (FR-234, "(You)") · loading (skeleton) · error (Retry). Dark section included.
+
+RESPONSIVE: ≥768px as shown (roster rows, inline panel). <768px (per OD-W4-4 reflow grammar): person-row stays a
+  full-width tappable button (≥44px); the load-summary chips wrap under the name; the inline workload renders each
+  lane as a stacked block, each Project/Process as a card with the open-task count as the trailing value
+  (label:value <dl> reflow). See the standalone-B mock for the phone-card anatomy in full.
+
+OPEN QUESTIONS (owner):
+  1. Lane token names + hue picks (Run=gray, Optimize=bronze, Transform=iris) — confirm, or pick alternates.
+     This is the one real DESIGN.md gap; everything else reuses existing tokens.
+  2. Collapsed-row summary chips ("1 Process / 2 Projects"): keep on the always-visible row (load-at-a-glance
+     without expanding), or only inside the expanded panel? (A leans keep — it's the headline JTBD at roster scale.)
+  3. Does the Team module already exist in nav as a sibling of My Week, or is "Team" introduced by this slice?
+     (Spec Q4 leans: reuse the manager team module — this mock assumes a "Manage › Team" rail group.)
+  4. Recommendation: ENTRY A is preferred when the manager's primary job is comparing reports side-by-side
+     (delegation/load-balancing across a team). See the standalone-B mock's footer for the contrasting case.
+================================================================================
+-->
+</body>
+</html>

@@ -8,8 +8,8 @@ const KEY_COLLAPSED = 'mos.tasks.collapsedGroups'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 // 'none' = a FLAT, ungrouped list (the signed mockup default — mock-shell-and-table.html
-// is not status-grouped). status/owner/bu remain available via the Group chip.
-export type TasksGroupBy = 'none' | 'status' | 'owner' | 'bu'
+// is not status-grouped). status/owner/bu/workline remain available via the Group chip.
+export type TasksGroupBy = 'none' | 'status' | 'owner' | 'bu' | 'workline'
 export type TasksView = 'table'
 
 export interface TasksViewPref {
@@ -25,7 +25,7 @@ export interface TasksViewPref {
 
 // ── Storage helpers (guarded try/catch for SSR / privacy-mode) ──────────────
 
-const VALID_GROUP_BY: TasksGroupBy[] = ['none', 'status', 'owner', 'bu']
+const VALID_GROUP_BY: TasksGroupBy[] = ['none', 'status', 'owner', 'bu', 'workline']
 
 function readView(): TasksView {
   // Only 'table' is valid in v1 (Board/Calendar are stubs); the stored value is

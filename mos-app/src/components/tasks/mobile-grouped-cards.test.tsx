@@ -17,7 +17,8 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     business_unit_id: 'bu-1', status: 'Open',
     responsible_person_id: 'person-1', accountable_person_id: 'person-1',
     consulted_person_ids: [], informed_person_ids: [],
-    description: null, due_date: null, last_activity_at: '2026-06-01T10:00:00Z',
+    description: null, due_date: null, objective_id: null, work_line_id: null,
+    last_activity_at: '2026-06-01T10:00:00Z',
     archived_at: null, created_by: 'person-1',
     created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z',
     ...overrides,
@@ -49,6 +50,8 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   openAddTask: () => {},
   setOverdueOnly: () => {},
   buildOthers: () => [],
+  workLineMap: new Map<string, string>(),
+  objectiveMap: new Map<string, string>(),
 }
 
 function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {

@@ -20,7 +20,8 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     business_unit_id: 'bu-1', status: 'Blocked',
     responsible_person_id: 'p-1', accountable_person_id: 'p-1',
     consulted_person_ids: [], informed_person_ids: [],
-    description: null, due_date: '2026-06-12', last_activity_at: '2026-06-14T10:00:00Z',
+    description: null, due_date: '2026-06-12', objective_id: null, work_line_id: null,
+    last_activity_at: '2026-06-14T10:00:00Z',
     archived_at: null, created_by: 'p-1',
     created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-14T00:00:00Z',
     ...overrides,
@@ -40,6 +41,8 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   onOpen: () => {},
   checked: false,
   onCheck: () => {},
+  workLineName: '',
+  objectiveName: '',
   ...overrides,
 })
 

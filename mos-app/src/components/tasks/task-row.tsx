@@ -38,11 +38,16 @@ export type TaskRowProps = {
   /** Checkbox selection (local set only — no bulk action ships this PR). */
   checked: boolean
   onCheck: (next: boolean) => void
+  /** Resolved work-line name (from the workLineMap). Empty string → "—" rendered. */
+  workLineName: string
+  /** Resolved objective name (from the objectiveMap). Empty string → "—" rendered. */
+  objectiveName: string
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
   buName, ownerName, others, onOpen, checked, onCheck,
+  workLineName, objectiveName,
 }: TaskRowProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
@@ -92,6 +97,18 @@ export function TaskRow({
       <td className="td-cell td-owner">
         <OwnerCell fullName={ownerName} otherCount={others.length} others={others} />
       </td>
+      {/* FR-234: Work-line column — resolved name; "—" when empty (never blank) */}
+      {!condensed && (
+        <td className="td-cell td-workline">
+          {workLineName || <span className="td-empty">—</span>}
+        </td>
+      )}
+      {/* FR-234: Objective column — resolved name; "—" when empty */}
+      {!condensed && (
+        <td className="td-cell td-objective">
+          {objectiveName || <span className="td-empty">—</span>}
+        </td>
+      )}
       {!condensed && <td className="td-cell td-bu">{buName}</td>}
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
       {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}

@@ -27,12 +27,14 @@ import { TaskRow } from './task-row'
 import { STATUS_ORDER } from './task-formatters'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
+import { useCascadeCatalogs } from './use-cascade-catalogs'
 import { GroupHeaderRow } from './group-header-row'
 import { PageHead } from '@/shell/page-head'
 import { TasksToolbar } from './tasks-toolbar'
 import { TasksTableBody } from './tasks-table-body'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
+import type { WorkloadSummary } from './workload-caption'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -137,6 +139,12 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Fix-7: cascade catalog load is mount-once via useCascadeCatalogs — never
+  // refetched on filter changes (the prior inline loads in load() re-triggered on
+  // every BU/status/includeArchived change — a performance regression).
+  const { workLines: workLinesDirectory, objectiveMap, workLineMap } =
+    useCascadeCatalogs()
+
   const now = useMemo(() => new Date(), [allTasks]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const buMap = useMemo(() => {
@@ -160,10 +168,19 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       includeArchived,
     }
     let cancelled = false
-    Promise.all([listTasks(filters), getBusinessUnits(), getPeople()])
+    // Critical load: tasks + directory (BUs, people). The table's loading gate hangs off
+    // ONLY these — never the cascade catalogs (those are mount-once via useCascadeCatalogs).
+    Promise.all([
+      listTasks(filters),
+      getBusinessUnits(),
+      getPeople(),
+    ])
       .then(([rows, bus, people]) => {
         if (!cancelled) {
-          setAllTasks(rows); setBusDirectory(bus); setPeopleDirectory(people); setLoading(false)
+          setAllTasks(rows)
+          setBusDirectory(bus)
+          setPeopleDirectory(people)
+          setLoading(false)
         }
       })
       .catch((err: Error) => {
@@ -307,16 +324,17 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     const keyFor = (t: TaskListRow): string =>
       groupBy === 'status' ? t.status
         : groupBy === 'owner' ? t.responsible_person_id
-          : t.business_unit_id
+          : groupBy === 'workline' ? (t.work_line_id ?? '__no_workline__')
+            : t.business_unit_id
     for (const t of sortedTasks) {
       const k = keyFor(t)
       const arr = byKey.get(k)
       if (arr) arr.push(t); else byKey.set(k, [t])
     }
-    const mk = (key: string, label: string, prefillParam: string): RenderGroup => {
+    const mk = (key: string, label: string, prefillParam: string, workLineType?: 'project' | 'process' | null): RenderGroup => {
       const rows = byKey.get(key) ?? []
       const overdue = rows.filter(t => isOverdue(t, now)).length
-      return { key, label, rows, overdue, prefillParam }
+      return { key, label, rows, overdue, prefillParam, workLineType }
     }
     if (groupBy === 'status') {
       // FR-123 (refined): Status groups open a plain /tasks/new (no ?status= pre-fill)
@@ -327,9 +345,26 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     if (groupBy === 'owner') {
       return peopleDirectory.map(p => mk(p.id, p.full_name, `r=${p.id}`))
     }
+    if (groupBy === 'workline') {
+      // FR-232: group by work_line_id; null → trailing "No work-line" group.
+      // Named groups appear in work-line alphabetical order (from workLinesDirectory),
+      // then the null group always trails (clear separation of "assigned" vs "unassigned").
+      // RI-2 fix: when a person filter is active, suppress zero-count work-line groups
+      // (empty groups contradict the per-person caption and clutter the one-question read).
+      // Empty-group injection stays for the other dimensions / no-person-filter (layout stability).
+      const filterZeroWhenPerson = personFilter !== ''
+      const named = workLinesDirectory
+        .map(wl => mk(wl.id, wl.name, '', wl.type))
+        .filter(g => !filterZeroWhenPerson || g.rows.length > 0)
+      const noGroup = mk('__no_workline__', 'No work-line', '', null)
+      // Also suppress the "No work-line" group when person-filtered and it has no rows
+      const groups: typeof named = [...named]
+      if (!filterZeroWhenPerson || noGroup.rows.length > 0) groups.push(noGroup)
+      return groups
+    }
     // bu
     return busDirectory.map(b => mk(b.id, b.name, `bu=${b.id}`))
-  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory])
+  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter])
 
   // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
   // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
@@ -437,6 +472,37 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     return { total: leafTasks.length, blocked, overdue }
   }, [leafTasks, now, error])
 
+  // ── FR-236: Workload summary caption ─────────────────────────────────────
+  // Shown when groupBy === 'workline' AND a single person is filtered.
+  // Counts distinct project vs process work-lines among visible open tasks.
+  const workloadSummary = useMemo<WorkloadSummary | null>(() => {
+    if (groupBy !== 'workline' || !personFilter) return null
+    const person = peopleDirectory.find(p => p.id === personFilter)
+    if (!person) return null
+    const firstName = person.full_name.split(' ')[0] ?? person.full_name
+    const isSelf = personFilter === viewerId
+    // Build a local type map from workLinesDirectory (avoids an extra useMemo dep)
+    const typeMap = new Map<string, 'project' | 'process'>()
+    for (const wl of workLinesDirectory) typeMap.set(wl.id, wl.type)
+    // Count distinct project / process work-line ids among OPEN, NON-ARCHIVED visible tasks.
+    // RI-4: also count tasks with no work_line_id (unassigned) for the reconciliation clause.
+    const projectIds = new Set<string>()
+    const dailyIds = new Set<string>()
+    let unassignedCount = 0
+    for (const t of leafTasks) {
+      if (t.status === 'Done') continue           // exclude Done tasks
+      if (t.archived_at != null) continue         // RI-4: exclude archived tasks
+      if (!t.work_line_id) {
+        unassignedCount++                         // RI-4: open unclassified task
+        continue
+      }
+      const wlType = typeMap.get(t.work_line_id)
+      if (wlType === 'project') projectIds.add(t.work_line_id)
+      else if (wlType === 'process') dailyIds.add(t.work_line_id)
+    }
+    return { isSelf, firstName, projectCount: projectIds.size, dailyCount: dailyIds.size, unassignedCount }
+  }, [groupBy, personFilter, peopleDirectory, leafTasks, workLinesDirectory, viewerId])
+
   const splitClass = `split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`
 
   // ── Empty copy ─────────────────────────────────────────────────────────────
@@ -477,6 +543,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         onOpen={(id) => navigate(`/tasks/${id}`)}
         checked={selectedIds.has(task.id)}
         onCheck={() => toggleSelected(task.id)}
+        workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
+        objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
       />
     )
   }
@@ -489,9 +557,12 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         count={group.rows.length}
         overdue={group.overdue}
         collapsed={isCollapsed(group.key)}
-        colSpan={condensed ? 6 : 8}
+        // condensed = 6 cols (cb + task + status + owner + due + menu)
+        // non-condensed = 10 cols (+ work-line + objective + bu + activity)
+        colSpan={condensed ? 6 : 10}
         prefill={group.prefillParam}
         controlsId={`grp-rows-${group.key}`}
+        workLineType={group.workLineType}
         onToggle={() => toggleCollapsed(group.key)}
         onAddTask={() => openAddTask(group.prefillParam)}
         onOverdueFilter={() => setOverdueOnly(true)}
@@ -620,6 +691,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             openAddTask={openAddTask}
             setOverdueOnly={setOverdueOnly}
             buildOthers={buildOthers}
+            workLineMap={workLineMap}
+            objectiveMap={objectiveMap}
+            workloadSummary={workloadSummary}
           />
         </section>
         {drawerOpen && drawerSlot}

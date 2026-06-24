@@ -41,7 +41,7 @@
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  grid-template-columns: 1fr clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width */
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width; minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport (min-width:auto blowout) */
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — no max-width cap.
      It fills PageFrame's 24px gutters, which equal the topbar's px-6 gutter, so the table's
@@ -50,7 +50,7 @@
      nothing balloons. A generous safety cap guards absurd ultra-wide Task columns only. */
   max-width: 1760px;
 }
-.split.nodrawer { grid-template-columns: 1fr; }
+.split.nodrawer { grid-template-columns: minmax(0, 1fr); }
 /* Expanded focus mode: table hidden, drawer fills the row. */
 .split.expanded { grid-template-columns: 1fr; }
 .split.expanded .assembly { display: none; }
@@ -200,27 +200,27 @@
 .assembly.condensed .toolbar .archived-toggle { padding: 0 8px; }
 
 /* ── Table scroll container ──
-   Non-virtual: a passthrough wrapper (no scroll). Virtual (AC-114, 50+ rows):
-   a bounded scroll viewport so @tanstack/react-virtual can window the rows.
-   The <thead> with aria-sort stays sticky atop the viewport. */
-.tasks-scroll { min-width: 0; }
+   Non-virtual: a passthrough wrapper with overflow-x:auto so a 10-column fixed
+   layout scrolls horizontally instead of starving the Task column (RI-3 fix).
+   Virtual (AC-114, 50+ rows): a bounded scroll viewport so @tanstack/react-virtual
+   can window the rows. The <thead> with aria-sort stays sticky atop the viewport. */
+.tasks-scroll { min-width: 0; overflow-x: auto; }
 .tasks-scroll-virtual { max-height: 70vh; overflow-y: auto; }
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
 /* ── Table ── */
-.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-/* Default 8-col widths (PR-2 kit table): [cb] Task Status Owner BU Due Activity [menu].
-   The checkbox + menu cols are fixed 40px; Task absorbs the full-bleed remainder; the
-   data cols hold fixed px so the page does not balloon and no gulf opens between
-   Due/Activity (OD-P3-6 colgroup model). */
+/* The 9 fixed cols sum to 1100px (40+150+200+150+150+128+150+92+40). The table
+   min-width must EXCEED that sum, or the width:auto Task col starves to 0 once the
+   container is ≤1100px (it did — Task rendered 0px at a 1280px viewport). 1100 fixed
+   + a ~240px Task floor = 1340px min-width; .tasks-scroll overflow-x:auto then scrolls
+   the table when the container is narrower (RI-3). */
+.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 1340px; }
+/* Base col widths: cols 1-4 stable; cols 5-10 overridden below (Cascade D1 added
+   Work-line + Objective cols). cb+menu fixed 40px; Task absorbs the remainder. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
 .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: auto; }   /* Task */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 150px; }  /* Status */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 200px; }  /* Owner */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 128px; }  /* Business unit */
-.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 150px; }  /* Due (fits "Overdue · Fri 12 Jun", no clip) */
-.tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 92px; }   /* Activity */
-.tasks-table th:nth-child(8), .tasks-table td:nth-child(8) { width: 40px; }   /* row menu */
 /* Condensed 6-col widths (drawer-open: BU + Activity dropped; Owner narrows to avatar).
    %-based so the cols flex to the narrow split; cb + menu stay fixed 40px. */
 .assembly.condensed .tasks-table th:nth-child(1), .assembly.condensed .tasks-table td:nth-child(1) { width: 40px; }
@@ -344,7 +344,7 @@ tr:focus-within .row-menu { visibility: visible; }
 .own-name { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .own-more { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
-.td-bu { font-size: 12.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bu { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
 .due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: 15px; }
@@ -382,14 +382,42 @@ tr:focus-within .row-menu { visibility: visible; }
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
 .task-card-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .task-card-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+/* Fix-5: mobile card dl — label:value pairs visible per mockup (not sr-only hiding).
+   Each .task-card-meta-pair spans are inline-flex so "Label value" stay on one line
+   within the wrapping flex container; gap between pairs for scanability. */
 .task-card-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
-.task-card-meta dt { display: none; }
-.task-card-meta dd { margin: 0; font-size: 12px; }
+.task-card-meta-pair { display: inline-flex; align-items: baseline; gap: 4px; }
+.task-card-meta dt {
+  display: inline;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.task-card-meta dd { display: inline; margin: 0; font-size: 12px; }
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
 @media (max-width: 1099.98px) {
-  .split, .split.expanded { grid-template-columns: 1fr; }
+  /* minmax(0,1fr) not bare 1fr — a bare 1fr track's implicit min-width:auto lets wide
+     card content stretch the column past the viewport (app-wide horizontal scroll). */
+  .split, .split.expanded { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Mobile card meta: STACK the label:value pairs on small viewports ──
+   At a phone width the 5 inline pairs (Owner/Work-line/Objective/Due/Activity) summed
+   to a ~660px row that defined the card's intrinsic width and forced app-wide horizontal
+   scroll. Stacking them (flex column) collapses the card's intrinsic width to the widest
+   single pair (~200px), so the card fits any phone regardless of ancestor sizing; long
+   values ellipsis rather than blow out. */
+@media (max-width: 599.98px) {
+  .task-card-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .task-card-meta-pair { max-width: 100%; min-width: 0; }
+  .task-card-meta dd {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 /* ── Segment disabled state (FR-124 / AC-126) ── */
@@ -516,6 +544,57 @@ tr.grp td { padding: 0; }
   margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
   font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
+
+/* ── Cascade D1: Work-line type tag in group headers (FR-233) ────────────────
+   The tag is a light categorical tint (never action blue). Sits inline in the
+   .gbar beside the group name; does not affect the 38px gbar height. The tag
+   color tokens --ds-tag-background/text-{blue,gray} are set via the Tag component
+   style prop — no literal colors here, token-purity maintained. */
+.wl-type-tag {
+  flex: none; /* never stretch */
+  font-size: 11px; /* slightly smaller than gbar body text, clear hierarchy */
+}
+
+/* ── Cascade D1: Work-line + Objective table columns (FR-234/235) ────────────
+   - td-workline: truncates long work-line names (same as td-bu treatment)
+   - td-objective: muted secondary text, truncates
+   - td-empty: the "—" placeholder (muted, not primary text weight)
+   Column widths sit in the nth-child colgroup rules below. */
+.td-workline {
+  font-size: 13px; color: var(--muted-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-objective {
+  font-size: 13px; color: var(--muted-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-empty { color: var(--muted-foreground); }
+
+/* Cascade D1: summary caption (FR-236 / NFR-206 literacy bar).
+   One short plain-text sentence; quiet — not a heading, not a warning.
+   Sits between the toolbar and the table (rendered by TasksTableBody before
+   the <table>). Uses surface-secondary wash to distinguish from the table.   */
+.workload-caption {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  background: var(--surface-secondary);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+/* ── Cascade D1: expanded column grid (non-condensed now = 10 cols) ──────────
+   Added 2 new cols: Work-line (col 5) and Objective (col 6).
+   Existing columns shift right by 2. Previous col 5=BU → now col 7.
+   Condensed (6 col) layout is unchanged — new cols are hidden via !condensed. */
+/* Work-line col — fixed width, same class as td-bu */
+.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 150px; }  /* Work-line */
+.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 150px; }  /* Objective */
+.tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 128px; }  /* Business unit */
+.tasks-table th:nth-child(8), .tasks-table td:nth-child(8) { width: 150px; }  /* Due */
+.tasks-table th:nth-child(9), .tasks-table td:nth-child(9) { width: 92px; }   /* Activity */
+.tasks-table th:nth-child(10), .tasks-table td:nth-child(10) { width: 40px; } /* row menu */
 
 /* ── Utility ── */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cascade D3 — Simplest standalone surface: person picker + Projects-vs-Daily split, nothing else</title>
+<!-- SELF-CONTAINED. Kit token closure only (--ds-* light+dark). NO literal colors below; token named in comment. -->
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); text-transform: uppercase; letter-spacing: .06em; }
+  .pad { padding: 16px; }
+  *:focus-visible { outline: 2px solid var(--ds-color-blue); outline-offset: 2px; }
+
+  /* ---- Shell (reuse rail+header grammar) ---- */
+  .shell { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 224px 1fr;
+    grid-template-areas: "brand topbar" "rail main"; background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden; border-radius: var(--ds-border-radius-md); }
+  .brand { grid-area: brand; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--ds-border-color-light); border-right: 1px solid var(--ds-border-color-light); }
+  .logo { width: 28px; height: 28px; border-radius: var(--ds-border-radius-md); background: var(--ds-color-blue); color: var(--ds-font-color-inverted); display: grid; place-items: center; font-weight: 700; font-size: 13px; position: relative; }
+  .logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px; border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); }
+  .brand .nm { font-family: var(--ds-font-display); font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+  .topbar { grid-area: topbar; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary); }
+  .crumb { font-size: 13px; color: var(--ds-font-color-tertiary); } .crumb b { color: var(--ds-font-color-primary); font-weight: 600; } .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: var(--ds-border-radius-pill); background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9)); color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .userchip .uc-nm { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .uc-rl { font-size: 11px; color: var(--ds-font-color-tertiary); }
+
+  .rail { grid-area: rail; background: var(--ds-background-secondary); border-right: 1px solid var(--ds-border-color-light); padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary); padding: 14px 10px 4px; font-weight: 600; }
+  .nav-item { height: 36px; border-radius: var(--ds-border-radius-sm); display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 13.5px; font-weight: 500; color: var(--ds-font-color-primary); text-decoration: none; }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }
+  .nav-item.active { background: var(--ds-accent-tertiary); color: var(--ds-color-blue11); font-weight: 600; }
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+  .rail-foot { margin-top: auto; border-top: 1px solid var(--ds-border-color-light); padding-top: 8px; }
+
+  .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; overflow: auto; }
+  .content-header { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 24px; border-bottom: 1px solid var(--ds-border-color-light); flex: none; }
+  .ch-title { font-family: var(--ds-font-display); font-weight: 600; font-size: 16px; }
+
+  /* THE ONLY CONTROL: a single big person picker (no lane/type filters, nothing else) */
+  .picker-bar { padding: 18px 24px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .picker-bar .q { font-size: 13px; color: var(--ds-font-color-tertiary); margin-bottom: 8px; }   /* the one plain question */
+  .picker { display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 12px;
+    border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-background-primary); cursor: pointer; font-size: 14px; }
+  .picker .pk-av { width: 26px; height: 26px; border-radius: var(--ds-border-radius-pill); background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9)); color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+  .picker .pk-nm { font-weight: 600; }
+  .picker .chev { color: var(--ds-font-color-tertiary); }
+
+  /* the answer: a plain sentence + two side-by-side panels (Projects | Daily/ongoing) */
+  .answer { padding: 16px 24px 4px; max-width: 760px; }
+  .answer .sentence { font-size: 15px; line-height: 1.5; color: var(--ds-font-color-secondary); }
+  .answer .sentence b { color: var(--ds-font-color-primary); font-weight: 600; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 12px 24px 28px; max-width: 760px; }
+  .panel { border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md); background: var(--ds-background-primary); box-shadow: var(--ds-box-shadow-light); overflow: hidden; }
+  .panel .ph { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .kind { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .kind .d { width: 7px; height: 7px; border-radius: var(--ds-border-radius-pill); }
+  .kind.project { background: var(--ds-tag-background-blue); color: var(--ds-tag-text-blue); } .kind.project .d { background: var(--ds-color-blue); }      /* Project = blue categorical tag */
+  .kind.process { background: var(--ds-tag-background-gray); color: var(--ds-tag-text-gray); } .kind.process .d { background: var(--ds-font-color-tertiary); } /* Daily/ongoing = neutral gray tag */
+  .panel .ph .big { margin-left: auto; font-family: var(--ds-font-display); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .panel .ph .big.zero { color: var(--ds-font-color-light); }
+  .wl-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+  .wl-row + .wl-row { border-top: 1px solid var(--ds-border-color-light); }
+  .wl-row .nm { font-size: 14px; font-weight: 600; }
+  .wl-row .spacer { flex: 1; }
+  .wl-row .ct { font-size: 13px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+  .wl-row .ct b { color: var(--ds-font-color-primary); font-weight: 600; }
+  .panel .none { padding: 18px 14px; font-size: 13px; color: var(--ds-font-color-tertiary); }
+
+  /* states */
+  .state { padding: 44px 20px; text-align: center; color: var(--ds-font-color-secondary); font-size: 13px; line-height: 1.5; }
+  .state .glyph { font-size: 24px; color: var(--ds-font-color-light); margin-bottom: 8px; }
+  .state .glyph.err { color: var(--ds-font-color-danger); }
+  .btn-primary { height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue); color: var(--ds-font-color-inverted); border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-sm); height: 12px; display: inline-block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 760px; margin: 0 auto; }
+  .frame-cap { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary); margin: 0 0 8px; }
+  .frame { border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md); background: var(--ds-background-primary); box-shadow: var(--ds-box-shadow-light); overflow: hidden; }
+
+  /* phone reflow (<768px): the two panels stack */
+  .phone { width: 380px; margin: 0 auto; }
+  .phone .split { grid-template-columns: 1fr; padding: 12px 0 0; }
+  .dark-wrap { background: var(--ds-background-tertiary); padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- POPULATED -->
+<div class="pad">
+  <div class="mock-label">Cascade D3 — SIMPLEST STANDALONE SURFACE · one person picker + Projects-vs-Daily split, nothing else · light</div>
+  <div class="shell" style="height:620px">
+    <div class="brand"><div class="logo">G<span class="dot"></span></div><span class="nm">Gordi MOS</span></div>
+    <header class="topbar">
+      <nav class="crumb" aria-label="Breadcrumb"><span>Workload</span><span class="sep">›</span><b>Maya Rahmawati</b></nav>
+      <span class="spacer"></span>
+      <div class="userchip"><div class="avatar">AS</div><div><div class="uc-nm">Arief Said</div><div class="uc-rl">Founder</div></div></div>
+    </header>
+
+    <aside class="rail">
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <a class="nav-item active" href="#"><span class="ico">⚖</span> Workload</a>
+      <div class="rail-spacer" style="flex:1"></div>
+      <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+    </aside>
+
+    <div class="main">
+      <header class="content-header"><span class="ch-title">Workload</span></header>
+
+      <div class="picker-bar">
+        <div class="q">Whose work do you want to see?</div>
+        <div class="picker" role="button" aria-label="Choose person — currently Maya Rahmawati">
+          <span class="pk-av">MR</span><span class="pk-nm">Maya Rahmawati</span><span class="chev">▾</span>
+        </div>
+      </div>
+
+      <div class="answer">
+        <p class="sentence">Maya runs <b>1 daily job</b> and <b>2 projects</b>. Her open work leans daily — 4 of 7 open tasks are on the daily IG job.</p>
+      </div>
+
+      <div class="split">
+        <!-- DAILY / ONGOING -->
+        <div class="panel">
+          <div class="ph"><span class="kind process"><span class="d"></span>Daily / ongoing</span><span class="big">1</span></div>
+          <div class="wl-row"><span class="nm">Daily IG Content</span><span class="spacer"></span><span class="ct"><b>4</b> open</span></div>
+        </div>
+        <!-- PROJECTS -->
+        <div class="panel">
+          <div class="ph"><span class="kind project"><span class="d"></span>Projects</span><span class="big">2</span></div>
+          <div class="wl-row"><span class="nm">New Menu Design</span><span class="spacer"></span><span class="ct"><b>2</b> open</span></div>
+          <div class="wl-row"><span class="nm">Brand Refresh</span><span class="spacer"></span><span class="ct"><b>1</b> open</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHONE: panels stack -->
+<div class="pad">
+  <div class="mock-label">D3 — phone reflow (&lt;768px): picker on top, the two panels stack (Daily/ongoing then Projects)</div>
+  <div class="phone">
+    <div class="frame">
+      <div class="picker-bar"><div class="q">Whose work?</div><div class="picker" role="button"><span class="pk-av">MR</span><span class="pk-nm">Maya Rahmawati</span><span class="chev">▾</span></div></div>
+      <div class="answer" style="padding:14px 16px 0"><p class="sentence" style="font-size:14px">Maya runs <b>1 daily job</b> and <b>2 projects</b>.</p></div>
+      <div class="split">
+        <div class="panel"><div class="ph"><span class="kind process"><span class="d"></span>Daily / ongoing</span><span class="big">1</span></div><div class="wl-row"><span class="nm">Daily IG Content</span><span class="spacer"></span><span class="ct"><b>4</b> open</span></div></div>
+        <div class="panel"><div class="ph"><span class="kind project"><span class="d"></span>Projects</span><span class="big">2</span></div><div class="wl-row"><span class="nm">New Menu Design</span><span class="spacer"></span><span class="ct"><b>2</b> open</span></div><div class="wl-row"><span class="nm">Brand Refresh</span><span class="spacer"></span><span class="ct"><b>1</b> open</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATES: empty (FR-233) · own-view (FR-234) · loading · error -->
+<div class="pad">
+  <div class="mock-label">D3 — states: empty (FR-233) · own-view "You" (FR-234) · loading · error</div>
+  <div class="grid2">
+
+    <!-- EMPTY -->
+    <div>
+      <p class="frame-cap">Empty — person owns no work-lines</p>
+      <div class="frame">
+        <div class="picker-bar" style="padding:12px 16px"><div class="picker" role="button" style="height:34px"><span class="pk-av" style="width:22px;height:22px">SP</span><span class="pk-nm">Sari Putri</span><span class="chev">▾</span></div></div>
+        <div class="state"><div class="glyph">⃝</div>Sari isn't tied to any project or daily job yet.<br>Her work shows up on her own task list.</div>
+      </div>
+    </div>
+
+    <!-- OWN-VIEW -->
+    <div>
+      <p class="frame-cap">Own-view — picker is a static "You" when you can only see yourself</p>
+      <div class="frame">
+        <div class="picker-bar" style="padding:12px 16px"><div class="q" style="margin-bottom:6px">Your work</div><div style="display:inline-flex;align-items:center;gap:8px"><span class="pk-av" style="width:22px;height:22px;border-radius:var(--ds-border-radius-pill);background:linear-gradient(135deg,var(--ds-color-blue12),var(--ds-color-blue9));color:var(--ds-font-color-inverted);display:grid;place-items:center;font-size:9px;font-weight:600">AS</span><b>You</b></div></div>
+        <div class="split" style="padding:12px 16px 16px"><div class="panel"><div class="ph"><span class="kind project"><span class="d"></span>Projects</span><span class="big">2</span></div><div class="wl-row"><span class="nm">MOS Rollout</span><span class="spacer"></span><span class="ct"><b>3</b> open</span></div></div></div>
+      </div>
+    </div>
+
+    <!-- LOADING -->
+    <div>
+      <p class="frame-cap">Loading</p>
+      <div class="frame" aria-busy="true">
+        <div class="picker-bar" style="padding:12px 16px"><span class="sk" style="width:160px;height:34px;border-radius:var(--ds-border-radius-sm)"></span></div>
+        <div class="split" style="padding:12px 16px 16px"><div class="panel"><div class="ph"><span class="sk" style="width:110px;height:22px;border-radius:var(--ds-border-radius-pill)"></span></div><div class="wl-row"><span class="sk" style="width:140px"></span></div></div><div class="panel"><div class="ph"><span class="sk" style="width:80px;height:22px;border-radius:var(--ds-border-radius-pill)"></span></div><div class="wl-row"><span class="sk" style="width:120px"></span></div></div></div>
+      </div>
+    </div>
+
+    <!-- ERROR -->
+    <div>
+      <p class="frame-cap">Error</p>
+      <div class="frame"><div class="state"><div class="glyph err">⚠</div>Couldn't load this workload.<button class="btn-primary">Try again</button></div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="pad">
+    <div class="mock-label">D3 — dark mode (Project/Daily = tinted text labels; one blue stays the only action color)</div>
+    <div style="max-width:760px;margin:0 auto" class="frame">
+      <div class="picker-bar"><div class="q">Whose work do you want to see?</div><div class="picker" role="button"><span class="pk-av">MR</span><span class="pk-nm">Maya Rahmawati</span><span class="chev">▾</span></div></div>
+      <div class="answer"><p class="sentence">Maya runs <b>1 daily job</b> and <b>2 projects</b>.</p></div>
+      <div class="split">
+        <div class="panel"><div class="ph"><span class="kind process"><span class="d"></span>Daily / ongoing</span><span class="big">1</span></div><div class="wl-row"><span class="nm">Daily IG Content</span><span class="spacer"></span><span class="ct"><b>4</b> open</span></div></div>
+        <div class="panel"><div class="ph"><span class="kind project"><span class="d"></span>Projects</span><span class="big">2</span></div><div class="wl-row"><span class="nm">New Menu Design</span><span class="spacer"></span><span class="ct"><b>2</b> open</span></div><div class="wl-row"><span class="nm">Brand Refresh</span><span class="spacer"></span><span class="ct"><b>1</b> open</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-MOCKUP: Cascade D3 — SIMPLEST STANDALONE SURFACE (old Entry B, trimmed to the literacy bar; LANE REMOVED).
+Spec: docs/specs/cascade-foundation.spec.md (simplified per owner 2026-06-24) · NFR-206 literacy bar · ADR-0014.
+Vocabulary: CONTEXT.md — "Projects", "Daily / ongoing" (= Process in plain words), "Work-line". LANE OMITTED FROM UI.
+
+THE ONE QUESTION (printed on screen): "Whose work do you want to see?" → pick a person → read the split.
+  ONE control: the person picker. The answer = a plain sentence + two panels (Daily/ongoing | Projects),
+  each panel a TEXT-labelled header with a big count and a short list of work-lines + open-task counts.
+  Everything that made old Entry B too rich is gone: NO lane grouping (Run/Optimize/Transform), NO RACI chips,
+  NO type column, NO toolbar of filters, NO footer totals. Two panels and a sentence — that's the whole surface.
+
+DIFFERENCE FROM D2: D3 is a full standalone ROUTE (its own nav item + addressable URL, scales to admin "anyone" lookups);
+  D2 is the same answer as a self-contained CARD that can be embedded anywhere. D1 needs no new surface at all.
+
+TOKENS USED (--ds-* kit closure; NO literal colors):
+  Surfaces: --ds-background-primary (card/panel), --ds-background-secondary (rail), --ds-background-tertiary (page wash, skeleton), --ds-background-transparent-light (nav hover).
+  Text: --ds-font-color-primary / -secondary / -tertiary / -light / -inverted / -danger.
+  Lines: --ds-border-color-light (hairlines), --ds-border-color-medium (picker border).
+  Action (One Blue): --ds-color-blue (logo, active nav, focus ring, Try again), --ds-color-blue9/11/12 (avatar gradient, active-nav text, Project tag text), --ds-accent-tertiary (nav-active tint).
+  Brand sprinkle: --ds-color-orange (logo dot).
+  PROJECT vs DAILY (categorical TEXT label, never color-only): Project = --ds-tag-background-blue/-text-blue + --ds-color-blue dot;
+    Daily/ongoing (Process) = --ds-tag-background-gray/-text-gray + --ds-font-color-tertiary dot.
+  Radius: --ds-border-radius-md (panels/card), -sm (controls), -pill (avatar/tags). Shadow: --ds-box-shadow-light (resting lift).
+  Type: --ds-font-display (titles/big counts), --ds-font-family (body/sentence), tabular-nums on all counts.
+
+PROPOSED NEW TOKENS: NONE. (Lane removed → no --lane-* gap.)
+
+A11Y (WCAG-AA, NFR-204/206): panels titled by TEXT (Project/Daily readable without color); the on-screen question +
+  plain sentence carry the answer in words; picker role=button aria-label; global :focus-visible ring (One Blue);
+  AA tag-text tokens. Reading load = one question + one sentence + two short panels.
+
+STATES SHOWN: populated · phone (panels stack) · empty (FR-233) · own-view static "You" (FR-234) · loading · error · dark.
+RESPONSIVE: ≥768px two panels side-by-side; <768px they stack (Daily then Projects). Rail collapses at 920px (shell grammar).
+
+OPEN QUESTIONS (owner):
+  1. Does this earn its own nav item + route? (It costs one new top-level surface. D1 costs none; D2 can embed in a Person page.)
+  2. Panel order: Daily/ongoing left vs Projects left — fixed order (learnable) vs heaviest-first (informative). D3 shows Daily left.
+  3. Person-picker scope = same as the others (manager: reports+self; admin: everyone; member: static "You" per FR-234/NFR-200).
+================================================================================
+-->
+</body>
+</html>

@@ -653,6 +653,25 @@ Plan/Stock/Review are fast-follows inheriting the same components.
 > Plan: `docs/plans/2026-06-22-kitchen-screens-redesign.md`. The original "Scope = Log screen first"
 > clause is superseded; all other OD-K-5 guardrails remain unchanged.
 
+### OD-C-1 — Strategy-to-Execution cascade: adopt the spine, build the foundation now (2026-06-23)
+Grill-with-docs session #3 (owner + Director), against `CONTEXT.md`, ADR-0003, and the vault
+(`Strategy-to-Execution Stack` / `Management OS Framework` / `Notion Management OS` + the 2026-05-02
+ChatGPT transcript). Reframes MOS from "task-manager + RACI" toward the hierarchy spine, so project work
+and daily recurring work both tie to the goals they serve and a person's effort split is visible. Locked:
+- **Layer 4 = Program/Process**, one `Initiative` entity with `type ∈ {Program, Process}`; the single
+  "Project" shape is superseded.
+- **Six-level model is canonical vocabulary** (`CONTEXT.md` § Cascade); **build 3 tables now** (Objective ·
+  Initiative · Task); Strategy/Outcome/Output stay additive concepts.
+- **Topology rule:** Task→Initiative is direct and permanent; deferred layers (esp. Output) hang
+  off-the-side, never inserted-between → no rebuild later. A/R ownership designed into every cascade
+  layer (RACI-on-task stops being the headline).
+- **Daily Log is NOT folded in** — it stays the factual feed; load reads from Process/Program ownership.
+- **Measure v1 = structural load** (Programs/Processes a person is A/R on, by lane); weekly-Output and/or
+  duration deferred.
+Full rationale + the "why 6 not 3" + the additive-vs-rebuild design: **ADR-0014**. Open: entity name
+`Initiative` (provisional, owner veto), umbrella stack name (unlocked), first-slice scope (Director
+recommends Objective+Initiative create/own + attach Tasks + the person-load view).
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

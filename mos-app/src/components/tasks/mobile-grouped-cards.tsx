@@ -4,6 +4,7 @@ import type { OwnerCellRaciMember } from './owner-cell'
 import { OwnerCell } from './owner-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
+import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { formatAge, formatDate, otherRaciCount } from './task-formatters'
 
@@ -14,6 +15,29 @@ export type MobileRenderGroup = {
   rows: TaskListRow[]
   overdue: number
   prefillParam: string
+  /**
+   * Work-line type tag (only when groupBy==='workline').
+   * 'project' → "Project"; 'process' → "Daily / ongoing".
+   * null = "No work-line" group; undefined = not a workline grouping.
+   * Text label is always present (never color-only) — WCAG 1.4.1.
+   */
+  workLineType?: 'project' | 'process' | null
+}
+
+// ── Work-line type label tag (mirrors desktop WorkLineTypeTag in group-header-row) ──
+function MobileWorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
+  if (type === 'project') {
+    return (
+      <Tag color="blue" weight="medium" className="wl-type-tag">
+        Project
+      </Tag>
+    )
+  }
+  return (
+    <Tag color="gray" weight="medium" className="wl-type-tag">
+      Daily / ongoing
+    </Tag>
+  )
 }
 
 export type MobileGroupedCardsProps = {
@@ -26,6 +50,10 @@ export type MobileGroupedCardsProps = {
   openAddTask: (prefillParam: string) => void
   setOverdueOnly: (value: boolean) => void
   buildOthers: (task: TaskListRow) => OwnerCellRaciMember[]
+  /** FR-234: resolved work-line names (id → name). */
+  workLineMap: Map<string, string>
+  /** FR-234: resolved objective names (id → name). */
+  objectiveMap: Map<string, string>
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
@@ -35,9 +63,11 @@ type TaskCardProps = {
   buName: string
   rName: string
   others: OwnerCellRaciMember[]
+  workLineName: string
+  objectiveName: string
 }
 
-function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, others, workLineName, objectiveName }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
@@ -58,13 +88,29 @@ function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
+        {/* Fix-5: dt labels are visible (label:value) per mockup — not sr-only */}
         <dl className="task-card-meta">
-          <dt className="sr-only">Owner</dt>
-          <dd><OwnerCell fullName={rName} otherCount={n} others={others} /></dd>
-          <dt className="sr-only">Due</dt>
-          <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
-          <dt className="sr-only">Activity</dt>
-          <dd className="act tabular-nums">{age}</dd>
+          <span className="task-card-meta-pair">
+            <dt>Owner</dt>
+            <dd><OwnerCell fullName={rName} otherCount={n} others={others} /></dd>
+          </span>
+          {/* FR-234: Work-line + Objective in mobile card */}
+          <span className="task-card-meta-pair">
+            <dt>Work-line</dt>
+            <dd className="td-empty-inline">{workLineName || '—'}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Objective</dt>
+            <dd className="td-empty-inline">{objectiveName || '—'}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Due</dt>
+            <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Activity</dt>
+            <dd className="act tabular-nums">{age}</dd>
+          </span>
         </dl>
       </Link>
     </article>
@@ -85,6 +131,7 @@ function TaskCard({ task, now, buName, rName, others }: TaskCardProps) {
 export function MobileGroupedCards({
   groups, now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly, buildOthers,
+  workLineMap, objectiveMap,
 }: MobileGroupedCardsProps) {
   // Flat default (mockup): the single implicit group renders as a plain card list
   // with NO group-header chrome (no caret / label / count / add).
@@ -100,6 +147,8 @@ export function MobileGroupedCards({
               buName={buMap.get(task.business_unit_id) ?? ''}
               rName={personMap.get(task.responsible_person_id) ?? ''}
               others={buildOthers(task)}
+              workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
+              objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
             />
           </div>
         ))}
@@ -123,6 +172,10 @@ export function MobileGroupedCards({
               <Chevron className={`mgc-chev${isCollapsed(group.key) ? ' mgc-chev-collapsed' : ''}`} />
             </button>
             <span className="mgc-label">{group.label}</span>
+            {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
+            {group.workLineType != null && (
+              <MobileWorkLineTypeTag type={group.workLineType} />
+            )}
             <span className="mgc-count tabular-nums">{group.rows.length}</span>
             {group.overdue > 0 && (
               <button
@@ -151,6 +204,8 @@ export function MobileGroupedCards({
                 buName={buMap.get(task.business_unit_id) ?? ''}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
                 others={buildOthers(task)}
+                workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
+                objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
               />
             </div>
           ))}

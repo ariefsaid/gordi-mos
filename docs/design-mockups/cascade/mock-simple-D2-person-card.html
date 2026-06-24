@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cascade D2 — One summary card: a person's work-lines, Projects vs Daily/ongoing</title>
+<!-- SELF-CONTAINED. Kit token closure only (--ds-* light+dark). NO literal colors below; token named in comment. -->
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); text-transform: uppercase; letter-spacing: .06em; }
+  .pad { padding: 16px; }
+  *:focus-visible { outline: 2px solid var(--ds-color-blue); outline-offset: 2px; }
+
+  /* The whole feature = ONE card. No shell chrome needed to read it; shown in a content column. */
+  .col { max-width: 560px; margin: 0 auto; }
+
+  .card { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); box-shadow: var(--ds-box-shadow-light); overflow: hidden; } /* card / Soft-Elevation rest */
+
+  /* header: who + the plain sentence (the literacy-bar answer, in everyday words) */
+  .head { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .av { width: 40px; height: 40px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: grid; place-items: center; font-size: 14px; font-weight: 600; flex: none; }     /* avatar gradient navy→blue */
+  .who .nm { font-family: var(--ds-font-display); font-size: 17px; font-weight: 600; }
+  .who .rl { font-size: 12px; color: var(--ds-font-color-tertiary); }
+  .picker { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+    border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm); font-size: 13px;
+    color: var(--ds-font-color-secondary); background: var(--ds-background-primary); cursor: pointer; }  /* the ONE control */
+  .picker .chev { color: var(--ds-font-color-tertiary); font-size: 10px; }
+
+  .sentence { padding: 14px 16px; font-size: 14px; line-height: 1.5; color: var(--ds-font-color-secondary); border-bottom: 1px solid var(--ds-border-color-light); }
+  .sentence b { color: var(--ds-font-color-primary); font-weight: 600; }
+
+  /* the two plain sections: PROJECTS · DAILY/ONGOING. Split by TEXT heading, never color-only. */
+  .section { padding: 12px 16px; }
+  .section + .section { border-top: 1px solid var(--ds-border-color-light); }
+  .sec-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .sec-head .kind { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .sec-head .kind .d { width: 7px; height: 7px; border-radius: var(--ds-border-radius-pill); }
+  .sec-head .kind.project { background: var(--ds-tag-background-blue); color: var(--ds-tag-text-blue); } .sec-head .kind.project .d { background: var(--ds-color-blue); }    /* Project = blue categorical tag */
+  .sec-head .kind.process { background: var(--ds-tag-background-gray); color: var(--ds-tag-text-gray); } .sec-head .kind.process .d { background: var(--ds-font-color-tertiary); } /* Process = neutral gray tag */
+  .sec-head .sub { font-size: 12px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+
+  /* each work-line = one quiet row: name + open-task count. Read-only. */
+  .wl-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: var(--ds-border-radius-sm); }
+  .wl-row:hover { background: var(--ds-background-secondary); }                            /* accent hover (rows are forward-seam clickable) */
+  .wl-row .nm { font-size: 14px; font-weight: 600; }
+  .wl-row .sub { font-size: 12px; color: var(--ds-font-color-tertiary); }
+  .wl-row .spacer { flex: 1; }
+  .wl-row .count { font-family: var(--ds-font-display); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wl-row .count .u { font-size: 11px; font-weight: 500; color: var(--ds-font-color-tertiary); margin-left: 4px; }
+
+  /* states */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1080px; margin: 0 auto; }
+  .frame-cap { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary); margin: 0 0 8px; }
+  .state { padding: 32px 20px; text-align: center; color: var(--ds-font-color-secondary); font-size: 13px; line-height: 1.5; }
+  .state .glyph { font-size: 22px; color: var(--ds-font-color-light); margin-bottom: 8px; }
+  .state .glyph.err { color: var(--ds-font-color-danger); }
+  .btn-primary { height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue); color: var(--ds-font-color-inverted); border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-sm); height: 12px; display: inline-block; }
+  .dark-wrap { background: var(--ds-background-tertiary); padding: 16px 0; }
+  /* phone: the card is already narrow — it reflows by simply filling width */
+  .phone { width: 380px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<!-- POPULATED: Maya -->
+<div class="pad">
+  <div class="mock-label">Cascade D2 — ONE SUMMARY CARD · per person: work-lines split Projects vs Daily/ongoing, with open-task counts · light</div>
+  <div class="col">
+    <div class="card">
+      <div class="head">
+        <div class="av">MR</div>
+        <div class="who"><div class="nm">Maya Rahmawati</div><div class="rl">Designer · reports to Arief</div></div>
+        <div class="picker" role="button" aria-label="Choose person — currently Maya Rahmawati">Maya Rahmawati <span class="chev">▾</span></div>
+      </div>
+
+      <!-- the plain sentence — the whole answer in one line of everyday words -->
+      <p class="sentence">Maya's work: <b>2 projects</b> and <b>1 daily job</b>. Most of her open work is on the daily IG job (4 tasks).</p>
+
+      <!-- DAILY / ONGOING first (it's her heaviest) -->
+      <div class="section">
+        <div class="sec-head"><span class="kind process"><span class="d"></span>Daily / ongoing</span><span class="sub">1 · 4 open tasks</span></div>
+        <div class="wl-row" role="button" tabindex="0">
+          <div><div class="nm">Daily IG Content</div><div class="sub">Posting, stories, replies — every day</div></div>
+          <span class="spacer"></span><span class="count">4<span class="u">open</span></span>
+        </div>
+      </div>
+
+      <!-- PROJECTS -->
+      <div class="section">
+        <div class="sec-head"><span class="kind project"><span class="d"></span>Projects</span><span class="sub">2 · 3 open tasks</span></div>
+        <div class="wl-row" role="button" tabindex="0">
+          <div><div class="nm">New Menu Design</div><div class="sub">Launch autumn menu</div></div>
+          <span class="spacer"></span><span class="count">2<span class="u">open</span></span>
+        </div>
+        <div class="wl-row" role="button" tabindex="0">
+          <div><div class="nm">Brand Refresh</div><div class="sub">Refresh the brand</div></div>
+          <span class="spacer"></span><span class="count">1<span class="u">open</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHONE: same card, full width -->
+<div class="pad">
+  <div class="mock-label">D2 — phone (&lt;768px): the card simply fills width; no reflow needed (it's already a single column)</div>
+  <div class="phone">
+    <div class="card">
+      <div class="head">
+        <div class="av">MR</div>
+        <div class="who"><div class="nm">Maya Rahmawati</div><div class="rl">Designer</div></div>
+      </div>
+      <p class="sentence">Maya's work: <b>2 projects</b> and <b>1 daily job</b>.</p>
+      <div class="section">
+        <div class="sec-head"><span class="kind process"><span class="d"></span>Daily / ongoing</span><span class="sub">1 · 4 open</span></div>
+        <div class="wl-row"><div><div class="nm">Daily IG Content</div></div><span class="spacer"></span><span class="count">4<span class="u">open</span></span></div>
+      </div>
+      <div class="section">
+        <div class="sec-head"><span class="kind project"><span class="d"></span>Projects</span><span class="sub">2 · 3 open</span></div>
+        <div class="wl-row"><div><div class="nm">New Menu Design</div></div><span class="spacer"></span><span class="count">2<span class="u">open</span></span></div>
+        <div class="wl-row"><div><div class="nm">Brand Refresh</div></div><span class="spacer"></span><span class="count">1<span class="u">open</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATES: empty (FR-233) · own-view (FR-234) · loading · error -->
+<div class="pad">
+  <div class="mock-label">D2 — states: empty (FR-233) · own-view "You" (FR-234) · loading · error</div>
+  <div class="grid2">
+
+    <!-- EMPTY -->
+    <div>
+      <p class="frame-cap">Empty — person owns no work-lines</p>
+      <div class="card">
+        <div class="head"><div class="av" style="width:36px;height:36px;font-size:13px">SP</div><div class="who"><div class="nm" style="font-size:15px">Sari Putri</div><div class="rl">Finance Officer</div></div></div>
+        <div class="state"><div class="glyph">⃝</div>Sari isn't tied to any project or daily job yet.<br>Her work shows up on her own task list.</div>
+      </div>
+    </div>
+
+    <!-- OWN-VIEW -->
+    <div>
+      <p class="frame-cap">Own-view — picker collapses to "You" when you can only see yourself</p>
+      <div class="card">
+        <div class="head"><div class="av" style="width:36px;height:36px;font-size:13px">AS</div><div class="who"><div class="nm" style="font-size:15px">You</div><div class="rl">Arief Said · Founder</div></div></div>
+        <p class="sentence" style="padding:12px 16px">Your work: <b>2 projects</b> · no daily jobs.</p>
+        <div class="section"><div class="sec-head"><span class="kind project"><span class="d"></span>Projects</span><span class="sub">2 · 5 open</span></div>
+          <div class="wl-row"><div><div class="nm">MOS Rollout</div></div><span class="spacer"></span><span class="count">3<span class="u">open</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOADING -->
+    <div>
+      <p class="frame-cap">Loading</p>
+      <div class="card" aria-busy="true">
+        <div class="head"><div class="av" style="background:var(--ds-background-tertiary)"></div><div class="who"><span class="sk" style="width:120px;height:14px"></span></div></div>
+        <div style="padding:14px 16px"><span class="sk" style="width:80%;height:14px"></span></div>
+        <div class="section"><span class="sk" style="width:110px;height:22px;border-radius:var(--ds-border-radius-pill)"></span><div class="wl-row"><span class="sk" style="width:150px"></span><span class="spacer"></span><span class="sk" style="width:24px;height:18px"></span></div></div>
+      </div>
+    </div>
+
+    <!-- ERROR -->
+    <div>
+      <p class="frame-cap">Error</p>
+      <div class="card">
+        <div class="state"><div class="glyph err">⚠</div>Couldn't load this person's work.<button class="btn-primary">Try again</button></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="pad">
+    <div class="mock-label">D2 — dark mode (Project/Process = tinted text labels; one blue stays the only action color)</div>
+    <div class="col">
+      <div class="card">
+        <div class="head"><div class="av">MR</div><div class="who"><div class="nm">Maya Rahmawati</div><div class="rl">Designer</div></div></div>
+        <p class="sentence">Maya's work: <b>2 projects</b> and <b>1 daily job</b>.</p>
+        <div class="section"><div class="sec-head"><span class="kind process"><span class="d"></span>Daily / ongoing</span><span class="sub">1 · 4 open</span></div>
+          <div class="wl-row"><div><div class="nm">Daily IG Content</div></div><span class="spacer"></span><span class="count">4<span class="u">open</span></span></div></div>
+        <div class="section"><div class="sec-head"><span class="kind project"><span class="d"></span>Projects</span><span class="sub">2 · 3 open</span></div>
+          <div class="wl-row"><div><div class="nm">New Menu Design</div></div><span class="spacer"></span><span class="count">2<span class="u">open</span></span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-MOCKUP: Cascade D2 — ONE DEAD-SIMPLE SUMMARY CARD.
+Spec: docs/specs/cascade-foundation.spec.md (simplified per owner 2026-06-24) · NFR-206 literacy bar · ADR-0014.
+Vocabulary: CONTEXT.md — "Projects", "Daily / ongoing" (= Process, said in plain words), "Work-line". LANE OMITTED.
+
+THE ONE QUESTION: "Is this person tied up in daily/ongoing work, or project work?"
+  Answered in three reading beats, top to bottom: (1) a PLAIN SENTENCE ("Maya's work: 2 projects and 1 daily job…");
+  (2) two labelled sections — Daily/ongoing and Projects — each a TEXT heading + count; (3) one quiet row per
+  work-line with its open-task count. Read-only. One control on the whole screen: the person picker.
+
+WHY THIS SHAPE: lowest reading load of the three. No table to parse, no columns, no group-by mechanic —
+  a sentence then two short lists. Designed to be understood with zero training by anyone who can read a paragraph.
+
+TOKENS USED (--ds-* kit closure; NO literal colors):
+  Surfaces: --ds-background-primary (card), --ds-background-secondary (row hover), --ds-background-tertiary (page wash, skeleton).
+  Text: --ds-font-color-primary / -secondary / -tertiary / -light / -inverted / -danger.
+  Lines: --ds-border-color-light (card/section hairlines), --ds-border-color-medium (picker border).
+  Action (One Blue): --ds-color-blue (focus ring, Try again btn), --ds-color-blue9/11/12 (avatar gradient, Project tag text).
+  PROJECT vs DAILY (categorical TEXT label, never color-only): Project = --ds-tag-background-blue/-text-blue + --ds-color-blue dot;
+    Daily/ongoing (Process) = --ds-tag-background-gray/-text-gray + --ds-font-color-tertiary dot.
+  Radius: --ds-border-radius-md (card), -sm (control/row), -pill (avatar/tags). Shadow: --ds-box-shadow-light (resting lift).
+  Type: --ds-font-display (name/count headline), --ds-font-family (body/sentence), tabular-nums on all counts.
+
+PROPOSED NEW TOKENS: NONE.
+
+A11Y (WCAG-AA, NFR-204/206): sections separated by TEXT headings (Project/Daily readable without color);
+  the plain sentence carries the answer in words; picker is role=button aria-label; rows role=button tabindex=0
+  (forward seam to work-line detail, deferred); global :focus-visible ring (One Blue); AA tag-text tokens.
+  Reading load = one sentence + two short lists, well under a short paragraph.
+
+STATES SHOWN: populated (Maya) · phone (full-width, no reflow needed) · empty (FR-233) · own-view "You" (FR-234) · loading · error · dark.
+RESPONSIVE: the card is single-column at every width; on phone it fills width — no table→card reflow to engineer.
+  This is the simplest responsive story of the three. Could live as a tab/section on a Person page, or a tiny standalone route.
+
+OPEN QUESTIONS (owner):
+  1. Where does this card LIVE? Options: (a) a section on a future Person/Team page; (b) a tiny standalone "Workload" route;
+     (c) a popover from a person's avatar anywhere. (b) is the least nav; (a) is the most discoverable. Director leans (a)/(b).
+  2. Section order: Daily/ongoing first (heaviest for Maya) vs Projects first (more common). D2 shows heaviest-first by count —
+     confirm, or fix the order (fixed order is more learnable; sorted-by-load is more informative).
+  3. Do the work-line rows need to be clickable at all in the first slice (the target detail screen is deferred)? If not,
+     drop role=button and make them plain read-only rows — even simpler.
+================================================================================
+-->
+</body>
+</html>
