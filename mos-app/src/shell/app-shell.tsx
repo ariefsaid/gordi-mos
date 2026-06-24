@@ -22,7 +22,11 @@ export function AppShell() {
         className="min-h-screen bg-secondary/35"
         style={{
           display: 'grid',
-          gridTemplateColumns: isNarrow ? '1fr' : 'var(--rail-w) 1fr',
+          width: '100%',
+          maxWidth: '100vw',
+          minWidth: 0,
+          overflowX: 'hidden',
+          gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'var(--rail-w) minmax(0, 1fr)',
           gridTemplateRows: 'var(--header-h) 1fr',
           gridTemplateAreas: isNarrow
             ? '"topbar" "main"'
@@ -42,7 +46,7 @@ export function AppShell() {
 
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div
-          className="flex flex-col min-h-0"
+          className="flex min-w-0 flex-col min-h-0"
           style={{ gridArea: 'main' }}
         >
           <Outlet />

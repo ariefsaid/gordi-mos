@@ -520,7 +520,7 @@ tr.grp td { padding: 0; }
 
 /* ── Mobile grouped cards (AC-129, FR-127) ── */
 .mgc { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
-.mgc-group { display: flex; flex-direction: column; gap: 8px; }
+.mgc-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mgc-group-head { display: flex; align-items: center; gap: 8px; padding: 0 4px; min-height: 36px; }
 .mgc-caret {
   display: inline-grid; place-items: center; width: 28px; height: 28px;
