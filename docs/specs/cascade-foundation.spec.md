@@ -130,6 +130,13 @@ All three carry the `org_id` seam; A/R person refs must resolve to a Person in t
   alone — DESIGN.md Tinted-Status), keyboard-navigable, AA contrast.
 - **NFR-205 (consistency).** Ownership uses the canonical A/R fields; the Workload surface uses DESIGN.md
   tokens and the existing dense-table / card-reflow grammar (no new visual language).
+- **NFR-206 (operability — the literacy bar).** Every cascade surface shall be operable, with **no
+  training**, by a **high-school-graduate workforce**. Concretely: each screen answers one plain question;
+  primary action is a single obvious control; labels are everyday words (CONTEXT.md vocabulary, no jargon —
+  "project / process", not "initiative / SWP / lane taxonomy"); no nested menus or modes to reach the core
+  job; reading load per screen ≤ a short paragraph. This is a **first-class IA + IxD objective**, not a
+  nice-to-have — it outranks model completeness and feature density (CLAUDE.md: "usability and speed beat
+  model completeness"). Lens-D / design-review treats a screen that needs explaining as a defect.
 
 ## 6. Acceptance criteria (Given / When / Then)
 
