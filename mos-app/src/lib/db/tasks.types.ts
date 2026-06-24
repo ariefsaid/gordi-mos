@@ -17,6 +17,8 @@ export interface TaskRow {
   informed_person_ids: string[]
   description: string | null
   due_date: string | null
+  objective_id: string | null
+  work_line_id: string | null
   last_activity_at: string
   archived_at: string | null
   created_by: string
