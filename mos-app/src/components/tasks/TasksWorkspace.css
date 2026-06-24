@@ -41,7 +41,7 @@
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  grid-template-columns: 1fr clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width */
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width; minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport (min-width:auto blowout) */
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — no max-width cap.
      It fills PageFrame's 24px gutters, which equal the topbar's px-6 gutter, so the table's
@@ -50,7 +50,7 @@
      nothing balloons. A generous safety cap guards absurd ultra-wide Task columns only. */
   max-width: 1760px;
 }
-.split.nodrawer { grid-template-columns: 1fr; }
+.split.nodrawer { grid-template-columns: minmax(0, 1fr); }
 /* Expanded focus mode: table hidden, drawer fills the row. */
 .split.expanded { grid-template-columns: 1fr; }
 .split.expanded .assembly { display: none; }
@@ -398,7 +398,26 @@ tr:focus-within .row-menu { visibility: visible; }
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
 @media (max-width: 1099.98px) {
-  .split, .split.expanded { grid-template-columns: 1fr; }
+  /* minmax(0,1fr) not bare 1fr — a bare 1fr track's implicit min-width:auto lets wide
+     card content stretch the column past the viewport (app-wide horizontal scroll). */
+  .split, .split.expanded { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Mobile card meta: STACK the label:value pairs on small viewports ──
+   At a phone width the 5 inline pairs (Owner/Work-line/Objective/Due/Activity) summed
+   to a ~660px row that defined the card's intrinsic width and forced app-wide horizontal
+   scroll. Stacking them (flex column) collapses the card's intrinsic width to the widest
+   single pair (~200px), so the card fits any phone regardless of ancestor sizing; long
+   values ellipsis rather than blow out. */
+@media (max-width: 599.98px) {
+  .task-card-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .task-card-meta-pair { max-width: 100%; min-width: 0; }
+  .task-card-meta dd {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 /* ── Segment disabled state (FR-124 / AC-126) ── */
