@@ -209,11 +209,12 @@
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
 /* ── Table ── */
-/* min-width: sum of the 9 fixed cols (40+150+200+150+150+128+150+92+40 = 1100px) so
-   the table never compresses below that width and the Task (width:auto) col always
-   retains non-zero space; the .tasks-scroll overflow-x:auto then scrolls the table
-   when the container is narrower (RI-3). */
-.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 1100px; }
+/* The 9 fixed cols sum to 1100px (40+150+200+150+150+128+150+92+40). The table
+   min-width must EXCEED that sum, or the width:auto Task col starves to 0 once the
+   container is ≤1100px (it did — Task rendered 0px at a 1280px viewport). 1100 fixed
+   + a ~240px Task floor = 1340px min-width; .tasks-scroll overflow-x:auto then scrolls
+   the table when the container is narrower (RI-3). */
+.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 1340px; }
 /* Base col widths: cols 1-4 stable; cols 5-10 overridden below (Cascade D1 added
    Work-line + Objective cols). cb+menu fixed 40px; Task absorbs the remainder. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
@@ -343,7 +344,7 @@ tr:focus-within .row-menu { visibility: visible; }
 .own-name { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .own-more { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
-.td-bu { font-size: 12.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bu { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
 .due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: 15px; }
@@ -541,11 +542,11 @@ tr.grp td { padding: 0; }
    - td-empty: the "—" placeholder (muted, not primary text weight)
    Column widths sit in the nth-child colgroup rules below. */
 .td-workline {
-  font-size: 12.5px; color: var(--muted-foreground);
+  font-size: 13px; color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-objective {
-  font-size: 12.5px; color: var(--muted-foreground);
+  font-size: 13px; color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-empty { color: var(--muted-foreground); }
