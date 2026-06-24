@@ -1,5 +1,12 @@
 # Plan — Strategy-to-Execution cascade foundation (first slice)
 
+> **⚠️ SUPERSEDED (2026-06-24).** Owner course-corrected to a radically simpler, task-centric model
+> (`mos.tasks` + 2 nullable fields + 2 lookup tables; no RPC, no per-layer A/R, no lane in UI). The
+> RPC / SECURITY DEFINER / per-layer-ownership design below is **not** being built. The active plan is
+> **`docs/plans/2026-06-24-cascade-first-slice.md`**. Kept for the architectural reasoning (the
+> `is_manager_of`-not-a-JWT-claim finding still holds) and as the deferred end-state if richer top-down
+> ownership is ever wanted.
+
 - Date: 2026-06-23
 - Spec: `docs/specs/cascade-foundation.spec.md` (FR-200..234, NFR-200..205, AC-200..234)
 - Binding: **ADR-0014** (6-level model, 3 tables now, additive-not-inserted topology, A/R per layer),

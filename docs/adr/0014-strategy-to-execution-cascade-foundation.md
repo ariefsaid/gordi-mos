@@ -2,6 +2,13 @@
 
 - Status: Accepted (2026-06-23, grill-with-docs session #3)
 - Deciders: Owner (Arief) + Director
+- **Amendment (2026-06-24, owner):** v1 build is simplified within these same principles — the layer-4
+  entity is realized as a **lookup table per the Project/Process pair** (`mos.objectives`,
+  `mos.work_lines{type}`) + two **nullable FK fields on `mos.tasks`**, not a rich per-layer-A/R entity.
+  Workload is **group-by + filter on the Tasks list** (D1) + a plain caption (D2), **not** a SECURITY
+  DEFINER RPC. Lane is omitted from the UI (literacy bar, spec NFR-206). Topology (#3) and additivity
+  (#4/#5) are unchanged — the RPC and per-layer A/R remain valid *deferred* end-states, additive when
+  wanted. Active plan: `docs/plans/2026-06-24-cascade-first-slice.md`.
 - Related: ADR-0003 (cascade-ready task entity — this **supersedes its "no higher-cascade tables"
   deferral**, §3, while keeping its additive-FK principle); vault `Strategy-to-Execution Stack` /
   `Management OS Framework` / `Notion Management OS`; `CONTEXT.md` § Cascade; OD-DIR-7 (first-slice scope)
