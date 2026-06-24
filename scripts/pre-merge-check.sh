@@ -49,7 +49,9 @@ REQUIRE_CODE_QUALITY=true # always
 REQUIRE_SECURITY=false
 REQUIRE_DESIGN=false
 
-if echo "$CHANGED_FILES" | grep -qE 'supabase/migrations/|_rls|auth|rls'; then
+# Bounded so it catches migrations / RLS files / auth files but not unrelated paths
+# that merely contain "auth"/"rls" as a substring (e.g. "author", "controls").
+if echo "$CHANGED_FILES" | grep -qE 'supabase/migrations/|_rls|rls\.sql|(^|/)auth'; then
   REQUIRE_SECURITY=true
 fi
 
@@ -75,14 +77,13 @@ parse_verdict() {
     echo ""
     return
   fi
-  # Extract the verdict token (first word after the colon, before ' — ' or end)
+  # The verdict is the FIRST whitespace-delimited token after the colon.
+  # (PASS / SHIP / FIX-THEN-SHIP have no internal spaces; the " — notes" always
+  #  follow a space, so taking $1 is robust — and does NOT split FIX-THEN-SHIP on
+  #  its internal hyphens the way a dash-strip would.)
   local after_colon
   after_colon="$(echo "$line" | sed 's/^[^:]*:[[:space:]]*//')"
-  # Take text before em-dash (— U+2014) or regular dash-dash
-  local verdict_part
-  verdict_part="$(echo "$after_colon" | sed 's/[[:space:]]*[—–-][[:space:]]*.*//')"
-  # Trim whitespace
-  echo "$verdict_part" | xargs
+  echo "$after_colon" | awk '{print $1}'
 }
 
 FAILURES=()
