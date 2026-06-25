@@ -4,12 +4,16 @@
 - Source decisions: **ADR-0014** (cascade foundation, additive topology), **OD-C-1** (`docs/decisions.md`)
 - Vocabulary: `CONTEXT.md` § Cascade · § Ownership
 
-> **Naming reconciliation (read first).** This spec was drafted before the 2026-06-23 owner decision to
-> drop the umbrella term "Initiative" for the **Project/Process pair**. Where the body below says
-> *Initiative*, read **Project/Process** (the layer-4 entity, `type ∈ {project, process}`). The physical
-> table is **`mos.work_lines`** (recommended, pending owner Q1 vs `mos.projects_processes`) and the Task
-> bridge column is **`work_line_id`**. CONTEXT.md and the plan (`docs/plans/2026-06-23-cascade-foundation.md`)
-> carry the canonical names; the full in-body rename lands with ADR-0015 once Q1 is locked.
+> **Naming + scope reconciliation (read first) — LOCKED, see ADR-0015.** Names are now final:
+> where the body says *Initiative* / `mos.initiatives` / `program_process_id`, read the **Project/Process
+> pair** → table **`mos.work_lines`** (`type ∈ {project, process}`), lookup **`mos.objectives`**, bridge
+> column **`mos.tasks.work_line_id`** (+ `objective_id`). No umbrella term ("Initiative" dropped).
+> **What SHIPPED (v1, on `main` via PR #69 — `docs/plans/2026-06-24-cascade-first-slice.md`):** the two
+> lookups + two task fields; Tasks-list Work-line/Objective columns + group-by-work-line + the per-person
+> caption; create/detail pickers. **DEFERRED (v2, NOT built):** the `person_workload` SECURITY DEFINER
+> RPC, per-layer Accountable/Responsible, `lane` in the UI, and the standalone Workload page — the FRs
+> below describing those are the eventual end-state (ADR-0014), additive later. CONTEXT.md § Cascade is
+> the canonical glossary.
 - Supersedes/extends: ADR-0003 (Task is the cascade-bridgeable unit; this adds its parent layer)
 
 ## 1. Overview & user value
