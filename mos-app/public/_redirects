@@ -1,0 +1,5 @@
+# Cloudflare Pages SPA fallback (copied to dist/ at build; deploy plan P8).
+# The app is a client-routed SPA at base path /mos/ (vite.config.ts `base`).
+# Pages serves a matching static file first; this rule only catches non-file
+# deep links (e.g. /mos/tasks, /mos/recovery) and returns the app shell.
+/mos/*  /mos/index.html  200
