@@ -1,5 +1,9 @@
-# Cloudflare Pages SPA fallback (copied to dist/ at build; deploy plan P8).
-# The app is a client-routed SPA at base path /mos/ (vite.config.ts `base`).
-# Pages serves a matching static file first; this rule only catches non-file
-# deep links (e.g. /mos/tasks, /mos/recovery) and returns the app shell.
-/mos/*  /mos/index.html  200
+# Cloudflare Pages routing for the SPA (built with base /mos/).
+# The build output is FLAT (dist/index.html, dist/assets/*), but the app references
+# its assets at /mos/assets/* (the base). On CF Pages those /mos/ paths have no real
+# file, so we rewrite them onto the flat output. Existing files are served first;
+# these rules only fire for the missing /mos/ paths. Order matters — assets before
+# the SPA catch-all, or the catch-all would return index.html (text/html) for a .js
+# request and the app renders blank.
+/mos/assets/*  /assets/:splat  200
+/mos/*         /index.html     200
