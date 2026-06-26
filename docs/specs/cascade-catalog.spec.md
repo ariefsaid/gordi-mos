@@ -1,6 +1,7 @@
 # Spec — Cascade catalog management (Objectives + Projects/Processes)
 
-- Status: Draft (2026-06-26) — awaiting owner sign-off
+- Status: Built & verified (2026-06-26) — owner-approved via the OD-C-2 grill; all FR/NFR/AC implemented
+  (unit + pgTAP + AC-020 e2e green); 4-lens review battery recorded in `docs/reviews/feat-cascade-catalog.md`
 - Source decisions: **OD-C-2** (`docs/decisions.md`), grill-with-docs 2026-06-26
 - Vocabulary: `CONTEXT.md` § Cascade · § Access-role · § Surfaces
 - Related: ADR-0011 (access roles), ADR-0014 (cascade foundation), ADR-0015 (naming lock), ADR-0013 (records-workspace UI)
