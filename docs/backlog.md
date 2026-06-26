@@ -217,5 +217,7 @@ auth.users a WHERE p.email=a.email AND p.email LIKE '%.dev@example.test';`. PR #
 No `../` imports (use `@/`), no hardcoded colors (use `--ds-*`), no default exports in `src`.
 
 ### ESB / GOO safety
-GOO (`stg-erp.esb.co.id`) = TEST DATA ONLY. Never push real GKID product/BOM IDs to GOO.
-Real-data validation = single-WIP proof-push on GKID at the owner-gated switch (OD-K-3/K-4).
+GOO (Core API `stg7.esb.co.id/core-stg`; `stg-erp.esb.co.id` was the web UI — corrected 2026-06-26) =
+TEST DATA ONLY. Never push real GKID product/BOM IDs to GOO. Real-data validation = single-WIP proof-push
+on GKID at the owner-gated switch (OD-K-3/K-4). NB: `/assembly-actual` isn't validatable on GOO (standard-
+costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.

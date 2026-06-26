@@ -13,7 +13,7 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
 - **ADR-0011** — one auth model = Supabase Auth + RLS; fixed access roles **admin · ops_lead ·
   finance · member** (+ derived `manager`); 30-day session; installable PWA, online-only writes.
 - **ADR-0012** — `integrations.esb_push` module-agnostic transactional outbox (central `dedup_key`);
-  kitchen → typed RLS'd `ops.*` tables; **staging-first ESB** (GOO `stg-erp.esb.co.id`).
+  kitchen → typed RLS'd `ops.*` tables; **staging-first ESB** (GOO Core API `stg7.esb.co.id/core-stg`).
 - **ADR-0013** — records-workspace UI architecture (UI-revamp workstream).
 - `decisions.md` OD-P4-1..8, OD-P5-1, OD-K-1..4.
 - Kitchen Module spec: `docs/specs/kitchen-module.spec.md` (PR #32).
