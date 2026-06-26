@@ -67,7 +67,9 @@ One entity distinguished by **`type ∈ {project, process}`**; carries A/R owner
 lane, and a nullable Objective link. It is a Task's permanent cascade parent. **No umbrella term is
 locked** (owner 2026-06-23 — "use the Project/Process pair for now"; the earlier "Initiative" is dropped);
 refer to the pair, or to the specific type.
-_Avoid_: Initiative, workstream, work (umbrella terms — none locked)
+_Avoid_: Initiative, workstream, work (umbrella terms — none locked); **work-line** in UI copy
+(owner 2026-06-26 — UI term is Project/Process; "work-line" survives only as the physical table name
+`mos.work_lines`, ADR-0015). The task-form field and the management surface both read "Project/Process".
 
 **Project** (`type: project`):
 Bounded, time-boxed **change** work (Transform/Optimize lane) — scope, an end, milestones. E.g. new-menu
