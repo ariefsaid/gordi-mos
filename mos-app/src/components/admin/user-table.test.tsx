@@ -140,9 +140,13 @@ describe('UserTable — desktop ⋯ menu', () => {
     expect(within(menu).queryByRole('menuitem', { name: /disable login/i })).not.toBeInTheDocument()
   })
 
-  it('shows "Restore" for archived person', async () => {
+  it('shows "Restore" for archived person (visible under Archived segment)', async () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, ARCHIVED_PERSON])
+
+    // Archived people are shown under the Archived segment (design-plan §2.1: All = non-archived only)
+    const tablist = screen.getByRole('tablist', { name: /status filter/i })
+    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
 
     const menuBtn = screen.getByRole('button', { name: /more actions for dewi rahayu/i })
     await user.click(menuBtn)

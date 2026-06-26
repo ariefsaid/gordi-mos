@@ -2,7 +2,8 @@
 // AC-060: list rendering (all 4 login states) + empty state predicate.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -115,33 +116,41 @@ describe('AdminUsersPage (AC-060)', () => {
   })
 
   it('AC-060: renders each login status distinctly — active, none, disabled, archived', async () => {
+    const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
     renderPage()
 
     // Wait for data
     await screen.findByText('Budi Santoso')
 
-    // Active login → "Active" pill (exactly one)
-    expect(screen.getByText('Active')).toBeInTheDocument()
+    // Active login → "Active" pill present (toolbar also has an "Active" tab — getAllByText)
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
 
     // No login → "No login" pill (at least one — two rows have no login in test data)
     expect(screen.getAllByText('No login').length).toBeGreaterThan(0)
 
-    // Disabled login → "Disabled" pill (amber/warning, not red)
-    expect(screen.getByText('Disabled')).toBeInTheDocument()
+    // Disabled login → "Disabled" pill present (toolbar also has a "Disabled" tab)
+    expect(screen.getAllByText('Disabled').length).toBeGreaterThan(0)
 
-    // Archived person → archived marker
+    // Archived person → visible under the Archived segment (design-plan §2.1: All = non-archived)
+    const tablist = screen.getByRole('tablist', { name: /status filter/i })
+    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
     expect(screen.getByText('Old Staff')).toBeInTheDocument()
   })
 
-  it('AC-060: each person name is visible in the list', async () => {
+  it('AC-060: each person name is visible in the list (non-archived under All; archived under Archived segment)', async () => {
+    const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
     renderPage()
 
     await screen.findByText('Budi Santoso')
+    // Non-archived people visible under All (default segment)
     expect(screen.getByText('Sari Indah')).toBeInTheDocument()
-    expect(screen.getByText('Old Staff')).toBeInTheDocument()
     expect(screen.getByText('Admin Gordi')).toBeInTheDocument()
+    // Archived person visible under Archived segment (design-plan §2.1)
+    const tablist = screen.getByRole('tablist', { name: /status filter/i })
+    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
+    expect(screen.getByText('Old Staff')).toBeInTheDocument()
   })
 
   it('AC-060: renders "Add person" primary action button', async () => {

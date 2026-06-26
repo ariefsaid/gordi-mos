@@ -7,8 +7,10 @@
 // Last-admin guard (item 3, FR-041): disable/archive disabled for sole active admin.
 // ⋯ menu keyboard (item 8): Esc-to-close, outside-click-close, arrow-key navigation.
 // Mobile action sheet (item 1): Manage button opens same actions as desktop ⋯ menu.
+// PeopleToolbar (§2.1): search-mini + segmented status filter. Filter is client-side.
+// No-match empty state (§4.1): distinct from org-empty "Just you so far".
 
-import { useState, useRef, useEffect, useCallback, useId } from 'react'
+import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
 import { Pill } from '@/components/ui/pill'
 import type { PillTone } from '@/components/ui/pill'
 import { Tag } from '@/components/ui/tag'
@@ -19,6 +21,7 @@ import { EmptyState } from '@/components/ui/state-kit'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { roleLabel } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow, LoginStatus } from '@/lib/db/admin-users.types'
+import './people-toolbar.css'
 
 // ── PersonAction union type (item 12) ────────────────────────────────────────
 // Compile-time contract: bad action strings fail type-check (caught the 'manage' bug).
@@ -588,6 +591,117 @@ function MobileCardList({
   )
 }
 
+// ── Segment filter types ──────────────────────────────────────────────────────
+
+type StatusSegment = 'all' | 'active' | 'none' | 'disabled' | 'archived'
+
+const SEGMENT_OPTIONS: { value: StatusSegment; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'none', label: 'No login' },
+  { value: 'disabled', label: 'Disabled' },
+  { value: 'archived', label: 'Archived' },
+]
+
+// ── Filter logic ──────────────────────────────────────────────────────────────
+// Design-plan §2.1:
+//   All = every non-archived person; Archived = archived_at != null;
+//   Active/No login/Disabled are non-archived subsets by login status.
+
+function applySegment(people: AdminPersonRow[], segment: StatusSegment): AdminPersonRow[] {
+  if (segment === 'archived') return people.filter((p) => p.archived_at != null)
+  const nonArchived = people.filter((p) => p.archived_at == null)
+  if (segment === 'all') return nonArchived
+  return nonArchived.filter((p) => p.login === segment)
+}
+
+function applySearch(people: AdminPersonRow[], query: string): AdminPersonRow[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return people
+  return people.filter(
+    (p) =>
+      p.full_name.toLowerCase().includes(q) ||
+      (p.email ?? '').toLowerCase().includes(q),
+  )
+}
+
+// ── PeopleToolbar ─────────────────────────────────────────────────────────────
+// Design-plan §2.1: search-mini on the left, segmented status filter on the right.
+// Seamed to the table top (flat toolbar — no resting shadow, utility surface).
+
+interface PeopleToolbarProps {
+  segment: StatusSegment
+  onSegmentChange: (s: StatusSegment) => void
+  searchQuery: string
+  onSearchChange: (q: string) => void
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 15 15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <circle cx="6.5" cy="6.5" r="4.5" />
+      <path d="M10.5 10.5L13.5 13.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PeopleToolbar({ segment, onSegmentChange, searchQuery, onSearchChange }: PeopleToolbarProps) {
+  const searchId = useId()
+
+  return (
+    <div className="people-toolbar">
+      {/* Search-mini: filter by name or email */}
+      <label className="people-search-mini" htmlFor={searchId}>
+        <SearchIcon />
+        <input
+          id={searchId}
+          type="search"
+          role="searchbox"
+          aria-label="Search people by name or email"
+          placeholder="Search people…"
+          className="people-search-input"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </label>
+
+      <div className="people-tb-spacer" />
+
+      {/* Segmented status filter */}
+      <div
+        role="tablist"
+        aria-label="Status filter"
+        className="people-seg"
+      >
+        {SEGMENT_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            role="tab"
+            aria-selected={segment === opt.value}
+            className="people-seg-btn"
+            onClick={() => {
+              if (segment !== opt.value) onSegmentChange(opt.value)
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── UserTable (exported) ──────────────────────────────────────────────────────
 
 export interface UserTableProps {
@@ -600,28 +714,69 @@ export interface UserTableProps {
 export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: UserTableProps) {
   const isDesktop = useIsDesktop()
 
-  // Empty state: non-self count = 0
-  const nonSelfCount = people.filter((p) => p.id !== viewerPersonId).length
-  const isEmpty = nonSelfCount === 0
+  // Filter state owned here (client-side, no refetch)
+  const [segment, setSegment] = useState<StatusSegment>('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
-  if (isEmpty) {
-    return (
-      <div className="py-16 px-4">
-        <EmptyState
-          title="Just you so far"
-          copy="Add your first teammate to give them access."
-        >
-          <Button variant="primary" onClick={onAddPerson}>
-            + Add person
-          </Button>
-        </EmptyState>
-      </div>
-    )
+  // Filtered people (memoised)
+  const filteredPeople = useMemo(() => {
+    const bySegment = applySegment(people, segment)
+    return applySearch(bySegment, searchQuery)
+  }, [people, segment, searchQuery])
+
+  // Clear all filters
+  function clearFilters() {
+    setSegment('all')
+    setSearchQuery('')
   }
 
-  return isDesktop ? (
-    <DesktopTable people={people} onAction={onAction} />
-  ) : (
-    <MobileCardList people={people} onAction={onAction} />
+  // Empty state: non-self count = 0 (org has only the admin — AC-060)
+  const nonSelfCount = people.filter((p) => p.id !== viewerPersonId).length
+  const isOrgEmpty = nonSelfCount === 0
+
+  // No-match: filters active but yield zero rows (distinct from org-empty)
+  const isFiltered = segment !== 'all' || searchQuery.trim() !== ''
+  const isNoMatch = !isOrgEmpty && isFiltered && filteredPeople.length === 0
+
+  return (
+    <>
+      {/* Toolbar always renders (seamed to table top, flat utility surface) */}
+      <PeopleToolbar
+        segment={segment}
+        onSegmentChange={setSegment}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      {isOrgEmpty ? (
+        /* Org has only the admin — "Just you so far" */
+        <div className="py-16 px-4">
+          <EmptyState
+            title="Just you so far"
+            copy="Add your first teammate to give them access."
+          >
+            <Button variant="primary" onClick={onAddPerson}>
+              + Add person
+            </Button>
+          </EmptyState>
+        </div>
+      ) : isNoMatch ? (
+        /* Filter applied but no rows match */
+        <div className="py-12 px-4">
+          <EmptyState
+            title="No people match this filter"
+            copy="Try a different search term or status filter."
+          >
+            <Button variant="ghost" onClick={clearFilters}>
+              Clear filter
+            </Button>
+          </EmptyState>
+        </div>
+      ) : isDesktop ? (
+        <DesktopTable people={filteredPeople} onAction={onAction} />
+      ) : (
+        <MobileCardList people={filteredPeople} onAction={onAction} />
+      )}
+    </>
   )
 }

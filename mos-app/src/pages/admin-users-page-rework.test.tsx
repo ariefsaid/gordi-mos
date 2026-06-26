@@ -4,7 +4,7 @@
 // These extend (not replace) admin-users-page.test.tsx.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -199,6 +199,10 @@ describe('AdminUsersPage — confirm dialogs', () => {
     mockRestorePerson.mockResolvedValue(undefined)
     renderPage()
 
+    // Archived people are shown under the Archived segment (design-plan §2.1)
+    await screen.findByText('Admin Gordi')
+    const tablist = screen.getByRole('tablist', { name: /status filter/i })
+    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
     await screen.findByText('Dewi Rahayu')
 
     await user.click(screen.getByRole('button', { name: /more actions for dewi rahayu/i }))
@@ -252,6 +256,10 @@ describe('AdminUsersPage — success toasts', () => {
     mockRestorePerson.mockResolvedValue(undefined)
     renderPage()
 
+    // Archived people are shown under the Archived segment (design-plan §2.1)
+    await screen.findByText('Admin Gordi')
+    const tablist = screen.getByRole('tablist', { name: /status filter/i })
+    await user.click(within(tablist).getByRole('tab', { name: /archived/i }))
     await screen.findByText('Dewi Rahayu')
 
     await user.click(screen.getByRole('button', { name: /more actions for dewi rahayu/i }))
@@ -308,5 +316,3 @@ describe('AdminUsersPage — password reveal a11y', () => {
   })
 })
 
-// helper — need within
-import { within } from '@testing-library/react'

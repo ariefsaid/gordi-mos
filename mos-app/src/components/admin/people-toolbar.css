@@ -1,0 +1,127 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   PeopleToolbar — search-mini + segmented status filter for the admin People list.
+   Design-plan §2.1. Token-only (DESIGN.md). Flat utility surface — no resting shadow.
+   Mirrors the Tasks toolbar seg + search-mini patterns (TasksWorkspace.css precedent).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.people-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  /* Flat at rest — utility surface (Soft-Elevation Rule, DESIGN.md OD-P3-11). */
+}
+
+/* Spacer pushes the seg to the right of the search input */
+.people-tb-spacer {
+  flex: 1 1 0;
+  min-width: 8px;
+}
+
+/* ── Search-mini (DESIGN.md §5-Inputs, OD-P3-6) ───────────────────────────── */
+.people-search-mini {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  color: var(--muted-foreground);
+  font-size: 15px;
+  min-width: 180px;
+  flex: 1 1 180px;
+  max-width: 280px;
+}
+
+.people-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--foreground);
+  width: 100%;
+}
+
+.people-search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* ── Segmented status filter (DESIGN.md §"Inline segmented (seg)") ─────────── */
+/* secondary track, "on" = white background pill + foreground + 600 + lift */
+.people-seg {
+  display: inline-flex;
+  height: 32px;
+  padding: 3px;
+  background: var(--secondary);
+  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  flex-shrink: 0;
+}
+
+.people-seg-btn {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  padding: 0 10px;
+  border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
+  color: var(--secondary-foreground);
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.people-seg-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* Active segment: crisp ring + lift (DESIGN.md "Pressed/selected lift") */
+.people-seg-btn[aria-selected='true'] {
+  background: var(--background);
+  font-weight: 600;
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px var(--border-strong),
+    0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .people-seg-btn {
+    transition: none;
+  }
+}
+
+/* ── Mobile reflow (<768px) ────────────────────────────────────────────────── */
+/* Below md: seg wraps to full width below the search; touch floor 44px */
+@media (max-width: 767px) {
+  .people-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .people-search-mini {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .people-seg {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .people-seg-btn {
+    flex: 1 1 0;
+    min-height: 44px; /* ≥44px touch target */
+    padding: 0 6px;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .people-tb-spacer {
+    display: none;
+  }
+}
