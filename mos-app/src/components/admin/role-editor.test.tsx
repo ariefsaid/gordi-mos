@@ -88,9 +88,21 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     // All four assignable roles must appear
     expect(screen.getByRole('checkbox', { name: /member/i })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /ops_lead/i })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /ops lead/i })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /admin/i })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /finance/i })).toBeInTheDocument()
+  })
+
+  it('AC-050: renders human role labels + descriptions, never raw slugs', () => {
+    renderEditor()
+    // Human labels visible
+    expect(screen.getByText('Ops Lead')).toBeInTheDocument()
+    expect(screen.getByText('Member')).toBeInTheDocument()
+    // Descriptions visible
+    expect(screen.getByText('Plans and approves')).toBeInTheDocument()
+    expect(screen.getByText('Submits logs and updates')).toBeInTheDocument()
+    // Raw slug must not leak
+    expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
   })
 
   it('AC-050: "manager" role is never rendered', () => {
@@ -114,7 +126,7 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     renderEditor(OTHER_PERSON, { onDone })
 
     // ops_lead is unchecked — click it
-    const opsLeadBox = screen.getByRole('checkbox', { name: /ops_lead/i })
+    const opsLeadBox = screen.getByRole('checkbox', { name: /ops lead/i })
     await user.click(opsLeadBox)
 
     await waitFor(() => {
@@ -151,7 +163,7 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
   it('AC-050: on the self row, member and ops_lead are NOT disabled', () => {
     renderEditor(SELF_PERSON)
     const memberBox = screen.getByRole('checkbox', { name: /member/i })
-    const opsLeadBox = screen.getByRole('checkbox', { name: /ops_lead/i })
+    const opsLeadBox = screen.getByRole('checkbox', { name: /ops lead/i })
     expect(memberBox).not.toHaveAttribute('aria-disabled', 'true')
     expect(opsLeadBox).not.toHaveAttribute('aria-disabled', 'true')
   })
@@ -169,7 +181,7 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     mockGrantRole.mockRejectedValue(new Error('42501 permission denied'))
     renderEditor(OTHER_PERSON)
 
-    const opsLeadBox = screen.getByRole('checkbox', { name: /ops_lead/i })
+    const opsLeadBox = screen.getByRole('checkbox', { name: /ops lead/i })
     await user.click(opsLeadBox)
 
     await screen.findByRole('alert')

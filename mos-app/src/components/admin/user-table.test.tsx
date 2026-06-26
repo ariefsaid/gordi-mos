@@ -240,6 +240,30 @@ describe('UserTable — last-admin guard (FR-041)', () => {
   })
 })
 
+// ── Human role labels (visual-polish round) ──────────────────────────────────
+// RoleChips must render the human ROLE_META label, never the raw slug 'ops_lead'.
+
+describe('UserTable — role chips show human labels', () => {
+  it('renders "Ops Lead" not the raw slug "ops_lead"', () => {
+    const opsLead: AdminPersonRow = {
+      ...ACTIVE_MEMBER,
+      id: 'p-ops',
+      full_name: 'Fitri Handayani',
+      access_roles: ['ops_lead'],
+    }
+    renderTable([ACTIVE_ADMIN, opsLead])
+    expect(screen.getByText('Ops Lead')).toBeInTheDocument()
+    expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
+  })
+
+  it('renders "Member" not the raw slug "member"', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    expect(screen.getByText('Member')).toBeInTheDocument()
+    // raw slug must not appear anywhere
+    expect(screen.queryByText('member')).not.toBeInTheDocument()
+  })
+})
+
 // ── Mobile action sheet (item 1) ──────────────────────────────────────────────
 
 describe('UserTable — mobile action sheet', () => {

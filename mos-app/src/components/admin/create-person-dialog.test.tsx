@@ -120,6 +120,21 @@ describe('CreatePersonDialog (AC-011)', () => {
     })
   })
 
+  it('AC-011: access-role rows show human labels + descriptions, never raw slugs', () => {
+    renderDialog()
+    // Human labels for the assignable roles
+    expect(screen.getByText('Ops Lead')).toBeInTheDocument()
+    expect(screen.getByText('Member')).toBeInTheDocument()
+    expect(screen.getByText('Admin')).toBeInTheDocument()
+    expect(screen.getByText('Finance')).toBeInTheDocument()
+    // Description line under each role
+    expect(screen.getByText('Plans and approves')).toBeInTheDocument()
+    // Raw slug must not leak into the UI
+    expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
+    // Checkbox accessible name is the human label
+    expect(screen.getByRole('checkbox', { name: /ops lead/i })).toBeInTheDocument()
+  })
+
   it('AC-011: "create a login now" toggle appears and is off by default', () => {
     renderDialog()
     const loginToggle = screen.getByRole('switch', { name: /create a login now/i })

@@ -18,7 +18,7 @@ import { useAuth } from '@/auth/use-auth'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
-import { ASSIGNABLE_ROLES } from '@/lib/db/admin-users.types'
+import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 
 // Roles protected by self-assign guard (FR-023)
@@ -157,21 +157,21 @@ export function RoleEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative w-full max-w-sm rounded-lg p-6"
+        className="relative w-full max-w-sm overflow-hidden rounded-lg"
         style={{ background: 'var(--card)', boxShadow: 'var(--shadow-overlay)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
           <div>
             <h2
               id={titleId}
-              className="subheading font-jakarta font-semibold"
+              className="subheading text-lg font-semibold"
               style={{ color: 'var(--foreground)' }}
             >
               Manage roles
             </h2>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
               {person.full_name}
             </p>
           </div>
@@ -179,75 +179,98 @@ export function RoleEditor({
             ref={closeBtnRef}
             type="button"
             aria-label="Dismiss dialog"
-            className="rounded-sm p-1"
+            className="-mr-1 -mt-1 rounded-sm p-1 hover:bg-accent/60"
             style={{ color: 'var(--muted-foreground)' }}
             onClick={onClose}
           >
             ✕
           </button>
         </div>
+        <div style={{ borderTop: '1px solid var(--border)' }} />
 
-        {/* Role checkboxes */}
-        <fieldset className="mb-4" disabled={busy}>
-          <legend className="sr-only">Access roles for {person.full_name}</legend>
-          <div className="flex flex-col gap-3">
-            {(ASSIGNABLE_ROLES as readonly string[]).map((role) => {
-              const isGranted = person.access_roles.includes(role)
-              const isSelfGuarded = isSelf && SELF_GUARDED_ROLES.has(role)
-              // Last-admin guard: disable the admin checkbox for the last active admin (item 5)
-              const isLastAdminGuarded = role === 'admin' && lastAdmin
-              const isDisabled = isSelfGuarded || isLastAdminGuarded || busy
+        {/* Role rows — grouped bordered container, label + description per row */}
+        <div className="px-6 py-5">
+          <fieldset disabled={busy}>
+            <legend className="sr-only">Access roles for {person.full_name}</legend>
+            <div
+              className="overflow-hidden rounded-md"
+              style={{ border: '1px solid var(--border)' }}
+            >
+              {(ASSIGNABLE_ROLES as readonly string[]).map((role, i) => {
+                const isGranted = person.access_roles.includes(role)
+                const isSelfGuarded = isSelf && SELF_GUARDED_ROLES.has(role)
+                // Last-admin guard: disable the admin checkbox for the last active admin (item 5)
+                const isLastAdminGuarded = role === 'admin' && lastAdmin
+                const isDisabled = isSelfGuarded || isLastAdminGuarded || busy
+                const meta = ROLE_META[role] ?? { label: role, description: '' }
 
-              // Reason for disabled state (tooltip/title)
-              const disabledReason = isSelfGuarded
-                ? "You can't change your own admin/finance role" // item 14: plain language
-                : isLastAdminGuarded
-                  ? "Can't remove the last admin"
-                  : undefined
+                // Reason for disabled state (tooltip/title)
+                const disabledReason = isSelfGuarded
+                  ? "You can't change your own admin/finance role" // item 14: plain language
+                  : isLastAdminGuarded
+                    ? "Can't remove the last admin"
+                    : undefined
 
-              return (
-                <label
-                  key={role}
-                  className={`flex items-center gap-2.5 text-sm select-none ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  title={isDisabled ? disabledReason : undefined}
-                >
-                  <Checkbox
-                    checked={isGranted}
-                    disabled={isDisabled}
-                    onChange={() => !isDisabled && handleToggle(role)}
-                    aria-label={role}
-                  />
-                  <span style={{ color: 'var(--foreground)' }}>{role}</span>
-                  {(isSelfGuarded || isLastAdminGuarded) && (
-                    <span className="text-xs ml-auto" style={{ color: 'var(--muted-foreground)' }}>
-                      {isLastAdminGuarded
-                        ? 'Only admin — assign another first'
-                        : "Can't change your own admin/finance role"}
+                return (
+                  <label
+                    key={role}
+                    className={`flex items-start gap-3 px-3 py-2.5 select-none ${
+                      isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
+                    }`}
+                    style={i > 0 ? { borderTop: '1px solid var(--border)' } : undefined}
+                    title={isDisabled ? disabledReason : undefined}
+                  >
+                    <span className="mt-0.5">
+                      <Checkbox
+                        checked={isGranted}
+                        disabled={isDisabled}
+                        onChange={() => !isDisabled && handleToggle(role)}
+                        aria-label={meta.label}
+                      />
                     </span>
-                  )}
-                </label>
-              )
-            })}
-          </div>
-        </fieldset>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span
+                        className="text-sm font-medium leading-tight"
+                        style={{ color: 'var(--foreground)' }}
+                      >
+                        {meta.label}
+                      </span>
+                      <span
+                        className="text-xs leading-snug"
+                        style={{ color: 'var(--muted-foreground)' }}
+                      >
+                        {(isSelfGuarded || isLastAdminGuarded)
+                          ? isLastAdminGuarded
+                            ? 'Only admin — assign another first'
+                            : "Can't change your own admin/finance role"
+                          : meta.description}
+                      </span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
 
-        {/* Inline error */}
-        {error && (
-          <div
-            role="alert"
-            className="mb-3 rounded-md px-3 py-2 text-sm"
-            style={{
-              background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
-              color: 'var(--destructive)',
-              border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
-            }}
-          >
-            {error}
-          </div>
-        )}
+          {/* Inline error */}
+          {error && (
+            <div
+              role="alert"
+              className="mt-4 rounded-md px-3 py-2 text-sm"
+              style={{
+                background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
+                color: 'var(--destructive)',
+                border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
+              }}
+            >
+              {error}
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
-        <div className="flex justify-end">
+        <div style={{ borderTop: '1px solid var(--border)' }} />
+        <div className="flex justify-end px-6 py-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
             Close
           </Button>

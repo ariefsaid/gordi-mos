@@ -17,6 +17,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/state-kit'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { roleLabel } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow, LoginStatus } from '@/lib/db/admin-users.types'
 
 // ── PersonAction union type (item 12) ────────────────────────────────────────
@@ -74,7 +75,7 @@ function RoleChips({ roles }: { roles: string[] }) {
     <span className="flex flex-wrap gap-1">
       {roles.map((role) => (
         <Tag key={role} color={ROLE_COLOR[role] ?? 'gray'}>
-          {role}
+          {roleLabel(role)}
         </Tag>
       ))}
     </span>

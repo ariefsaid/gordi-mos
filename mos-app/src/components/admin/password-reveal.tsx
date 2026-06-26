@@ -40,12 +40,45 @@ export function PasswordReveal({
   const [copied, setCopied] = useState(false)
   const [clipboardBlocked, setClipboardBlocked] = useState(false)
   const copyBtnRef = useRef<HTMLButtonElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   // Move focus to Copy button on open (design-plan §4.4 + §6)
   useEffect(() => {
     requestAnimationFrame(() => {
       copyBtnRef.current?.focus()
     })
+  }, [])
+
+  // Tab-trap (design-review minor): confine Tab cycling to the reveal dialog so focus
+  // can't escape to the page behind the scrim. Mirrors ConfirmDialog's trap, but Esc and
+  // backdrop-dismiss stay intentionally DISABLED here (only "Done" closes) — so this
+  // handler deliberately does NOT act on Escape. Traps within the enclosing alertdialog
+  // (the role="alertdialog" element is the parent in both call sites) when present,
+  // else the reveal's own root.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return
+      const container =
+        rootRef.current?.closest<HTMLElement>('[role="alertdialog"]') ?? rootRef.current
+      if (!container) return
+      const FOCUSABLE =
+        'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
   }, [])
 
   async function handleCopy() {
@@ -64,8 +97,8 @@ export function PasswordReveal({
       : `Password reset for ${personName}`
 
   return (
-    <div>
-      <h2 id={headingId} className="font-jakarta text-heading font-semibold">
+    <div ref={rootRef}>
+      <h2 id={headingId} className="heading text-xl font-semibold">
         {heading}
       </h2>
 

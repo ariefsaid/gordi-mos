@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
 import { PasswordReveal } from './password-reveal'
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
-import { ASSIGNABLE_ROLES } from '@/lib/db/admin-users.types'
+import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
 
 export interface CreatePersonDialogProps {
   open: boolean
@@ -215,7 +215,7 @@ export function CreatePersonDialog({
         aria-modal="true"
         aria-labelledby={isReveal ? REVEAL_HEADING_ID : titleId}
         aria-describedby={isReveal ? REVEAL_WARNING_ID : undefined}
-        className="relative w-full max-w-md rounded-lg p-6"
+        className="relative w-full max-w-md overflow-hidden rounded-lg"
         style={{
           background: 'var(--card)',
           boxShadow: 'var(--shadow-overlay)',
@@ -224,139 +224,209 @@ export function CreatePersonDialog({
         onClick={(e) => e.stopPropagation()}
       >
         {isReveal && revealData ? (
-          <PasswordReveal
-            personName={revealData.personName}
-            password={revealData.password}
-            email={revealData.email}
-            context="create"
-            onDone={handleRevealDone}
-            headingId={REVEAL_HEADING_ID}
-            warningId={REVEAL_WARNING_ID}
-          />
+          <div className="p-6">
+            <PasswordReveal
+              personName={revealData.personName}
+              password={revealData.password}
+              email={revealData.email}
+              context="create"
+              onDone={handleRevealDone}
+              headingId={REVEAL_HEADING_ID}
+              warningId={REVEAL_WARNING_ID}
+            />
+          </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
-            <h2
-              id={titleId}
-              className="heading font-jakarta font-semibold mb-4"
-              style={{ color: 'var(--foreground)' }}
-            >
-              Add person
-            </h2>
-
-            {/* Full name */}
-            <div className="mb-3">
-              <TextInput
-                id={nameId}
-                label="Full name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                error={!!nameError}
-                fullWidth
-                required
-                disabled={isSubmitting}
-                aria-describedby={nameError ? `${nameId}-err` : undefined}
-              />
-              {nameError && (
-                <p
-                  id={`${nameId}-err`}
-                  className="text-xs mt-1"
-                  style={{ color: 'var(--field-error-text)' }}
-                  role="alert"
-                >
-                  {nameError}
-                </p>
-              )}
+            {/* Header — considered title + caption, hairline divider seams it to the body */}
+            <div className="px-6 pt-6 pb-4">
+              <h2
+                id={titleId}
+                className="heading text-xl font-semibold"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Add person
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                Create a directory entry, and optionally a sign-in.
+              </p>
             </div>
+            <div style={{ borderTop: '1px solid var(--border)' }} />
 
-            {/* Email */}
-            <div className="mb-3">
-              <TextInput
-                id={emailId}
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                fullWidth
-                disabled={noEmail || isSubmitting}
-                aria-disabled={noEmail || undefined}
-              />
-
-              {/* No email checkbox */}
-              <label className="mt-2 flex items-center gap-2 cursor-pointer select-none text-sm">
-                <Checkbox
-                  checked={noEmail}
-                  onChange={(v) => setNoEmail(v)}
+            {/* Body — consistent field rhythm */}
+            <div className="flex flex-col gap-5 px-6 py-5">
+              {/* Full name */}
+              <div className="flex flex-col gap-1.5">
+                <TextInput
+                  id={nameId}
+                  label="Full name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  error={!!nameError}
+                  fullWidth
+                  required
                   disabled={isSubmitting}
-                  aria-label="No email — this person has no email"
+                  aria-describedby={nameError ? `${nameId}-err` : undefined}
                 />
-                <span>No email</span>
-              </label>
+                {nameError && (
+                  <p
+                    id={`${nameId}-err`}
+                    className="text-xs"
+                    style={{ color: 'var(--field-error-text)' }}
+                    role="alert"
+                  >
+                    {nameError}
+                  </p>
+                )}
+              </div>
 
-              {/* Synthetic email preview */}
-              {noEmail && syntheticEmail && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  Sign-in name:{' '}
-                  <code style={{ fontFamily: 'var(--font-mono)' }}>{syntheticEmail}</code>
-                </p>
-              )}
-            </div>
-
-            {/* Access roles */}
-            <fieldset className="mb-4">
-              <legend className="text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
-                Access roles
-              </legend>
+              {/* Email + "no email" affordance */}
               <div className="flex flex-col gap-2">
-                {(ASSIGNABLE_ROLES as readonly string[]).map((role) => {
-                  // At create-time the new person is never the actor — self-assign guard never
-                  // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
-                  const isDisabled = isSubmitting
-
-                  return (
-                    <label
-                      key={role}
-                      className={`flex items-center gap-2 text-sm ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      <Checkbox
-                        checked={selectedRoles.has(role)}
-                        onChange={() => !isDisabled && toggleRole(role)}
-                        disabled={isDisabled}
-                        aria-label={role}
-                      />
-                      <span>{role}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </fieldset>
-
-            {/* Create a login now toggle */}
-            <div className="mb-4">
-              <div className="flex items-center gap-3">
-                <Toggle
-                  value={createLoginNow}
-                  onChange={(v) => setCreateLoginNow(v)}
-                  disabled={isSubmitting}
-                  aria-label="Create a login now"
+                <TextInput
+                  id={emailId}
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  fullWidth
+                  disabled={noEmail || isSubmitting}
+                  aria-disabled={noEmail || undefined}
                 />
-                <span className="text-sm" style={{ color: 'var(--foreground)' }}>
-                  Create a login now
-                </span>
+
+                {/* "No email" toggle row — gets its own breathing room (no longer cramped) */}
+                <label
+                  className={`flex items-center gap-2.5 select-none text-sm ${
+                    isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <Checkbox
+                    checked={noEmail}
+                    onChange={(v) => setNoEmail(v)}
+                    disabled={isSubmitting}
+                    aria-label="No email — this person has no email"
+                  />
+                  <span>This person has no email</span>
+                </label>
+
+                {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
+                {noEmail && syntheticEmail && (
+                  <div
+                    className="rounded-md px-3 py-2"
+                    style={{ background: 'var(--secondary)' }}
+                  >
+                    <div
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    >
+                      Sign-in name
+                    </div>
+                    <code
+                      className="mt-0.5 block text-sm"
+                      style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}
+                    >
+                      {syntheticEmail}
+                    </code>
+                  </div>
+                )}
               </div>
-              {createLoginNow && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  A temporary password will be shown once after you create.
+
+              {/* Access roles — neat selectable rows in a grouped, bordered container */}
+              <fieldset className="flex flex-col gap-1.5">
+                <legend
+                  className="mb-1 text-sm font-medium"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  Access roles
+                </legend>
+                <div
+                  className="overflow-hidden rounded-md"
+                  style={{ border: '1px solid var(--border)' }}
+                >
+                  {(ASSIGNABLE_ROLES as readonly string[]).map((role, i) => {
+                    // At create-time the new person is never the actor — self-assign guard never
+                    // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
+                    const isDisabled = isSubmitting
+                    const meta = ROLE_META[role] ?? { label: role, description: '' }
+
+                    return (
+                      <label
+                        key={role}
+                        className={`flex items-start gap-3 px-3 py-2.5 ${
+                          isDisabled
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer hover:bg-accent/60'
+                        }`}
+                        style={
+                          i > 0 ? { borderTop: '1px solid var(--border)' } : undefined
+                        }
+                      >
+                        <span className="mt-0.5">
+                          <Checkbox
+                            checked={selectedRoles.has(role)}
+                            onChange={() => !isDisabled && toggleRole(role)}
+                            disabled={isDisabled}
+                            aria-label={meta.label}
+                          />
+                        </span>
+                        <span className="flex flex-col">
+                          <span
+                            className="text-sm font-medium leading-tight"
+                            style={{ color: 'var(--foreground)' }}
+                          >
+                            {meta.label}
+                          </span>
+                          <span
+                            className="text-xs leading-snug"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            {meta.description}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+
+              {/* Create a login now — aligned switch row + helper */}
+              <div className="flex flex-col gap-1.5">
+                <label
+                  className={`flex items-center gap-3 select-none ${
+                    isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                >
+                  <Toggle
+                    value={createLoginNow}
+                    onChange={(v) => setCreateLoginNow(v)}
+                    disabled={isSubmitting}
+                    aria-label="Create a login now"
+                  />
+                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                    Create a login now
+                  </span>
+                </label>
+                <p
+                  className="text-xs"
+                  style={{
+                    color: 'var(--muted-foreground)',
+                    paddingLeft: 'calc(28px + 0.75rem)',
+                  }}
+                >
+                  {createLoginNow
+                    ? 'A temporary password will be shown once after you create.'
+                    : 'Off: a directory entry only — you can add a sign-in later.'}
                 </p>
+              </div>
+
+              {/* Form-level error */}
+              {submitError && (
+                <ErrorState message="Couldn't create this person. Try again." />
               )}
             </div>
 
-            {/* Form-level error */}
-            {submitError && (
-              <ErrorState message="Couldn't create this person. Try again." className="mb-3" />
-            )}
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2">
+            {/* Footer — seamed below a hairline, flat utility surface */}
+            <div style={{ borderTop: '1px solid var(--border)' }} />
+            <div className="flex items-center justify-end gap-2 px-6 py-4">
               <Button
                 type="button"
                 variant="ghost"
