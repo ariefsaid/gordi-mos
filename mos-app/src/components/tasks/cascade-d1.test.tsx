@@ -149,7 +149,7 @@ describe('FR-231 — Work-line option in the Group chip', () => {
     await waitFor(() => screen.getByText('A task'))
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
-    expect(options).toContain('Work-line')
+    expect(options).toContain('Project/Process')
   })
 })
 
@@ -290,7 +290,7 @@ describe('FR-234 — Work-line and Objective columns appear in the table', () =>
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('columnheader', { name: /work-line/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /project\/process/i })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /objective/i })).toBeInTheDocument()
   })
 

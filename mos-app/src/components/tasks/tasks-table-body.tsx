@@ -217,7 +217,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             </th>
             {/* FR-234: Work-line + Objective columns — shown in non-condensed view */}
             {!condensed && (
-              <th scope="col" className="th-cell">Work-line</th>
+              <th scope="col" className="th-cell">Project/Process</th>
             )}
             {!condensed && (
               <th scope="col" className="th-cell">Objective</th>

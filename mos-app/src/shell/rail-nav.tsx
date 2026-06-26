@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { SECTIONS, KITCHEN_SECTIONS, ADMIN_SECTIONS } from './sections'
+import { SECTIONS, KITCHEN_SECTIONS, ADMIN_SECTIONS, CATALOG_SECTIONS } from './sections'
 import type { Section } from './sections'
 import { SettingsIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
@@ -53,6 +53,11 @@ export function RailNav({ onNavigate }: RailNavProps) {
   const hasElevatedKitchenAccess = KITCHEN_ELEVATED_ROLES.some((r) => accessRoles.includes(r))
   const isAdmin = accessRoles.includes('admin')
 
+  // Cascade catalog (OD-C-2): each item shows only when the viewer holds a role that may write it.
+  const visibleCatalogSections = CATALOG_SECTIONS.filter((s) =>
+    s.anyOf.some((r) => accessRoles.includes(r)),
+  )
+
   // Log, Plan, Stock → all authenticated users.
   // Review, Pushes → ops_lead / admin only.
   const visibleKitchenSections = KITCHEN_SECTIONS.filter((s) => {
@@ -73,6 +78,10 @@ export function RailNav({ onNavigate }: RailNavProps) {
         </div>
         <div className="flex flex-col gap-[2px]">
           {SECTIONS.map((section) => (
+            <NavItem key={section.path} section={section} onNavigate={onNavigate} />
+          ))}
+          {/* Cascade catalog (OD-C-2) — role-gated, sits under Tasks in Workspace. */}
+          {visibleCatalogSections.map((section) => (
             <NavItem key={section.path} section={section} onNavigate={onNavigate} />
           ))}
         </div>

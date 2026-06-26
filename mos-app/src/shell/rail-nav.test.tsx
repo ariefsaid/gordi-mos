@@ -332,3 +332,38 @@ describe('AC-070: Admin nav group', () => {
     expect(link).toHaveAttribute('aria-current', 'page')
   })
 })
+
+// ── Cascade catalog nav (OD-C-2, AC-002/AC-003 spec cascade-catalog) ───────────
+describe('AC-002/003: cascade catalog nav visibility', () => {
+  it('AC-002: plain member sees neither Objectives nor Projects & Processes', () => {
+    setAuthAs(['member'])
+    renderRailNav('/tasks')
+    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
+  })
+
+  it('AC-003: ops_lead sees Projects & Processes but NOT Objectives (admin-only)', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Objectives' })).toBeNull()
+  })
+
+  it('AC-002: admin sees BOTH Objectives and Projects & Processes', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+  })
+
+  it('catalog links carry their hrefs', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/objectives')
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' }))
+      .toHaveAttribute('href', '/projects-processes')
+  })
+})

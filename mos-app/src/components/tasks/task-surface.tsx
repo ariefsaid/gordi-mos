@@ -241,7 +241,7 @@ function ViewSurface({
     try {
       await updateTaskFields(localTask.id, { work_line_id: workLineId }, viewerId)
       await refetchEvents(localTask.id)
-      announce('Work-line updated')
+      announce('Project/Process updated')
     } catch {
       setLocalTask(prev)
       announce(ROLLBACK_MSG)
@@ -861,17 +861,18 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
           )}
         </div>
 
-        {/* Work-line (optional) — non-blocking; renders once lookups arrive */}
+        {/* Project/Process (optional) — non-blocking; renders once lookups arrive.
+            UI term is Project/Process (OD-C-2 / ADR-0015); table stays mos.work_lines. */}
         {workLinesDir.length > 0 && (
           <div className="tc-field">
-            <label htmlFor="task-workline" className="tc-label">Work-line</label>
+            <label htmlFor="task-workline" className="tc-label">Project/Process</label>
             <select
               id="task-workline"
               className="tc-select"
               value={workLineId}
               onChange={e => setWorkLineId(e.target.value)}
               disabled={submitting}
-              aria-label="Work-line"
+              aria-label="Project/Process"
             >
               <option value="">— None —</option>
               {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}

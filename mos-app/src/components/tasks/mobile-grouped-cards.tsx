@@ -96,7 +96,7 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
           </span>
           {/* FR-234: Work-line + Objective in mobile card */}
           <span className="task-card-meta-pair">
-            <dt>Work-line</dt>
+            <dt>Project/Process</dt>
             <dd className="td-empty-inline">{workLineName || '—'}</dd>
           </span>
           <span className="task-card-meta-pair">
