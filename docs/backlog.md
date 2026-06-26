@@ -9,16 +9,27 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
-> **Current main (2026-06-22):** kitchen Module fully shipped to main (DB substrate #45,
-> access-role layer #41/#43, UI #62, nav #64, seed #65, log_date bug fix #66). UI-revamp
-> workstream (PRs #29..#56) also on main.
+> **Current main (2026-06-25):** kitchen Module shipped (#45/#41/#43/#62/#64/#65/#66); UI-revamp on main;
+> **Strategy→Execution cascade FIRST SLICE SHIPPED** — PR #69 (task-centric: `objective_id`/`work_line_id`
+> on `mos.tasks` + `mos.objectives`/`mos.work_lines` lookups + group-by-work-line + workload caption +
+> pickers) and follow-ups PR #70 (app-shell mobile-overflow fix, ADR-0015 naming lock, curated e2e AC-230,
+> machine **pre-merge review gate** `scripts/pre-merge-check.sh`). Memory: `cascade-first-slice-state`.
 >
-> **Active branch — `feat/kitchen-log-redesign` (OD-K-5, NOT merged):** the shipped stepper kitchen UI
-> was rejected by the owner; a full redesign (dense data-table ≥768px + KPI strip + floor-fast phone
-> cards <768px) is **built, reviewed, and verified across all 4 functional screens** (Log · Plan ·
-> Pesanan · Stock · Review) on that branch. Awaiting owner visual sign-off → Director merge. **This is
-> the top outstanding item** (see ⏳ Kitchen UI redesign below). Two open PRs: **#57** (e2e auth fix,
-> non-blocking) and **#67** (the earlier doc-consolidation — *superseded by this branch*; close on merge).
+> **Staging is LIVE (2026-06-25):** Supabase Cloud + Cloudflare Pages at **https://gordi-mos.pages.dev/mos/**
+> (testing only; **prod stays self-hosted**, ADR-0010). Setup + 6 gotchas in `docs/environments.md` (staging
+> row) + memory `staging-deploy-state`. Cloud ref `hvnwcsmkdeqmgqlbwflm` (Singapore); DB connection string +
+> Teable PAT in op (vault `AS`).
+>
+> **In flight (2026-06-25):**
+> 1. **Kitchen data migration** Teable→`ops` (48 products / 521 logs / 528 plans, 2026-05-17→06-25) —
+>    PULLED + mapping + owner-decisions locked; **LOAD pending** (memory `kitchen-data-migration`). Must carry
+>    `posted_to_esb`/`esb_doc_num`/`posted_at` verbatim → **no ESB re-POST clash** (app is in live use). batch_id
+>    nulled (Teable 80 batch_ids / 505 logs vs ops UNIQUE). Replaces the test-seed kitchen data. 3 staff people
+>    (Riri=riri@gordi.id; Ibnu/Ansori=meta placeholder emails).
+> 2. **Concurrent agent** building kitchen **feature-parity + the ESB-push oracle in a worktree** —
+>    coordinate, disjoint paths ([[mos-multiagent-git-gotchas]]); don't collide on ops kitchen schema/worker.
+> 3. Open PR **#57** (e2e auth fix, non-blocking). The old `feat/kitchen-log-redesign` redesign + #67
+>    doc-consolidation merged/superseded earlier.
 >
 > Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main
 > before merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset`
