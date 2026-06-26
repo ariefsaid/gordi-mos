@@ -471,8 +471,9 @@ boundary; `source_ref` shape.*
 validation target.** The ESB is the immutable system of record (OD-P4-1 / ADR-0010 D1); a logic bug, a
 smoke test, or a botched migration must never mutate production ERP data — the kitchen project's Phase-4
 live-probe-vs-prod pain is exactly what this prevents. **The staging sandbox is real:** ESB branch **`GOO`**,
-base URL **`stg-erp.esb.co.id`** (Phase-4 follow-up); production is **GKID**, served at
-**`services.esb.co.id`**. The **outbox worker (OD-P4-5 / ADR-0012 D2) carries an explicit ESB-target
+base URL **`stg7.esb.co.id/core-stg`** (verified live 2026-06-26 — the earlier `stg-erp.esb.co.id`
+coordinate was the ESB **web UI**, not the API; see `docs/reference/esb-goo-integration.md`); production
+is **GKID**, served at **`services.esb.co.id/core`**. The **outbox worker (OD-P4-5 / ADR-0012 D2) carries an explicit ESB-target
 setting (staging vs production)**; **non-prod/dev/test environments default to staging (`GOO`)**. Logic
 validation, smoke tests, and the **one-time migration's `posted_to_esb`-survival proof (ADR-0012 D4)** run
 against **staging first**; production GKID is touched only **after** staging-verified, via the proven
@@ -625,9 +626,12 @@ then the **Teable poller is the sole GKID writer**. In-person training + onboard
 Guardrail: an `ESB_PUSH_ENABLED`-style flag, default-safe (mirrors the existing app).
 
 ### OD-K-3 — GOO staging = functional parity, TEST DATA only
-The ESB staging sandbox (branch `GOO`, `stg-erp.esb.co.id`) validates ESB **call mechanics** but holds only
-test data — NOT GKID's real product/BOM IDs. Real-data/real-ID validation is the **single-WIP proof-push on
-GKID** at the switch. (Refines OD-P4-6.)
+The ESB staging sandbox (branch `GOO`, Core API `stg7.esb.co.id/core-stg`) validates ESB **call mechanics**
+but holds only test data — NOT GKID's real product/BOM IDs. Real-data/real-ID validation is the
+**single-WIP proof-push on GKID** at the switch. (Refines OD-P4-6.) **Verified 2026-06-26:** the Transfer
+path (`/simple-transfer`) round-trips on GOO; the Production path (`/assembly-actual`) **cannot** be
+validated on GOO (GOO's `SAE` tenant is standard-costing → `/assembly-actual` returns `EC03100004`), so the
+assembly proof is the GKID flip push only. Full details: `docs/reference/esb-goo-integration.md`.
 
 ### OD-K-4 — No double-post to production GKID (hard safety)
 Across retries, crashes, both push paths, and the migration, the system guarantees **at most one** ESB

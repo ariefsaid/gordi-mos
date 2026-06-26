@@ -59,6 +59,16 @@
   route is not deployed), the simple-transfer body, the branch/location IDs (Bungur branch 8 / loc 15;
   Radiant branch 4 / loc 7), and the doc-number parse (`simpleManufacturingNum` / `simpleTransferNum`)
   are **locked by the oracle** (`esb_client.py`, `esb_poller.py`) and reproduced, not redesigned.
+  > **Costing-model caveat (verified live 2026-06-26 — sharpens FR-083/AC-094).** The actual-costing
+  > vs standard-costing split is **tenant-specific** and is **NOT symmetric across GKID and GOO**. GKID
+  > (the production tenant) is **actual-costing**: the worker posts Production to
+  > `/production/simple-manufacturing/assembly-actual` because GKID's standard `/assembly` route is not
+  > deployed there. **GOO's `SAE` tenant is the opposite — a STANDARD-costing tenant**: live-confirmed,
+  > `/assembly-actual` returns `EC03100004 "page does not exist"` on GOO, and only the standard
+  > `/assembly` route exists there. **Consequence:** the worker's `assembly-actual` Production call
+  > **cannot be validated on GOO** — GOO can validate auth + the Transfer path + response-envelope
+  > mechanics, but **not** the actual-costing assembly POST. The Production/assembly real-proof is
+  > therefore the single-WIP **GKID** push at the flip (FR-083, AC-094); GOO cannot stand in for it.
 - **The MOS app shell, Tasks, Weekly Updates, the manual Daily Log feed** — unchanged. The Module adds
   the `origin = 'kitchen'` summary-mirror write into the existing `ops.log_entries`; it does not reshape
   that table or its feed.
@@ -137,7 +147,7 @@ exactly.
 | **status** (kitchen log) | `Submitted` (default on insert) → `Approved` or `Rejected`. **Approved** is the GIGO gate: only Approved logs count toward stock and ESB. Reversible only via re-review (not modelled as hard delete). |
 | **batch_id** | `<PREFIX>-YYYYMMDD-NNN` minted **at approval** (PR=Production, TR=Transfer to Radiant, TB=Transfer to Bungur; daily counter per (prefix, date)). Groups Approved logs into **one ESB call per batch** ([oracle] `mint_batch_id`, `poll_once` grouping). |
 | **ESB push (outbox row)** | `integrations.esb_push` — one durable, Module-agnostic row **per batch**, carrying the target endpoint + composed payload + `dedup_key` + `target_env` (`goo` / `gkid` / `dry_run`) + `status` + `retry_count` + `esb_doc_num`. Central dedup prevents double-post (ADR-0012). |
-| **target_env** | The ESB destination for a push row: **`gkid`** (production, real inventory), **`goo`** (`stg-erp.esb.co.id` staging — functional parity, TEST DATA only — OD-K-3), or **`dry_run`** (no call, sentinel doc). **Before the flip the worker emits only `goo` / `dry_run`** (OD-K-4, NFR-001). |
+| **target_env** | The ESB destination for a push row: **`gkid`** (production, real inventory), **`goo`** (ESB Core API staging `stg7.esb.co.id/core-stg`, branch `GOO`, company `SAE` — functional parity, TEST DATA only — OD-K-3), or **`dry_run`** (no call, sentinel doc). **Before the flip the worker emits only `goo` / `dry_run`** (OD-K-4, NFR-001). *(Verified live 2026-06-26: the kitchen worker's manufacturing/transfer endpoints are the ESB **Core API**, base `stg7.esb.co.id/core-stg` for staging — NOT `stg-erp.esb.co.id`, which is the ESB **web UI** and 302s→/site/login / 500s on API paths. Core API auth is by **login (username/password)**, NOT a static bearer — see FR-075/FR-080.)* |
 | **Daily Log summary mirror** | The `ops.log_entries` row (`origin = 'kitchen'`, `event_type = 'production'`, business unit = Kitchen and Bar) written on approval so the kitchen happening appears in the cross-Module **Daily Log** (ADR-0012, CONTEXT.md "Log entry"). It has **no** owner/RACI/status — it is a one-line floor record, distinct from the kitchen log it summarizes. |
 | **Access role** | `admin` / `ops_lead` / `finance` / `member` (+ derived `manager`) per ADR-0011. Kitchen loggers = `member`; approvers = `ops_lead`. |
 | **The flip** | The single atomic operational cutover (OD-K-2): worker target switches `goo`→`gkid` **and** the Teable poller stops — the one moment production ESB writes move to the new Module. Owner-gated. |
@@ -316,6 +326,15 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
   origin = dest = loc 15); **Transfer to Radiant → `/simple-transfer`** (origin loc 15 → dest loc 7,
   `productDetailID = esb_product_detail_id_porsi`, `qty = qty_porsi`); **Transfer to Bungur → NO ESB
   call** — close with the sentinel doc num `N/A (ESB no-op)` and the skip note ([oracle] `esb_poller`).
+  > **Transfer path — VALIDATED live against GOO (round-trip evidence, 2026-06-26).** The
+  > `Transfer to Radiant` path (`/simple-transfer`) is **not** costing-model-specific and works on GOO.
+  > Verified: POST `/simple-transfer` to `stg7.esb.co.id/core-stg` with the app's exact
+  > `post_simple_transfer` body and **GOO's own sandbox IDs** (branch 176 "Gordi Outlet", location 510,
+  > product 69 "Air Mineral") returned HTTP 200 with `simpleTransferNum STF202606260001`, and the record
+  > read back from GOO confirmed it. This exercises the request shape, login auth, and the
+  > `simpleTransferNum` parse end to end. (FR-084-safe: GOO sandbox IDs only, never GKID-real IDs.)
+  > The **Production/assembly-actual** path is the exception — it cannot be validated on GOO (GOO's `SAE`
+  > tenant is standard-costing; see §"Out of scope" costing-model caveat and FR-083/AC-094).
 - **FR-072** The worker shall be **idempotent**: a push row already `posted` (or whose `dedup_key`
   already resolved to an ESB doc) shall **never** be re-posted; a retry after a worker crash or a
   duplicate enqueue shall produce **at most one** ESB document per batch (ADR-0012, OD-K-4).
@@ -328,19 +347,21 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
   `MAX_RETRY`).
 - **FR-075** The worker shall handle ESB **auth** internally (login, refresh-once-on-401, re-login on
   refresh failure) so the push pipeline never surfaces auth to the caller ([oracle]
-  `esb_client._TokenManager`).
-- **FR-076** The worker shall parse the ESB doc number from the success envelope
-  (`simpleManufacturingNum` / `simpleTransferNum`, with the legacy `# <num>` string fallback) ([oracle]
-  `_parse_doc_num_from_dict`).
-- **FR-077** The worker shall provide a **primary event-fire path** (push fires promptly after approval)
-  **and** a **safety-net periodic sweep** of `pending`/retryable rows, serialized so the two paths
-  cannot double-post the same batch ([oracle] `kick()` + `poller_loop` + `_poll_lock`; the DB
-  `dedup_key` is the durable cross-process guarantee the oracle's in-process lock could not give).
+  `esb_client._TokenManager`). **The kitchen worker's Core API uses LOGIN auth (username/password),
+  NOT a static bearer token** (verified live 2026-06-26: login with the `esb-staging` creds against
+  `stg7.esb.co.id/core-stg` returns a 357-char session token, company `SAE`; the
+  `esb-staging-static-token` (op://Gordi) is the Static Bearer for the separate ESB **OMS read API**
+  `core-api.esb.co.id` `/corev1/*` — menu/sales/BOM, used by the warehouse sync — and **401s** on the
+  Core API). A future agent must not attempt the static token against the worker's endpoints.
 
 ### target environment + the no-double-post safety constraint (OD-K-3/4)
 - **FR-080** The system shall stamp each push row's `target_env` and the worker shall route the call to
-  that environment: **`goo`** → `stg-erp.esb.co.id` (functional parity, TEST DATA only — OD-K-3);
-  **`gkid`** → production `services.esb.co.id/core`; **`dry_run`** → no call, sentinel doc.
+  that environment: **`goo`** → ESB Core API staging `stg7.esb.co.id/core-stg` (branch `GOO`, company
+  `SAE`; functional parity, TEST DATA only — OD-K-3); **`gkid`** → production `services.esb.co.id/core`;
+  **`dry_run`** → no call, sentinel doc. *(Verified live 2026-06-26 — the prior `stg-erp.esb.co.id` was
+  a documentation error: that host is the ESB **web UI** (302→/site/login; 500 on API paths), not the
+  Core API. ESB's own staging tiers are Staging-INT `stg7.esb.co.id/core`, Staging
+  `stg7.esb.co.id/core-stg`, Prod `services.esb.co.id/core`.)*
 - **FR-081** **Before the flip**, the system shall emit push rows with `target_env ∈ {goo, dry_run}`
   **only** — **never `gkid`** — so the new worker performs **zero** production GKID writes during the
   parallel run (OD-K-4, NFR-001). The pre-flip target is a **deployment-enforced** constraint (config
@@ -348,20 +369,29 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 - **FR-082** The **flip** (OD-K-2) shall be a single owner-gated cutover that (a) switches the emitted
   `target_env` to `gkid` and (b) stops the Teable poller — the **one** moment production ESB writes move
   to the new Module. Before the flip the **Teable poller remains the SOLE writer to production GKID**.
-- **FR-083** GOO validates **ESB call mechanics** (request shape, auth, response parsing) but holds
-  **only test data, not GKID's real product/BOM IDs** (OD-K-3); therefore real-data/real-ID validation
-  shall be done by a **single-WIP proof-push on GKID at flip** (one minimal real batch, verified end to
-  end), recorded as the flip's acceptance step (FR-082, AC-094).
+- **FR-083** GOO validates **ESB call mechanics** (request shape, auth, response parsing) for the
+  **Transfer path** (`/simple-transfer` — round-trip-confirmed live on GOO, FR-071) but holds **only
+  test data, not GKID's real product/BOM IDs** (OD-K-3). **Furthermore, the Production/assembly path
+  cannot be validated on GOO at all**: GOO's `SAE` tenant is **standard-costing**, so
+  `/production/simple-manufacturing/assembly-actual` returns `EC03100004 "page does not exist"` there —
+  only the standard `/assembly` route exists on GOO, while GKID is actual-costing and the worker posts
+  `assembly-actual` (verified live 2026-06-26; see §"Out of scope" costing-model caveat). **Therefore
+  the actual-costing Production/assembly real-proof MUST be the single-WIP GKID push at the flip** — GOO
+  cannot stand in for it. Real-data/real-ID validation (and the assembly-actual route itself) is done by
+  a **single-WIP proof-push on GKID at flip** (one minimal real batch, verified end to end), recorded as
+  the flip's acceptance step (FR-082, AC-094).
 - **FR-084 (GOO is an UNTRUSTED ENVIRONMENT — confidentiality).** ESB's GOO staging
-  (`stg-erp.esb.co.id`) is **open to all ESB tenants**, so the **environment** is not secure — anything we
-  send there is exposed to other parties. (ESB's *responses* from GOO are legitimate and trusted; the risk
-  is **confidentiality of what we send**, not response integrity.) The worker shall therefore send **test
-  data only** to `goo` — **never** real product/BOM IDs, secrets, credentials, customer/PII, or any
-  GKID-real identifiers, since those would be exposed in the open env. `dry_run` performs **no network call
-  at all** (it is NOT a send to GOO). Real/production data flows to `gkid` **only**, and only at the flip
-  (FR-081/FR-082). **Security-auditor checkpoint (when the worker is built):** prove no code path can emit
-  real data or secrets to `goo`, and that the default/unset target is the safe one (`dry_run`/`goo`), never
-  `gkid` (FR-081). (Owner constraint, 2026-06-20 — strengthens OD-K-3.)
+  (`stg7.esb.co.id/core-stg`) is **open to all ESB tenants**, so the **environment** is not secure —
+  anything we send there is exposed to other parties. (ESB's *responses* from GOO are legitimate and
+  trusted; the risk is **confidentiality of what we send**, not response integrity.) The worker shall
+  therefore send **test data only** to `goo` — **never** real product/BOM IDs, secrets, credentials,
+  customer/PII, or any GKID-real identifiers, since those would be exposed in the open env. (Live GOO
+  validation has used **GOO's own sandbox IDs** — branch 176, location 510, product 69 — never
+  GKID-real IDs, FR-071/FR-083.) `dry_run` performs **no network call at all** (it is NOT a send to
+  GOO). Real/production data flows to `gkid` **only**, and only at the flip (FR-081/FR-082).
+  **Security-auditor checkpoint (when the worker is built):** prove no code path can emit real data or
+  secrets to `goo`, and that the default/unset target is the safe one (`dry_run`/`goo`), never `gkid`
+  (FR-081). (Owner constraint, 2026-06-20 — strengthens OD-K-3.)
 
 ### Daily Log summary mirror (ADR-0012) — ⚠️ DEFERRED (parity-first, 2026-06-20)
 > The OLD kitchen app has no Daily Log, and MOS's Daily Log UI is currently flag-hidden, so this
@@ -399,7 +429,11 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
   existing app's proven **`ESB_PUSH_ENABLED`** guardrail (default = **off** → GOO/dry-run, with a
   sentinel doc on dry-run). The flag is flipped to GKID **only by a manual owner action** (the flip,
   FR-082) — paired with stopping the Teable poller and the single-WIP GKID proof-push (FR-083). **No
-  automated or scheduled switch exists.**
+  automated or scheduled switch exists.** The worker reads its GOO target from **`ESB_GOO_BASE_URL`**
+  (default `stg7.esb.co.id/core-stg`) and authenticates per-env via **`ESB_GOO_USERNAME` /
+  `ESB_GOO_PASSWORD`** for the `goo` route (the GOO route uses the `esb-staging` creds) while the `gkid`
+  route uses the global `ESB_GKID_*` creds (shipped in kitchen-app PR #2). The deploy must supply these
+  for the GOO/dry-run parallel run; the `ESB_GKID_*` creds are wired but only reached at the flip.
 
 ---
 
@@ -426,10 +460,15 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 - **NFR-004 (Staging-first ESB).** ESB call mechanics shall be validated against **GOO staging** before
   any GKID write; GKID is reached only post-flip and is first exercised by the **single-WIP proof-push**
   (OD-K-3, FR-083). The worker's default/unset target shall be the **safe** one (`goo`/`dry_run`), never
-  `gkid` — fail safe, not fail open (Gordi standing directive: ESB tests hit GOO first).
+  `gkid` — fail safe, not fail open (Gordi standing directive: ESB tests hit GOO first). **Caveat
+  (verified 2026-06-26):** GOO validates the **Transfer** path end to end but **cannot** validate the
+  actual-costing **Production/assembly-actual** path (GOO's `SAE` tenant is standard-costing — FR-083);
+  the assembly route's only real proof is the single-WIP GKID push at the flip.
 - **NFR-005 (Secrets).** All ESB and Supabase credentials shall be supplied via the platform secret
   store (never committed, never in client code); the worker holds the ESB service credentials, the PWA
-  never does (ADR-0010, standing safety directive).
+  never does (ADR-0010, standing safety directive). The GOO route's `ESB_GOO_USERNAME` /
+  `ESB_GOO_PASSWORD` (the `esb-staging` creds) and the GKID route's `ESB_GKID_*` creds are both supplied
+  via the secret store, never committed (FR-101).
 - **NFR-006 (Latency parity).** On the **post-flip production path**, an approval shall produce an ESB
   document within **~1–2s** typical (the oracle's event-fire `kick()` latency), with the safety-net
   sweep as backstop ([oracle] esb_poller docstring "ESB doc lands 1–2s after approval").
@@ -596,15 +635,22 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 - **AC-092 [e2e]** **Transfer-to-Bungur is an ESB no-op end-to-end.** Given an approved Transfer-to-Bungur
   batch, When the worker drains the outbox (pre-flip target), Then **no** ESB call is made, the row
   closes with the sentinel doc, and the kitchen logs show posted with the skip note — FR-071, AC-052.
+  > **Live GOO Transfer evidence (2026-06-26):** the sibling `Transfer to Radiant` path was round-trip
+  > validated against live GOO (`stg7.esb.co.id/core-stg`, `/simple-transfer`, GOO sandbox IDs) →
+  > HTTP 200, `simpleTransferNum STF202606260001`, read-back confirmed (FR-071/FR-083). The
+  > Transfer-to-Bungur no-op asserted here shares that path's request shape but emits no ESB call.
 - **AC-093 [e2e]** **No double-post across the two push paths.** Given an approval fires the event-path
   push and the safety-net sweep also runs for the same batch, Then the batch yields **exactly one** ESB
   document (stubbed ESB asserts a single call) — FR-072/077, NFR-001.
 - **AC-094 [e2e/operational]** **Flip proof-push (single-WIP on GKID).** Given the flip is executed
   (target → `gkid`, Teable poller stopped), When a **single minimal real WIP batch** is approved, Then
   exactly one real ESB document is created on GKID, verified end to end, and no Teable-side post occurs
-  for the same activity — FR-082/083, NFR-001/004. *(Operational acceptance at flip; automated portion
-  asserts target routing + single-call against the GKID-shaped stub — the real GKID post is the owner-
-  gated manual proof step.)*
+  for the same activity — FR-082/083, NFR-001/004. **This GKID push is the ONLY validation of the
+  actual-costing `/assembly-actual` Production route** — GOO cannot validate it (GOO's `SAE` tenant is
+  standard-costing; `/assembly-actual` returns `EC03100004 "page does not exist"` there — FR-083,
+  verified 2026-06-26), so the flip proof-push carries the full weight of proving the Production path on
+  real IDs. *(Operational acceptance at flip; automated portion asserts target routing + single-call
+  against the GKID-shaped stub — the real GKID post is the owner-gated manual proof step.)*
 
 ---
 
@@ -624,6 +670,7 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 | ESB down / timeout on a push | Worker | `retry_count++`, `last_error` stored, row stays retryable; row remains durable in the outbox (FR-074, NFR-010, AC-054). |
 | ESB retry exhaustion (`retry_count ≥ MAX_RETRY`) | Worker | Row → **`dead_letter`**; auto-retry stops; surfaced to ops-leads for manual intervention (FR-074, AC-054). |
 | ESB 401 (expired token) on a call | Worker / esb client | Refresh-once then retry the call; refresh-fail → re-login; never surfaced to caller (FR-075, AC-055). |
+| `/assembly-actual` returns `EC03100004 "page does not exist"` on GOO | Worker / config | Expected on GOO (standard-costing `SAE` tenant — the actual-costing route is not deployed there); the Production path is NOT validated against GOO — its proof is the single-WIP GKID flip push (FR-083, AC-094). The worker must not target `assembly-actual` against `goo`. |
 | Worker crash mid-push / restart | Worker + DB | On restart, durable `pending`/`in_flight` reconciled; idempotency via `dedup_key` + `posted` state prevents re-post (FR-072/077, NFR-010, AC-053). |
 | Both push paths fire for one batch | DB dedup + serialized paths | Exactly one ESB doc (no double-post) (FR-077, NFR-001, AC-093). |
 | Worker target unset / misconfigured | Worker (fail-safe) | Defaults to the **safe** target (`goo`/`dry_run`), never `gkid` (NFR-004, FR-081). |
@@ -654,13 +701,17 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 
 **Worker / FastAPI backend (ADR-0010):**
 - [ ] ESB client port: assembly-actual (BOM-composed materials), simple-transfer, doc-num parse, token
-      mgr (login/refresh/relogin), **target routing** GOO/GKID/dry-run (FR-071/075/076/080).
+      mgr (**login auth — username/password, NOT static bearer**, FR-075), **target routing** GOO/GKID/
+      dry-run (FR-071/075/076/080). Core API base `stg7.esb.co.id/core-stg` for `goo`,
+      `services.esb.co.id/core` for `gkid` (read from `ESB_GOO_BASE_URL`, FR-101).
 - [ ] Outbox worker: drain `pending`, one-call-per-batch dispatch by endpoint, Transfer-to-Bungur no-op,
       idempotency via `dedup_key` + `posted` state, retry → dead_letter, mirror posting history onto
       logs (FR-071..077).
 - [ ] Event-fire path + safety-net sweep, serialized; **pre-flip target = goo/dry_run only**, flip
       switches to gkid + stops Teable poller (FR-077/081/082, NFR-001).
-- [ ] Worker integration tests against a stubbed ESB (AC-050..056, 093).
+- [ ] Worker integration tests against a stubbed ESB (AC-050..056, 093). **Note: the Production/
+      assembly-actual path is stubbed only — GOO cannot validate it live (standard-costing tenant,
+      FR-083); the live GOO check is the Transfer path (round-trip confirmed 2026-06-26).**
 
 **UI (PWA — Kitchen Module surfaces, to DESIGN.md tokens):**
 - [ ] Logging surface (member): action_type tabs, active WIP item list, qty + note inputs, variance
@@ -674,8 +725,13 @@ ADR-0012's stated `origin = 'kitchen'`; the migration is the seam (FR-095).
 **Migration / rollout (OD-K-2):**
 - [ ] Teable→Supabase data migration (master WIP items + plans + logs), preserving posting history
       (FR-096) — timing per §10 open question.
-- [ ] Parallel-run readiness (worker → GOO/dry-run; confidence-building state) (FR-100/101).
+- [ ] Parallel-run readiness (worker → GOO/dry-run; confidence-building state) (FR-100/101). Deploy
+      supplies `ESB_GOO_BASE_URL` + `ESB_GOO_USERNAME`/`ESB_GOO_PASSWORD` (the `esb-staging` creds);
+      `ESB_GKID_*` wired but unreached until the flip (FR-101).
 - [ ] Flip runbook: target→gkid, stop Teable poller, single-WIP GKID proof-push (FR-082/083, AC-094).
+      **The proof-push is the SOLE validation of the actual-costing `/assembly-actual` Production route —
+      GOO cannot stand in (standard-costing `SAE` tenant, FR-083). The Transfer path is GOO-validated;
+      the Production path is GKID-only.**
 
 **E2E (Playwright — curated):**
 - [ ] AC-090 log→approve→outbox+DailyLog; AC-091 variance+production-first gates; AC-092 Bungur no-op;
@@ -718,3 +774,9 @@ decisions blocking sign-off.
    `ops.kitchen_stock` projection recomputed on approval (the oracle's `recompute_stock_for_items`
    style)? Trade-off: stored is queryable/auditable and faster to read but needs consistent recompute;
    computed-on-read is always correct but heavier per query.
+6. **GOO assembly-route validation gap — RESOLVED-as-constraint 2026-06-26 (verified live).** GOO's
+   `SAE` tenant is standard-costing, so the worker's actual-costing `/assembly-actual` Production call
+   cannot be validated on GOO (`EC03100004 "page does not exist"`); only the Transfer path is
+   GOO-validatable. Not a question to resolve — a constraint folded into FR-083 / AC-094 / NFR-004. It
+   raises the weight of the single-WIP GKID flip proof-push for the Production path. *(Recorded, not
+   open.)*

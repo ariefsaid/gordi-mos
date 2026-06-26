@@ -200,8 +200,9 @@ window is brief and the warehouse arrives only **after** Teable leaves:
 2. Stand up **production Supabase on `ris-dev`**.
 3. **Build kitchen as MOS's first ops Module + migrate it** (ADR-0012) → **retire Teable** (~2 GB
    freed). The kitchen ESB write logic + the migration's `posted_to_esb`-survival proof are validated
-   against the **ESB Staging Sandbox first** (ADR-0012 D5: branch `GOO`, `stg-erp.esb.co.id`); production
-   GKID is cut over only via the single-WIP proof-push gate.
+   against the **ESB Staging Sandbox first** (ADR-0012 D5: branch `GOO`, Core API `stg7.esb.co.id/core-stg`
+   — `stg-erp.esb.co.id` was the web UI, corrected 2026-06-26); production GKID is cut over only via the
+   single-WIP proof-push gate.
 4. **Bring the warehouse online** into the freed headroom (D2).
 5. **Then** MOS user rollout — **gated by the D11 security review** (no internet exposure / rollout
    until the hardened box + the auth/RLS/provisioning + outbox surfaces have passed audit).
