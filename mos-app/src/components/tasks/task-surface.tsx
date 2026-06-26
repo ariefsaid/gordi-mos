@@ -485,7 +485,7 @@ function ViewSurface({
               onClick={() => onExpandToggle()}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7" />
+                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
               </svg>
             </button>
           )}
@@ -699,44 +699,53 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
     }
   }
 
-  return (
-    <div className={inDrawer ? `dw-surface tc-create-drawer${expanded ? ' dw-surface-expanded' : ''}` : 'tc-card'}>
-      {inDrawer && (
-        <div className="dw-bar">
-          <span className="dw-crumb-mini">{expanded ? 'New task · full width' : 'New task'}</span>
-          <span className="dw-bar-spacer" />
-          {/* M5: create mode keeps the expand toggle for parity with view mode (mockup Screen 2) */}
-          <button
-            type="button"
-            className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
-            aria-pressed={Boolean(expanded)}
-            aria-label={expanded ? 'Collapse to split (e)' : 'Expand to full width (e)'}
-            title={expanded ? 'Collapse (e)' : 'Expand (e)'}
-            onClick={() => onExpandToggle?.()}
-          >
-            {expanded ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-              </svg>
-            )}
-          </button>
-          <button
-            type="button"
-            className="dw-iconbtn"
-            aria-label="Close (Esc)"
-            title="Close (Esc)"
-            onClick={() => (onClose ? onClose() : navigate('/tasks'))}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+  // M5: create mode keeps the expand toggle for parity with view mode (mockup Screen 2).
+  // The chrome bar renders in BOTH widths — drawer uses .dw-bar, full width uses the
+  // .record-chrome strip above the card (mirrors ViewSurface) so the collapse control
+  // is never lost when expanded promotes the surface to full width.
+  const expandBtn = (
+    <button
+      type="button"
+      className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
+      aria-pressed={Boolean(expanded)}
+      aria-label={expanded ? 'Collapse to split (e)' : 'Expand to full width (e)'}
+      title={expanded ? 'Collapse (e)' : 'Expand (e)'}
+      onClick={() => onExpandToggle?.()}
+    >
+      {expanded ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+        </svg>
       )}
+    </button>
+  )
+  const closeBtn = (
+    <button
+      type="button"
+      className="dw-iconbtn"
+      aria-label="Close (Esc)"
+      title="Close (Esc)"
+      onClick={() => (onClose ? onClose() : navigate('/tasks'))}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+  )
+  const chromeBar = (
+    <div className={inDrawer ? 'dw-bar' : 'dw-bar record-chrome'}>
+      <span className="dw-crumb-mini">{expanded ? 'New task · full width' : 'New task'}</span>
+      <span className="dw-bar-spacer" />
+      {onExpandToggle && expandBtn}
+      {closeBtn}
+    </div>
+  )
+
+  const formMarkup = (
       <form
         onSubmit={handleSubmit}
         noValidate
@@ -939,6 +948,20 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
           </button>
         </div>
       </form>
-    </div>
+  )
+
+  if (inDrawer) {
+    return (
+      <div className={`dw-surface tc-create-drawer${expanded ? ' dw-surface-expanded' : ''}`}>
+        {chromeBar}
+        {formMarkup}
+      </div>
+    )
+  }
+  return (
+    <>
+      {chromeBar}
+      <div className="tc-card">{formMarkup}</div>
+    </>
   )
 }
