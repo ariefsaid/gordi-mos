@@ -156,6 +156,24 @@ describe('ConfirmDialog', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
   })
 
+  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
+  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Archive?"
+        body="Nothing is deleted."
+        confirmLabel="Archive"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    const dialog = screen.getByRole('dialog')
+    // border must be a non-empty inline style (1px solid var(--input))
+    expect(dialog.style.border).toBeTruthy()
+    expect(dialog.style.border).not.toBe('')
+  })
+
   // Focus management (item 4)
   it('moves focus into the dialog on open', async () => {
     render(

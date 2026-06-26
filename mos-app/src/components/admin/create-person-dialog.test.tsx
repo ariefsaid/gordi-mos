@@ -261,4 +261,12 @@ describe('CreatePersonDialog (AC-011)', () => {
 
     await screen.findByText(/couldn't create/i)
   })
+
+  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
+  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+    renderDialog()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.style.border).toBeTruthy()
+    expect(dialog.style.border).not.toBe('')
+  })
 })

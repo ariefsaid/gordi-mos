@@ -219,6 +219,8 @@ export function CreatePersonDialog({
         style={{
           background: 'var(--card)',
           boxShadow: 'var(--shadow-overlay)',
+          border: '1px solid var(--input)',
+          borderRadius: 'var(--radius)',
         }}
         // Prevent bubbling to the backdrop
         onClick={(e) => e.stopPropagation()}
@@ -340,7 +342,7 @@ export function CreatePersonDialog({
                 </legend>
                 <div
                   className="overflow-hidden rounded-md"
-                  style={{ border: '1px solid var(--border)' }}
+                  style={{ border: '1px solid var(--input)' }}
                 >
                   {(ASSIGNABLE_ROLES as readonly string[]).map((role, i) => {
                     // At create-time the new person is never the actor — self-assign guard never
@@ -357,7 +359,7 @@ export function CreatePersonDialog({
                             : 'cursor-pointer hover:bg-accent/60'
                         }`}
                         style={
-                          i > 0 ? { borderTop: '1px solid var(--border)' } : undefined
+                          i > 0 ? { borderTop: '1px solid var(--input)' } : undefined
                         }
                       >
                         <span className="mt-0.5">

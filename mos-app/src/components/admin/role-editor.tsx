@@ -158,7 +158,12 @@ export function RoleEditor({
         aria-modal="true"
         aria-labelledby={titleId}
         className="relative w-full max-w-sm overflow-hidden rounded-lg"
-        style={{ background: 'var(--card)', boxShadow: 'var(--shadow-overlay)' }}
+        style={{
+          background: 'var(--card)',
+          boxShadow: 'var(--shadow-overlay)',
+          border: '1px solid var(--input)',
+          borderRadius: 'var(--radius)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -194,7 +199,7 @@ export function RoleEditor({
             <legend className="sr-only">Access roles for {person.full_name}</legend>
             <div
               className="overflow-hidden rounded-md"
-              style={{ border: '1px solid var(--border)' }}
+              style={{ border: '1px solid var(--input)' }}
             >
               {(ASSIGNABLE_ROLES as readonly string[]).map((role, i) => {
                 const isGranted = person.access_roles.includes(role)
@@ -217,7 +222,7 @@ export function RoleEditor({
                     className={`flex items-start gap-3 px-3 py-2.5 select-none ${
                       isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
                     }`}
-                    style={i > 0 ? { borderTop: '1px solid var(--border)' } : undefined}
+                    style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
                     title={isDisabled ? disabledReason : undefined}
                   >
                     <span className="mt-0.5">

@@ -119,6 +119,8 @@ export function ConfirmDialog({
         style={{
           background: 'var(--card)',
           boxShadow: 'var(--shadow-overlay)',
+          border: '1px solid var(--input)',
+          borderRadius: 'var(--radius)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
