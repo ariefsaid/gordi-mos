@@ -130,4 +130,16 @@ describe('CatalogManager', () => {
     await user.click(screen.getByRole('button', { name: 'Add' }))
     await waitFor(() => expect(create).toHaveBeenCalledWith('New Line', 'process'))
   })
+
+  it('the type select uses the control radius token, not an off-system class (design regression guard)', async () => {
+    setup({
+      noun: 'project / process',
+      nounPlural: 'projects & processes',
+      typeField: { label: 'Type', options: [{ value: 'project', label: 'Project' }] },
+    })
+    await screen.findByText('No projects & processes yet')
+    const typeSelect = screen.getByLabelText('Type')
+    expect(typeSelect.style.borderRadius).toBe('var(--radius-sm)')
+    expect(typeSelect.className).not.toMatch(/rounded-md/)
+  })
 })

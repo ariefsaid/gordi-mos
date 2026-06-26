@@ -5,14 +5,16 @@ import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
 import { ErrorState, EmptyState, SkeletonRows } from '@/components/ui/state-kit'
+import type { TagColor } from '@/components/ui/tag'
 
 // A managed catalog row: id + name + soft-archive flag, plus an optional display
-// meta (e.g. the work-line type label "Project"/"Process").
+// meta (e.g. the work-line type label "Project"/"Process") and its tag color.
 export interface CatalogItem {
   id: string
   name: string
   archived_at: string | null
   meta?: string
+  metaColor?: TagColor
 }
 
 // Optional create-time type field (work-lines have it; objectives don't — FR-013/014).
@@ -164,8 +166,13 @@ export function CatalogManager({
               value={newType}
               onChange={(e) => setNewType(e.target.value)}
               disabled={adding}
-              className="h-8 rounded-md border px-2 text-sm"
-              style={{ borderColor: 'var(--border)', background: 'var(--card)', color: 'var(--foreground)' }}
+              className="h-8 border px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+              style={{
+                borderColor: 'var(--input)',
+                background: 'var(--card)',
+                color: 'var(--foreground)',
+                borderRadius: 'var(--radius-sm)', // control radius token — match the kit input/button beside it
+              }}
             >
               {typeField.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -197,7 +204,7 @@ export function CatalogManager({
             <ul className="flex flex-col gap-1" aria-label={plural}>
               {active.map((item) => (
                 <li key={item.id}
-                  className="flex items-center gap-3 rounded-md border px-3 py-2"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border px-3 py-2"
                   style={{ borderColor: 'var(--border)' }}>
                   {editingId === item.id ? (
                     <form onSubmit={(e) => handleRename(e, item.id)} className="flex grow items-center gap-2">
@@ -217,8 +224,8 @@ export function CatalogManager({
                     </form>
                   ) : (
                     <>
-                      <span className="grow text-sm" style={{ color: 'var(--foreground)' }}>{item.name}</span>
-                      {item.meta && <Tag>{item.meta}</Tag>}
+                      <span className="min-w-0 grow break-words text-sm" style={{ color: 'var(--foreground)' }}>{item.name}</span>
+                      {item.meta && <Tag color={item.metaColor}>{item.meta}</Tag>}
                       <Button variant="ghost" onClick={() => startEdit(item)} aria-label={`Rename ${item.name}`}>Rename</Button>
                       <Button variant="ghost" onClick={() => void handleArchive(item, true)}
                         disabled={savingId === item.id} aria-label={`Archive ${item.name}`}>Archive</Button>
@@ -234,10 +241,10 @@ export function CatalogManager({
                 <ul className="flex flex-col gap-1" aria-label={`archived ${plural}`}>
                   {archived.map((item) => (
                     <li key={item.id}
-                      className="flex items-center gap-3 rounded-md border px-3 py-2 opacity-60"
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border px-3 py-2 opacity-60"
                       style={{ borderColor: 'var(--border)' }}>
-                      <span className="grow text-sm line-through" style={{ color: 'var(--muted-foreground)' }}>{item.name}</span>
-                      {item.meta && <Tag>{item.meta}</Tag>}
+                      <span className="min-w-0 grow break-words text-sm line-through" style={{ color: 'var(--muted-foreground)' }}>{item.name}</span>
+                      {item.meta && <Tag color={item.metaColor}>{item.meta}</Tag>}
                       <Button variant="ghost" onClick={() => void handleArchive(item, false)}
                         disabled={savingId === item.id} aria-label={`Unarchive ${item.name}`}>Unarchive</Button>
                     </li>

@@ -6,9 +6,17 @@ import {
   listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
 } from '@/lib/db/work-lines'
 
+import type { TagColor } from '@/components/ui/tag'
+
 const TYPE_LABEL: Record<'project' | 'process', string> = {
   project: 'Project',
   process: 'Process',
+}
+
+// Distinct tag colors so the type is scannable at a glance (design-review Lens A/D).
+const TYPE_COLOR: Record<'project' | 'process', TagColor> = {
+  project: 'blue',
+  process: 'sand',
 }
 
 export function ProjectsProcessesPage() {
@@ -24,6 +32,7 @@ export function ProjectsProcessesPage() {
           name: w.name,
           archived_at: w.archived_at,
           meta: TYPE_LABEL[w.type],
+          metaColor: TYPE_COLOR[w.type],
         }))
       }
       create={(name, type) => createWorkLine(name, (type as 'project' | 'process'))}
