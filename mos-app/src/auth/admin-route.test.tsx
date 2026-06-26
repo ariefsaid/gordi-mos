@@ -22,10 +22,10 @@ function HomePage() {
 
 function renderAdminRoute() {
   return render(
-    <MemoryRouter initialEntries={['/admin/users']}>
+    <MemoryRouter initialEntries={['/admin/people']}>
       <Routes>
         <Route element={<AdminRoute />}>
-          <Route path="/admin/users" element={<AdminContent />} />
+          <Route path="/admin/people" element={<AdminContent />} />
         </Route>
         <Route path="/" element={<HomePage />} />
       </Routes>

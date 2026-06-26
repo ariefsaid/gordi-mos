@@ -311,22 +311,22 @@ describe('AC-070: Admin nav group', () => {
 
   it('AC-070b: admin viewer sees the Admin group and People nav entry', () => {
     setAuthAs(['admin'])
-    renderRailNav('/admin/users')
+    renderRailNav('/admin/people')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(screen.getByText('Admin')).toBeInTheDocument()
   })
 
-  it('AC-070b: People link has href /admin/users', () => {
+  it('AC-070b: People link has href /admin/people', () => {
     setAuthAs(['admin'])
-    renderRailNav('/admin/users')
+    renderRailNav('/admin/people')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'People' })).toHaveAttribute('href', '/admin/users')
+    expect(within(nav).getByRole('link', { name: 'People' })).toHaveAttribute('href', '/admin/people')
   })
 
-  it('AC-070b: admin viewer — People link is active at /admin/users', () => {
+  it('AC-070b: admin viewer — People link is active at /admin/people', () => {
     setAuthAs(['admin'])
-    renderRailNav('/admin/users')
+    renderRailNav('/admin/people')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const link = within(nav).getByRole('link', { name: 'People' })
     expect(link).toHaveAttribute('aria-current', 'page')

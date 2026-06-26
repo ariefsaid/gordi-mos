@@ -30,7 +30,7 @@ export const KITCHEN_SECTIONS: Section[] = [
 
 // Admin module sections — admin-only; rendered conditionally in the rail.
 export const ADMIN_SECTIONS: Section[] = [
-  { path: '/admin/users', label: 'People', Icon: PeopleIcon },
+  { path: '/admin/people', label: 'People', Icon: PeopleIcon },
 ]
 
 /**

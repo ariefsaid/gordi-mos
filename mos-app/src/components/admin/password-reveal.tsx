@@ -1,10 +1,14 @@
 // PasswordReveal — the show-once password panel (AC-011, NFR-003, design-plan §4.4).
 // Shows the temp password exactly once. Esc + backdrop-dismiss intentionally disabled.
-// role="alertdialog" so the warning is announced on open by AT.
+// role="alertdialog" lives on the parent container in admin-users-page.tsx and
+// create-person-dialog.tsx; the headingId/warningId are passed in so the alertdialog
+// element (not this inner wrapper) owns aria-labelledby/describedby (item 7 fix).
 // Password is dropped from component state when onDone is called (never persisted).
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+
+// Button is still used for the Done button below
 
 export interface PasswordRevealProps {
   personName: string
@@ -12,11 +16,37 @@ export interface PasswordRevealProps {
   email: string | null
   context: 'create' | 'reset'
   onDone: () => void
+  /**
+   * ID for the heading element — must match the aria-labelledby on the parent alertdialog.
+   * Defaults to 'reveal-heading' for backward compat (create-person-dialog).
+   */
+  headingId?: string
+  /**
+   * ID for the warning element — must match the aria-describedby on the parent alertdialog.
+   * Defaults to 'reveal-warning' for backward compat.
+   */
+  warningId?: string
 }
 
-export function PasswordReveal({ personName, password, email, context, onDone }: PasswordRevealProps) {
+export function PasswordReveal({
+  personName,
+  password,
+  email,
+  context,
+  onDone,
+  headingId = 'reveal-heading',
+  warningId = 'reveal-warning',
+}: PasswordRevealProps) {
   const [copied, setCopied] = useState(false)
   const [clipboardBlocked, setClipboardBlocked] = useState(false)
+  const copyBtnRef = useRef<HTMLButtonElement>(null)
+
+  // Move focus to Copy button on open (design-plan §4.4 + §6)
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      copyBtnRef.current?.focus()
+    })
+  }, [])
 
   async function handleCopy() {
     try {
@@ -34,19 +64,15 @@ export function PasswordReveal({ personName, password, email, context, onDone }:
       : `Password reset for ${personName}`
 
   return (
-    // The parent dialog container sets role="alertdialog". This inner wrapper just
-    // provides the labelledby/describedby anchors used by the outer container.
-    <div
-      aria-labelledby="reveal-heading"
-      aria-describedby="reveal-warning"
-    >
-      <h2 id="reveal-heading" className="font-jakarta text-heading font-semibold">
+    <div>
+      <h2 id={headingId} className="font-jakarta text-heading font-semibold">
         {heading}
       </h2>
 
-      {/* Warning banner — "copy this now" — the most important sentence */}
+      {/* Warning banner — "copy this now" — the most important sentence.
+          aria-describedby on the parent alertdialog points here so AT announces it on open. */}
       <div
-        id="reveal-warning"
+        id={warningId}
         className="my-3 flex items-start gap-2 rounded-md px-3 py-2"
         style={{
           background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
@@ -100,14 +126,16 @@ export function PasswordReveal({ personName, password, email, context, onDone }:
             Select and copy manually — clipboard access is unavailable.
           </p>
         ) : (
-          <Button
-            variant="primary"
-            autoFocus
+          // Native button so we can attach a ref for auto-focus on reveal open
+          <button
+            ref={copyBtnRef}
+            type="button"
+            className="btn btn-primary"
             onClick={handleCopy}
             aria-label="Copy password"
           >
             {copied ? 'Copied ✓' : 'Copy password'}
-          </Button>
+          </button>
         )}
       </div>
 

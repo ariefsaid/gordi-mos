@@ -87,7 +87,7 @@ export const routeConfig: RouteObject[] = [
           // RLS / RPC authz is the real security boundary (ADR-0011 D5).
           {
             element: <AdminRoute />,
-            children: [{ path: 'admin/users', element: <AdminUsersPage /> }],
+            children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
           },
           { path: '*', element: <NotFoundPage /> },
         ],

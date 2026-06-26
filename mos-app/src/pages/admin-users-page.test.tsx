@@ -9,6 +9,9 @@ import type { AuthState } from '@/auth/context'
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
+vi.mock('@/shell/use-is-desktop')
+import { useIsDesktop } from '@/shell/use-is-desktop'
+
 vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   createPerson: vi.fn(),
@@ -88,6 +91,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
+  vi.mocked(useIsDesktop).mockReturnValue(true)
 })
 
 function renderPage() {

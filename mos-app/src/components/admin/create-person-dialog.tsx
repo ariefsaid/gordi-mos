@@ -2,10 +2,16 @@
 // Form: name, email or "no email" → synthetic @ops.gordi.local, role checkboxes, "create login now".
 // On success with login → swaps to PasswordReveal (§4.4).
 // Password dropped from state on Done (NFR-003).
-// Self-assign guard: admin/finance checkboxes disabled if actor === target (FR-023).
+// Self-assign guard: admin/finance are never actor==target at create time (new person
+// is always a different person from the actor). isSelfAssignBlocked = false always here.
+//
+// Rework items:
+//   item 4: focus trap (useFocusTrap), focus returns on close
+//   item 6: onShowToast prop — success toast after no-login create
+//   item 11: dead useAuth() removed; isDisabled simplified to isSubmitting
+//   item 13: heading uses .heading CSS class instead of fontSize: '20px'
 
-import { useState, useEffect, useId } from 'react'
-import { useAuth } from '@/auth/use-auth'
+import { useState, useEffect, useId, useRef } from 'react'
 import { TextInput } from '@/components/ui/text-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
@@ -21,13 +27,23 @@ export interface CreatePersonDialogProps {
   onCreated: () => void
   /** The currently taken emails (for uniqueness suffix, AC-011/FR-021). */
   takenEmails?: Set<string>
+  /** Called with a success message after the action completes (item 6). */
+  onShowToast?: (message: string) => void
 }
 
 type Phase = 'form' | 'submitting' | 'reveal'
 
-export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: CreatePersonDialogProps) {
-  useAuth() // keep for future self-assign guard (FR-023)
+// IDs for the alertdialog in reveal phase
+const REVEAL_HEADING_ID = 'create-dialog-reveal-heading'
+const REVEAL_WARNING_ID = 'create-dialog-reveal-warning'
 
+export function CreatePersonDialog({
+  open,
+  onClose,
+  onCreated,
+  takenEmails,
+  onShowToast,
+}: CreatePersonDialogProps) {
   const [phase, setPhase] = useState<Phase>('form')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -36,15 +52,71 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
   const [createLoginNow, setCreateLoginNow] = useState(false)
   const [nameError, setNameError] = useState('')
   const [submitError, setSubmitError] = useState('')
-  const [revealData, setRevealData] = useState<{ password: string; personName: string; email: string | null } | null>(null)
+  const [revealData, setRevealData] = useState<{
+    password: string
+    personName: string
+    email: string | null
+  } | null>(null)
 
   const nameId = useId()
   const emailId = useId()
+  const titleId = useId()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const invokerRef = useRef<HTMLElement | null>(null)
 
   // Derived synthetic email
-  const syntheticEmail = noEmail && fullName.trim()
-    ? synthesizeEmail(fullName.trim(), takenEmails)
-    : null
+  const syntheticEmail =
+    noEmail && fullName.trim() ? synthesizeEmail(fullName.trim(), takenEmails) : null
+
+  // Capture invoker + return focus on close
+  useEffect(() => {
+    if (open) {
+      invokerRef.current = document.activeElement as HTMLElement | null
+    } else {
+      invokerRef.current?.focus?.()
+    }
+  }, [open])
+
+  // Move focus into dialog on open; Tab trap + Esc on close (non-reveal phase only)
+  useEffect(() => {
+    if (!open || phase === 'reveal') return
+    const container = containerRef.current
+    if (!container) return
+
+    requestAnimationFrame(() => {
+      const first = container.querySelector<HTMLElement>(
+        'input:not([disabled]), button:not([disabled])',
+      )
+      first?.focus()
+    })
+
+    const FOCUSABLE =
+      'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && phase !== 'submitting') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusable = Array.from(container!.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, phase, onClose])
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -101,13 +173,16 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
         setRevealData({ password: pw, personName: fullName.trim(), email: resolvedEmail })
         setPhase('reveal')
       } else {
-        // No login — close + notify
+        // No login — close + notify + toast
         onCreated()
+        onShowToast?.(`${fullName.trim()} added.`)
         onClose()
       }
     } catch (err) {
       setPhase('form')
-      setSubmitError(err instanceof Error ? err.message : 'Couldn\'t create this person. Try again.')
+      setSubmitError(
+        err instanceof Error ? err.message : "Couldn't create this person. Try again.",
+      )
     }
   }
 
@@ -126,14 +201,25 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: 'var(--scrim)' }}
       // Backdrop click intentionally disabled during reveal (design-plan §4.4)
-      onClick={isReveal ? undefined : (e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={
+        isReveal
+          ? undefined
+          : (e) => {
+              if (e.target === e.currentTarget && !isSubmitting) onClose()
+            }
+      }
     >
       <div
+        ref={containerRef}
         role={isReveal ? 'alertdialog' : 'dialog'}
         aria-modal="true"
-        aria-label={isReveal ? revealData?.personName : 'Add person'}
-        className="relative w-full max-w-md rounded-lg p-6 shadow-lg"
-        style={{ background: 'var(--card)', boxShadow: 'var(--shadow-overlay)' }}
+        aria-labelledby={isReveal ? REVEAL_HEADING_ID : titleId}
+        aria-describedby={isReveal ? REVEAL_WARNING_ID : undefined}
+        className="relative w-full max-w-md rounded-lg p-6"
+        style={{
+          background: 'var(--card)',
+          boxShadow: 'var(--shadow-overlay)',
+        }}
         // Prevent bubbling to the backdrop
         onClick={(e) => e.stopPropagation()}
       >
@@ -144,12 +230,15 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
             email={revealData.email}
             context="create"
             onDone={handleRevealDone}
+            headingId={REVEAL_HEADING_ID}
+            warningId={REVEAL_WARNING_ID}
           />
         ) : (
           <form onSubmit={handleSubmit} noValidate>
             <h2
-              className="font-jakarta font-semibold mb-4"
-              style={{ fontSize: '20px', color: 'var(--foreground)' }}
+              id={titleId}
+              className="heading font-jakarta font-semibold mb-4"
+              style={{ color: 'var(--foreground)' }}
             >
               Add person
             </h2>
@@ -205,10 +294,7 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
 
               {/* Synthetic email preview */}
               {noEmail && syntheticEmail && (
-                <p
-                  className="mt-1 text-xs"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
+                <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                   Sign-in name:{' '}
                   <code style={{ fontFamily: 'var(--font-mono)' }}>{syntheticEmail}</code>
                 </p>
@@ -222,12 +308,9 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
               </legend>
               <div className="flex flex-col gap-2">
                 {(ASSIGNABLE_ROLES as readonly string[]).map((role) => {
-                  // Self-assign guard: admin/finance disabled only when actor === target.
-                  // At create-time the new person is never the actor, so we never pre-disable them
-                  // UNLESS the admin is somehow creating themselves (viewerPersonId would match — but
-                  // that's impossible at create time). Per design-plan §4.3: default-safe = enabled.
-                  const isSelfAssignBlocked = false // new person, never actor==target
-                  const isDisabled = isSelfAssignBlocked || isSubmitting
+                  // At create-time the new person is never the actor — self-assign guard never
+                  // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
+                  const isDisabled = isSubmitting
 
                   return (
                     <label
@@ -261,10 +344,7 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
                 </span>
               </div>
               {createLoginNow && (
-                <p
-                  className="mt-1 text-xs"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
+                <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                   A temporary password will be shown once after you create.
                 </p>
               )}
@@ -272,10 +352,7 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
 
             {/* Form-level error */}
             {submitError && (
-              <ErrorState
-                message={`Couldn't create this person. Try again.`}
-                className="mb-3"
-              />
+              <ErrorState message="Couldn't create this person. Try again." className="mb-3" />
             )}
 
             {/* Footer */}
@@ -288,11 +365,7 @@ export function CreatePersonDialog({ open, onClose, onCreated, takenEmails }: Cr
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" variant="primary" disabled={isSubmitting}>
                 {isSubmitting ? 'Creating…' : 'Create person'}
               </Button>
             </div>
