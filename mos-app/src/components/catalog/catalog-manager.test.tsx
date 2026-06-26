@@ -95,6 +95,22 @@ describe('CatalogManager', () => {
     await waitFor(() => expect(setArchived).toHaveBeenCalledWith('1', true))
   })
 
+  it('surfaces a failure and re-enables the button when archive fails', async () => {
+    const user = userEvent.setup()
+    const load = vi.fn<() => Promise<CatalogItem[]>>().mockResolvedValue([
+      { id: '1', name: 'Active One', archived_at: null },
+    ])
+    const setArchived = vi.fn().mockRejectedValue(new Error('denied'))
+    setup({ load, setArchived })
+    await screen.findByText('Active One')
+    const btn = screen.getByRole('button', { name: 'Archive Active One' })
+    await user.click(btn)
+    // live region announces the failure …
+    expect(await screen.findByText("Couldn't archive Active One")).toBeInTheDocument()
+    // … and the button is re-enabled (savingId cleared in finally, not left hanging)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Active One' })).toBeEnabled())
+  })
+
   it('AC-007: when a typeField is given, the add form offers exactly its options and create passes the type', async () => {
     const user = userEvent.setup()
     const { create } = setup({

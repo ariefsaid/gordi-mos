@@ -7,11 +7,16 @@
 --   objective ...0000d1 · work_line ...000d0001
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(12);
 
 -- ─── Fixtures (service_role, bypasses RLS) ───────────────────────────────────
 insert into shared.orgs (id, name, slug) values
-  ('00000000-0000-0000-0000-0000000000da','Catalog Org','catalog-da');
+  ('00000000-0000-0000-0000-0000000000da','Catalog Org','catalog-da'),
+  ('00000000-0000-0000-0000-0000000000db','Other Org','catalog-db');  -- cross-org isolation probe
+
+-- a foreign-org objective the org-DA admin must NOT be able to touch
+insert into mos.objectives (id, org_id, name) values
+  ('00000000-0000-0000-0000-0000000000e9','00000000-0000-0000-0000-0000000000db','Foreign Objective');
 
 insert into shared.people (id, org_id, full_name) values
   ('00000000-0000-0000-0000-00000000da10','00000000-0000-0000-0000-0000000000da','Cat Member'),
@@ -44,6 +49,26 @@ select lives_ok($$
   update mos.objectives set archived_at = now()
   where id = '00000000-0000-0000-0000-0000000000d1'
 $$, 'AC-010: admin can archive (UPDATE archived_at) an objective');
+
+-- AC-013: an INSERT without org_id is stamped the session's org (current_org_id()), not client-chosen
+insert into mos.objectives (name) values ('Stamped Objective');
+select is(
+  (select org_id from mos.objectives where name = 'Stamped Objective'),
+  '00000000-0000-0000-0000-0000000000da'::uuid,
+  'AC-013: catalog INSERT is stamped the session org_id (client never sends it)');
+
+-- Cross-org isolation: org-DA admin cannot SEE or UPDATE a foreign-org objective.
+select is(
+  (select count(*)::int from mos.objectives where id = '00000000-0000-0000-0000-0000000000e9'),
+  0,
+  'AC-013: foreign-org objective is invisible to the org-DA admin (SELECT isolation)');
+
+-- org-DA admin UPDATE targeting the foreign row: runs as a 0-row no-op (USING filters
+-- it out before WITH CHECK), so no error — the "unchanged" proof comes at the end as service_role.
+select lives_ok($$
+  update mos.objectives set name = 'Cross-Org Hack'
+  where id = '00000000-0000-0000-0000-0000000000e9'
+$$, 'AC-013: org-DA admin cross-org UPDATE runs as a 0-row no-op (USING org-scoped)');
 
 -- ops_lead: objective update denied
 set local request.jwt.claims =
@@ -89,6 +114,13 @@ select throws_ok($$
 $$, '42501', null,
   'AC-012: DELETE on mos.work_lines denied even for admin (no grant)');
 
+-- Cross-org write isolation proof: back as service_role (RLS-bypassing), the foreign-org
+-- objective must be untouched by the org-DA admin's earlier cross-org UPDATE attempt.
 reset role;
+select is(
+  (select name from mos.objectives where id = '00000000-0000-0000-0000-0000000000e9'),
+  'Foreign Objective',
+  'AC-013: foreign-org objective is UNCHANGED after the cross-org UPDATE attempt');
+
 select * from finish();
 rollback;

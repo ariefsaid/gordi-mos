@@ -125,6 +125,7 @@ export function CatalogManager({
       await refresh()
     } catch {
       announce(`Couldn't ${archived ? 'archive' : 'restore'} ${item.name}`)
+    } finally {
       setSavingId(null)
     }
   }
