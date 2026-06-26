@@ -1,16 +1,25 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(4);
+select plan(5);
 
 insert into shared.orgs (id, name, slug) values
   ('00000000-0000-0000-0000-0000000000a1', 'Org A', 'org-a'),
   ('00000000-0000-0000-0000-0000000000b2', 'Org B', 'org-b');
 
--- INVARIANT (security audit M1): there is NO standing INSERT grant for authenticated on people. Assert
--- that first, as superuser, BEFORE we open the temporary surface — the schema must ship write-closed.
+-- POSTURE (was M1 read-only; deliberately WIDENED for the admin role by ADR-0016 / plan §8.1): there is
+-- now a standing INSERT grant on people, but the only standing INSERT policy (people_insert_admin) gates
+-- it to `has_access_role('admin')`. Assert the admin-gating still holds — a member/loginless session is
+-- write-closed by policy even though the base grant exists. (The org_id-spoof property below is unchanged.)
 select ok(
-  not has_table_privilege('authenticated', 'shared.people', 'INSERT'),
-  'authenticated has NO standing INSERT privilege on shared.people (M1: no app write surface)'
+  has_table_privilege('authenticated', 'shared.people', 'INSERT'),
+  'authenticated now has a standing INSERT grant on shared.people (admin write surface, ADR-0016 §8.1)'
+);
+select is(
+  (select count(*)::int from pg_policy p
+     join pg_class c on c.oid = p.polrelid
+     join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'shared' and c.relname = 'people' and p.polcmd = 'a'),  -- 'a' = INSERT
+  1, 'the only standing INSERT policy on people is the admin-gated one (people_insert_admin)'
 );
 
 -- The org_id-spoof property is proven WITHOUT a persistent surface: we grant INSERT and create the
