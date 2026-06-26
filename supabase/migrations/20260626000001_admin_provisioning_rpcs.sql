@@ -48,6 +48,18 @@ begin
     if current_user = 'authenticated' and new.user_id is distinct from old.user_id then
       raise exception 'user_id is set only by the provisioning RPCs, not a direct write' using errcode = '42501';
     end if;
+    -- No-lockout (FR-041 / H-1): archiving the LAST active admin's people row is refused. The auth hook
+    -- resolves a person `where archived_at is null`, so archiving the sole admin drops admin out of
+    -- claim-minting -> permanent org lockout, no in-app recovery. Mirrors the last-admin block in
+    -- shared._guard_person_access_roles (revoke arm) and admin_set_login_enabled (disable arm).
+    if new.archived_at is not null and old.archived_at is null
+       and exists (
+         select 1 from shared.person_access_roles
+          where person_id = old.id and access_role = 'admin' and revoked_at is null
+       )
+       and shared._count_active_admins() <= 1 then
+      raise exception 'cannot archive the last active admin' using errcode = '42501';
+    end if;
   end if;
   if tg_op = 'INSERT' and current_user = 'authenticated' and new.user_id is not null then
     raise exception 'user_id is set only by the provisioning RPCs, not a direct write' using errcode = '42501';
@@ -56,7 +68,7 @@ begin
 end;
 $$;
 comment on function shared._guard_people() is
-  'Guard (ADR-0016): org_id immutable on UPDATE; user_id is RPC-only (never a direct app write). SECURITY INVOKER.';
+  'Guard (ADR-0016): org_id immutable on UPDATE; user_id is RPC-only (never a direct app write); no-lockout — cannot archive the last active admin (42501, FR-041/H-1, mirrors the disable/revoke arms). SECURITY INVOKER.';
 
 create trigger people_guard
   before insert or update on shared.people
@@ -199,7 +211,14 @@ grant execute on function shared.admin_reset_password(uuid, text) to authenticat
 -- DIVERGENCE FROM PLAN §1.4 (forced, documented): the plan revoked EXECUTE from authenticated too; that
 -- makes the INVOKER guard unable to call it on an app revoke (proven by 56_'s negative-control arm). Grant
 -- to authenticated instead — the safe, minimal fix; the count-only result discloses nothing sensitive.
-create or replace function shared._count_active_admins(p_org uuid)
+-- SECURITY M-1 (audit must-fix): the helper takes NO org argument — it resolves the org from
+-- shared.current_org_id() internally. A p_org parameter exposed under EXECUTE-to-authenticated was an
+-- arbitrary-org admin-count oracle (any authenticated user could probe ANY org's admin count -> tenancy
+-- leak, ADR-0001). Dropping the parameter structurally removes that surface, and is equivalent for every
+-- legitimate path: admin writes are RLS-confined to the caller's own org, so the count was always over
+-- current_org_id() anyway. EXECUTE stays granted to authenticated (the INVOKER guard needs it; the own-org
+-- admin count is non-sensitive, already derivable via person_access_roles RLS).
+create or replace function shared._count_active_admins()
 returns integer
 language sql
 stable
@@ -210,15 +229,15 @@ as $$
     from shared.person_access_roles par
     join shared.people pe on pe.id = par.person_id
     join auth.users u     on u.id = pe.user_id
-   where par.org_id = p_org
+   where par.org_id = shared.current_org_id()
      and par.access_role = 'admin'
      and par.revoked_at is null
      and pe.archived_at is null
      and (u.banned_until is null or u.banned_until <= now());
 $$;
-comment on function shared._count_active_admins(uuid) is 'No-lockout helper (FR-041): admins who can actually sign in. SECURITY DEFINER; EXECUTE to authenticated (the INVOKER guard calls it on an app revoke); count-only, no secrets.';
-revoke execute on function shared._count_active_admins(uuid) from public, anon;
-grant execute on function shared._count_active_admins(uuid) to authenticated;
+comment on function shared._count_active_admins() is 'No-lockout helper (FR-041): admins who can actually sign in, scoped to current_org_id() (M-1: no arbitrary-org argument -> no cross-org count oracle). SECURITY DEFINER; EXECUTE to authenticated (the INVOKER guard calls it on an app revoke); count-only, no secrets.';
+revoke execute on function shared._count_active_admins() from public, anon;
+grant execute on function shared._count_active_admins() to authenticated;
 
 create or replace function shared.admin_set_login_enabled(p_person uuid, p_enabled boolean)
 returns void
@@ -248,7 +267,7 @@ begin
       select 1 from shared.person_access_roles
        where person_id = p_person and access_role = 'admin' and revoked_at is null
     ) into v_is_admin;
-    if v_is_admin and shared._count_active_admins(v_org) <= 1 then
+    if v_is_admin and shared._count_active_admins() <= 1 then
       raise exception 'cannot disable the last active admin login' using errcode = '42501';
     end if;
   end if;
@@ -314,7 +333,7 @@ begin
   if tg_op = 'UPDATE'
      and old.access_role = 'admin'
      and old.revoked_at is null and new.revoked_at is not null then
-    if shared._count_active_admins(old.org_id) <= 1 then
+    if shared._count_active_admins() <= 1 then
       raise exception 'cannot revoke admin from the last active admin' using errcode = '42501';
     end if;
   end if;
@@ -361,7 +380,7 @@ grant execute on function shared.admin_list_login_status() to authenticated;
 --   drop function shared.admin_set_login_enabled(uuid, boolean);
 --   drop function shared.admin_reset_password(uuid, text);
 --   drop function shared.admin_create_login(uuid, text);
---   drop function shared._count_active_admins(uuid);
+--   drop function shared._count_active_admins();
 --   drop function shared._gen_temp_password();
 --   create or replace shared._guard_person_access_roles() with the 20260619000001 body (drop the
 --     last-admin revoke block);
