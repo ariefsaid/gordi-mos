@@ -293,3 +293,42 @@ describe('AC-KIT-005: Kitchen group Kitchen links have correct hrefs', () => {
     expect(within(nav).getByRole('link', { name: 'Pushes' })).toHaveAttribute('href', '/kitchen/pushes')
   })
 })
+
+// ── Admin group nav (AC-070 nav-absence arm) ──────────────────────────────────
+describe('AC-070: Admin nav group', () => {
+  it('AC-070: non-admin viewer does NOT see the Users nav entry (absent from DOM)', () => {
+    setAuthAs(['member'])
+    renderRailNav('/tasks')
+    expect(screen.queryByText('People')).not.toBeInTheDocument()
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument()
+  })
+
+  it('AC-070: ops_lead without admin does NOT see the Users nav entry', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    expect(screen.queryByText('People')).not.toBeInTheDocument()
+  })
+
+  it('AC-070b: admin viewer sees the Admin group and People nav entry', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/users')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(screen.getByText('Admin')).toBeInTheDocument()
+  })
+
+  it('AC-070b: People link has href /admin/users', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/users')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'People' })).toHaveAttribute('href', '/admin/users')
+  })
+
+  it('AC-070b: admin viewer — People link is active at /admin/users', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/users')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const link = within(nav).getByRole('link', { name: 'People' })
+    expect(link).toHaveAttribute('aria-current', 'page')
+  })
+})
