@@ -12,6 +12,7 @@ import { ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
+import { RoleEditor } from '@/components/admin/role-editor'
 import {
   listAdminPeople,
   setLoginEnabled,
@@ -39,6 +40,7 @@ export function AdminUsersPage() {
   const [people, setPeople] = useState<AdminPersonRow[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [reveal, setReveal] = useState<RevealContext | null>(null)
+  const [roleEditorPerson, setRoleEditorPerson] = useState<AdminPersonRow | null>(null)
   const [actionError, setActionError] = useState('')
 
   const load = useCallback(async () => {
@@ -82,6 +84,10 @@ export function AdminUsersPage() {
           await load()
           break
         }
+        case 'manage-roles':
+          // Opens the RoleEditor dialog; no async call here — the dialog owns grant/revoke.
+          setRoleEditorPerson(person)
+          break
         case 'archive':
           await archivePerson(person.id)
           await load()
@@ -171,6 +177,18 @@ export function AdminUsersPage() {
         onCreated={load}
         takenEmails={takenEmails}
       />
+
+      {/* Role editor dialog (FR-050) */}
+      {roleEditorPerson && (
+        <RoleEditor
+          person={roleEditorPerson}
+          open
+          onClose={() => setRoleEditorPerson(null)}
+          onDone={() => {
+            void load()
+          }}
+        />
+      )}
 
       {/* Password reveal (for reset-password + create-login actions) */}
       {reveal && (

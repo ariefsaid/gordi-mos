@@ -99,6 +99,15 @@ function PersonActions({ person, onAction }: PersonActionsProps) {
             boxShadow: 'var(--shadow-overlay)',
           }}
         >
+          <button
+            role="menuitem"
+            type="button"
+            className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+            onClick={() => { setOpen(false); onAction('manage-roles', person) }}
+          >
+            Manage roles
+          </button>
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
           {person.login !== 'none' && (
             <button
               role="menuitem"
