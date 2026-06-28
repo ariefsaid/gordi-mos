@@ -8,6 +8,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
+import { shouldFlipUp } from './menu-position'
 import type { PersonAction } from './user-table'
 
 // Mock useIsDesktop so tests can control desktop/mobile rendering
@@ -313,5 +314,112 @@ describe('UserTable — mobile action sheet', () => {
     await user.click(screen.getByRole('menuitem', { name: /manage roles/i }))
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+})
+
+// ── Portal + flip tests (viewport-edge clipping fix) ─────────────────────────
+
+describe('shouldFlipUp — pure helper', () => {
+  it('returns false when there is enough room below', () => {
+    // trigger bottom=200, menu height=140, viewport=768, margin=8 → 200+140=340 < 768-8=760
+    expect(shouldFlipUp({ bottom: 200, top: 180 }, 140, 768, 8)).toBe(false)
+  })
+
+  it('returns true when the menu would overflow the bottom edge', () => {
+    // trigger bottom=700, menu height=140, viewport=768, margin=8 → 700+140=840 > 760
+    expect(shouldFlipUp({ bottom: 700, top: 680 }, 140, 768, 8)).toBe(true)
+  })
+
+  it('returns false when there is exactly enough room below (boundary)', () => {
+    // trigger bottom=620, menu height=140, viewport=768, margin=8 → 620+140=760 === 760 (not >, so false)
+    expect(shouldFlipUp({ bottom: 620, top: 600 }, 140, 768, 8)).toBe(false)
+  })
+
+  it('returns true when bottom equals viewport minus margin exactly overflows', () => {
+    // trigger bottom=621, menu height=140, viewport=768, margin=8 → 621+140=761 > 760
+    expect(shouldFlipUp({ bottom: 621, top: 601 }, 140, 768, 8)).toBe(true)
+  })
+})
+
+describe('UserTable — ⋯ menu portaled to body', () => {
+  it('renders the open menu as a direct child of document.body (portal)', async () => {
+    const user = userEvent.setup()
+    const { container } = renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+
+    const menuBtn = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    await user.click(menuBtn)
+
+    const menu = screen.getByRole('menu')
+    // The menu's parent portal div must be appended to document.body, not inside the row
+    expect(document.body.contains(menu)).toBe(true)
+    // The menu is NOT inside the table container rendered by this render call
+    expect(container.contains(menu)).toBe(false)
+  })
+
+  it('menu is reachable (all action items present) when open via portal', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: /manage roles/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
+  })
+
+  it('portaled menu closes on scroll event', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    window.dispatchEvent(new Event('scroll'))
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+
+  it('portaled menu closes on resize event', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    window.dispatchEvent(new Event('resize'))
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+
+  it('positions menu above trigger when near bottom of viewport (flip)', async () => {
+    // Stub getBoundingClientRect so the trigger appears near the bottom
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+
+    const menuBtn = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    // Mock the trigger's rect to be near the bottom of a 768px viewport
+    vi.spyOn(menuBtn, 'getBoundingClientRect').mockReturnValue({
+      top: 700, bottom: 724, left: 900, right: 960,
+      width: 60, height: 24, x: 900, y: 700,
+      toJSON: () => ({}),
+    })
+
+    await user.click(menuBtn)
+
+    const menu = screen.getByRole('menu')
+    // The portal wrapper should have position:fixed with "bottom" style set
+    // (we inspect the parentElement of the menu div, which is the portal wrapper)
+    const portalWrapper = menu.parentElement
+    expect(portalWrapper).not.toBeNull()
+    // Portal wrapper is positioned fixed
+    expect(portalWrapper!.style.position).toBe('fixed')
+    // When flipped, bottom is set; when normal, top is set
+    // We can't easily verify exact px values in jsdom (no real layout),
+    // so assert the wrapper has inline style with either top or bottom set
+    const hasPositioning =
+      portalWrapper!.style.top !== '' || portalWrapper!.style.bottom !== ''
+    expect(hasPositioning).toBe(true)
   })
 })

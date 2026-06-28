@@ -11,6 +11,8 @@
 // No-match empty state (§4.1): distinct from org-empty "Just you so far".
 
 import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
+import { createPortal } from 'react-dom'
+import { shouldFlipUp } from './menu-position'
 import { Pill } from '@/components/ui/pill'
 import type { PillTone } from '@/components/ui/pill'
 import { Tag } from '@/components/ui/tag'
@@ -265,16 +267,55 @@ interface PersonActionsProps {
   onAction: (action: PersonAction, person: AdminPersonRow) => void
 }
 
+// PortalMenuPosition: computed when the menu opens, drives the fixed wrapper style.
+interface MenuPosition {
+  top?: number
+  bottom?: number
+  right: number
+}
+
+const MENU_MIN_WIDTH = 160
+const MENU_SIDE_MARGIN = 8
+
 function PersonActions({ person, people, onAction }: PersonActionsProps) {
   const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState<MenuPosition | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuContainerRef = useRef<HTMLDivElement>(null)
   const btnId = useId()
 
-  // Outside-click close + Esc close (item 8): document-level so Esc works
-  // even when focus is on the trigger button (not inside the menu)
+  // Compute fixed position from trigger's bounding rect when the menu opens.
+  // Menu height is estimated; after mount a ResizeObserver would be ideal, but
+  // for this use-case an estimate of ~200px is safe — actual flip recalculates on
+  // open, and scroll/resize closes the menu so drift is never visible.
+  const ESTIMATED_MENU_HEIGHT = 200
+
+  function computePosition() {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+
+    // Right-align to the trigger's right edge; clamp so it doesn't overflow left.
+    const right = vw - rect.right
+    const clampedRight = Math.max(MENU_SIDE_MARGIN, Math.min(right, vw - MENU_MIN_WIDTH - MENU_SIDE_MARGIN))
+
+    if (shouldFlipUp(rect, ESTIMATED_MENU_HEIGHT, vh)) {
+      // Position above: anchor bottom of menu to top of trigger
+      setPosition({ bottom: vh - rect.top, right: clampedRight })
+    } else {
+      // Position below: anchor top of menu to bottom of trigger
+      setPosition({ top: rect.bottom, right: clampedRight })
+    }
+  }
+
+  // Outside-click close + Esc close + scroll/resize close (item 8)
   useEffect(() => {
     if (!open) return
+
+    computePosition()
+
     function onPointerDown(e: PointerEvent) {
       if (
         menuContainerRef.current &&
@@ -291,11 +332,19 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
         setOpen(false)
       }
     }
+    function onScrollOrResize() {
+      setOpen(false)
+    }
+
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScrollOrResize, { capture: true })
+    window.addEventListener('resize', onScrollOrResize)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScrollOrResize, { capture: true })
+      window.removeEventListener('resize', onScrollOrResize)
     }
   }, [open])
 
@@ -307,7 +356,7 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
   }, [open])
 
   return (
-    <div className="relative">
+    <div>
       <button
         ref={triggerRef}
         id={btnId}
@@ -321,10 +370,17 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
       >
         ⋯
       </button>
-      {open && (
+      {open && position && createPortal(
         <div
           ref={menuContainerRef}
-          className="absolute right-0 z-20 min-w-[160px]"
+          style={{
+            position: 'fixed',
+            zIndex: 9999,
+            minWidth: MENU_MIN_WIDTH,
+            top: position.top !== undefined ? position.top : undefined,
+            bottom: position.bottom !== undefined ? position.bottom : undefined,
+            right: position.right,
+          }}
         >
           <PersonActionMenu
             person={person}
@@ -333,7 +389,8 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
             onClose={() => setOpen(false)}
             labelledById={btnId}
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
