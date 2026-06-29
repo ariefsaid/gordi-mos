@@ -131,7 +131,7 @@ describe('listAdminPeople', () => {
   it('throws on people fetch error', async () => {
     const schemaObj = makeSharedSchema({ people: { data: null, error: { message: 'rls denied' } } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(listAdminPeople()).rejects.toThrow(/rls denied/)
+    await expect(listAdminPeople()).rejects.toThrow(/Couldn't load people/)
   })
 })
 
@@ -154,7 +154,7 @@ describe('createPerson', () => {
       people: { data: null, error: { message: 'insert failed' } },
     })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(createPerson({ full_name: 'X', email: null, access_roles: [] })).rejects.toThrow(/insert failed/)
+    await expect(createPerson({ full_name: 'X', email: null, access_roles: [] })).rejects.toThrow(/Couldn't create person/)
   })
 })
 
@@ -173,7 +173,7 @@ describe('createLogin', () => {
   it('throws on RPC error', async () => {
     const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'rpc error' } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(createLogin('p1')).rejects.toThrow(/rpc error/)
+    await expect(createLogin('p1')).rejects.toThrow(/Couldn't create login/)
   })
 })
 
@@ -191,7 +191,7 @@ describe('resetPassword', () => {
   it('throws on RPC error', async () => {
     const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'no login' } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(resetPassword('p2')).rejects.toThrow(/no login/)
+    await expect(resetPassword('p2')).rejects.toThrow(/Couldn't reset password/)
   })
 })
 
@@ -211,7 +211,7 @@ describe('setLoginEnabled', () => {
   it('throws on RPC error', async () => {
     const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'last admin' } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(setLoginEnabled('p1', false)).rejects.toThrow(/last admin/)
+    await expect(setLoginEnabled('p1', false)).rejects.toThrow(/Couldn't update login/)
   })
 })
 
@@ -228,7 +228,7 @@ describe('grantRole', () => {
   it('throws on error', async () => {
     const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: { message: 'self-assign' } } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(grantRole('p1', 'admin')).rejects.toThrow(/self-assign/)
+    await expect(grantRole('p1', 'admin')).rejects.toThrow(/Couldn't grant role/)
   })
 })
 
@@ -260,6 +260,30 @@ describe('archivePerson / restorePerson', () => {
   it('throws on archive error', async () => {
     const schemaObj = makeSharedSchema({ people: { data: null, error: { message: 'rls denied' } } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(archivePerson('p1')).rejects.toThrow(/rls denied/)
+    await expect(archivePerson('p1')).rejects.toThrow(/Couldn't archive person/)
+  })
+})
+
+// ── surface(): no raw DB-error leak to the client (D11 audit) ───────────────────
+describe('surface() — sanitizes errors (D11)', () => {
+  it('a raw/unknown DB error becomes a generic message — no Postgres internals leak', async () => {
+    const schemaObj = makeSharedSchema({}, {
+      data: null,
+      error: {
+        message: 'duplicate key value violates unique constraint "users_email_partial_key"',
+        code: '23505',
+        details: 'Key (email)=(x@ops.gordi.local) already exists.',
+      },
+    })
+    schemaMock.mockReturnValue(schemaObj as never)
+    const err = (await createLogin('p1').then(() => null, (e) => e)) as Error | null
+    expect(err?.message).toBe("Couldn't create login. Please try again.")
+    expect(err?.message).not.toMatch(/duplicate key|users_email_partial_key|already exists|Key \(email\)/)
+  })
+
+  it('a curated RPC message is surfaced verbatim (helpful + org-agnostic)', async () => {
+    const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'email already in use', code: '22023' } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(createLogin('p1')).rejects.toThrow('email already in use')
   })
 })
