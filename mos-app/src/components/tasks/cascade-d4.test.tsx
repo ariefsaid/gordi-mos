@@ -156,7 +156,7 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     // The form is usable before lookups arrive (non-blocking); wait for the form title
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
     // Work-line options load asynchronously — wait for them
-    const wlSelect = await screen.findByRole('combobox', { name: /work-line/i })
+    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     expect(wlSelect).toBeInTheDocument()
     const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
     expect(options[0]).toBe('— None —')
@@ -194,7 +194,7 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     // Fill required fields
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with work line' } })
     // Select a work-line
-    const wlSelect = await screen.findByRole('combobox', { name: /work-line/i })
+    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-1' } })
     // Submit
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
@@ -226,7 +226,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No work line task' } })
     // Do not change work-line — leave at "— None —"
-    await screen.findByRole('combobox', { name: /work-line/i }) // wait for it to render
+    await screen.findByRole('combobox', { name: /project\/process/i }) // wait for it to render
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
     const call = mockCreateTask.mock.calls[0][0]
@@ -256,7 +256,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
   it('FR-245: changing the Work-line select calls updateTaskFields with { work_line_id }', async () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    const wlSelect = await screen.findByRole('combobox', { name: /work-line/i })
+    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-2' } })
     await waitFor(() => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
@@ -270,7 +270,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
   it('FR-246: clearing Work-line (back to "— None —") calls updateTaskFields with { work_line_id: null }', async () => {
     renderView({ work_line_id: 'wl-1' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    const wlSelect = await screen.findByRole('combobox', { name: /work-line/i })
+    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     // Clear it
     fireEvent.change(wlSelect, { target: { value: '' } })
     await waitFor(() => {

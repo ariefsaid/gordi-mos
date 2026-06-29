@@ -10,7 +10,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { VIEWER, ORPHAN, RECOVERY_VIEWER, MANAGER } from './fixtures/users'
+import { VIEWER, ORPHAN, RECOVERY_VIEWER, MANAGER, ADMIN } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -172,6 +172,45 @@ export default async function globalSetup() {
      ON CONFLICT (person_id, role_id) DO NOTHING`,
   )
   console.log('[global-setup] ensured MANAGER and VIEWER person_roles rows exist (idempotent)')
+
+  // ── ADMIN (e2e.admin@example.test → dedicated "E2E Admin" person, admin access role) ──
+  // For the cascade-catalog journey (AC-020). Purpose-built person so it never collides
+  // with seed-persona name/RACI assertions in other specs. Person + admin grant first
+  // (idempotent), then the auth user, then the link.
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.people (id, org_id, full_name, email)
+     VALUES ('${ADMIN.personId}','10000000-0000-0000-0000-000000000001','E2E Admin','${ADMIN.email}')
+     ON CONFLICT (id) DO NOTHING;
+     INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
+     VALUES ('10000000-0000-0000-0000-000000000001','${ADMIN.personId}','admin')
+     ON CONFLICT (person_id, access_role) DO NOTHING;`,
+  )
+  await deleteUserByEmail(adminClient, ADMIN.email)
+  const { data: adminData, error: adminErr } = await adminClient.auth.admin.createUser({
+    email: ADMIN.email,
+    password: ADMIN.password,
+    email_confirm: true,
+  })
+  if (adminErr) throw new Error(`[global-setup] createUser ADMIN failed: ${adminErr.message}`)
+  const adminUid = adminData.user.id
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `UPDATE shared.people SET user_id = '${adminUid}' WHERE id = '${ADMIN.personId}'`,
+  )
+  console.log(`[global-setup] created + linked ADMIN user: ${ADMIN.email} (admin access role)`)
+
+  // ── Clean slate for the cascade-catalog journey (AC-020): drop any objectives this
+  // journey created on a prior run (idempotent; postgres role bypasses the no-delete grant). ──
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `DELETE FROM mos.objectives
+      WHERE org_id = '10000000-0000-0000-0000-000000000001' AND name LIKE 'E2E %';`,
+  )
+  console.log('[global-setup] cleared E2E catalog objectives')
 
   // ── Clear mos.weekly_updates for P2-2 e2e journeys (idempotent clean slate) ──
   // Each e2e run starts with no weekly updates so write→submit→review journeys are deterministic.

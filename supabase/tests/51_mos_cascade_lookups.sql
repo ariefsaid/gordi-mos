@@ -101,15 +101,15 @@ select throws_ok($$
 $$, '42501', null,
   'AC-213: plain member cannot INSERT into mos.work_lines (RLS denied)');
 
--- ops_lead allowed
+-- ops_lead: work_lines allowed; objectives now DENIED (OD-C-2 tightened to admin-only)
 set local request.jwt.claims =
   '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}';
 
-select lives_ok($$
+select throws_ok($$
   insert into mos.objectives (name)
   values ('Ops Lead Objective')
-$$,
-  'AC-213: ops_lead can INSERT into mos.objectives');
+$$, '42501', null,
+  'AC-213/OD-C-2: ops_lead CANNOT INSERT into mos.objectives (now admin-only)');
 
 select lives_ok($$
   insert into mos.work_lines (name, type)

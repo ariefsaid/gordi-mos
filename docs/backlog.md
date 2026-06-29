@@ -50,6 +50,23 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 >   mandates 12px / full). **Thin FastAPI backend (ADR-0010 D6)** for PROD provisioning — still to build
 >   (kitchen-FastAPI repo / parity workstream; disjoint). Open PR **#57** (e2e auth fix, non-blocking).
 >
+> **In flight (2026-06-26) — two STACKED feature branches (NOT yet on main), built concurrently:**
+> 1. **`feat/admin-user-mgmt`** (concurrent agent) — admin user provisioning: People admin page, login
+>    create/reset/enable, role grant/revoke, `AdminRoute` guard, `ADMIN_SECTIONS` nav, interim
+>    provisioning RPCs (ADR-0016). Committed on its branch in the **main checkout**; review/merge owned
+>    by that workstream.
+> 2. **`feat/cascade-catalog`** (this workstream — git worktree `../gordi-mos-cascade`) — in-app
+>    management of **Objectives** (admin) + **Projects & Processes** (ops_lead/admin) under Workspace:
+>    add/rename/archive, RLS tighten (objectives→admin-only, migration `20260626000003`), Work-line→
+>    **Project/Process** UI relabel (ADR-0015), shared `CatalogManager`, `RequireAccessRole` guard.
+>    **BUILT + full review battery PASS** (`docs/reviews/feat-cascade-catalog.md`, `pre-merge-check.sh`
+>    green); spec `docs/specs/cascade-catalog.spec.md`, decision **OD-C-2**, plan
+>    `docs/plans/2026-06-26-cascade-catalog.md`. Memory: `cascade-catalog-state`.
+>    ⚠️ **Topology:** `feat/cascade-catalog` is **stacked on an OLDER commit of `feat/admin-user-mgmt`
+>    (`7445396`)**, reusing its role-guard + nav-section pattern. **Merge order: admin-user-mgmt FIRST,
+>    then rebase `feat/cascade-catalog` onto updated main and merge.** Deploy prereq: apply migration
+>    `20260626000003`. Non-blocking follow-up: collapse `AdminRoute` into `RequireAccessRole` after both land.
+>
 > Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main
 > before merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset`
 > relinks (or PR #57 heals it permanently once merged). Render auth-gated pages via vite-on-worktree-port +

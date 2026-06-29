@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
+import { RequireAccessRole } from './auth/require-access-role'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
 import { MyWeek } from './pages/my-week'
@@ -16,6 +17,8 @@ import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { ObjectivesPage } from './pages/objectives-page'
+import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -88,6 +91,16 @@ export const routeConfig: RouteObject[] = [
           {
             element: <AdminRoute />,
             children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
+          },
+          // Cascade catalog (OD-C-2). RequireAccessRole bounces non-permitted viewers
+          // to /; RLS is the real gate. Objectives → admin; Projects & Processes → ops_lead/admin.
+          {
+            element: <RequireAccessRole anyOf={['admin']} />,
+            children: [{ path: 'objectives', element: <ObjectivesPage /> }],
+          },
+          {
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            children: [{ path: 'projects-processes', element: <ProjectsProcessesPage /> }],
           },
           { path: '*', element: <NotFoundPage /> },
         ],

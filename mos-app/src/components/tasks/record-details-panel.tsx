@@ -118,14 +118,14 @@ export function RecordDetailsPanel({
           </div>
           {/* D4: Work-line — editable inline select when lookups available, else read-only */}
           <div className="rd-field">
-            <dt className="rd-field-label">Work-line</dt>
+            <dt className="rd-field-label">Project/Process</dt>
             <dd className="rd-field-val rd-field-val-select">
               {editable && workLines.length > 0 && onWorkLineChange ? (
                 <select
                   className="rd-inline-select"
                   value={task.work_line_id ?? ''}
                   onChange={e => onWorkLineChange(e.target.value || null)}
-                  aria-label="Work-line"
+                  aria-label="Project/Process"
                 >
                   <option value="">— None —</option>
                   {/* Fix-6: (project) / (daily) cue so attribution intent is visible at selection */}

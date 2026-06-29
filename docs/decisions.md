@@ -676,6 +676,31 @@ Full rationale + the "why 6 not 3" + the additive-vs-rebuild design: **ADR-0014*
 `Initiative` (provisional, owner veto), umbrella stack name (unlocked), first-slice scope (Director
 recommends Objective+Initiative create/own + attach Tasks + the person-load view).
 
+### OD-C-2 — Cascade catalog management surfaces (grill-with-docs, owner 2026-06-26)
+Owner asked for in-app management of Objectives and Projects/Processes (today they exist only via SQL
+seed; the task form reads them but no one can add/edit them). Grilled against `CONTEXT.md` §Cascade +
+§Access-role, ADR-0011, ADR-0014, ADR-0015. Locked:
+- **Two nav items under Workspace** (not one combined page, not an admin page): **Objectives** and
+  **Projects & Processes**. No umbrella term is invented (CONTEXT.md leaves it unlocked) — each entity
+  gets its own simple list page. Each nav item is role-gated to exactly the roles that may write it, so
+  a user who can't manage it never sees a dead-end page.
+- **Canonical UI term = Project/Process** (honors ADR-0015 / CONTEXT.md). The shipped task-form field
+  currently mislabeled **"Work-line" is re-labeled "Project/Process"** as part of this work. The physical
+  table stays `mos.work_lines` (physical name ≠ UI term). `CONTEXT.md` §Cascade updated to retire
+  "work-line" from UI copy.
+- **Capabilities:** add · rename · archive (soft, no hard delete — NFR-002). Rename propagates to all
+  referencing tasks (it's a lookup). Archive removes the row from task pickers (the picker queries already
+  filter `archived_at is null`) but keeps the name on existing tasks via the intact FK; unarchive restores.
+- **Permissions (admin = superset):** **Objectives — admin only** (tightens the shipped
+  `admin OR ops_lead` policy to admin). **Projects & Processes — ops_lead + admin** (the *existing*
+  `work_lines` policy — no RLS change). Derived-**manager** gating was considered and **deferred**: owner
+  chose "use existing roles now" rather than build a new `shared.is_manager()` RLS primitive (ADR-0011
+  keeps manager out of the JWT, so it would need a new live SQL predicate). True manager gating is a clean
+  additive v2 (add `shared.is_manager()` + widen the `work_lines` write policy) if wanted. **Not an ADR** —
+  the objectives tightening is a reversible policy change matching owner intent; no manager primitive built.
+- **Build topology:** stacked on `feat/admin-user-mgmt` (worktree) to REUSE its committed role-route-guard
+  + section-gating infra (the admin-users slice landed those first); merges additively after it.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

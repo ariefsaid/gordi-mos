@@ -30,3 +30,12 @@ export const RECOVERY_VIEWER = {
   password: 'e2e-password-123',
   personId: '40000000-0000-0000-0000-000000000004', // Sari Sales (available seed person)
 }
+
+// Dedicated ADMIN fixture for the cascade-catalog journey (AC-020). A purpose-built
+// "E2E Admin" person (NOT a seed persona) granted the `admin` access role in global-setup,
+// so it never collides with the persona-name / RACI assertions other specs make.
+export const ADMIN = {
+  email: 'e2e.admin@example.test',
+  password: 'e2e-password-123',
+  personId: '40000000-0000-0000-0000-0000000000ad', // E2E Admin (created in global-setup)
+}

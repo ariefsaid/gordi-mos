@@ -470,7 +470,7 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
     expect(srOnlyDts.length).toBe(0)
     // The dt text content is readable ("Work-line", "Objective", "Due", "Owner", "Activity")
     const dtTexts = dts.map(dt => dt.textContent)
-    expect(dtTexts.some(t => /work-line/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /project\/process/i.test(t ?? ''))).toBe(true)
   })
 
   it('Fix-5: task-card-meta dt elements are not display:none or visually hidden', () => {
@@ -530,7 +530,7 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
     )
 
     // Wait for work-line select to appear
-    const wlSelect = await screen.findByRole('combobox', { name: /work-line/i })
+    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
     // Options must include the type cue in parentheses
     expect(options.some(o => /project/i.test(o))).toBe(true)
