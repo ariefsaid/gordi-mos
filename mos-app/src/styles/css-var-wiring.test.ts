@@ -60,4 +60,13 @@ describe('CSS var() wiring — every referenced custom property resolves', () =>
     const all = sources.map(s => s.css).join('\n')
     expect(all.includes('var(--radius-full)'), '--radius-full was undefined → 0px; do not reintroduce it').toBe(false)
   })
+
+  it('--radius-lg is 12px (0.75rem) per DESIGN.md OD-P3-10 — guards the 8px card-radius regression', () => {
+    // A 2026-06-20 "mockup" tweak silently overrode cards to 8px, contradicting DESIGN.md (which
+    // mandates 12px for cards/containers/overlays) until the owner caught it. Lock the source value.
+    const all = sources.map(s => s.css).join('\n')
+    const m = all.match(/--radius-lg:\s*([^;]+);/)
+    expect(m, '--radius-lg must be defined').toBeTruthy()
+    expect(m![1].trim(), '--radius-lg must be 0.75rem (12px), not 0.5rem (8px)').toBe('0.75rem')
+  })
 })
