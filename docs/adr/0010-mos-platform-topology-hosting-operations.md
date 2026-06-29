@@ -125,6 +125,14 @@ and put dashboard latency at the mercy of OLAP batch load.
 
 ### D6 — A thin backend tier (one FastAPI service on `ris-dev`, two concerns)
 
+> **SUPERSEDED 2026-06-29 — the "new thin FastAPI service" is retired; both concerns left it.**
+> (1) The ESB-outbox worker was built by **extending the existing `gordi-kitchen-app`**, not a new service
+> (ADR-0012 amendment; `docs/platform-workstream-status.md` §3). (2) Admin/user provisioning is served by
+> **`SECURITY DEFINER` RPCs promoted to prod** (ADR-0016 amendment, 2026-06-29 — gated on the D11 audit),
+> not backend endpoints. Net production shape: **SPA (Cloudflare Pages; prod self-hosted) + Supabase
+> (data / auth / RLS + provisioning RPCs)** — no bespoke MOS backend tier. The rest of D6 below is the
+> original reasoning, kept for context.
+
 MOS gains a **small FastAPI service on `ris-dev`** — **one service, two concerns**:
 
 1. The **ESB-outbox worker** (ADR-0012) — drains `integrations.esb_push` and pushes to the ESB.
