@@ -1,41 +1,53 @@
-// E2E test user fixtures. Seeded against the local Supabase stack by global-setup.ts.
-// person IDs match supabase/seed.sql (Cahya Cafe is dual-hat, linked to 40000000-...-0001).
+// E2E test user fixtures.
+//
+// PMO-aligned model (2026-06-21): e2e logs in AS the seeded *.dev personas — the SAME users the
+// owner's one-click dev login uses — instead of separate `e2e.*` users linked to the shared person
+// rows. global-setup.ts only ENSURES these exist + are linked (idempotent, never deletes), so running
+// the suite can no longer orphan the dev personas / break dev login. See global-setup.ts header.
+//
+// Person IDs / names mirror supabase/seed.sql.
 
 export const VIEWER = {
-  email: 'e2e.viewer@example.test',
-  password: 'e2e-password-123',
-  personId: '40000000-0000-0000-0000-000000000001', // Cahya Cafe (dual-hat seed)
+  email: 'cahya.dev@example.test',
+  password: 'Passw0rd!dev',
+  personId: '40000000-0000-0000-0000-000000000001', // Cahya Cafe (dual-hat: Cafe Ops + Sales leads)
 }
 
-// MANAGER: Dewi Director holds the Managing Director role (30000000-...-0000).
-// Cahya Cafe (VIEWER) holds Cafe Ops Lead + Sales Lead, both of which report_to the MD role.
-// → Dewi is isManager=true via deriveIsManager (held subordinate exists).
+// MANAGER: Dewi Director holds the Managing Director role (30000000-…-0000).
+// Cahya (VIEWER) holds Cafe Ops Lead + Sales Lead, both reporting to the MD role
+// → Dewi is isManager=true via deriveIsManager / shared.is_manager_of.
 export const MANAGER = {
-  email: 'e2e.manager@example.test',
-  password: 'e2e-password-123',
+  email: 'dewi.dev@example.test',
+  password: 'Passw0rd!dev',
   personId: '40000000-0000-0000-0000-000000000000', // Dewi Director (MD role holder)
 }
 
+// ORPHAN: dedicated e2e-only auth user with NO people link (user_id stays NULL → orphan screen).
+// Touches no dev person row.
 export const ORPHAN = {
   email: 'e2e.orphan@example.test',
   password: 'e2e-password-123',
-  // no people link — user_id stays NULL → no person_id claim → orphan screen
+  // no people link
 }
 
-// Dedicated fixture for the password-recovery e2e journey (AC-005).
-// Uses a separate person row (Sari Sales) so that password rotation in the test does NOT
-// affect VIEWER's password, keeping auth-password-login and auth-signout-back stable.
+// RECOVERY_VIEWER: dedicated e2e-only user + dedicated e2e person row. The AC-005 journey ROTATES
+// this password, so it must NOT be a dev persona — otherwise the rotation would break that persona's
+// dev login until the next run. Its person row is e2e-namespaced (4e00…) so it never collides with
+// the dev canon.
 export const RECOVERY_VIEWER = {
   email: 'e2e.recovery@example.test',
   password: 'e2e-password-123',
-  personId: '40000000-0000-0000-0000-000000000004', // Sari Sales (available seed person)
+  personId: '4e000000-0000-0000-0000-000000000004', // dedicated e2e person (isolated from dev Sari)
+  displayName: 'Recovery Tester',
 }
 
-// Dedicated ADMIN fixture for the cascade-catalog journey (AC-020). A purpose-built
-// "E2E Admin" person (NOT a seed persona) granted the `admin` access role in global-setup,
-// so it never collides with the persona-name / RACI assertions other specs make.
+// ADMIN: dedicated e2e-only user + dedicated e2e person row, granted the `admin` access role in
+// global-setup — for the cascade-catalog journey (AC-020). Same dedicated-e2e pattern as RECOVERY
+// (e2e-namespaced person 4e00…, never a dev persona) so it can't collide with the dev canon or the
+// persona-name / RACI assertions other specs make, and granting admin doesn't mutate a dev persona.
 export const ADMIN = {
   email: 'e2e.admin@example.test',
   password: 'e2e-password-123',
-  personId: '40000000-0000-0000-0000-0000000000ad', // E2E Admin (created in global-setup)
+  personId: '4e000000-0000-0000-0000-0000000000ad', // dedicated e2e person (E2E Admin)
+  displayName: 'E2E Admin',
 }
