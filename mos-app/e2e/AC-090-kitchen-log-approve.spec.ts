@@ -54,6 +54,11 @@ function wibToday(): string {
 }
 
 async function execSql(query: string): Promise<void> {
+  await execSqlRead(query)
+}
+
+// /pg/query returns a JSON array of row objects (runs as postgres).
+async function execSqlRead(query: string): Promise<Array<Record<string, unknown>>> {
   if (!SERVICE_KEY) throw new Error('[AC-090] SUPABASE_SERVICE_ROLE_KEY not set')
   const res = await fetch(SUPABASE_URL + '/pg/query', {
     method: 'POST',
@@ -64,6 +69,7 @@ async function execSql(query: string): Promise<void> {
     const body = await res.text()
     throw new Error('[AC-090] SQL failed (' + res.status + '): ' + body.slice(0, 400))
   }
+  return (await res.json()) as Array<Record<string, unknown>>
 }
 
 test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', () => {
@@ -159,5 +165,20 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     await expect(
       page.getByRole('cell', { name: /Nasi Putih/i }),
     ).toHaveCount(0, { timeout: 5_000 })
+
+    // ── ASSERT RPC SIDE-EFFECT: outbox enqueue (FR-070) ────────────────────────
+    // approve_kitchen_log must enqueue an integrations.esb_push row for the batch —
+    // the ESB worker's real input contract. Read the actual DB (no mock): this is
+    // the cross-stack side-effect a mocked unit test cannot prove.
+    // NB: AC-090 also specifies a Daily Log (origin='kitchen') /ops mirror; that mirror
+    // is DEFERRED (migration _014 stripped it; AC-060/061) so it is intentionally not
+    // asserted here — re-add when the Daily Log Module ships.
+    const pushRows = await execSqlRead(
+      "SELECT target_env FROM integrations.esb_push WHERE org_id='" + ORG +
+      "' AND source_module='kitchen' AND source_ref LIKE 'PR-" + dp + "-%'",
+    )
+    expect(pushRows.length).toBeGreaterThanOrEqual(1)
+    // pre-flip safe target (never gkid before the owner-gated flip — FR-081/FR-084)
+    expect(String(pushRows[0].target_env)).not.toBe('gkid')
   })
 })
