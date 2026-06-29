@@ -88,6 +88,39 @@ describe('KitchenPlanCards — search + category filter', () => {
   })
 })
 
+describe('KitchenPlanCards — null-category (staging/prod data has no categories)', () => {
+  const NULL_CAT_ITEMS: WipItemOption[] = [
+    { id: 'w1', name: 'Ayam Gulai', category: null },
+    { id: 'w2', name: 'Nasi Putih', category: null },
+    { id: 'w3', name: 'Cumi Cabe Ijo', category: null },
+  ]
+
+  it('renders all dish cards when every item has category=null (no silent drop)', () => {
+    renderCards({ items: NULL_CAT_ITEMS, category: 'All' })
+    // All three spinbuttons must render
+    expect(screen.getAllByRole('spinbutton').length).toBe(3)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam gulai/i })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for nasi putih/i })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for cumi cabe ijo/i })).toBeInTheDocument()
+  })
+
+  it('does NOT show the empty-filter message when items exist but all have category=null', () => {
+    renderCards({ items: NULL_CAT_ITEMS, category: 'All' })
+    expect(screen.queryByText(/no dishes match your filter/i)).toBeNull()
+  })
+
+  it('mixed: items with and without category both render (no drop of uncategorized)', () => {
+    const MIXED: WipItemOption[] = [
+      { id: 'w1', name: 'Ayam Gulai', category: 'Chicken' },
+      { id: 'w2', name: 'Nasi Putih', category: null },
+    ]
+    renderCards({ items: MIXED, category: 'All' })
+    expect(screen.getAllByRole('spinbutton').length).toBe(2)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam gulai/i })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for nasi putih/i })).toBeInTheDocument()
+  })
+})
+
 describe('KitchenPlanCards — onSave wiring', () => {
   it('increasing a qty calls onSave(itemId, qty+1)', () => {
     const onSave = vi.fn()

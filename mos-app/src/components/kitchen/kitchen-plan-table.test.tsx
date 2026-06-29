@@ -107,6 +107,46 @@ describe('KitchenPlanTable — search + category filter', () => {
   })
 })
 
+describe('KitchenPlanTable — null-category (staging/prod data has no categories)', () => {
+  const NULL_CAT_ITEMS: WipItemOption[] = [
+    { id: 'w1', name: 'Ayam Gulai', category: null },
+    { id: 'w2', name: 'Nasi Putih', category: null },
+    { id: 'w3', name: 'Cumi Cabe Ijo', category: null },
+  ]
+
+  it('renders all dish rows when every item has category=null (no silent drop)', () => {
+    renderTable({ items: NULL_CAT_ITEMS, category: 'All' })
+    // All three spinbuttons must render — not silently dropped by the group filter
+    expect(screen.getAllByRole('spinbutton').length).toBe(3)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam gulai/i })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for nasi putih/i })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for cumi cabe ijo/i })).toBeInTheDocument()
+  })
+
+  it('does NOT show the empty-filter message when items exist but all have category=null', () => {
+    renderTable({ items: NULL_CAT_ITEMS, category: 'All' })
+    expect(screen.queryByText(/no dishes match your filter/i)).toBeNull()
+  })
+
+  it('category dropdown shows only "All" when no item has a category', () => {
+    renderTable({ items: NULL_CAT_ITEMS, category: 'All' })
+    const select = screen.getByRole('combobox', { name: /category/i })
+    const options = within(select).getAllByRole('option').map(o => o.textContent)
+    expect(options).toEqual(['All'])
+  })
+
+  it('mixed: items with and without category both render (no drop of uncategorized)', () => {
+    const MIXED: WipItemOption[] = [
+      { id: 'w1', name: 'Ayam Gulai', category: 'Chicken' },
+      { id: 'w2', name: 'Nasi Putih', category: null },
+    ]
+    renderTable({ items: MIXED, category: 'All' })
+    expect(screen.getAllByRole('spinbutton').length).toBe(2)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam gulai/i })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for nasi putih/i })).toBeInTheDocument()
+  })
+})
+
 describe('KitchenPlanTable — onSave wiring (per-cell)', () => {
   it('increasing a qty calls onSave(itemId, qty+1)', () => {
     const onSave = vi.fn()

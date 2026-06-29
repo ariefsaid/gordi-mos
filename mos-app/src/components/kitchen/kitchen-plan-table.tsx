@@ -7,6 +7,7 @@
 
 import { Fragment, useState } from 'react'
 import type { WipItemOption } from '@/lib/db/kitchen-logs.types'
+import { groupByCategory } from '@/lib/kitchen-category'
 import { PlanQtyCell } from './plan-qty-cell'
 import { KitchenGroupHeader } from './kitchen-group-header'
 import { KitchenToolbar } from './kitchen-toolbar'
@@ -53,9 +54,9 @@ export function KitchenPlanTable({
   // by one category doesn't remove the others from the select.
   const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean))).sort()]
 
-  // Group the visible items by category (sorted), preserving item order within a group.
-  const groups = Array.from(new Set(visible.map(i => i.category ?? '').filter(Boolean))).sort()
-    .map(cat => ({ cat, rows: visible.filter(i => (i.category ?? '') === cat) }))
+  // Group the visible items by category (sorted), with null-category items in a
+  // fallback bucket so they are never silently dropped (staging/prod has no categories).
+  const groups = groupByCategory(visible)
 
   return (
     <div className="kpt">
@@ -80,35 +81,43 @@ export function KitchenPlanTable({
             </tr>
           </thead>
           <tbody>
-            {groups.map(group => (
-              <Fragment key={group.cat}>
-                <KitchenGroupHeader
-                  variant="table"
-                  label={group.cat}
-                  count={group.rows.length}
-                  collapsed={collapsed.has(group.cat)}
-                  onToggle={() => toggleGroup(group.cat)}
-                  colSpan={2}
-                />
-                {!collapsed.has(group.cat) && group.rows.map(item => (
-                  <tr key={item.id} className="kpt-row">
-                    <td className="kpt-dish">
-                      <span className="kt-name">{item.name}</span>
-                      {item.category && <span className="kt-cat">{item.category}</span>}
-                    </td>
-                    <td className="kt-num kpt-plan">
-                      <PlanQtyCell
-                        itemName={item.name}
-                        qty={qtyOf(item.id)}
-                        saving={savingId === item.id}
-                        disabled={disabled}
-                        onSave={next => onSave(item.id, next)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </Fragment>
-            ))}
+            {groups.map(group => {
+              // null cat = uncategorised fallback bucket — render rows directly,
+              // no group header (staging/prod data has no categories).
+              const groupKey = group.cat ?? '__uncategorised__'
+              const isCollapsed = collapsed.has(groupKey)
+              return (
+                <Fragment key={groupKey}>
+                  {group.cat !== null && (
+                    <KitchenGroupHeader
+                      variant="table"
+                      label={group.cat}
+                      count={group.rows.length}
+                      collapsed={isCollapsed}
+                      onToggle={() => toggleGroup(groupKey)}
+                      colSpan={2}
+                    />
+                  )}
+                  {!isCollapsed && group.rows.map(item => (
+                    <tr key={item.id} className="kpt-row">
+                      <td className="kpt-dish">
+                        <span className="kt-name">{item.name}</span>
+                        {item.category && <span className="kt-cat">{item.category}</span>}
+                      </td>
+                      <td className="kt-num kpt-plan">
+                        <PlanQtyCell
+                          itemName={item.name}
+                          qty={qtyOf(item.id)}
+                          saving={savingId === item.id}
+                          disabled={disabled}
+                          onSave={next => onSave(item.id, next)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
+              )
+            })}
           </tbody>
         </table>
       )}

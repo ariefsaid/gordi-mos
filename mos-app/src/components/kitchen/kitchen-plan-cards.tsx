@@ -5,6 +5,7 @@
 // item is plannable). Empty-filter message. Token-only (DESIGN.md); .kpc-* namespace.
 
 import type { WipItemOption } from '@/lib/db/kitchen-logs.types'
+import { groupByCategory } from '@/lib/kitchen-category'
 import { PlanQtyStepper } from './plan-qty-stepper'
 import { KitchenGroupHeader } from './kitchen-group-header'
 import { KitchenToolbar } from './kitchen-toolbar'
@@ -36,8 +37,10 @@ export function KitchenPlanCards({
   const visible = items.filter(it => matchSearch(it) && matchCat(it))
 
   const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean))).sort()]
-  const groupCats = Array.from(new Set(visible.map(i => i.category ?? '').filter(Boolean))).sort()
-    .map(cat => ({ cat, rows: visible.filter(i => (i.category ?? '') === cat) }))
+  // Null-safe grouping: uncategorised items fall into a fallback bucket so they
+  // are never silently dropped (staging/prod data has no categories — Teable omits
+  // the field).
+  const groupCats = groupByCategory(visible)
 
   return (
     <div className="kpc">
@@ -54,34 +57,41 @@ export function KitchenPlanCards({
       {visible.length === 0 ? (
         <div className="kt-empty" role="status">No dishes match your filter.</div>
       ) : (
-        groupCats.map(group => (
-          <section key={group.cat} className="kpc-section">
-            <KitchenGroupHeader
-              variant="cards"
-              label={group.cat}
-              count={group.rows.length}
-              collapsed={false}
-              onToggle={() => {}}
-            />
-            <div className="kpc-cards">
-              {group.rows.map(item => (
-                <div key={item.id} className="kpc-card">
-                  <div className="kpc-head">
-                    <span className="kpc-name">{item.name}</span>
-                    {item.category && <span className="kpc-cat">{item.category}</span>}
+        groupCats.map(group => {
+          // null cat = uncategorised fallback bucket — render without a group header
+          // so flat ungrouped lists appear when no categories exist (staging/prod).
+          const groupKey = group.cat ?? '__uncategorised__'
+          return (
+            <section key={groupKey} className="kpc-section">
+              {group.cat !== null && (
+                <KitchenGroupHeader
+                  variant="cards"
+                  label={group.cat}
+                  count={group.rows.length}
+                  collapsed={false}
+                  onToggle={() => {}}
+                />
+              )}
+              <div className="kpc-cards">
+                {group.rows.map(item => (
+                  <div key={item.id} className="kpc-card">
+                    <div className="kpc-head">
+                      <span className="kpc-name">{item.name}</span>
+                      {item.category && <span className="kpc-cat">{item.category}</span>}
+                    </div>
+                    <PlanQtyStepper
+                      itemName={item.name}
+                      qty={qtyOf(item.id)}
+                      saving={savingId === item.id}
+                      disabled={disabled}
+                      onSave={next => onSave(item.id, next)}
+                    />
                   </div>
-                  <PlanQtyStepper
-                    itemName={item.name}
-                    qty={qtyOf(item.id)}
-                    saving={savingId === item.id}
-                    disabled={disabled}
-                    onSave={next => onSave(item.id, next)}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-        ))
+                ))}
+              </div>
+            </section>
+          )
+        })
       )}
     </div>
   )
