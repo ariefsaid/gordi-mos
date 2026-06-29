@@ -77,7 +77,7 @@ export function KitchenReviewCards({
 
             <div className="krc-cards">
               {group.rows.map(log => (
-                <div key={log.id} className="krc-card">
+                <div key={log.id} className="krc-card krc-card-stacked">
                   <table className="kt-table krc-table">
                     <tbody>
                       <KitchenReviewRow

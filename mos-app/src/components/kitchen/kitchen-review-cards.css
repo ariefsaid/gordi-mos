@@ -18,3 +18,52 @@
 .krc-table {
   width: 100%;
 }
+
+/* ── Phone (<768px): reflow the per-card mini-table into a stacked layout ──
+   The card wraps a KitchenReviewRow (<tr> with 6 <td>s).  At 390px the
+   horizontal table layout pushes the actions cell off-screen.  Make every
+   cell block-level so they stack top-to-bottom within the card boundary. */
+@media (max-width: 767px) {
+  .krc-card-stacked .krc-table,
+  .krc-card-stacked .krc-table tbody,
+  .krc-card-stacked .krc-table tr,
+  .krc-card-stacked .krc-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+  }
+
+  /* Remove the row-level hover background that only reads well horizontally */
+  .krc-card-stacked .krc-table tr:hover td {
+    background: none;
+  }
+
+  /* Give each stacked cell a bit of breathing room */
+  .krc-card-stacked .krc-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  }
+  .krc-card-stacked .krc-table td:last-child {
+    border-bottom: none;
+  }
+
+  /* The actions cell: allow the Approve/Reject buttons to wrap naturally */
+  .krc-card-stacked .krow-actions {
+    white-space: normal;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .krc-card-stacked .krow-actions .krow-btn {
+    margin-left: 0;
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  /* Submitter chip: allow name to wrap, prevent clip */
+  .krc-card-stacked .krow-by {
+    white-space: normal;
+    flex-wrap: wrap;
+  }
+}
