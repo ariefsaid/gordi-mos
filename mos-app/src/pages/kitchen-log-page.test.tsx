@@ -275,9 +275,10 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
       await Promise.resolve()
     })
 
-    // Should show the ID note-required cue (NFR-012 content)
+    // Should show the ID note-required cue (NFR-012 content) on the row
+    // (VARIANCE_NOTE_CUE = "Catatan wajib — di luar rencana")
     await waitFor(() => {
-      expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
+      expect(screen.getByText(/catatan wajib — di luar rencana/i)).toBeInTheDocument()
     })
     // insertKitchenLogBatch should NOT have been called
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
@@ -299,7 +300,8 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
 
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: /note for nasi goreng/i })).toBeInTheDocument()
-      expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
+      // Row-level note cue (VARIANCE_NOTE_CUE = "Catatan wajib — di luar rencana")
+      expect(screen.getByText(/catatan wajib — di luar rencana/i)).toBeInTheDocument()
     })
     // No submit attempt occurred
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
@@ -321,7 +323,8 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     })
 
     await waitFor(() => {
-      expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
+      // Row-level note cue (VARIANCE_NOTE_CUE = "Catatan wajib — di luar rencana")
+      expect(screen.getByText(/catatan wajib — di luar rencana/i)).toBeInTheDocument()
     })
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -365,6 +368,49 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
 
     await waitFor(() => {
       expect(submit).not.toBeDisabled()
+    })
+  })
+})
+
+// ── F3b: disabled Submit shows an inline reason message (Fix 3) ──────────────
+describe('F3b: disabled Submit shows reason message when variance note is missing', () => {
+  it('shows "Isi catatan wajib" near the Submit button when a note is required and missing', async () => {
+    // No plans → every staged item is off-target (needs a variance note)
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Stage an off-plan line (qty=1, plan=0 → off-target → variance note required)
+    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
+    fireEvent.click(incBtn)
+
+    // The Submit button is disabled (F3 existing gate — unchanged)
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).toBeDisabled()
+
+    // FIX 3: a visible inline reason message must appear near the Submit button
+    // so the blocker is visible without clicking (not enabled-until-bounced).
+    expect(screen.getByText(/isi catatan wajib/i)).toBeInTheDocument()
+  })
+
+  it('reason message disappears when the required note is filled', async () => {
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
+    fireEvent.click(incBtn)
+
+    // Reason message shows while note is empty
+    expect(screen.getByText(/isi catatan wajib/i)).toBeInTheDocument()
+
+    // Fill the required note
+    const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
+    fireEvent.change(note, { target: { value: 'extra batch today' } })
+
+    // Once the note is filled, Submit re-enables and the reason message disappears
+    await waitFor(() => {
+      expect(screen.queryByText(/isi catatan wajib/i)).toBeNull()
     })
   })
 })

@@ -109,6 +109,16 @@
 /* The ONE blue (One-Blue Rule) — Submit + its focus ring only */
 .kl-submit { min-height: 44px; }
 
+/* F3 inline blocker reason — appears to the left of Discard + Submit when a
+   required variance note is still empty.  Uses muted text so it reads as a
+   hint, not an error (the error itself lives on the row's note field). */
+.kl-submit-reason {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  align-self: center;
+  text-align: right;
+}
+
 /* ── Error / unauth blocks — viewport-safe + touch floors ── */
 .kl-error,
 .kl-unauth {

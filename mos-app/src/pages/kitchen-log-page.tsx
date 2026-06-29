@@ -448,6 +448,13 @@ export function KitchenLogPage() {
               <span className="kl-tally-sub">pending review on Submit</span>
             </div>
             <div className="kl-footer-actions">
+              {/* F3 inline blocker reason — visible near the button so the user knows
+                  why Submit is disabled without having to attempt a click (Fix 3). */}
+              {noteUnresolved && !hasBlockingError && (
+                <span className="kl-submit-reason" role="status" aria-live="polite">
+                  Isi catatan wajib untuk submit
+                </span>
+              )}
               <button
                 type="button"
                 className="btn btn-outline"
