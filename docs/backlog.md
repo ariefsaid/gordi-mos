@@ -20,16 +20,17 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > row) + memory `staging-deploy-state`. Cloud ref `hvnwcsmkdeqmgqlbwflm` (Singapore); DB connection string +
 > Teable PAT in op (vault `AS`).
 >
-> **In flight (2026-06-25):**
-> 1. **Kitchen data migration** Teable→`ops` (48 products / 521 logs / 528 plans, 2026-05-17→06-25) —
->    PULLED + mapping + owner-decisions locked; **LOAD pending** (memory `kitchen-data-migration`). Must carry
->    `posted_to_esb`/`esb_doc_num`/`posted_at` verbatim → **no ESB re-POST clash** (app is in live use). batch_id
->    nulled (Teable 80 batch_ids / 505 logs vs ops UNIQUE). Replaces the test-seed kitchen data. 3 staff people
->    (Riri=riri@gordi.id; Ibnu/Ansori=meta placeholder emails).
-> 2. **Concurrent agent** building kitchen **feature-parity + the ESB-push oracle in a worktree** —
->    coordinate, disjoint paths ([[mos-multiagent-git-gotchas]]); don't collide on ops kitchen schema/worker.
-> 3. Open PR **#57** (e2e auth fix, non-blocking). The old `feat/kitchen-log-redesign` redesign + #67
->    doc-consolidation merged/superseded earlier.
+> **In flight (2026-06-26):**
+> 1. **Kitchen data migration** Teable→`ops` (48 products / 521 logs / 528 plans) — PULLED + mapping +
+>    owner-decisions locked; **LOAD pending** (memory `kitchen-data-migration`). Must carry
+>    `posted_to_esb`/`esb_doc_num`/`posted_at` verbatim → **no ESB re-POST clash**. A concurrent agent is on
+>    branch `feat/admin-user-mgmt` (admin migrations) — disjoint paths, don't collide.
+> 2. **ESB push worker — BUILT + SHIPPED 2026-06-26** (was "concurrent agent building the oracle"). Approach
+>    changed: **extended the existing `gordi-kitchen-app`** (not a new FastAPI service) to drain the MOS
+>    outbox. gordi-kitchen-app PRs #1/#2/#3 + gordi-mos #76/#77. **GOO validated live** (transfer round-trips;
+>    `/assembly-actual` not validatable on GOO — standard-costing tenant). **Outstanding = deploy + flip**
+>    (owner-gated). Full state: `docs/platform-workstream-status.md` §3 + `docs/reference/esb-goo-integration.md`.
+> 3. Open PR **#57** (e2e auth fix, non-blocking).
 >
 > Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main
 > before merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset`
