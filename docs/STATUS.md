@@ -1,11 +1,11 @@
 # STATUS — where Gordi MOS stands (for the next session / post-compaction)
 
-> ⚠️ **STALE (2026-06-16). For current state read `docs/platform-workstream-status.md`** (platform
-> foundation, access-roles, kitchen Module build + OD-K-5 redesign branch) and
-> **`docs/ui-revamp-status.md`** (records-workspace UI revamp). Neither the 2026-06-19 platform work
-> (access-roles PR-a/#41 + PR-b/#43, kitchen DB/UI PRs #45/#62/#64–66, OD-P4-* decisions) nor the
-> OD-K-5 kitchen redesign branch (`feat/kitchen-log-redesign`) is reflected below. This file is kept
-> for pre-Phase-4 history.
+> ⚠️ **STALE (2026-06-16). For current state read `docs/platform-workstream-status.md`** —
+> that is now the canonical handoff doc. It covers: kitchen Module (SHIPPED 2026-06-21), access-role
+> layer (SHIPPED), UI-revamp (SHIPPED PRs #29..#56), the **active OD-K-5 kitchen UI redesign on branch
+> `feat/kitchen-log-redesign`** (built + verified, awaiting owner sign-off → merge), and all outstanding items.
+> `docs/ui-revamp-status.md` is also stale (2026-06-19 UI-revamp state; revamp is now fully merged).
+> This file is kept for pre-Phase-4 / pre-kitchen history only.
 
 **Updated 2026-06-16 (Phase 3: Tasks split-view redesign shipped; MVP feature-complete).** Single source
 of "where are we, what's next, what's half-done." Pairs with `docs/backlog.md` (full task list) +

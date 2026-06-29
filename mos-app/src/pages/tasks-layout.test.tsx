@@ -25,9 +25,16 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+// Cascade catalogs (Task B) — the workspace loads these non-blocking; mock to empty so the
+// unit test never reaches the real supabase client. (Resolution set in beforeEach — resetAllMocks
+// would otherwise wipe a factory-set implementation, leaving listObjectives() === undefined.)
+vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksLayout } from './tasks-layout'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { __resetExpandPrefForTests } from '@/components/tasks/use-expand-pref'
@@ -87,7 +94,8 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     business_unit_id: 'bu-1', status: 'Open',
     responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID,
     consulted_person_ids: [], informed_person_ids: [],
-    description: null, due_date: null, last_activity_at: '2026-06-11T10:00:00Z',
+    description: null, due_date: null, objective_id: null, work_line_id: null,
+    last_activity_at: '2026-06-11T10:00:00Z',
     archived_at: null, created_by: VIEWER_ID,
     created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
     ...overrides,
@@ -104,6 +112,8 @@ beforeEach(() => {
   stubMatchMedia(true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(listWorkLines).mockResolvedValue([])
 })
 
 function renderAt(path: string) {

@@ -471,8 +471,9 @@ boundary; `source_ref` shape.*
 validation target.** The ESB is the immutable system of record (OD-P4-1 / ADR-0010 D1); a logic bug, a
 smoke test, or a botched migration must never mutate production ERP data — the kitchen project's Phase-4
 live-probe-vs-prod pain is exactly what this prevents. **The staging sandbox is real:** ESB branch **`GOO`**,
-base URL **`stg-erp.esb.co.id`** (Phase-4 follow-up); production is **GKID**, served at
-**`services.esb.co.id`**. The **outbox worker (OD-P4-5 / ADR-0012 D2) carries an explicit ESB-target
+base URL **`stg7.esb.co.id/core-stg`** (verified live 2026-06-26 — the earlier `stg-erp.esb.co.id`
+coordinate was the ESB **web UI**, not the API; see `docs/reference/esb-goo-integration.md`); production
+is **GKID**, served at **`services.esb.co.id/core`**. The **outbox worker (OD-P4-5 / ADR-0012 D2) carries an explicit ESB-target
 setting (staging vs production)**; **non-prod/dev/test environments default to staging (`GOO`)**. Logic
 validation, smoke tests, and the **one-time migration's `posted_to_esb`-survival proof (ADR-0012 D4)** run
 against **staging first**; production GKID is touched only **after** staging-verified, via the proven
@@ -625,9 +626,12 @@ then the **Teable poller is the sole GKID writer**. In-person training + onboard
 Guardrail: an `ESB_PUSH_ENABLED`-style flag, default-safe (mirrors the existing app).
 
 ### OD-K-3 — GOO staging = functional parity, TEST DATA only
-The ESB staging sandbox (branch `GOO`, `stg-erp.esb.co.id`) validates ESB **call mechanics** but holds only
-test data — NOT GKID's real product/BOM IDs. Real-data/real-ID validation is the **single-WIP proof-push on
-GKID** at the switch. (Refines OD-P4-6.)
+The ESB staging sandbox (branch `GOO`, Core API `stg7.esb.co.id/core-stg`) validates ESB **call mechanics**
+but holds only test data — NOT GKID's real product/BOM IDs. Real-data/real-ID validation is the
+**single-WIP proof-push on GKID** at the switch. (Refines OD-P4-6.) **Verified 2026-06-26:** the Transfer
+path (`/simple-transfer`) round-trips on GOO; the Production path (`/assembly-actual`) **cannot** be
+validated on GOO (GOO's `SAE` tenant is standard-costing → `/assembly-actual` returns `EC03100004`), so the
+assembly proof is the GKID flip push only. Full details: `docs/reference/esb-goo-integration.md`.
 
 ### OD-K-4 — No double-post to production GKID (hard safety)
 Across retries, crashes, both push paths, and the migration, the system guarantees **at most one** ESB
@@ -652,6 +656,50 @@ Plan/Stock/Review are fast-follows inheriting the same components.
 > Stock · Review) rebuilt on `feat/kitchen-log-redesign`. ESB-pushes page is out of scope (no redesign).
 > Plan: `docs/plans/2026-06-22-kitchen-screens-redesign.md`. The original "Scope = Log screen first"
 > clause is superseded; all other OD-K-5 guardrails remain unchanged.
+
+### OD-C-1 — Strategy-to-Execution cascade: adopt the spine, build the foundation now (2026-06-23)
+Grill-with-docs session #3 (owner + Director), against `CONTEXT.md`, ADR-0003, and the vault
+(`Strategy-to-Execution Stack` / `Management OS Framework` / `Notion Management OS` + the 2026-05-02
+ChatGPT transcript). Reframes MOS from "task-manager + RACI" toward the hierarchy spine, so project work
+and daily recurring work both tie to the goals they serve and a person's effort split is visible. Locked:
+- **Layer 4 = Program/Process**, one `Initiative` entity with `type ∈ {Program, Process}`; the single
+  "Project" shape is superseded.
+- **Six-level model is canonical vocabulary** (`CONTEXT.md` § Cascade); **build 3 tables now** (Objective ·
+  Initiative · Task); Strategy/Outcome/Output stay additive concepts.
+- **Topology rule:** Task→Initiative is direct and permanent; deferred layers (esp. Output) hang
+  off-the-side, never inserted-between → no rebuild later. A/R ownership designed into every cascade
+  layer (RACI-on-task stops being the headline).
+- **Daily Log is NOT folded in** — it stays the factual feed; load reads from Process/Program ownership.
+- **Measure v1 = structural load** (Programs/Processes a person is A/R on, by lane); weekly-Output and/or
+  duration deferred.
+Full rationale + the "why 6 not 3" + the additive-vs-rebuild design: **ADR-0014**. Open: entity name
+`Initiative` (provisional, owner veto), umbrella stack name (unlocked), first-slice scope (Director
+recommends Objective+Initiative create/own + attach Tasks + the person-load view).
+
+### OD-C-2 — Cascade catalog management surfaces (grill-with-docs, owner 2026-06-26)
+Owner asked for in-app management of Objectives and Projects/Processes (today they exist only via SQL
+seed; the task form reads them but no one can add/edit them). Grilled against `CONTEXT.md` §Cascade +
+§Access-role, ADR-0011, ADR-0014, ADR-0015. Locked:
+- **Two nav items under Workspace** (not one combined page, not an admin page): **Objectives** and
+  **Projects & Processes**. No umbrella term is invented (CONTEXT.md leaves it unlocked) — each entity
+  gets its own simple list page. Each nav item is role-gated to exactly the roles that may write it, so
+  a user who can't manage it never sees a dead-end page.
+- **Canonical UI term = Project/Process** (honors ADR-0015 / CONTEXT.md). The shipped task-form field
+  currently mislabeled **"Work-line" is re-labeled "Project/Process"** as part of this work. The physical
+  table stays `mos.work_lines` (physical name ≠ UI term). `CONTEXT.md` §Cascade updated to retire
+  "work-line" from UI copy.
+- **Capabilities:** add · rename · archive (soft, no hard delete — NFR-002). Rename propagates to all
+  referencing tasks (it's a lookup). Archive removes the row from task pickers (the picker queries already
+  filter `archived_at is null`) but keeps the name on existing tasks via the intact FK; unarchive restores.
+- **Permissions (admin = superset):** **Objectives — admin only** (tightens the shipped
+  `admin OR ops_lead` policy to admin). **Projects & Processes — ops_lead + admin** (the *existing*
+  `work_lines` policy — no RLS change). Derived-**manager** gating was considered and **deferred**: owner
+  chose "use existing roles now" rather than build a new `shared.is_manager()` RLS primitive (ADR-0011
+  keeps manager out of the JWT, so it would need a new live SQL predicate). True manager gating is a clean
+  additive v2 (add `shared.is_manager()` + widen the `work_lines` write policy) if wanted. **Not an ADR** —
+  the objectives tightening is a reversible policy change matching owner intent; no manager primitive built.
+- **Build topology:** stacked on `feat/admin-user-mgmt` (worktree) to REUSE its committed role-route-guard
+  + section-gating infra (the admin-users slice landed those first); merges additively after it.
 
 ---
 

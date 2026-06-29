@@ -81,6 +81,13 @@
      source for the value .btn-primary inlines. Named so surfaces (e.g. the kitchen
      Submit) can reference it instead of a hardcoded shadow or an undefined token. */
   --shadow-brand-button: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent);
+
+  /* DESIGN.md §307 "Overlay" shadow — used by dialogs + ⋯ menu popover.
+     Previously referenced as --shadow-overlay but was undefined; defined here so
+     overlays render with correct floating depth instead of flat. */
+  --shadow-overlay:
+    0 10px 30px hsl(240 10% 8% / 0.16),
+    0 2px 6px hsl(240 10% 8% / 0.08);
 }
 
 /* ── Tailwind v4 theme mapping (ADR-0009 D3). Every --color-* utility resolves to
@@ -117,9 +124,11 @@
   --color-brand-navy-text:       var(--brand-navy-text);
   --color-brand-orange:          var(--brand-orange);
 
-  /* Radii — cards 8px (signed mockup = --ds-border-radius-md; SUPERSEDES OD-P3-10's 12px,
-     per owner "as per the mockup" 2026-06-20) / 8px controls / 4px tiny. */
-  --radius-lg: 0.5rem;           /* 8px — cards/containers/overlays (mockup md; was 12px OD-P3-10) */
+  /* Radii — cards 12px (OD-P3-10, DESIGN.md §rounded `lg` = var(--radius)) / 8px controls / 4px tiny.
+     NOTE (owner 2026-06-29): restored to 12px. A 2026-06-20 "mockup md = 8px" tweak had overridden this
+     to 0.5rem, contradicting DESIGN.md (which always specified 12px); owner flagged it as a regression.
+     Token now matches the source of truth — do not re-revert without first amending DESIGN.md. */
+  --radius-lg: 0.75rem;          /* 12px — cards/containers/overlays (OD-P3-10 = var(--radius)) */
   --radius-md: 0.625rem;         /* 10px — mid nesting */
   --radius-sm: 0.5rem;           /* 8px  — CONTROLS (buttons/inputs/badges/nav-items) */
   --radius-xs: 0.25rem;          /* 4px  — checkbox/tiny */

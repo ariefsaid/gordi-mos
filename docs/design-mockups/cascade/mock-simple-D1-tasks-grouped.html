@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cascade D1 — No new screen: Tasks list + Work-line/Objective columns, grouped by work-line</title>
+<!-- SELF-CONTAINED. Kit token closure only (--ds-* light+dark). NO literal colors below; token named in comment. -->
+<link rel="stylesheet" href="../../reference/mos-design-kit/styles.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }   /* body / foreground / secondary@35% main */
+  .mock-label { padding: 12px 16px; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; }                              /* overline / muted-foreground */
+  .pad { padding: 16px; }
+  *:focus-visible { outline: 2px solid var(--ds-color-blue); outline-offset: 2px; }  /* ring == One Blue */
+
+  /* ---- Shell (reuse existing rail+header grammar — NOT redrawn from scratch) ---- */
+  .shell { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 224px 1fr;
+    grid-template-areas: "brand topbar" "rail main"; background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-light); overflow: hidden; border-radius: var(--ds-border-radius-md); }
+  .brand { grid-area: brand; display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    border-bottom: 1px solid var(--ds-border-color-light); border-right: 1px solid var(--ds-border-color-light); }
+  .logo { width: 28px; height: 28px; border-radius: var(--ds-border-radius-md); background: var(--ds-color-blue);
+    color: var(--ds-font-color-inverted); display: grid; place-items: center; font-weight: 700; font-size: 13px; position: relative; } /* primary */
+  .logo .dot { position: absolute; right: -2px; bottom: -2px; width: 5px; height: 5px; border-radius: var(--ds-border-radius-pill); background: var(--ds-color-orange); } /* brand-orange sprinkle */
+  .brand .nm { font-family: var(--ds-font-display); font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+  .topbar { grid-area: topbar; display: flex; align-items: center; gap: 12px; padding: 0 24px;
+    border-bottom: 1px solid var(--ds-border-color-light); background: var(--ds-background-primary); }
+  .crumb { font-size: 13px; color: var(--ds-font-color-tertiary); } .crumb b { color: var(--ds-font-color-primary); font-weight: 600; } .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: var(--ds-border-radius-pill);
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9)); color: var(--ds-font-color-inverted);
+    display: grid; place-items: center; font-size: 11px; font-weight: 700; }                 /* avatar gradient navy→blue */
+  .userchip .uc-nm { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .uc-rl { font-size: 11px; color: var(--ds-font-color-tertiary); }
+
+  .rail { grid-area: rail; background: var(--ds-background-secondary); border-right: 1px solid var(--ds-border-color-light); padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .rail-group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary); padding: 14px 10px 4px; font-weight: 600; }
+  .nav-item { height: 36px; border-radius: var(--ds-border-radius-sm); display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 13.5px; font-weight: 500; color: var(--ds-font-color-primary); text-decoration: none; }
+  .nav-item .ico { color: var(--ds-font-color-tertiary); display: flex; }
+  .nav-item:hover { background: var(--ds-background-transparent-light); }                     /* accent hover wash */
+  .nav-item.active { background: var(--ds-accent-tertiary); color: var(--ds-color-blue11); font-weight: 600; } /* primary/10% tint */
+  .nav-item.active .ico { color: var(--ds-color-blue); }
+  .nav-item .count { margin-left: auto; font-size: 11px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+  .rail-foot { margin-top: auto; border-top: 1px solid var(--ds-border-color-light); padding-top: 8px; }
+
+  .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; overflow: auto; }
+  .page { flex: 1; padding: 24px 32px 48px; }
+  .col { max-width: 1080px; margin: 0 auto; }
+  .page-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .page-title { font-family: var(--ds-font-display); font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -.01em; } /* page-title */
+  .page-head .ct { color: var(--ds-font-color-tertiary); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  /* ---- Toolbar seamed to table (existing DataTable toolbar grammar) ---- */
+  .assembly { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md); box-shadow: var(--ds-box-shadow-light); }
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--ds-border-color-light); }
+  .control { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--ds-border-color-medium);
+    background: var(--ds-background-primary); border-radius: var(--ds-border-radius-sm); font-size: 13px; color: var(--ds-font-color-primary); cursor: pointer; } /* control chip */
+  .control .lbl { color: var(--ds-font-color-tertiary); }
+  .control .chev { color: var(--ds-font-color-tertiary); font-size: 10px; }
+  /* group-by is the "this is a database view" control — the existing brand-navy-tinted exception (Structural-Navy) */
+  .control.groupby { background: var(--ds-tag-background-blue); border-color: var(--ds-color-blue12); color: var(--ds-color-blue12); font-weight: 600; } /* navy-tint group-by (kit's nearest structural tint) */
+  .seg { display: inline-flex; height: 32px; padding: 3px; background: var(--ds-background-secondary); border-radius: var(--ds-border-radius-sm); }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 10px; border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-secondary); cursor: pointer; }
+  .seg button.on { background: var(--ds-background-primary); font-weight: 600; box-shadow: var(--ds-box-shadow-light); }
+  .search-mini { margin-left: auto; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm); color: var(--ds-font-color-tertiary); font-size: 13px; min-width: 180px; }
+
+  /* ---- Table (data-dense, 50px grouped rows — existing DB-view density) ---- */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  col.c-task { width: 34%; } col.c-status { width: 13%; } col.c-owner { width: 18%; } col.c-obj { width: 18%; } col.c-due { width: 17%; }
+  thead th { text-align: left; height: 38px; padding: 0 12px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary); border-bottom: 1px solid var(--ds-border-color-light); white-space: nowrap; } /* table-header / overline */
+  thead th.num { text-align: right; }
+
+  /* group header row = work-line (hairline, no band — OD-P3-6 group-header grammar) */
+  tr.grp td { padding: 14px 12px 6px; border-top: 1px solid var(--ds-border-color-light); border-bottom: 1px solid var(--ds-border-color-light); }
+  tr.grp:first-child td { border-top: 0; }
+  .grp-inner { display: flex; align-items: center; gap: 10px; }
+  .grp-inner .caret { color: var(--ds-font-color-tertiary); }
+  .grp-name { font-size: 13px; font-weight: 700; color: var(--ds-color-blue12); }            /* brand-navy-text — the structural group label */
+  /* PROJECT vs PROCESS = TEXT LABEL (+ tiny dot), never color-only (WCAG 1.4.1). Two neutral, calm marks. */
+  .kind { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; }
+  .kind .d { width: 7px; height: 7px; border-radius: var(--ds-border-radius-pill); }
+  .kind.project { background: var(--ds-tag-background-blue); color: var(--ds-tag-text-blue); }   .kind.project .d { background: var(--ds-color-blue); }   /* Project = blue tag (categorical, not action) */
+  .kind.process { background: var(--ds-tag-background-gray); color: var(--ds-tag-text-gray); }   .kind.process .d { background: var(--ds-font-color-tertiary); } /* Process = neutral gray tag */
+  .grp-inner .ct { color: var(--ds-font-color-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; margin-left: auto; }
+
+  tbody td { height: 50px; padding: 0 12px; border-bottom: 1px solid var(--ds-border-color-light); vertical-align: middle; color: var(--ds-font-color-primary); }
+  tbody tr.row:hover td { background: var(--ds-background-secondary); cursor: pointer; }
+  .task-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--ds-border-radius-pill); font-size: 12px; font-weight: 600; white-space: nowrap; } /* badge-status, Tinted-Status */
+  .pill .dot { width: 8px; height: 8px; border-radius: var(--ds-border-radius-pill); }       /* 8px status dot per DESIGN.md §5 */
+  .pill.inprogress { background: var(--ds-accent-tertiary); color: var(--ds-color-blue11); }   .pill.inprogress .dot { background: var(--ds-color-blue); }
+  .pill.todo { background: var(--ds-tag-background-bronze); color: var(--ds-tag-text-bronze); } .pill.todo .dot { background: var(--ds-color-bronze); }
+  .pill.blocked { background: var(--ds-tag-background-red); color: var(--ds-tag-text-red); }    .pill.blocked .dot { background: var(--ds-color-red); }
+  .owner { display: flex; align-items: center; gap: 8px; }
+  .ownav { width: 24px; height: 24px; border-radius: var(--ds-border-radius-pill); background: var(--ds-accent-tertiary); color: var(--ds-color-blue11); display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; } /* Responsible person */
+  .own-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .objlabel { font-size: 13px; color: var(--ds-font-color-secondary); }
+  .due { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .due.overdue { color: var(--ds-font-color-danger); }                                        /* --status-lost-text */
+  .due.calm { color: var(--ds-font-color-tertiary); font-weight: 500; }
+
+  /* states */
+  .frame { border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md); background: var(--ds-background-primary); box-shadow: var(--ds-box-shadow-light); overflow: hidden; }
+  .frame-cap { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ds-font-color-tertiary); margin: 0 0 8px; }
+  .empty { padding: 32px 20px; }
+  .empty h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; font-family: var(--ds-font-display); }
+  .empty p { font-size: 13px; color: var(--ds-font-color-tertiary); margin: 0 0 14px; }
+  .btn-primary { height: 32px; padding: 0 12px; border-radius: var(--ds-border-radius-sm); background: var(--ds-color-blue); color: var(--ds-font-color-inverted); border: 0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-sm); height: 12px; display: inline-block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1080px; margin: 0 auto; }
+
+  /* phone reflow (<768px) — single-render card list, label:value dl */
+  .phone { width: 380px; margin: 0 auto; border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md); background: var(--ds-background-primary); overflow: hidden; box-shadow: var(--ds-box-shadow-light); }
+  .ph-grp { padding: 12px 16px 4px; }
+  .ph-grp .gh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .ph-grp .gh .nm { font-weight: 700; color: var(--ds-color-blue12); font-size: 13px; }
+  .ph-grp .gh .ct { margin-left: auto; color: var(--ds-font-color-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .ph-card { border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-md); padding: 12px; margin-bottom: 8px; box-shadow: var(--ds-box-shadow-light); min-height: 44px; }
+  .ph-card .t { font-weight: 600; margin-bottom: 8px; }
+  .ph-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; }
+  .ph-card dt { color: var(--ds-font-color-tertiary); font-size: 12px; }
+  .ph-card dd { margin: 0; font-size: 13px; display: flex; justify-content: flex-end; }
+  .dark-wrap { background: var(--ds-background-tertiary); padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<div class="pad">
+  <div class="mock-label">Cascade D1 — NO NEW SCREEN · existing Tasks list + Work-line &amp; Objective columns · grouped by Work-line, filtered to Maya · light</div>
+  <div class="shell" style="height:760px">
+    <div class="brand"><div class="logo">G<span class="dot"></span></div><span class="nm">Gordi MOS</span></div>
+    <header class="topbar">
+      <nav class="crumb" aria-label="Breadcrumb"><span>Workspace</span><span class="sep">›</span><b>Tasks</b></nav>
+      <span class="spacer"></span>
+      <div class="userchip"><div class="avatar">AS</div><div><div class="uc-nm">Arief Said</div><div class="uc-rl">Founder</div></div></div>
+    </header>
+
+    <aside class="rail">
+      <div class="rail-group">Workspace</div>
+      <a class="nav-item" href="#"><span class="ico">◫</span> My Week</a>
+      <a class="nav-item active" href="#"><span class="ico">☰</span> Tasks <span class="count">42</span></a>
+      <a class="nav-item" href="#"><span class="ico">✎</span> Weekly updates</a>
+      <a class="nav-item" href="#"><span class="ico">▤</span> Daily Log <span class="count">7</span></a>
+      <div class="rail-spacer" style="flex:1"></div>
+      <div class="rail-foot"><a class="nav-item" href="#"><span class="ico">⚙</span> Settings</a></div>
+    </aside>
+
+    <div class="main">
+      <div class="page">
+        <div class="col">
+          <div class="page-head"><h1 class="page-title">Tasks</h1><span class="ct">7 tasks · Maya Rahmawati</span></div>
+
+          <div class="assembly">
+            <div class="toolbar">
+              <!-- THE primary new control: group by Work-line. One filter (Person). Everyday words. -->
+              <div class="control groupby" role="button" aria-label="Group by — currently Work-line"><span class="lbl">Group by</span> Work-line <span class="chev">▾</span></div>
+              <div class="control" role="button" aria-label="Filter person — currently Maya Rahmawati"><span class="lbl">Person</span> Maya <span class="chev">▾</span></div>
+              <div class="seg" role="tablist" aria-label="Scope">
+                <button role="tab" aria-selected="false">Mine</button>
+                <button class="on" role="tab" aria-selected="true">Everyone</button>
+              </div>
+              <span class="search-mini">⌕ Search tasks</span>
+            </div>
+
+            <table>
+              <colgroup><col class="c-task"><col class="c-status"><col class="c-owner"><col class="c-obj"><col class="c-due"></colgroup>
+              <thead>
+                <tr><th>Task</th><th>Status</th><th>Owner</th><th>Objective</th><th>Due</th></tr>
+              </thead>
+              <tbody>
+                <!-- WORK-LINE GROUP 1: Daily IG Content (PROCESS) -->
+                <tr class="grp"><td colspan="5"><div class="grp-inner">
+                  <span class="caret">▾</span><span class="grp-name">Daily IG Content</span>
+                  <span class="kind process"><span class="d"></span>Process · daily</span>
+                  <span class="ct">4 open</span>
+                </div></td></tr>
+                <tr class="row"><td class="task-name">Shoot &amp; edit Tuesday reel</td><td><span class="pill inprogress"><span class="dot"></span>In progress</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Grow direct orders</td><td class="due calm">Today</td></tr>
+                <tr class="row"><td class="task-name">Caption + schedule weekend posts</td><td><span class="pill todo"><span class="dot"></span>To do</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Grow direct orders</td><td class="due calm">Thu</td></tr>
+                <tr class="row"><td class="task-name">Reply to story DMs</td><td><span class="pill todo"><span class="dot"></span>To do</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Grow direct orders</td><td class="due calm">Fri</td></tr>
+                <tr class="row"><td class="task-name">Restock highlight covers</td><td><span class="pill blocked"><span class="dot"></span>Blocked</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Grow direct orders</td><td class="due overdue">2d late</td></tr>
+
+                <!-- WORK-LINE GROUP 2: New Menu Design (PROJECT) -->
+                <tr class="grp"><td colspan="5"><div class="grp-inner">
+                  <span class="caret">▾</span><span class="grp-name">New Menu Design</span>
+                  <span class="kind project"><span class="d"></span>Project</span>
+                  <span class="ct">2 open</span>
+                </div></td></tr>
+                <tr class="row"><td class="task-name">Plate-photo styling pass</td><td><span class="pill inprogress"><span class="dot"></span>In progress</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Launch autumn menu</td><td class="due calm">Mon</td></tr>
+                <tr class="row"><td class="task-name">Print-ready menu board layout</td><td><span class="pill todo"><span class="dot"></span>To do</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Launch autumn menu</td><td class="due calm">Next wk</td></tr>
+
+                <!-- WORK-LINE GROUP 3: Brand Refresh (PROJECT) -->
+                <tr class="grp"><td colspan="5"><div class="grp-inner">
+                  <span class="caret">▾</span><span class="grp-name">Brand Refresh</span>
+                  <span class="kind project"><span class="d"></span>Project</span>
+                  <span class="ct">1 open</span>
+                </div></td></tr>
+                <tr class="row"><td class="task-name">New logo lockup variants</td><td><span class="pill todo"><span class="dot"></span>To do</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Refresh the brand</td><td class="due calm">Next wk</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p style="font-size:12px;color:var(--ds-font-color-tertiary);margin-top:12px;max-width:680px">
+            Read it top-down: Maya's <b style="color:var(--ds-font-color-primary)">Daily IG Content</b> is a <b style="color:var(--ds-font-color-primary)">Process</b> (4 open) — that's her recurring load.
+            Her other two work-lines are <b style="color:var(--ds-font-color-primary)">Projects</b> (3 open). The grouping is the whole answer; no second screen needed.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHONE REFLOW (<768px) -->
+<div class="pad">
+  <div class="mock-label">D1 — phone reflow (&lt;768px): same group-by Work-line, each task a card with label:value dl</div>
+  <div class="phone">
+    <div class="ph-grp">
+      <div class="gh"><span class="nm">Daily IG Content</span><span class="kind process"><span class="d"></span>Process</span><span class="ct">4 open</span></div>
+      <div class="ph-card">
+        <div class="t">Shoot &amp; edit Tuesday reel</div>
+        <dl><dt>Status</dt><dd><span class="pill inprogress"><span class="dot"></span>In progress</span></dd><dt>Objective</dt><dd>Grow direct orders</dd><dt>Due</dt><dd>Today</dd></dl>
+      </div>
+      <div class="ph-card">
+        <div class="t">Restock highlight covers</div>
+        <dl><dt>Status</dt><dd><span class="pill blocked"><span class="dot"></span>Blocked</span></dd><dt>Objective</dt><dd>Grow direct orders</dd><dt>Due</dt><dd><span class="due overdue">2d late</span></dd></dl>
+      </div>
+    </div>
+    <div class="ph-grp" style="padding-bottom:14px">
+      <div class="gh"><span class="nm">New Menu Design</span><span class="kind project"><span class="d"></span>Project</span><span class="ct">2 open</span></div>
+      <div class="ph-card">
+        <div class="t">Plate-photo styling pass</div>
+        <dl><dt>Status</dt><dd><span class="pill inprogress"><span class="dot"></span>In progress</span></dd><dt>Objective</dt><dd>Launch autumn menu</dd><dt>Due</dt><dd>Mon</dd></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATES: empty (no work-lines yet) · loading -->
+<div class="pad">
+  <div class="mock-label">D1 — states: empty (no work-lines on any task) · loading (skeleton). Own-view = same table filtered to "Me" (Mine seg).</div>
+  <div class="grid2">
+    <div>
+      <p class="frame-cap">Empty — no task carries a work-line yet</p>
+      <div class="frame">
+        <div class="empty">
+          <h3>No work-lines yet</h3>
+          <p>Tasks aren't tied to a project or process. Add a work-line to a task and they'll group here.</p>
+          <button class="btn-primary">Set a work-line on a task</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="frame-cap">Loading</p>
+      <div class="frame" aria-busy="true">
+        <div style="padding:14px 12px;border-bottom:1px solid var(--ds-border-color-light)"><span class="sk" style="width:120px;height:18px"></span></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:0 12px;height:50px;border-bottom:1px solid var(--ds-border-color-light)"><span class="sk" style="width:180px"></span><span class="sk" style="width:70px;height:22px;border-radius:var(--ds-border-radius-pill);margin-left:auto"></span></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:0 12px;height:50px"><span class="sk" style="width:150px"></span><span class="sk" style="width:70px;height:22px;border-radius:var(--ds-border-radius-pill);margin-left:auto"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="dark dark-wrap">
+  <div class="pad">
+    <div class="mock-label">D1 — dark mode (Project/Process = tinted categorical text labels; one blue stays the only action color)</div>
+    <div style="max-width:1080px;margin:0 auto;" class="frame">
+      <table>
+        <colgroup><col class="c-task"><col class="c-status"><col class="c-owner"><col class="c-obj"><col class="c-due"></colgroup>
+        <thead><tr><th>Task</th><th>Status</th><th>Owner</th><th>Objective</th><th>Due</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="5"><div class="grp-inner"><span class="caret">▾</span><span class="grp-name">Daily IG Content</span><span class="kind process"><span class="d"></span>Process · daily</span><span class="ct">4 open</span></div></td></tr>
+          <tr class="row"><td class="task-name">Shoot &amp; edit Tuesday reel</td><td><span class="pill inprogress"><span class="dot"></span>In progress</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Grow direct orders</td><td class="due calm">Today</td></tr>
+          <tr class="grp"><td colspan="5"><div class="grp-inner"><span class="caret">▾</span><span class="grp-name">New Menu Design</span><span class="kind project"><span class="d"></span>Project</span><span class="ct">2 open</span></div></td></tr>
+          <tr class="row"><td class="task-name">Plate-photo styling pass</td><td><span class="pill inprogress"><span class="dot"></span>In progress</span></td><td><div class="owner"><span class="ownav">MR</span><span class="own-name">Maya R.</span></div></td><td class="objlabel">Launch autumn menu</td><td class="due calm">Mon</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!--
+================================================================================
+DESIGN-MOCKUP: Cascade D1 — NO NEW SCREEN (reuse the Tasks list).
+Spec: docs/specs/cascade-foundation.spec.md (simplified per owner 2026-06-24) · NFR-206 literacy bar · ADR-0014.
+Vocabulary: CONTEXT.md — "Project / Process", "Work-line", "Objective". LANE OMITTED FROM UI (owner 2026-06-24).
+  Core model = Task + two fields: objective + work_line(name, type ∈ {project,process}).
+
+THE ONE QUESTION (this screen): "What is each task part of — and is that a project or a daily/ongoing job?"
+  Answered WITHOUT a new screen: two columns added to the Tasks list people already use —
+  Objective (a plain grouping label) and the work-line shown as the GROUP HEADER, tagged Project or Process.
+  Workload ("is Maya tied up in daily IG or the new-menu project?") is read by:
+    (1) Group by = Work-line (the one new primary control, navy-tinted as the DB-view control);
+    (2) Filter Person = Maya (one filter);
+    (3) each group header carries the Project|Process TEXT label + open-count.
+  Glance answer: 1 Process group (4 open) vs 2 Project groups (3 open) → "mostly project-shaped, with a daily run."
+
+TOKENS USED (--ds-* kit closure; NO literal colors):
+  Surfaces: --ds-background-primary (card), --ds-background-secondary (rail, group hover, seg track),
+    --ds-background-tertiary (main wash, skeleton), --ds-background-transparent-light (nav/ghost hover).
+  Text: --ds-font-color-primary / -secondary / -tertiary / -inverted / -danger.
+  Lines: --ds-border-color-light (hairlines, dividers), --ds-border-color-medium (control borders).
+  Action (One Blue): --ds-color-blue (logo, active nav, focus ring, Retry/primary btn), --ds-color-blue11/12 (group label = brand-navy-text role, group-by tint, active-nav text), --ds-accent-tertiary (primary/10% nav-active + owner avatar).
+  Brand sprinkle: --ds-color-orange (logo dot only).
+  Status pills (Tinted-Status, 8px dot + text): --ds-accent-tertiary/blue (In progress), --ds-tag-background-bronze/-text-bronze + --ds-color-bronze (To do), --ds-tag-background-red/-text-red + --ds-color-red (Blocked).
+  PROJECT vs PROCESS (categorical TEXT label, never color-only): Project = --ds-tag-background-blue/-text-blue + --ds-color-blue dot; Process = --ds-tag-background-gray/-text-gray + --ds-font-color-tertiary dot.
+  Radius: --ds-border-radius-sm (controls/pills-as-chip), -md (cards/table), -pill (avatars/status). Shadow: --ds-box-shadow-light (resting card lift). Type: --ds-font-display (titles/group), --ds-font-family (body), tabular-nums on counts/ages.
+
+PROPOSED NEW TOKENS: NONE. (Lane omitted → the old --lane-* gap is gone. Project/Process reuse existing kit tag tokens.)
+
+A11Y (WCAG-AA, NFR-204/206): semantic <table> thead; group rows = TEXT label (Project/Process readable without color);
+  status pill = 8px dot + always-present word; Owner = avatar + name; group-by/person are role=button aria-label;
+  seg = role=tablist/tab/aria-selected; global :focus-visible ring (One Blue). Reading load ≤ one short paragraph.
+  Phone reflow = single-render card list (each cell once in AT tree, no aria-hidden), 44px min card height.
+
+STATES SHOWN: populated (grouped, filtered to Maya) · phone reflow · empty (no work-lines) · loading (skeleton) · dark.
+  Own-view (FR-234) = identical table with the "Mine" segment on — no separate surface.
+RESPONSIVE: ≥768px dense table; <768px card list. Rail collapses at 920px (shell grammar, not redrawn).
+
+OPEN QUESTIONS (owner):
+  1. Group-by default: should Tasks default to grouped-by-Work-line, or stay flat with group-by as an opt-in control?
+     (D1 leans opt-in: the flat list is the everyday view; group-by answers the workload question on demand.)
+  2. Objective column: show always, or only when grouped/relevant? (Adds one column to an already-wide table.)
+  3. "Process · daily" vs just "Process" on the tag — does the extra word "daily" help the literacy bar or clutter it?
+================================================================================
+-->
+</body>
+</html>

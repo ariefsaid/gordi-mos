@@ -65,6 +65,7 @@ const GROUP_VALUES: { value: TasksGroupBy; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'owner', label: 'Owner' },
   { value: 'bu', label: 'Business unit' },
+  { value: 'workline', label: 'Project/Process' },
 ]
 
 export function TasksToolbar({

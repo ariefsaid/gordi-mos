@@ -58,14 +58,17 @@ test('AC-104 (J2): expand toggle keeps the URL, goes full width, and persists', 
   await drawer.getByRole('button', { name: /expand to full width/i }).click()
 
   // Same URL (no history push) + the surface is now expanded full width.
+  // expand@split PROMOTES the drawer to the two-column record page (ADR-0013 D3 / #49) —
+  // .record-2col is the full-width oracle (the older .dw-surface-expanded was the pre-#49
+  // "widen the drawer" treatment). The table column collapses (.split.expanded).
   expect(page.url()).toBe(url)
-  await expect(page.locator('.dw-surface-expanded')).toBeVisible()
+  await expect(page.locator('.record-2col')).toBeVisible()
   await expect(page.locator('.split.expanded')).toBeVisible()
 
   // Persisted per-user-global: reload → still expanded.
   await page.reload()
   await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
-  await expect(page.locator('.dw-surface-expanded')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.record-2col')).toBeVisible({ timeout: 10_000 })
 
   // Collapse again so the preference doesn't leak into later specs.
   await page.getByRole('button', { name: /collapse to split/i }).click()

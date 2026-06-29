@@ -63,6 +63,7 @@ provider is unavailable — the loop is substrate-agnostic.
   seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
   source of truth; 4-lens design review (Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) before merging UI changes.
+- **Review battery (BLOCKING):** before offering or performing merge-to-main, the full review battery (spec · code-quality · design if any `*.tsx`/`*.css` changed · security if any auth/RLS/schema path changed) MUST have run and be recorded in `docs/reviews/<branch>.md`, verified by `bash scripts/pre-merge-check.sh` (exit 0). Green gates ≠ reviewed. No ledger + no passing script run = no merge.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·

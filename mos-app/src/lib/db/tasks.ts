@@ -98,6 +98,8 @@ export interface CreateTaskInput {
   dueDate?: string | null
   consultedPersonIds?: string[]
   informedPersonIds?: string[]
+  objectiveId?: string | null
+  workLineId?: string | null
 }
 
 /** Insert a task (org_id stamped by DB), then its `created` event (FR-010/013/014). Returns the id. */
@@ -112,6 +114,8 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
     due_date: input.dueDate ?? null,
     consulted_person_ids: input.consultedPersonIds ?? [],
     informed_person_ids: input.informedPersonIds ?? [],
+    objective_id: input.objectiveId ?? null,
+    work_line_id: input.workLineId ?? null,
   }).select('id').single()
   if (error) throw new Error(`createTask failed — ${error.message}`)
   const id = (data as { id: string }).id
@@ -135,6 +139,7 @@ export async function updateTaskStatus(
 export type TaskFieldsPatch = Partial<Pick<
   TaskListRow, 'title' | 'description' | 'due_date' | 'business_unit_id'
   | 'responsible_person_id' | 'accountable_person_id'
+  | 'objective_id' | 'work_line_id'
 >>
 
 /** Edit non-RACI/non-status fields, then log a `field_edited` event (FR-055). */

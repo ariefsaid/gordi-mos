@@ -5,9 +5,14 @@
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 export type RenderGroup = {
-  key: string        // persistence/identity key (status name, person id, or bu id)
+  key: string        // persistence/identity key (status name, person id, bu id, or work-line id)
   label: string      // display label
   rows: TaskListRow[]
   overdue: number
   prefillParam: string // e.g. "status=Blocked", "r=<personId>", "bu=<buId>"
+  /**
+   * Only present when groupBy === 'workline'. The work-line type for the type label.
+   * null = the "No work-line" trailing group (no type tag rendered).
+   */
+  workLineType?: 'project' | 'process' | null
 }

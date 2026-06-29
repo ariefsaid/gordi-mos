@@ -8,6 +8,10 @@ different connection target** for that same schema.
 
 - **`local`** = where you develop **and test** — the Docker stack (`supabase start` / `supabase db reset`).
   Its keys are the well-known local dev keys (not secret).
+- **`staging`** = **Supabase Cloud** (managed) for testing the deployed app — project `gordi-mos`
+  (ref `hvnwcsmkdeqmgqlbwflm`, region Singapore). SPA on **Cloudflare Pages** (`gordi-mos.pages.dev/mos`,
+  built only from the `staging` branch; previews off). Cloud is **staging-only — prod stays self-hosted** (ADR-0010).
+  The URL + publishable key are **public** (ship in the bundle); not secrets.
 - **`prod`** (ris-dev, self-hosted) = the **VPS-hosted Supabase** at `https://ops.gordi.id/mos`. Its DB connection
   string is a **secret, stored in 1Password** (vault `AS`). Deployment: later, Phase 3-1, owner-gated.
 
@@ -16,6 +20,7 @@ different connection target** for that same schema.
 | Env | Supabase instance | API URL | Anon key | Frontend | Migrations | Seed |
 |---|---|---|---|---|---|---|
 | `local` | Docker (gordi-mos) | `http://127.0.0.1:44321` | local key in `mos-app/.env` | `npm run dev` from `mos-app/` | `supabase db reset` | `seed.sql` (auto) |
+| `staging` | Supabase Cloud (gordi-mos, Singapore) | `https://hvnwcsmkdeqmgqlbwflm.supabase.co` | publishable `sb_publishable_…` (CF Pages env var; public) | Cloudflare Pages `gordi-mos.pages.dev/mos` (`staging` branch) | `supabase link --project-ref hvnwcsmkdeqmgqlbwflm` → `supabase db push` | structure + real account (no demo seed); migration test-seeds apply |
 | `prod` (ris-dev) | self-hosted VPS | `https://ops.gordi.id/mos` | anon key in host env vars | TBD (Phase 3-1) | `supabase db push --db-url …@ris-dev` | reference data only (no demo seed) |
 
 ## Which command hits which target
@@ -26,6 +31,7 @@ different connection target** for that same schema.
 | `supabase db reset` | **local** Docker | re-applies migrations + runs `seed.sql` locally |
 | `supabase test db` | **local** Docker | pgTAP suite (needs pristine base) |
 | `supabase login` / `link` | account / repo↔cloud pointer | no DB touched |
+| `supabase db push` (linked to `gordi-mos`) | **staging** (Supabase Cloud) | applies migrations to the cloud DB; CLI access-token authed (no DB password needed for push via the pooler). Re-link to a different ref before targeting another env. |
 | future: `supabase db push --db-url …@ris-dev` | **prod** (self-hosted) | secret via 1Password; explicit `--db-url`; typed confirm |
 
 ## Local stack setup
@@ -45,6 +51,8 @@ The prod DB connection string is a secret. It is **never** stored in a file in t
 1Password service-account token itself (from `~/.op-token`).
 
 **Resend prod key** (email SMTP, OD-P1-11): stored in 1Password vault `AS`. Committed non-secret coordinates: `supabase/op.resend.env` (cross-ref for the full SMTP env table in `supabase/README.md` §Production email). **NEVER commit a key into the repo.**
+
+**Staging (Supabase Cloud) — what's secret vs not:** the **URL + publishable key are public** (in the SPA bundle) — keep them in `docs/environments.md` / CF Pages env vars, **not** op. The only op-worthy secret is the **DB password / connection string**, and only if you ever run `db push` non-interactively or from CI (the authed CLI doesn't need it for an interactive push). If you store it: grab the **Direct connection** string (Dashboard → Database → Connection string → *Direct*, port 5432 — IPv6) for migrations/admin, or the **Session pooler** (port 5432, pooler host) as the **IPv4 fallback** (CI runners are IPv4-only). **Not** the **Transaction pooler** (port 6543 — transaction mode breaks migration DDL/locks). Store in vault `AS` + a committed `op.supabase-staging.env` coordinate (mirror `op.resend.env`) if/when needed; the `sb_secret_…` key only if something server-side is wired (the SPA never uses it).
 
 ## Production deploy (ris-dev, self-hosted) — later (Phase 3-1, owner-gated)
 

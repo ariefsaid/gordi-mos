@@ -22,6 +22,10 @@ export function AppShell() {
         className="h-screen bg-secondary/35"
         style={{
           display: 'grid',
+          width: '100%',
+          maxWidth: '100vw',
+          minWidth: 0,
+          overflowX: 'hidden',
           // minmax(0, 1fr) (not bare 1fr) so the content column can shrink below its
           // min-content — bare 1fr's implicit min-width:auto lets wide content (a dense
           // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
@@ -45,7 +49,7 @@ export function AppShell() {
 
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div
-          className="flex flex-col min-h-0"
+          className="flex min-w-0 flex-col min-h-0"
           style={{ gridArea: 'main' }}
         >
           <Outlet />

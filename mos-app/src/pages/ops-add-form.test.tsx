@@ -78,6 +78,8 @@ const TASK_1 = {
   informed_person_ids: [],
   description: null,
   due_date: null,
+  objective_id: null,
+  work_line_id: null,
   last_activity_at: '2026-06-12T00:00:00Z',
   archived_at: null,
   created_by: '40000000-0000-0000-0000-000000000001',

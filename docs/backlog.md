@@ -3,269 +3,266 @@
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 
-> **NEXT SESSION: read `docs/platform-workstream-status.md` first** (the current handoff — active
-> kitchen UI redesign on `feat/kitchen-log-redesign`, awaiting owner sign-off + Director merge).
-> `docs/ui-revamp-status.md` covers the records-workspace UI revamp (still relevant). `docs/STATUS.md`
-> is the pre-2026-06-19 MVP status, kept for history.
+> **NEXT SESSION: read `docs/platform-workstream-status.md` first** — that is the current
+> handoff. It covers: Kitchen Module (SHIPPED 2026-06-21), access-role layer (SHIPPED),
+> UI-revamp (SHIPPED PRs #29/#34/#35..#52..#66), and all outstanding items.
+> `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
+> `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
-> **Current state (2026-06-22):** MVP feature-complete (tasks+RACI · weekly updates · Daily Log).
-> Platform foundation shipped: ADRs 0010/0011/0012 · access-role layer (PR-a #41, PR-b #43) ·
-> Kitchen Module DB + UI (PR-k1 #45, k3 #62, #64/#65/#66 — all 5 screens on main, stepper UI).
-> **Active branch:** `feat/kitchen-log-redesign` — OD-K-5 redesign (dense-table + KPI strip + phone
-> cards, all 4 screens rebuilt) — built and verified, awaiting owner sign-off.
-> Remaining gaps to usable product: **▶ kitchen UI merge** (owner sign-off) → **P3-1 production deploy**
-> (owner-gated). P2-4 stays owner-deferred; WALL-3/WALL-4 open.
-> Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main before
-> merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset` relinks.
+> **Current main (2026-06-25):** kitchen Module shipped (#45/#41/#43/#62/#64/#65/#66); UI-revamp on main;
+> **Strategy→Execution cascade FIRST SLICE SHIPPED** — PR #69 (task-centric: `objective_id`/`work_line_id`
+> on `mos.tasks` + `mos.objectives`/`mos.work_lines` lookups + group-by-work-line + workload caption +
+> pickers) and follow-ups PR #70 (app-shell mobile-overflow fix, ADR-0015 naming lock, curated e2e AC-230,
+> machine **pre-merge review gate** `scripts/pre-merge-check.sh`). Memory: `cascade-first-slice-state`.
+>
+> **Staging is LIVE (2026-06-25):** Supabase Cloud + Cloudflare Pages at **https://gordi-mos.pages.dev/mos/**
+> (testing only; **prod stays self-hosted**, ADR-0010). Setup + 6 gotchas in `docs/environments.md` (staging
+> row) + memory `staging-deploy-state`. Cloud ref `hvnwcsmkdeqmgqlbwflm` (Singapore); DB connection string +
+> Teable PAT in op (vault `AS`).
+>
+> **DONE (2026-06-26..29):**
+> - **Kitchen data migration LOADED to staging** — 48 wip / 521 logs / 524 plans into `ops` on Supabase
+>   Cloud, `posted_to_esb`/`esb_doc_num`/`posted_at` carried verbatim (no ESB re-POST), batch_id nulled,
+>   fidelity-verified. **3 staff logins WIRED:** Riri=`riri@gordi.id` (ops_lead), Ibnu/Ansori=
+>   `<name>@ops.gordi.local` (member) — temp pw, owner rotates. Synthetic-email domain `@ops.gordi.local`
+>   (ADR-0011 D2 amended). Memory `kitchen-data-migration`.
+> - **ESB push worker BUILT + SHIPPED** — extended `gordi-kitchen-app` (not a new service) to drain the MOS
+>   outbox; gordi-kitchen-app PRs #1/#2/#3 + gordi-mos #76 (service_role grants) / #77 (docs). GOO validated
+>   live. **Outstanding = deploy + flip on ris-dev** (owner-gated). `docs/platform-workstream-status.md` §3 +
+>   `docs/reference/esb-goo-integration.md`; cross-repo ledger `docs/reviews/kitchen-app-worker-prs.md`.
+> - **Task-drawer collapse-control fix** merged (PR #78).
+>
+> **READY TO MERGE — admin user management (`feat/admin-user-mgmt`, PR #80):**
+> - `/admin/people` admin-only screen (list + search/status-filter, create person +optional login, reset pw,
+>   disable/enable, grant/revoke roles, archive). Memory `admin-user-mgmt-state`.
+> - **ADR-0016**: 3 admin-gated `SECURITY DEFINER` RPCs = interim STAGING provisioning; thin FastAPI backend
+>   (ADR-0010 D6) stays PROD authority. Spec + plans under `docs/`.
+> - **Review battery Round-2 = all cleared** (design PASS rendered-live; spec/CQ/security FIX-THEN-SHIP; H-1/M-1
+>   security fixed, pgTAP `56`); `pre-merge-check.sh` exit 0; 1321 tests. Ledger `docs/reviews/feat-admin-user-mgmt.md`.
+> - **NEXT: owner merge #80 → `supabase db push` to staging → rebase the stacked `feat/cascade-catalog` onto
+>   main and merge.** Prod-deferred (ADR-0016): email validation, temp-pw entropy, clipboard auto-clear → thin backend.
+>
+> **READY, stacked behind admin-mgmt — cascade catalog (`feat/cascade-catalog`, worktree):** Objectives(admin) +
+>   Projects&Processes(ops_lead/admin) management surfaces; review battery PASS, `pre-merge-check` exit 0; ships
+>   after admin-mgmt lands (rebase onto main). Memory `cascade-catalog-state`.
+>
+> **Prod provisioning RESOLVED (2026-06-29, ADR-0016 amendment + D11 audit):** the thin FastAPI backend
+>   (ADR-0010 D6) is **RETIRED** — both its concerns left the plan (ESB → `gordi-kitchen-app`; provisioning →
+>   the `SECURITY DEFINER` RPCs). D11 security audit returned **CLEAR FOR PROD** (single-org). Prod shape =
+>   SPA + Supabase (data/auth/RLS + provisioning RPCs), no bespoke MOS backend tier.
+> **Follow-ups (open):**
+>   - **B2B blocker (Medium, D11 audit):** `admin_create_login` cross-org duplicate-email → raw `23505`
+>     (opaque error + minor cross-tenant existence oracle). Fix (clean error, no cross-org echo + stop
+>     forwarding raw PG text in `admin-users.ts`) **before turning on multi-org**; unexercised single-org.
+>   - **Advisory (D11):** GoTrue-upgrade smoke test in the prod runbook (provision→sign-in→reset→disable→enable);
+>     `for update` on the create-login person read.
+>   - Minor: status-pill radius 6px vs full (DESIGN.md). (`--radius-lg` 12px regression DONE #82; e2e-auth #57 DONE.)
+>
+> **In flight (2026-06-26) — two STACKED feature branches (NOT yet on main), built concurrently:**
+> 1. **`feat/admin-user-mgmt`** (concurrent agent) — admin user provisioning: People admin page, login
+>    create/reset/enable, role grant/revoke, `AdminRoute` guard, `ADMIN_SECTIONS` nav, interim
+>    provisioning RPCs (ADR-0016). Committed on its branch in the **main checkout**; review/merge owned
+>    by that workstream.
+> 2. **`feat/cascade-catalog`** (this workstream — git worktree `../gordi-mos-cascade`) — in-app
+>    management of **Objectives** (admin) + **Projects & Processes** (ops_lead/admin) under Workspace:
+>    add/rename/archive, RLS tighten (objectives→admin-only, migration `20260626000003`), Work-line→
+>    **Project/Process** UI relabel (ADR-0015), shared `CatalogManager`, `RequireAccessRole` guard.
+>    **BUILT + full review battery PASS** (`docs/reviews/feat-cascade-catalog.md`, `pre-merge-check.sh`
+>    green); spec `docs/specs/cascade-catalog.spec.md`, decision **OD-C-2**, plan
+>    `docs/plans/2026-06-26-cascade-catalog.md`. Memory: `cascade-catalog-state`.
+>    ⚠️ **Topology:** `feat/cascade-catalog` is **stacked on an OLDER commit of `feat/admin-user-mgmt`
+>    (`7445396`)**, reusing its role-guard + nav-section pattern. **Merge order: admin-user-mgmt FIRST,
+>    then rebase `feat/cascade-catalog` onto updated main and merge.** Deploy prereq: apply migration
+>    `20260626000003`. Non-blocking follow-up: collapse `AdminRoute` into `RequireAccessRole` after both land.
+>
+> Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main
+> before merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset`
+> relinks (or PR #57 heals it permanently once merged). Render auth-gated pages via vite-on-worktree-port +
+> the Director-demo-login persona before claiming UI done (code review misses visual defects).
 
 ## ✅ Phase 0 — frontend mockups (DONE)
 - [x] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
-  (`docs/design-mockups/proposal-IA-<n>-<slug>.html`). Candidate shapes to explore: (a) left-rail +
-  master-detail (PMO-like), (b) "My week" home-first (tasks + updates due on one landing surface),
-  (c) feed-first (daily ops feed as home, tasks/updates as tabs). Each shows shell + nav + one
-  populated screen, realistic Gordi data. Resolves WALL-1 into concrete options.
+  (`docs/design-mockups/proposal-IA-<n>-<slug>.html`). Resolves WALL-1 into concrete options.
 - [x] **P0-2 — Key-screen mockups.** My Tasks list · task detail · weekly update write + manager review ·
   daily ops feed. `docs/design-mockups/mock-<screen>.html` built; superseded by the shipped app (Phase 2).
 - [x] **P0-3 — Owner IA pick.** DONE → OD-P0-6 (IA-8 balanced My Week) after two density redlines
-  (OD-P0-7). Remaining gate items: home information inventory (OD-P0-8 pending) → re-cut the four
-  key-screen mocks to density mode → owner signs off screens.
+  (OD-P0-7).
 
 ## ✅ Phase 1 — foundation (DONE)
-- [x] P1-1 scaffold `mos-app/` + CI gates + Playwright harness — DONE, PR #1 merged (main@baafdc4).
-- [x] P1-2 Supabase foundation — DONE, PR #2 merged (main@4f9ce7f): 6 migrations, 10 pgTAP files /
-  41 assertions, ADR-0001, OD-P1-1..7 via grill session #1; security audit no-High/Critical, M1/M2/L3
-  fixed. Coverage gate re-deferred to P1-3 (first real app logic).
-
-- [x] P1-3 Auth — DONE, PR #3 merged: login (password+magic link), session, viewer/isManager,
-  guards, orphan fail-closed, recovery flow (audit-L1 fix + e2e rotation proof). 59 unit (95% cov,
-  gate live) · 7 e2e · 47 pgTAP. AC-006 amended (action-specific neutral copy).
-- [x] P1-4 App shell — DONE, PR #4 merged: IA-8 rail/header/sections, My Week empty composition,
-  mobile drawer, manager-conditional team module (e2e-proven w/ MANAGER fixture). 128 unit · 6
-  curated e2e journeys (pyramid enforced: smoke deleted, AC-005b demoted) · 47 pgTAP. Local stack
-  re-ported 55xxx→44xxx (macOS ghost reservation).
+- [x] P1-1 scaffold `mos-app/` + CI gates + Playwright harness — DONE, PR #1.
+- [x] P1-2 Supabase foundation — DONE, PR #2: 6 migrations, 10 pgTAP / 41 assertions, ADR-0001.
+- [x] P1-3 Auth — DONE, PR #3: login (password+magic link), session, viewer/isManager, guards,
+  orphan fail-closed, recovery flow. 59 unit · 7 e2e · 47 pgTAP.
+- [x] P1-4 App shell — DONE, PR #4: IA-8 rail/header/sections, My Week, mobile drawer, manager team
+  module. 128 unit · 6 e2e.
 
 ## Security-audit deferrals (from P1-2 audit, 2026-06-11 — neither blocks ship)
-- **L4:** no acyclicity constraint on `shared.roles.reports_to_role_id` (evaluation is cycle-safe via
-  UNION; data integrity by convention) → add CHECK/trigger when role-editing UI ships (Phase 2+).
-- **L5 (extended by P1-3 audit):** the ris-dev production deploy issue (P3-1) MUST: disable open
-  signup both keys (`enable_signup=false`; verify with a live self-signup probe expecting 422),
-  consider the before_user_created hook as domain allowlist, raise password policy (≥8 +
-  lower_upper_letters_digits), set session `timebox` (~24h) + `inactivity_timeout` (bounds stolen
-  localStorage refresh tokens), keep CSP tight. ALSO: configure prod SMTP = **Resend**
-  (OD-P1-11; setup runbook in supabase/README.md §Production email): owner verifies gordi.id in the
-  Resend dashboard (SPF/DKIM DNS records) + provisions an API key into the prod env. Password login
-  works without SMTP.
+- **L4:** no acyclicity constraint on `shared.roles.reports_to_role_id` → add CHECK/trigger when
+  role-editing UI ships (Phase 2+).
+- **L5 (extended by P1-3 audit):** P3-1 MUST: disable open signup both keys + live 422 probe ·
+  password policy (≥8, mixed) · session `timebox` ~24h + `inactivity_timeout` · tight CSP · prod
+  **Resend** SMTP (OD-P1-11). Password login works without SMTP.
 
-## ✅ Phase 2 — first slice (DONE; P2-4 owner-deferred)
-- [x] P2-1 tasks + ownership + lightweight RACI (OD-DIR-5) — COMPLETE (3-PR split):
-  - [x] P2-1a schema + RLS + data layer — PR #5 (mos.tasks, archive-gate, 41 pgTAP; security clean).
-  - [x] P2-1b Tasks list page — PR #6 (filters, RACI rows, directory-resolved names, archived
-    treatment, 768px reflow; 3-lens caught + fixed cross-schema embed bug). 220 unit · 7 e2e.
-  - [x] P2-1c task detail + checklist + create + archive — PR #7 (inline status, editable R/A/C/I,
-    checklist add/toggle/reorder/delete, activity log, archive/unarchive, read-only non-editor,
-    loading/not-found/archived states). 252 unit · 9 e2e. **P2-1 COMPLETE.**
-- [x] P2-2 weekly updates (write + manager review) — COMPLETE (3-PR split, grill #3 → OD-P2-10..14):
-  - [x] P2-2a schema + upward-only RLS + data layer + week.ts — PR #8 (first non-org-readable entity;
-    author-only write, submit-lock; security audit found+fixed a Critical — _test_seed_role_tree
-    PUBLIC-EXECUTE RPC; CI definer-revoke lint added). 120 pgTAP · 282 unit.
-  - [x] P2-2b write pane + ProgressMarker — PR #9 (summary + update lines w/ progress marker,
-    Save draft/Submit/Reopen, submitted-locked, on-time/late; 3-lens caught a transparent-Submit
-    Critical unit tests missed → fixed). 337 unit · 9 e2e. (CI: excluded flaky edge-runtime.)
-  - [x] P2-2c manager review pane + My Week strip + team-module wiring + 2 e2e — PR #9-base + PR #10
-    (review roster, read-only row-open per-person update, prior-week nav, filed/draft/not-started +
-    on-time/late, My Week strip + team module wired to listTeamUpdates). **P2-2 COMPLETE.**
-    NOTE: base P2-2c was accidentally pushed direct to main (git-hygiene slip); PR #10 rolled forward
-    the bypassed review — 3-lens caught 3 Criticals incl. unimplemented FR-031 row-open. 396 unit · 11 e2e.
-- [x] P2-3 Daily Log (daily ops feed, manual entry) — **COMPLETE** (3-PR split, grill → OD-P2-15..19;
-  surface renamed "Ops Log" → "Daily Log" by owner 2026-06-12, OD-P2-15 amended):
-  - [x] P2-3a schema + org-read RLS + data layer + wibDayRange — PR #11 (ops.log_entries, first
-    ops-schema exposure; security audit found+fixed a High (created_by mutable) + Medium (cross-org
-    refs) via a guard trigger). 152 pgTAP · 411 unit.
-  - [x] P2-3b+c Daily Log feed + add/edit form + linked-task picker + My Week strip + 2 e2e —
-    **COMPLETE** (merged PR #12). Recovered a killed-pi WIP + two bypassed reviews:
-    `842cee6` route + editLogEntry camel→snake fix · `d9b3c20` spec+quality reviews (gpt-5.4) → TZ-bug
-    fix + AC-067 un-bent + proof gaps · `45ba4cf` 3-lens design review (pi) → action-cluster overflow +
-    44px phone targets + clear-filters + archived-calm · `633e368`/`6ab1bd1` Daily Log rename + strip
-    verb fix. 460 unit · e2e AC-090/091 live · all gates green.
-- [ ] P2-4 kitchen → `ops` mirror — DEFERRED (owner, 2026-06-12): revisit after tasks+updates+ops in real use; needs kitchen event shapes + integration seam. WALL-3 stays open.
+## ✅ Phase 2 — first slice (DONE; P2-4 superseded by kitchen Module — see Phase 3)
+- [x] P2-1 tasks + ownership + lightweight RACI — COMPLETE (PRs #5/#6/#7).
+- [x] P2-2 weekly updates (write + manager review) — COMPLETE (PRs #8/#9/#10).
+- [x] P2-3 Daily Log (daily ops feed, manual entry) — COMPLETE (PRs #11/#12).
+- [~~P2-4 kitchen → ops mirror~~] **Superseded** by full kitchen Module in Phase 3 (ADR-0010/12,
+  OD-P4). The ops Module is now built as a first-class MOS Module, not a mirror.
 
-## ✅ Phase 3 — shipped this session (2026-06-13 → 16, all merged to `main`)
-- [x] **Dev demo login — PR #13.** Dev-only one-click 6-persona login (`DemoLogin.tsx` + `demoPersonas.ts`);
-  accounts via `supabase/seed.dev-auth.sql` (relinks on `db reset`). Gated `import.meta.env.DEV` (never prod).
-- [x] **Agentic workflow sync with PMO (Gordi context).** Lens D / 4-lens design review + `docs/jtbd.md`
-  oracle (OD-P3 grill); code-quality DB-perf dimension; qa agent-browser note; playbook §3a series-default;
-  CLAUDE.md model-discipline. (Verified non-gaps: PMO's "supabase skills" are dead symlinks; §3d surface-sync is PMO-only.)
-- [x] **Tasks split-view redesign — PR #15 → #18** (OD-P3-2..5, **ADR-0007**). Table-default + push/squash
-  split-view + Variant-B actionable drawer (pinned Status·R/A·Archive + Details/Checklist/Activity tabs) +
-  expand-to-full-width (one `/tasks/:id`) + keyboard (j/k/Enter/o/Esc/n/e) + 3 responsive regimes
-  (split ≥1100 · overlay 920–1100 · mobile <768) + virtualization (50+). `TaskDetail` 844→thin; `TaskSurface`
-  the one editor; new `TasksLayout`/`TasksTable`/`TaskDrawer`/`TaskDrawerHeader`/`TaskTabStrip`. UI/routing only
-  (no schema/RLS change). 584 unit · 6 e2e. PR-B's 4-lens render review caught 2 Criticals (expand+create/archive sync) → fixed.
-  Residual polish (non-blocking): eyeball the 920–1100 overlay band live; the thin `TaskDetail`/`TaskCreate` hosts may be deleted.
-- [x] **CI-green fix — PR #16.** Froze the clock in 3 date-relative weekly-update "late signal" tests
-  (failed by run-date); test-only. `main` green on any date.
+## ✅ Phase 3 — shipped (2026-06-13 → 21, all on `main`)
 
-## ✅ Platform foundation (2026-06-19 → 21, all merged to `main`)
-- [x] **ADR-0010/0011/0012 + OD-P4-1..8** — platform topology, auth model, ESB outbox. Docs PR #32/#33.
-- [x] **Access-role layer — PR-a #41 · PR-b #43** — `shared.person_access_roles` DB + JWT-claim helpers + `accessRoles` in `resolveViewer`. JWT staleness (~1h) accepted.
-- [x] **Kitchen Module DB substrate — PR-k1 #45** — `ops.wip_items` / `ops.kitchen_logs` / `ops.kitchen_plans` / `ops.kitchen_stock` + `integrations.esb_push` outbox table + approval RPC.
-- [x] **Kitchen Module UI — k3 #62** — all 5 screens (Log · Plan · Pesanan · Stock · Review) with the original stepper UI. Phase-0 mockup pick (OD-K-5) then triggered the redesign (see below).
-- [x] **Kitchen nav + seed + fix — #64/#65/#66** — sidebar rail Kitchen group + 32 real WIP items + `log_date` column fix.
+### Platform-foundation workstream (OD-P4, ADR-0010/11/12) — SHIPPED 2026-06-19..21
+- [x] **ADRs + docs** — ADR-0010 (platform topology), ADR-0011 (auth/RBAC), ADR-0012 (ESB outbox),
+  `docs/platform-workstream-status.md` (PRs #33/#36/#38).
+- [x] **Kitchen Module spec** — `docs/specs/kitchen-module.spec.md` (PR #32).
+- [x] **Access-role layer** — `shared.person_access_roles` table, JWT-claim hook, viewer integration
+  (PRs #41/#43). Fixed-role set: admin · ops_lead · finance · member (+ derived `manager`).
+- [x] **Kitchen Module DB substrate** — typed `ops.*` tables (`ops.wip_items`, `ops.kitchen_plans`,
+  `ops.kitchen_logs`, `ops.kitchen_stock`), `integrations.esb_push` outbox, approval RPC, RLS,
+  14 migrations (PR #45). Daily-Log mirror **deferred/removed** (migration `_014`; re-add when Daily
+  Log module ships). Reject provenance, stock-for-date RPC included.
+- [x] **Kitchen Module UI — all 5 screens** (PR #62):
+  - `/mos/kitchen/log` — S1 daily log capture (WIP item stepper, action-type segmented control)
+  - `/mos/kitchen/plan` — S2 plan editor (ops_lead/admin) + pesanan 14-day read-only view (member)
+  - `/mos/kitchen/review` — S3 review/approve queue (ops_lead/admin)
+  - `/mos/kitchen/stock` — S4 stock view (all authed members, read-only)
+  - `/mos/kitchen/pushes` — S5 ESB push outbox monitor (ops_lead/admin)
+- [x] **Kitchen sidebar nav** — role-aware Kitchen group in RailNav (PR #64).
+- [x] **Kitchen dev seed** — 32 real Gordi WIP items + sample plan (PR #65).
+- [x] **log_date bug fix** — plan/log queries used wrong column name `date` → `log_date` (PR #66).
+
+  **Parity directive (OD-K-1, 2026-06-21):** kitchen = functional parity with the OLD app
+  (`gordi-kitchen-app`) + better UI. NO new logic. Scope: logging + daily plan + review/approve +
+  stock auto-compute + ESB push outbox + pesanan 14-day view. NOT in scope: receiving/GR,
+  stock-opname, ESB-inventory reconciliation, multi-plan versioning, opening-balance seed, reports.
+  Transfer-over → availability rejects (not caps); bulk-approve approves all Submitted.
+
+### UI-revamp workstream (OD-P4/P5) — SHIPPED 2026-06-19..21
+- [x] **Structural conventions** — `@/` alias (#30), no-hardcoded-colors (#31), named-exports (#34),
+  kebab-case filenames (#40), drop Inter font dep (#55), drop components/ui barrel (#56).
+- [x] **UI revamp PRs #1–6** — brand-left TopBar + nav-only RailNav (#42) · record table craft +
+  TasksWorkspace decomposition (#47) · two-column hybrid record page (#49) · My-tasks card wired
+  to real R/A data (#50) · ⌘K command palette + task-search (#51) · states + dark-mode AA pass (#52).
+- [x] **Fidelity pass** — DM Sans + Tasks chrome + group-toggle (#53), +2px global type scale (#54).
+
+### Earlier Phase 3 items (2026-06-13..16) — already on `main`
+- [x] Dev demo login — PR #13.
+- [x] Agentic workflow sync (4-lens, `docs/jtbd.md`, model-discipline).
+- [x] Tasks split-view redesign — PRs #15–#18 (ADR-0007).
+- [x] CI-green fix — PR #16.
+- [x] Tasks DB-view redesign — PR #19 (ADR-0008, OD-P3-6/7/8).
 
 ## ⏳ Kitchen UI redesign — branch `feat/kitchen-log-redesign` (NOT merged; awaiting owner sign-off)
-OD-K-5: owner rejected the stepper UI (2026-06-21); picked A+C-KPI+B hybrid. Full redesign built on the branch — dense-table ≥768px + KPI strip + phone cards <768px across all 4 functional screens:
-- **All 4 functional screens** rebuilt: Log · Plan · Pesanan · Stock · Review. ESB-pushes page untouched.
-- **Shared primitives**: `KitchenToolbar`, `kitchen-table.css` grammar, per-screen KPI selectors.
-- **4 Log fixes** (F1 sticky bar shell fix, F2 seed categories, F3 disabled Submit, F4 dead props).
-- 100 files, ~8 900 insertions; all gates (typecheck / lint / unit) verified green on branch.
-- Design-plans: `docs/plans/2026-06-21-kitchen-log-redesign.md` + `docs/plans/2026-06-22-kitchen-screens-redesign.md`.
-- [ ] **NEXT:** owner visual sign-off → Director merges `feat/kitchen-log-redesign` to main.
-- After merge: **ESB worker** (FastAPI outbox) · **curated kitchen e2e** (#57) · **user provisioning** (prereq for kitchen go-live) · then production deploy gate.
+**OD-K-5** (2026-06-21; scope expanded 2026-06-22). Owner rejected the shipped stepper kitchen UI
+(single-column 32-row steppers, no density, One-Blue violation). Phase-0 divergence → 3 mockups
+(`docs/design-mockups/kitchen/`) → owner pick **A dense data-table + C KPI strip (desktop) + B floor-fast
+cards (phone)**, one responsive screen via the `useIsDesktop()` 768px reflow + full-bleed
+`PageFrame variant="data"`. Scope expanded to **all 4 functional screens** (Log · Plan · Pesanan ·
+Stock · Review); the ESB-pushes page is untouched.
+- Reusable pieces in `mos-app/src/components/kitchen/`: `kitchen-table.css` (shared dense grammar),
+  `KitchenToolbar`, `KitchenKpiStrip` + per-screen KPI selectors, `qty-cell`, log/stock/pesanan/review
+  table+cards, `kitchen-status`, `kitchen-group-header`.
+- **PARITY HELD:** data layer untouched except a read-only `category` added to 2 SELECTs; submit payload
+  byte-identical; FR-022/023 gates + Review approve/reject/bulk preserved.
+- Log fixes landed: 3 One-Blue color defects, F1 sticky Submit bar (shell `h-screen`), F2 seed
+  categories, F3 disable-submit-on-unresolved-note; **app-wide phone horizontal overflow** fixed
+  (top-bar collapse + grid `minmax(0,1fr)`); action-type segmented control made clearly interactive.
+- **Gates green** (1347 unit · typecheck · lint). Reviews: Log got the full cross-family battery; Plan/
+  Stock/Review built by gpt-5.4 (z.ai 5h-limit fallback) + Director vision/parity-reviewed.
+- Plans: `docs/plans/2026-06-21-kitchen-log-redesign.md` + `docs/plans/2026-06-22-kitchen-screens-redesign.md`.
+- [ ] **NEXT (top gate):** owner visual sign-off + color redlines (built defaults: over=amber, under=red)
+  → Director rebases + merges to main → **close PR #67 as superseded** (it edits the same status docs).
 
-## ▶ NOW — Phase 3: production deploy (owner-gated; kitchen redesign merge first)
-- [ ] **P3-1 — ris-dev production deploy** to `https://ops.gordi.id/mos` (self-hosted Supabase + Caddy at `/mos`).
-  **Owner-gated** (irreversible infra; schedule after kitchen redesign merges). Runbook: `docs/environments.md` (§Production deploy) + `supabase/README.md`
-  (§Production email). Hardening before exposure (the **L5 checklist**, detailed under "Security-audit deferrals"
-  below): disable open signup both keys + live 422 self-signup probe · password policy (≥8, mixed) · session
-  `timebox` ~24h + `inactivity_timeout` · tight CSP · prod **Resend** SMTP (domain verified; key in 1Password
-  vault `AS`). Also fold in the **L4** acyclicity CHECK if role-editing UI ships first. Password login works without SMTP.
+## ▶ NOW — Outstanding (as of 2026-06-22)
 
-## ⏳ Tasks tidy-up + UI-convention re-converge — branch `fix/tasks-tidy-reconverge` (NOT merged; awaiting owner verify)
-Post-ship, owner felt `/tasks` was "not tidy." A 3-lens opus design review (design-review · impeccable · taste)
-found the built page **drifted from its signed mockup** + broke common conventions. Two commits fix it:
-- `8699614` tidy-up → re-converge to `docs/design-mockups/tasks-dbview-final.html` (orphan "+ New task" row → toolbar;
-  %-widths → fixed-px; grey avatars; off-track-first group order; left-edge alignment; condensed toolbar keeps labels).
-- `44e9ce1` conventions (PMO `crud-companies.html` oracle): **view-tab strip REMOVED** (ViewTabStrip deleted); title
-  to top + aligned; filter **chevron** not dot; selected row **neutral grey**; **table `max-width:1280` LEFT-aligned**
-  (kills wide-screen Task-column sprawl); status pills → rounded-rect 6px.
-- Gates green (typecheck 0 · eslint 0 · **656** unit, −4 obsolete view-tab tests · build OK). Verified at code level;
-  **visual verify is the OWNER's at their real width** (agent-browser wedged + locked 1280 — see STATUS hard-won rules).
-- [ ] **NEXT:** owner verifies wide-width → **merge to main** → then: remove `FR-121`/`AC-122` from
-  `docs/specs/tasks-dbview.spec.md` (view-tabs gone) + amend `OD-P3-6` (view-tabs removed; left-aligned-1280
-  containment; chevron filters; grey selection; rounded-rect pills). Then flip this block to ✅.
-- [ ] (offered, not started) run the same convention pass over My Week / Updates / Daily Log for app-wide consistency.
+### 1. Merge the kitchen UI redesign (above) — top gate
+Owner visual sign-off on `feat/kitchen-log-redesign` → Director merge. Gates all downstream kitchen
+go-live work (e2e, deploy) and unblocks closing PR #67.
 
-## ✅ Tasks DB-view redesign — SHIPPED to `main` (PR #19, squash `e5686a9`, 2026-06-16)
-Grill → mockup → 4-lens → build-spec grill → **3-PR build + fix-ups** → reviewed → e2e → merged.
-**661 unit green · typecheck/eslint/build clean · ADR-0007 split-view oracle green · spec+code-quality
-reviewed each phase · 4-lens render-verified (C1 Done-overdue, I1 keyboard-aria, M1 condensed-glyph fixed)
-· AC-134 e2e PASS** (existing e2e green except AC-004/005 = pre-existing mailpit port-forward infra,
-unrelated). Dev seed `supabase/seed.dev-tasks.sql` (11 demo tasks). Follow-ups (non-blocking):
-M2 runtime desktop↔mobile resize re-subscribe; M3 re-confirm avatar grey live; reconcile the mockup to show
-the kept Status-filter + Show-archived; optionally restore mailpit forwarding to re-green AC-004/005.
-Decisions: **OD-P3-6** (full-bleed DB-view IA + grilled build-specs) · **OD-P3-7** (navy+orange brand amendment) ·
-**OD-P3-8** (adopt `@tanstack/react-table` — headless row-models, full `TasksTable` refactor) in `docs/decisions.md`. Adopted
-visual: `docs/design-mockups/tasks-dbview-final.html` — **A's chrome** (full-bleed · view-tabs · A's bordered
-filter controls · thin **horizontal** gridlines only, no vertical "stripes") + **B's table simplicity** (clean
-hairline group headers — NO navy bands, NO left-edge swatch) · **soft-tinted status chips** (DESIGN.md
-"Tinted-Status Rule": In-Progress soft-blue, Blocked soft-red, Open soft-amber, Done soft-green) as the one
-color element + overdue red dates · everything else **neutral grey** (grey owner avatars, flat-grey selected
-row, no left stripe). 4-lens review verdict = **PASS, fix-then-ship, no Criticals** (no second mockup round).
-- [ ] **Resume = design-plan + ADR-0008** (eng-planner/design-architect), then build phasing (owner-approved):
-  **PR-1** DESIGN.md navy/orange token amendment + ADR-0008 → **PR-2** full-bleed layout (kill 1080 cap in
-  `PageFrame.tsx` for data surfaces; keep prose capped) + view-tab scaffold (Board/Calendar **stubbed**) + toolbar
-  restyle → **PR-3** **`@tanstack/react-table` refactor** + group-by engine + group headers (count + overdue subtotal),
-  rendered with our markup over the existing `@tanstack/react-virtual` window.
-- **Grilled build-specs (OD-P3-6):** group-by Status(default)/Owner/BU · within-group sort Due-asc · show ALL groups
-  always · **bulk-select DEFERRED (no checkboxes v1)** · Person filter overrides Mine/RACI/All segment · mobile =
-  grouped cards · view/group/collapse persisted per-user-global · client-side row models · no column-customization v1.
-- **Fold into the design-plan (review "Important"):** (1) all states — loading/empty/error/no-results/
-  zero-overdue header (empty-group N/A — groups always shown); (2) **"+N" RACI tooltip** (silent glyph → reveal C/I
-  on hover/focus). *(Was #2 bulk-select toolbar → dropped, bulk-select deferred. Was #3 Mine/Person → resolved:
-  Person overrides segment.)*
-- **design-architect notes (review "Minor"):** make "3 overdue"/group subtotals **click-to-filter**; codify status
-  **dot ≥8px + text label always** (no dot-only variant — keeps WCAG 1.4.1 when grouping ≠ Status); document
-  **50px rows** vs DESIGN.md 54px. *(navy→blue avatar gradient already blessed in DESIGN.md / OD-P3-7 — done.)*
-- **Regression-invariants to test when built:** RI-1 one canonical task home regardless of entry; RI-2 inline
-  status change with no view transition; RI-3 every chip renders its text label; RI-4 off-track signal in the row;
-  RI-5 role-stable nav/breadcrumb.
-- Sibling mockups (context): `tasks-dbview-A.html` (louder), `tasks-dbview-B.html` (Notion-quiet).
+### 2. PR #57 — e2e auth fix (open, non-blocking for development)
+PMO-style auth model: e2e logs in AS the dev personas; `global-setup` is additive/idempotent (heals
+dev login instead of stealing rows). Dedicated e2e-only users for destructive cases (orphan, recovery).
+**Merge when green** — heals the recurring demo-login orphan permanently. Branch: `fix/e2e-dev-login-isolation`.
 
-## Doc & code debt (non-blocking — from the 2026-06-16 fresh-eyes audit)
-- [x] **Fold AC-100..134 into the spec — DONE 2026-06-16.** Authored `docs/specs/tasks-dbview.spec.md` (the
-  Tasks UI spec layered on the `tasks-raci` data model): FR-100..109 + FR-120..128, NFR-120..124, OBS-120..122,
-  AC-100..134, + an extends/supersedes mapping for the `tasks-raci` FRs the redesign changed (FR-022/023/024/026/030/031).
-  Pointer added to `tasks-raci.spec.md`. (Was: split-view + DB-view ACs were plan-only.)
-- [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children); as-built is
-  `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note to the ADR. (The plan header is already corrected.)
-- [x] **Removed genuinely-dead `TaskNewPlaceholder.tsx` (+test)** — merged `38d6dcd` 2026-06-16 (unrouted, self-test-only).
-- [x] **Pruned the thin host trio `TaskDetail`/`TaskCreate`/`TasksPage` — DONE, merged `01f9ce1` 2026-06-16.**
-  All three were dead test-oracles; their AC tests were **re-homed onto the live surfaces** (TaskDetail/Create
-  → `TaskSurface` view/create mode; TasksPage tests → `TasksWorkspace`/`TasksLayout`) with **assertions
-  unchanged** (AC-004/007/008/060-067/070-075/080-081 preserved, delta 0 tests = 660), then the hosts deleted.
-  Built via a **result-based GLM-manager dispatch** (`docs/pi-delegation.md` §3e/§4a) — Director verified the
-  outcome independently (gates re-run, diffs BDD-clean) + merged. *(Tiny residual: comment-only mentions in
-  `OpsAddForm.tsx` / a stale `TaskDetail.css` comment in `WeeklyUpdateWritePane.css` / CSS-provenance notes —
-  harmless, sweep whenever.)*
-- [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ordered ris-dev deploy runbook before P3-1.
-- [ ] **Decouple e2e fixtures from the demo personas (recurring demo-login orphan).** The Playwright
-  global-setup reuses the SAME `shared.people` rows as the one-click demo personas (`40000000-…-00N`,
-  emails `*.dev@example.test`) and re-points their `user_id` to e2e auth users (e.g. it links person
-  `…-000`/Dewi to the e2e MANAGER uid). So **every e2e run breaks the demo login** ("Your account isn't
-  set up yet"). Quick recovery: `UPDATE shared.people p SET user_id=a.id FROM auth.users a WHERE
-  p.email=a.email AND p.email LIKE '%.dev@example.test';` (or `supabase db reset`). **Permanent fix:** give
-  e2e its own person ids / org (or its own emails) so global-setup never touches the `*.dev` demo rows.
-- Note: `docs/plans/archive/` now holds the 11 completed Phase-1/2 plans; the 2 Phase-3 `2026-06-15-tasks-redesign*`
-  plans stay at `docs/plans/` top level (most-recent reference). All shipped plans are historical records.
+### 3. Kitchen e2e / qa-acceptance layer (MISSING — must be built)
+There are NO curated e2e journeys for the kitchen Module. The `date`/`log_date` SPA↔DB bug (fixed in
+PR #66) slipped through because unit tests mock Supabase — a live-query bug is invisible to unit tests.
+**Lesson: verify-live is required for any DB-column-name or RPC-contract change.** Kitchen needs:
+- E2e spec covering the core S1→S3 journey (log → review → approve).
+- Any future kitchen DB column rename / RPC change must be verified against a running stack, not just
+  unit tests.
 
-## 🧱 THE WALL — open owner decisions (do not guess; escalate or skip)
-- ~~WALL-1 — first navigation IA~~ CLOSED → OD-P0-6 (balanced My Week, proposal-IA-8) + OD-P0-7 (density mode in DESIGN.md).
-- ~~WALL-2 — app name~~ CLOSED → OD-P0-4 ("Gordi MOS", subtitle "Management OS").
-- **WALL-3 — Which kitchen events mirror into MOS first.** Needed before P2-4 spec.
-- **WALL-4 — Daily ops updates: generic vs kitchen-specific `ops` schema.** LOW-stakes until P2-4: with
-  P2-4 deferred + P2-3 manual-entry-only, no external writer is locked to the schema, so it's cheap to
-  change before any integration. Director recommendation = generic typed events; confirm at P2-3 resume.
+### 4. ESB push worker (not built yet)
+Port the old `esb_poller`/`esb_client` from `gordi-kitchen-app`; reconcile bulk-approve batch-grain.
+The `integrations.esb_push` outbox + `ops.approve_kitchen_log` RPC are ready; the worker is missing.
+GOO target = TEST DATA ONLY (untrusted env; spec FR-084, OD-K-3).
 
-## Polish / follow-ups
+### 5. Production deploy (Phase 3.1, plan #33, owner-gated; schedule after the redesign merge)
+Runbook: `docs/environments.md` (§Production deploy) + `supabase/README.md` (§Production email).
+L5 hardening checklist (disable open signup + live 422 probe · password policy · session timebox ·
+CSP · Resend SMTP). Open owner Qs: API hostname under CF Tunnel · secret-zero approach · R2/PostHog/
+Healthchecks accounts. **Blocked on owner decision**.
 
-- **P2-1a quality deferrals (from retroactive code-quality review, 2026-06-11 — non-blocking):**
-  pgTAP fixture duplication across tests 13–16 → extract a `mos._test_seed_role_tree()` helper (or
-  `tests/_fixtures.sql`) so the role-tree exists once. · `getTask` does 3 serial round-trips → parallelize
-  the independent checklist+events reads (`Promise.all`) when TanStack lands, or fold into a future
-  SECURITY DEFINER RPC. · `as unknown as` casts on the two PostgREST-embed reads in `tasks.ts` → optional
-  boundary `assertTaskListRow` if the hand-synced `mos` types ever drift.
-- UserChip menu: add outside-click dismissal (standard popover behavior; Esc-only today) — from P1-4 quality review.
-- **auth-recovery.spec.ts e2e flake** (pre-existing since P1-3): intermittent mailpit timing failure
-  under full-suite load; passes in isolation + in CI. Stabilize (poll mailpit w/ retry, or isolate the
-  recovery mailbox) so it can't mask a real regression.
-- **P2-1c polish deferrals (non-blocking):** create-form R/A use native `<select>` not the detail
-  role-chip picker (consistency) · extract a shared `<PersonField>`/`<PersonAvatar>` primitive when a
-  3rd consumer appears (P2-2 weekly updates likely) · generalize `ConfirmArchive` → reusable
-  `ConfirmDialog` for future destructive flows · `PersonPicker` empty state when all excluded.
-- **P2-2a quality deferrals (non-blocking, from code-quality review):** migrate pgTAP fixtures in
-  tests 14/16 onto the new `mos._test_seed_role_tree()` helper (one role-tree definition org-wide) ·
-  **(broadened by P2-3a)** lift the `schema(name)` client + `throwOnError(label,{data,error})` wrapper
-  (now hand-repeated across tasks.ts/weeklyUpdates.ts/opsLog.ts, ~20 call-sites, 2 schemas) into a
-  schema-agnostic `db/client.ts` — do it at the first `ops` UI consumer (P2-3b) with both schemas in
-  view · optional `wibMondayUTC(now)` DRY across week.ts pure fns.
-- **mos.tasks cross-org `business_unit_id` (security Medium twin, from P2-3a audit):** `mos.tasks`
-  accepts a foreign-org `business_unit_id` (existence-only FK, no org-match) — the same gap P2-3a
-  closed on `ops.log_entries`. Pre-existing, UUIDv4-throttled, single-tenant-today (not a regression).
-  Close it with a same-org ref guard mirroring `ops._guard_log_entry` when next touching mos.tasks.
-- **P2-3a scale-only:** the feed filter indexes are `(org_id, col)` but the feed sorts `occurred_at
-  desc` — a `(org_id, business_unit_id, occurred_at desc)` composite would help only at large row
-  counts. Immaterial at Gordi scale; revisit if the Ops Log grows large.
-- **P2-2c — transitive / CEO-org-wide review roster** (deferred, Director-decided 2026-06-12): the
-  review pane roster lists DIRECT reports (FR-030 amended). Revisit when the org grows past 2 levels
-  or the CEO wants an org-wide weekly-update roster — make `team.ts` resolve the transitive subtree
-  (mirror `is_manager_of`) or add a `mos.my_team_person_ids()` RPC. Moot today (flat org).
-- **P2-2b polish deferrals (non-blocking):** extract a shared `<TintPill variant>` primitive — the
-  3rd tinted-pill now exists (ProgressMarker.css ≈ StatusPill.css ≈ TimingChip inline) · migrate the
-  write-pane inline-style blocks to co-located CSS (consistency w/ tasks/ pattern) · marker-picker
-  popover up-flip when near the bottom of the list.
+### 6. Thin FastAPI backend + user provisioning
+Hosts the outbox worker + user provisioning for kitchen members (prereq for kitchen go-live).
+
+## ⏳ Tasks tidy-up + UI-convention re-converge (branch `fix/tasks-tidy-reconverge`, NOT merged)
+Post-ship design review found `/tasks` drifted from its signed mockup. Two commits on the branch:
+- `8699614` tidy-up → re-converge to `tasks-dbview-final.html`.
+- `44e9ce1` conventions → view-tab strip REMOVED, chevron filter, grey selection, max-width:1280.
+- Gates green. **NEXT:** owner verifies wide-width → merge → update spec (remove FR-121/AC-122).
+
+## Doc & code debt (non-blocking)
+- [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children);
+  as-built is `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note.
+- [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ris-dev deploy runbook.
+- [x] **e2e dev-login fix** — PR #57 (PMO-style auth model, heals demo login permanently). Merge when green.
+- [ ] **auth-recovery.spec.ts e2e flake** — intermittent mailpit timing under full-suite load.
+  Stabilize (poll with retry, or isolate the recovery mailbox).
+- **P2-1a / P2-2a quality deferrals** — pgTAP fixture extraction, Promise.all, db/client.ts
+  wrapper — see old backlog entry; non-blocking.
+
+## 🧱 THE WALL — open owner decisions
+- ~~WALL-1~~ CLOSED → OD-P0-6.
+- ~~WALL-2~~ CLOSED → OD-P0-4.
+- ~~WALL-3~~ CLOSED → Kitchen Module built (OD-K-1..4). ESB worker still needed.
+- ~~WALL-4~~ CLOSED → Kitchen uses typed `ops.*` tables; Daily Log mirror deferred until Daily Log
+  module ships. Director rec = generic typed events validated by parity build.
+
+## Polish / follow-ups (non-blocking)
+- UserChip menu: outside-click dismissal (Esc-only today).
+- P2-2c — transitive/CEO-org-wide review roster (moot at Gordi scale today).
+- P2-1c polish deferrals: create-form R/A native `<select>` · shared `<PersonField>` · generalized
+  `ConfirmDialog` · `PersonPicker` empty state.
+- P2-2b polish: shared `<TintPill>` · inline-style → co-located CSS · marker-picker up-flip.
 
 ## Deferred (post-MVP — see roadmap "Post-MVP")
-Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade · kitchen migration ·
+Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade ·
 roastery app · ESB write-back visibility · shared UI package extraction.
 
 ---
 
-## UI revamp + structural conventions (active 2026-06-19) → see `docs/ui-revamp-status.md`
+## Gotcha / workflow notes
 
-Full handoff in **`docs/ui-revamp-status.md`**. Open/queued at last checkpoint:
-- **#35 mockup sign-off GATE** (owner) — blocks `ui-implementer`.
-- **#34 named-exports** — merge when CI green.
-- **kebab-case rename** codemod — after #34 (last structural migration; conventions §2).
-- **eng-planner** UI-revamp ADR + build plan (incl. ⌘K **record-search endpoint**).
-- **ui-implementer** surface-by-surface: top-bar repopulate · hybrid record page · My Week · ⌘K palette · states/dark.
-- Carry-over: re-add UPPERCASE+tracking to Tasks `thead th` (OD-P4-10; #29 over-corrected to sentence-case).
+### verify-live requirement (lesson from kitchen log_date bug, 2026-06-21)
+The `date`/`log_date` SPA↔DB column-name mismatch (PR #66) slipped through unit tests because they
+mock Supabase. A contract-level bug (wrong column name, wrong RPC signature) is invisible to mocked
+unit tests — it surfaces only against a real running stack. **Rule: any DB-column-name reference or
+RPC-call signature change must be verified against a live local stack, not just by unit tests.** A
+curated e2e journey or a manual smoke-test is sufficient; the point is that real PostgREST rejects it
+with a 400 while mocked calls pass silently.
+
+### Demo-login orphan (recurring until PR #57 merged)
+Every `npx playwright test` run clobbers the `*.dev` persona `user_id` links → "Your account isn't
+set up yet." Quick fix: `supabase db reset` or `UPDATE shared.people p SET user_id=a.id FROM
+auth.users a WHERE p.email=a.email AND p.email LIKE '%.dev@example.test';`. PR #57 fixes permanently.
+
+### Structural conventions (enforced by lint)
+No `../` imports (use `@/`), no hardcoded colors (use `--ds-*`), no default exports in `src`.
+
+### ESB / GOO safety
+GOO (Core API `stg7.esb.co.id/core-stg`; `stg-erp.esb.co.id` was the web UI — corrected 2026-06-26) =
+TEST DATA ONLY. Never push real GKID product/BOM IDs to GOO. Real-data validation = single-WIP proof-push
+on GKID at the owner-gated switch (OD-K-3/K-4). NB: `/assembly-actual` isn't validatable on GOO (standard-
+costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.

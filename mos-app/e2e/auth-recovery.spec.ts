@@ -52,13 +52,13 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   await page.getByRole('button', { name: /save password/i }).click()
 
   // ── Step 6: lands home authenticated ─────────────────────────────────────
-  // RECOVERY_VIEWER maps to Sari Sales person row — name shown in user chip
+  // RECOVERY_VIEWER maps to a dedicated e2e person row (Recovery Tester) — name shown in user chip
   await expect(
-    page.getByRole('button', { name: 'Sari Sales' }),
+    page.getByRole('button', { name: RECOVERY_VIEWER.displayName }),
   ).toBeVisible({ timeout: 15_000 })
 
   // ── Step 7: sign out via chip menu (chip → menuitem, per FR-006/T-031) ──────
-  await page.getByRole('button', { name: /sari sales/i }).click()
+  await page.getByRole('button', { name: RECOVERY_VIEWER.displayName }).click()
   await page.getByRole('menuitem', { name: /sign out/i }).click()
   await expect(page).toHaveURL(/\/login/, { timeout: 5_000 })
 
@@ -76,7 +76,7 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   await page.getByLabel('Password').fill(NEW_PASSWORD)
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(
-    page.getByRole('button', { name: 'Sari Sales' }),
+    page.getByRole('button', { name: RECOVERY_VIEWER.displayName }),
   ).toBeVisible({ timeout: 10_000 })
 
   // global-setup deletes and re-creates RECOVERY_VIEWER with RECOVERY_VIEWER.password

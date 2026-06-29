@@ -293,3 +293,77 @@ describe('AC-KIT-005: Kitchen group Kitchen links have correct hrefs', () => {
     expect(within(nav).getByRole('link', { name: 'Pushes' })).toHaveAttribute('href', '/kitchen/pushes')
   })
 })
+
+// ── Admin group nav (AC-070 nav-absence arm) ──────────────────────────────────
+describe('AC-070: Admin nav group', () => {
+  it('AC-070: non-admin viewer does NOT see the Users nav entry (absent from DOM)', () => {
+    setAuthAs(['member'])
+    renderRailNav('/tasks')
+    expect(screen.queryByText('People')).not.toBeInTheDocument()
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument()
+  })
+
+  it('AC-070: ops_lead without admin does NOT see the Users nav entry', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    expect(screen.queryByText('People')).not.toBeInTheDocument()
+  })
+
+  it('AC-070b: admin viewer sees the Admin group and People nav entry', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/people')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(screen.getByText('Admin')).toBeInTheDocument()
+  })
+
+  it('AC-070b: People link has href /admin/people', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/people')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'People' })).toHaveAttribute('href', '/admin/people')
+  })
+
+  it('AC-070b: admin viewer — People link is active at /admin/people', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/people')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const link = within(nav).getByRole('link', { name: 'People' })
+    expect(link).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+// ── Cascade catalog nav (OD-C-2, AC-002/AC-003 spec cascade-catalog) ───────────
+describe('AC-002/003: cascade catalog nav visibility', () => {
+  it('AC-002: plain member sees neither Objectives nor Projects & Processes', () => {
+    setAuthAs(['member'])
+    renderRailNav('/tasks')
+    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
+  })
+
+  it('AC-003: ops_lead sees Projects & Processes but NOT Objectives (admin-only)', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Objectives' })).toBeNull()
+  })
+
+  it('AC-002: admin sees BOTH Objectives and Projects & Processes', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+  })
+
+  it('catalog links carry their hrefs', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/objectives')
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' }))
+      .toHaveAttribute('href', '/projects-processes')
+  })
+})

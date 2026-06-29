@@ -1,7 +1,8 @@
 # ADR-0012 — The ESB-outbox pattern (the `integrations` schema's first tenant)
 
 - Status: **Proposed** (2026-06-19; awaiting owner spec sign-off — the specs that consume this ADR
-  follow later)
+  follow later). **Amended 2026-06-26** with verified GOO-integration findings (live API calls against
+  ESB staging + ESB's own API docs) — see the "Verified GOO-integration findings" note under D5.
 - Deciders: Owner (Arief) + Director, in grill-with-docs session (2026-06-19)
 - Related:
   - **OD-DIR-3** (one Supabase, schema-separated — `integrations` is one of the four canonical
@@ -130,19 +131,67 @@ the validation target.** The ESB is the immutable system of record (ADR-0010 D1)
 test, or a botched migration must **never mutate production ERP data**. The live-probe-vs-prod pain of
 the kitchen project's Phase-4 follow-up is exactly what this decision prevents.
 
-- **The staging sandbox is real:** ESB branch **`GOO`**, base URL **`stg-erp.esb.co.id`** (per the
-  kitchen project's Phase-4 follow-up). Production is **GKID**, served at **`services.esb.co.id`**.
+- **The staging sandbox is real:** ESB branch **`GOO`** (company `SAE`), Core API base URL
+  **`stg7.esb.co.id/core-stg`**. Production is **GKID**, served at **`services.esb.co.id/core`**.
+  *(Amended 2026-06-26 — see the verified-findings note below: the prior `stg-erp.esb.co.id` base was a
+  documentation error; that host is the ESB **web UI**, not the Core API.)*
 - **The outbox worker (D2) carries an explicit ESB-target setting** — *staging* vs *production*.
-  **Non-prod / dev / test environments default to staging (`GOO` / `stg-erp.esb.co.id`)**; only the
-  production deployment may set the target to production, and only after the proof-push gate below.
+  **Non-prod / dev / test environments default to staging (`GOO` / `stg7.esb.co.id/core-stg`)**; only
+  the production deployment may set the target to production, and only after the proof-push gate below.
 - **What runs against staging first:** all logic validation, all smoke tests, and the one-time
   migration's **`posted_to_esb`-survival proof (D4)**. The denormalized→normalized push shape, the
   `dedup_key` central-dedup behaviour (D2), and the per-batch `/assembly-actual` + `/simple-transfer`
-  derivation are all exercised against `GOO` before any production push.
+  derivation are exercised against `GOO` before any production push — **with the costing-model caveat in
+  the verified-findings note below: the `/simple-transfer` path is fully GOO-validatable, but the
+  actual-costing `/assembly-actual` path is NOT** (GOO's `SAE` tenant is standard-costing).
 - **The production cutover gate = the proven single-WIP proof-push (the Phase-4 discipline):** after
   staging is verified, production GKID is enabled via **dry-run → independent verify → one real push of a
   single WIP → batch-enable**. The first production write is one deliberately-chosen row, independently
-  reconciled in the live ERP, *before* the worker is allowed to drain the full backlog.
+  reconciled in the live ERP, *before* the worker is allowed to drain the full backlog. **Because the
+  assembly-actual route cannot be validated on GOO (see below), this single-WIP GKID proof-push is the
+  SOLE validation of the Production path on real IDs — it carries more weight than a transfer-only flip
+  would.**
+
+> **Verified GOO-integration findings (live API calls against ESB staging, 2026-06-26; corroborated by
+> ESB's own API docs `~/Coding/gordi-esb-bak/api-docs/esb-oms-api_data.js`). These correct/sharpen this
+> ADR; they do not reopen any owner-ratified OD-K-* decision.**
+>
+> 1. **Core API base = `stg7.esb.co.id/core-stg` (NOT `stg-erp.esb.co.id`).** `stg-erp.esb.co.id` is the
+>    ESB ERP **web UI** (302 → `/site/login`; 500 on API paths) — a documentation error in the earlier
+>    Phase-4 follow-up note. ESB's documented Core API tiers: **Staging-INT** `stg7.esb.co.id/core`,
+>    **Staging** `stg7.esb.co.id/core-stg`, **Prod** `services.esb.co.id/core`. The worker's `goo`
+>    target is `stg7.esb.co.id/core-stg`; `gkid` is `services.esb.co.id/core`.
+> 2. **GOO auth = login (username/password), NOT a static bearer token.** The kitchen worker's
+>    manufacturing/transfer endpoints are the **Core API**, which authenticates by **login** (live: login
+>    with the `esb-staging` creds on `stg7/core-stg` returns a 357-char session token, company `SAE`).
+>    The `esb-staging-static-token` (op://Gordi) is a Static Bearer for the separate ESB **OMS read API**
+>    (`core-api.esb.co.id`, `/corev1/*` — menu/sales/BOM, used by the warehouse sync), and it **401s** on
+>    the Core API. A future agent must not try the static token against the worker's endpoints.
+> 3. **Tenant costing-model asymmetry — CRITICAL for the flip runbook.** The worker posts Production to
+>    **`/production/simple-manufacturing/assembly-actual`** because **GKID is an actual-costing tenant**
+>    (its standard `/assembly` route is not deployed). **GOO's `SAE` tenant is the opposite — a
+>    STANDARD-costing tenant: live-confirmed, `/assembly-actual` returns `EC03100004 "page does not
+>    exist"` on GOO, and only the standard `/assembly` route exists there.** **Consequence:** the
+>    worker's `assembly-actual` Production call **cannot be validated on GOO at all** — GOO validates
+>    auth + the Transfer path + response-envelope mechanics, but NOT the actual-costing assembly POST.
+>    The Production/assembly real-proof is therefore the **single-WIP GKID push at the flip** (D5's
+>    proof-push gate); GOO cannot stand in for it. This sharpens — does not reopen — D5 and OD-K-3.
+> 4. **Transfer path IS validated against live GOO (round-trip evidence).** `/simple-transfer` is not
+>    costing-model-specific and works on GOO. Verified: POST `/simple-transfer` to
+>    `stg7.esb.co.id/core-stg` with the app's exact `post_simple_transfer` body and **GOO's own sandbox
+>    IDs** (branch 176 "Gordi Outlet", location 510, product 69 "Air Mineral") returned HTTP 200,
+>    `simpleTransferNum STF202606260001`, read back from GOO confirming the record. This exercises the
+>    request shape, login auth, and the `simpleTransferNum` parse end to end (GOO sandbox IDs only —
+>    never GKID-real IDs, per OD-K-3's test-data-only constraint).
+> 5. **Worker config (shipped kitchen-app PR #2).** The worker reads **`ESB_GOO_BASE_URL`** (default
+>    `stg7.esb.co.id/core-stg`) and per-env **`ESB_GOO_USERNAME` / `ESB_GOO_PASSWORD`** for the `goo`
+>    route (the GOO route uses the `esb-staging` creds); the `gkid` route uses the global `ESB_GKID_*`
+>    creds. The parallel-run deploy must supply the `ESB_GOO_*` set; `ESB_GKID_*` is wired but unreached
+>    until the flip.
+
+### D6 — (no change)
+
+*(No D6 in the original; section intentionally omitted.)*
 
 ## Alternatives considered
 
@@ -162,7 +211,9 @@ the kitchen project's Phase-4 follow-up is exactly what this decision prevents.
 - **Validate ESB write logic / the migration directly against production** (the Phase-4 anti-pattern).
   Rejected (D5) — the ESB is the immutable system of record; a logic bug or smoke test that touches prod
   mutates the ledger irreversibly. Staging (`GOO`) is the validation target; prod is touched only via the
-  single-WIP proof-push gate.
+  single-WIP proof-push gate. **Note (2026-06-26): for the actual-costing `/assembly-actual` route this
+  trade-off is forced — GOO's standard-costing `SAE` tenant cannot exercise that route at all, so the
+  single-WIP GKID proof-push is the only real validation of the Production path (D5 verified-findings #3).**
 
 ## Consequences
 
@@ -176,9 +227,17 @@ the kitchen project's Phase-4 follow-up is exactly what this decision prevents.
   Daily Log mirror is preserved cheaply via a summary row, without duplicating the rich data.
 - **Positive — the `integrations` schema is finally used for its reserved purpose** (P1-2's comment),
   validating the four-schema canon (OD-DIR-3).
-- **Positive — production ERP data is structurally protected (D5).** Every line of write logic and the
-  high-stakes migration prove themselves against `GOO` before a single byte reaches GKID; the only
-  production write before batch-enable is one independently-verified proof-push.
+- **Positive — the Transfer path is live-proven on GOO** (D5 verified-findings #4, 2026-06-26): the
+  worker's auth (login), `/simple-transfer` request shape, and `simpleTransferNum` parse are confirmed
+  end to end against staging with GOO sandbox IDs — real confidence ahead of the flip for that path.
+- **Positive — production ERP data is structurally protected (D5).** Every line of GOO-validatable write
+  logic and the high-stakes migration prove themselves against `GOO` before a single byte reaches GKID;
+  the only production write before batch-enable is one independently-verified proof-push.
+- **Negative / accepted — the actual-costing Production route is NOT GOO-validatable** (D5
+  verified-findings #3, 2026-06-26): GOO's `SAE` tenant is standard-costing, so `/assembly-actual`
+  cannot be exercised on staging. The single-WIP GKID proof-push at the flip carries the **full** weight
+  of validating the Production path on real IDs — the flip runbook and the consuming spec (FR-083/AC-094)
+  must treat the assembly-actual proof as GKID-only, not a confirmation of an already-GOO-proven shape.
 - **Negative / accepted — the worker is a stateful moving part on the thin backend.** It needs the
   Healthchecks dead-man's-switch + monitoring of ADR-0010 D7 (a stuck outbox = un-posted ERP writes).
 - **Negative / accepted — the one-time migration is high-stakes** (it carries live idempotency state).
@@ -193,7 +252,8 @@ the kitchen project's Phase-4 follow-up is exactly what this decision prevents.
 - **Negative / accepted — a two-target worker is a configuration seam that must not be mis-set (D5).**
   An environment pointed at the wrong target could write to prod from a test run; mitigated by
   **defaulting non-prod to staging** and treating "set target = production" as a deliberate,
-  deploy-gated, security-reviewed (ADR-0010 D11) act — never the default.
+  deploy-gated, security-reviewed (ADR-0010 D11) act — never the default. The seam is config-driven:
+  `ESB_GOO_BASE_URL` + `ESB_GOO_*` creds for `goo`, `ESB_GKID_*` for `gkid` (D5 verified-findings #5).
 
 ## Reversibility
 
@@ -206,7 +266,8 @@ the kitchen project's Phase-4 follow-up is exactly what this decision prevents.
   audit trail and idempotency state survive, which is what makes retiring Teable reversible-enough (the
   data isn't lost, it's moved + backed up).
 - **The ESB-target setting (D5) is pure configuration** — a deploy can be repointed staging↔production
-  without a code change; staging validation is repeatable at zero risk to prod.
+  (`ESB_GOO_BASE_URL` ↔ `gkid` base + the matching cred set) without a code change; staging validation
+  is repeatable at zero risk to prod (for the GOO-validatable paths).
 - **The `origin` enum reconciliation is deferred and additive** (D3 legacy note) — the next `ops`
   migration widens the CHECK to the Module-canonical values; the legacy values stay readable until then.
 
@@ -221,8 +282,14 @@ the kitchen project's Phase-4 follow-up is exactly what this decision prevents.
 3. **`source_ref` shape** — text vs a typed FK back into `ops.*` (a cross-schema FK from
    `integrations` → `ops` is possible but couples the schemas). Lean: opaque text (the `batch_id`),
    resolved by the worker; *confirm at spec*.
-4. **Staging sandbox availability / parity (D5).** Is `GOO` / `stg-erp.esb.co.id` currently up,
-   credentialed for the MOS worker, and a faithful enough mirror of GKID's `/assembly-actual` +
-   `/simple-transfer` contracts (endpoints, BOM/product-detail ids, doc-num format) to make a staging
-   pass meaningful? *Confirm before the worker spec relies on it*; if parity is partial, the proof-push
-   gate (the single real GKID write) carries more weight and the migration spec must say so.
+4. **Staging sandbox availability / parity (D5) — PARTIALLY ANSWERED 2026-06-26 (live verification).**
+   `GOO` / `stg7.esb.co.id/core-stg` is **up and credentialed** for the MOS worker (login auth with the
+   `esb-staging` creds, company `SAE`), and the **`/simple-transfer` contract is a faithful mirror** —
+   round-trip-confirmed (HTTP 200, `simpleTransferNum`, read-back). **But parity is PARTIAL on
+   purpose:** GOO's `SAE` tenant is **standard-costing**, so the **`/assembly-actual` contract is NOT
+   available on GOO** (`EC03100004 "page does not exist"`) and cannot be validated there (D5
+   verified-findings #3). Per this open question's own guidance, **the proof-push gate (the single real
+   GKID write) therefore carries more weight for the Production path**, and the migration/worker spec
+   says so (kitchen-module.spec.md FR-083 / AC-094 / NFR-004). *(Transfer parity: resolved. Assembly
+   parity: structurally unavailable on GOO — handled by raising the GKID proof-push's weight, not by
+   waiting for GOO.)*
