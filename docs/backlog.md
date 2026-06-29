@@ -46,9 +46,17 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 >   Projects&Processes(ops_lead/admin) management surfaces; review battery PASS, `pre-merge-check` exit 0; ships
 >   after admin-mgmt lands (rebase onto main). Memory `cascade-catalog-state`.
 >
-> **Follow-ups (separate, off main):** global `--radius-lg` 8px→12px regression + status-pill radius (DESIGN.md
->   mandates 12px / full). **Thin FastAPI backend (ADR-0010 D6)** for PROD provisioning — still to build
->   (kitchen-FastAPI repo / parity workstream; disjoint). Open PR **#57** (e2e auth fix, non-blocking).
+> **Prod provisioning RESOLVED (2026-06-29, ADR-0016 amendment + D11 audit):** the thin FastAPI backend
+>   (ADR-0010 D6) is **RETIRED** — both its concerns left the plan (ESB → `gordi-kitchen-app`; provisioning →
+>   the `SECURITY DEFINER` RPCs). D11 security audit returned **CLEAR FOR PROD** (single-org). Prod shape =
+>   SPA + Supabase (data/auth/RLS + provisioning RPCs), no bespoke MOS backend tier.
+> **Follow-ups (open):**
+>   - **B2B blocker (Medium, D11 audit):** `admin_create_login` cross-org duplicate-email → raw `23505`
+>     (opaque error + minor cross-tenant existence oracle). Fix (clean error, no cross-org echo + stop
+>     forwarding raw PG text in `admin-users.ts`) **before turning on multi-org**; unexercised single-org.
+>   - **Advisory (D11):** GoTrue-upgrade smoke test in the prod runbook (provision→sign-in→reset→disable→enable);
+>     `for update` on the create-login person read.
+>   - Minor: status-pill radius 6px vs full (DESIGN.md). (`--radius-lg` 12px regression DONE #82; e2e-auth #57 DONE.)
 >
 > **In flight (2026-06-26) — two STACKED feature branches (NOT yet on main), built concurrently:**
 > 1. **`feat/admin-user-mgmt`** (concurrent agent) — admin user provisioning: People admin page, login
