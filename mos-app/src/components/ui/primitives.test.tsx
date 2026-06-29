@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { IconButton } from './icon-button'
 import { Tag } from './tag'
 import { Avatar } from './avatar'
@@ -144,5 +146,54 @@ describe('Toggle (AC-145)', () => {
   it('disabled switch is not keyboard-focusable (tabIndex -1)', () => {
     render(<Toggle disabled aria-label="X" />)
     expect(screen.getByRole('switch').tabIndex).toBe(-1)
+  })
+})
+
+// Toggle geometry regression — FIX A
+// The knob MUST be sized off track HEIGHT (not width) so it fits inside the track.
+// Asserts at CSS-source level because JSDOM does not do layout.
+describe('Toggle knob geometry (FIX-A regression)', () => {
+  const toggleCss = readFileSync(
+    resolve(process.cwd(), 'src/components/ui/Toggle.css'),
+    'utf8',
+  )
+  // Strip comments so we read declarations only
+  const cssNoComments = toggleCss.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('knob uses height (not width) to size itself off the track', () => {
+    // Must contain `height: calc(100% - 4px)` in the knob rule
+    expect(cssNoComments).toMatch(/\.mk-toggle__knob\s*\{[^}]*height\s*:\s*calc\(100%\s*-\s*4px\)/)
+  })
+
+  it('knob does NOT use width: calc(100% - 4px) (that sized it off track WIDTH → overflow)', () => {
+    // The old rule `width: calc(100% - 4px)` on the knob caused the overflow bug
+    expect(cssNoComments).not.toMatch(/\.mk-toggle__knob\s*\{[^}]*width\s*:\s*calc\(100%\s*-\s*4px\)/)
+  })
+
+  it('knob uses aspect-ratio: 1 to stay square', () => {
+    expect(cssNoComments).toMatch(/\.mk-toggle__knob\s*\{[^}]*aspect-ratio\s*:\s*1/)
+  })
+})
+
+// TextInput box border token regression — FIX B2
+// The shell border must use --input (stronger hairline) not --border (quiet divider).
+describe('TextInput border token (FIX-B2 regression)', () => {
+  const textInputCss = readFileSync(
+    resolve(process.cwd(), 'src/components/ui/TextInput.css'),
+    'utf8',
+  )
+  const cssNoComments = textInputCss.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('.mk-textinput__box uses var(--input) for its border (not var(--border))', () => {
+    // The box rule must reference --input
+    expect(cssNoComments).toMatch(/\.mk-textinput__box\s*\{[^}]*border[^}]*var\(--input\)/)
+  })
+
+  it('.mk-textinput__box does NOT use var(--border) for its normal-state border', () => {
+    // Extract just the .mk-textinput__box block (not --error variants)
+    const boxBlockMatch = cssNoComments.match(/\.mk-textinput__box\s*\{([^}]*)\}/)
+    if (boxBlockMatch) {
+      expect(boxBlockMatch[1]).not.toMatch(/border\s*:\s*1px solid var\(--border\)/)
+    }
   })
 })

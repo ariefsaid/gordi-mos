@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { SECTIONS, KITCHEN_SECTIONS } from './sections'
+import { SECTIONS, KITCHEN_SECTIONS, ADMIN_SECTIONS } from './sections'
 import type { Section } from './sections'
 import { SettingsIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
@@ -51,6 +51,7 @@ export function RailNav({ onNavigate }: RailNavProps) {
     auth.status === 'authenticated' ? auth.viewer.accessRoles : []
 
   const hasElevatedKitchenAccess = KITCHEN_ELEVATED_ROLES.some((r) => accessRoles.includes(r))
+  const isAdmin = accessRoles.includes('admin')
 
   // Log, Plan, Stock → all authenticated users.
   // Review, Pushes → ops_lead / admin only.
@@ -88,6 +89,23 @@ export function RailNav({ onNavigate }: RailNavProps) {
             <NavItem key={section.path} section={section} onNavigate={onNavigate} />
           ))}
         </div>
+
+        {/* Admin group — rendered only for admin viewers (AC-070: absent from DOM for non-admins). */}
+        {isAdmin && (
+          <>
+            <div
+              className="px-2 pb-1 pt-3 font-medium uppercase text-muted-foreground"
+              style={{ fontSize: 11, letterSpacing: '0.06em' }}
+            >
+              Admin
+            </div>
+            <div className="flex flex-col gap-[2px]">
+              {ADMIN_SECTIONS.map((section) => (
+                <NavItem key={section.path} section={section} onNavigate={onNavigate} />
+              ))}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* Utility: Settings stub (disabled) — kept above the user chip. */}

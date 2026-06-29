@@ -72,9 +72,13 @@ is one identity layer, one JWT, one set of policies.
 
 Supabase Auth (GoTrue) has **no native *username* credential** — it is email/phone based. Therefore:
 
-- Staff **lacking a real email** get a **synthetic email** (e.g. `ibnu@kitchen.gordi.local`), with
-  **email-confirmation disabled** for that path and an **admin-provisioned password** (D5; OD-P1-9 —
-  admin-invite-only is preserved, the admin just sets the credential directly for these accounts).
+- Staff **lacking a real email** get a **synthetic email** at the single BU-agnostic domain
+  **`<local-part>@ops.gordi.local`** (e.g. `ibnu@ops.gordi.local`), with **email-confirmation disabled**
+  for that path and an **admin-provisioned password** (D5; OD-P1-9 — admin-invite-only is preserved, the
+  admin just sets the credential directly for these accounts).
+  *(Amended 2026-06-26: domain locked to `@ops.gordi.local` — owner decision; the person's actual BU
+  already lives in the data model, so one synthetic domain serves all units. Supersedes the earlier
+  `@kitchen.gordi.local` example. Applied in the 2026-06-26 staff load + the admin-user-mgmt RPCs / ADR-0016.)*
 - Staff **with a real email** use **magic-link or password** (OD-P1-8 unchanged).
 - The mechanism is uniformly **email + password (or magic link)**; a displayed **"username" is just the
   local-part** of the (real or synthetic) email. No new credential type is introduced into GoTrue.

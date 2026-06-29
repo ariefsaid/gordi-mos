@@ -1,5 +1,5 @@
 import type React from 'react'
-import { MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon, KitchenIcon } from './icons'
+import { MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon, KitchenIcon, PeopleIcon } from './icons'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 export interface Section {
@@ -28,13 +28,18 @@ export const KITCHEN_SECTIONS: Section[] = [
   { path: '/kitchen/pushes', label: 'Pushes', Icon: KitchenIcon },
 ]
 
+// Admin module sections — admin-only; rendered conditionally in the rail.
+export const ADMIN_SECTIONS: Section[] = [
+  { path: '/admin/people', label: 'People', Icon: PeopleIcon },
+]
+
 /**
  * Returns the Section whose path matches the given pathname, or null.
- * Checks SECTIONS first, then KITCHEN_SECTIONS.
+ * Checks SECTIONS, KITCHEN_SECTIONS, then ADMIN_SECTIONS.
  * '/' matches exactly; other paths match exactly or by prefix.
  */
 export function sectionForPath(pathname: string): Section | null {
-  const allSections = [...SECTIONS, ...KITCHEN_SECTIONS]
+  const allSections = [...SECTIONS, ...KITCHEN_SECTIONS, ...ADMIN_SECTIONS]
   for (const section of allSections) {
     if (section.path === '/') {
       if (pathname === '/') return section

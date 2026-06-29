@@ -20,21 +20,40 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > row) + memory `staging-deploy-state`. Cloud ref `hvnwcsmkdeqmgqlbwflm` (Singapore); DB connection string +
 > Teable PAT in op (vault `AS`).
 >
-> **In flight (2026-06-26):**
-> 1. **Kitchen data migration** Teable→`ops` (48 products / 521 logs / 528 plans) — PULLED + mapping +
->    owner-decisions locked; **LOAD pending** (memory `kitchen-data-migration`). Must carry
->    `posted_to_esb`/`esb_doc_num`/`posted_at` verbatim → **no ESB re-POST clash**. A concurrent agent is on
->    branch `feat/admin-user-mgmt` (admin migrations) — disjoint paths, don't collide.
-> 2. **ESB push worker — BUILT + SHIPPED 2026-06-26** (was "concurrent agent building the oracle"). Approach
->    changed: **extended the existing `gordi-kitchen-app`** (not a new FastAPI service) to drain the MOS
->    outbox. gordi-kitchen-app PRs #1/#2/#3 + gordi-mos #76/#77. **GOO validated live** (transfer round-trips;
->    `/assembly-actual` not validatable on GOO — standard-costing tenant). **Outstanding = deploy + flip**
->    (owner-gated). Full state: `docs/platform-workstream-status.md` §3 + `docs/reference/esb-goo-integration.md`.
-> 3. Open PR **#57** (e2e auth fix, non-blocking).
+> **DONE (2026-06-26..29):**
+> - **Kitchen data migration LOADED to staging** — 48 wip / 521 logs / 524 plans into `ops` on Supabase
+>   Cloud, `posted_to_esb`/`esb_doc_num`/`posted_at` carried verbatim (no ESB re-POST), batch_id nulled,
+>   fidelity-verified. **3 staff logins WIRED:** Riri=`riri@gordi.id` (ops_lead), Ibnu/Ansori=
+>   `<name>@ops.gordi.local` (member) — temp pw, owner rotates. Synthetic-email domain `@ops.gordi.local`
+>   (ADR-0011 D2 amended). Memory `kitchen-data-migration`.
+> - **ESB push worker BUILT + SHIPPED** — extended `gordi-kitchen-app` (not a new service) to drain the MOS
+>   outbox; gordi-kitchen-app PRs #1/#2/#3 + gordi-mos #76 (service_role grants) / #77 (docs). GOO validated
+>   live. **Outstanding = deploy + flip on ris-dev** (owner-gated). `docs/platform-workstream-status.md` §3 +
+>   `docs/reference/esb-goo-integration.md`; cross-repo ledger `docs/reviews/kitchen-app-worker-prs.md`.
+> - **Task-drawer collapse-control fix** merged (PR #78).
+>
+> **READY TO MERGE — admin user management (`feat/admin-user-mgmt`, PR #80):**
+> - `/admin/people` admin-only screen (list + search/status-filter, create person +optional login, reset pw,
+>   disable/enable, grant/revoke roles, archive). Memory `admin-user-mgmt-state`.
+> - **ADR-0016**: 3 admin-gated `SECURITY DEFINER` RPCs = interim STAGING provisioning; thin FastAPI backend
+>   (ADR-0010 D6) stays PROD authority. Spec + plans under `docs/`.
+> - **Review battery Round-2 = all cleared** (design PASS rendered-live; spec/CQ/security FIX-THEN-SHIP; H-1/M-1
+>   security fixed, pgTAP `56`); `pre-merge-check.sh` exit 0; 1321 tests. Ledger `docs/reviews/feat-admin-user-mgmt.md`.
+> - **NEXT: owner merge #80 → `supabase db push` to staging → rebase the stacked `feat/cascade-catalog` onto
+>   main and merge.** Prod-deferred (ADR-0016): email validation, temp-pw entropy, clipboard auto-clear → thin backend.
+>
+> **READY, stacked behind admin-mgmt — cascade catalog (`feat/cascade-catalog`, worktree):** Objectives(admin) +
+>   Projects&Processes(ops_lead/admin) management surfaces; review battery PASS, `pre-merge-check` exit 0; ships
+>   after admin-mgmt lands (rebase onto main). Memory `cascade-catalog-state`.
+>
+> **Follow-ups (separate, off main):** global `--radius-lg` 8px→12px regression + status-pill radius (DESIGN.md
+>   mandates 12px / full). **Thin FastAPI backend (ADR-0010 D6)** for PROD provisioning — still to build
+>   (kitchen-FastAPI repo / parity workstream; disjoint). Open PR **#57** (e2e auth fix, non-blocking).
 >
 > Git-hygiene: NEVER `git push origin HEAD:main` from a feature branch; rebase onto latest main
 > before merging; feature code = branch → PR → merge; demo-login orphan → `supabase db reset`
-> relinks (or PR #57 heals it permanently once merged).
+> relinks (or PR #57 heals it permanently once merged). Render auth-gated pages via vite-on-worktree-port +
+> the Director-demo-login persona before claiming UI done (code review misses visual defects).
 
 ## ✅ Phase 0 — frontend mockups (DONE)
 - [x] **P0-1 — IA proposals.** `design-architect` → 2–3 competing static HTML shells for `/mos`
