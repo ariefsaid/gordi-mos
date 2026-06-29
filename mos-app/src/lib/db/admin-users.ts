@@ -8,6 +8,38 @@ import type { AdminPersonRow, CreatePersonInput, LoginStatus } from './admin-use
 
 const shared = () => supabase.schema('shared')
 
+// Curated, org-agnostic messages our admin RPCs / RLS policies raise deliberately — safe to show the
+// admin verbatim. ANY other DB error (raw RLS/constraint text, e.g. a cross-org unique-violation whose
+// DETAIL would leak that an email exists in another org — D11 audit) is logged to the console only and
+// surfaced as a generic message, so no Postgres internals ever reach the client.
+const SAFE_RPC_MESSAGES = new Set<string>([
+  'admin access role required',
+  'person not found in your org',
+  'person already has a login',
+  'person has no email to provision a login for',
+  'email already in use',
+  'person has no login to reset',
+  'person has no login',
+  'cannot disable the last active admin login',
+  'cannot revoke admin from the last active admin',
+  'cannot archive the last active admin',
+])
+// NOTE: format-substituted PG messages (e.g. 'access role admin is never self-assignable', which the
+// trigger raises via `%`) can never match this exact-string Set — they degrade to the generic message.
+// That's leak-safe (they're org-agnostic) but means the Set is NOT exhaustive over all raises: for a
+// helpful-and-specific UX on such a case, guard the action at the UI layer (e.g. grantRole callers
+// disallow self-assigning admin) rather than adding an un-matchable `%`-form string here.
+
+function surface(action: string, error: { message?: string } | null | undefined): Error {
+  // Full raw error (code/details/hint) → console only; never the user-facing message. Intentional
+  // structured logging (server/dev observability); the client gets only the sanitized return below.
+  // (When the conventions' `no-console` rule is enabled, add an eslint-disable here — not before, or
+  // the directive is flagged unused under --max-warnings=0.)
+  console.error(`[admin-users] ${action} failed`, error)
+  const msg = error?.message ?? ''
+  return new Error(SAFE_RPC_MESSAGES.has(msg) ? msg : `Couldn't ${action}. Please try again.`)
+}
+
 // ── Email synthesis (FR-021) ──────────────────────────────────────────────────
 
 /**
@@ -43,18 +75,18 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     .from('people')
     .select('id,full_name,email,archived_at')
     .order('full_name', { ascending: true })
-  if (peoplErr) throw new Error(`listAdminPeople (people) failed — ${peoplErr.message}`)
+  if (peoplErr) throw surface('load people', peoplErr)
 
   // 2. Fetch non-revoked access roles
   const { data: roles, error: rolesErr } = await shared()
     .from('person_access_roles')
     .select('person_id,access_role,revoked_at')
     .is('revoked_at', null)
-  if (rolesErr) throw new Error(`listAdminPeople (roles) failed — ${rolesErr.message}`)
+  if (rolesErr) throw surface('load people', rolesErr)
 
   // 3. Fetch login status via admin RPC
   const { data: loginStatus, error: loginErr } = await shared().rpc('admin_list_login_status')
-  if (loginErr) throw new Error(`listAdminPeople (login_status) failed — ${loginErr.message}`)
+  if (loginErr) throw surface('load people', loginErr)
 
   // Build lookup maps
   const rolesByPerson: Record<string, string[]> = {}
@@ -98,7 +130,7 @@ export async function createPerson(input: CreatePersonInput): Promise<string> {
     .insert({ full_name: input.full_name, email: input.email })
     .select('id')
     .single()
-  if (error) throw new Error(`createPerson failed — ${error.message}`)
+  if (error) throw surface('create person', error)
 
   const personId = (data as { id: string }).id
 
@@ -117,7 +149,7 @@ export async function createPerson(input: CreatePersonInput): Promise<string> {
  */
 export async function createLogin(personId: string): Promise<string> {
   const { data, error } = await shared().rpc('admin_create_login', { p_person: personId })
-  if (error) throw new Error(`createLogin failed — ${error.message}`)
+  if (error) throw surface('create login', error)
   return data as string
 }
 
@@ -126,7 +158,7 @@ export async function createLogin(personId: string): Promise<string> {
  */
 export async function resetPassword(personId: string): Promise<string> {
   const { data, error } = await shared().rpc('admin_reset_password', { p_person: personId })
-  if (error) throw new Error(`resetPassword failed — ${error.message}`)
+  if (error) throw surface('reset password', error)
   return data as string
 }
 
@@ -138,7 +170,7 @@ export async function setLoginEnabled(personId: string, enabled: boolean): Promi
     p_person: personId,
     p_enabled: enabled,
   })
-  if (error) throw new Error(`setLoginEnabled failed — ${error.message}`)
+  if (error) throw surface('update login', error)
 }
 
 // ── Role grant/revoke (FR-050) ────────────────────────────────────────────────
@@ -150,7 +182,7 @@ export async function grantRole(personId: string, role: string): Promise<void> {
   const { error } = await shared()
     .from('person_access_roles')
     .insert({ person_id: personId, access_role: role })
-  if (error) throw new Error(`grantRole failed — ${error.message}`)
+  if (error) throw surface('grant role', error)
 }
 
 /**
@@ -163,7 +195,7 @@ export async function revokeRole(personId: string, role: string): Promise<void> 
     .eq('person_id', personId)
     .eq('access_role', role)
     .is('revoked_at', null)
-  if (error) throw new Error(`revokeRole failed — ${error.message}`)
+  if (error) throw surface('revoke role', error)
 }
 
 // ── Archive / restore (FR-060) ────────────────────────────────────────────────
@@ -176,7 +208,7 @@ export async function archivePerson(personId: string): Promise<void> {
     .from('people')
     .update({ archived_at: new Date().toISOString() })
     .eq('id', personId)
-  if (error) throw new Error(`archivePerson failed — ${error.message}`)
+  if (error) throw surface('archive person', error)
 }
 
 /**
@@ -187,5 +219,5 @@ export async function restorePerson(personId: string): Promise<void> {
     .from('people')
     .update({ archived_at: null })
     .eq('id', personId)
-  if (error) throw new Error(`restorePerson failed — ${error.message}`)
+  if (error) throw surface('restore person', error)
 }
