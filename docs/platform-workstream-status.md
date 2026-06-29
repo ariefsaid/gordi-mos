@@ -1,4 +1,7 @@
-# Platform workstream — status & handoff (updated 2026-06-21)
+# Platform workstream — status & handoff (updated 2026-06-26)
+
+> **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
+> state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`.
 
 Durable handoff for the **platform-foundation** workstream (turning MOS into the shared platform:
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
@@ -78,9 +81,24 @@ mocked unit tests silently.
 **Lesson (verify-live):** any DB-column-name reference or RPC-call signature change must be verified
 against a running stack. A mocked unit test cannot catch a wrong column name or mismatched RPC param.
 
-### 3. ESB push worker (not built)
-Port `esb_poller`/`esb_client` from `gordi-kitchen-app`; reconcile bulk-approve batch-grain.
-The outbox + approval RPC are ready; the worker is the missing piece.
+### 3. ESB push worker — BUILT + SHIPPED (2026-06-26), NOT deployed
+**Approach changed (owner-directed):** do NOT build a new FastAPI service — **extend the existing
+`gordi-kitchen-app`** (the live Teable worker) with a 2nd source that drains the MOS
+`integrations.esb_push` outbox, reusing its proven `esb_client` + `esb_poller._process_*_batch`.
+Shipped: **gordi-kitchen-app PRs #1/#2/#3** (`app/mos_outbox.py` + seams; Teable→GKID path byte-for-byte
+unchanged, regression-tested) + **gordi-mos PRs #76** (service_role grants) **/#77** (docs). Per-env
+creds (`ESB_GOO_*`, fail-closed), bulk-grain reconciled (group by date+action+target), 63 tests.
+Supabase reach: staging = Supabase **Cloud** (public HTTPS); prod = self-hosted later.
+- **GOO validated live (2026-06-26):** base = **`stg7.esb.co.id/core-stg`** (NOT `stg-erp` = web UI);
+  auth = login (op `esb-staging`, vault Gordi), NOT the static token. **Transfer path round-trips on
+  GOO** (`STF202606260001`); the **`/assembly-actual` Production call CANNOT be validated on GOO**
+  (GOO's `SAE` tenant is standard-costing → `EC03100004`) — assembly proof is the GKID flip only.
+  Full how-to + gotchas: **`docs/reference/esb-goo-integration.md`**.
+- **STILL OUTSTANDING (owner-gated):** deploy the worker to ris-dev + set `ESB_GOO_BASE_URL`/`ESB_GOO_*`
+  env; security-auditor gating pass on the live worker (NFR-011); the **flip** to GKID + stop the Teable
+  poller + the AC-094 single-WIP GKID proof-push; curated worker integration test vs a real Supabase
+  (the env-gated `test_mos_outbox_integration.py` greens once grants applied + PostgREST exposes
+  `integrations`); add `ESB_GOO_*` to `.env.example`; drop the 2 redundant `grant usage` lines in #76.
 **GOO = TEST DATA ONLY** (spec FR-084, OD-K-3). Never push real GKID product/BOM IDs to GOO.
 
 ### 4. Production deploy (Phase 3.1, plan `docs/plans/2026-06-19-prod-platform-deploy.md`)
@@ -91,9 +109,11 @@ The outbox + approval RPC are ready; the worker is the missing piece.
 L5 hardening before exposure: disable open signup + 422 probe · password policy · session timebox ·
 CSP · prod Resend SMTP (domain verified; key in 1Password vault `AS`).
 
-### 5. Thin FastAPI backend + user provisioning
-Hosts the outbox worker; creates kitchen member accounts (prereq for kitchen go-live).
-No spec or plan yet.
+### 5. User provisioning (kitchen member accounts)
+Prereq for kitchen go-live: create kitchen member accounts (synthetic emails per ADR-0011).
+NB: the **outbox worker no longer needs a new FastAPI service** — it's the extended `gordi-kitchen-app`
+(see #3). The thin-backend ADR-0010 D6 framing is superseded for the worker; a future agent should read
+ADR-0012's amendment + `docs/reference/esb-goo-integration.md`. Provisioning still has no spec/plan.
 
 ### 6. PR #57 — e2e auth fix (open, non-blocking for dev)
 PMO-style auth model: global-setup is additive/idempotent; heals demo-login permanently on merge.
