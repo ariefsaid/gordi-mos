@@ -29,7 +29,7 @@ export function PageFrame({ children, variant = 'prose', surfaceWash = false }: 
   // at 1280 internally). Trailing whitespace sits on the RIGHT only — never centered.
   return (
     <main
-      className="min-w-0 overflow-auto"
+      className="min-w-0 overflow-auto flex-1 min-h-0"
       style={{
         padding: '28px 24px 56px',
         // OD-P3-12: faint navy wash sits behind the content; fades to transparent within 220px.

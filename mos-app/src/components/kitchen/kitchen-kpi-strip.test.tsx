@@ -1,0 +1,129 @@
+// KitchenKpiStrip — the derived KPI band (plan §8, N3).
+// Desktop: 4 DESIGN.md KPI tiles. Phone: one-line "Today · N planned · NN%" summary.
+// Branches on isDesktop (one branch in the DOM — P-4).
+
+import { describe, it, expect } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import { KitchenKpiStrip } from './kitchen-kpi-strip'
+import type { KitchenKpis } from '@/lib/kitchen-kpis'
+
+// mock-C fixture (plan §5.1)
+const KPIS: KitchenKpis = {
+  plannedTotal: 180,
+  madeOfPlan: 140,
+  madeSoFar: 175,
+  madeOffPlan: 35,
+  pctComplete: 78,
+  itemsRemaining: 4,
+  unitsShort: 46,
+  plannedDishCount: 6,
+}
+
+describe('KitchenKpiStrip — desktop branch', () => {
+  it('renders a section labelled "Plan vs actual summary"', () => {
+    const { container } = render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
+    expect(screen.getByRole('region', { name: /plan vs actual summary/i })).toBeInTheDocument()
+    // no live region (plan §8.1/§9 — user-driven updates, announcing is noise)
+    expect(container.querySelector('[aria-live]')).toBeNull()
+  })
+
+  it('renders 4 KPI tiles with the fixture values', () => {
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
+    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
+    // Planned total = 180
+    expect(within(region).getByText('180')).toBeInTheDocument()
+    // Made so far = 175
+    expect(within(region).getByText('175')).toBeInTheDocument()
+    // % complete = 78%
+    expect(within(region).getByText('78%')).toBeInTheDocument()
+    // Items remaining = 4
+    expect(within(region).getByText('4')).toBeInTheDocument()
+  })
+
+  it('renders the delta chips: "6 dishes", off-plan "+35", short "−46 units short"', () => {
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
+    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
+    // Planned-total delta: dish count
+    expect(within(region).getByText(/6 dishes/i)).toBeInTheDocument()
+    // Made-sofar: behind plan by 40 → destructive delta
+    expect(within(region).getByText(/−40 vs plan/i)).toBeInTheDocument()
+    // off-plan sub
+    expect(within(region).getByText(/\+35 off-plan/i)).toBeInTheDocument()
+    // items-remaining delta: units short
+    expect(within(region).getByText(/−46 units short/i)).toBeInTheDocument()
+  })
+
+  it('renders tile captions (portions / of plan / of target)', () => {
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
+    expect(screen.getByText(/portions/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/of plan/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/of target/i)).toBeInTheDocument()
+  })
+})
+
+describe('KitchenKpiStrip — phone branch (one-line summary)', () => {
+  it('renders the compact "Today · N planned · NN%" summary line', () => {
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} />)
+    expect(screen.getByText(/today/i)).toBeInTheDocument()
+    expect(screen.getByText(/6 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/78%/i)).toBeInTheDocument()
+  })
+
+  it('does NOT render the 4 desktop tiles on phone', () => {
+    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} />)
+    // the desktop region is absent on phone (one branch in the DOM — P-4)
+    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
+  })
+})
+
+describe('KitchenKpiStrip — custom screen labels', () => {
+  it('renders the provided per-screen tile labels instead of the Log defaults', () => {
+    render(
+      <KitchenKpiStrip
+        isDesktop
+        data={{
+          ariaLabel: 'Stock summary',
+          phoneLabel: 'Stock',
+          phoneValue: '2 items',
+          phoneMeta: '9 available',
+          tiles: [
+            { label: 'Total on-hand', value: '9', delta: '2 items', deltaTone: 'neutral', sub: 'portions' },
+            { label: 'Items in stock', value: '1', delta: '1 empty', deltaTone: 'neutral' },
+            { label: 'Negative balances', value: '1', delta: 'needs review', deltaTone: 'destructive' },
+            { label: 'Available total', value: '5', delta: 'read-only', deltaTone: 'success' },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByRole('region', { name: /stock summary/i })).toBeInTheDocument()
+    expect(screen.getByText(/total on-hand/i)).toBeInTheDocument()
+    expect(screen.getByText(/items in stock/i)).toBeInTheDocument()
+    expect(screen.queryByText(/made so far/i)).toBeNull()
+  })
+})
+
+describe('KitchenKpiStrip — edge: no plan for this action_type', () => {
+  const noPlan: KitchenKpis = {
+    plannedTotal: 0,
+    madeOfPlan: 0,
+    madeSoFar: 0,
+    madeOffPlan: 0,
+    pctComplete: 0,
+    itemsRemaining: 0,
+    unitsShort: 0,
+    plannedDishCount: 0,
+  }
+
+  it('desktop: renders 0 / 0 / —% / 0 with "no plan set" deltas', () => {
+    render(<KitchenKpiStrip kpis={noPlan} isDesktop />)
+    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
+    expect(within(region).getByText('—%')).toBeInTheDocument()
+    expect(within(region).getAllByText(/no plan set/i).length).toBeGreaterThan(0)
+  })
+
+  it('phone: summary shows 0 planned and —%', () => {
+    render(<KitchenKpiStrip kpis={noPlan} isDesktop={false} />)
+    expect(screen.getByText(/0 planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/—%/i)).toBeInTheDocument()
+  })
+})

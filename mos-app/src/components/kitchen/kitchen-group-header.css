@@ -1,0 +1,64 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenGroupHeader — hairline group header (plan §4.1 N4, OD-P3-6).
+   Desktop <tr class="kgh">; phone <div class="kgh-cards">. Caret + structural-navy
+   label + tabular count + optional subtotal. Flat (utility surface — no shadow).
+   Token-only (DESIGN.md). Spacing follows the sibling kitchen CSS idiom (literal px).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kgh > td {
+  padding: 0;
+}
+.kgh-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* phone cards variant */
+.kgh-cards {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+}
+
+/* caret button (aria-expanded carries the state) */
+.kgh-caret,
+.kgh-caret-cards {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.kgh-chev { transition: transform 120ms ease; }
+.kgh-chev-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .kgh-chev { transition: none; }
+}
+
+/* label: structural navy (not an action — One-Blue Rule safe) */
+.kgh-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-navy-text);
+}
+.kgh-count {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.kgh-sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}

@@ -1,0 +1,74 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenKpiStrip — the derived KPI band (plan §8, N3).
+   Desktop: 4 DESIGN.md KPI tiles (rounded-md, --shadow-rest, --card + --border).
+   Phone: a flat one-line summary strip (utility surface — no shadow).
+   Token-only (DESIGN.md). Soft-Elevation: ONLY the desktop tiles get --shadow-rest.
+   Spacing follows the sibling kitchen CSS idiom (literal px; tokens for the rest).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Desktop: 4-tile grid ── */
+.kks {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.kks-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-rest);
+  box-sizing: border-box;
+  min-width: 0;
+}
+.kks-label {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+.kks-value {
+  /* Plus Jakarta 23px/600 tabular — plan §8.1 KPI-tile signature */
+  font-size: 23px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.1;
+}
+.kks-sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ── Phone: flat one-line summary (utility strip — no shadow) ── */
+.kks-phone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  color: var(--foreground);
+}
+.kks-phone-label {
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.kks-phone::after {
+  /* keep the strip from collapsing; let items space naturally */
+  content: '';
+  flex: none;
+}
+
+/* ── Responsive: collapse the 4-tile grid to 2 columns under 960px (tablet) ── */
+@media (max-width: 959px) and (min-width: 768px) {
+  .kks { grid-template-columns: repeat(2, 1fr); }
+}

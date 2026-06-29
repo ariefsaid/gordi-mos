@@ -1,0 +1,16 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenPesananTable — the desktop read-only pesanan <table> (OD-K-5 §5.2 PN-1).
+   Imports the shared kitchen-table.css grammar (.kt-table / .kt-th-num / .kt-num /
+   .kt-name). Own additions under .kptn-* only. Read-only — no hover affordance.
+   Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kptn-item { min-width: 180px; }
+
+.kptn-action {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.kptn-qty {
+  font-weight: 500;
+}

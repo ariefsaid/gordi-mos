@@ -1,0 +1,10 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenStockTable — the desktop read-only stock table (OD-K-5 §6.2 KS-1).
+   Imports the shared kitchen-table.css grammar (.kt-table / .kt-th-num / .kt-num /
+   .kt-name / .kt-neg / .kt-empty). Own additions under .kst-* only. Read-only.
+   Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kst { width: 100%; max-width: 100%; box-sizing: border-box; }
+.kst-dish { min-width: 180px; }
+.kst-num { font-weight: 500; }

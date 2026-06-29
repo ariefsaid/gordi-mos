@@ -19,13 +19,16 @@ export function AppShell() {
     // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
     <BreadcrumbTitleProvider>
       <div
-        className="min-h-screen bg-secondary/35"
+        className="h-screen bg-secondary/35"
         style={{
           display: 'grid',
           width: '100%',
           maxWidth: '100vw',
           minWidth: 0,
           overflowX: 'hidden',
+          // minmax(0, 1fr) (not bare 1fr) so the content column can shrink below its
+          // min-content — bare 1fr's implicit min-width:auto lets wide content (a dense
+          // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
           gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'var(--rail-w) minmax(0, 1fr)',
           gridTemplateRows: 'var(--header-h) 1fr',
           gridTemplateAreas: isNarrow

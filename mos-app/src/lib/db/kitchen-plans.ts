@@ -70,7 +70,7 @@ export async function listPesanan(from: string, days: number): Promise<PesananRo
   const to = addDays(from, days - 1) // inclusive window: [from, from+days-1]
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('log_date,wip_item_id,action_type,qty_porsi,wip_items(name)')
+    .select('log_date,wip_item_id,action_type,qty_porsi,wip_items(name,category)')
     .gte('log_date', from)
     .lte('log_date', to)
     .order('log_date', { ascending: true })
@@ -82,7 +82,7 @@ export async function listPesanan(from: string, days: number): Promise<PesananRo
     action_type: KitchenActionType
     qty_porsi: number
     // PostgREST to-one embed: tolerate object | array | null.
-    wip_items: { name: string } | { name: string }[] | null
+    wip_items: { name: string; category: string | null } | { name: string; category: string | null }[] | null
   }
   return ((data ?? []) as unknown as Raw[]).map((r): PesananRow => {
     const embed = Array.isArray(r.wip_items) ? r.wip_items[0] : r.wip_items
@@ -90,6 +90,7 @@ export async function listPesanan(from: string, days: number): Promise<PesananRo
       log_date: r.log_date,
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
+      category: embed?.category ?? null,
       action_type: r.action_type,
       qty_porsi: r.qty_porsi,
     }

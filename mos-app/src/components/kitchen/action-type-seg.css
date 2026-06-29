@@ -10,7 +10,8 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  background: var(--muted);
+  background: var(--secondary);
+  border: 1px solid var(--border); /* the track reads as a control container */
   border-radius: var(--radius-sm);
   padding: 3px;
 }
@@ -21,7 +22,7 @@
   min-height: 44px; /* touch target on phone (Fix #7) */
   padding: 0 8px;
   border-radius: calc(var(--radius-sm) - 2px);
-  border: none;
+  border: 1px solid transparent; /* reserve space so the active border doesn't shift layout */
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
@@ -29,18 +30,24 @@
   background: transparent;
   color: var(--muted-foreground);
   box-shadow: none;
-  transition: background 120ms ease, box-shadow 120ms ease;
+  transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
+}
+/* inactive tabs signal they're clickable on hover (the missing affordance) */
+.kseg-tab:hover:not([aria-selected='true']):not(:disabled) {
+  background: color-mix(in srgb, var(--background) 60%, transparent);
+  color: var(--foreground);
 }
 .kseg-tab:disabled { cursor: not-allowed; opacity: 0.5; }
 .kseg-tab[aria-selected='true'] {
   font-weight: 600;
   background: var(--background);
   color: var(--foreground);
-  box-shadow: var(--shadow-rest);
+  border-color: var(--border); /* the white pill gets a hairline so it lifts off the grey track */
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); /* selected lift */
   cursor: default;
 }
 @media (prefers-reduced-motion: reduce) {

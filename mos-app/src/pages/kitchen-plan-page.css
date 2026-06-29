@@ -1,8 +1,11 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   Kitchen Plan editor + pesanan horizon (S2).
-   Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S2.
-   Token-only (DESIGN.md) — no raw hex/spacing/shadow literals. Editor reuses the
-   capture stepper grammar; the pesanan view reuses the records-table grammar.
+   Kitchen Plan editor + pesanan horizon (S2 / OD-K-5 redesign §4–§5).
+   Editor (ops_lead): variant="data" full-bleed; KPI strip + ActionTypeSeg + the
+   useIsDesktop() branch (KitchenPlanTable | KitchenPlanCards) — those components own
+   their own CSS (.kpt-/.kpc-/.pqcell-/.kps-). This file holds only the page chrome:
+   banners, the seg wrap, and the Pesanan read view (grouped by date) until §5 lifts
+   Pesanan into its own components.
+   Token-only (DESIGN.md) — no raw hex/spacing/shadow literals.
    member-read / lead-edit: the read view has NO editable affordance (absence = signal).
    ════════════════════════════════════════════════════════════════════════════ */
 
@@ -20,8 +23,8 @@
   border-radius: var(--radius-sm);
 }
 
-/* ── Toolbar (action_type seg) ── */
-.kp-toolbar {
+/* ── ActionTypeSeg wrap (the scope control — Production / Transfer) ── */
+.kp-seg-wrap {
   margin: 12px 0 4px;
 }
 
@@ -48,134 +51,7 @@
   border: 1px solid var(--border);
 }
 
-/* ── Editor grid (one row per item) ── */
-.kp-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.kpe-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-}
-.kpe-name {
-  font-weight: 500;
-  color: var(--foreground);
-  font-size: 14px;
-}
-.kpe-stepper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.kpe-step {
-  min-width: 44px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  line-height: 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--secondary);
-  color: var(--foreground);
-  cursor: pointer;
-}
-.kpe-step:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.kpe-qty {
-  width: 64px;
-  min-height: 44px;
-  text-align: center;
-  font-size: 15px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-}
-.kpe-qty:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.kpe-saving {
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-
-/* ── Pesanan read view (grouped by date) ── */
-.kp-pesanan {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.kp-day-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
-}
-.kp-day-date {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--primary);
-}
-.kp-day-count {
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.kp-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--card);
-}
-.kp-table thead th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--secondary);
-}
-.kp-num-head {
-  text-align: right;
-}
-.kp-table tbody td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  color: var(--foreground);
-}
-.kp-table tbody tr:last-child td {
-  border-bottom: none;
-}
-.kp-item {
-  font-weight: 500;
-}
-.kp-action {
-  color: var(--muted-foreground);
-}
-.kp-num {
-  text-align: right;
-}
+/* ── Pesanan read view lifted into KitchenPesananTable/Cards (OD-K-5 §5). ── */
 
 /* ── States: loading / empty / error are the shared StateKit
    (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
@@ -192,22 +68,8 @@
   font-size: 14px;
 }
 
-/* ── Mobile (<768px): editor rows stack; pesanan tables scroll horizontally. ── */
-@media (max-width: 767px) {
-  .kpe-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .kpe-stepper {
-    justify-content: space-between;
-  }
-  .kp-table {
-    display: block;
-    overflow-x: auto;
-    min-width: 0;
-  }
-}
+/* ── Mobile (<768px): the useIsDesktop() branch handles reflow at the component
+   level (KitchenPesananCards) — no page-level mobile overrides needed. ── */
 
 /* screen-reader-only caption helper (mirrors the stock/review surfaces) */
 .sr-only {

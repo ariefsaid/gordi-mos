@@ -69,6 +69,8 @@ export interface KitchenStockRow {
   wip_item_id: string
   /** WIP item display name (from ops.wip_items). */
   wip_item_name: string
+  /** optional category display label from ops.wip_items (read-only UI sugar). */
+  category?: string | null
   /** usable_qty — the net of approved logs for the date (FR-060). */
   stok: number
   /** available_qty — usable net of transfers already committed (FR-061). */
@@ -173,6 +175,8 @@ export interface PesananRow {
   log_date: string // 'YYYY-MM-DD' WIB
   wip_item_id: string
   wip_item_name: string
+  /** optional category display label from ops.wip_items (read-only UI sugar). */
+  category?: string | null
   action_type: KitchenActionType
   qty_porsi: number
 }

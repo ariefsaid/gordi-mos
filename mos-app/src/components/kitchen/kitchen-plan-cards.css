@@ -1,0 +1,44 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenPlanCards — the phone reflow for the plan editor (OD-K-5 redesign §4.2 PE-2).
+   One card per dish grouped by category. Card: --shadow-rest (Soft-Elevation), --card
+   bg, --border. No off-plan expander. Token-only (DESIGN.md); .kpc-* namespace.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kpc { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+.kpc-section { margin-bottom: 16px; }
+
+.kpc-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* one phone card — name + category head, then the plan-qty stepper */
+.kpc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kpc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0; /* allow the name to truncate rather than blow the card width */
+}
+.kpc-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--foreground);
+}
+.kpc-cat {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}

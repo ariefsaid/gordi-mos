@@ -164,7 +164,7 @@ describe('listPesanan (AC-024)', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]).toEqual({
       log_date: '2026-06-20', wip_item_id: 'w1', action_type: 'Production',
-      qty_porsi: 12, wip_item_name: 'Ayam Bakar',
+      qty_porsi: 12, wip_item_name: 'Ayam Bakar', category: null,
     })
     // tolerates the embed as object OR array (PostgREST to-one variance)
     expect(rows[1].wip_item_name).toBe('Nasi Goreng')

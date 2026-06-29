@@ -1,0 +1,53 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenToolbar — the shared search-mini + category filter (OD-K-5 redesign §2.3).
+   Flat utility surface (no --shadow-rest): --card bg, --border bottom, 10–12px pad.
+   search-mini + <select> both --border + --radius-sm. One-Blue focus ring only.
+   Token-only (DESIGN.md); spacing in px (sibling kitchen idiom).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.ktb {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.ktb-search { /* the search input itself */
+  width: 200px;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+}
+.ktb-search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.ktb-category {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ktb-children {
+  display: flex;
+  align-items: center;
+  margin-left: auto; /* trailing slot (ActionTypeSeg) sits right */
+}

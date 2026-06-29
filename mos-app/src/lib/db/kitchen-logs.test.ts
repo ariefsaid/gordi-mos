@@ -503,9 +503,9 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     const rows = await fetchKitchenStock('2026-06-20')
     expect(rec.rpcCalls).toContainEqual(['kitchen_stock_for_date', { p_as_of: '2026-06-20' }])
     expect(rows).toEqual([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', stok: 12, tersedia: 8 },
       // negative balances preserved, not clamped (FR-061, AC-032)
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: -3, tersedia: -3 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: 'Main', stok: -3, tersedia: -3 },
     ])
   })
 
@@ -524,7 +524,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     )
     const rows = await fetchKitchenStock('2026-06-20')
     expect(rows).toEqual([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', stok: 0, tersedia: 0 },
     ])
   })
 

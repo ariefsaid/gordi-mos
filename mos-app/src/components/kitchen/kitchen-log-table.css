@@ -1,0 +1,80 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenLogTable — the desktop <table> (plan §4.1 N7, §8.1, OD-P3-6 dense).
+   Toolbar (flat) + sticky <thead> overline + 50px body rows. Numeric cols right-
+   aligned + tabular-nums. Token-only (DESIGN.md); spacing in px (sibling idiom).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.klt { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+/* toolbar — flat utility surface */
+.klt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+  flex-wrap: wrap;
+}
+.klt-search {
+  width: 200px;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+}
+.klt-search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+.klt-category {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* the table — sticky thead overline */
+.klt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  background: var(--card);
+}
+.klt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.klt-th {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.klt-th-dish { text-align: left; }
+.klt-th-num { text-align: right; }
+.klt-th-made { text-align: right; }
+
+/* empty-filter message */
+.klt-empty {
+  padding: 32px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}

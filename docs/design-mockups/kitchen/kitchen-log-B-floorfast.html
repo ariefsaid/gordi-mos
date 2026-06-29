@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitchen · Log — Direction B · Floor-fast, plan-first (mobile-first)</title>
+
+<!-- Fonts (DESIGN.md OD-P3-9): Plus Jakarta Sans (display) + DM Sans (body/UI/table). SF Mono is system. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════════
+     mos-design-kit tokens (theme-light.css), inlined for self-containment.
+     Same block as Direction A (radii remapped to DESIGN.md OD-P3-10). No invented
+     colors. Token NAME follows each value as a comment.
+     ═══════════════════════════════════════════════════════════════════════════ */
+  :root {
+    --ds-font-family:        'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --ds-font-display:       'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --ds-code-font-family:   'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+    --ds-font-size-xs: 0.85rem;   --ds-font-size-sm: 0.92rem;   --ds-font-size-md: 1rem;
+    --ds-font-size-lg: 1.23rem;   --ds-font-size-xl: 1.54rem;
+    --ds-spacing-1: 4px;  --ds-spacing-2: 8px;  --ds-spacing-3: 12px;  --ds-spacing-4: 16px;  --ds-spacing-5: 20px;
+
+    --ds-background-primary:          color(display-p3 1 1 1);
+    --ds-background-secondary:        color(display-p3 0.988 0.988 0.988);
+    --ds-background-tertiary:         color(display-p3 0.945 0.945 0.945);
+    --ds-background-transparent-light:color(display-p3 0 0 0 / 0.039);
+    --ds-accent-tertiary:             color(display-p3 0.933 0.948 0.992);
+
+    --ds-font-color-primary:   color(display-p3 0.2 0.2 0.2);
+    --ds-font-color-secondary: color(display-p3 0.4 0.4 0.4);
+    --ds-font-color-tertiary:  color(display-p3 0.6 0.6 0.6);
+    --ds-font-color-light:     color(display-p3 0.702 0.702 0.702);
+    --ds-font-color-inverted:  color(display-p3 1 1 1);
+    --ds-font-color-danger:    color(display-p3 0.83 0.329 0.324);
+
+    --ds-color-blue:   color(display-p3 0.276 0.384 0.837);
+    --ds-color-blue9:  color(display-p3 0.276 0.384 0.837);
+    --ds-color-blue12: color(display-p3 0.133 0.175 0.348);
+
+    --ds-color-green: color(display-p3 0.332 0.634 0.442);
+    --ds-color-amber: color(display-p3 1 0.77 0.26);
+    --ds-color-red:   color(display-p3 0.83 0.329 0.324);
+    --ds-tag-background-blue:  color(display-p3 0.933 0.948 0.992);
+    --ds-tag-text-blue:        color(display-p3 0.256 0.354 0.755);
+    --ds-tag-background-green: color(display-p3 0.913 0.964 0.925);
+    --ds-tag-text-green:       color(display-p3 0.19 0.5 0.32);
+    --ds-tag-background-amber: color(display-p3 0.994 0.969 0.782);
+    --ds-tag-text-amber:       color(display-p3 0.64 0.4 0);
+    --ds-tag-background-red:   color(display-p3 0.985 0.925 0.925);
+    --ds-tag-text-red:         color(display-p3 0.744 0.234 0.222);
+
+    --ds-color-orange: color(display-p3 0.9 0.45 0.2);
+
+    --ds-border-color-light:   color(display-p3 0.945 0.945 0.945);
+    --ds-border-color-medium:  color(display-p3 0.922 0.922 0.922);
+    --ds-border-color-strong:  color(display-p3 0.839 0.839 0.839);
+    --ds-border-color-danger:  color(display-p3 0.984 0.812 0.811);
+
+    --ds-border-radius-xs: 4px;
+    --ds-border-radius-sm: 8px;
+    --ds-border-radius-md: 12px;
+    --ds-border-radius-pill: 999px;
+
+    --ds-box-shadow-light: 0px 2px 4px 0px color(display-p3 0 0 0 / 0.039), 0px 0px 4px 0px color(display-p3 0 0 0 / 0.078);
+    --shadow-rest: 0 1px 2px color(display-p3 0.133 0.175 0.348 / 0.05), 0 1px 3px color(display-p3 0.133 0.175 0.348 / 0.04);
+  }
+  * { box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--ds-color-blue); outline-offset: 2px; }
+  body { margin: 0; font-family: var(--ds-font-family); color: var(--ds-font-color-primary);
+    background: var(--ds-background-tertiary); font-size: var(--ds-font-size-sm); }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  .stage { display: flex; gap: 32px; align-items: flex-start; justify-content: center;
+    padding: 16px; flex-wrap: wrap; max-width: 1180px; margin: 0 auto; }
+  .mock-label { padding: 14px 0 0; font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; font-weight: 500; width: 100%; text-align: center; }
+
+  /* ═══ PHONE DEVICE (the primary view — optimized for the line) ═══════════════ */
+  .phone {
+    width: 390px; max-width: 100%; height: 844px; flex: none;
+    background: var(--ds-background-primary);
+    border: 1px solid var(--ds-border-color-strong);
+    border-radius: 40px; overflow: hidden; position: relative;
+    box-shadow: var(--shadow-rest), 0 10px 30px color(display-p3 0 0 0 / 0.10);
+    display: flex; flex-direction: column;
+  }
+  /* Mobile top bar (rail collapsed < 920px): menu · title · avatar */
+  .m-topbar { height: 52px; display: flex; align-items: center; gap: 10px;
+    padding: 0 14px; border-bottom: 1px solid var(--ds-border-color-light);
+    background: var(--ds-background-primary); flex: none; }
+  .m-topbar .menu { width: 40px; height: 40px; border: none; background: none; cursor: pointer;
+    color: var(--ds-font-color-secondary); font-size: 20px; display: flex; align-items: center; justify-content: center;
+    border-radius: var(--ds-border-radius-sm); }
+  .m-topbar .menu:hover { background: var(--ds-background-transparent-light); }
+  .m-topbar .title { font-family: var(--ds-font-display); font-weight: 600; font-size: 16px; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-topbar .title .crumb-sep { color: var(--ds-font-color-light); font-weight: 400; margin: 0 4px; }
+  .m-topbar .title .crumb-par { color: var(--ds-font-color-secondary); font-weight: 400; }
+  .m-topbar .m-av { width: 32px; height: 32px; border-radius: var(--ds-border-radius-pill); flex: none;
+    background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+    color: var(--ds-font-color-inverted); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; }
+
+  /* Action-type segmented — full width, bigger touch */
+  .m-atab { margin: 12px 12px 0; }
+  .seg-full { display: flex; background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-sm); padding: 3px; gap: 2px; }
+  .seg-full button { flex: 1; border: none; background: none; font-family: inherit; font-size: 13px; font-weight: 500;
+    padding: 9px 6px; border-radius: var(--ds-border-radius-xs); color: var(--ds-font-color-secondary);
+    cursor: pointer; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+  .seg-full button.on { background: var(--ds-background-primary); color: var(--ds-font-color-primary);
+    font-weight: 600; box-shadow: var(--ds-box-shadow-light); }
+  .seg-full button .arrow { color: var(--ds-font-color-tertiary); }
+
+  /* Plan summary strip */
+  .plan-sum { margin: 12px; padding: 12px 14px; border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); background: var(--ds-background-secondary);
+    display: flex; align-items: center; gap: 10px; }
+  .plan-sum .ic { width: 32px; height: 32px; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-background-tertiary); color: var(--ds-font-color-secondary);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; flex: none; }
+  .plan-sum .meta { flex: 1; min-width: 0; }
+  .plan-sum .meta .t { font-size: 13px; color: var(--ds-font-color-primary); font-weight: 500; }
+  .plan-sum .meta .s { font-size: 12px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+
+  /* Scroll region */
+  .m-body { flex: 1; overflow-y: auto; padding: 4px 12px 96px; }
+
+  .sec-h { display: flex; align-items: baseline; gap: 8px; margin: 10px 2px 8px; }
+  .sec-h .lab { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
+    color: color(display-p3 0.133 0.175 0.348); /* structural navy */ }
+  .sec-h .cnt { font-size: 11px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+
+  /* Big plan-first dish CARD — ≥44px touch +/−, big qty readout */
+  .dish-card { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); box-shadow: var(--shadow-rest); /* OD-P3-11 card rest */
+    padding: 12px; margin-bottom: 10px; }
+  .dc-top { display: flex; align-items: flex-start; gap: 8px; }
+  .dc-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--ds-font-color-primary);
+    line-height: 1.25; }
+  .dc-cat { display: block; font-size: 11px; font-weight: 400; color: var(--ds-font-color-tertiary); margin-top: 2px; }
+  .plan-pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px;
+    border-radius: var(--ds-border-radius-pill); font-size: 11px; font-weight: 600; flex: none;
+    background: var(--ds-background-tertiary); color: var(--ds-font-color-secondary);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dc-bottom { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  /* ≥44px touch steppers */
+  .step-btn { width: 44px; height: 44px; border-radius: var(--ds-border-radius-sm); font-size: 22px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none; font-family: inherit; }
+  .step-minus { border: 1px solid var(--ds-border-color-medium); background: var(--ds-background-primary);
+    color: var(--ds-font-color-secondary); }
+  .step-minus:disabled { opacity: 0.4; }
+  .step-plus { border: none; background: var(--ds-background-tertiary); color: var(--ds-font-color-primary); }
+  .step-plus:disabled { opacity: 0.4; }
+  /* big qty readout */
+  .qty-readout { flex: 1; text-align: center; }
+  .qty-readout .q { font-family: var(--ds-font-display); font-size: 30px; font-weight: 600;
+    color: var(--ds-font-color-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+  .qty-readout .q.zero { color: var(--ds-font-color-light); }
+  .qty-readout .unit { display: block; font-size: 11px; color: var(--ds-font-color-tertiary); margin-top: 3px; }
+  /* vs-plan chip on the card foot */
+  .dc-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 18px; }
+  .delta { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+    font-variant-numeric: tabular-nums; }
+  .delta .d { width: 7px; height: 7px; border-radius: var(--ds-border-radius-pill); }
+  .delta.up   { color: var(--ds-tag-text-green); }   .delta.up   .d { background: var(--ds-color-green); }
+  .delta.down { color: var(--ds-tag-text-red); }     .delta.down .d { background: var(--ds-color-red); }
+  .delta.flat { color: var(--ds-tag-text-green); }   .delta.flat .d { background: var(--ds-color-green); }
+  .dc-foot .quiet { font-size: 12px; color: var(--ds-font-color-tertiary); }
+
+  /* "+ Add another dish" collapsed expander (the off-plan dishes) */
+  .expander { border: 1px dashed var(--ds-border-color-strong); border-radius: var(--ds-border-radius-md);
+    padding: 14px; margin: 6px 0 10px; text-align: center; background: var(--ds-background-secondary); }
+  .expander .et { font-size: 14px; font-weight: 600; color: var(--ds-font-color-primary); cursor: pointer; display: block; }
+  .expander .es { font-size: 12px; color: var(--ds-font-color-tertiary); margin-top: 3px; }
+  .expander .esrch { margin-top: 10px; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px;
+    border: 1px solid var(--ds-border-color-medium); border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-background-primary); color: var(--ds-font-color-tertiary); }
+  .expander .esrch input { border: none; outline: none; background: none; font: inherit; color: var(--ds-font-color-primary); width: 100%; }
+  /* peek of 2 off-plan items already logged, to show off-plan capture works too */
+  .peek { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .peek-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border: 1px solid var(--ds-border-color-light); border-radius: var(--ds-border-radius-sm); background: var(--ds-background-primary); }
+  .peek-row .pn { flex: 1; font-size: 13px; color: var(--ds-font-color-primary); font-weight: 500; }
+  .peek-row .pq { font-size: 14px; font-weight: 600; color: var(--ds-font-color-primary); font-variant-numeric: tabular-nums; }
+  .peek-row .logged-tag { font-size: 11px; color: var(--ds-font-color-secondary); }
+
+  /* PERSISTENT bottom submit bar — always visible, the ONE blue */
+  .m-submit { position: absolute; left: 0; right: 0; bottom: 0; min-height: 72px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: var(--ds-background-primary); border-top: 1px solid var(--ds-border-color-light);
+    display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -4px 16px color(display-p3 0 0 0 / 0.05); }
+  .m-submit .row1 { display: flex; align-items: baseline; gap: 8px; }
+  .m-submit .row1 .n { font-family: var(--ds-font-display); font-weight: 600; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .m-submit .row1 .l { font-size: 13px; color: var(--ds-font-color-secondary); }
+  .m-submit .row1 .u { font-size: 12px; color: var(--ds-font-color-tertiary); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .m-submit .submit-btn { width: 100%; height: 48px; border: none; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue); color: var(--ds-font-color-inverted); font-family: inherit; font-size: 16px;
+    font-weight: 600; cursor: pointer; box-shadow: var(--shadow-rest); display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .m-submit .submit-btn:hover { background: color(display-p3 0.276 0.384 0.837 / 0.9); }
+
+  /* ═══ DESKTOP CONTEXT THUMBNAIL (proves the same model scales up) ═══════════ */
+  .ctx { width: 460px; max-width: 100%; flex: none; }
+  .ctx-title { font-size: var(--ds-font-size-xs); color: var(--ds-font-color-tertiary); text-transform: uppercase;
+    letter-spacing: .06em; font-weight: 500; margin-bottom: 8px; }
+  .ctx-card { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); overflow: hidden; box-shadow: var(--shadow-rest); }
+  .ctx-top { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+    border-bottom: 1px solid var(--ds-border-color-light); }
+  .ctx-top .t { font-family: var(--ds-font-display); font-weight: 600; font-size: 14px; }
+  .ctx-top .c { font-size: 11px; color: var(--ds-font-color-tertiary); background: var(--ds-background-tertiary);
+    padding: 1px 8px; border-radius: var(--ds-border-radius-pill); }
+  .ctx-body { padding: 12px; }
+  .ctx-row { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-bottom: 1px solid color(display-p3 0.945 0.945 0.945 / 0.7); }
+  .ctx-row:last-child { border-bottom: none; }
+  .ctx-row .n { flex: 1; font-size: 12px; color: var(--ds-font-color-primary); }
+  .ctx-row .p { font-size: 11px; color: var(--ds-font-color-tertiary); font-variant-numeric: tabular-nums; }
+  .ctx-row .q { font-size: 13px; font-weight: 600; color: var(--ds-font-color-primary); min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
+  .ctx-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--ds-border-color-light); }
+  .ctx-foot .tally { font-size: 12px; color: var(--ds-font-color-secondary); }
+  .ctx-foot .tally b { color: var(--ds-font-color-primary); font-variant-numeric: tabular-nums; }
+  .ctx-foot .spacer { flex: 1; }
+  .ctx-btn { height: 30px; padding: 0 12px; border: none; border-radius: var(--ds-border-radius-sm);
+    background: var(--ds-color-blue); color: var(--ds-font-color-inverted); font-size: 12px; font-weight: 600; cursor: pointer; }
+
+  /* loading / empty thumbnails */
+  .ctx-states { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .ctx-state { background: var(--ds-background-primary); border: 1px solid var(--ds-border-color-light);
+    border-radius: var(--ds-border-radius-md); overflow: hidden; }
+  .ctx-state .h { height: 32px; display: flex; align-items: center; padding: 0 12px;
+    border-bottom: 1px solid var(--ds-border-color-light); font-size: 11px; color: var(--ds-font-color-tertiary);
+    text-transform: uppercase; letter-spacing: .06em; font-weight: 500; }
+  .ctx-state .b { padding: 16px 12px; }
+  .sk { background: var(--ds-background-tertiary); border-radius: var(--ds-border-radius-xs); height: 10px; display: block; margin: 8px 0; }
+  .empty-msg { text-align: center; font-size: 12px; color: var(--ds-font-color-secondary); padding: 8px 0; }
+
+  @media (max-width: 880px) {
+    .stage { flex-direction: column; align-items: center; }
+    .ctx { width: 390px; max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mock-label">Direction B — Floor-fast · plan-first · mobile-first (phone primary) · Kitchen · Log</div>
+<div class="stage">
+
+  <!-- ══════ PHONE (primary) ══════ -->
+  <div class="phone" role="application" aria-label="Kitchen Log — phone">
+    <!-- mobile top bar -->
+    <header class="m-topbar">
+      <button class="menu" aria-label="Open navigation">☰</button>
+      <div class="title"><span class="crumb-par">Kitchen</span><span class="crumb-sep">›</span>Log</div>
+      <div class="m-av" aria-label="Arief Said">AS</div>
+    </header>
+
+    <!-- action type (full-width, bigger touch) -->
+    <div class="m-atab">
+      <div class="seg-full" role="tablist" aria-label="Action type">
+        <button class="on" role="tab" aria-selected="true">Production</button>
+        <button role="tab" aria-selected="false"><span class="arrow">→</span> Radiant</button>
+        <button role="tab" aria-selected="false"><span class="arrow">→</span> Bungur</button>
+      </div>
+    </div>
+
+    <!-- plan summary -->
+    <div class="plan-sum">
+      <div class="ic">◷</div>
+      <div class="meta">
+        <div class="t">Today · <span class="tnum">6</span> dishes planned</div>
+        <div class="s">Plan total <span class="tnum">180</span> · made <span class="tnum">140</span> · <span class="tnum">78%</span></div>
+      </div>
+    </div>
+
+    <!-- scrollable capture body -->
+    <div class="m-body">
+      <div class="sec-h"><span class="lab">Planned today</span><span class="cnt">6 dishes</span></div>
+
+      <!-- card 1: Nasi Putih — under -->
+      <div class="dish-card">
+        <div class="dc-top">
+          <div class="dc-name">Nasi Putih<span class="dc-cat">Rice / Staple</span></div>
+          <span class="plan-pill">plan 50</span>
+        </div>
+        <div class="dc-bottom">
+          <button class="step-btn step-minus" aria-label="Decrease Nasi Putih">−</button>
+          <div class="qty-readout"><span class="q tnum">48</span><span class="unit">portions</span></div>
+          <button class="step-btn step-plus" aria-label="Increase Nasi Putih">+</button>
+        </div>
+        <div class="dc-foot"><span class="delta down"><span class="d"></span>2 under plan</span><span class="quiet">· stock 30</span></div>
+      </div>
+
+      <!-- card 2: Risoles Beef Mayo — over -->
+      <div class="dish-card">
+        <div class="dc-top">
+          <div class="dc-name">Risoles Beef Mayo<span class="dc-cat">Snack / Sweet</span></div>
+          <span class="plan-pill">plan 30</span>
+        </div>
+        <div class="dc-bottom">
+          <button class="step-btn step-minus" aria-label="Decrease Risoles Beef Mayo">−</button>
+          <div class="qty-readout"><span class="q tnum">36</span><span class="unit">portions</span></div>
+          <button class="step-btn step-plus" aria-label="Increase Risoles Beef Mayo">+</button>
+        </div>
+        <div class="dc-foot"><span class="delta up"><span class="d"></span>6 over plan</span><span class="quiet">· stock 8</span></div>
+      </div>
+
+      <!-- card 3: Ayam Gulai — on plan (focused/active thumb on +) -->
+      <div class="dish-card">
+        <div class="dc-top">
+          <div class="dc-name">Ayam Gulai<span class="dc-cat">Chicken</span></div>
+          <span class="plan-pill">plan 25</span>
+        </div>
+        <div class="dc-bottom">
+          <button class="step-btn step-minus" aria-label="Decrease Ayam Gulai">−</button>
+          <div class="qty-readout"><span class="q tnum">25</span><span class="unit">portions</span></div>
+          <!-- active + button: focus ring -->
+          <button class="step-btn step-plus" aria-label="Increase Ayam Gulai" style="outline:2px solid var(--ds-color-blue);outline-offset:2px">+</button>
+        </div>
+        <div class="dc-foot"><span class="delta flat"><span class="d"></span>On plan</span><span class="quiet">· stock 12</span></div>
+      </div>
+
+      <!-- card 4: Pisang Goreng — under -->
+      <div class="dish-card">
+        <div class="dc-top">
+          <div class="dc-name">Pisang Goreng<span class="dc-cat">Snack / Sweet</span></div>
+          <span class="plan-pill">plan 40</span>
+        </div>
+        <div class="dc-bottom">
+          <button class="step-btn step-minus" aria-label="Decrease Pisang Goreng">−</button>
+          <div class="qty-readout"><span class="q tnum">22</span><span class="unit">portions</span></div>
+          <button class="step-btn step-plus" aria-label="Increase Pisang Goreng">+</button>
+        </div>
+        <div class="dc-foot"><span class="delta down"><span class="d"></span>18 under plan</span><span class="quiet">· stock 18</span></div>
+      </div>
+
+      <!-- card 5: Sayur Lodeh — under -->
+      <div class="dish-card">
+        <div class="dc-top">
+          <div class="dc-name">Sayur Lodeh<span class="dc-cat">Veg / Tempe / Tofu</span></div>
+          <span class="plan-pill">plan 15</span>
+        </div>
+        <div class="dc-bottom">
+          <button class="step-btn step-minus" aria-label="Decrease Sayur Lodeh">−</button>
+          <div class="qty-readout"><span class="q tnum">9</span><span class="unit">portions</span></div>
+          <button class="step-btn step-plus" aria-label="Increase Sayur Lodeh">+</button>
+        </div>
+        <div class="dc-foot"><span class="delta down"><span class="d"></span>6 under plan</span><span class="quiet">· stock 6</span></div>
+      </div>
+
+      <!-- card 6: Ayam Goreng Lengkuas — zero / not started -->
+      <div class="dish-card">
+        <div class="dc-top">
+          <div class="dc-name">Ayam Goreng Lengkuas<span class="dc-cat">Chicken</span></div>
+          <span class="plan-pill">plan 20</span>
+        </div>
+        <div class="dc-bottom">
+          <button class="step-btn step-minus" aria-label="Decrease Ayam Goreng Lengkuas" disabled>−</button>
+          <div class="qty-readout"><span class="q tnum zero">0</span><span class="unit">portions</span></div>
+          <button class="step-btn step-plus" aria-label="Increase Ayam Goreng Lengkuas">+</button>
+        </div>
+        <div class="dc-foot"><span class="delta down"><span class="d"></span>Not started</span><span class="quiet">· stock 4</span></div>
+      </div>
+
+      <!-- off-plan expander (collapsed search) -->
+      <div class="sec-h"><span class="lab">Off-plan</span><span class="cnt">26 dishes</span></div>
+      <div class="expander">
+        <span class="et">+ Add another dish</span>
+        <span class="es">Search the <span class="tnum">26</span> off-plan dishes and log as produced.</span>
+        <div class="esrch"><span>⌕</span><input type="search" placeholder="Find a dish — e.g. Ayam Suwir" aria-label="Find an off-plan dish"></div>
+        <!-- peek: 3 off-plan items already logged -->
+        <div class="peek">
+          <div class="peek-row"><span class="pn">Ayam Suwir</span><span class="logged-tag">logged</span><span class="pq tnum">12</span></div>
+          <div class="peek-row"><span class="pn">Bakwan Jagung</span><span class="logged-tag">logged</span><span class="pq tnum">15</span></div>
+          <div class="peek-row"><span class="pn">Sambal Merah</span><span class="logged-tag">logged</span><span class="pq tnum">8</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PERSISTENT submit bar -->
+    <div class="m-submit">
+      <div class="row1">
+        <span class="n tnum">8</span><span class="l">entries ready</span>
+        <span class="u">175 units · pending review</span>
+      </div>
+      <button class="submit-btn" type="submit">Submit 8 entries →</button>
+    </div>
+  </div>
+
+  <!-- ══════ DESKTOP CONTEXT (same model, scales up) ══════ -->
+  <div class="ctx">
+    <div class="ctx-title">Desktop framing · same plan-first model in the shell</div>
+    <div class="ctx-card">
+      <div class="ctx-top"><span class="t">Kitchen · Log</span><span class="c">2026-06-21</span>
+        <span style="flex:1"></span>
+        <div class="seg-full" style="padding:2px" role="tablist" aria-label="Action type">
+          <button class="on" role="tab" aria-selected="true" style="min-height:28px;padding:4px 10px;font-size:12px">Production</button>
+          <button role="tab" aria-selected="false" style="min-height:28px;padding:4px 10px;font-size:12px">→ Radiant</button>
+          <button role="tab" aria-selected="false" style="min-height:28px;padding:4px 10px;font-size:12px">→ Bungur</button>
+        </div>
+      </div>
+      <div class="ctx-body">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:color(display-p3 0.133 0.175 0.348);margin-bottom:4px">Planned today · 6 dishes</div>
+        <div class="ctx-row"><span class="n">Nasi Putih</span><span class="p">plan 50</span><span class="p" style="color:var(--ds-tag-text-red)">−2</span><span class="q">48</span></div>
+        <div class="ctx-row"><span class="n">Risoles Beef Mayo</span><span class="p">plan 30</span><span class="p" style="color:var(--ds-tag-text-amber)">+6</span><span class="q">36</span></div>
+        <div class="ctx-row"><span class="n">Ayam Gulai</span><span class="p">plan 25</span><span class="p" style="color:var(--ds-tag-text-green)">on</span><span class="q">25</span></div>
+        <div class="ctx-row"><span class="n">Pisang Goreng</span><span class="p">plan 40</span><span class="p" style="color:var(--ds-tag-text-red)">−18</span><span class="q">22</span></div>
+        <div class="ctx-row"><span class="n">Sayur Lodeh</span><span class="p">plan 15</span><span class="p" style="color:var(--ds-tag-text-red)">−6</span><span class="q">9</span></div>
+        <div class="ctx-row"><span class="n">Ayam Goreng Lengkuas</span><span class="p">plan 20</span><span class="p" style="color:var(--ds-tag-text-red)">−20</span><span class="q" style="color:var(--ds-font-color-light)">0</span></div>
+        <div style="font-size:11px;color:var(--ds-font-color-tertiary);padding:10px 4px 0">+ 26 off-plan dishes (collapsed)</div>
+      </div>
+      <div class="ctx-foot">
+        <span class="tally"><b class="tnum">8</b> entries · <b class="tnum">175</b> units</span>
+        <span class="spacer"></span>
+        <button class="ctx-btn">Submit 8 entries →</button>
+      </div>
+    </div>
+
+    <!-- states: loading · empty -->
+    <div class="ctx-states">
+      <div class="ctx-state" aria-busy="true">
+        <div class="h">Loading</div>
+        <div class="b"><span class="sk" style="width:70%"></span><span class="sk" style="width:50%"></span><span class="sk" style="width:60%"></span></div>
+      </div>
+      <div class="ctx-state">
+        <div class="h">Empty · 0 entered</div>
+        <div class="b"><div class="empty-msg">Tap + on a planned dish to start.<br>Submit stays disabled until ≥1 entry.</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!--
+================================================================================
+DIRECTION B — “Floor-fast, plan-first” (mobile-first, big-touch) · Kitchen · Log
+================================================================================
+INTERACTION MODEL: phone-first capture for speed on the line. A mobile top bar
+(rail collapses < 920px) + a full-width action-type segmented (≥40px touch) +
+a one-line “Today · 6 dishes planned” summary. The PLANNED dishes come FIRST as
+big cards: dish + plan-pill + a ≥44px −/+ touch pair + a large tabular qty
+readout + a vs-plan delta chip. The 26 OFF-PLAN dishes collapse under a
+“+ Add another dish” search/expander (a peek shows the 3 already-logged off-plan
+items). A PERSISTENT bottom bar carries the live tally + the ONE Submit primary,
+always visible — never a scroll hunt. Posture: ops / floor / phone, under a min.
+
+JOB-STORY FIT: “often on a phone in the kitchen… without pulling me off the line.”
+  • Few-in-view, big type, ≥44px touch — operable with one thumb, gloves, haste.
+  • Plan-first ordering: the dishes a cook is measured against are on top; the
+    off-plan long tail is one tap away, not cluttering the line.
+  • Decision-relevant: each card shows plan + made + delta + stock; the bottom
+    bar shows the running tally so Submit’s cost is always in thumb-reach.
+  • The ONE next action (Submit) is a single 48px blue bar pinned to the bottom.
+
+================================================================================
+TOKENS USED (identical set to A; token NAME documented inline above):
+  Surfaces · Text · Action blue (--ds-color-blue: the bottom Submit bar + the
+  focused + button ring + active nav) · Status green/amber/red (delta chips +
+  dots) · Brand navy/orange · Single-Border · radii (OD-P3-10) · --shadow-rest
+  (dish cards + submit seat) · --ds-box-shadow-light (segmented “on”) · fonts.
+
+================================================================================
+DESIGN.md RULES APPLIED:
+  • The One Blue Rule — on the phone the ONLY blue is the pinned Submit bar + the
+    focus ring on the active + button. Plan pills, deltas, dots are neutral /
+    green / amber / red. The “plan” pill is a neutral secondary chip, not blue.
+  • The Tinted-Status Rule — vs-plan delta = 7px dot + darkened AA text
+    (up=green, down=red, flat=green) on white; never a solid fill.
+  • The Soft-Elevation Rule — dish cards + the phone frame + the submit seat get
+    the one --shadow-rest; the top bar / plan-sum strip / peek rows stay FLAT.
+  • Big-touch ≥44px on −/+ and the action-type tabs (the one place MOS density
+    deliberately yields to floor ergonomics — composition, not identity).
+  • 32px-equivalent controls still 8px radius; cards 12px; tabular-nums on every
+    qty / plan / delta / tally figure.
+
+================================================================================
+STATES REPRESENTED:
+  • Populated plan-first cards: on-plan (Ayam Gulai), over (Risoles +6), under
+    (Nasi Putih −2, Pisang −18, Sayur Lodeh −6), not-started/zero (Ayam Goreng
+    Lengkuas 0, − button disabled).
+  • FOCUSED + button on Ayam Gulai — 2px One-Blue ring (the active touch target).
+  • Off-plan collapsed expander with live search + a peek of 3 logged off-plan
+    items (Ayam Suwir 12, Bakwan Jagung 15, Sambal Merah 8) → proves off-plan
+    capture works without cluttering the line.
+  • Persistent submit bar (live tally, always visible) · Desktop framing
+    thumbnail (same model in-shell) · Loading skeleton · Empty (Submit disabled).
+
+================================================================================
+PROPOSED NEW TOKEN (flagged for owner sign-off — NOT applied as a new hue):
+  • Same as A: a “not-started” semantics split (amber/pending vs red/shortfall)
+    is proposed as a reuse of existing hues, no new color. Await sign-off.
+
+OPEN QUESTIONS (owner):
+  1. Same rail-width (224 vs 236) + radius-remap confirmations as Direction A.
+  2. Should the off-plan “peek” show already-logged items inline (as here) or
+     stay fully hidden until expanded? (Current: peek 3 logged.)
+  3. Is a 48px Submit bar acceptable on phone (taller than the 32px control
+     token) as a deliberate big-touch exception, mirroring the ≥44px −/+ pair?
+================================================================================
+-->
+</body>
+</html>

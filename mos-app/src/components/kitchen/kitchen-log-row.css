@@ -1,0 +1,87 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KitchenLogRow — one desktop <tr> (plan §4.1 N6, OD-P3-6 dense 50px rows).
+   Cells: Dish (name+category) · Plan · Stock · Made-today (QtyCell) · Status (Pill).
+   Variance note reveals as a second <tr class="klr-note-row">. Card bg; divider
+   border/70%; quiet accent hover wash. Token-only (DESIGN.md).
+   Spacing follows the sibling kitchen CSS idiom (literal px).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.klr {
+  background: var(--card);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  transition: background 120ms ease;
+}
+.klr:hover { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .klr { transition: none; }
+}
+
+.klr-dish {
+  text-align: left;
+  padding: 8px 12px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+.klr-name {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.klr-cat {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.klr-num {
+  text-align: right;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--foreground);
+  vertical-align: middle;
+}
+.klr-plan { color: var(--muted-foreground); }
+
+.klr-made {
+  text-align: right;
+  padding: 6px 12px;
+  vertical-align: middle;
+}
+.klr-status {
+  text-align: right;
+  padding: 8px 12px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* variance-note second row (FR-022) */
+.klr-note-row > td {
+  padding: 0 12px 12px;
+  background: var(--card);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.klr-note-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.klr-note-cue {
+  font-size: 12px;
+  color: var(--status-lost-text);
+}
+.klr-note {
+  width: 100%;
+  max-width: 320px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}

@@ -122,52 +122,74 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         </div>
       )}
 
-      {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1). */}
+      {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1).
+          At <920px the rail is gone (drawer-nav), so the brand shrinks to content width (no 224px reserve)
+          and drops the divider — otherwise it forces horizontal overflow on phones. */}
       <div
-        className="flex items-center gap-2 border-r border-border px-3 flex-none"
-        style={{ width: 'var(--rail-w)' }}
+        className={`flex items-center gap-2 px-3 flex-none${isNarrow ? '' : ' border-r border-border'}`}
+        style={{ width: isNarrow ? 'auto' : 'var(--rail-w)' }}
       >
         <GordiLogoMark />
-        <span
-          className="truncate font-semibold text-foreground"
-          title="Gordi MOS"
-          style={{ fontSize: 16, letterSpacing: '-0.01em' }}
-        >
-          Gordi MOS
-        </span>
+        {!isNarrow && (
+          <span
+            className="truncate font-semibold text-foreground"
+            title="Gordi MOS"
+            style={{ fontSize: 16, letterSpacing: '-0.01em' }}
+          >
+            Gordi MOS
+          </span>
+        )}
       </div>
 
-      {/* Breadcrumb track — min-w-0 so a long crumb ellipsizes and cannot shove the brand (AC-S02/S03) */}
-      <div className="flex items-center px-4 flex-1 min-w-0">
-        <nav aria-label="Breadcrumb">
-          <Breadcrumb />
-        </nav>
-      </div>
+      {/* Breadcrumb track — min-w-0 so a long crumb ellipsizes and cannot shove the brand (AC-S02/S03).
+          Hidden at <920px: it's redundant with the page's own H1 there, and its min-content width
+          otherwise forces header overflow on phones. */}
+      {!isNarrow && (
+        <div className="flex items-center px-4 flex-1 min-w-0">
+          <nav aria-label="Breadcrumb">
+            <Breadcrumb />
+          </nav>
+        </div>
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />
 
       {/* Right cluster — search · bell · user chip */}
       <div className="flex items-center gap-2 px-3 flex-none">
-        {/* ⌘K search trigger — opens the command menu (AC-K02). */}
-        <button
-          type="button"
-          aria-label="Search"
-          className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
-          style={{ height: 34, width: 200 }}
-          onClick={onOpenSearch}
-        >
-          <SearchIcon />
-          <span className="flex-1 text-left" style={{ fontSize: 15 }}>
-            Search
-          </span>
-          <kbd
-            className="rounded-xs border border-border px-1 font-medium text-muted-foreground"
-            style={{ fontSize: 11, lineHeight: '16px' }}
+        {/* ⌘K search trigger — opens the command menu (AC-K02). Below 920px it shrinks to an
+            icon-only button (DESIGN.md Navigation·Mobile: "cmdk shrinks to an icon") so the header
+            fits a phone width without horizontal overflow. */}
+        {isNarrow ? (
+          <button
+            type="button"
+            aria-label="Search"
+            className="flex items-center justify-center rounded-sm border border-border bg-secondary text-muted-foreground hover:border-muted-foreground/50 flex-none"
+            style={{ width: 32, height: 32 }}
+            onClick={onOpenSearch}
           >
-            ⌘K
-          </kbd>
-        </button>
+            <SearchIcon />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Search"
+            className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
+            style={{ height: 34, width: 200 }}
+            onClick={onOpenSearch}
+          >
+            <SearchIcon />
+            <span className="flex-1 text-left" style={{ fontSize: 15 }}>
+              Search
+            </span>
+            <kbd
+              className="rounded-xs border border-border px-1 font-medium text-muted-foreground"
+              style={{ fontSize: 11, lineHeight: '16px' }}
+            >
+              ⌘K
+            </kbd>
+          </button>
+        )}
 
         {/* Notification bell — icon-only stub, non-functional (AC-S07, ADR-0013 D1) */}
         <button
@@ -181,8 +203,8 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           <BellIcon />
         </button>
 
-        {/* User chip — name truncates, title attribute for no-bleed (AC-S08) */}
-        <UserChip variant="header" />
+        {/* User chip — avatar-only at <920px (FR-020); name/role show on wider viewports (AC-S08) */}
+        <UserChip variant="header" compact={isNarrow} />
       </div>
     </header>
   )

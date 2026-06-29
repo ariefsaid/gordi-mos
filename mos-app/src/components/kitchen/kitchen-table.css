@@ -1,0 +1,80 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   kitchen-table.css — the SHARED dense-table grammar (OD-K-5 redesign §2.2).
+   Imported by the sibling kitchen table CSS files (kitchen-plan-table.css /
+   kitchen-pesanan-table.css / kitchen-stock-table.css). Mirrors the Log .klt-table
+   grammar (DESIGN.md §DataTable + OD-P3-6 dense DB-view) under a fresh `.kt-*`
+   namespace so it never collides with the reviewed Log `.klt-*` selectors (C1 guard).
+   Token-only (DESIGN.md). Spacing in px (sibling kitchen idiom).
+
+   Hover token (directive): `--surface-secondary` (the grey hover wash in this app),
+   NOT `--accent` — `--accent` IS the action blue here (aliases.css), reserved for the
+   focus ring + the one primary action. Matches the existing qty-cell.css hover.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.kt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+/* sticky overline thead — OD-P4-10 overline label (uppercase, tracked) */
+.kt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  background: var(--card);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.kt-table thead .kt-th-num { text-align: right; }
+
+/* 50px dense body rows (OD-P3-6 DB-view); divider = border/70% */
+.kt-table tbody td {
+  height: 50px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+.kt-table tbody tr:last-child td { border-bottom: none; }
+
+/* quiet hover wash — --surface-secondary (grey), NEVER the blue --accent */
+.kt-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+
+/* right-aligned tabular numbers (every qty + KPI value + count) */
+.kt-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* dish name + category sub-label */
+.kt-name {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.kt-cat {
+  display: block;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* empty-filter message row */
+.kt-empty {
+  padding: 24px 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+/* negative-number tint — AA-darkened red, never base --destructive (WCAG) */
+.kt-neg {
+  color: var(--status-lost-text);
+  font-weight: 600;
+}

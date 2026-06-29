@@ -12,10 +12,15 @@ import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { KitchenStockTable } from '@/components/kitchen/kitchen-stock-table'
+import { KitchenStockCards } from '@/components/kitchen/kitchen-stock-cards'
+import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -39,6 +44,11 @@ export function KitchenStockPage() {
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  // NEW presentational state (P-3): reflow branch + client-side search filter.
+  const isDesktop = useIsDesktop()
+  const [search, setSearch] = useState('')
+  // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
+  const kpiData = useStockKpiStripData(rows)
 
   const fetchStock = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -73,13 +83,18 @@ export function KitchenStockPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
         variant="content"
         title="Kitchen · Stock"
         count={load.kind === 'ready' ? rows.length : null}
         meta={<span className="ks-date tabular">{asOf}</span>}
       />
+
+      {/* Derived KPI strip (P-1, OQ-5 default ON) — only when populated */}
+      {load.kind === 'ready' && rows.length > 0 && (
+        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+      )}
 
       {load.kind === 'loading' && <LoadingState />}
 
@@ -98,40 +113,22 @@ export function KitchenStockPage() {
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        <div className="ks-block ks-tablewrap">
-          <table className="ks-table">
-            <caption className="sr-only">Kitchen stock for {asOf}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Item</th>
-                <th scope="col" className="ks-num-head">Stok</th>
-                <th scope="col" className="ks-num-head">Tersedia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => (
-                <tr key={row.wip_item_id}>
-                  <td className="ks-item">{row.wip_item_name}</td>
-                  <StockCell value={row.stok} />
-                  <StockCell value={row.tersedia} />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        isDesktop ? (
+          <KitchenStockTable
+            rows={rows}
+            asOf={asOf}
+            search={search}
+            onSearchChange={setSearch}
+          />
+        ) : (
+          <KitchenStockCards
+            rows={rows}
+            search={search}
+            onSearchChange={setSearch}
+          />
+        )
       )}
     </PageFrame>
-  )
-}
-
-// One numeric cell — tabular digits; negative balances are preserved and tinted
-// destructive (AA-safe --status-lost-text), never clamped (FR-061/AC-032).
-function StockCell({ value }: { value: number }) {
-  const negative = value < 0
-  return (
-    <td className={`ks-num tabular${negative ? ' ks-num-neg' : ''}`}>
-      {value}
-    </td>
   )
 }
 

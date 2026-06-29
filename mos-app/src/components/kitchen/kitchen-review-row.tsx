@@ -105,7 +105,7 @@ export function KitchenReviewRow({
         </span>
       </td>
 
-      <td className="krow-cell krow-qty tabular-nums">
+      <td className="krow-cell krow-qty tabular">
         <span className="krow-meta">plan</span>
         <strong>{planQty}</strong>
         <span className="krow-meta">· logged</span>
@@ -117,7 +117,7 @@ export function KitchenReviewRow({
         <span className="krow-byname">{submitterName}</span>
       </td>
 
-      <td className="krow-cell krow-time tabular-nums">{time}</td>
+      <td className="krow-cell krow-time tabular">{time}</td>
 
       <td className="krow-cell krow-note">
         {log.notes ? <span className="krow-submitnote">“{log.notes}”</span> : <span className="krow-nonote">—</span>}

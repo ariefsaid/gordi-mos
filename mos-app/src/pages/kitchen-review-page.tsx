@@ -1,21 +1,9 @@
-// KitchenReviewPage — /mos/kitchen/review — S3 review/approve queue (desktop-first).
-// Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S3.
-// The ops_lead surface that completes the capture→approve loop (the GIGO gate).
-// Proves (unit): FR-040 (queue lists ONLY Submitted, grouped by action_type),
-// FR-041/AC-040/041 (approve/reject + note gates), FR-042/AC-042 (production-first
-// gate), FR-050/AC-090 (approve RPC → minted batch_id), FR-003/044 (role gate →
-// forbidden panel, not an empty table). (AC-090/091 are owned cross-stack at e2e.)
-// - Access-role gated: ops_lead/admin only (RLS is the authority; UI gate is courtesy).
-// - First cut: INLINE approve/reject in the queue rows (no drawer — design-plan §7.1 D4).
-// - Confirmed-only: a decision reflects the RPC/UPDATE result; the row leaves the queue
-//   on success. P0003 (already actioned by someone else) → friendly notice + re-fetch.
-// - Online-only writes (NFR-008): actions blocked + a banner when offline.
-
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import {
   listSubmittedKitchenLogs,
@@ -26,11 +14,13 @@ import {
 } from '@/lib/db/kitchen-logs'
 import type { ReviewLogRow, KitchenActionType, PlanMap } from '@/lib/db/kitchen-logs.types'
 import { getPeople } from '@/lib/db/directory'
-import { KitchenReviewRow } from '@/components/kitchen/kitchen-review-row'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { KitchenReviewTable } from '@/components/kitchen/kitchen-review-table'
+import { KitchenReviewCards } from '@/components/kitchen/kitchen-review-cards'
+import { useReviewKpis } from '@/lib/kitchen-review-kpis'
 import './kitchen-review-page.css'
 
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture page.
 function wibToday(): string {
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
   const shifted = new Date(Date.now() + WIB_OFFSET_MS)
@@ -38,21 +28,10 @@ function wibToday(): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
 }
 
-// The ordered action_type groups (Production first — the review sequence, FR-042).
 const ACTION_ORDER: KitchenActionType[] = ['Production', 'Transfer to Radiant', 'Transfer to Bungur']
-const ACTION_LABEL: Record<KitchenActionType, string> = {
-  Production: 'Production',
-  'Transfer to Radiant': 'Transfer to Radiant',
-  'Transfer to Bungur': 'Transfer to Bungur',
-}
-const PRODUCTION_FIRST_REASON = 'Finish Production approvals first.'
 
 function isTransfer(a: KitchenActionType): boolean {
   return a === 'Transfer to Radiant' || a === 'Transfer to Bungur'
-}
-
-function planQtyFor(planMap: PlanMap, log: ReviewLogRow): number {
-  return planMap[log.wip_item_id]?.[log.action_type] ?? 0
 }
 
 type LoadState =
@@ -64,12 +43,10 @@ export function KitchenReviewPage() {
   useDocumentTitle('Kitchen Review — Gordi MOS')
   const auth = useAuth()
 
-  // ── Access-role gate (FR-003/044) ──────────────────────────────────────────
-  // ops_lead/admin only; RLS is the authority — this is the UI courtesy + forbidden state.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
-  const [logDate] = useState(wibToday) // today WIB (date stepper deferred — S2/owner OQ-7)
+  const [logDate] = useState(wibToday)
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
   const [planMap, setPlanMap] = useState<PlanMap>({})
   const [peopleMap, setPeopleMap] = useState<Map<string, string>>(new Map())
@@ -77,10 +54,12 @@ export function KitchenReviewPage() {
   const [retryKey, setRetryKey] = useState(0)
 
   const [submittingId, setSubmittingId] = useState<string | null>(null)
-  const [bulkAction, setBulkAction] = useState<KitchenActionType | null>(null) // group with a batch in flight
+  const [bulkAction, setBulkAction] = useState<KitchenActionType | null>(null)
   const [actionError, setActionError] = useState('')
-  const [notice, setNotice] = useState('') // friendly post-action confirmation / P0003 refresh
+  const [notice, setNotice] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const isDesktop = useIsDesktop()
+  const kpiData = useReviewKpis(logs, planMap)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -107,26 +86,22 @@ export function KitchenReviewPage() {
     }
   }, [logDate])
 
-  // Re-fetch only when allowed (a member never triggers the queue read).
   useEffect(() => {
     if (auth.status !== 'authenticated' || !allowed) return
     fetchQueue()
   }, [auth.status, allowed, fetchQueue, retryKey])
 
-  // ── Production-first gate (FR-042) ─────────────────────────────────────────
   const productionPending = useMemo(
     () => logs.some(l => l.action_type === 'Production'),
     [logs],
   )
 
-  // Grouped queue (by action_type, Production first).
   const groups = useMemo(() => {
     return ACTION_ORDER
       .map(action => ({ action, rows: logs.filter(l => l.action_type === action) }))
       .filter(g => g.rows.length > 0)
   }, [logs])
 
-  // ── Decision wiring (confirmed-only) ───────────────────────────────────────
   const removeRow = useCallback((id: string) => {
     setLogs(prev => prev.filter(l => l.id !== id))
   }, [])
@@ -161,17 +136,8 @@ export function KitchenReviewPage() {
     }
   }
 
-  // ── Bulk approve (FR-043) ──────────────────────────────────────────────────
-  // "Approve all (N)" per group. Parity with the OLD app (review_bulk): eligible = EVERY
-  // Submitted row in the section, gated ONLY by production-first (a Transfer section's bulk
-  // stays disabled while any Production row is still Submitted). Off-plan rows ARE included
-  // and approved with a null note (the bulk path never forces per-row notes — only the
-  // single-approve flow keeps its variance-note gate). There is NO bulk RPC — iterate
-  // approveKitchenLog(id, null) per row (each atomic server-side). Partial outcomes:
-  // P0003 (already actioned) → drop + continue; other errors → keep the row + a notice.
   const bulkEligible = useCallback(
     (action: KitchenActionType): ReviewLogRow[] => {
-      // Transfer groups respect the production-first gate — zero eligible while pending.
       if (isTransfer(action) && productionPending) return []
       return logs.filter(l => l.action_type === action)
     },
@@ -188,7 +154,7 @@ export function KitchenReviewPage() {
     let approved = 0
     let failed = 0
     let lastBatch = ''
-    const stale: string[] = [] // P0003 rows — drop them
+    const stale: string[] = []
     for (const log of eligible) {
       try {
         const { batch_id } = await approveKitchenLog(log.id, null)
@@ -198,9 +164,9 @@ export function KitchenReviewPage() {
       } catch (err) {
         if (err instanceof KitchenRpcError && err.code === 'P0003') {
           stale.push(log.id)
-          removeRow(log.id) // someone else actioned it — drop, continue
+          removeRow(log.id)
         } else {
-          failed += 1 // keep the row in the queue for a retry
+          failed += 1
         }
       }
     }
@@ -220,8 +186,6 @@ export function KitchenReviewPage() {
   }
 
   function handleDecisionError(err: unknown) {
-    // P0003 — the log is no longer Submitted (someone else actioned it). Friendly
-    // notice + re-fetch so the stale row drops out (design-plan §3 / behavior brief).
     if (err instanceof KitchenRpcError && err.code === 'P0003') {
       setNotice('Already reviewed by someone else — refreshing the queue…')
       setRetryKey(k => k + 1)
@@ -234,7 +198,6 @@ export function KitchenReviewPage() {
     setActionError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
   }
 
-  // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return <PageFrame><LoadingState /></PageFrame>
   }
@@ -249,7 +212,6 @@ export function KitchenReviewPage() {
     )
   }
 
-  // ── Forbidden (non-lead) — a clean "not for your role" panel, NOT an empty table ──
   if (!allowed) {
     return (
       <PageFrame>
@@ -268,13 +230,17 @@ export function KitchenReviewPage() {
   const submittedCount = logs.length
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
         variant="content"
         title="Kitchen · Review"
         count={load.kind === 'ready' ? submittedCount : null}
-        meta={<span className="kr-date tabular-nums">{logDate}</span>}
+        meta={<span className="kr-date tabular">{logDate}</span>}
       />
+
+      {load.kind === 'ready' && submittedCount > 0 && (
+        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+      )}
 
       {!isOnline && (
         <div role="alert" className="kr-banner kr-banner-offline kr-block">
@@ -311,69 +277,35 @@ export function KitchenReviewPage() {
       )}
 
       {load.kind === 'ready' && submittedCount > 0 && (
-        <div className="kr-queue kr-block">
-          {groups.map(group => {
-            const transferGated = isTransfer(group.action) && productionPending
-            const eligibleCount = bulkEligible(group.action).length
-            const bulkBusy = bulkAction === group.action
-            return (
-              <section key={group.action} className="kr-group" aria-label={ACTION_LABEL[group.action]}>
-                <div className="kr-group-head">
-                  <span className="kr-group-label">{ACTION_LABEL[group.action]}</span>
-                  <span className="kr-group-count tabular-nums">{group.rows.length}</span>
-                  {transferGated && (
-                    <span className="kr-group-gate">
-                      <span aria-hidden="true" className="kr-info-glyph">ⓘ</span>
-                      {' '}Blocked until Production approved
-                    </span>
-                  )}
-                  {/* Bulk approve (FR-043): N counts ALL Submitted logs in the section
-                      (off-plan included, parity with the OLD app). Transfer sections stay
-                      gated by production-first. Per-row approve keeps its variance-note gate. */}
-                  {eligibleCount > 0 && (
-                    <button
-                      type="button"
-                      className="btn btn-primary kr-bulk-btn"
-                      aria-label={`Approve all (${eligibleCount}) — ${ACTION_LABEL[group.action]}`}
-                      disabled={!isOnline || submittingId !== null || bulkAction !== null}
-                      onClick={() => handleBulkApprove(group.action)}
-                    >
-                      {bulkBusy ? 'Approving…' : `Approve all (${eligibleCount})`}
-                    </button>
-                  )}
-                </div>
-                <table className="kr-table">
-                  <caption className="sr-only">{ACTION_LABEL[group.action]} submitted logs</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Item</th>
-                      <th scope="col">Plan vs logged</th>
-                      <th scope="col">Submitter</th>
-                      <th scope="col">Time</th>
-                      <th scope="col">Note</th>
-                      <th scope="col">Decision</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.rows.map(log => (
-                      <KitchenReviewRow
-                        key={log.id}
-                        log={log}
-                        planQty={planQtyFor(planMap, log)}
-                        submitterName={peopleMap.get(log.submitted_by ?? '') ?? '—'}
-                        approveDisabled={transferGated || !isOnline}
-                        approveDisabledReason={transferGated ? PRODUCTION_FIRST_REASON : ''}
-                        submitting={submittingId === log.id}
-                        onApprove={handleApprove}
-                        onReject={handleReject}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            )
-          })}
-        </div>
+        isDesktop ? (
+          <KitchenReviewTable
+            groups={groups}
+            planMap={planMap}
+            peopleMap={peopleMap}
+            productionPending={productionPending}
+            bulkEligible={bulkEligible}
+            bulkAction={bulkAction}
+            submittingId={submittingId}
+            isOnline={isOnline}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onBulkApprove={handleBulkApprove}
+          />
+        ) : (
+          <KitchenReviewCards
+            groups={groups}
+            planMap={planMap}
+            peopleMap={peopleMap}
+            productionPending={productionPending}
+            bulkEligible={bulkEligible}
+            bulkAction={bulkAction}
+            submittingId={submittingId}
+            isOnline={isOnline}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onBulkApprove={handleBulkApprove}
+          />
+        )
       )}
     </PageFrame>
   )
