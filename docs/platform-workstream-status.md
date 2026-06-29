@@ -1,4 +1,4 @@
-# Platform workstream — status & handoff (updated 2026-06-26)
+# Platform workstream — status & handoff (updated 2026-06-29)
 
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
 > state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`.
@@ -53,33 +53,40 @@ NOT in scope: receiving/GR, stock-opname, ESB-inventory reconciliation, multi-pl
 ### UI-revamp workstream (PRs #29–#56, ADR-0013) — SHIPPED
 Structural conventions + UI-revamp PRs 1–6 + fidelity pass. See `docs/ui-revamp-status.md` for history.
 
-## Mid-flight — Kitchen UI redesign (OD-K-5, branch `feat/kitchen-log-redesign`, NOT merged)
-The owner rejected the shipped stepper kitchen UI; the **full redesign is built, reviewed, and verified**
-on `feat/kitchen-log-redesign` (~21 commits) — a dense data-table (≥768px) + KPI strip + floor-fast phone
-cards (<768px) language across all 4 functional screens (Log · Plan · Pesanan · Stock · Review). The
-ESB-pushes page is untouched. **Parity held:** data layer unchanged except a read-only `category` on 2
-SELECTs; submit payload byte-identical; FR-022/023 gates + Review approve/reject/bulk preserved.
-- Reusable pieces in `mos-app/src/components/kitchen/` (`kitchen-table.css`, `KitchenToolbar`,
-  `KitchenKpiStrip` + per-screen selectors, `qty-cell`, log/stock/pesanan/review table+cards).
-- Log fixes: 3 One-Blue defects · F1 sticky bar (shell `h-screen`) · F2 seed categories · F3
-  disable-submit-on-note · app-wide phone overflow (top-bar collapse + grid `minmax(0,1fr)`).
-- Gates green (1347 unit · typecheck · lint). Plans: `docs/plans/2026-06-21-kitchen-log-redesign.md` +
-  `docs/plans/2026-06-22-kitchen-screens-redesign.md`. Decision: OD-K-5 (+ 2026-06-22 scope amendment).
-- **NEXT:** owner visual sign-off + color redlines → Director rebase + merge → close PR #67 (superseded).
+## Kitchen UI redesign (OD-K-5) — MERGED to main 2026-06-29 (PR #85, `a14f273`)
+The owner rejected the shipped stepper kitchen UI; the full redesign — dense data-table (≥768px) + KPI
+strip + floor-fast phone cards (<768px) across all 4 functional screens (Log · Plan · Pesanan · Stock ·
+Review; ESB-pushes untouched) — is **shipped**. **Parity held:** data layer unchanged except a read-only
+`category` on 2 SELECTs; submit payload byte-identical; FR-022/023 gates + Review approve/reject/bulk
+preserved (spec-reviewer verified in code + 429 kitchen tests).
+- Director brought the stale branch current (72-commit merge of main, 6 conflicts Director-resolved) and
+  ran the full BLOCKING review battery → `docs/reviews/feat-kitchen-log-redesign.md` (`pre-merge-check`
+  exit 0): **spec PASS · code-quality FIX-THEN-SHIP · design FIX-THEN-SHIP**.
+- The rendered 4-lens design review caught a **Critical fixed before merge**: the Plan editor blanked
+  against real **category-NULL** data (grouped strictly by `category`, `.filter(Boolean)` dropped every
+  item; dev seed HAS categories so unit tests passed — real Teable-migrated WIP items have NULL). Fixed
+  via null-safe `mos-app/src/lib/kitchen-category.ts` `groupByCategory()` + RTL regression tests; also
+  fixed phone-Review action clipping (<768px reflow) + invisible disabled-Submit reason. 1602 tests green.
+- **Deferred follow-ups (owner-gated, not bugs):** (a) Log KPIs ignore submitted-but-pending logs — no
+  "N pending review" cue, reads as if work lost; (b) KPI tiles omit DESIGN.md signature icon-tile + help
+  `?` (mockup C); (c) dev seed has no `ops_lead` persona (real staging = Riri ops_lead, dev-only); (d)
+  EN/ID language mix per surface; (e) CQ debt — Log doesn't use shared `KitchenToolbar`, `KitchenKpiStrip`
+  `kpis?`/`data?` prop footgun.
 
-## Outstanding (as of 2026-06-22)
+## Outstanding (as of 2026-06-29)
 
-### 1. Merge the kitchen UI redesign (Mid-flight above) — TOP gate
-Owner visual sign-off on `feat/kitchen-log-redesign` → Director merge. Gates all downstream kitchen
-go-live work; on merge, close PR #67 (the earlier doc-consolidation it supersedes).
+### 1. ✅ DONE — Kitchen UI redesign merged (PR #85). See section above.
 
-### 2. Kitchen e2e / qa-acceptance layer (HIGH — must precede go-live)
-No curated Playwright journeys cover the kitchen Module. The `log_date` bug (PR #66) slipped through
-because unit tests mock Supabase — a wrong column name returns 400 from real PostgREST but passes
-mocked unit tests silently.
-**Minimum needed:** one e2e spec covering S1 log → S3 review → approve.
-**Lesson (verify-live):** any DB-column-name reference or RPC-call signature change must be verified
-against a running stack. A mocked unit test cannot catch a wrong column name or mismatched RPC param.
+### 2. ✅ DONE — Kitchen e2e / qa-acceptance layer (PR #86, `3819c31`)
+One curated Playwright journey now covers the Module: `mos-app/e2e/AC-090-kitchen-log-approve.spec.ts`
+(maps 1:1 to **AC-090 [e2e]**) — member logs Production → admin approves → `approve_kitchen_log` mints a
+`PR-<YYYYMMDD>-NNN` batch → entry leaves the queue → `integrations.esb_push` outbox row enqueued
+(`target_env != gkid`, pre-flip safe). Real stack (PostgREST + RLS + RPC), no mocking; deterministic +
+self-cleaning. AC-090's Daily-Log `/ops` mirror clause intentionally unasserted (deferred: `_014`,
+AC-060/061). Ledger `docs/reviews/test-kitchen-e2e.md`.
+**Lesson (verify-live) still stands:** any DB-column-name / RPC-signature change must be verified against
+a running stack — a mocked unit test cannot catch a wrong column name (this is how the `log_date` 400 bug,
+PR #66, slipped through). Extend this e2e to AC-091/092 when those flows harden.
 
 ### 3. ESB push worker — BUILT + SHIPPED (2026-06-26), NOT deployed
 **Approach changed (owner-directed):** do NOT build a new FastAPI service — **extend the existing
@@ -121,11 +128,11 @@ PMO-style auth model: global-setup is additive/idempotent; heals demo-login perm
 ## Build sequence
 1. ✅ Access-role layer (done)
 2. ✅ Kitchen Module DB + UI + nav (done) — original stepper UI
-3. [ ] **Merge kitchen UI redesign** (`feat/kitchen-log-redesign`, OD-K-5) — owner sign-off → Director merge
-4. [ ] Kitchen e2e layer (precede go-live)
-5. [ ] ESB push worker
-6. [ ] Prod platform deploy (owner-gated)
-7. [ ] Thin FastAPI backend + user provisioning
+3. ✅ Merge kitchen UI redesign (OD-K-5) — PR #85, merged 2026-06-29
+4. ✅ Kitchen e2e layer (AC-090) — PR #86, merged 2026-06-29
+5. [ ] ESB push worker — code-complete + GOO-validated; owner-gated deploy+flip on ris-dev (§3 below)
+6. [ ] Prod platform deploy (owner-gated) — bundle with the ESB worker deploy/flip
+7. [ ] User provisioning (kitchen member accounts; thin FastAPI backend RETIRED — see §5)
 8. [ ] Rollout → Teable→Supabase migration → manual testing → in-person training →
        owner-gated switch (never automatic; OD-K-2). Then Teable retires.
 
