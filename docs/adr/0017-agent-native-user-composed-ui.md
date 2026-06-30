@@ -6,12 +6,15 @@
 - Related:
   - **ADR-0001** (org seam — `shared.current_org_id()` JWT claim, the custom access-token hook, RLS as
     the single authority, `org_id` defaulted + `WITH CHECK` — the substrate D2/D5 bind to) ·
-    **ADR-0011** (the four access roles `admin`/`ops_lead`/`finance`/`member`, the **derived**
-    `is_manager_of` manager chain — the share-authz lever in D6; the three-layer enforcement D2 carries
-    into the deputy) ·
+    **ADR-0011** (the four access roles `admin`/`ops_lead`/`finance`/`member`; the three-layer
+    enforcement, ADR-0011 D5, D2 carries into the deputy — and the **derived** `is_manager_of` manager
+    chain, **defined in ADR-0001 D3** and reused by ADR-0011, the share-authz lever in D6) ·
     **ADR-0010** (the OLTP/OLAP split + the `reporting` financial read-model fed by a snapshot job,
-    ADR-0010 D5; the warehouse `gordi_readonly` agent path D3 reserves to the server agent; the
-    Healthchecks/monitor seam D10 extends; the D11 gating security review this surface joins) ·
+    ADR-0010 D5; the `gordi_readonly` **least-privilege agent role**, ADR-0010 **D11**, whose raw-warehouse
+    path D3 reserves to the server agent; the Healthchecks/monitor seam, ADR-0010 **D7**, this ADR's D10
+    extends; the D11 gating security review this surface joins; **and ADR-0010's 2026-06-30 Amendment
+    [Proposed] — the warehouse's online home on the Tencent VPS, on which D3's server-side analyst-agent
+    placement depends; ADR-0010 open-Q#2 [agent access to financial rows], which D3 partially resolves**) ·
     **ADR-0012** (the ESB outbox + central idempotency — the write path D4 routes user-composed input
     through; `member`-insert / `ops_lead`-approve gates) ·
     **ADR-0016** (the `SECURITY DEFINER` provisioning RPCs — the privileged surface D2 forbids the
@@ -122,7 +125,9 @@ nothing else:
   access-role model and its latency/uptime are decoupled from the warehouse.
 
 **Raw warehouse SQL — the `gordi_readonly` analyst path — is reserved to the trusted, server-side
-analyst agent** (OpenClaw on the VPS, ADR-0010 D2/D7), **never** the user deputy. The reason is
+analyst agent** (OpenClaw on the VPS; `gordi_readonly` is the least-privilege agent role of ADR-0010 D11;
+the VPS as the warehouse's online home is ADR-0010's 2026-06-30 Amendment, **still Proposed — D3's
+server-agent placement is contingent on it landing**), **never** the user deputy. The reason is
 structural, not preference: the warehouse has **no RLS and no `org_id`** and **spans companies**, so the
 deputy model — whose entire safety proof is "bounded by the user's JWT → RLS" — **cannot bound it**. A
 deputy with a direct warehouse connection would be an unbounded cross-company reach by construction.
@@ -130,6 +135,17 @@ deputy with a direct warehouse connection would be an unbounded cross-company re
 **Net invariant:** the deputy is provably **single-plane for security** — every target it touches is
 RLS-bounded under the user's own claims — even though its *value* spans both planes (it can read live
 ops data and curated financials, just never raw cross-company OLAP).
+
+**Reconciling ADR-0010 open-Q#2 (financial-row egress to an inference provider).** ADR-0010 leaves open
+"may AI agents read `reporting`/warehouse financial rows? — not until a secure inference provider is
+chosen." D3 resolves only the **authorization** half: a `finance`/`admin` deputy *is allowed* to read the
+`reporting` snapshot (RLS permits it; a `member` deputy gets zero financial rows). It does **not** dissolve
+Q2's **data-egress** half — routing those figures through an **LLM** deputy sends them to a model provider,
+which is exactly Q2's concern. Therefore: a finance user reading `reporting` in a **manually-composed**
+user view is unaffected (no model in the loop); the **agent/LLM** path over `reporting` inherits Q2's
+**secure-inference-provider** precondition and stays gated until that is settled (tracked in D10's
+telemetry + the D11 gating review). Q2 remains fully open for the **server-side analyst agent's raw
+warehouse** access — D3 does not touch that.
 
 **Reporting bound at scale.** The reporting snapshot ships **warehouse-side aggregates** — cardinality
 = dimensions × grain (e.g. revenue-by-branch-by-day), **not** transaction volume — so the `reporting`
@@ -157,7 +173,17 @@ single, reviewed source of truth and keeps every write inside an already-audited
 
 When the deputy/user "builds UI," it emits a **schema-validated declarative spec** that the **trusted
 renderer** hydrates into real MOS primitives + `DESIGN.md` tokens. It **never** emits executable
-code or SQL that runs. Three storage-form rules:
+code or SQL that runs.
+
+*(The **trusted renderer** is the generic MOS-owned component that reads a `user_views` spec and instantiates
+registered primitives bound to compiled, RLS-scoped queries — the analog of a coded page component, but
+data-driven; its **architecture and where it runs are plan-owned**, but two properties are fixed here: it
+hydrates **only** registry-known primitives/read-models, and a spec that fails validation at render —
+e.g. a referenced primitive or read-model was renamed/retired — **degrades to an error state, never a
+crash and never an unvalidated render.** The **validator** — the schema check that gates this, its form
+plan-owned — is the trust boundary. Spec versioning / primitive-deprecation migration is plan-owned.)*
+
+Three storage-form rules:
 
 1. The spec stores **queries, not results** — never cached rows.
 2. On render, queries **re-execute under the *current viewer's* JWT → RLS**. A private **user view**
@@ -179,7 +205,7 @@ user_views
   owner_id    uuid not null            -- the composing person (the "user level")
   name        text not null
   spec        jsonb not null           -- the validated declarative composition (primitives + query-specs + layout)
-  scope       text not null default 'private'   -- 'private' | 'shared_team' | ...
+  scope       text not null default 'private'   -- 'private' | 'shared_team' (D6); further scopes a deferred extension
   created_at  timestamptz not null default now()
   updated_at  timestamptz not null default now()
   archived_at timestamptz              -- soft-archive (the ADR-0001 / ADR-0004 archive discipline), never hard-delete
@@ -202,7 +228,7 @@ overwrite.
 
 - **Compose-private** = **every** member (a user view is theirs alone by default — `CONTEXT.md`).
 - **Share-to-team** = the team's **manager/supervisor**, gated by the **derived `is_manager_of` chain**
-  (ADR-0001 / ADR-0011) — the same union-over-roles manager relation the upward-only weekly-update rule
+  (ADR-0001 D3, reused by ADR-0011) — the same union-over-roles manager relation the upward-only weekly-update rule
   already uses. Sharing is a *manager* capability, **not** a new access role and **not** `admin`.
 
 **Promotion** (`CONTEXT.md`) is the product's intake of demonstrated demand, and it doubles as the
@@ -244,8 +270,12 @@ own scaffolded Nitro + Drizzle app, **configured, never source-edited**:
 - **Supabase migrations remain the single schema source of truth; Drizzle is introspect-only**
   (`drizzle-kit pull`, **never** `push`).
 - **MOS embeds only the assistant/conversation panel** — prefer a **subdomain + shared-session SSO**
-  over an iframe (ADR-0011 D1's single Supabase identity makes one session portable). **Artifacts
-  render native in MOS** via the trusted renderer (D5), not inside the panel.
+  over an iframe (ADR-0011 D1's single Supabase identity makes one session portable). **Caveat (same
+  limitation PMO ADR-0036 §9 hit):** cookie-`Domain` session sharing needs a **real parent domain**, and
+  MOS deploys to `*.pages.dev` today (ADR-0010 D3) — so subdomain SSO is **contingent on a custom parent
+  domain** and is a **D9-spike / build-time step**, not free. If unavailable, the session is handed over
+  explicitly (the supabase-js `setSession` portability PMO proved) rather than auto-shared by cookie.
+  **Artifacts render native in MOS** via the trusted renderer (D5), not inside the panel.
 
 The D5 trusted core keeps agent-native **swappable at the seam** (insurance against a v0.x dependency),
 **but the seam is not the plan — using agent-native is.** The **HARD rule** mirrors D2: the sidecar's
