@@ -54,3 +54,10 @@ Supabase-native from day one) · ESB write-back visibility · shared UI package 
 both PMO and MOS show repeated use of the same components).
 
 > **Note on "kitchen backend migration":** **Superseded 2026-06-19 by OD-P4-1 / ADR-0010 D10:** the kitchen app migrates into MOS as its first ops Module **before** user rollout (a pre-rollout foundation slice), not Post-MVP. Foundation sequence + status: `docs/platform-workstream-status.md`.
+
+> **Note on agent-composed UI + reporting/sales (2026-06-30):** the **agent-native, user-composed UI**
+> program (ADR-0017, Accepted — deputy/RLS dual-plane; OD-AN-1) and its **OLAP→`reporting` snapshot →
+> sales-dashboard** track are now **active**, not deferred: they reuse the foundation (RLS · `org_id` ·
+> DAL seam · the now-online OLAP warehouse) the architecture is unusually ready for. Build is value-first
+> (Issue 1 = a mobile-first operational dashboard that births the primitive kit). Tracked in
+> `docs/platform-workstream-status.md` §Current focus + `docs/reference/warehouse-online.md`.

@@ -1,11 +1,31 @@
-# Platform workstream — status & handoff (updated 2026-06-29)
+# Platform workstream — status & handoff (updated 2026-06-30)
 
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
-> state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`.
+> state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`;
+> ESB warehouse online (box/op/cron/observability): `docs/reference/warehouse-online.md`.
 
 Durable handoff for the **platform-foundation** workstream (turning MOS into the shared platform:
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
-(OD-P4-*, OD-K-*), `docs/adr/0010–0013`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
+(OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
+
+## Current focus (2026-06-30) — agent-native UI + OLAP online
+
+Two strategic tracks opened/advanced this session (decisions in `docs/adr/0017` + the `docs/adr/0010`
+2026-06-30 amendment; grill `docs/decisions.md` OD-AN-1 / OD-P4-2):
+
+- **Agent-native, user-composed UI — ADR-0017 ACCEPTED (merged to `dev`).** Lets the team compose their
+  own UI (analyse/input/present) without a dev cycle, via a **deputy agent** bound to the user's own
+  JWT→RLS (security by construction), over a **dual-plane** read surface (base + operational
+  `security_invoker` views + the finance/admin `reporting` snapshot; raw warehouse fenced to a
+  server-side analyst agent). **Build is value-first** (inverts PMO §10 — MOS has no kit yet):
+  **Issue 1 = a mobile-first operational dashboard that *births* the primitive kit** → registry → query
+  DSL/compiler → `user_views` + renderer → manual builder → agent (sidecar behind a MOS-specific spike).
+  NOT yet built — Issue 1 is the next spec (`feature-forge`).
+- **OLAP ESB warehouse — ONLINE on the Tencent VPS (2026-06-30).** PG 17, loopback-only, self-sustaining
+  (3:05am JKT cooperative sync via op) + monitored. Full runbook + open owner-actions:
+  **`docs/reference/warehouse-online.md`**. **Next on this track:** the `reporting` migration + the
+  warehouse→Supabase snapshot job (feeds the sales dashboard — the owner's stated #1 want). Two owner
+  actions pending (CloudMonitor webhook exposure + its auth fix; a git deploy key) — see the runbook.
 
 ## Landed on `main` (all merged as of 2026-06-21)
 

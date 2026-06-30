@@ -9,6 +9,18 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
+> **2026-06-30 — TWO NEW TRACKS (decisions on `dev`, not yet `main`):**
+> - **Agent-native / user-composed UI — ADR-0017 ACCEPTED** (merged to new `dev` branch; +ADR-0010
+>   2026-06-30 amendment; CONTEXT.md glossary; OD-AN-1). Deputy/RLS dual-plane model; **value-first build**
+>   (Issue 1 = mobile-first ops dashboard that births the primitive kit → registry → DSL/compiler →
+>   `user_views`+renderer → manual builder → agent sidecar behind a MOS spike). **NEXT = `feature-forge`
+>   spec for Issue 1.** Full track in `docs/platform-workstream-status.md` §Current focus; memory
+>   `agent-native-ui-program`.
+> - **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, loopback, self-sustaining op-native sync @3:05
+>   JKT, monitored). Runbook + open owner-actions: **`docs/reference/warehouse-online.md`**. **NEXT on this
+>   track = the `reporting` migration + warehouse→Supabase snapshot job** (feeds the sales dashboard).
+>   Owner-actions pending: CloudMonitor webhook exposure + its 🔴 auth fix, a git deploy key.
+>
 > **Current main (2026-06-25):** kitchen Module shipped (#45/#41/#43/#62/#64/#65/#66); UI-revamp on main;
 > **Strategy→Execution cascade FIRST SLICE SHIPPED** — PR #69 (task-centric: `objective_id`/`work_line_id`
 > on `mos.tasks` + `mos.objectives`/`mos.work_lines` lookups + group-by-work-line + workload caption +

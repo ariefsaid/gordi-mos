@@ -703,4 +703,30 @@ seed; the task form reads them but no one can add/edit them). Grilled against `C
 
 ---
 
+## OD-AN — Agent-native / user-composed UI (LOCKED 2026-06-30, grill-with-docs; ADR-0017)
+
+### OD-AN-1 — Adopt agent-native user-composed UI on the existing Supabase stack (ADR-0017, Accepted)
+Let the team compose their own UI (analyse · input · present) without waiting for a dev cycle, and
+**promote** views into the product. Adopt the *pattern*, not the framework as host (Supabase stays
+authority). Core invariant = the **deputy agent** runs as the user's own JWT → RLS (security by
+construction; never `service_role`/privileged/provisioning RPCs). **Dual-plane reach:** deputy reads base
+tables + operational `security_invoker` views + the **finance/admin `reporting`** snapshot; the raw,
+multi-company OLAP warehouse is reserved to a server-side analyst agent. Input = **existing entities only**
+(novel shapes → a promotion request). Sharing = the derived `is_manager_of` chain (no new access role).
+Financial visibility stays **finance+admin** (no new tier — owner, 2026-06-30). Build is **value-first**,
+inverting PMO ADR-0036 §10 (MOS has no kit to register): Issue 1 = a mobile-first operational dashboard
+that births the primitive kit. Agent-native runtime is config-over-fork behind a **MOS-specific spike**
+(ADR-0017 D9 — PMO's green does not transfer: self-hosted, multi-schema, `access_roles`/`current_org_id`
+claim shape). Full decision spine: `docs/adr/0017-agent-native-user-composed-ui.md`. Status: Accepted,
+merged to `dev`.
+
+> **AMENDED 2026-06-30 (ADR-0010 amendment A1; refines OD-P4-2):** the OLAP warehouse's **online home is
+> the Tencent VPS** (`tencent-OpenClaw`), co-located with the agentic layer, off the OLTP box — PG17,
+> loopback-only, self-sustaining op-native sync, monitored (CloudMonitor + resource-watch→Telegram),
+> rebuildable-from-ESB so no backup. The `reporting` read-model + warehouse→Supabase snapshot job that
+> OD-P4-2 specifies remain **to build** (the sales-dashboard enabler). Runbook + open owner-actions:
+> `docs/reference/warehouse-online.md`.
+
+---
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.

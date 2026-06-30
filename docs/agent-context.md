@@ -61,13 +61,19 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 | Binding charter + per-layer Definition of Done | `docs/product-expectations.md` |
 | Director runbook / loop / UI cycle | `docs/director-playbook.md`, `docs/design-workflow.md` |
 | **ESB / GOO integration (coords, auth, recipe, gotchas)** | `docs/reference/esb-goo-integration.md` |
+| **ESB warehouse online (box · op map · cron · observability · owner-actions)** | `docs/reference/warehouse-online.md` |
 | Kitchen module spec (FR/AC) | `docs/specs/kitchen-module.spec.md` |
 | Delegation via pi CLI | `docs/pi-delegation.md` |
 | Staging env + gotchas | `docs/environments.md` |
 
-## Headline current state (2026-06-26)
+## Headline current state (2026-06-30)
 - Kitchen Module + access roles + UI-revamp + Strategy→Execution cascade first slice **SHIPPED to main**.
 - **ESB outbox worker BUILT + SHIPPED** (extends `gordi-kitchen-app`; PRs #1/#2/#3 + gordi-mos #76/#77).
   GOO transfer round-trip validated live; **deploy + the GKID flip remain owner-gated.**
+- **NEW (2026-06-30):** **ADR-0017 agent-native/user-composed UI ACCEPTED** (deputy/RLS dual-plane;
+  value-first build, Issue 1 = mobile-first ops dashboard births the kit; next = `feature-forge` spec) +
+  **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, self-sustaining; next = `reporting` migration +
+  snapshot for the sales dashboard). Both on the new **`dev`** branch. See status §Current focus +
+  `docs/reference/warehouse-online.md`; memory `agent-native-ui-program`.
 - **Mid-flight / not merged:** kitchen UI redesign `feat/kitchen-log-redesign` (awaiting owner visual
   sign-off); kitchen data migration LOAD (Teable→`ops`); curated kitchen e2e.
