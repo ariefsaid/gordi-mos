@@ -231,3 +231,46 @@ _Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained
 A capability *within* a Module — e.g. task filtering, bulk-approve, the review queue. Finer-grained
 than a Module.
 _Avoid_: module (coarser), app
+
+## Agent-composed UI & analytics
+
+**Deputy agent**:
+The user's agent, running **as that user** — bound to the user's own session, access roles, and org. Its
+reach is, by construction, exactly the user's reach: every read/write it issues is subject to the same
+authorization the human is. A deputy carrying the user's badge, never a master key. Acts under the user's
+*real* identity, never an impersonated one.
+_Avoid_: AI, assistant, bot, copilot (as the canonical term); "the system" (it is the user, deputised)
+
+**User view**:
+A surface a user **composes for themselves** — to analyse, input, or present things their preferred way —
+saved as **data (a row), not code**, and rendered natively inside MOS like any built-in surface. Private to
+its owner by default; a manager may **share** one to their team (see **Manager**). Composed via the product
+UI or the **deputy agent**, the user's choice. Distinct from a built-in **Surface** (which is code).
+_Avoid_: custom dashboard, report, widget, saved query (too narrow — a user view may also *input*)
+
+**Promotion** (of a user view):
+The path by which a **user view** is **proposed for the product** — either *flipped* to an org/role-default
+(no code, just wider sharing) or *built* into a coded Module by the dev team, using the view's spec as the
+requirement. The product's intake of demonstrated demand; not automatic — a maintainer decides.
+_Avoid_: publish, release, promote-to-prod (overloaded with deployment)
+
+**Read-model**:
+A **curated, named** data surface that UI and the **deputy agent** read from — never raw tables. Each is
+scoped to the viewer's own access. Two kinds: an **operational read-model** (derived from MOS's own
+transactional data — tasks, kitchen, ops) and a **reporting read-model** (financial figures fed in from the
+ESB analytics warehouse on a schedule; gated to **finance**/**admin**). Carries an **as-of** time for any
+non-live figure.
+_Avoid_: view (overloaded — reserve for **User view**), table, dataset, query
+
+**Certified metric**:
+A figure with one **blessed definition** (name, meaning, unit, grain) that everyone composing reads the same
+way — the guard against "my sales ≠ your sales." **Financial-statement figures are first-class data; figures
+that affect them are second-class** — both demand a certified definition before exposure.
+_Avoid_: KPI, measure, number (when an agreed definition is the point)
+
+**OLTP / OLAP** (the engagement/analysis split):
+**OLTP** = MOS itself — the live system of *engagement* (per-user reads/writes, auth, RLS). **OLAP** = the
+ESB analytics warehouse — the system of *analysis* (batch, heavy-read, multi-company history). Kept as
+**separate** datastores on principle; only **curated snapshots** cross from OLAP into MOS's reporting
+read-model. *Consolidate engagement; federate analysis; never merge the two.* (ADR-0010.)
+_Avoid_: "the database" (say which), warehouse-as-app-backend, app-DB-as-warehouse

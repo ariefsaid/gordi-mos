@@ -84,6 +84,8 @@ The principle, stated verbatim so it is not re-litigated:
 - The warehouse runs as a **memory-capped container co-located on `ris-dev` now**, with a documented
   **split trigger**: peel it onto its own ~€8/mo Hetzner box **when the warehouse grows or OLTP
   latency degrades** (the trigger is the same RAM/swap threshold as D7/D10, not a calendar date).
+  *(Amended 2026-06-30 — Amendment A1: the warehouse's online home is the **Tencent VPS
+  `tencent-OpenClaw`**, co-located with the agentic layer, NOT `ris-dev`. See Amendments below.)*
 
 ### D3 — A free-tier "edge" layer ($0 incremental, verified 2026-06-18)
 
@@ -373,3 +375,81 @@ token itself** is a secret that must reach the box before any other secret can b
    alternative gives a cleaner blast radius but rotation = redeploy. *Confirm at the provisioning /
    deploy spec.* Sub-question: **is 1Password Connect worth it later** (when the number of
    secret-consuming services grows)? — *revisit on that trigger, not now.*
+
+## Amendments
+
+### Amendment 2026-06-30 — warehouse online home, server observability, job orchestration
+
+- Status: **Proposed** (owner + Director, grill-with-docs 2026-06-30; awaiting owner spec sign-off).
+- Related: **ADR-0017** (agent-native / user-composed UI) — its **deputy** reads the `reporting`
+  read-model and its **server-side analyst agent** reads the raw warehouse over `gordi_readonly`
+  (ADR-0017 D3), which makes the OLAP warehouse a first-class consumer plane and forces the three
+  operations decisions below.
+- Context: ADR-0017 elevates the warehouse from "batch store a few agents poll" to "the analytics plane
+  a co-located agentic layer queries continuously," forcing three decisions D2/D7 left open: *where the
+  warehouse runs online*, *how the box is observed beyond liveness*, and *how the recurring jobs avoid
+  contending on a small box*.
+
+#### A1 — Warehouse online home = the Tencent VPS (`tencent-OpenClaw`), co-located with the agentic layer
+
+**This amends D2's** "warehouse currently on Arief's Mac / co-located on `ris-dev` now." The warehouse
+(`gordi-esb-pg`, **807 MB**) is brought online on the **Tencent VPS `tencent-OpenClaw`**
+(`43.153.213.28`; ~3.7 GB / 2 vCPU), **co-located with the agentic layer** (OpenClaw + the vault MCP) it
+already hosts.
+
+- **Rationale.** The agentic layer is the OLAP's **main consumer** (ADR-0017 D3's server-side analyst
+  agent over `gordi_readonly`), so co-location keeps those queries **local — no cross-box hop**; and it
+  keeps OLAP **off the OLTP box** (`ris-dev`), honoring **D2's isolation principle** (OLTP ≠ OLAP, never
+  on the same instance).
+- **No backup needed** (refines D8's "warehouse is rebuildable"): the warehouse is **rebuildable from
+  the ESB**, and the **human-curated decision/review tables are being dropped** — that curation
+  workflow **moves into MOS OLTP later** (where D7/D8's R2 backup covers it). So the only thing worth
+  keeping is rebuildable, and the only thing not rebuildable moves to the backed-up plane.
+- **Deploy on the current box** (Docker is already present). **Resize to 8 GB only if OpenClaw
+  stutters** — a Tencent CVM vertical resize is a ~5-minute reboot, the same reversible-trigger posture
+  as D10 (resize is a documented trigger, not a planned action).
+- The **cross-box snapshot job** this introduces (warehouse, Singapore → MOS Supabase `ris-dev`) is the
+  D5 `reporting` snapshot, now **cross-box**; it is **tiny** (revenue-by-branch/day aggregates —
+  dimensions × grain, not transaction volume, per ADR-0017 D3/D11), so the cross-box hop is cheap.
+
+#### A2 — Server/resource observability (new ops decision, extends D7)
+
+**Gap:** D7 gives only **liveness** (the Healthchecks dead-man's-switch on the crons) — there is **no
+resource telemetry**, so OLAP ↔ agentic RAM/CPU contention on the 2-vCPU Tencent box is invisible.
+**Decision (lazy-correct, low-footprint — explicitly do NOT deploy Prometheus/Grafana on a RAM-tight
+box):**
+
+- **(a)** Enable **Tencent CloudMonitor host alarms** (the box already runs Tencent's agents) on
+  **swap-in-active** and **available-RAM-below-threshold** — the same RAM/swap signal D7's monitor
+  threshold uses, now host-level.
+- **(b)** A small **`resource-watch.sh` cron** reusing the box's existing cron + the **OpenClaw →
+  Telegram** delivery path (the `cron-status.sh` pattern), sampling `free` / load + `pg_stat_activity`
+  long-runners — silent when healthy, like D7's monitor.
+- **(c)** Make the **ESB sync cooperative**: check load / RAM **before** heavy aggregation and **defer
+  if OpenClaw is busy** (the agentic layer is the latency-sensitive consumer; batch sync yields to it).
+- **Same posture for `ris-dev` (OLTP):** host alarms + a `pg_stat_activity` sampler — so both boxes have
+  resource telemetry, not just liveness.
+
+This stays inside **D7's data-protection guardrail**: the resource watcher reads **operational health
+metrics only** (`free` / load / pg-activity), **never** `reporting`/warehouse financial rows — it is a
+non-financial monitor, exactly as D7 requires.
+
+#### A3 — Job orchestration (stagger + cooperative scheduling on the 2-vCPU box)
+
+The **ESB → warehouse sync**, the **warehouse → MOS reporting snapshot** (A1), and **OpenClaw** must not
+contend on 2 vCPUs. Decision: **stagger the crons** (no overlapping heavy windows) **+ cooperative
+scheduling** (A2c — defer batch work when the agentic layer is active). This is the operational
+expression of D10's "sequencing dissolves RAM pressure," applied to the Tencent box's recurring jobs
+rather than the one-time migration window.
+
+#### Amendment reversibility & verification
+
+- **Reversible:** the warehouse home is a **container move + connection-string change** (the D2 split
+  trigger, now applied *to* the Tencent box rather than *off* `ris-dev`); CloudMonitor alarms and the
+  `resource-watch.sh`/cooperative-scheduling cron are **configuration**, addable/removable without an app
+  change; the cross-box snapshot job is the D5 job repointed, reversible by the same drop.
+- **Verification:** the cross-box snapshot lands `reporting` rows on `ris-dev` with an **as-of**
+  timestamp (ADR-0017 D11); a deliberate RAM-pressure test fires the CloudMonitor swap/RAM alarm + the
+  Telegram notice; the cooperative ESB sync **defers** when OpenClaw load is high (logged, not silently
+  skipped); `gordi_readonly` remains read-only and **financial-row-blocked for the D7 monitor agent**
+  (unchanged).
