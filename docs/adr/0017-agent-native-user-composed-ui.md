@@ -1,7 +1,7 @@
 # ADR-0017 — Agent-native, user-composed UI — deputy authorization + declarative hydration over a (to-be-built) mobile-first kit, across the OLTP+OLAP split
 
-- Status: **Proposed** (2026-06-30; awaiting owner spec sign-off — the specs and plans that consume
-  this ADR follow later)
+- Status: **Accepted** (owner-approved 2026-06-30 — the specs and plans that consume this ADR follow
+  later; the D9 spike gate remains the contingency on the agent-native runtime)
 - Deciders: Owner (Arief) + Director, in grill-with-docs session (2026-06-30)
 - Related:
   - **ADR-0001** (org seam — `shared.current_org_id()` JWT claim, the custom access-token hook, RLS as

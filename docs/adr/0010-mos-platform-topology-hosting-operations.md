@@ -380,7 +380,7 @@ token itself** is a secret that must reach the box before any other secret can b
 
 ### Amendment 2026-06-30 — warehouse online home, server observability, job orchestration
 
-- Status: **Proposed** (owner + Director, grill-with-docs 2026-06-30; awaiting owner spec sign-off).
+- Status: **Accepted** (owner-approved 2026-06-30; grill-with-docs).
 - Related: **ADR-0017** (agent-native / user-composed UI) — its **deputy** reads the `reporting`
   read-model and its **server-side analyst agent** reads the raw warehouse over `gordi_readonly`
   (ADR-0017 D3), which makes the OLAP warehouse a first-class consumer plane and forces the three
