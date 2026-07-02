@@ -48,7 +48,9 @@ have a small must-fix set (below). Not yet merge-ready — merge only after the 
 - **Sec-M2** — `pg_hba` `172.18.0.0/16 trust` → passwordless superuser to any *future* co-tenant container
   on the docker bridge (documented open item; move `gordi` to `scram` + op password when the op SA can write).
 - **Sec-L1/L2** — Telegram bot token from `openclaw.json` not op; no pgTAP for the service-role *write* path.
-- **Test flake** — `task-detail.test.tsx` relative-date fixture drifts with the clock (being fixed on `dev`).
+- **~~Test flake~~ — NON-ISSUE (verified 2026-07-02).** The reported `task-detail.test.tsx` failure was a
+  **Node-18-vs-22 artifact**, not a clock-drift flake: the fixture date is hardcoded + UTC-formatted
+  (deterministic). Suite is **1725/1725 green under Node 22**; `.nvmrc` now pins 22. Nothing to fix.
 - **Spec-minor** — AC-011 rests on the un-run e2e (Director owns the live-render layout proof); `DailyRevenueChart`
   legend hardcodes POS/B2B (a 3rd channel renders unlabeled).
 
