@@ -55,7 +55,11 @@ have a small must-fix set (below). Not yet merge-ready — merge only after the 
   legend hardcodes POS/B2B (a 3rd channel renders unlabeled).
 
 ## Sign-off
-- ✳ must-fix items → dispatched as a batched `ui-implementer` (sort + font) + spec-tagging pass.
-- `bash scripts/pre-merge-check.sh` must exit 0 with this ledger present before merge.
-- Live-render layout proof (AC-010/011) = Director step; desktop+mobile render-verified 2026-07-02 (populated,
-  responsive, B2B/Roastery end-to-end, no h-scroll) — screenshots at repo root.
+- ✳ **All three must-fix RESOLVED + verified (2026-07-02):**
+  1. **Sort (FR-009)** — wired (`a71da55`: pure `sortRevenueRows` + page state + `<DataTable sort onSortChange>` + 7 tests). **Live-render-verified:** clicking "Avg rev/txn" reordered rows ascending + `aria-sort` toggled.
+  2. **`.tabular`→Inter font** — `a71da55` (Inter Variable scoped to numeric only). **Live-verified:** KPI money computes `"Inter Variable"` (loaded), no longer SF Mono; body/UI stays DM Sans.
+  3. **AC-id traceability** — script tests tagged AC-007/008/009/010; pgTAP collision resolved (`:81`→AC-008, `:40`→new AC-011); `grep -r AC-XXX` truthful; 333 pgTAP assertions pass.
+- Suite **1734 green** under Node 22; typecheck + lint clean.
+- Live-render (Director, 2026-07-02): populated, responsive (768px→cards, no h-scroll), B2B/Roastery end-to-end, sort works, Inter money — desktop+mobile screenshots at repo root.
+- **Remaining before merge:** `bash scripts/pre-merge-check.sh` exit 0.
+- Minor follow-up found during verify (non-blocking): the daily-revenue table's compact money renders DM Sans, not `.tabular` (pre-existing tabular-alignment nit).
