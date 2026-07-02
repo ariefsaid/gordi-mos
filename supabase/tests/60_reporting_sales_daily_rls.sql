@@ -37,7 +37,7 @@ select is((select count(*)::int from reporting.sales_daily_revenue), 2,
 select is(
   (select clean_revenue from reporting.sales_daily_revenue where channel = 'B2B' and branch_code = 'GRI'),
   3500000.00::numeric,
-  'AC-007: B2B null-source branch rows are representable with ESB-code branch key');
+  'AC-011: B2B null-source branch rows are representable with ESB-code branch key');
 
 -- AC-003: admin can read same-org rows.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
@@ -78,7 +78,7 @@ reset role;
 
 select col_is_pk('reporting', 'sales_daily_revenue',
   array['org_id', 'revenue_date', 'channel', 'esb_code', 'branch_code'],
-  'AC-010: daily sales reporting upsert key is the table primary key');
+  'AC-008: daily sales reporting upsert key is the table primary key');
 
 select * from finish();
 rollback;

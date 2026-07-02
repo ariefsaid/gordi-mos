@@ -127,6 +127,8 @@ window. It may replace rows inside the window because late ESB postings are expe
   is 60 days.
 - AC-010 (script unit): Given missing required environment, when config loads, then the job fails before
   opening database connections.
+- AC-011 (pgTAP): Given a B2B row normalized to an `esb_code` branch key (FR-011), when it is inserted
+  into `reporting.sales_daily_revenue`, then the row is stored and readable with that branch key, non-null.
 
 ## 6. Open follow-up
 

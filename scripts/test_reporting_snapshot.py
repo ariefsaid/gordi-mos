@@ -11,6 +11,7 @@ from reporting_snapshot import (
 
 class ReportingSnapshotTests(unittest.TestCase):
     def test_config_defaults_to_60_day_window(self):
+        """AC-009: Given no REPORTING_WINDOW_DAYS, when config loads, then the trailing window is 60 days."""
         env = {
             "WAREHOUSE_DB_URL": "postgresql://warehouse/db",
             "SUPABASE_REPORTING_DB_URL": "postgresql://supabase/db",
@@ -23,6 +24,8 @@ class ReportingSnapshotTests(unittest.TestCase):
         self.assertEqual(config.source_contract_version, "v_daily_revenue_unified.v1")
 
     def test_config_fails_before_connections_when_required_env_is_missing(self):
+        """AC-010: Given missing required environment, when config loads, then the job fails before
+        opening database connections."""
         env = {
             "WAREHOUSE_DB_URL": "postgresql://warehouse/db",
             "REPORTING_ORG_ID": "00000000-0000-0000-0000-0000000000a1",
@@ -38,6 +41,8 @@ class ReportingSnapshotTests(unittest.TestCase):
         )
 
     def test_normalize_row_uses_esb_code_branch_key_for_missing_b2b_branch_code(self):
+        """AC-007: Given raw B2B warehouse rows with a missing branch code, when rows are
+        normalized, then the upsert key uses esb_code."""
         row = {
             "revenue_date": "2026-07-01",
             "channel": "B2B",
@@ -68,6 +73,8 @@ class ReportingSnapshotTests(unittest.TestCase):
         )
 
     def test_upsert_sql_uses_reporting_primary_key_and_refreshes_metrics(self):
+        """AC-008: Given a snapshot run, when the upsert SQL is built, then it upserts by
+        (org_id, revenue_date, channel, esb_code, branch_code) and updates mutable metrics/freshness."""
         sql = build_upsert_sql()
 
         self.assertIn(
