@@ -1,0 +1,57 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   KPITile — DESIGN.md KPI-tile signature, generalised (design-plan §2.1, §5).
+   card + border + shadow-rest + radius-md. Identical markup phone↔desktop; only
+   the parent grid track count changes (grid is the parent's concern, not the tile's).
+   Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-rest);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.kpi-tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+
+.kpi-tile-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  cursor: help;
+  flex: none;
+}
+
+.kpi-tile-value {
+  /* page-title scale — 23px/600 (design-plan §2.1 reflow note) */
+  font-size: 23px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.1;
+}
+
+.kpi-tile-sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.kpi-tile-skeleton-value {
+  display: block;
+}

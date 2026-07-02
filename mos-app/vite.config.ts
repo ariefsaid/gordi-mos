@@ -80,6 +80,8 @@ export default defineConfig({
         // Kitchen Module (S1..S5)
         'src/pages/kitchen-*.tsx',
         'src/components/kitchen/**',
+        // Dashboard kit primitives (Issue 1, ADR-0017 kit-birthing)
+        'src/components/dashboard/**',
       ],
       exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },

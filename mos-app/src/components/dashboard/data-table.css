@@ -1,0 +1,199 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   data-table.css — the SHARED dense-table grammar, generalised from the kitchen
+   `.kt-*` namespace (kitchen-table.css / OD-K-5) into a reusable `.dt-*` primitive
+   (design-plan §2.3/§5). Token-only (DESIGN.md).
+
+   Hover token (directive): `--surface-secondary` (grey hover wash), NOT `--accent`
+   (the action blue) — matches the kitchen table hover convention.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.dt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.dt-caption {
+  /* visually hidden but announced — the accessible table name lives on aria-label
+     too (belt + suspenders for the caption vs aria-label debate); keep it out of
+     visual flow since the ChartFrame/page head already carries the visible title. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dt-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  background: var(--card);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.dt-table thead .dt-th-num { text-align: right; }
+
+.dt-sort-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.dt-sort-button:hover {
+  color: var(--foreground);
+}
+.dt-table th[aria-sort] .dt-sort-button::after {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  vertical-align: middle;
+}
+.dt-table th[aria-sort='ascending'] .dt-sort-button::after {
+  border-bottom: 5px solid currentColor;
+}
+.dt-table th[aria-sort='descending'] .dt-sort-button::after {
+  border-top: 5px solid currentColor;
+}
+
+/* 50px dense body rows; divider = border/70% */
+.dt-table tbody td {
+  height: 50px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+.dt-table tbody tr:last-child td { border-bottom: none; }
+
+/* quiet hover wash — --surface-secondary (grey), NEVER the blue --accent */
+.dt-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+
+.dt-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* negative-number tint — AA-darkened red, never base --destructive (WCAG) */
+.dt-neg {
+  color: var(--status-lost-text);
+  font-weight: 600;
+}
+
+.dt-empty {
+  padding: 24px 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* footer totals row */
+.dt-table tfoot td {
+  background: color-mix(in srgb, var(--secondary) 40%, transparent);
+  border-top: 1.5px solid var(--border);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* skeleton rows (loading, desktop) */
+.dt-skeleton-block {
+  display: inline-block;
+  width: 80%;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--secondary);
+}
+
+/* ── Phone: card reflow (768px single-render) ── */
+.dt-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dt-card {
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-rest);
+  box-sizing: border-box;
+  min-height: 44px; /* touch target floor (design-plan §4.2) */
+}
+
+.dt-card-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin-bottom: 8px;
+}
+
+.dt-card-detail {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  margin: 0;
+}
+.dt-card-detail-row {
+  display: contents;
+}
+.dt-card-detail dt {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.dt-card-detail dd {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: right;
+}
+
+.dt-skeleton-card {
+  height: 84px;
+  border-radius: var(--radius-lg);
+  background: var(--secondary);
+}
+
+/* error state (shared shell for desktop + phone) */
+.dt-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 16px;
+}
+.dt-error-text {
+  margin: 0;
+  color: var(--status-lost-text);
+  font-size: 13px;
+}
+.dt-retry {
+  height: 32px;
+  padding: 0 14px;
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dt-retry:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}

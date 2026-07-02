@@ -1,0 +1,13 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   FreshnessLabel — "as of {timestamp}" chip (design-plan §2.4, D11).
+   Inline, flat text — no surface/border/shadow. Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.freshness-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.freshness-label-ts {
+  color: var(--muted-foreground);
+}
