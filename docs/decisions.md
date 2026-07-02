@@ -727,6 +727,35 @@ merged to `dev`.
 > OD-P4-2 specifies remain **to build** (the sales-dashboard enabler). Runbook + open owner-actions:
 > `docs/reference/warehouse-online.md`.
 
+### OD-AN-2 — `reporting` grows as a set of bounded read-models; drill-down is mostly a DSL problem, not a data problem (extends ADR-0017 D3, 2026-07-02)
+Grilled against the first live `reporting` tenant, `sales_daily_revenue` (date × channel × branch →
+revenue + txns, OD-P4-2/ADR-0010 D5). Owner asked whether the shallow-looking dashboard means shallow
+data, whether the deputy should point at the raw OLAP warehouse instead, and whether curated read-models
+mean "too many data duplicates." Locked:
+- **`reporting` is a growing SET of curated, bounded read-models, never one table.** Cardinality =
+  dimensions × grain, never transaction volume. `sales_daily_revenue` is v1; drill-down needs are met by
+  **adding targeted read-models** (e.g. `sales_daily_by_item`, `sales_weekly`, `sales_by_hour`,
+  `margin_daily`), each snapshot-fed + finance/admin-RLS'd like v1 — OD-P4-2/ADR-0010 D5 curation,
+  applied incrementally.
+- **Bounded curated duplication is the accepted OLTP/OLAP-federation trade (ADR-0010 D2), not wholesale
+  duplication.** The OLAP holds millions of raw rows; `reporting` stays thousands (aggregates) — only
+  the curated slices actually queried are copied, at aggregate grain.
+- **Many drill-downs need no new data, only the query-spec DSL (ADR-0017 §4b / build-sequence Issue 3).**
+  "Last X days" and week-over-week comparisons are computable from the existing daily-grain 60-day
+  window via grouping/window comparison — the dashboard looked shallow because the UI shows one fixed
+  cut, not because the read-model can't express it. New read-models are warranted only for cuts the
+  daily aggregate structurally cannot express (item / hour / margin / customer).
+- **Two-tier drill-down (extends ADR-0017 D3's dual-plane reach):** the **user deputy** (in MOS) reads
+  only the curated `reporting` read-models, RLS-bounded — never the raw OLAP warehouse (owner-preferred,
+  structurally required). The **server-side analyst agent** (OpenClaw on the VPS, `gordi_readonly`) does
+  deep raw-OLAP exploration; useful findings get **promoted into new curated `reporting` read-models**
+  (explore in OLAP → curate the valuable slice → deputy composes over it — mirrors the ADR-0017
+  promotion concept, applied to read-models). **Net framing: MOS is the analysis *surface* (curated
+  read-models + the query DSL), not the analysis *engine* (which stays in the OLAP).**
+Full text: `docs/adr/0017-agent-native-user-composed-ui.md` D3 extension (2026-07-02). Cross-refs:
+ADR-0010 D2/D5, OD-P4-2, ADR-0017 D3/D7 + build sequence.
+
 ---
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
+</content>

@@ -153,6 +153,49 @@ surface the deputy reads stays bounded even as the OLAP warehouse grows. (The wa
 `v_daily_revenue_unified` (POS + B2B, with a `channel` column) and `v_daily_sales_summary` (per branch);
 the snapshot job aggregates from these source-side, per D11.)
 
+> **D3 extension (2026-07-02) — the `reporting` schema is a growing set of bounded read-models, not one
+> table; drill-down is mostly a query-DSL problem, not a new-data problem.** Grilled with the owner
+> against the first live tenant of D3(c): `reporting.sales_daily_revenue` (date × channel × branch →
+> revenue + txns). The owner asked whether a shallow-looking dashboard means shallow data, whether the
+> deputy should instead point at the raw OLAP warehouse, and whether curated read-models mean "too many
+> data duplicates." Resolved, as a clarifying extension of D3(c) — **no reach, no schema, and no RLS
+> boundary changes**:
+>
+> 1. **`reporting` is a growing *set* of curated, bounded read-models, never a single table.** Each
+>    read-model's cardinality is **dimensions × grain**, never transaction volume (the D3/D7 bound).
+>    `sales_daily_revenue` is v1. Further drill-down needs are met by **adding targeted read-models**
+>    (e.g. `sales_daily_by_item`, `sales_weekly`, `sales_by_hour`, `margin_daily`), each snapshot-fed
+>    from the OLAP warehouse and `finance`/`admin`-RLS'd exactly like v1 — the OD-P4-2 / ADR-0010 D5
+>    curation principle, applied **incrementally**, one bounded aggregate at a time.
+> 2. **Bounded curated duplication is the accepted OLTP/OLAP-federation trade (ADR-0010 D2), not
+>    wholesale duplication.** The OLAP warehouse holds millions of raw rows; the `reporting` read-models
+>    stay in the thousands (aggregates). Only the curated slices actually queried are copied, at
+>    aggregate grain — this **is** the "never merge OLTP and OLAP, only curated snapshots cross" rule,
+>    not a duplication problem to solve away.
+> 3. **Many drill-downs need no new read-model — they need the query-spec DSL (§4b / build-sequence
+>    Issue 3).** "Last X days" and "week-over-week vs. the previous week" are both computable from the
+>    *existing* daily-grain, 60-day-window read-model via grouping and window comparison. The dashboard
+>    read as shallow because the **UI shows one fixed cut**, not because the daily aggregate cannot
+>    express weekly comparisons. A new read-model is warranted only for a cut the current grain
+>    **structurally cannot express** (item, hour, margin, customer — dimensions not yet in any snapshot).
+> 4. **Two-tier drill-down (extends D3's dual-plane reach, does not reopen it):**
+>    - **The user deputy (in MOS)** reads **only** the curated `reporting` read-models, RLS-bounded, per
+>      D3(c) — **never** the raw OLAP warehouse. This is owner-preferred and, per D3's structural
+>      argument, required.
+>    - **The server-side analyst agent** (OpenClaw on the VPS, `gordi_readonly`, D3's reserved raw-OLAP
+>      path) does deep exploration directly against the warehouse; findings worth keeping are
+>      **promoted into a new curated `reporting` read-model** rather than exposed live. Loop:
+>      *explore deep in OLAP → curate the valuable slice → the deputy composes over the curated slice.*
+>      This mirrors the `CONTEXT.md`/D6 **promotion** concept, applied to read-models instead of
+>      user-views.
+>    - **Net framing:** MOS is the analysis **surface** — the curated `reporting` read-models plus the
+>      query-DSL the deputy composes over (D3/§4b) — not the analysis **engine**, which stays in the
+>      OLAP warehouse behind the server-side analyst agent.
+>
+> No column, RLS policy, or DSL grammar is authorized by this note (unchanged scope-note posture); it
+> clarifies *how* D3(c) is expected to grow and is binding guidance for future `reporting` read-model
+> additions and drill-down feature work.
+
 ### D4 — Input scope: existing entities only; novel shapes become a promotion
 
 User-composed **input** surfaces write **only** through MOS's **existing validated write paths** — the
@@ -389,6 +432,11 @@ this sequence at a later issue.
 - **Do nothing / no agent-composed UI.** Rejected — forgoes a strategic capability the architecture is
   unusually ready for (RLS + `org_id` + the DAL seam), and forgoes the **promotion-as-requirements**
   goldmine (demonstrated demand becomes the spec).
+- **Point the deputy at the raw OLAP warehouse to fix a "shallow" dashboard (D3 extension, 2026-07-02).**
+  Rejected — reopens the D3 warehouse-reach question the ADR already closed structurally (no RLS, spans
+  companies); the actual gap was UI showing one fixed cut of an expressive daily read-model, not
+  insufficient data reach. Fixed by the query-spec DSL + incrementally adding targeted read-models, not
+  by widening the deputy's plane.
 
 ## Consequences
 
@@ -408,6 +456,9 @@ this sequence at a later issue.
   native (shared kit + tokens); adding a user view needs **no deploy** (D5/D6).
 - **Promotion** turns demonstrated demand into product requirements — the spec writes itself from a
   proven user view.
+- **(D3 extension)** `reporting` growing as a *set* of bounded read-models keeps drill-down cheap and
+  reviewable — each addition is one small, RLS'd, snapshot-fed aggregate, never a reach expansion; most
+  drill-down asks (window/trend comparisons) cost **zero new data**, only DSL expressiveness.
 
 **Negative / costs accepted**
 
@@ -421,6 +472,9 @@ this sequence at a later issue.
   are owed.
 - **Shared views add re-execution-under-viewer complexity** (D5 rule 2) that must be tested — a leak
   here is a tenancy breach.
+- **(D3 extension)** Every genuinely new dimension (item, hour, margin, customer) still costs a real
+  migration + snapshot-job change + RLS proof — the DSL only absorbs cuts the existing grain already
+  expresses; it is not a substitute for curating new read-models when a truly new dimension is needed.
 
 ## Reversibility
 
@@ -433,6 +487,9 @@ this sequence at a later issue.
 - **The read-model registry indirection (D7)** makes the view→matview swap a non-breaking config change,
   not a caller rewrite.
 - **The whole capability is feature-flagged (D6)** — hide-first, reversible by a flag flip.
+- **(D3 extension)** Each added `reporting` read-model is independently additive and independently
+  droppable (its own migration, its own RLS, its own snapshot-job step) — growing the set never touches
+  `sales_daily_revenue` or any prior read-model.
 
 ## Verification
 
@@ -453,3 +510,7 @@ this sequence at a later issue.
     sidecar binding (D8's HARD rule).
 - **One curated e2e** (per ADR-0010's ~6–8-journey budget): a user **composes → saves → reopens a
   private user view**; a **second user cannot see it**.
+- **(D3 extension)** Each new `reporting` read-model added under this guidance carries its **own** pgTAP
+  RLS proof (finance/admin-only, cross-org blocked) and its **own** as-of/freshness check (D11) — the
+  extension does not relax any existing verification, it only scopes when a *new* read-model migration
+  is the right move vs. a DSL-only change.
