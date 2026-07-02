@@ -18,6 +18,13 @@ describe('KPITile — ready state', () => {
     expect(container).toBeTruthy()
   })
 
+  it('the value carries the no-mid-value-wrap class (fits one line, incl. long IDR/channel-mix strings)', () => {
+    render(<KPITile label="Channel mix" value="POS 92% · B2B 8%" />)
+    const value = screen.getByText('POS 92% · B2B 8%')
+    expect(value).toHaveClass('kpi-tile-value')
+    expect(value.className).toMatch(/nowrap/)
+  })
+
   it('renders a success delta chip via the shared Pill', () => {
     render(
       <KPITile

@@ -49,7 +49,7 @@ export function KPITile({ label, value, delta, sub, state = 'ready', help }: KPI
           </span>
         )}
       </span>
-      <span className="kpi-tile-value tabular">{value}</span>
+      <span className="kpi-tile-value kpi-tile-value--nowrap tabular">{value}</span>
       {delta && (
         <Pill tone={DELTA_TONE[delta.tone]} dot={delta.dot}>
           {delta.text}

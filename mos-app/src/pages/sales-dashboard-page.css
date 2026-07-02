@@ -31,7 +31,7 @@
   }
 }
 
-@media (max-width: 379px) {
+@media (max-width: 419px) {
   .sdp-kpi-grid {
     grid-template-columns: 1fr;
   }

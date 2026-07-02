@@ -47,6 +47,24 @@
   line-height: 1.1;
 }
 
+/* Never wrap a value mid-string (long IDR figures / the channel-mix "A % · B %"
+   string read unpolished split across two lines). Shrinks fluidly toward a 17px
+   floor on narrow viewports (2-col/1-col phone grid, ≤959px) so long values keep
+   to one line without a hard-coded per-tile breakpoint. At the 4-up desktop grid
+   (≥960px, matches the KPI grid's own 4-col breakpoint) tiles are wide enough
+   that the value always reverts to the DESIGN.md 23px/600 ceiling. Same
+   font-size property — no new token, just a fit-to-width floor. */
+.kpi-tile-value--nowrap {
+  white-space: nowrap;
+  font-size: clamp(17px, 6.2vw, 23px);
+}
+
+@media (min-width: 960px) {
+  .kpi-tile-value--nowrap {
+    font-size: 23px;
+  }
+}
+
 .kpi-tile-sub {
   font-size: 11px;
   color: var(--text-tertiary);
