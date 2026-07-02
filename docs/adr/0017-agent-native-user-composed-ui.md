@@ -304,6 +304,24 @@ author** against the D5 trusted core. **Either way, D3–D7 proceed** — the tr
 the dual-plane reach, the registry, and the ceilings **stand alone**, independent of which agent authors
 the spec.
 
+> **Spike result — 2026-07-02 (RLS-binding half of D9): PASS.** On an isolated ephemeral PG17 with MOS's
+> **verbatim** helper + policy migrations (`current_org_id`/`has_access_role` + the `reporting` policy),
+> the wrapped-transaction binding (`set local role authenticated` + `set_config('request.jwt.claims',
+> '{"org_id":…,"access_roles":[…]}', true)`) enforced RLS **identically to supabase-js** — in-org ✓,
+> cross-org→0, `member`-only→0 (role-gate), fail-closed on missing/malformed claims. Kill-test confirmed
+> `service_role`/superuser **without** the wrap leak all orgs. So MOS's claim shape (extra `access_roles`
+> array, no `profiles` table) is **fully compatible** with the `.rls()`-style binding — the RLS mechanism
+> is **not** the risk. **Two findings that bind Issue 6:** (1) **Drizzle has no runtime `.rls()`** — its
+> RLS tooling is DDL-only (`CREATE POLICY` generation); the per-query transaction+role+`set_config` wrap
+> is **always the adapter/runtime's responsibility**, never the ORM's. (2) Because a **single missed wrap
+> = silent cross-tenant leak** (kill-test), and `set_config(...,false)` leaks across pooled connections,
+> the D8 HARD rule must be upgraded from "a guard/lint against `service_role`" to a **structural, single
+> non-bypassable query chokepoint** (a `withOrgClaims`-style function every deputy query is forced
+> through) + `set_config(...,true)`-in-a-per-request-transaction. The sidecar-vs-MOS-native choice should
+> therefore weigh **which path gives that structural guarantee**, not RLS capability. The assistant-panel
+> SSO half of the gate (the `*.pages.dev` parent-domain item, D8 caveat) is still untested — it belongs
+> to §8 build-time. Spike was throwaway; nothing committed, no shared/staging/prod touched.
+
 ### D10 — Observability of the deputy
 
 The deputy is a new security-sensitive principal and must be observable. Three streams, extending the
