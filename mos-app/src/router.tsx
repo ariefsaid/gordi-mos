@@ -19,6 +19,7 @@ import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
+import { SalesDashboardPage } from './pages/sales-dashboard-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -101,6 +102,13 @@ export const routeConfig: RouteObject[] = [
           {
             element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
             children: [{ path: 'projects-processes', element: <ProjectsProcessesPage /> }],
+          },
+          // Sales dashboard (Issue 1, reporting read-model). FR-001/AC-001/002:
+          // finance/admin only; RequireAccessRole bounces non-permitted viewers to /.
+          // RLS on reporting.sales_daily_revenue is the real security boundary.
+          {
+            element: <RequireAccessRole anyOf={['finance', 'admin']} />,
+            children: [{ path: 'sales', element: <SalesDashboardPage /> }],
           },
           { path: '*', element: <NotFoundPage /> },
         ],

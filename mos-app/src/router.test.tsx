@@ -5,6 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
+import { RequireAccessRole } from './auth/require-access-role'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -76,4 +77,22 @@ describe('router — tasks nesting (ADR-0007)', () => {
     expect(shell.children!.some(r => r.path === 'tasks/:taskId')).toBe(false)
   })
 
+})
+
+// FR-001/AC-001/002 (sales-dashboard.spec.md): /sales is wired behind
+// RequireAccessRole anyOf={['finance','admin']} — the guard itself is proven at
+// require-access-role.test.tsx; this asserts the ROUTE uses that gate with the
+// right role set (structural wiring, not a re-test of the guard's redirect logic).
+describe('router — sales dashboard route gate (FR-001)', () => {
+  it('AC-001/002: /sales sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const salesGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'sales'),
+    )!
+    expect(salesGate).toBeDefined()
+    expect(salesGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+  })
 })

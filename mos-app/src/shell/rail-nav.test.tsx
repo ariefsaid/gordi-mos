@@ -367,3 +367,32 @@ describe('AC-002/003: cascade catalog nav visibility', () => {
       .toHaveAttribute('href', '/projects-processes')
   })
 })
+
+// ── Sales dashboard nav (FR-001/AC-001/002, sales-dashboard.spec.md) — finance/admin only ──
+describe('Sales dashboard nav visibility', () => {
+  it('plain member does NOT see the Sales nav entry', () => {
+    setAuthAs(['member'])
+    renderRailNav('/tasks')
+    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
+  })
+
+  it('ops_lead (without finance/admin) does NOT see the Sales nav entry', () => {
+    setAuthAs(['ops_lead'])
+    renderRailNav('/tasks')
+    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
+  })
+
+  it('finance viewer sees the Sales nav entry with href /sales', () => {
+    setAuthAs(['finance'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Sales' })).toHaveAttribute('href', '/sales')
+  })
+
+  it('admin viewer sees the Sales nav entry', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Sales' })).toBeInTheDocument()
+  })
+})

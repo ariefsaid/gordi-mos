@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { SECTIONS, KITCHEN_SECTIONS, ADMIN_SECTIONS, CATALOG_SECTIONS } from './sections'
+import { SECTIONS, KITCHEN_SECTIONS, ADMIN_SECTIONS, CATALOG_SECTIONS, SALES_SECTIONS } from './sections'
 import type { Section } from './sections'
 import { SettingsIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
@@ -58,6 +58,11 @@ export function RailNav({ onNavigate }: RailNavProps) {
     s.anyOf.some((r) => accessRoles.includes(r)),
   )
 
+  // Sales dashboard (FR-001): finance/admin only.
+  const visibleSalesSections = SALES_SECTIONS.filter((s) =>
+    s.anyOf.some((r) => accessRoles.includes(r)),
+  )
+
   // Log, Plan, Stock → all authenticated users.
   // Review, Pushes → ops_lead / admin only.
   const visibleKitchenSections = KITCHEN_SECTIONS.filter((s) => {
@@ -85,6 +90,23 @@ export function RailNav({ onNavigate }: RailNavProps) {
             <NavItem key={section.path} section={section} onNavigate={onNavigate} />
           ))}
         </div>
+
+        {/* Reporting group — finance/admin only (absent from DOM otherwise, mirrors Admin). */}
+        {visibleSalesSections.length > 0 && (
+          <>
+            <div
+              className="px-2 pb-1 pt-3 font-medium uppercase text-muted-foreground"
+              style={{ fontSize: 11, letterSpacing: '0.06em' }}
+            >
+              Reporting
+            </div>
+            <div className="flex flex-col gap-[2px]">
+              {visibleSalesSections.map((section) => (
+                <NavItem key={section.path} section={section} onNavigate={onNavigate} />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Kitchen group — same heading + link idiom as Workspace above. */}
         <div

@@ -1,0 +1,56 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   DailyRevenueChart — the sales composition rendered inside ChartFrame
+   (design-plan §2.2). Inline SVG stacked bars/day by channel. Two hues only:
+   primary (POS) + violet (B2B), both categorical/non-interactive. Token-only.
+   ════════════════════════════════════════════════════════════════════════════ */
+.drc {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+
+.drc-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.drc-bar-pos {
+  fill: var(--primary);
+}
+
+.drc-bar-b2b {
+  fill: var(--violet);
+}
+
+.drc-bar-other {
+  fill: var(--muted-foreground);
+}
+
+.drc-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.drc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drc-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.drc-legend-dot--pos {
+  background: var(--primary);
+}
+
+.drc-legend-dot--b2b {
+  background: var(--violet);
+}
