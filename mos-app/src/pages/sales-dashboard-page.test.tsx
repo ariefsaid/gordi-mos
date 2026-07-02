@@ -173,6 +173,53 @@ describe('SalesDashboardPage — populated (desktop)', () => {
     const numCell = within(roastRow).getAllByText(/Rp/)[0]
     expect(numCell.closest('.tabular')).not.toBeNull()
   })
+
+  it('FR-009: clicking the Revenue sort header reorders table rows and sets aria-sort', async () => {
+    render(<SalesDashboardPage />)
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    const table = screen.getByRole('table', { name: /^revenue by/i })
+
+    // Default order is revenue-desc: Gordi HQ (12.3M) above Gordi Roastery (4.5M).
+    const rowsBefore = within(table).getAllByRole('row').slice(1) // drop header row
+    expect(within(rowsBefore[0]).getByText(/Gordi HQ/i)).toBeInTheDocument()
+    expect(within(rowsBefore[1]).getByText(/Gordi Roastery/i)).toBeInTheDocument()
+
+    const revenueHeader = within(table).getByRole('columnheader', { name: /revenue/i })
+    // Initial/default sort matches the pre-existing revenue-desc order.
+    expect(revenueHeader).toHaveAttribute('aria-sort', 'descending')
+    // A non-active sortable column correctly advertises aria-sort="none", not a stale state.
+    const txHeader = within(table).getByRole('columnheader', { name: /transactions/i })
+    expect(txHeader).toHaveAttribute('aria-sort', 'none')
+    const sortButton = within(revenueHeader).getByRole('button')
+
+    // First click: ascending — smallest revenue (Roastery) first.
+    fireEvent.click(sortButton)
+    let rowsAfter = within(table).getAllByRole('row').slice(1)
+    expect(within(rowsAfter[0]).getByText(/Gordi Roastery/i)).toBeInTheDocument()
+    expect(within(rowsAfter[1]).getByText(/Gordi HQ/i)).toBeInTheDocument()
+    expect(revenueHeader).toHaveAttribute('aria-sort', 'ascending')
+
+    // Second click: toggles back to descending — largest revenue (HQ) first.
+    fireEvent.click(sortButton)
+    rowsAfter = within(table).getAllByRole('row').slice(1)
+    expect(within(rowsAfter[0]).getByText(/Gordi HQ/i)).toBeInTheDocument()
+    expect(within(rowsAfter[1]).getByText(/Gordi Roastery/i)).toBeInTheDocument()
+    expect(revenueHeader).toHaveAttribute('aria-sort', 'descending')
+  })
+
+  it('FR-009: sort header is a real <button> in the tab order (native keyboard path — Enter/Space)', async () => {
+    render(<SalesDashboardPage />)
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    const table = screen.getByRole('table', { name: /^revenue by/i })
+    const revenueHeader = within(table).getByRole('columnheader', { name: /revenue/i })
+    const sortButton = within(revenueHeader).getByRole('button')
+
+    // Native <button> elements activate on Enter/Space in real browsers by default —
+    // asserting it's a focusable button (not a div/span) is the correct a11y guarantee here.
+    expect(sortButton.tagName).toBe('BUTTON')
+    sortButton.focus()
+    expect(sortButton).toHaveFocus()
+  })
 })
 
 describe('SalesDashboardPage — populated (phone)', () => {

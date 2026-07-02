@@ -69,4 +69,24 @@ describe('CSS var() wiring — every referenced custom property resolves', () =>
     expect(m, '--radius-lg must be defined').toBeTruthy()
     expect(m![1].trim(), '--radius-lg must be 0.75rem (12px), not 0.5rem (8px)').toBe('0.75rem')
   })
+
+  it('.tabular uses the Inter-tabular fallback, never --font-mono (DESIGN.md OD-P3-9 / The Mono-For-Identifiers Rule)', () => {
+    // Money is Inter-tabular per DESIGN.md ("money is DM-Sans-tabular (or the Inter-tabular
+    // fallback), not mono"). DM Sans's tnum is a verified no-op, so Inter Variable is the
+    // sanctioned scoped fallback. Regression guard: .tabular pointing at --font-mono silently
+    // renders ALL money in a per-OS system monospace (SF Mono is IDs/codes/⌘K only).
+    const all = sources.map(s => s.css).join('\n')
+    const m = all.match(/\.tabular\s*{([^}]*)}/)
+    expect(m, '.tabular rule must be defined').toBeTruthy()
+    const body = m![1]
+    expect(body, '.tabular must not use --font-mono (SF Mono is for IDs/codes/⌘K only)').not.toMatch(/--font-mono/)
+    expect(body, '.tabular must use the Inter-tabular fallback token').toMatch(/--font-tabular/)
+  })
+
+  it('--font-tabular resolves to Inter Variable (the sanctioned scoped tabular-figure fallback)', () => {
+    const all = sources.map(s => s.css).join('\n')
+    const m = all.match(/--font-tabular:\s*([^;]+);/)
+    expect(m, '--font-tabular must be defined').toBeTruthy()
+    expect(m![1], '--font-tabular must resolve to Inter').toMatch(/Inter/)
+  })
 })

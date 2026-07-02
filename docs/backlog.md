@@ -248,13 +248,10 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
 - Gates green. **NEXT:** owner verifies wide-width → merge → update spec (remove FR-121/AC-122).
 
 ## Doc & code debt (non-blocking)
-- [ ] **`.tabular` → SF Mono is an app-wide DESIGN.md violation** (found via render-verify 2026-07-02).
-  `DESIGN.md` OD-P3-9 / lines 293/295: **money must be Inter-tabular, NEVER mono** (SF Mono is for
-  IDs/codes/⌘K only). But `mos-app/src/index.css:214` points `.tabular` at `--font-mono`, and Inter was
-  fully dropped (#55) so the sanctioned tabular-only fallback can't engage → **all money** (KPI values,
-  table money, deltas) across MOS renders in a *system* monospace that varies per OS. Fix: re-import
-  **Inter Variable scoped to `.tabular` only**; body/UI stays DM Sans; re-verify digit alignment. Likely
-  pre-existing (shared utility), not dashboard-introduced. **On the current NEXT list** (backlog top).
+- [x] **`.tabular` → SF Mono app-wide DESIGN.md violation — FIXED (2026-07-02).** Re-imported
+  `@fontsource-variable/inter`, scoped to a new `--font-tabular` token used ONLY by `.tabular`
+  (`mos-app/src/index.css`); body/UI stays DM Sans/Plus Jakarta. Regression guard added
+  (`src/styles/css-var-wiring.test.ts`) asserting `.tabular` never references `--font-mono` again.
 - [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children);
   as-built is `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note.
 - [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ris-dev deploy runbook.

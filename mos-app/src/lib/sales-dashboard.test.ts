@@ -14,6 +14,7 @@ import {
   channelMixLabel,
   dailySeries,
   revenueTableRows,
+  sortRevenueRows,
   computeSalesKpis,
 } from './sales-dashboard'
 
@@ -237,6 +238,48 @@ describe('revenueTableRows', () => {
 
   it('returns an empty array for no rows', () => {
     expect(revenueTableRows([], 'Branch')).toEqual([])
+  })
+})
+
+// ── sortRevenueRows (FR-009) ────────────────────────────────────────────────────────
+describe('sortRevenueRows', () => {
+  const table = revenueTableRows(
+    [
+      row({ branch_code: 'GHQ', branch_name: 'Gordi HQ', channel: 'POS', clean_revenue: 8_000_000, transactions: 80 }),
+      { ...B2B_ROASTERY, transactions: 12, clean_revenue: 2_000_000 },
+    ],
+    'Branch',
+  )
+
+  it('sorts by a numeric column ascending', () => {
+    const sorted = sortRevenueRows(table, { key: 'revenue', dir: 'asc' })
+    expect(sorted.map(r => r.dimension)).toEqual(['Gordi Roastery', 'Gordi HQ'])
+  })
+
+  it('sorts by a numeric column descending', () => {
+    const sorted = sortRevenueRows(table, { key: 'revenue', dir: 'desc' })
+    expect(sorted.map(r => r.dimension)).toEqual(['Gordi HQ', 'Gordi Roastery'])
+  })
+
+  it('sorts by a string column (dimension) ascending/descending', () => {
+    expect(sortRevenueRows(table, { key: 'dimension', dir: 'asc' }).map(r => r.dimension)).toEqual([
+      'Gordi HQ',
+      'Gordi Roastery',
+    ])
+    expect(sortRevenueRows(table, { key: 'dimension', dir: 'desc' }).map(r => r.dimension)).toEqual([
+      'Gordi Roastery',
+      'Gordi HQ',
+    ])
+  })
+
+  it('does not mutate the input array', () => {
+    const original = [...table]
+    sortRevenueRows(table, { key: 'revenue', dir: 'asc' })
+    expect(table).toEqual(original)
+  })
+
+  it('returns the input order unchanged when sort is undefined', () => {
+    expect(sortRevenueRows(table, undefined)).toEqual(table)
   })
 })
 

@@ -196,6 +196,28 @@ export function revenueTableRows(rows: SalesDailyRevenueRow[], cut: DashboardCut
     .sort((a, b) => b.revenue - a.revenue)
 }
 
+export interface RevenueTableSort {
+  key: keyof RevenueTableRow
+  dir: 'asc' | 'desc'
+}
+
+/**
+ * Pure sort of already-aggregated table rows (FR-009). Returns a new array — never
+ * mutates `rows`. Undefined `sort` returns the input order unchanged (the default,
+ * revenue-desc order `revenueTableRows` already produced).
+ */
+export function sortRevenueRows(rows: RevenueTableRow[], sort: RevenueTableSort | undefined): RevenueTableRow[] {
+  if (!sort) return [...rows]
+  const { key, dir } = sort
+  const factor = dir === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) => {
+    const av = a[key]
+    const bv = b[key]
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * factor
+    return String(av).localeCompare(String(bv)) * factor
+  })
+}
+
 // ── KPI bundle ────────────────────────────────────────────────────────────────────
 export interface SalesKpis {
   latestReportingDate: string

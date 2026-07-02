@@ -21,13 +21,15 @@ import {
   computeSalesKpis,
   dailySeries,
   revenueTableRows,
+  sortRevenueRows,
   formatDelta,
   formatIDRCompact,
   type DashboardCut,
+  type RevenueTableSort,
 } from '@/lib/sales-dashboard'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { ChartFrame } from '@/components/dashboard/chart-frame'
-import { DataTable } from '@/components/dashboard/data-table'
+import { DataTable, type DataTableSort } from '@/components/dashboard/data-table'
 import { FreshnessLabel } from '@/components/dashboard/freshness-label'
 import { CutToggle } from '@/components/dashboard/cut-toggle'
 import { DailyRevenueChart } from '@/components/sales/daily-revenue-chart'
@@ -50,6 +52,8 @@ export function SalesDashboardPage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [cut, setCut] = useState<DashboardCut>('Branch')
+  // Default matches revenueTableRows' own revenue-desc order (FR-009).
+  const [sort, setSort] = useState<RevenueTableSort>({ key: 'revenue', dir: 'desc' })
 
   const fetchRows = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -74,7 +78,10 @@ export function SalesDashboardPage() {
     [rows, latestDate],
   )
   const series = useMemo(() => dailySeries(rows), [rows])
-  const tableRows = useMemo(() => revenueTableRows(rows, cut), [rows, cut])
+  const tableRows = useMemo(
+    () => sortRevenueRows(revenueTableRows(rows, cut), sort),
+    [rows, cut, sort],
+  )
 
   if (load.kind === 'loading') {
     return (
@@ -176,6 +183,8 @@ export function SalesDashboardPage() {
       <DataTable
         columns={revenueColumns(cut)}
         rows={tableRows}
+        sort={sort as DataTableSort}
+        onSortChange={s => setSort(s as RevenueTableSort)}
         isDesktop={isDesktop}
         caption={`Revenue by ${cut.toLowerCase()} and channel`}
         emptyLabel="No rows for this cut."

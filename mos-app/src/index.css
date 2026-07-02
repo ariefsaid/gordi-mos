@@ -139,6 +139,9 @@
   --font-sans:    "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  /* Sanctioned Inter-tabular fallback (OD-P3-9, DM Sans tnum verified no-op 2026-06-18) —
+     scoped SOLELY to the .tabular utility (money/%/counts/deltas). Never body/UI text. */
+  --font-tabular: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* Expose resting shadow + gradients as Tailwind utilities. */
   --shadow-rest: var(--shadow-rest);
@@ -209,10 +212,13 @@
 
 @layer utilities {
   /* Mandatory on all money/%/counts/deltas/ages (DESIGN.md Tabular-Numbers Rule).
-     Numeric cells use the theme mono token — monospace digits column-align by
-     construction (DM Sans's "tnum" no-ops in its build). Numeric-only scope. */
+     Money is Inter-tabular, NEVER mono (DESIGN.md OD-P3-9 / The Mono-For-Identifiers
+     Rule — SF Mono is reserved for IDs/codes/⌘K only). DM Sans's "tnum" is a verified
+     no-op in its @fontsource build (2026-06-18), so this scope engages the sanctioned
+     Inter-tabular fallback instead — numeric-only, never body/UI text. */
   .tabular {
-    font-family: var(--font-mono);
+    font-family: var(--font-tabular);
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
