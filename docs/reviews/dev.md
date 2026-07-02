@@ -1,0 +1,59 @@
+# Review battery — `dev` branch (agent-native program: reporting slice + Issue-1 sales dashboard)
+
+**Scope:** `git diff main..dev` — ADR-0017 program foundation: the `reporting.sales_daily_revenue`
+migration + RLS + pgTAP, the warehouse→Supabase snapshot job, the reporting DAL, the 5 dashboard-kit
+primitives, the sales-dashboard page + route/guard, and the supporting docs.
+**Run:** 2026-07-02 (Director-orchestrated, per CLAUDE.md "review battery before merge" gate).
+**Overall verdict:** **FIX-THEN-SHIP.** No Critical/High. Security clear; spec + code-quality + design each
+have a small must-fix set (below). Not yet merge-ready — merge only after the ✳ must-fix items land green.
+
+## Lens verdicts
+| Lens | Reviewer | Verdict |
+|---|---|---|
+| Security (OWASP/STRIDE) | security-auditor (opus) | **CLEAR FOR MERGE** — no Crit/High; Medium/Low hardening only |
+| Code quality | code-quality-reviewer (opus) | **fix-then-ship** — "high-quality work"; 1 Important |
+| Spec conformance | spec-reviewer (opus) | **matches spec with gaps** — no Crit; 3 Important |
+| Design (4-lens) | Director render-verify (desktop+mobile+computed-font) | **fix-then-ship** — One-Blue holds, responsive OK; 1 Important (font regression) |
+
+## ✳ Must-fix before `dev`→`main`
+1. **Dead sortable table (FR-009)** — `revenue-columns.tsx` marks columns `sortable: true` and `DataTable`
+   renders sort-header buttons, but `sales-dashboard-page.tsx:176-182` passes **no `sort`/`onSortChange`**
+   → clicking sorts nothing; `aria-sort="none"` advertises an inert control (accessibility-visible).
+   **Flagged independently by BOTH code-quality and spec review.** Fix: wire page sort state (reorder
+   `tableRows`) or drop `sortable` until wired.
+2. **`.tabular` → SF Mono font regression (app-wide)** — `mos-app/src/index.css:214` points `.tabular` at
+   `--font-mono`; DESIGN.md OD-P3-9 (lines 293/295) mandates money = **Inter-tabular, never mono** (SF Mono
+   is IDs/codes/⌘K only). Inter was dropped (#55) so the fallback can't engage → all money renders in a
+   per-OS system monospace. Restore Inter Variable scoped to `.tabular` only; body/UI stays DM Sans;
+   re-verify digit alignment. (Also in `docs/backlog.md` §Doc & code debt.)
+3. **AC-id traceability (spec)** — (a) the 4 reporting **script-unit** ACs (AC-007/008/009/010) carry no
+   AC-id in their `test_reporting_snapshot.py` titles (`grep -r AC-007 scripts/` finds nothing — violates
+   the binding AC-id-in-title convention); (b) `supabase/tests/60_...rls.sql` **reuses** AC-007 (`:40`) and
+   AC-010 (`:81`) for DB assertions that in the spec name script-unit ACs → `grep` returns the wrong layer;
+   the pgTAP AC-010 actually proves spec AC-008. Tag the script tests; renumber the pgTAP collisions to the
+   correct spec IDs.
+
+## Before prod (not merge-blocking)
+- **Sec-M1** — the snapshot cron connects as `postgres` **superuser** via the pooler, not `service_role`
+  (`reporting-snapshot-cron.sh:34-36`), defeating the migration's least-privilege design (blast radius =
+  whole staging DB if the cred leaks). Run under `service_role` or a scoped INSERT/UPDATE role (grants
+  exist). op-managed + loopback-adjacent + staging today, so deferred — **do before prod.**
+- **Sec-L3** — `config.toml:190` `minimum_password_length = 6`, no complexity, on the auth surface guarding
+  finance data. Raise to ≥8 + `lower_upper_letters_digits`.
+
+## Follow-ups (tracked, non-blocking)
+- **CQ** — `reporting_snapshot.py:174` `executemany` = 1 round-trip/row; batch before the read-model widens
+  (ADR-0017 D3 growth path). `freshness-label.tsx:15` renders in the browser TZ not Asia/Jakarta (finance
+  "as of" can read confusingly cross-TZ). `channelMixLabel` independent rounding may not sum to 100.
+- **Sec-M2** — `pg_hba` `172.18.0.0/16 trust` → passwordless superuser to any *future* co-tenant container
+  on the docker bridge (documented open item; move `gordi` to `scram` + op password when the op SA can write).
+- **Sec-L1/L2** — Telegram bot token from `openclaw.json` not op; no pgTAP for the service-role *write* path.
+- **Test flake** — `task-detail.test.tsx` relative-date fixture drifts with the clock (being fixed on `dev`).
+- **Spec-minor** — AC-011 rests on the un-run e2e (Director owns the live-render layout proof); `DailyRevenueChart`
+  legend hardcodes POS/B2B (a 3rd channel renders unlabeled).
+
+## Sign-off
+- ✳ must-fix items → dispatched as a batched `ui-implementer` (sort + font) + spec-tagging pass.
+- `bash scripts/pre-merge-check.sh` must exit 0 with this ledger present before merge.
+- Live-render layout proof (AC-010/011) = Director step; desktop+mobile render-verified 2026-07-02 (populated,
+  responsive, B2B/Roastery end-to-end, no h-scroll) — screenshots at repo root.
