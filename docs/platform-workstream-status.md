@@ -8,7 +8,7 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-06-30) — agent-native UI + OLAP online
+## Current focus (2026-07-02) — reporting live on staging; dashboard next
 
 Two strategic tracks opened/advanced this session (decisions in `docs/adr/0017` + the `docs/adr/0010`
 2026-06-30 amendment; grill `docs/decisions.md` OD-AN-1 / OD-P4-2):
@@ -22,10 +22,20 @@ Two strategic tracks opened/advanced this session (decisions in `docs/adr/0017` 
   DSL/compiler → `user_views` + renderer → manual builder → agent (sidecar behind a MOS-specific spike).
   NOT yet built — Issue 1 is the next spec (`feature-forge`).
 - **OLAP ESB warehouse — ONLINE on the Tencent VPS (2026-06-30).** PG 17, loopback-only, self-sustaining
-  (3:05am JKT cooperative sync via op) + monitored. Full runbook + open owner-actions:
-  **`docs/reference/warehouse-online.md`**. **Next on this track:** the `reporting` migration + the
-  warehouse→Supabase snapshot job (feeds the sales dashboard — the owner's stated #1 want). Two owner
-  actions pending (CloudMonitor webhook exposure + its auth fix; a git deploy key) — see the runbook.
+  (3:05am JKT cooperative sync via op) + monitored. First scheduled run was verified 2026-07-01; after
+  same-day cleanup, `run_sync.sh` has no Teable push and `sync.validate` exits 0 when only ESB-source /
+  business warnings remain. Full runbook + open owner-actions:
+  **`docs/reference/warehouse-online.md`**. **Reporting data track is live on staging as of 2026-07-02:**
+  `reporting.sales_daily_revenue` migration pushed to Supabase Cloud staging (`hvnwcsmkdeqmgqlbwflm`),
+  one live snapshot upserted 191 trailing-window rows, and B2B/Roastery verified as
+  `branch_code=GRI`. Cron is installed for **03:30 WIB** after the 03:05 sync. CloudMonitor webhook
+  exposure is deferred; active open ops items are sync alerting and a git deploy key — see the runbook.
+
+**Next product issue:** build the sales dashboard UI over `reporting.sales_daily_revenue`. Draft spec:
+`docs/specs/sales-dashboard.spec.md` (finance/admin route, revenue by day × channel × branch/activity,
+mobile + desktop states, `snapshot_as_of`, AC IDs, primitive kit births `KPITile`/`ChartFrame`/table
+patterns). Owner decision before build: exact dashboard-layer Activity mapping labels for
+Cafe/Kitchen-Bar/Roastery/Sales-CRM.
 
 ## Landed on `main` (all merged as of 2026-06-21)
 
