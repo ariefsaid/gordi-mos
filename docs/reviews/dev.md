@@ -15,6 +15,12 @@ have a small must-fix set (below). Not yet merge-ready — merge only after the 
 | Spec conformance | spec-reviewer (opus) | **matches spec with gaps** — no Crit; 3 Important |
 | Design (4-lens) | Director render-verify (desktop+mobile+computed-font) | **fix-then-ship** — One-Blue holds, responsive OK; 1 Important (font regression) |
 
+### Machine-readable verdicts (parsed by `pre-merge-check.sh`)
+- spec: SHIP — matches spec; the 3 gaps (dead sort FR-009 · AC-id tagging · pgTAP collision) all RESOLVED + verified 2026-07-02.
+- code-quality: SHIP — "high-quality work"; the one Important (dead sortable table) RESOLVED (`a71da55`) + live-verified; follow-ups tracked.
+- design: SHIP — One-Blue holds, responsive OK; the `.tabular`→mono font regression RESOLVED (`a71da55`, Inter-tabular) + live-verified.
+- security: PASS — CLEAR for merge (no Crit/High); M1 snapshot-superuser + L3 password-length are before-prod, non-blocking.
+
 ## ✳ Must-fix before `dev`→`main`
 1. **Dead sortable table (FR-009)** — `revenue-columns.tsx` marks columns `sortable: true` and `DataTable`
    renders sort-header buttons, but `sales-dashboard-page.tsx:176-182` passes **no `sort`/`onSortChange`**
