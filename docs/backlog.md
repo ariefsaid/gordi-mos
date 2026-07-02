@@ -9,6 +9,28 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
+> **2026-07-02 — Issue 1 COMPLETE (kit born); reporting live on staging; all on `dev`, not `main`:**
+> - **Sales dashboard SHIPPED to `dev`** — the value-first Issue-1 build that *births the primitive kit*:
+>   5 registry-ready primitives (`KPITile`/`ChartFrame`/`DataTable`/`FreshnessLabel`/`CutToggle` in
+>   `mos-app/src/components/dashboard/`), the reporting DAL (`src/lib/db/reporting.ts`), the
+>   `SalesDashboardPage` (`/mos/sales`, finance/admin-gated). **Director render-verified** populated +
+>   responsive + B2B/Roastery end-to-end; 1725 tests green. Spec `docs/specs/sales-dashboard.spec.md`;
+>   design-plan `docs/plans/2026-07-02-sales-dashboard-design.md`.
+> - **`reporting.sales_daily_revenue` LIVE on staging** (Supabase Cloud `hvnwcsmkdeqmgqlbwflm`) —
+>   snapshot-fed from the OLAP warehouse @03:30 JKT (day × channel × branch → revenue + txns). Spec
+>   `docs/specs/reporting-sales-snapshot.spec.md`, plan `docs/plans/2026-07-01-reporting-sales-snapshot.md`,
+>   runbook `docs/reference/warehouse-online.md`.
+> - **ADR-0017 D3 extension + OD-AN-2 (2026-07-02):** `reporting` is a growing SET of bounded curated
+>   read-models; drill-down is mostly a query-DSL problem not new-data; two-tier drill-down (deputy reads
+>   curated read-models, server analyst agent explores raw OLAP + promotes); bounded curation ≠ wholesale
+>   duplication. **MOS = analysis surface, OLAP = analysis engine.**
+> - Node pinned to **22** via `mos-app/.nvmrc` (Vite needs 20.19+/22.12+).
+> - **NEXT (three parallel, non-colliding):** (1) **`sales_margin_daily`** read-model — margin/COGS depth
+>   from the warehouse `v_daily_cogs_comparison` (the "shallow data" answer + cashflow lens); (2) **font
+>   regression fix** (see Debt — `.tabular`→SF Mono violates DESIGN.md); (3) **Issue 2** — extract the kit
+>   into the primitive **registry** (ADR-0017 §4a). Then Issue 3 (query-DSL/compiler). Memory
+>   `agent-native-ui-program`.
+>
 > **2026-06-30 — TWO NEW TRACKS (decisions on `dev`, not yet `main`):**
 > - **Agent-native / user-composed UI — ADR-0017 ACCEPTED** (merged to new `dev` branch; +ADR-0010
 >   2026-06-30 amendment; CONTEXT.md glossary; OD-AN-1). Deputy/RLS dual-plane model; **value-first build**
@@ -226,6 +248,13 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
 - Gates green. **NEXT:** owner verifies wide-width → merge → update spec (remove FR-121/AC-122).
 
 ## Doc & code debt (non-blocking)
+- [ ] **`.tabular` → SF Mono is an app-wide DESIGN.md violation** (found via render-verify 2026-07-02).
+  `DESIGN.md` OD-P3-9 / lines 293/295: **money must be Inter-tabular, NEVER mono** (SF Mono is for
+  IDs/codes/⌘K only). But `mos-app/src/index.css:214` points `.tabular` at `--font-mono`, and Inter was
+  fully dropped (#55) so the sanctioned tabular-only fallback can't engage → **all money** (KPI values,
+  table money, deltas) across MOS renders in a *system* monospace that varies per OS. Fix: re-import
+  **Inter Variable scoped to `.tabular` only**; body/UI stays DM Sans; re-verify digit alignment. Likely
+  pre-existing (shared utility), not dashboard-introduced. **On the current NEXT list** (backlog top).
 - [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children);
   as-built is `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note.
 - [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ris-dev deploy runbook.
