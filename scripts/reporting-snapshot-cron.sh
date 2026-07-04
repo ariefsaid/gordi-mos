@@ -31,7 +31,7 @@ import sys
 from urllib.parse import quote
 
 sys.path.insert(0, "scripts")
-from reporting_snapshot import SnapshotConfig, run_snapshot
+from reporting_snapshot import SnapshotConfig, run_all_snapshots
 
 with open(os.environ["WRITER_CRED_FILE"]) as f:
     writer_password = f.read().strip()
@@ -47,10 +47,11 @@ config = SnapshotConfig(
     supabase_reporting_db_url=pooler_dsn,
     org_id=os.environ["REPORTING_ORG_ID"],
 )
-rows = run_snapshot(config)
+counts = run_all_snapshots(config)
 print(
     "reporting_snapshot END "
-    f"rows={rows} window_days={config.window_days} "
+    f"revenue={counts['revenue']} margin={counts['margin']} "
+    f"window_days={config.window_days} "
     f"contract={config.source_contract_version}"
 )
 PY
