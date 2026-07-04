@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { BreadcrumbTitleProvider, useBreadcrumbTitle, useSetBreadcrumbTitle } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
 
@@ -26,21 +27,23 @@ function renderBreadcrumbAt(
   }
 
   return render(
-    <BreadcrumbTitleProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route
-            path="*"
-            element={
-              <>
-                {dynamicTitle && <TitleSetter title={dynamicTitle} />}
-                <Breadcrumb />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
-    </BreadcrumbTitleProvider>,
+    <I18nProvider>
+      <BreadcrumbTitleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  {dynamicTitle && <TitleSetter title={dynamicTitle} />}
+                  <Breadcrumb />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </BreadcrumbTitleProvider>
+    </I18nProvider>,
   )
 }
 
@@ -110,10 +113,13 @@ describe('AC-S04b: BreadcrumbTitleProvider + hooks', () => {
 })
 
 // ── Breadcrumb render integration ─────────────────────────────────────────────
+// Note (FR-S03, plan §1.5/§4.1 regroup): the SECTION crumb for /tasks* routes is now
+// the "Work" destination label (not the bare "Tasks" section) — see breadcrumb.test.tsx
+// for the full FR-S03 coverage. This file focuses on the dynamic-title integration.
 describe('AC-S04b: Breadcrumb shows task title on /tasks/:id', () => {
-  it('shows "Tasks › <name>" on /tasks/:id when title is resolved', () => {
+  it('shows "Work › <name>" on /tasks/:id when title is resolved', () => {
     const { container } = renderBreadcrumbAt('/tasks/abc-123', 'Fix the login bug')
-    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.getByText('Work')).toBeInTheDocument()
     expect(screen.getByText('Fix the login bug')).toBeInTheDocument()
     const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
       .filter((el) => el.textContent === '›')
@@ -121,16 +127,17 @@ describe('AC-S04b: Breadcrumb shows task title on /tasks/:id', () => {
     // The task name is bold (current crumb)
     const leaf = screen.getByText('Fix the login bug')
     expect(leaf.tagName.toLowerCase()).toBe('b')
-    // "Tasks" is muted (intermediate), not bold
-    expect(screen.getByText('Tasks').tagName.toLowerCase()).not.toBe('b')
+    // "Work" is muted (intermediate), not bold
+    expect(screen.getByText('Work').tagName.toLowerCase()).not.toBe('b')
   })
 
-  it('shows "Tasks" only (no separator, no leaf) on /tasks/:id when title is NOT yet set (loading)', () => {
+  it('shows "Work › Tasks" on /tasks/:id when title is NOT yet set (loading) — falls back to the destination\'s own section label, never blank', () => {
     const { container } = renderBreadcrumbAt('/tasks/abc-123') // no title
+    expect(screen.getByText('Work')).toBeInTheDocument()
     expect(screen.getByText('Tasks')).toBeInTheDocument()
     const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
       .filter((el) => el.textContent === '›')
-    expect(separators).toHaveLength(0)
+    expect(separators).toHaveLength(1)
   })
 
   it('title leaf has a title attribute (no-bleed) per AC-S03', () => {
@@ -140,17 +147,20 @@ describe('AC-S04b: Breadcrumb shows task title on /tasks/:id', () => {
   })
 })
 
-// ── Regression: existing static leaves unaffected ────────────────────────────
+// ── Regression: existing static leaves unaffected (beyond the FR-S03 relabel) ─
 describe('AC-S04b regression: existing static breadcrumb cases intact', () => {
-  it('renders "Tasks" only on /tasks (section page)', () => {
-    renderBreadcrumbAt('/tasks')
+  it('renders "Work › Tasks" on /tasks (section page, FR-S03 regroup)', () => {
+    const { container } = renderBreadcrumbAt('/tasks')
+    expect(screen.getByText('Work')).toBeInTheDocument()
     expect(screen.getByText('Tasks')).toBeInTheDocument()
-    expect(screen.queryByText('›')).toBeNull()
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '›')
+    expect(separators).toHaveLength(1)
   })
 
-  it('renders "Tasks › New task" on /tasks/new regardless of context', () => {
+  it('renders "Work › New task" on /tasks/new regardless of context', () => {
     const { container } = renderBreadcrumbAt('/tasks/new')
-    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.getByText('Work')).toBeInTheDocument()
     expect(screen.getByText('New task')).toBeInTheDocument()
     const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
       .filter((el) => el.textContent === '›')

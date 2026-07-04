@@ -4,7 +4,7 @@
  * rail and the phone bottom-tab bar (plan §1.5).
  */
 import { describe, it, expect } from 'vitest'
-import { DESTINATIONS, isLive } from './destinations'
+import { DESTINATIONS, isLive, destinationForPath } from './destinations'
 import { KITCHEN_SECTIONS } from './sections'
 
 describe('AC-D01: DESTINATIONS + isLive', () => {
@@ -55,5 +55,31 @@ describe('AC-D01: DESTINATIONS + isLive', () => {
       expect(typeof d.Icon).toBe('function')
       expect(Array.isArray(d.links)).toBe(true)
     })
+  })
+})
+
+// Breadcrumb resolution (plan §1.5/§4.1, spec home-v1 FR-S03): "/kitchen/log" reads
+// "Operate › Log", "/tasks/123" reads "Work › Tasks" — the SECTION crumb is the
+// owning destination's labelKey, the LEAF crumb is the specific link's own label.
+describe('destinationForPath — breadcrumb resolution (FR-S03)', () => {
+  it('returns the "work" destination for /tasks and /tasks/some-id (prefix match)', () => {
+    expect(destinationForPath('/tasks')?.id).toBe('work')
+    expect(destinationForPath('/tasks/some-id')?.id).toBe('work')
+  })
+
+  it('returns the "operate" destination for every /kitchen/* route', () => {
+    expect(destinationForPath('/kitchen/log')?.id).toBe('operate')
+    expect(destinationForPath('/kitchen/plan')?.id).toBe('operate')
+    expect(destinationForPath('/kitchen/review')?.id).toBe('operate')
+  })
+
+  it('returns the "home" destination for /', () => {
+    expect(destinationForPath('/')?.id).toBe('home')
+  })
+
+  it('returns null for a path owned by no destination (e.g. /admin/people, /sales)', () => {
+    expect(destinationForPath('/admin/people')).toBeNull()
+    expect(destinationForPath('/sales')).toBeNull()
+    expect(destinationForPath('/unknown-xyz')).toBeNull()
   })
 })

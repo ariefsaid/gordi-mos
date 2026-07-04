@@ -64,3 +64,23 @@ export function isLive(d: Destination, accessRoles: string[]): boolean {
   if (d.anyOf && !d.anyOf.some((r) => accessRoles.includes(r))) return false
   return d.links.length > 0
 }
+
+/**
+ * Returns the Destination that owns the given pathname (by matching one of its
+ * links, exact-or-prefix — mirrors sectionForPath), or null if no destination
+ * owns it (e.g. /admin/*, /sales, /objectives — regrouped elsewhere or drill-only).
+ * Consumed by Breadcrumb to resolve the SECTION crumb to the destination label
+ * (spec home-v1 FR-S03: "/tasks/123" reads "Work › Tasks").
+ */
+export function destinationForPath(pathname: string): Destination | null {
+  for (const d of DESTINATIONS) {
+    for (const link of d.links) {
+      if (link.path === '/') {
+        if (pathname === '/') return d
+      } else if (pathname === link.path || pathname.startsWith(link.path + '/')) {
+        return d
+      }
+    }
+  }
+  return null
+}
