@@ -1,0 +1,189 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Dev harness — the zero-agent proof (ADR-0018 D6 P1). Phone-first single column:
+   list of saved views → editor (name/scope/JSON) → render preview, stacked. At
+   ≥920px (the app's rail-collapse breakpoint) the editor + render preview sit
+   side-by-side so the loop (compose → save → reopen → render) is visible at once.
+   Token-only (DESIGN.md) — no raw hex/spacing/shadow literals. DEV-gated route;
+   still tokened + responsive per the ui-implementer charter.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.dev-views {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.dev-views__head h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.dev-views__sub {
+  color: var(--muted-foreground);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* ── Saved-views list ── */
+.dev-views__list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 12px 16px;
+}
+
+.dev-views__empty {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.dev-views__list-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dev-views__list-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 14px;
+}
+.dev-views__list-item:hover {
+  background: var(--accent);
+}
+.dev-views__list-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ── Editor ── */
+.dev-views__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 16px;
+  box-shadow: var(--shadow-rest);
+}
+
+.dev-views__field {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  margin-top: 8px;
+}
+
+.dev-views__input,
+.dev-views__select {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.dev-views__input:focus-visible,
+.dev-views__select:focus-visible,
+.dev-views__textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.dev-views__textarea {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.dev-views__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dev-views__btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--input);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dev-views__btn:hover {
+  background: var(--accent);
+}
+.dev-views__btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-brand-button);
+}
+.dev-views__btn--primary:hover {
+  background: color-mix(in srgb, var(--primary) 90%, transparent);
+}
+.dev-views__btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.dev-views__msg {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin-top: 4px;
+}
+
+/* ── Render preview ── */
+.dev-views__render {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 16px;
+  min-height: 80px;
+}
+
+/* ── ≥920px: editor + render preview side-by-side (the app's rail-collapse breakpoint) ── */
+@media (min-width: 920px) {
+  .dev-views {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'list'
+      'editor'
+      'render';
+  }
+  .dev-views__list { grid-area: list; }
+  .dev-views__editor { grid-area: editor; }
+  .dev-views__render { grid-area: render; }
+}
+
+@media (min-width: 1120px) {
+  .dev-views {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'list list'
+      'editor render';
+  }
+}
