@@ -49,12 +49,14 @@ function makeDeps(overrides: Partial<{
   eventInsert: (row: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
   runUpdate: (patch: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
   eventsSelect: () => Promise<{ data: unknown[] | null; error: unknown }>
-}> = {}): { deps: PersistenceDeps; eventInsertSpy: ReturnType<typeof vi.fn> } {
+}> = {}): { deps: PersistenceDeps; eventInsertSpy: ReturnType<typeof vi.fn>; orderSpy: ReturnType<typeof vi.fn>; limitSpy: ReturnType<typeof vi.fn> } {
   const eventInsertSpy = vi.fn(overrides.eventInsert ?? (async (): Promise<{ data: unknown; error: unknown }> => ({ data: { id: 'ev-1' }, error: null })))
   const threadInsert = overrides.threadInsert ?? (async () => ({ data: { id: 'thread-1' }, error: null }))
   const runInsert = overrides.runInsert ?? (async () => ({ data: { id: 'run-1' }, error: null }))
   const runUpdate = vi.fn(overrides.runUpdate ?? (async (): Promise<{ data: unknown; error: unknown }> => ({ data: {}, error: null })))
   const eventsSelect = overrides.eventsSelect ?? (async () => ({ data: [], error: null }))
+  const limitSpy = vi.fn(() => eventsSelect())
+  const orderSpy = vi.fn(() => ({ limit: limitSpy }))
 
   // Fixed nested-shape stub for the mos-schema table ops this test exercises — every level
   // is deliberately arity-0 (params aren't read) to keep the mock terse; the outer cast to
@@ -76,6 +78,7 @@ function makeDeps(overrides: Partial<{
     select: () => ({
       eq: () => ({
         limit: () => eventsSelect(),
+        order: orderSpy,
       }),
     }),
   })
@@ -105,7 +108,7 @@ function makeDeps(overrides: Partial<{
     orgId: 'org-1',
     now: () => new Date('2026-07-05T00:00:00.000Z'),
   }
-  return { deps, eventInsertSpy }
+  return { deps, eventInsertSpy, orderSpy, limitSpy }
 }
 
 describe('insertEvent (T15, AC-P2-OB-001)', () => {
@@ -177,9 +180,13 @@ describe('loadMaxSeq (T15, seq continuity)', () => {
     expect(await loadMaxSeq(deps, 'run-1')).toBe(-1)
   })
 
-  it('returns the max seq among persisted rows', async () => {
-    const { deps } = makeDeps({ eventsSelect: async () => ({ data: [{ seq: 0 }, { seq: 3 }, { seq: 1 }], error: null }) })
+  it('returns the max seq — the top row of a seq-descending, limit-1 read (CQ#5, uses the (run_id,seq) index instead of scanning up to 1000 rows)', async () => {
+    // A seq-desc order + limit(1) means the mock's "top row" IS the max — assert the row shape
+    // loadMaxSeq expects from that query (a single-row array).
+    const { deps, orderSpy, limitSpy } = makeDeps({ eventsSelect: async () => ({ data: [{ seq: 3 }], error: null }) })
     expect(await loadMaxSeq(deps, 'run-1')).toBe(3)
+    expect(orderSpy).toHaveBeenCalledWith('seq', { ascending: false })
+    expect(limitSpy).toHaveBeenCalledWith(1)
   })
 
   it('fails open to -1 on error', async () => {

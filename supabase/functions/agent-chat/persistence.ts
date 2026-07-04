@@ -46,6 +46,7 @@ interface SchemaTableOps {
       limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
       in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
       eq(column2: string, value2: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> }
+      order(column: string, opts?: { ascending?: boolean }): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
     }
     in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
     limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
@@ -294,6 +295,10 @@ export async function setRunStatus(
  * `maxSeq + 1` — otherwise the new turn's events collide with the prior turn's already-persisted
  * seq values (`agent_events (run_id, seq)` is unique). Fail-safe: any error returns -1 (fail open
  * to "no prior events").
+ *
+ * CQ#5: orders by seq descending + limit(1) — the top row IS the max — rather than reading up to
+ * MAX_RUN_EVENTS_READ rows and Math.max-ing client-side. Uses the `(run_id, seq)` index for an
+ * O(1) lookup instead of an O(n) table scan.
  */
 export async function loadMaxSeq(deps: PersistenceDeps, runId: string): Promise<number> {
   try {
@@ -302,10 +307,11 @@ export async function loadMaxSeq(deps: PersistenceDeps, runId: string): Promise<
       .from('agent_events')
       .select('seq')
       .eq('run_id', runId)
-      .limit(MAX_RUN_EVENTS_READ)
+      .order('seq', { ascending: false })
+      .limit(1)
     if (error || !data) return -1
     const seqs = (data as Array<{ seq?: number }>).map((row) => row.seq ?? -1)
-    return seqs.length > 0 ? Math.max(...seqs) : -1
+    return seqs.length > 0 ? seqs[0] : -1
   } catch {
     return -1
   }

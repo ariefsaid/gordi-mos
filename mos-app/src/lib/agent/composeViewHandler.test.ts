@@ -54,7 +54,7 @@ describe('compose-view/handler — composeViewHandler (T9)', () => {
     expect(res.status).toBe(400)
   })
 
-  it('400 when body.orgId does not match the JWT-decoded callerOrgId, BEFORE any model call', async () => {
+  it('AC-CV-004: 400 when body.orgId does not match the JWT-decoded callerOrgId, BEFORE any model call', async () => {
     const modelClient: ModelClient = { create: vi.fn(async () => toolCallResponse(VALID_SPEC)) }
     const res = await composeViewHandler({ prompt: 'x', orgId: 'org-MISMATCH' }, baseDeps({ modelClient, callerOrgId: 'org-1' }))
     expect(res.status).toBe(400)
