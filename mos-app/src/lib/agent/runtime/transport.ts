@@ -12,7 +12,9 @@
  * §0 out-of-scope list). Keeps `decision` (approve/deny) and `cancel` (server-side abort).
  */
 
-import type { AgentEvent, RunContext } from './port'
+// Explicit `.ts` extension (Deno-strict compat — this module is imported by the agent-chat edge
+// function's handler.ts); Vite/Vitest resolve the extension-ful form identically.
+import type { AgentEvent, RunContext } from './port.ts'
 
 export type { AgentEvent }
 
