@@ -40,12 +40,15 @@ have a small must-fix set (below). Not yet merge-ready — merge only after the 
    correct spec IDs.
 
 ## Before prod (not merge-blocking)
-- **Sec-M1** — the snapshot cron connects as `postgres` **superuser** via the pooler, not `service_role`
-  (`reporting-snapshot-cron.sh:34-36`), defeating the migration's least-privilege design (blast radius =
-  whole staging DB if the cred leaks). Run under `service_role` or a scoped INSERT/UPDATE role (grants
-  exist). op-managed + loopback-adjacent + staging today, so deferred — **do before prod.**
-- **Sec-L3** — `config.toml:190` `minimum_password_length = 6`, no complexity, on the auth surface guarding
-  finance data. Raise to ≥8 + `lower_upper_letters_digits`.
+- **~~Sec-M1~~ — RESOLVED 2026-07-04.** Snapshot cron now connects as scoped `reporting_writer` (LOGIN,
+  no super/createdb/createrole; USAGE + SELECT/INSERT/UPDATE on the one table only) via migration
+  `20260704000001` (idempotent, applied to staging). Verified live: upsert OK under FORCE RLS,
+  `CREATE TABLE` denied, manual run `rows=190` exit 0. Cred = VPS `~/.reporting-writer-cred` 0600
+  (op SA can't write vault Gordi — migrate to op when writable; documented in warehouse-online.md).
+- **~~Sec-L3~~ — RESOLVED 2026-07-04.** `minimum_password_length = 8` + `lower_upper_letters_digits`
+  pushed to staging. Config-push URL-revert gotcha FIRED and was fixed (site_url restored to
+  `https://gordi-mos.pages.dev/mos/` + redirect list; third push confirmed "up to date"); gotcha now
+  documented in `config.toml` + `docs/environments.md`.
 
 ## Follow-ups (tracked, non-blocking)
 - **CQ** — `reporting_snapshot.py:174` `executemany` = 1 round-trip/row; batch before the read-model widens
