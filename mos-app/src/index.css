@@ -51,6 +51,7 @@
   --rail-w: 236px;     /* Issue 3: 224→236 to match the mos-design-kit Sidebar pattern */
   --header-h: 56px;
   --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
+  --assistant-w: 400px; /* ADR-0018 P2: deputy slide-over drawer width (desktop right drawer) */
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
