@@ -218,7 +218,7 @@ export function AssistantPanel() {
               onPick={(s) => void submit(s)}
             />
           ) : (
-            <Transcript items={panel.transcript} chips={panel.chips} error={panel.error} errorCta={t('assistant.error.cta')} onRetry={() => void panel.retry()} onApprove={panel.approve} onDeny={panel.deny} />
+            <Transcript items={panel.transcript} chips={panel.chips} error={panel.error} errorTitle={t('assistant.error.title')} errorCta={t('assistant.error.cta')} onRetry={() => void panel.retry()} onApprove={panel.approve} onDeny={panel.deny} />
           )}
         </div>
 
@@ -249,11 +249,12 @@ export function AssistantPanel() {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function Transcript({
-  items, chips, error, errorCta, onRetry, onApprove, onDeny,
+  items, chips, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
 }: {
   items: TranscriptItem[]
   chips: ChipState[]
   error: string | null
+  errorTitle: string
   errorCta: string
   onRetry: () => void
   onApprove: (pendingId: string) => void
@@ -290,11 +291,11 @@ function Transcript({
           style={{ padding: '0.625rem 0.75rem' }}
           role="alert"
         >
-          <span className="text-text-primary flex-1" style={{ fontSize: 13 }}>{errorCta}</span>
+          <span className="text-foreground flex-1" style={{ fontSize: 13 }}>{errorTitle}</span>
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-sm border border-border text-text-primary"
+            className="rounded-sm border border-border text-foreground"
             style={{ padding: '0.25rem 0.5rem', fontSize: 13 }}
           >
             {errorCta}
@@ -325,7 +326,7 @@ function EmptyState({
             key={s}
             type="button"
             onClick={() => onPick(s)}
-            className="text-left rounded-md border border-border bg-secondary text-text-primary hover:border-muted-foreground/50"
+            className="text-left rounded-md border border-border bg-secondary text-foreground hover:border-muted-foreground/50"
             style={{ padding: '0.625rem 0.75rem', fontSize: 14 }}
           >
             {s}
@@ -392,7 +393,7 @@ function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLab
       <button
         type="button"
         onClick={onStop}
-        className="rounded-sm border border-border text-text-primary"
+        className="rounded-sm border border-border text-foreground"
         style={{ padding: '0.25rem 0.5rem', fontSize: 13 }}
       >
         {stopLabel}
@@ -448,7 +449,7 @@ function Composer({
           <button
             type="button"
             onClick={onStop}
-            className="rounded-sm border border-border text-text-primary flex-none"
+            className="rounded-sm border border-border text-foreground flex-none"
             style={{ height: 40, padding: '0 0.75rem', fontSize: 14 }}
           >
             {stopLabel}

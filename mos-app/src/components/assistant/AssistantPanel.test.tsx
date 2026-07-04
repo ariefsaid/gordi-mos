@@ -136,4 +136,37 @@ describe('AssistantPanel (T27)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'x' } })
     expect(send).not.toBeDisabled()
   })
+
+  it('CQ#1: error banner shows the title text AND a distinct retry button (not "Try again / Try again")', async () => {
+    function erroringRuntime(): AgentRuntime {
+      return {
+        createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
+        followUp: vi.fn(async () => {}),
+        control: vi.fn(async () => {}),
+        subscribe: vi.fn(async function* () {
+          const ev: AgentEvent = { id: 's1', runId: 'r1', type: 'status', payload: { status: 'error', error: 'UPSTREAM_ERROR' }, createdAt: '2026-01-01T00:00:00.000Z' }
+          yield ev
+        }),
+      }
+    }
+    localStorage.setItem('mos.assistant.open', 'true')
+    render(
+      <I18nProvider>
+        <MemoryRouter>
+          <AgentRuntimeProvider runtime={erroringRuntime()}>
+            <AssistantPanel />
+          </AgentRuntimeProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'break it' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    // The banner title text renders (distinct from the retry button's own accessible name).
+    await waitFor(() => expect(screen.getByText('Something went wrong')).toBeInTheDocument())
+    // The retry button is a SEPARATE element bearing the CTA label — not a duplicate of the title text.
+    const retryButton = screen.getByRole('button', { name: 'Try again' })
+    expect(retryButton).toBeInTheDocument()
+    expect(retryButton.textContent).not.toBe('Something went wrong')
+  })
 })
