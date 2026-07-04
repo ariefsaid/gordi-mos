@@ -30,8 +30,8 @@ function makeFilterBuilder(): {
 }
 
 describe('agent runtime port — pure type seam (T21)', () => {
-  it('AgentRunStatus is the P2 closed union (no queued/paused — P1 substrate does not use them)', () => {
-    const statuses: AgentRunStatus[] = ['running', 'needs-approval', 'completed', 'errored', 'cancelled']
+  it('AgentRunStatus is the P2 closed union, matching mos.agent_runs.status verbatim (error, not errored)', () => {
+    const statuses: AgentRunStatus[] = ['running', 'needs-approval', 'completed', 'error', 'cancelled']
     expect(statuses).toHaveLength(5)
   })
 

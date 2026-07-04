@@ -16,7 +16,9 @@
  *   - QuestionPayload (ask_user) is DROPPED — P3.
  */
 
-export type AgentRunStatus = 'running' | 'needs-approval' | 'completed' | 'errored' | 'cancelled'
+// 'error' (not 'errored') — matches the landed mos.agent_runs.status check constraint verbatim
+// (migration 20260705000003) so setRunStatus is a straight pass-through, never a renaming layer.
+export type AgentRunStatus = 'running' | 'needs-approval' | 'completed' | 'error' | 'cancelled'
 
 export interface AgentRun {
   id: string
