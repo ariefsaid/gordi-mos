@@ -2,6 +2,7 @@
 // render. DEV-only + feature-flagged (config/features.ts SHOW_USER_VIEWS) + auth-gated
 // (mounted inside ProtectedRoute — router.tsx). Phone-first, DESIGN.md tokens only.
 import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { PageFrame } from '@/shell/page-frame'
@@ -22,10 +23,15 @@ const SAMPLE: CompositionSpec = {
   }],
 }
 
-export function DevViewsPage({ viewId }: { viewId?: string }) {
+export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
   const t = useT()
   useDocumentTitle('User Views (dev) — Gordi MOS')
   const auth = useAuth()
+  // Route-mounted usage (router.tsx /dev/views/:viewId) supplies no prop — read the param
+  // directly (mirrors TaskDrawer/OpsAddForm's own useParams() convention). Tests render the
+  // page standalone and pass viewId as a prop, which takes precedence when given.
+  const params = useParams<{ viewId?: string }>()
+  const viewId = viewIdProp ?? params.viewId
 
   const [views, setViews] = useState<UserViewRow[]>([])
   const [name, setName] = useState('My view')

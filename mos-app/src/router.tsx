@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -24,6 +24,7 @@ import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { UiGallery } from './pages/ui-gallery'
+import { DevViewsPage } from './pages/dev-views-page'
 
 // Route layout:
 // / (RedirectIfAuthed gate) — unauthenticated users can access these
@@ -110,6 +111,17 @@ export const routeConfig: RouteObject[] = [
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
             children: [{ path: 'sales', element: <SalesDashboardPage /> }],
+          },
+          // ADR-0018 P1 — view-composition dev harness (zero-agent proof). DEV-only +
+          // feature-flagged; redirects to / otherwise. Auth-gated by ProtectedRoute (reads/
+          // writes user_views via the viewer's own JWT — RLS is the real security boundary).
+          {
+            path: 'dev/views',
+            element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+          },
+          {
+            path: 'dev/views/:viewId',
+            element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
           },
           { path: '*', element: <NotFoundPage /> },
         ],

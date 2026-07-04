@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
@@ -77,6 +77,22 @@ describe('router — tasks nesting (ADR-0007)', () => {
     expect(shell.children!.some(r => r.path === 'tasks/:taskId')).toBe(false)
   })
 
+})
+
+// ADR-0018 P1 — the /dev/views harness is DEV + SHOW_USER_VIEWS flag gated (mirrors the
+// SHOW_WEEKLY_UPDATES/SHOW_DAILY_LOG pattern). SHOW_USER_VIEWS defaults false, so both routes
+// must redirect to / — a stale deep-link can never reach the harness while the flag is off.
+describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS default false)', () => {
+  it('redirects /dev/views and /dev/views/:viewId to / while the flag is off', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const bare = shell.children!.find(r => r.path === 'dev/views')!
+    const withId = shell.children!.find(r => r.path === 'dev/views/:viewId')!
+    expect(bare.element).toEqual(<Navigate to="/" replace />)
+    expect(withId.element).toEqual(<Navigate to="/" replace />)
+  })
 })
 
 // FR-001/AC-001/002 (sales-dashboard.spec.md): /sales is wired behind
