@@ -222,6 +222,15 @@ Port verbatim from `PMO/_shared/errorLog.ts` (`logStructuredError({fn, errorCode
 Port `PMO/compose-view/schema.ts`. Adapt: the entity enum is built from the MOS `ENTITY_WHITELIST` keys (`tasks|weekly_updates|objectives|work_lines|people|business_units|sales_daily_revenue|sales_margin_daily`) — import `ENTITY_WHITELIST` from `../../../mos-app/src/lib/viewspec/types.ts` and derive `Object.keys(...)` (do NOT hand-list; the firewall test guards drift). Keep the `compose_view` tool-forcing schema shape PMO uses.
 - ACs: supports AC-CV-001. Verify: `npx vitest run src/lib/agent/composeViewSchema.test.ts` (enum matches `Object.keys(ENTITY_WHITELIST)`).
 
+> **Director build-note (2026-07-04): Deno-compatibility trap on the registry import.** `registry.ts`
+> imports React primitive components (and transitively their CSS) — importing it from a Deno edge
+> function (`registry.keys()` in T7) will fail `deno check`/bundle. Before T7: split a pure
+> **registry-manifest** module (`viewspec/registry-manifest.ts` — names + descriptor metadata only,
+> zero React/CSS imports); `registry.ts` re-exports from it and binds components; edge functions
+> import ONLY the manifest. Same discipline for anything else the functions pull from `viewspec/`
+> (types/compiler/schema are already pure — keep them that way; the firewall/vitest gates should
+> assert the manifest stays React-free via an import-graph test).
+
 **T7 — `compose-view/prompt.ts` — `buildSystemPrompt(whitelist, primitives, orgId, maxPanels)`**
 Port `PMO/compose-view/prompt.ts` adapting: reference MOS entity names/columns from the imported `ENTITY_WHITELIST` (schema metadata only — no data rows, NFR-AS-SEC-004), MOS primitive names from `registry.keys()`, and the MOS `$current_person`/`$current_org`/`$today` tokens (NOT PMO's `$current_user`). Pure.
 - Verify: `npx vitest run src/lib/agent/composePrompt.test.ts` (output contains each entity key + the token list; no PMO brand).
