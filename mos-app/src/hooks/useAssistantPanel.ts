@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { makeId } from '@/lib/agent/runtime/makeId'
 import type {
   AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload,
 } from '@/lib/agent/runtime/port'
@@ -38,13 +39,6 @@ export interface ChipState {
 
 /** How long a running phase may go without progress before the stuck banner shows. */
 const STUCK_TIMEOUT_MS = 5000
-
-function makeId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return Math.random().toString(36).slice(2)
-}
 
 export function useAssistantPanel() {
   const { runtime } = useAgentRuntime()
