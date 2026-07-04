@@ -9,6 +9,19 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
+> **2026-07-04 — IA NORTH-STAR + can() ACCEPTED (ADR-0019 / ADR-0020, OD-IA-1/2):** five destinations
+> (**Home / Work / Operate / Plan / Inbox**; activity is a dimension, never a nav root); taxonomy
+> **BU=team / Activity=workstream / Revenue stream=money lens** (old BU seed rows need re-mapping —
+> tracked below); My Week → a *panel* on Home; MOS owns **settlement grain** for B2B AR + retail pending
+> bills (ESB write-back gated on an API spike — inventory `gordi-esb-bak` first); reference data = ESB
+> feeds / MOS owns; vendored `doc-editor` + `data-grid` kit primitives (AGPL out); phone-first + bottom
+> tabs binding; bilingual en/id string catalog from the Home slice on; **backup/restore drill gates the
+> AR bridge**; authorization moves to **`shared.can(capability)` + admin-editable roles** (new modules
+> from day one, existing RLS opportunistic). **ORDER: Home v1 + `sales_margin_daily` → agent port
+> (P1–P3; ESB spike parallel) → Work spine (→ live management-week validation) → AR/pending-bills
+> bridge → Plan/reference data → activity roll-ins.** Full spines: `docs/adr/0019-ia-north-star.md`,
+> `docs/adr/0020-capability-authorization.md`.
+>
 > **2026-07-02 — Issue 1 COMPLETE (kit born); reporting live on staging; all on `dev`, not `main`:**
 > - **Sales dashboard SHIPPED to `dev`** — the value-first Issue-1 build that *births the primitive kit*:
 >   5 registry-ready primitives (`KPITile`/`ChartFrame`/`DataTable`/`FreshnessLabel`/`CutToggle` in
@@ -27,9 +40,11 @@ Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
 > - Node pinned to **22** via `mos-app/.nvmrc` (Vite needs 20.19+/22.12+).
 > - **NEXT (three parallel, non-colliding):** (1) **`sales_margin_daily`** read-model — margin/COGS depth
 >   from the warehouse `v_daily_cogs_comparison` (the "shallow data" answer + cashflow lens); (2) **font
->   regression fix** (see Debt — `.tabular`→SF Mono violates DESIGN.md); (3) **Issue 2** — extract the kit
->   into the primitive **registry** (ADR-0017 §4a). Then Issue 3 (query-DSL/compiler). Memory
->   `agent-native-ui-program`.
+>   regression fix** (see Debt — `.tabular`→SF Mono violates DESIGN.md — DONE 2026-07-02); (3) **Issue 2**
+>   — extract the kit into the primitive **registry** (ADR-0017 §4a). Then Issue 3 (query-DSL/compiler).
+>   **⚠ 2026-07-04 re-scope (ADR-0018): Issues 2–3 are no longer grown from scratch — the registry + DSL
+>   arrive by port from PMO as the ADR-0018 P1 train (substrate, shippable with zero agent); see the
+>   2026-07-04 banner above.** Memory `agent-native-ui-program`.
 >
 > **2026-06-30 — TWO NEW TRACKS (decisions on `dev`, not yet `main`):**
 > - **Agent-native / user-composed UI — ADR-0017 ACCEPTED** (merged to new `dev` branch; +ADR-0010

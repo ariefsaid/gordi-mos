@@ -31,10 +31,35 @@ reversible. Replaces hard deletion entirely; no task row is ever destroyed.
 _Avoid_: deleted, closed, cancelled (as a verb for this)
 
 **Business Unit**:
-One of Gordi's operating areas — Cafe Ops – General, Kitchen and Bar, Roastery, Sales – CRM,
-Finance and People. Every task and person belongs to one. (Mockups use a fictional 4-unit canon;
-the real five are what gets seeded.)
-_Avoid_: team, department, division
+A **team** in Gordi's org chart — Marketing, HR, Finance, Retail Ops, B2B Ops, B2B Sales. Owns
+people, objectives, and budgets; every task and person belongs to one. (The earlier operating-area
+canon — "Kitchen and Bar", "Cafe Ops – General" — is superseded: those are **Activities** or
+**Revenue streams**, not BUs. Seeded rows predate this and need re-mapping.)
+_Avoid_: department, division; operating area (that's an **Activity**)
+
+**Activity**:
+An **operating workstream within a BU** — kitchen, bar, ecommerce (inside Retail Ops); roasting
+(inside B2B Ops). The unit ops surfaces are organized around. A **Module** serves an Activity but
+usually covers only a slice of it (today's Kitchen module = plan/log/stock/review, one part of the
+kitchen Activity); Modules grow Features toward covering their Activity.
+_Avoid_: business unit (that's the owning team), app, module (that's the code)
+
+**Revenue stream**:
+A **reporting lens for money** — Cafe Ops (kitchen + bar POS), Ecommerce, B2B. May map 1:1 to an
+Activity or span several; owned by the reporting plane, not the org chart.
+_Avoid_: activity / BU (when grouping revenue), channel (reserve for the POS/B2B source field)
+
+**Follow-up**:
+A work item for chasing an outstanding commitment — a **B2B AR invoice** or a retail **Pending bill**.
+A task-family record (counterparty, amount, due) attached to the underlying money record; worked from
+a queue in **Work**, with comments/@mentions like any task.
+_Avoid_: reminder, chase (as nouns), collection (accounting jargon)
+
+**Pending bill**:
+A **retail** POS sale left unpaid at transaction time — mainly owners and regulars running a tab.
+Distinct from B2B AR (formal invoices). ESB records issuance and aggregate journal reductions only;
+invoice/tab-grain settlement truth is owned by MOS (today: sheets — to be ported).
+_Avoid_: AR (that's the B2B stream), tab (informal, UI copy ok), debt
 
 **Blocked**:
 A task that cannot proceed until something outside the R person's control resolves. Subsumes the
@@ -208,10 +233,23 @@ _Avoid_: role (reserve for org position), permission group, RACI role
 
 ## Surfaces
 
+**Home**:
+The hub surface at `/` every user lands on: a role-aware composition of KPI tiles with drill-downs
+plus the **My Week** panel. What a user's Home shows follows their access (finance sees revenue KPIs;
+a member sees their My Week + ops content dominant). "Dashboard" is acceptable UI copy for its KPI area.
+_Avoid_: My Week (as the name of the surface — that's a panel on it)
+
 **My Week**:
-The personal home surface: R-or-A task table grouped by urgency + weekly-update strip + ops strip
-(+ team module for managers).
-_Avoid_: dashboard, home page (in UI copy)
+The personal panel on **Home**: R-or-A task table grouped by urgency + weekly-update strip + ops strip
+(+ team module for managers). Formerly the home surface itself; now a component of Home.
+_Avoid_: home surface, home page (it's a panel, not the destination)
+
+**Inbox**:
+The **to-triage** destination: notifications, @mentions, approval requests. Routes the user to the
+entity where the conversation lives — conversation never happens *in* the Inbox. Binding rule:
+**MOS owns communication about work items** (comments/updates attached to a task, objective, log
+entry, follow-up); **free-form conversation stays outside MOS** (WhatsApp). Not a chat surface.
+_Avoid_: chat, messages, feed
 
 ## App structure
 
@@ -224,7 +262,7 @@ A coarse functional area of MOS — e.g. Tasks, Weekly Updates, Daily Log, Kitch
 What were once standalone "apps" become Modules within the one MOS app. Names the *producer* in
 cross-cutting seams: the ESB-outbox `source_module` and a Daily Log entry's `origin` identify the
 emitting Module. Distinct from a **Feature** (finer capability *within* a Module) and from a
-**Business Unit** (a company operating area, e.g. Kitchen and Bar — a Module may serve one or more BUs).
+**Business Unit** (the owning team) and from an **Activity** (the operating workstream a Module serves — a Module usually covers one slice of one Activity).
 _Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained, below)
 
 **Feature**:
@@ -268,9 +306,34 @@ way — the guard against "my sales ≠ your sales." **Financial-statement figur
 that affect them are second-class** — both demand a certified definition before exposure.
 _Avoid_: KPI, measure, number (when an agreed definition is the point)
 
+**Reference data**:
+Shared **records** with **one owning BU and many consuming BUs** — COGS per menu item, ingredient
+costs, recipes, price lists. Maintained in exactly **one place** in MOS by the owner; every consumer
+reads that same record, with **visible freshness** ("as of", who last updated) and change history.
+The record analog of a **Certified metric** (which blesses a *figure's definition*; reference data
+blesses the *record itself*). Exists to kill the forked-spreadsheet failure: a consumer never copies
+reference data into their own artifact — they link it.
+_Avoid_: master data (jargon), lookup table (implementation), "the sheet"
+
 **OLTP / OLAP** (the engagement/analysis split):
 **OLTP** = MOS itself — the live system of *engagement* (per-user reads/writes, auth, RLS). **OLAP** = the
 ESB analytics warehouse — the system of *analysis* (batch, heavy-read, multi-company history). Kept as
 **separate** datastores on principle; only **curated snapshots** cross from OLAP into MOS's reporting
 read-model. *Consolidate engagement; federate analysis; never merge the two.* (ADR-0010.)
 _Avoid_: "the database" (say which), warehouse-as-app-backend, app-DB-as-warehouse
+
+**Port** (of the agent stack):
+The adoption posture for the agent-composed-UI machinery: **copy-adapt** proven code from the sibling
+internal project into MOS, after which **MOS owns its copy outright** — no shared package, no runtime
+dependency, no automatic sync. Upstream improvements arrive only by deliberate **cherry-pick**, re-reviewed
+under MOS's own gates. (ADR-0018.)
+_Avoid_: DRY/shared-library (rejected — couples two drifting apps), fork (implies tracking an upstream),
+vendor (implies third-party code)
+
+**Grounded answer**:
+A deputy-agent reply whose **every data claim traces to a tool result returned in that conversation**. No
+data queried → the agent must query, not recall; empty or failed read → the agent says so and stops —
+never estimates or fills gaps; any non-live figure carries its **as-of** time. Binding for all deputy
+surfaces regardless of the user's access level.
+_Avoid_: "accurate answer" (accuracy is the outcome; grounding is the discipline), "no hallucination" (names
+the failure, not the rule)

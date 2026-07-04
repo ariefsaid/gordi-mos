@@ -61,3 +61,22 @@ both PMO and MOS show repeated use of the same components).
 > DAL seam · the now-online OLAP warehouse) the architecture is unusually ready for. Build is value-first
 > (Issue 1 = a mobile-first operational dashboard that births the primitive kit). Tracked in
 > `docs/platform-workstream-status.md` §Current focus + `docs/reference/warehouse-online.md`.
+>
+> **Note on the agent-stack port (2026-07-04):** ADR-0018 **Accepted** (OD-AN-3) — MOS **ports PMO's
+> native agent stack** (copy-adapt, no shared package, no auto-sync), superseding ADR-0017 D8's retired
+> sidecar and re-scoping D9 + §4a Issues 2–3 (the registry/DSL now **arrive by port, not grown from
+> scratch**). Runtime = same-origin Supabase Edge Functions (no MOS backend tier; the VPS-Node option
+> rejected); MOS adds a binding, test-enforced **grounding NFR** PMO lacks. **Sequencing (ADR-0018 D6):**
+> next = the `sales_margin_daily` read-model + the **My-Week-replacement dashboard**; **then** the port in
+> three trains — **P1 substrate** (shippable with zero conversational agent) → **P2 panel+runtime** →
+> **P3 batteries** — each through the full loop, each independently shippable, cherry-pick window
+> between trains. Tracked in `docs/backlog.md` (2026-07-04 banner) + `docs/platform-workstream-status.md`.
+>
+> **IA north-star (2026-07-04):** ADR-0019 **Accepted** (OD-IA-1) — five fixed destinations (**Home /
+> Work / Operate / Plan / Inbox** + Admin); taxonomy BU(team)/Activity(workstream)/Revenue-stream(lens);
+> Home replaces My Week as `/` (My Week survives as a panel); phone-first + bottom tabs binding;
+> bilingual en/id from the Home slice on. ADR-0020 **Accepted** (OD-IA-2) — `can()` capability
+> authorization with admin-editable roles. **Refined order:** Home v1 + `sales_margin_daily` → agent
+> port P1–P3 (ESB-API spike parallel) → Work spine (objective→task for everyone + follow-up family →
+> live management-week validation) → AR/pending-bills bridge (backup-drill gated) → Plan/reference data
+> → activity roll-ins (bar/roastery/ecommerce, per ops pain). Full spine: `docs/adr/0019-ia-north-star.md`.
