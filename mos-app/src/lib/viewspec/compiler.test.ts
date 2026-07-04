@@ -73,4 +73,15 @@ describe('compileCompositionSpec — AC-UV-005/006 (boundary)', () => {
   it('rejects an empty panel array', () => {
     expect(() => compileCompositionSpec(spec([]), ctx)).toThrow()
   })
+  it('rejects more than MAX_PANELS_PER_VIEW (20) panels', () => {
+    const tooMany = Array.from({ length: 21 }, (_, i) => ({ ...goodPanel, id: `p${i}` }))
+    expect(() => compileCompositionSpec(spec(tooMany), ctx)).toThrowError(/UNSUPPORTED_VERSION/)
+  })
+  it('propagates a non-ValidationError thrown while compiling a panel unchanged', () => {
+    // A malformed querySpec whose `select` is not an array blows up inside compileQuerySpec's
+    // `for (const col of spec.select)` with a native TypeError, not a ValidationError — the
+    // boundary must not swallow or recode a genuine bug as a ValidationError.
+    const brokenPanel = { id: 'p1', primitive: 'DataTable', querySpec: { entity: 'tasks', select: null } }
+    expect(() => compileCompositionSpec(spec([brokenPanel as never]), ctx)).toThrow(TypeError)
+  })
 })

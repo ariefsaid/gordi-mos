@@ -20,22 +20,23 @@ interface Recorder {
   selects: string[]
   limits: number[]
   orders: Array<[string, unknown]>
+  calls: Array<[string, unknown[]]>
 }
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], limits: [], orders: [] }
+  return { fromTables: [], selects: [], limits: [], orders: [], calls: [] }
 }
 function makeSchema(finalData: unknown[], finalError: unknown, rec: Recorder) {
   const fromImpl = (table: string) => {
     rec.fromTables.push(table)
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
-    builder.eq = vi.fn(() => builder)
-    builder.neq = vi.fn(() => builder)
-    builder.in = vi.fn(() => builder)
-    builder.gt = vi.fn(() => builder)
-    builder.gte = vi.fn(() => builder)
-    builder.lt = vi.fn(() => builder)
-    builder.lte = vi.fn(() => builder)
+    builder.eq = vi.fn((...args: unknown[]) => { rec.calls.push(['eq', args]); return builder })
+    builder.neq = vi.fn((...args: unknown[]) => { rec.calls.push(['neq', args]); return builder })
+    builder.in = vi.fn((...args: unknown[]) => { rec.calls.push(['in', args]); return builder })
+    builder.gt = vi.fn((...args: unknown[]) => { rec.calls.push(['gt', args]); return builder })
+    builder.gte = vi.fn((...args: unknown[]) => { rec.calls.push(['gte', args]); return builder })
+    builder.lt = vi.fn((...args: unknown[]) => { rec.calls.push(['lt', args]); return builder })
+    builder.lte = vi.fn((...args: unknown[]) => { rec.calls.push(['lte', args]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
     builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.then = (resolve: (v: unknown) => unknown) =>
@@ -76,6 +77,28 @@ describe('executeCompiledQuery — AC-UV-008 (schema-scoped dispatch)', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema([], { message: 'boom' }, rec) as never)
     await expect(executeCompiledQuery(mkCompiled())).rejects.toThrow(/executeCompiledQuery failed — boom/)
+  })
+  it('applies every resolved filter op + orderBy onto the query chain (FR-UV-006)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema([], null, rec) as never)
+    await executeCompiledQuery(mkCompiled({
+      resolvedFilters: [
+        { column: 'status', op: 'eq', value: 'Open' },
+        { column: 'status', op: 'neq', value: 'Done' },
+        { column: 'status', op: 'in', value: ['Open', 'Blocked'] },
+        { column: 'due_date', op: 'gt', value: '2026-01-01' },
+        { column: 'due_date', op: 'gte', value: '2026-01-01' },
+        { column: 'due_date', op: 'lt', value: '2026-12-31' },
+        { column: 'due_date', op: 'lte', value: '2026-12-31' },
+        { column: 'due_date', op: 'between', value: ['2026-01-01', '2026-12-31'] },
+        { column: 'due_date', op: 'date-range', value: ['2026-01-01', '2026-12-31'] },
+      ],
+      resolvedOrderBy: { column: 'due_date', dir: 'asc' },
+    }))
+    expect(rec.calls.map(([op]) => op)).toEqual(
+      ['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'gte', 'lte', 'gte', 'lte']
+    )
+    expect(rec.orders).toEqual([['due_date', { ascending: true }]])
   })
 })
 
