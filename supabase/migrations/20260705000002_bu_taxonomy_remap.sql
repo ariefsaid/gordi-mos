@@ -70,53 +70,77 @@ begin
     --      Roastery            -> B2B Ops      (b2b_ops)
     --      Sales – CRM         -> B2B Sales    (b2b_sales)
     --      Finance and People  -> Finance      (finance)  -- HR ambiguity, see header note above
+    --
+    --    SECURITY (org scope): every UPDATE below carries an explicit `and org_id = <Gordi org>`
+    --    predicate, not just a `business_unit_id in (...)` filter. BU ids are globally unique
+    --    (uuid pk) and today no cross-org row references a Gordi BU id, so the unqualified form
+    --    would happen to be safe — but only emergently. A security-audit finding on this same
+    --    remap noted a pre-existing guard gap elsewhere (an org-B member CAN insert a row that
+    --    references a Gordi BU id past the app-level guard); if such a row ever existed, an
+    --    unscoped UPDATE here would silently re-home it into org B's read path. The org_id
+    --    predicate makes this migration's own org boundary explicit and independent of that gap.
+    --    (This migration runs as postgres — the RLS-based per-row org isolation that normally
+    --    protects the app doesn't apply to a superuser session, so the explicit predicate is the
+    --    only thing enforcing org-scope here, not "RLS already handles it".)
     update shared.roles
        set business_unit_id = '20000000-0000-0000-0000-000000000014' -- Retail Ops
      where business_unit_id in (
        '20000000-0000-0000-0000-000000000001', -- Cafe Ops – General
        '20000000-0000-0000-0000-000000000002'  -- Kitchen and Bar
-     );
+     )
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update shared.roles
        set business_unit_id = '20000000-0000-0000-0000-000000000015' -- B2B Ops
-     where business_unit_id = '20000000-0000-0000-0000-000000000003'; -- Roastery
+     where business_unit_id = '20000000-0000-0000-0000-000000000003' -- Roastery
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update shared.roles
        set business_unit_id = '20000000-0000-0000-0000-000000000016' -- B2B Sales
-     where business_unit_id = '20000000-0000-0000-0000-000000000004'; -- Sales – CRM
+     where business_unit_id = '20000000-0000-0000-0000-000000000004' -- Sales – CRM
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update shared.roles
        set business_unit_id = '20000000-0000-0000-0000-000000000013' -- Finance
-     where business_unit_id = '20000000-0000-0000-0000-000000000005'; -- Finance and People
+     where business_unit_id = '20000000-0000-0000-0000-000000000005' -- Finance and People
+       and org_id = '10000000-0000-0000-0000-000000000001';
 
     update mos.tasks
        set business_unit_id = '20000000-0000-0000-0000-000000000014' -- Retail Ops
      where business_unit_id in (
        '20000000-0000-0000-0000-000000000001',
        '20000000-0000-0000-0000-000000000002'
-     );
+     )
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update mos.tasks
        set business_unit_id = '20000000-0000-0000-0000-000000000015' -- B2B Ops
-     where business_unit_id = '20000000-0000-0000-0000-000000000003';
+     where business_unit_id = '20000000-0000-0000-0000-000000000003'
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update mos.tasks
        set business_unit_id = '20000000-0000-0000-0000-000000000016' -- B2B Sales
-     where business_unit_id = '20000000-0000-0000-0000-000000000004';
+     where business_unit_id = '20000000-0000-0000-0000-000000000004'
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update mos.tasks
        set business_unit_id = '20000000-0000-0000-0000-000000000013' -- Finance
-     where business_unit_id = '20000000-0000-0000-0000-000000000005';
+     where business_unit_id = '20000000-0000-0000-0000-000000000005'
+       and org_id = '10000000-0000-0000-0000-000000000001';
 
     update ops.log_entries
        set business_unit_id = '20000000-0000-0000-0000-000000000014' -- Retail Ops
      where business_unit_id in (
        '20000000-0000-0000-0000-000000000001',
        '20000000-0000-0000-0000-000000000002'
-     );
+     )
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update ops.log_entries
        set business_unit_id = '20000000-0000-0000-0000-000000000015' -- B2B Ops
-     where business_unit_id = '20000000-0000-0000-0000-000000000003';
+     where business_unit_id = '20000000-0000-0000-0000-000000000003'
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update ops.log_entries
        set business_unit_id = '20000000-0000-0000-0000-000000000016' -- B2B Sales
-     where business_unit_id = '20000000-0000-0000-0000-000000000004';
+     where business_unit_id = '20000000-0000-0000-0000-000000000004'
+       and org_id = '10000000-0000-0000-0000-000000000001';
     update ops.log_entries
        set business_unit_id = '20000000-0000-0000-0000-000000000013' -- Finance
-     where business_unit_id = '20000000-0000-0000-0000-000000000005';
+     where business_unit_id = '20000000-0000-0000-0000-000000000005'
+       and org_id = '10000000-0000-0000-0000-000000000001';
 
     -- ops.kitchen_logs: every row belongs to the kitchen Activity (Retail Ops team BU) — the
     -- highest-traffic FK, and the one resolveKitchenBuId() writes going forward via code = 'retail_ops'.
@@ -125,7 +149,8 @@ begin
      where business_unit_id in (
        '20000000-0000-0000-0000-000000000001',
        '20000000-0000-0000-0000-000000000002'
-     );
+     )
+       and org_id = '10000000-0000-0000-0000-000000000001';
 
     -- 5. Retire the 5 legacy operating-area BUs. Verified zero remaining app-table FK references
     --    (the updates above cover every table with a business_unit_id column: shared.roles,
@@ -147,29 +172,67 @@ begin
   end if;
 end $$;
 
--- DOWN (full reverse mapping):
---   alter table shared.business_units drop column code;
---   alter table shared.business_units drop column archived_at;
---   drop index if exists shared.business_units_code_unique;
+-- DOWN (full reverse mapping — restore data BEFORE dropping the code/archived_at columns the
+-- restore reads/writes; every reverse UPDATE spelled out explicitly per table, not abbreviated,
+-- so this block is executable as written):
+--
+--   -- 1. Un-retire the 5 legacy rows: NB `trim(trailing ' (legacy)' from name)` is WRONG here —
+--   --    SQL's trim(trailing <chars> from <string>) is a character-SET trim, not a substring trim,
+--   --    so it would strip any trailing run of the characters '(legacy)' or ' ' individually and
+--   --    corrupt a name like 'General' -> 'Gener' (trailing 'e'/'l' chars happen to appear in the
+--   --    set). Use regexp_replace with an anchored literal suffix match instead.
+--   update shared.business_units
+--      set name = regexp_replace(name, ' \(legacy\)$', ''),
+--          archived_at = null
+--    where id in (
+--      '20000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002',
+--      '20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000004',
+--      '20000000-0000-0000-0000-000000000005'
+--    );
+--
+--   -- 2. Re-point every FK back to its legacy BU (best-effort: Retail Ops rows that originated
+--   --    from Cafe Ops – General cannot be distinguished from Kitchen-and-Bar-origin rows
+--   --    post-merge; reversing re-targets ALL of them at Kitchen and Bar as the representative).
 --   update shared.roles set business_unit_id = '20000000-0000-0000-0000-000000000002' -- Kitchen and Bar
---     where business_unit_id = '20000000-0000-0000-0000-000000000014'; -- (best-effort: Retail Ops rows
---     -- that originated from Cafe Ops – General cannot be distinguished from Kitchen-and-Bar-origin
---     -- rows post-merge; reversing re-targets all of them at Kitchen and Bar as the representative.)
+--     where business_unit_id = '20000000-0000-0000-0000-000000000014'; -- Retail Ops
 --   update shared.roles set business_unit_id = '20000000-0000-0000-0000-000000000003' -- Roastery
 --     where business_unit_id = '20000000-0000-0000-0000-000000000015'; -- B2B Ops
 --   update shared.roles set business_unit_id = '20000000-0000-0000-0000-000000000004' -- Sales – CRM
 --     where business_unit_id = '20000000-0000-0000-0000-000000000016'; -- B2B Sales
 --   update shared.roles set business_unit_id = '20000000-0000-0000-0000-000000000005' -- Finance and People
 --     where business_unit_id = '20000000-0000-0000-0000-000000000013'; -- Finance
---   -- (repeat the 4 updates above for mos.tasks, ops.log_entries, ops.kitchen_logs)
---   update shared.business_units set name = trim(trailing ' (legacy)' from name), archived_at = null
---     where id in (
---       '20000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002',
---       '20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000004',
---       '20000000-0000-0000-0000-000000000005'
---     );
+--
+--   update mos.tasks set business_unit_id = '20000000-0000-0000-0000-000000000002' -- Kitchen and Bar
+--     where business_unit_id = '20000000-0000-0000-0000-000000000014'; -- Retail Ops
+--   update mos.tasks set business_unit_id = '20000000-0000-0000-0000-000000000003' -- Roastery
+--     where business_unit_id = '20000000-0000-0000-0000-000000000015'; -- B2B Ops
+--   update mos.tasks set business_unit_id = '20000000-0000-0000-0000-000000000004' -- Sales – CRM
+--     where business_unit_id = '20000000-0000-0000-0000-000000000016'; -- B2B Sales
+--   update mos.tasks set business_unit_id = '20000000-0000-0000-0000-000000000005' -- Finance and People
+--     where business_unit_id = '20000000-0000-0000-0000-000000000013'; -- Finance
+--
+--   update ops.log_entries set business_unit_id = '20000000-0000-0000-0000-000000000002' -- Kitchen and Bar
+--     where business_unit_id = '20000000-0000-0000-0000-000000000014'; -- Retail Ops
+--   update ops.log_entries set business_unit_id = '20000000-0000-0000-0000-000000000003' -- Roastery
+--     where business_unit_id = '20000000-0000-0000-0000-000000000015'; -- B2B Ops
+--   update ops.log_entries set business_unit_id = '20000000-0000-0000-0000-000000000004' -- Sales – CRM
+--     where business_unit_id = '20000000-0000-0000-0000-000000000016'; -- B2B Sales
+--   update ops.log_entries set business_unit_id = '20000000-0000-0000-0000-000000000005' -- Finance and People
+--     where business_unit_id = '20000000-0000-0000-0000-000000000013'; -- Finance
+--
+--   -- ops.kitchen_logs only ever moved Retail-Ops-ward (Cafe Ops / Kitchen and Bar), so it has a
+--   -- single reverse target (Kitchen and Bar, the historical kitchen-log BU).
+--   update ops.kitchen_logs set business_unit_id = '20000000-0000-0000-0000-000000000002' -- Kitchen and Bar
+--     where business_unit_id = '20000000-0000-0000-0000-000000000014'; -- Retail Ops
+--
+--   -- 3. Remove the 6 team BUs (now unreferenced by any FK after step 2).
 --   delete from shared.business_units where id in (
 --     '20000000-0000-0000-0000-000000000011','20000000-0000-0000-0000-000000000012',
 --     '20000000-0000-0000-0000-000000000013','20000000-0000-0000-0000-000000000014',
 --     '20000000-0000-0000-0000-000000000015','20000000-0000-0000-0000-000000000016'
 --   );
+--
+--   -- 4. Drop the schema additions last (nothing above reads them anymore).
+--   drop index if exists shared.business_units_code_unique;
+--   alter table shared.business_units drop column code;
+--   alter table shared.business_units drop column archived_at;

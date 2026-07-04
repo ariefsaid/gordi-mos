@@ -703,7 +703,7 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
 
   it('renders an error state (not the form) when the kitchen BU cannot be resolved', async () => {
     mockResolveKitchenBuId.mockRejectedValue(
-      new Error('Kitchen business unit ("Kitchen and Bar") not found — cannot log without it.'),
+      new Error('Kitchen business unit (code "retail_ops") not found — cannot log without it.'),
     )
     await renderPage()
     await waitFor(() => {
