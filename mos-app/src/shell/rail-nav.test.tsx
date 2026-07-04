@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { RailNav } from './rail-nav'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 // RailNav now reads useAuth to role-filter the Kitchen group.
 vi.mock('@/auth/use-auth')
@@ -42,51 +42,80 @@ function LocationDisplay() {
 
 function renderRailNav(initialPath: string) {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route
-          path="*"
-          element={
-            <>
-              <RailNav />
-              <LocationDisplay />
-            </>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <RailNav />
+                <LocationDisplay />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   setAuthAs([]) // plain member by default
 })
 
-// AC-002: nav-only rail (ADR-0013 D1 — workspace switcher + search + user chip moved to top bar)
-describe('AC-002: Rail contents', () => {
-  it('shows the Workspace section label and nav links (no switcher/search/userchip)', () => {
+// Group labels are non-interactive <div>s; link text can coincidentally match a
+// label (e.g. the "Plan" kitchen link vs a would-be "Plan" destination group), so
+// group-label lookups scope to a div, distinct from getByRole('link', ...).
+function groupLabel(text: string) {
+  return screen.getByText(text, { selector: 'div' })
+}
+function queryGroupLabel(text: string) {
+  return screen.queryByText(text, { selector: 'div' })
+}
+
+// AC-RG01: rail regroup — DESTINATIONS is the single source of truth (plan §1.5/§4.2).
+describe('AC-RG01: Rail regroup — destination groups', () => {
+  it('renders the "Home" and "Work" destination group labels', () => {
     renderRailNav('/tasks')
-    // Workspace section label still present
-    expect(screen.getByText('Workspace')).toBeInTheDocument()
-    // Brand / switcher and search are now in the top bar — not in the rail
-    expect(screen.queryByRole('button', { name: /Gordi MOS workspace/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(groupLabel('Home')).toBeInTheDocument()
+    expect(groupLabel('Work')).toBeInTheDocument()
   })
 
-  it('renders the visible nav links in order (My Week / Tasks always; Weekly Updates / Daily Log per feature flag)', () => {
+  it('AC-RG01: Kitchen links appear under the "Operate" group label', () => {
+    renderRailNav('/kitchen/log')
+    expect(groupLabel('Operate')).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Log' })).toBeInTheDocument()
+  })
+
+  it('AC-RG01: Tasks link appears under the "Work" group label', () => {
     renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const links = within(nav).getAllByRole('link')
-    // The Kitchen group (Log/Plan/Stock at minimum) is also rendered — count all links
-    const workspaceExpected = [
-      'My Week',
-      'Tasks',
-      ...(SHOW_WEEKLY_UPDATES ? ['Weekly Updates'] : []),
-      ...(SHOW_DAILY_LOG ? ['Daily Log'] : []),
-    ]
-    // Workspace links are the first N links; Kitchen links follow
-    workspaceExpected.forEach((name, i) => expect(links[i]).toHaveAccessibleName(name))
+    const workLabel = groupLabel('Work')
+    // The Tasks link is the sibling immediately following the Work label's link group
+    expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    expect(workLabel).toBeInTheDocument()
+  })
+
+  it('does NOT render Plan or Inbox group labels (not live today — AC-D01)', () => {
+    renderRailNav('/tasks')
+    expect(queryGroupLabel('Plan')).toBeNull()
+    expect(queryGroupLabel('Inbox')).toBeNull()
+  })
+
+  it('does NOT render a Sales group in the rail (drill-only per plan §1.5)', () => {
+    setAuthAs(['finance'])
+    renderRailNav('/tasks')
+    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
+  })
+
+  it('the Home link has href "/" and label "Home"', () => {
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
   })
 
   it('has no badge-count elements', () => {
@@ -120,12 +149,12 @@ describe('AC-003: Active nav per route', () => {
     expect(activeLinks[0]).toHaveAccessibleName('Tasks')
   })
 
-  it('My Week link has aria-current=page when at /', () => {
+  it('Home link has aria-current=page when at /', () => {
     renderRailNav('/')
     const links = screen.getAllByRole('link')
     const activeLinks = links.filter((l) => l.getAttribute('aria-current') === 'page')
     expect(activeLinks).toHaveLength(1)
-    expect(activeLinks[0]).toHaveAccessibleName('My Week')
+    expect(activeLinks[0]).toHaveAccessibleName('Home')
   })
 })
 
@@ -159,14 +188,14 @@ describe('FIX-5: Settings reachable by assistive technology', () => {
 
 // AC-S05: rail is nav-only after the top-bar revamp — no switcher, no search, no user chip
 describe('AC-S05: rail is navigation-only', () => {
-  it('AC-S05: rail has nav group + Settings only — no switcher/search/userchip', () => {
+  it('AC-S05: rail has destination groups + Settings only — no switcher/search/userchip', () => {
     renderRailNav('/tasks')
     // No workspace switcher button
     expect(screen.queryByRole('button', { name: /Gordi MOS workspace/ })).toBeNull()
     // No in-rail search button
     expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
-    // Nav group label still present
-    expect(screen.getByText('Workspace')).toBeInTheDocument()
+    // Destination group labels still present
+    expect(screen.getByText('Work')).toBeInTheDocument()
     // Settings stub still present
     expect(screen.getByText('Settings')).toBeInTheDocument()
     // No user chip in the rail — the named button for the viewer should not exist
@@ -176,23 +205,23 @@ describe('AC-S05: rail is navigation-only', () => {
 
 // AC-D02 (RI-2): label/meta roles use the tertiary ramp (text-muted-foreground ≈4.6:1
 // on dark), never the failing --ds-font-color-light ramp (≈3.1:1, fails WCAG-AA).
-// ADR-0013 Decision 2. The rail's "Workspace" group label + inactive nav labels are
-// meta roles; they must carry text-muted-foreground.
+// ADR-0013 Decision 2. Destination group labels + inactive nav labels are meta roles;
+// they must carry text-muted-foreground.
 describe('AC-D02: rail label/meta roles use the muted-foreground (tertiary) ramp', () => {
-  it('AC-D02: Workspace group label carries text-muted-foreground (not the light ramp)', () => {
+  it('AC-D02: a destination group label carries text-muted-foreground (not the light ramp)', () => {
     renderRailNav('/tasks')
-    const label = screen.getByText('Workspace')
+    const label = screen.getByText('Work')
     expect(label.className).toMatch(/text-muted-foreground/)
     expect(label.className).not.toMatch(/text-light|font-color-light/)
   })
 
   it('AC-D02: an inactive nav label uses text-muted-foreground, not the light ramp', () => {
-    // At /tasks, "My Week" is inactive → its link wrapper is muted-foreground.
+    // At /tasks, "Home" is inactive → its link wrapper is muted-foreground.
     renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const myWeek = within(nav).getByRole('link', { name: /My Week/ })
-    expect(myWeek.className).toMatch(/text-muted-foreground/)
-    expect(myWeek.className).not.toMatch(/text-light|font-color-light/)
+    const home = within(nav).getByRole('link', { name: 'Home' })
+    expect(home.className).toMatch(/text-muted-foreground/)
+    expect(home.className).not.toMatch(/text-light|font-color-light/)
   })
 })
 
@@ -208,16 +237,16 @@ describe('AC-015: Nav icon semantics', () => {
   })
 })
 
-// ── Kitchen nav group (AC-KIT-001 … AC-KIT-004) ───────────────────────────────
-describe('AC-KIT-001: Kitchen group renders in the nav', () => {
-  it('AC-KIT-001: "Kitchen" group heading is visible in the nav', () => {
+// ── Kitchen nav group (AC-KIT-001 … AC-KIT-004) — now under the "Operate" destination ──
+describe('AC-KIT-001: Kitchen links render under the Operate destination group', () => {
+  it('AC-KIT-001: "Operate" group heading is visible in the nav', () => {
     renderRailNav('/kitchen/log')
-    expect(screen.getByText('Kitchen')).toBeInTheDocument()
+    expect(screen.getByText('Operate')).toBeInTheDocument()
   })
 
-  it('AC-KIT-001: Kitchen group heading uses text-muted-foreground (same as Workspace)', () => {
+  it('AC-KIT-001: Operate group heading uses text-muted-foreground (same as other groups)', () => {
     renderRailNav('/tasks')
-    const heading = screen.getByText('Kitchen')
+    const heading = screen.getByText('Operate')
     expect(heading.className).toMatch(/text-muted-foreground/)
   })
 
@@ -368,31 +397,17 @@ describe('AC-002/003: cascade catalog nav visibility', () => {
   })
 })
 
-// ── Sales dashboard nav (FR-001/AC-001/002, sales-dashboard.spec.md) — finance/admin only ──
-describe('Sales dashboard nav visibility', () => {
-  it('plain member does NOT see the Sales nav entry', () => {
-    setAuthAs(['member'])
-    renderRailNav('/tasks')
-    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
-  })
-
-  it('ops_lead (without finance/admin) does NOT see the Sales nav entry', () => {
-    setAuthAs(['ops_lead'])
-    renderRailNav('/tasks')
-    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
-  })
-
-  it('finance viewer sees the Sales nav entry with href /sales', () => {
+// ── Sales dashboard nav — dropped from the rail (drill-only, plan §1.5) ────────
+describe('Sales dashboard is NOT in the rail (drill-only per Home KPI + ⌘K)', () => {
+  it('finance viewer does NOT see a Sales nav entry in the rail', () => {
     setAuthAs(['finance'])
     renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Sales' })).toHaveAttribute('href', '/sales')
+    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
   })
 
-  it('admin viewer sees the Sales nav entry', () => {
+  it('admin viewer does NOT see a Sales nav entry in the rail', () => {
     setAuthAs(['admin'])
     renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Sales' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
   })
 })
