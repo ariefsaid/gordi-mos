@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 
@@ -10,6 +11,29 @@ import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
 import { AppShell } from './app-shell'
+
+// AC-T01/T03 (plan §4.4): the shell renders a tabbar grid row + <BottomTabBar/>
+// only at narrow viewport. Real matchMedia-backed useIsNarrow is exercised by
+// the wide-viewport tests below (jsdom default: matches=false → wide); the
+// narrow-viewport tests override matchMedia to simulate a phone viewport.
+function setNarrow(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
+afterEach(() => {
+  setNarrow(false)
+})
 
 function renderShell(path = '/') {
   mockUseAuth.mockReturnValue({
@@ -33,13 +57,15 @@ function renderShell(path = '/') {
   })
 
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div role="main">page</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div role="main">page</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 
@@ -135,5 +161,31 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     renderShell()
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+  })
+})
+
+// Plan §4.4 (AC-T01/T03): phone chrome gains a tabbar grid row + BottomTabBar.
+describe('AC-T01/AC-T03: AppShell tabbar row (narrow viewport)', () => {
+  it('AC-T03: at wide viewport, the shell grid has no tabbar row and BottomTabBar does not render', () => {
+    setNarrow(false)
+    const { container } = renderShell()
+    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
+    expect(shellGrid).not.toBeNull()
+    expect(shellGrid!.style.gridTemplateAreas).not.toContain('tabbar')
+    // Two "Primary" navs would exist if BottomTabBar rendered alongside the rail's nav.
+    expect(screen.getAllByRole('navigation', { name: 'Primary' })).toHaveLength(1)
+  })
+
+  it('AC-T01: at narrow viewport, the shell grid gains a tabbar row and BottomTabBar renders', () => {
+    setNarrow(true)
+    const { container } = renderShell()
+    const shellGrid = container.querySelector('[style*="display: grid"]') as HTMLElement | null
+    expect(shellGrid).not.toBeNull()
+    expect(shellGrid!.style.gridTemplateAreas).toContain('tabbar')
+    expect(shellGrid!.style.gridTemplateRows).toContain('var(--tabbar-h)')
+    // BottomTabBar's "Primary" nav is present alongside the rail being hidden.
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(nav).toBeInTheDocument()
+    expect(container.querySelector(':scope > aside')).toBeNull()
   })
 })
