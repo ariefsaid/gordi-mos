@@ -1,7 +1,8 @@
 import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
-import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon } from './icons'
+import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon } from './icons'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
 /**
  * DESTINATIONS — the single source of truth for both chromes (plan §1.5).
@@ -34,7 +35,14 @@ export const DESTINATIONS: Destination[] = [
     id: 'work',
     labelKey: 'dest.work',
     Icon: TasksIcon,
-    links: [{ path: '/tasks', label: 'Tasks', Icon: TasksIcon }],
+    // Work owns tasks + updates + the daily log (ADR-0019 D2); the flag-gated
+    // routes must reappear here when their flags flip on (they left SECTIONS-driven
+    // rendering when the rail moved to DESTINATIONS).
+    links: [
+      { path: '/tasks', label: 'Tasks', Icon: TasksIcon },
+      ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon }] : []),
+      ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', Icon: OpsIcon }] : []),
+    ],
   },
   {
     id: 'operate',
