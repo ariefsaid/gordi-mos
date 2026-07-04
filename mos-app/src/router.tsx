@@ -5,7 +5,7 @@ import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
-import { MyWeek } from './pages/my-week'
+import { HomePage } from './pages/home-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
@@ -31,7 +31,8 @@ import { UiGallery } from './pages/ui-gallery'
 //   /recovery     → RecoveryPage
 // / (ProtectedRoute gate) — authenticated viewers only
 //   AppShell (layout route — rail + header + drawer, persistent across nav)
-//     /           → MyWeek (index)
+//     /           → HomePage (index) — ADR-0019 D2/D3; MyWeek survives as a component
+//                   (rendered inline via MyWeekPanel) but is no longer routed here.
 //     /tasks      → TasksLayout (ADR-0007 split-view shell — persistent table + <Outlet> drawer)
 //                     (index)        → table full width (.split.nodrawer)
 //       /tasks/new      → TaskDrawer (create mode, beside the table)
@@ -63,7 +64,7 @@ export const routeConfig: RouteObject[] = [
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <MyWeek /> },
+          { index: true, element: <HomePage /> },
           {
             path: 'tasks',
             element: <TasksLayout />,

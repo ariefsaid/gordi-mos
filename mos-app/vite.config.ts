@@ -73,6 +73,11 @@ export default defineConfig({
         'src/pages/OpsPage.tsx',
         'src/pages/OpsAddForm.tsx',
         'src/pages/NotFoundPage.tsx',
+        // Home v1 (ADR-0019 D2/D3) — the index-route replacement for MyWeek + its
+        // pure KPI selectors.
+        'src/pages/home-page.tsx',
+        'src/lib/home-kpis.ts',
+        'src/i18n/**',
         'src/shell/**',
         // P2-2b: weekly update components
         'src/components/weekly/**',
