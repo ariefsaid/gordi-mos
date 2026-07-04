@@ -122,4 +122,26 @@ describe('DevViewsPage — AC-UV-018', () => {
     const nameInput = await screen.findByLabelText('View name') as HTMLInputElement
     await waitFor(() => expect(nameInput.value).toBe('My view'))
   })
+
+  it('invalid JSON + Save shows the invalid-JSON status and never calls createUserView', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const user = userEvent.setup()
+    render(<DevViewsPage />, { wrapper })
+
+    const textarea = await screen.findByLabelText('Composition spec (JSON)')
+    fireEvent.change(textarea, { target: { value: '{ not valid json' } })
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Invalid JSON — fix and try again')).toBeInTheDocument()
+    expect(mockCreateUserView).not.toHaveBeenCalled()
+  })
+
+  it('renders each saved view as a link in the list when views exist', async () => {
+    mockListUserViews.mockResolvedValue([SAVED_ROW])
+    render(<DevViewsPage />, { wrapper })
+
+    const link = await screen.findByRole('link', { name: 'My view' })
+    expect(link).toHaveAttribute('href', '/mos/dev/views/v1')
+    expect(screen.queryByText('No saved views yet')).not.toBeInTheDocument()
+  })
 })
