@@ -8,7 +8,9 @@
  *   - RunContext keeps ONLY `route` — `entity`/`selection` are P3 (no live-context grounding hint
  *     in P2, plan §Phase E T21).
  *   - SupabaseLike/SupabaseLikeWithWrites gain `.schema(schemaName)` — the MOS delta (multi-schema
- *     read/write dispatch, D2) vs the reference's single-schema `public` interface.
+ *     read/write dispatch, D2) vs the reference's single-schema `public` interface. The filter
+ *     builder supports chained `.eq().eq()` + `.maybeSingle()` (post_update's two-column lookup,
+ *     T16) alongside `.in()`/`.limit()` (query_entity's read shape).
  *   - DeputyContext gains `personId` (D1 — resolved by decoding the caller JWT, not a profiles
  *     lookup) and `accessRoles`.
  *   - QuestionPayload (ask_user) is DROPPED — P3.
@@ -42,6 +44,32 @@ export interface RunContext {
 }
 
 /**
+ * A chainable filter builder — supports `.eq()` chained onto itself (post_update's two-column
+ * lookup, `.eq('person_id',...).eq('week_start',...)`), `.in()`, `.limit()` (query_entity's read
+ * shape), and terminal `.single()`/`.maybeSingle()` reads.
+ */
+interface FilterBuilder {
+  eq(column: string, value: string): FilterBuilder
+  in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
+  limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
+  single(): PromiseLike<{ data: unknown; error: unknown }>
+  maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>
+}
+
+interface ReadTableOps {
+  select(columns: string): FilterBuilder
+}
+
+interface WriteTableOps extends ReadTableOps {
+  insert(row: object): {
+    select(columns?: string): { single(): PromiseLike<{ data: unknown; error: unknown }> }
+  }
+  update(patch: object): {
+    eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>
+  }
+}
+
+/**
  * Minimal Supabase-like interface for the deputy's query_entity action.
  * ALWAYS the verified caller-JWT-scoped client (deputy auth). NEVER service_role.
  *
@@ -50,26 +78,8 @@ export interface RunContext {
  * P1 viewspec executor uses.
  */
 export interface SupabaseLike {
-  from(table: string): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-      }
-      in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
-      limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-    }
-  }
-  schema(schemaName: string): {
-    from(table: string): {
-      select(columns: string): {
-        eq(column: string, value: string): {
-          limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-        }
-        in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
-        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-      }
-    }
-  }
+  from(table: string): ReadTableOps
+  schema(schemaName: string): { from(table: string): ReadTableOps }
 }
 
 /**
@@ -147,36 +157,6 @@ export interface AgentAnswer {
 
 /** Extended SupabaseLike that also supports write operations (create_task/post_update). */
 export interface SupabaseLikeWithWrites extends SupabaseLike {
-  from(table: string): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-      }
-      in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
-      limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-    }
-    insert(row: object): {
-      select(columns?: string): { single(): PromiseLike<{ data: unknown; error: unknown }> }
-    }
-    update(patch: object): {
-      eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>
-    }
-  }
-  schema(schemaName: string): {
-    from(table: string): {
-      select(columns: string): {
-        eq(column: string, value: string): {
-          limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-        }
-        in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> }
-        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>
-      }
-      insert(row: object): {
-        select(columns?: string): { single(): PromiseLike<{ data: unknown; error: unknown }> }
-      }
-      update(patch: object): {
-        eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>
-      }
-    }
-  }
+  from(table: string): WriteTableOps
+  schema(schemaName: string): { from(table: string): WriteTableOps }
 }

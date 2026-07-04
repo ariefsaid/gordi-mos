@@ -11,6 +11,24 @@ import type {
   AgentAnswer, SupabaseLikeWithWrites,
 } from './port'
 
+/** A minimal FilterBuilder-shaped test double satisfying every chain/terminal in the port. */
+function makeFilterBuilder(): {
+  eq: () => ReturnType<typeof makeFilterBuilder>
+  in: () => { limit: () => Promise<{ data: unknown[]; error: null }> }
+  limit: () => Promise<{ data: unknown[]; error: null }>
+  single: () => Promise<{ data: null; error: null }>
+  maybeSingle: () => Promise<{ data: null; error: null }>
+} {
+  const fb = {
+    eq: () => fb,
+    in: () => ({ limit: async () => ({ data: [], error: null }) }),
+    limit: async () => ({ data: [], error: null }),
+    single: async () => ({ data: null, error: null }),
+    maybeSingle: async () => ({ data: null, error: null }),
+  }
+  return fb
+}
+
 describe('agent runtime port — pure type seam (T21)', () => {
   it('AgentRunStatus is the P2 closed union (no queued/paused — P1 substrate does not use them)', () => {
     const statuses: AgentRunStatus[] = ['running', 'needs-approval', 'completed', 'errored', 'cancelled']
@@ -33,7 +51,10 @@ describe('agent runtime port — pure type seam (T21)', () => {
   })
 
   it('DeputyContext (P2) carries personId + accessRoles alongside userId/orgId/supabase', () => {
-    const sb: SupabaseLike = { from: () => ({ select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), in: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }) }), schema: () => ({ from: () => ({ select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), in: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }) }) }) }
+    const sb: SupabaseLike = {
+      from: () => ({ select: () => makeFilterBuilder() }),
+      schema: () => ({ from: () => ({ select: () => makeFilterBuilder() }) }),
+    }
     const ctx: DeputyContext = { jwt: '', userId: 'u1', personId: 'p1', orgId: 'o1', accessRoles: ['member'], supabase: sb }
     expect(ctx.personId).toBe('p1')
     expect(ctx.accessRoles).toEqual(['member'])
@@ -80,13 +101,13 @@ describe('agent runtime port — pure type seam (T21)', () => {
   it('SupabaseLikeWithWrites extends SupabaseLike with insert/update', () => {
     const sb: SupabaseLikeWithWrites = {
       from: () => ({
-        select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), in: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }),
+        select: () => makeFilterBuilder(),
         insert: () => ({ select: () => ({ single: async () => ({ data: null, error: null }) }) }),
         update: () => ({ eq: async () => ({ data: null, error: null }) }),
       }),
       schema: () => ({
         from: () => ({
-          select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), in: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }),
+          select: () => makeFilterBuilder(),
           insert: () => ({ select: () => ({ single: async () => ({ data: null, error: null }) }) }),
           update: () => ({ eq: async () => ({ data: null, error: null }) }),
         }),
