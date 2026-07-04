@@ -1,0 +1,233 @@
+/**
+ * useAssistantPanel — the panel's runtime state owner (T25, P2-slimmed port of the sibling
+ * reference's useAssistantPanel).
+ *
+ * Owns: `transcript` (the rendered user/assistant turns), `phase` (idle|running|error — credits
+ * are P3, so RATE_LIMITED maps to 'error'), the approve/deny `chips` map, the active `runId`, and
+ * the SSE `drain` that folds agent-chat events into state.
+ *
+ * P2-slimmed vs the sibling reference: DROPS answerQuestion/answeredMap/hasPendingQuestion (P3
+ * ask_user), the analytics/PostHog calls (MOS has no analytics SDK), and the credits branch.
+ * KEEPS: send/stop/retry/newConversation/approve/deny/openThread, drain, the chip-state flow
+ * (`status{needs-approval}`→pending, `tool{pendingId}`→approved, `system{write_resolved}`→
+ * approved/denied), and `phase`.
+ *
+ * AC-AP-002 (transcript survives across phases), AC-WT-001/002 (chip flow).
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import type {
+  AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload,
+} from '@/lib/agent/runtime/port'
+
+export type RunPhase = 'idle' | 'running' | 'error'
+
+export interface TranscriptItem {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+}
+
+export interface ChipState {
+  pendingId: string
+  actionName: string
+  humanSummary: string
+  state: 'pending' | 'approved' | 'denied'
+}
+
+/** How long a running phase may go without progress before the stuck banner shows. */
+const STUCK_TIMEOUT_MS = 5000
+
+function makeId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return Math.random().toString(36).slice(2)
+}
+
+export function useAssistantPanel() {
+  const { runtime } = useAgentRuntime()
+
+  const [transcript, setTranscript] = useState<TranscriptItem[]>([])
+  const [phase, setPhase] = useState<RunPhase>('idle')
+  const [runId, setRunId] = useState<string | null>(null)
+  const [chips, setChips] = useState<ChipState[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isStuck, setIsStuck] = useState(false)
+
+  // lastProgressAt drives the stuck-run heartbeat: any streamed event refreshes it; a running
+  // phase silent for STUCK_TIMEOUT_MS flips isStuck so the banner offers Stop.
+  const lastProgressAtRef = useRef<number>(Date.now())
+  const activeRunIdRef = useRef<string | null>(null)
+
+  // ── Stuck-run heartbeat ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'running') {
+      setIsStuck(false)
+      return
+    }
+    const interval = setInterval(() => {
+      if (Date.now() - lastProgressAtRef.current > STUCK_TIMEOUT_MS) {
+        setIsStuck(true)
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [phase])
+
+  const mergeEvent = useCallback((ev: AgentEvent) => {
+    lastProgressAtRef.current = Date.now()
+    setIsStuck(false)
+
+    switch (ev.type) {
+      case 'assistant':
+        if (ev.text) {
+          setTranscript((prev) => [...prev, { id: ev.id, role: 'assistant', text: ev.text! }])
+        }
+        break
+      case 'status': {
+        const payload = ev.payload as RunStatusPayload | NeedsApprovalPayload
+        if (payload?.status === 'needs-approval') {
+          const na = payload as NeedsApprovalPayload
+          setChips((prev) => [
+            ...prev,
+            { pendingId: na.pendingId, actionName: na.actionName, humanSummary: na.humanSummary, state: 'pending' },
+          ])
+        } else if (payload?.status === 'completed' || payload?.status === 'cancelled') {
+          setPhase('idle')
+        } else if (payload?.status === 'error') {
+          setPhase('error')
+          setError((payload as RunStatusPayload).error ?? 'error')
+        }
+        break
+      }
+      case 'tool': {
+        // A tool event carrying a pendingId marks the write as executed (approved path).
+        const payload = ev.payload as { pendingId?: string }
+        if (payload?.pendingId) {
+          setChips((prev) =>
+            prev.map((c) => (c.pendingId === payload.pendingId && c.state === 'pending' ? { ...c, state: 'approved' } : c)),
+          )
+        }
+        break
+      }
+      case 'system': {
+        const payload = ev.payload as WriteResolvedPayload | undefined
+        if (payload?.event === 'write_resolved' && payload.pendingId) {
+          const state = payload.decision === 'approved' ? 'approved' : 'denied'
+          setChips((prev) => prev.map((c) => (c.pendingId === payload.pendingId ? { ...c, state } : c)))
+        }
+        break
+      }
+      // 'user' events are server echoes of the user turn — the hook appends the user message
+      // optimistically on send(), so the echo is ignored to avoid duplicates.
+      default:
+        break
+    }
+  }, [])
+
+  /** Consume a run's SSE stream, folding events into transcript/chips/phase. */
+  const drain = useCallback(
+    async (id: string) => {
+      if (!runtime) return
+      try {
+        for await (const ev of runtime.subscribe(id)) {
+          mergeEvent(ev)
+        }
+      } catch {
+        // A network/abort failure surfaces as an error phase (cancel aborts cleanly — see stop()).
+        setPhase((prev) => (prev === 'running' ? 'error' : prev))
+        setError('network')
+      }
+    },
+    [runtime, mergeEvent],
+  )
+
+  // ── Public actions ───────────────────────────────────────────────────────────
+
+  const send = useCallback(
+    async (goal: string) => {
+      if (!runtime) return
+      setPhase('running')
+      setError(null)
+      setIsStuck(false)
+      lastProgressAtRef.current = Date.now()
+      setTranscript((prev) => [...prev, { id: makeId(), role: 'user', text: goal }])
+      const run = await runtime.createRun({ goal })
+      setRunId(run.id)
+      activeRunIdRef.current = run.id
+      await drain(run.id)
+    },
+    [runtime, drain],
+  )
+
+  const decide = useCallback(
+    async (pendingId: string, verdict: 'approve' | 'reject') => {
+      if (!runtime || !activeRunIdRef.current) return
+      setPhase('running')
+      setIsStuck(false)
+      lastProgressAtRef.current = Date.now()
+      await runtime.control(activeRunIdRef.current, verdict, { pendingId })
+      await drain(activeRunIdRef.current)
+    },
+    [runtime, drain],
+  )
+
+  const approve = useCallback((pendingId: string) => decide(pendingId, 'approve'), [decide])
+  const deny = useCallback((pendingId: string) => decide(pendingId, 'reject'), [decide])
+
+  const stop = useCallback(() => {
+    if (!runtime || !activeRunIdRef.current) return
+    void runtime.control(activeRunIdRef.current, 'cancel', {})
+    setPhase('idle')
+    setIsStuck(false)
+  }, [runtime])
+
+  const retry = useCallback(async () => {
+    if (!runtime || !activeRunIdRef.current) return
+    setPhase('running')
+    setError(null)
+    setIsStuck(false)
+    lastProgressAtRef.current = Date.now()
+    await drain(activeRunIdRef.current)
+  }, [runtime, drain])
+
+  const newConversation = useCallback(() => {
+    activeRunIdRef.current = null
+    setTranscript([])
+    setChips([])
+    setRunId(null)
+    setError(null)
+    setPhase('idle')
+    setIsStuck(false)
+  }, [])
+
+  // P2 minimal: opening a prior thread resets the surface + binds the runId so a subsequent
+  // send follows up on it (full transcript replay is P3 with the notifications inbox).
+  const openThread = useCallback((threadId: string) => {
+    activeRunIdRef.current = threadId
+    setRunId(threadId)
+    setTranscript([])
+    setChips([])
+    setError(null)
+    setPhase('idle')
+    setIsStuck(false)
+  }, [])
+
+  return {
+    runtime,
+    transcript,
+    phase,
+    runId,
+    chips,
+    error,
+    isStuck,
+    send,
+    stop,
+    retry,
+    approve,
+    deny,
+    newConversation,
+    openThread,
+  }
+}
