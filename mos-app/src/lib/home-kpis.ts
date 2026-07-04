@@ -8,25 +8,7 @@ import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { raciOwner } from '@/lib/raci-member'
 import { formatIDRCompact, formatDelta, type DeltaDisplay } from '@/lib/sales-dashboard'
-
-// ── Windows ───────────────────────────────────────────────────────────────────────
-function isoDaysBefore(dateIso: string, days: number): string {
-  const d = new Date(`${dateIso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
-}
-
-/** Rows with margin_date in [start, end] inclusive (both ISO yyyy-mm-dd). */
-function rowsInWindow(rows: SalesMarginDailyRow[], start: string, end: string): SalesMarginDailyRow[] {
-  return rows.filter(r => r.margin_date >= start && r.margin_date <= end)
-}
-
-/** Sums margin_interim over the given rows. NULL margin_interim (a COGS sync-gap day,
- * §7a) contributes 0 to the sum — it is never fabricated into a number, but a window
- * that contains at least one non-null row still reports the real total of what's known. */
-function sumMargin(rows: SalesMarginDailyRow[]): number {
-  return rows.reduce((sum, r) => sum + (r.margin_interim ?? 0), 0)
-}
+import { trailingSum } from '@/lib/trailing-window'
 
 export interface MarginWindow {
   /** margin_interim summed over the current trailing window */
@@ -38,25 +20,19 @@ export interface MarginWindow {
 
 /**
  * Trailing N-day margin_interim anchored to `latestDate` (never Date.now()), plus the
- * immediately preceding equal-length window for the delta. Clone of
- * lib/sales-dashboard.ts's trailingWindow, over margin_interim instead of clean_revenue.
+ * immediately preceding equal-length window for the delta. NULL margin_interim (a COGS
+ * sync-gap day, §7a) contributes 0 to the sum — it is never fabricated into a number,
+ * but a window that contains at least one non-null row still reports the real total of
+ * what's known. Delegates the window math to lib/trailing-window.ts's generic
+ * trailingSum (CQ-1 dedup) — same shared implementation as lib/sales-dashboard.ts's
+ * trailingWindow, over margin_interim instead of clean_revenue.
  */
 export function trailingMargin(
   rows: SalesMarginDailyRow[],
   latestDate: string,
   days: number,
 ): MarginWindow {
-  const currentStart = isoDaysBefore(latestDate, days - 1)
-  const current = sumMargin(rowsInWindow(rows, currentStart, latestDate))
-
-  const priorEnd = isoDaysBefore(currentStart, 1)
-  const priorStart = isoDaysBefore(priorEnd, days - 1)
-  const priorRows = rowsInWindow(rows, priorStart, priorEnd)
-
-  return {
-    current,
-    prior: priorRows.length > 0 ? sumMargin(priorRows) : null,
-  }
+  return trailingSum(rows, r => r.margin_date, r => r.margin_interim ?? 0, latestDate, days)
 }
 
 export interface MarginKpiDisplay {
