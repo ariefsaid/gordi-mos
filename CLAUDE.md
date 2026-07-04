@@ -1,11 +1,13 @@
 # Gordi MOS — project instructions
 
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
-First slice: **task ownership + lightweight RACI + weekly updates + daily ops updates** for managers
-and selected ops users. Ships at `https://ops.gordi.id/mos`. Long-term aspiration (NOT first slice):
-Strategy → Objective → Outcome → Program/Process → Output → Task. Full product context:
-`docs/project-brief.md`. Phasing: `docs/roadmap.md`. **Usability and speed beat model completeness
-and Notion fidelity.**
+The requirement has **evolved by owner decision** — current bar (E6, ADR-0019/0020): **the operating
+system for all ~30 people** — viable, not minimum; five destinations (Home/Work/Operate/Plan/Inbox);
+tasks + RACI + updates + per-Activity ops + reference data + money follow-ups. The original
+"first slice" (tasks + RACI + weekly/daily updates) is **historical (E1)** — read
+`docs/requirements-evolution.md` for the era timeline before trusting any older doc's scope.
+Ships at `https://ops.gordi.id/mos`. Product history: `docs/project-brief.md` (era-bound E1).
+Phasing: `docs/roadmap.md`. **Usability and speed beat model completeness and Notion fidelity.**
 
 ## Repo layout
 - `mos-app/` — the app (React 19 + Vite + TypeScript; scaffolded in Phase 1, NOT before). Run npm/vite here.

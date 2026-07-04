@@ -54,6 +54,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 ## Current state — where to read what
 | Need | Doc |
 |---|---|
+| **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
 | **Where everything stands + outstanding** | `docs/platform-workstream-status.md` (canonical handoff) |
 | Full task list / backlog | `docs/backlog.md` |
 | Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` |
