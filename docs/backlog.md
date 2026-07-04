@@ -17,7 +17,9 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > bills (ESB write-back gated on an API spike — inventory `gordi-esb-bak` first); reference data = ESB
 > feeds / MOS owns; vendored `doc-editor` + `data-grid` kit primitives (AGPL out); phone-first + bottom
 > tabs binding; bilingual en/id string catalog from the Home slice on; **backup/restore drill gates the
-> AR bridge**; authorization moves to **`shared.can(capability)` + admin-editable roles** (new modules
+> AR bridge**; **ESB spike RESULT (2026-07-04): settlement write-back LIKELY-NOT → reconciliation
+> branch** (`docs/reference/esb-settlement-api-spike.md`; owner action: ask ESB PIC re undocumented
+> endpoints); authorization moves to **`shared.can(capability)` + admin-editable roles** (new modules
 > from day one, existing RLS opportunistic). **ORDER: Home v1 + `sales_margin_daily` → agent port
 > (P1–P3; ESB spike parallel) → Work spine (→ live management-week validation) → AR/pending-bills
 > bridge → Plan/reference data → activity roll-ins.** Full spines: `docs/adr/0019-ia-north-star.md`,

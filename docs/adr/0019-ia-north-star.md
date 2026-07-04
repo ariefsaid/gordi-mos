@@ -68,6 +68,10 @@ Both: MOS mirrors issuance in, **owns invoice/tab-grain settlement state** (chas
 partials, paid-with-evidence), works them from the Work follow-up queue with two-BU workflow
 (B2B Ops/Retail chases, Finance settles). ESB **write-back only if the API validates** — a gating
 pre-implementation spike (inventory `gordi-esb-bak` docs/spikes first); fallback = MOS is grain
+> **Spike RESULT (2026-07-04): LIKELY-NOT — reconciliation branch chosen.** 292 documented
+> endpoints, zero AR-settlement writes; ESB itself settles pending bills via memorial journals.
+> Findings + the one remaining owner action (ask the ESB PIC re undocumented endpoints):
+> `docs/reference/esb-settlement-api-spike.md`.
 truth, ESB keeps aggregates, bridge = reconciliation. Real aging = ESB issuance × MOS settlement —
 computable correctly for the first time anywhere in the company.
 
