@@ -69,16 +69,12 @@ create policy sales_margin_daily_select_finance_admin
 grant usage on schema reporting to reporting_writer;
 grant select, insert, update on reporting.sales_margin_daily to reporting_writer;
 
--- PG17: role membership no longer implies SET privilege by default (per-membership `SET` option,
--- separate from `INHERIT`). `postgres` already held admin_option on `reporting_writer` (granted at
--- CREATE ROLE time by 20260704000001) but not the SET option, so local pgTAP's `set local role
--- reporting_writer` (proving AC-M07) was denied. Grant SET explicitly — idempotent, local/CI-only
--- concern (the snapshot job on the VPS connects directly as reporting_writer, never via SET ROLE).
-grant reporting_writer to postgres with set true;
-
--- pgTAP's assertion functions (lives_ok etc.) live in schema `extensions`; reporting_writer needs
--- USAGE there to prove AC-M07 under `set local role reporting_writer` in local/CI test runs.
-grant usage on schema extensions to reporting_writer;
+-- NOTE: the two test-only grants that once lived here (PG17 `SET` option for `postgres` on
+-- reporting_writer + USAGE on schema extensions, both needed only so local pgTAP can
+-- `set local role reporting_writer` to prove AC-M07) were moved into the rolled-back test
+-- transaction in supabase/tests/61_reporting_sales_margin_rls.sql — the prod writer role must
+-- not carry extensions reach, and prod schema history must not embed test scaffolding
+-- (security review 2026-07-04, 2× Medium).
 
 create policy sales_margin_daily_write_reporting_writer
   on reporting.sales_margin_daily

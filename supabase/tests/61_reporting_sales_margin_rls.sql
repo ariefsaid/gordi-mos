@@ -1,5 +1,13 @@
 begin;
 create extension if not exists pgtap with schema extensions;
+
+-- Test-only grants, rolled back with this transaction (never in a migration — security review
+-- 2026-07-04): PG17 separates the per-membership SET option from INHERIT, so `postgres` needs an
+-- explicit SET grant to `set local role reporting_writer` (AC-M07); and reporting_writer needs
+-- USAGE on `extensions` only because pgTAP's assertion functions live there.
+grant reporting_writer to postgres with set true;
+grant usage on schema extensions to reporting_writer;
+
 select plan(10);
 
 select mos._test_seed_role_tree();
