@@ -1,7 +1,13 @@
 # ADR-0017 — Agent-native, user-composed UI — deputy authorization + declarative hydration over a (to-be-built) mobile-first kit, across the OLTP+OLAP split
 
 - Status: **Accepted** (owner-approved 2026-06-30 — the specs and plans that consume this ADR follow
-  later; the D9 spike gate remains the contingency on the agent-native runtime)
+  later; the D9 spike gate remains the contingency on the agent-native runtime). **Amended 2026-07-04
+  (D8/D9 → ADR-0018):** D8's runtime-adoption half and D9 are **superseded / re-scoped by ADR-0018**
+  (port the PMO-native stack, copy-adapt, no shared package) — D8's sidecar is retired upstream (PMO
+  ADR-0040); D9's RLS-binding half PASSED (2026-07-02 spike) and its SSO half is moot under the
+  same-origin port; §4a / build-sequence Issues 2–3 are re-scoped to the ADR-0018 P1 port train.
+  **ADR-0017 D1–D7 survive unchanged** (deputy authorization, dual-plane reach, input scope,
+  declarative-artifact rule, coexistence/sharing, growth posture, observability, freshness).
 - Deciders: Owner (Arief) + Director, in grill-with-docs session (2026-06-30)
 - Related:
   - **ADR-0001** (org seam — `shared.current_org_id()` JWT claim, the custom access-token hook, RLS as
@@ -302,6 +308,20 @@ resource* concern, handled here so the seams exist before they are needed.
 
 ### D8 — Run agent-native whole, config-over-fork (used as intended, integrated)
 
+> **Amended 2026-07-04 — D8's runtime-adoption half is SUPERSEDED by ADR-0018.** The upstream
+> agent-native framework's sidecar (the config-over-fork candidate this section adopted) was **retired
+> upstream as a user surface** in PMO ADR-0040 (2026-07-03 — it was a builder/admin-grade UI, not
+> app-user-grade; PMO's adoption PR was closed UNMERGED; the owner ruled "cherry-pick"). **ADR-0018
+> ports PMO's PMO-NATIVE rebuild instead** — an in-app `AssistantPanel` drawer + **same-origin**
+> Supabase Edge Functions (`agent-chat` / `agent-dispatch` / `compose-view`) + a caller-JWT deputy
+> loop — and **owns the fork outright** (no shared package, no auto-sync; ADR-0018 D1/D2). What
+> **survives from D8 into ADR-0018**: the **structural query chokepoint** the 2026-07-02 spike result
+> below demanded (the single non-bypassable `withOrgClaims`-style binding every deputy query is forced
+> through, `set_config(...,true)`-in-a-per-request-transaction) — now **owned by MOS** in the ported
+> `agent-chat` edge function (the ADR-0039 single-LLM-call-site boundary), not borrowed from a
+> sidecar. The owner-intent framing below ("use it as its builders intend") is moot: there is no
+> framework-as-host after the port. The section text is the original reasoning, kept for context.
+
 Owner intent: **use the framework the way its builders intend** — do **not** reinvent it and do **not**
 pick it apart. If the Builder.io runtime is adopted (gated by D9), keep **agent-native whole** as its
 own scaffolded Nitro + Drizzle app, **configured, never source-edited**:
@@ -326,6 +346,16 @@ DB binding must **never** be `service_role` or any non-`.rls()` connection — e
 not by discipline alone.
 
 ### D9 — MOS-specific spike gate (PMO's green spike does NOT transfer)
+
+> **Amended 2026-07-04 — D9 is CLOSED by ADR-0018 (PASS + moot); the gate no longer contingencies the
+> runtime.** The **RLS-binding half of D9 already PASSED** at the 2026-07-02 spike (recorded in the
+> spike-result note below — unchanged, and inherited by ADR-0018 as the structural chokepoint). The
+> **SSO half** of the gate (item 3 below + the `*.pages.dev` parent-domain / cookie-`Domain` caveat of
+> D8, still **untested** per the spike result) is now **MOOT**: ADR-0018's Option A is **same-origin**
+> Supabase Edge Functions (the deputy runs on MOS's own origin, not a sidecar subdomain) — there is **no
+> second origin and no cookie-domain problem to solve**, so the SSO spike has nothing left to prove.
+> Both halves are therefore resolved — one by PASS, one by removal. The section text is the original
+> gate, kept for context.
 
 PMO's spike passed against PMO's **managed, single-Supabase, profiles-derived-role** stack. MOS's stack
 is **self-hosted, multi-schema, and JWT-claim-derived** (`current_org_id()` / `access_roles` from the
@@ -390,6 +420,17 @@ must **never** be mistaken for live OLTP data. Live operational figures (read-mo
 current by construction; reporting figures (kind (c)) are as-of the last snapshot and say so.
 
 ## Build sequence (belongs to the implementation PLAN — summarized only)
+
+> **Amended 2026-07-04 — Issues 2–3 (the registry + the query-spec DSL/compiler) are re-scoped to the
+> ADR-0018 P1 port train.** The registry and the DSL **are no longer grown from scratch** (items 2–3
+> below) — they **arrive by port** from PMO's audited stack (PMO ADRs 0037/0038: compiler/DSL +
+> `ENTITY_WHITELIST`, renderer/executor dispatch), **adapted to the Issue-1 dashboard kit MOS already
+> shipped** (item 1, DONE). Items 2–5 of this organic sequence (registry → DSL → `user_views`/renderer
+> → manual builder) **collapse into ADR-0018's P1 train** (shippable with zero conversational agent);
+> item 6 (the deputy spec-author) becomes **P2**; P3 adds batteries. The value-first posture
+> (item 1 births the kit) survives — what changes is that the kit is then **ported onto** PMO's registry
+> contract rather than defining its own. The list below is the original organic sequence, kept for
+> context.
 
 **Value-first, inverting PMO ADR-0036 §10** because MOS has **no kit to register** (Context fact #1):
 
