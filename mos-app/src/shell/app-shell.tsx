@@ -8,8 +8,12 @@ import { useIsNarrow } from './use-is-narrow'
 import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
+import { SHOW_ASSISTANT } from '@/config/features'
+import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { AssistantPanel } from '@/components/assistant/AssistantPanel'
+import { AssistantFab } from '@/components/assistant/AssistantFab'
 
-export function AppShell() {
+function ShellContent() {
   const isNarrow = useIsNarrow()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
@@ -73,6 +77,27 @@ export function AppShell() {
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4) */}
       <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Deputy assistant (ADR-0018 P2) — mounted once at the shell root, behind SHOW_ASSISTANT.
+          The panel is keep-mounted (self-gates visibility on `open`); the FAB self-gates on
+          narrow + flag. Absent entirely when the flag is off (FR-P2-CF-003). */}
+      {SHOW_ASSISTANT && (
+        <>
+          <AssistantPanel />
+          <AssistantFab />
+        </>
+      )}
     </BreadcrumbTitleProvider>
+  )
+}
+
+export function AppShell() {
+  // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
+  // Flag-off skips the provider entirely so no assistant context/state mounts.
+  if (!SHOW_ASSISTANT) return <ShellContent />
+  return (
+    <AgentRuntimeProvider>
+      <ShellContent />
+    </AgentRuntimeProvider>
   )
 }
