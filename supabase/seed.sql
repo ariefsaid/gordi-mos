@@ -47,17 +47,19 @@ insert into shared.person_roles (org_id, person_id, role_id) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005')
 on conflict (person_id, role_id) do nothing;
 
--- Access-role assignments (ADR-0011 D5 / OD-P4-4). Owner stand-in (Dewi) -> admin; everyone else ->
--- member (the default). Real roster admin/ops_lead/finance lands via the gitignored deploy seed
--- (OD-P1-6) at the provisioning slice. granted_by is NULL for these seed rows (no granting person:
--- under the seed/service-role connection current_person_id() is NULL). All six rows use the Gordi org.
+-- Access-role assignments (ADR-0011 D5 / OD-P4-4). Owner stand-in (Dewi) -> admin; Fitri Finance ->
+-- finance (her demo persona label, reporting.* RLS); everyone else -> member (the default). Real
+-- roster admin/ops_lead/finance lands via the gitignored deploy seed (OD-P1-6) at the provisioning
+-- slice. granted_by is NULL for these seed rows (no granting person: under the seed/service-role
+-- connection current_person_id() is NULL). All seven rows use the Gordi org.
 insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'admin'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000002', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000004', 'member'),
-  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member')
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member'),
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'finance')
 on conflict (person_id, access_role) do nothing;
 
 -- Kitchen WIP items — the REAL Gordi roster (the 32 dishes from the old kitchen app's
