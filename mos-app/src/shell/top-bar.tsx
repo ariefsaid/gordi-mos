@@ -2,6 +2,9 @@ import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
 import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
+import { SHOW_ASSISTANT } from '@/config/features'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { useT } from '@/i18n/use-t'
 
 type TopBarProps = {
   /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
@@ -68,6 +71,27 @@ function HamburgerIcon() {
   )
 }
 
+// Deputy spark icon — 16px, stroke-2, aria-hidden (T28 desktop top-bar button)
+function DeputyIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden="true"
+    >
+      <path d="M12 3v3" />
+      <path d="M12 18v3" />
+      <path d="M3 12h3" />
+      <path d="M18 12h3" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
 // Gordi logo mark — navy square + orange sprinkle dot (brand identity, ADR-0013 D1)
 function GordiLogoMark() {
   return (
@@ -84,6 +108,26 @@ function GordiLogoMark() {
         aria-hidden="true"
       />
     </div>
+  )
+}
+
+// The deputy top-bar button (T28) — desktop only (phone uses the FAB). Gates on SHOW_ASSISTANT;
+// opens the slide-over via the runtime context. Reads the context safely (null-runtime no-op
+// default) so it never throws when the flag is off and no provider is mounted.
+function AssistantTopBarButton() {
+  const t = useT()
+  const { openPanel } = useAgentRuntime()
+  return (
+    <button
+      type="button"
+      aria-label={t('assistant.open')}
+      title={t('assistant.open')}
+      className="flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+      style={{ width: 32, height: 32 }}
+      onClick={openPanel}
+    >
+      <DeputyIcon />
+    </button>
   )
 }
 
@@ -190,6 +234,10 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
             </kbd>
           </button>
         )}
+
+        {/* Deputy top-bar button (T28) — desktop only, next to the search affordance (phone uses
+            the FAB). Absent when SHOW_ASSISTANT=false. */}
+        {SHOW_ASSISTANT && !isNarrow && <AssistantTopBarButton />}
 
         {/* Notification bell — icon-only stub, non-functional (AC-S07, ADR-0013 D1) */}
         <button
