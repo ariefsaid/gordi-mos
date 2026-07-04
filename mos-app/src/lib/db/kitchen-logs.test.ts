@@ -21,7 +21,7 @@ import {
   fetchStockMap,
   fetchKitchenStock,
   resolveKitchenBuId,
-  KITCHEN_BU_NAME,
+  KITCHEN_BU_CODE,
   insertKitchenLog,
   insertKitchenLogBatch,
   listSubmittedKitchenLogs,
@@ -374,15 +374,15 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
   })
 })
 
-// ── resolveKitchenBuId — Kitchen and Bar BU resolution (#3, spec §3.3) ─────────
-describe('resolveKitchenBuId — resolves the Kitchen and Bar business unit by name', () => {
-  it('queries shared.business_units by the Kitchen-and-Bar name and returns its id', async () => {
+// ── resolveKitchenBuId — Retail Ops BU resolution by stable code (#3, spec §3.3, ADR-0019 D1) ──
+describe('resolveKitchenBuId — resolves the kitchen business unit by stable code', () => {
+  it('queries shared.business_units by code = retail_ops and returns its id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
         {
           business_units: [
-            { data: { id: 'kb-bu-1', name: KITCHEN_BU_NAME }, error: null },
+            { data: { id: 'kb-bu-1', code: KITCHEN_BU_CODE }, error: null },
           ],
         },
         rec,
@@ -391,9 +391,9 @@ describe('resolveKitchenBuId — resolves the Kitchen and Bar business unit by n
 
     const id = await resolveKitchenBuId()
     expect(id).toBe('kb-bu-1')
-    // resolves BY NAME (not viewer.roles[0]) — spec §3.3
+    // resolves BY CODE (not display name, not viewer.roles[0]) — spec §3.3, ADR-0019 D1 remap
     expect(rec.fromTables).toContain('business_units')
-    expect(rec.eqs).toContainEqual(['name', KITCHEN_BU_NAME])
+    expect(rec.eqs).toContainEqual(['code', KITCHEN_BU_CODE])
   })
 
   it('throws a clear "cannot log without the kitchen BU" error when the BU is absent', async () => {
@@ -401,7 +401,7 @@ describe('resolveKitchenBuId — resolves the Kitchen and Bar business unit by n
     schemaMock.mockReturnValue(
       makeSchema({ business_units: [{ data: null, error: null }] }, rec) as never,
     )
-    await expect(resolveKitchenBuId()).rejects.toThrow(/kitchen.*business unit|Kitchen and Bar/i)
+    await expect(resolveKitchenBuId()).rejects.toThrow(/kitchen.*business unit|retail_ops/i)
   })
 
   it('throws on a PostgREST error', async () => {

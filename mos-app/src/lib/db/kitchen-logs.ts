@@ -21,12 +21,13 @@ const ops = () => supabase.schema('ops')
 const shared = () => supabase.schema('shared')
 
 /**
- * The canonical name of the kitchen business unit (spec §3.3/§2). Kitchen logs
- * belong to this BU; the approval RPC's Daily-Log mirror resolves it by name.
- * NOTE (owner / eng-planner open item): a stable `code`/slug on
- * shared.business_units would be more robust than matching on a display name.
+ * The stable code of the kitchen business unit (spec §3.3/§2, ADR-0019 D1 remap). Kitchen is an
+ * Activity within the Retail Ops team BU; kitchen logs belong to Retail Ops. The approval RPC's
+ * Daily-Log mirror resolves it by this code. Resolving by `code` — not display name — survives
+ * BU renames (the fragility a prior version of this constant had, fixed by the
+ * 20260705000002_bu_taxonomy_remap migration which added shared.business_units.code).
  */
-export const KITCHEN_BU_NAME = 'Kitchen and Bar'
+export const KITCHEN_BU_CODE = 'retail_ops'
 
 // ── WIP items ────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ export async function fetchPlanMap(logDate: string): Promise<PlanMap> {
 // ── Kitchen business unit resolution (#3, spec §3.3) ──────────────────────────
 
 /**
- * Resolve the "Kitchen and Bar" business-unit id by name from shared.business_units.
+ * Resolve the Retail Ops business-unit id by stable code from shared.business_units.
  * Kitchen logs belong to this BU — NOT the viewer's first role BU (which is wrong for
  * kitchen staff who may carry an unrelated reporting BU). RLS scopes the read to the
  * caller's org (org_id is never sent — directory.ts pattern).
@@ -79,15 +80,15 @@ export async function fetchPlanMap(logDate: string): Promise<PlanMap> {
 export async function resolveKitchenBuId(): Promise<string> {
   const { data, error } = await shared()
     .from('business_units')
-    .select('id,name')
-    .eq('name', KITCHEN_BU_NAME)
+    .select('id,code')
+    .eq('code', KITCHEN_BU_CODE)
     .limit(1)
     .maybeSingle()
   if (error) throw new Error(`resolveKitchenBuId failed — ${error.message}`)
   const row = data as { id: string } | null
   if (!row?.id) {
     throw new Error(
-      `Kitchen business unit ("${KITCHEN_BU_NAME}") not found — cannot log without it.`,
+      `Kitchen business unit (code "${KITCHEN_BU_CODE}") not found — cannot log without it.`,
     )
   }
   return row.id
