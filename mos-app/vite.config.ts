@@ -87,6 +87,10 @@ export default defineConfig({
         'src/components/kitchen/**',
         // Dashboard kit primitives (Issue 1, ADR-0017 kit-birthing)
         'src/components/dashboard/**',
+        // View-composition substrate (ADR-0018 P1 port)
+        'src/lib/viewspec/**',
+        'src/lib/db/user-views.ts',
+        'src/pages/dev-views-page.tsx',
       ],
       exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },

@@ -4,3 +4,7 @@
 // it. Flip a flag to `true` to fully restore the section — no other change needed.
 export const SHOW_WEEKLY_UPDATES = false
 export const SHOW_DAILY_LOG = false
+
+// ADR-0018 P1 — view-composition substrate (user views). Hide-first (ADR-0017 D6): the dev harness
+// route redirects to / when off. Flip true to enable /dev/views for a rollout cohort.
+export const SHOW_USER_VIEWS = false
