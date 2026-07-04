@@ -10,6 +10,14 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
+> **2026-07-04 EOD — FOUR SLICES SHIPPED TO `dev` (full batteries in `docs/reviews/`); P2 in flight:**
+> Home v1 + margin read-model (§7a interim contract) · helper dedup · **port P1 substrate**
+> (viewspec + user_views + /dev/views harness, flags off) · **BU taxonomy remap** (6 team BUs,
+> stable codes). P2 deputy train building on `feat/port-p2-panel-runtime` (edge functions done +
+> deno-check clean; panel UI/harness/firewall via GLM). See
+> `docs/platform-workstream-status.md` §Current focus for the full state + owner-gated queue
+> (dev→main offer · staging db push ×3 · ESB PIC question).
+>
 > **2026-07-04 — IA NORTH-STAR + can() ACCEPTED (ADR-0019 / ADR-0020, OD-IA-1/2):** five destinations
 > (**Home / Work / Operate / Plan / Inbox**; activity is a dimension, never a nav root); taxonomy
 > **BU=team / Activity=workstream / Revenue stream=money lens** (old BU seed rows need re-mapping —

@@ -9,7 +9,33 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-02) — Issue 1 done (kit born); next = margin read-model · font fix · registry
+## Current focus (2026-07-04 EOD) — four slices SHIPPED to `dev`; P2 deputy train in flight
+
+**Shipped to `dev` today (each with a full recorded battery — `docs/reviews/feat-*.md`):**
+1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
+   rail (ADR-0019 D2/D8), bilingual i18n seam (ADR-0021), margin read-model on the **§7a INTERIM
+   contract** (BOM=budget doctrine; plan `docs/plans/2026-07-04-home-v1-margin.md` §7a).
+2. **Helper dedup** (pre-port CQ follow-ups) + demo-Finance seed fix.
+3. **Port P1 substrate** (ADR-0018) — viewspec compiler/executor/renderer + registry(+manifest),
+   `mos.user_views` + `shared.is_managed_by`, `/dev/views` harness (DEV+flag, default off), **real
+   primitive hydration**, save-time spec validation.
+4. **BU taxonomy remap** (ADR-0019 D1/OD-IA-1) — 6 team BUs with stable `code`s, legacy soft-retired,
+   kitchen-logs resolves by code, org-scoped re-point UPDATEs.
+
+**In flight:** **P2 deputy train** (`feat/port-p2-panel-runtime`, plan
+`docs/plans/2026-07-05-port-p2-panel-runtime.md` + Director decisions §11): edge functions
+`agent-chat` (deputy loop, grounding prompt, 4-tool catalog, SSE, journal persistence) +
+`compose-view` (single LLM call site, server-side re-validation) are **built + deno-check clean**;
+persistence tables landed (391 pgTAP); remaining = client runtime adapter + AssistantPanel UI +
+grounding harness + firewall extension (GLM dispatch), then battery + Director live-verify.
+
+**Owner-gated queue:** dev→main merge offer (4 green ledgers); staging `db push`
+(3 migrations: margin read-model · user_views · **BU remap — mutates real staging rows**, dual-path
+guard verified); ESB PIC question (undocumented settlement API — `docs/reference/esb-settlement-api-spike.md`).
+
+---
+
+## Previous focus (2026-07-02) — Issue 1 done (kit born); next = margin read-model · font fix · registry
 
 Two strategic tracks opened/advanced this session (decisions in `docs/adr/0017` + the `docs/adr/0010`
 2026-06-30 amendment; grill `docs/decisions.md` OD-AN-1 / OD-P4-2):
