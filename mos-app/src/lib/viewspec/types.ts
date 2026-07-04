@@ -187,12 +187,17 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
 
 export const MAX_PANELS_PER_VIEW = 20
 
+/** P1 review fix-wave item 3 — caps an `in` filter's value array (bounds an unbounded IN-list scan). */
+export const MAX_IN_FILTER_LIST_LENGTH = 500
+
 // ── ValidationError (FR-UV-004/005) ────────────────────────────────────────────
 export type ValidationErrorCode =
   | 'UNKNOWN_ENTITY' | 'UNKNOWN_COLUMN' | 'UNKNOWN_OP' | 'NON_NUMERIC_AGGREGATE'
   | 'INVALID_LIMIT' | 'UNKNOWN_TOKEN' | 'UNRESOLVABLE_TOKEN' | 'MISSING_REQUIRED_FILTER'
   | 'MISSING_TIME_RANGE'   // MOS delta (D7 ceiling) — not in the sibling port
   | 'NOT_GROUPABLE_COLUMN' | 'UNKNOWN_PRIMITIVE' | 'UNSUPPORTED_VERSION'
+  | 'FILTER_LIST_TOO_LONG' // P1 review fix-wave item 3 — caps an `in` filter's array at 500
+  | 'INVALID_SPEC_SHAPE'   // P1 review fix-wave item 4 — malformed top-level/panel shape
 
 export class ValidationError extends Error {
   readonly code: ValidationErrorCode
