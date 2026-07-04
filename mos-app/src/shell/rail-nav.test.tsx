@@ -118,6 +118,13 @@ describe('AC-RG01: Rail regroup — destination groups', () => {
     expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
   })
 
+  it('Task 3.9: renders the LocaleToggle in the rail footer', () => {
+    renderRailNav('/tasks')
+    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bahasa Indonesia' })).toBeInTheDocument()
+  })
+
   it('has no badge-count elements', () => {
     const { container } = renderRailNav('/tasks')
     expect(container.querySelector('[data-badge]')).toBeNull()

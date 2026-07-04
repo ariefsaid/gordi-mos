@@ -3,6 +3,7 @@ import { DESTINATIONS, isLive } from './destinations'
 import { ADMIN_SECTIONS, CATALOG_SECTIONS } from './sections'
 import type { Section } from './sections'
 import { SettingsIcon } from './icons'
+import { LocaleToggle } from './locale-toggle'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
@@ -143,6 +144,9 @@ export function RailNav({ onNavigate }: RailNavProps) {
         </span>
       </div>
 
+      {/* Rail footer: the i18n locale toggle (ADR-0021, Task 3.9) — reused by the
+          mobile drawer for free since MobileDrawer renders RailNav internally. */}
+      <LocaleToggle />
     </>
   )
 }
