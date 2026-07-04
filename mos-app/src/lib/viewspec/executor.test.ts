@@ -115,9 +115,51 @@ describe('executeCompiledQuery — AC-UV-009 (in-mem aggregate)', () => {
       resolvedGroupBy: 'branch_code',
       resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
     }))
-    expect(out).toEqual([
+    expect(out.rows).toEqual([
       { branch_code: 'BGR', total: 150 },
       { branch_code: 'KMG', total: 200 },
     ])
+  })
+})
+
+describe('executeCompiledQuery — truncation signal (P1 review fix-wave item 6)', () => {
+  it('returns truncated: false when fewer rows than the limit come back', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema([{ id: '1' }, { id: '2' }], null, rec) as never)
+    const out = await executeCompiledQuery(mkCompiled({ limit: 50 }))
+    expect(out.rows).toHaveLength(2)
+    expect(out.truncated).toBe(false)
+  })
+  it('returns truncated: true when rows.length === the effective limit (the fetch may have been cut off)', async () => {
+    const rec = freshRec()
+    const rows = Array.from({ length: 50 }, (_, i) => ({ id: String(i) }))
+    schemaMock.mockReturnValue(makeSchema(rows, null, rec) as never)
+    const out = await executeCompiledQuery(mkCompiled({ limit: 50 }))
+    expect(out.rows).toHaveLength(50)
+    expect(out.truncated).toBe(true)
+  })
+  it('falls back to the default 500 limit for the truncation check when compiled.limit is absent', async () => {
+    const rec = freshRec()
+    const rows = Array.from({ length: 500 }, (_, i) => ({ id: String(i) }))
+    schemaMock.mockReturnValue(makeSchema(rows, null, rec) as never)
+    const compiled = mkCompiled()
+    delete (compiled as { limit?: number }).limit
+    const out = await executeCompiledQuery(compiled)
+    expect(out.truncated).toBe(true)
+  })
+  it('reflects truncation on the post-aggregate row count is NOT what truncated signals — truncated reflects the raw fetch, not the reduced group count', async () => {
+    // A capped fetch of `limit` raw rows can reduce to far fewer grouped rows; truncated must
+    // still flag that the UNDERLYING fetch was capped (i.e. the aggregate is a LOWER BOUND),
+    // not whether the post-groupBy row count happens to equal the limit.
+    const rec = freshRec()
+    const rows = Array.from({ length: 3 }, () => ({ branch_code: 'BGR', clean_revenue: 1 }))
+    schemaMock.mockReturnValue(makeSchema(rows, null, rec) as never)
+    const out = await executeCompiledQuery(mkCompiled({
+      limit: 3,
+      resolvedGroupBy: 'branch_code',
+      resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
+    }))
+    expect(out.rows).toEqual([{ branch_code: 'BGR', total: 3 }]) // 1 grouped row
+    expect(out.truncated).toBe(true) // but the raw fetch (3) hit the limit (3)
   })
 })
