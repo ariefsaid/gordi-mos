@@ -116,7 +116,9 @@ export interface AgentRuntime {
   control(
     runId: string,
     cmd: 'approve' | 'reject' | 'cancel',
-    payload?: AgentAnswer,
+    /** P2 carries { pendingId } for approve/reject of a needs-approval write. P3 will also carry
+     *  the ask_user `answer` (AgentAnswer) — the optional object leaves room without a rewrite. */
+    payload?: { pendingId?: string; answer?: AgentAnswer },
   ): Promise<void>
   subscribe(runId: string): AsyncIterable<AgentEvent>
 }
