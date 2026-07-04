@@ -38,7 +38,7 @@ export interface TimeRangeSpec { column: string; from: string; to: string }
 export type ViewSchema = 'mos' | 'ops' | 'shared' | 'reporting'
 export type WhitelistedEntity =
   | 'tasks' | 'weekly_updates' | 'objectives' | 'work_lines' | 'people'
-  | 'sales_daily_revenue' | 'sales_margin_daily'
+  | 'sales_daily_revenue' | 'sales_margin_daily' | 'business_units'
 
 // ── QuerySpec ──────────────────────────────────────────────────────────────────
 export interface QuerySpec {
@@ -182,6 +182,17 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
       dateColumns: new Set(['margin_date', 'snapshot_as_of']),
       groupableColumns: new Set(['esb_code', 'branch_code']),
       requiresTimeRange: true,
+    },
+    // 8th entity (T11/§3.1, P2 amendment) — the deputy needs to resolve a business_unit_id
+    // for create_task; a single read whitelist is the honest design (D2). org_id stays
+    // absent from allowedColumns (never sent by the client — RLS is the authority).
+    business_units: {
+      schema: 'shared', table: 'business_units', repositoryMethod: 'directory.listBusinessUnits',
+      allowedColumns: new Set(['id', 'name', 'created_at', 'updated_at']),
+      numericColumns: new Set<string>(),
+      dateColumns: new Set(['created_at', 'updated_at']),
+      groupableColumns: new Set<string>(),
+      requiresTimeRange: false,
     },
   })
 
