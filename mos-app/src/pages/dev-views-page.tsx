@@ -2,14 +2,15 @@
 // render. DEV-only + feature-flagged (config/features.ts SHOW_USER_VIEWS) + auth-gated
 // (mounted inside ProtectedRoute — router.tsx). Phone-first, DESIGN.md tokens only.
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { PageFrame } from '@/shell/page-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { UserViewRenderer, buildCompilerContext } from '@/lib/viewspec/renderer'
+import { compileCompositionSpec } from '@/lib/viewspec/compiler'
 import { listUserViews, getUserView, createUserView, type UserViewRow, type UserViewScope } from '@/lib/db/user-views'
-import type { CompositionSpec } from '@/lib/viewspec/types'
+import { ValidationError, type CompositionSpec } from '@/lib/viewspec/types'
 import './dev-views-page.css'
 
 const SAMPLE: CompositionSpec = {
@@ -64,26 +65,45 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
     }
   }
 
+  const ctx = auth.status === 'authenticated'
+    ? buildCompilerContext(auth.viewer.person.id, auth.viewer.person.org_id)
+    : null
+
   const onRender = () => {
     const p = parse()
     setParsed(p)
     setMsg(p ? null : t('dev.views.invalid'))
   }
 
+  // Save-time validation gate (P1 review fix-wave item 11 / Sec-M1): an invalid spec is NEVER
+  // persisted. compileCompositionSpec is the same untrusted-output boundary the renderer crosses
+  // on every render (plan §1.7) — gating onSave on it succeeding means a saved row is always
+  // guaranteed re-renderable, and a bad hand-edit surfaces the exact ValidationError code
+  // immediately instead of silently saving garbage. This is a CLIENT-side gate only; real
+  // server-side re-validation (RLS/trigger or an edge function check) lands with P2's
+  // compose-view (never trust the client compile alone once an LLM — or any external caller —
+  // can write to mos.user_views directly).
   const onSave = async () => {
     const p = parse()
     if (!p) {
       setMsg(t('dev.views.invalid'))
       return
     }
+    if (!ctx) {
+      setMsg(t('dev.views.invalid'))
+      return
+    }
+    try {
+      compileCompositionSpec(p, ctx)
+    } catch (e) {
+      const code = e instanceof ValidationError ? e.code : 'COMPILE_ERROR'
+      setMsg(t('dev.views.spec-invalid', { code }))
+      return
+    }
     await createUserView({ name, spec: p, scope })
     setMsg(t('dev.views.saved'))
     await refresh()
   }
-
-  const ctx = auth.status === 'authenticated'
-    ? buildCompilerContext(auth.viewer.person.id, auth.viewer.person.org_id)
-    : null
 
   return (
     <PageFrame>
@@ -100,7 +120,7 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
               <ul className="dev-views__list-items">
                 {views.map((v) => (
                   <li key={v.id}>
-                    <a href={`/mos/dev/views/${v.id}`} className="dev-views__list-item">{v.name}</a>
+                    <Link to={`/dev/views/${v.id}`} className="dev-views__list-item">{v.name}</Link>
                   </li>
                 ))}
               </ul>

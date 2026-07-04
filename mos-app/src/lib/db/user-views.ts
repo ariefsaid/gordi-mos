@@ -53,7 +53,13 @@ export async function createUserView(input: UserViewInput): Promise<UserViewRow>
   return data as unknown as UserViewRow
 }
 
-/** Updates a user view's name/spec/scope. org_id/owner_id are never sent (RLS pins them). */
+/**
+ * Updates a user view's name/spec/scope. org_id/owner_id are never sent (RLS pins them).
+ * NOT YET CALLED from any UI in P1 (the dev harness only creates; it has no "edit an existing
+ * view" flow). When a caller wires this to a UI action, it MUST apply the same save-time
+ * validation gate dev-views-page.tsx's onSave applies to createUserView (P1 review fix-wave
+ * item 11 / Sec-M1) — compileCompositionSpec(spec, ctx) must succeed before calling this.
+ */
 export async function updateUserView(id: string, input: UserViewInput): Promise<void> {
   const { error } = await mos()
     .from('user_views').update({

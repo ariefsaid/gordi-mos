@@ -46,6 +46,7 @@ export const messages = {
     'dev.views.empty': 'No saved views yet',
     'dev.views.saved': 'Saved',
     'dev.views.invalid': 'Invalid JSON — fix and try again',
+    'dev.views.spec-invalid': 'Spec rejected — ${code}. Fix and try again.',
   },
   id: {
     'dest.home': 'Beranda',
@@ -86,6 +87,7 @@ export const messages = {
     'dev.views.empty': 'Belum ada tampilan tersimpan',
     'dev.views.saved': 'Tersimpan',
     'dev.views.invalid': 'JSON tidak valid — perbaiki lalu coba',
+    'dev.views.spec-invalid': 'Spec ditolak — ${code}. Perbaiki lalu coba lagi.',
   },
 } as const
 
