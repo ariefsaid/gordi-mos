@@ -23,6 +23,9 @@ external design references.
   staging (`hvnwcsmkdeqmgqlbwflm`) and the warehouse→Supabase snapshot runs at **03:30 WIB** after the
   03:05 ESB sync. Manual live proof on 2026-07-02 upserted 191 rows; B2B/Roastery landed as
   `channel=B2B`, `esb_code=GRI`, `branch_code=GRI`, `branch_name=Gordi Roastery`.
+- **Snapshot writer is least-privilege (Sec-M1, fixed 2026-07-04):** the cron connects as a dedicated
+  `reporting_writer` role (LOGIN, `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`), not `postgres`
+  superuser. Manual re-run after the change verified 190 rows upserted, exit=0, no permission errors.
 
 ## Box coordinates
 | Field | Value |
@@ -84,12 +87,41 @@ external design references.
   balance-sheet imbalance derived from those GL balances, and GKID AP days >365 driven by AP balance vs
   trailing-12-month COGS.
 - `reporting-snapshot-cron.sh` — runs after the warehouse sync and writes the trailing 60-day window to
-  staging Supabase via op-injected credentials. Because the staging direct DB URL is IPv6-only from the
-  VPS, the wrapper derives an IPv4 session-pooler DSN in memory from the op URL field and never writes
-  or prints the password. Logs append to `sync/logs/reporting-snapshot.log`. Manual proof on
-  2026-07-02 11:54 WIB: `reporting_snapshot END rows=191 window_days=60 contract=v_daily_revenue_unified.v1`
+  staging Supabase via a **least-privilege writer role** (Sec-M1, fixed 2026-07-04 — see below), never
+  writes or prints the password. Because the staging direct DB URL is IPv6-only from the VPS, the
+  wrapper builds an IPv4 session-pooler DSN in memory. Logs append to `sync/logs/reporting-snapshot.log`.
+  Manual proof on 2026-07-02 11:54 WIB (pre-fix, as `postgres` superuser):
+  `reporting_snapshot END rows=191 window_days=60 contract=v_daily_revenue_unified.v1`
   and staging query showed `B2B / GRI / GRI / Gordi Roastery` (39 daily rows in the 60-day window,
   112 transactions, `263860642.93` clean revenue).
+- **Sec-M1 fix (2026-07-04) — least-privilege snapshot writer.** The cron previously connected as the
+  `postgres` **superuser** via the pooler (blast radius = whole staging DB if the cred leaked). Fixed:
+  - New Postgres role `reporting_writer` on staging (`hvnwcsmkdeqmgqlbwflm`): `LOGIN`, `NOSUPERUSER
+    NOCREATEDB NOCREATEROLE NOINHERIT`. Granted only `USAGE` on schema `reporting` and
+    `SELECT, INSERT, UPDATE` on `reporting.sales_daily_revenue`. Verified via `pg_roles` +
+    `information_schema.role_table_grants` (rolsuper/createdb/createrole all false; grants exactly
+    SELECT/INSERT/UPDATE) and a live connect-as-`reporting_writer` probe (SELECT ok, upsert ok under
+    FORCE RLS, `CREATE TABLE` correctly denied `InsufficientPrivilege`).
+  - New migration `supabase/migrations/20260704000001_reporting_writer_role_policy.sql` adds policy
+    `sales_daily_revenue_write_reporting_writer` (`FOR ALL TO reporting_writer USING (true) WITH CHECK
+    (true)`) so the writer isn't blocked by `FORCE ROW LEVEL SECURITY` on INSERT/UPDATE. The existing
+    `authenticated`-facing SELECT-only policy (finance/admin) is untouched. Applied to staging via a
+    direct psycopg session as the (still-superuser, human-operated) `postgres` cred — this migration
+    only needs to exist in the repo + be applied once; it does not change who the cron connects as.
+  - **Credential location — FALLBACK taken.** The `op` service account (`~/.op-token` on the VPS)
+    returned `(101) You do not have permission to perform this action` on `op item create` against vault
+    `Gordi` (confirmed 2026-07-04; same read-only posture as the DB-password-in-op open item below). Per
+    the documented fallback, the `reporting_writer` password lives at `/home/arief/.reporting-writer-cred`
+    on the VPS (mode `0600`, `arief`-owned — matches `~/.op-token`'s existing permission posture; the cron
+    already runs as `arief`, not `root`, so `/root/...` was not reachable non-interactively either).
+    **Follow-up:** once the op SA gets write access, migrate this into `op item create` under vault
+    `Gordi` (title `gordi-staging reporting_writer`) and delete the file.
+  - `reporting-snapshot-cron.sh` now reads the writer password from `$WRITER_CRED_FILE`
+    (`~/.reporting-writer-cred`) and builds the pooler DSN as `reporting_writer.<project_ref>@<pooler
+    host>` (same pooler host/port/db as before). No more `op run` / direct-URL superuser path.
+  - Manual re-run after the change (2026-07-04): `reporting_snapshot END rows=190 window_days=60
+    contract=v_daily_revenue_unified.v1`, exit=0. Row count before/after: 198→198 (idempotent upsert, not
+    duplicate inserts); `snapshot_as_of` advanced to the new run time. No permission errors.
 
 ## Observability (ADR-0010 amendment A2)
 - `~/gordi-esb-pg/resource-watch.sh` — every 10 min, **silent when healthy**; alerts on MemAvailable < 300 MB, active swap-in, 1-min load > 2.5, or a PG query running > 10 min.
