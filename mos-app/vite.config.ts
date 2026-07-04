@@ -91,6 +91,11 @@ export default defineConfig({
         'src/lib/viewspec/**',
         'src/lib/db/user-views.ts',
         'src/pages/dev-views-page.tsx',
+        // Agent/deputy runtime — the mos-app-side test suite for supabase/functions/**
+        // handlers (D7 dual-Deno/Node authoring; ADR-0018 P2 port). The edge-function
+        // sources themselves live outside mos-app/src (Deno, not part of this coverage
+        // root) — this entry covers the mos-app-local agent test/shape files.
+        'src/lib/agent/**',
       ],
       exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },

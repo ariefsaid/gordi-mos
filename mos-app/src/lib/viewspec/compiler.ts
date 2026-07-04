@@ -9,7 +9,11 @@ import type {
   QuerySpec, CompilerContext, CompiledQuery, CompositionSpec, CompiledPanel,
   FilterClause, ResolvedFilter, ResolvedAggregate, ResolvedTimeRange, TokenValue,
 } from './types'
-import { validatePrimitive } from './registry'
+// Imports the PURE registry-manifest (not registry.ts, which pulls in React component types
+// via `@/components/dashboard/kpi-tile` — compiler.ts is called from Deno edge functions via
+// compileCompositionSpec, T8/FR-P2-CV-002, so its import graph must stay React/CSS-free too;
+// Director build-note, 2026-07-04, pre-ADR-0018-P2-T7).
+import { validatePrimitiveInManifest } from './registry-manifest'
 
 function startOfMonth(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`
@@ -160,7 +164,7 @@ export function compileCompositionSpec(spec: CompositionSpec, ctx: CompilerConte
   }
 
   return spec.panels.map((panel): CompiledPanel => {
-    if (!validatePrimitive(panel.primitive)) throw new ValidationError('UNKNOWN_PRIMITIVE', panel.id)
+    if (!validatePrimitiveInManifest(panel.primitive)) throw new ValidationError('UNKNOWN_PRIMITIVE', panel.id)
     if (!Array.isArray(panel.querySpec?.select)) {
       throw new ValidationError('INVALID_SPEC_SHAPE', `panel ${panel.id}: querySpec.select must be an array`)
     }

@@ -47,4 +47,11 @@ describe('registry-manifest — pure, React-free primitive catalog (Director bui
     // No import statement pulling in anything under components/ (where React/CSS live).
     expect(source).not.toMatch(/from ['"][^'"]*components\//)
   })
+
+  it('import-graph guard: compiler.ts (compileCompositionSpec, called from Deno edge functions '
+    + 'via T8/FR-P2-CV-002) imports registry-manifest, NOT registry.ts (which pulls in React)', () => {
+    const source = readFileSync(resolve(__dirname, 'compiler.ts'), 'utf-8')
+    expect(source).toMatch(/from ['"]\.\/registry-manifest['"]/)
+    expect(source).not.toMatch(/from ['"]\.\/registry['"]/)
+  })
 })
