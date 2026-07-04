@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { daysAgoIsoDate, latestBy } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_margin_daily (Home v1 margin KPI — ADR-0018 D6 prereq /
 // ADR-0010 D5 / ADR-0019 D3). Reads via supabase.schema('reporting') on the existing
@@ -45,12 +46,6 @@ export interface SalesMarginDailyFilters {
   sinceDays?: number
 }
 
-function daysAgoIsoDate(days: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
-}
-
 /**
  * List reporting.sales_margin_daily rows ordered by margin_date ascending. RLS scopes
  * rows to the caller's org + finance/admin access role — org_id is never sent.
@@ -68,13 +63,11 @@ export async function listSalesMarginDaily(
 
 /** Freshness: the latest `snapshot_as_of` across the given rows, or null if empty. */
 export function latestMarginSnapshotAsOf(rows: SalesMarginDailyRow[]): string | null {
-  if (rows.length === 0) return null
-  return rows.reduce((max, r) => (r.snapshot_as_of > max ? r.snapshot_as_of : max), rows[0].snapshot_as_of)
+  return latestBy(rows, r => r.snapshot_as_of)
 }
 
 /** Reporting-day window: the latest `margin_date` across the given rows, or null if empty.
  * Current-period metrics must key off this, not the browser's local calendar date. */
 export function latestMarginReportingDate(rows: SalesMarginDailyRow[]): string | null {
-  if (rows.length === 0) return null
-  return rows.reduce((max, r) => (r.margin_date > max ? r.margin_date : max), rows[0].margin_date)
+  return latestBy(rows, r => r.margin_date)
 }

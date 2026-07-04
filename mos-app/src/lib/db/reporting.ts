@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { daysAgoIsoDate, latestBy } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_daily_revenue (sales dashboard, Issue 1 — OD-P4-2 / ADR-0010
 // D5 / ADR-0017 D3). Reads via supabase.schema('reporting') on the existing client (mirrors the
@@ -30,12 +31,6 @@ export interface SalesDailyRevenueFilters {
   sinceDays?: number
 }
 
-function daysAgoIsoDate(days: number): string {
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
-}
-
 /**
  * List reporting.sales_daily_revenue rows ordered by revenue_date ascending (FR-002/AC-003).
  * RLS scopes rows to the caller's org + finance/admin access role — org_id is never sent.
@@ -55,13 +50,11 @@ export async function listSalesDailyRevenue(
 
 /** Freshness (FR-003): the latest `snapshot_as_of` across the given rows, or null if empty. */
 export function latestSnapshotAsOf(rows: SalesDailyRevenueRow[]): string | null {
-  if (rows.length === 0) return null
-  return rows.reduce((max, r) => (r.snapshot_as_of > max ? r.snapshot_as_of : max), rows[0].snapshot_as_of)
+  return latestBy(rows, r => r.snapshot_as_of)
 }
 
 /** Reporting-day window (FR-004): the latest `revenue_date` across the given rows, or null if
  * empty. Current-period metrics must key off this, not the browser's local calendar date. */
 export function latestReportingDate(rows: SalesDailyRevenueRow[]): string | null {
-  if (rows.length === 0) return null
-  return rows.reduce((max, r) => (r.revenue_date > max ? r.revenue_date : max), rows[0].revenue_date)
+  return latestBy(rows, r => r.revenue_date)
 }
