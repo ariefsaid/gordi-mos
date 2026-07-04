@@ -32,6 +32,7 @@ different connection target** for that same schema.
 | `supabase test db` | **local** Docker | pgTAP suite (needs pristine base) |
 | `supabase login` / `link` | account / repo↔cloud pointer | no DB touched |
 | `supabase db push` (linked to `gordi-mos`) | **staging** (Supabase Cloud) | applies migrations to the cloud DB; CLI access-token authed (no DB password needed for push via the pooler). Re-link to a different ref before targeting another env. |
+| `supabase config push` (linked to `gordi-mos`) | **staging** (Supabase Cloud) | pushes `supabase/config.toml`'s `[auth]`/`[api]`/`[storage]` blocks to the linked Cloud project. **GOTCHA (verified 2026-07-04):** `config.toml` intentionally holds **local dev** `site_url`/`additional_redirect_urls` (`localhost:5173`) for local mailpit testing — pushing it as-is **overwrites staging's live site_url/redirect URLs with the localhost values**, breaking auth email links + OAuth redirects on `gordi-mos.pages.dev`. Before pushing config for any other reason (e.g. password policy), temporarily edit those two lines to staging's real values (`site_url = "https://gordi-mos.pages.dev/mos/"` + the matching redirect list incl. `/mos/recovery`), push, verify with a second `config push` (should report Auth "up to date"), then revert the file to local values. |
 | future: `supabase db push --db-url …@ris-dev` | **prod** (self-hosted) | secret via 1Password; explicit `--db-url`; typed confirm |
 
 ## Local stack setup

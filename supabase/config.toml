@@ -164,6 +164,15 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
+#
+# GOTCHA (verified 2026-07-04): `supabase config push` pushes THIS file's site_url/redirect URLs to
+# whatever project is linked (currently staging, hvnwcsmkdeqmgqlbwflm) and OVERWRITES what's live there.
+# This file intentionally holds LOCAL DEV values (localhost:5173) for local mailpit/recovery-link
+# testing. Before running `supabase config push` for any OTHER reason (e.g. an auth policy change),
+# temporarily edit these two lines to staging's real values, push, then revert to local values
+# afterward — see docs/reference/warehouse-online.md / docs/environments.md for the staging site_url
+# (`https://gordi-mos.pages.dev/mos/`) and confirm post-push with another `config push` (should report
+# "up to date" for auth, proving both changes landed).
 site_url = "http://localhost:5173/mos/"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
@@ -187,10 +196,10 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "lower_upper_letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
