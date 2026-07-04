@@ -215,6 +215,18 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIn("c.bom_total", sql)
         self.assertIn("c.bom_coverage_pct", sql)
 
+    def test_margin_source_query_derives_window_in_sql_like_revenue_sibling(self):
+        """Given the margin source query, when built, then it derives the trailing window
+        with the in-SQL current_date idiom (matching build_source_query's revenue sibling)
+        instead of a Python-computed UTC `since` — CQ-3 dedup (docs/reviews/feat-home-v1-margin.md)."""
+        sql = " ".join(build_margin_source_query().split())
+
+        self.assertIn(
+            "r.revenue_date >= current_date - ((%s::int - 1) * interval '1 day')",
+            sql,
+        )
+        self.assertNotIn("%(since)s", sql)
+
     def test_margin_upsert_sql_uses_primary_key_and_refreshes_metrics(self):
         """AC-SN04: Given the margin upsert SQL, when built, then it upserts by
         (org_id, margin_date, esb_code, branch_code) and refreshes mutable metrics + freshness."""

@@ -8,7 +8,7 @@ This script deliberately does not load .env files.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import os
 import sys
 from typing import Any, Mapping
@@ -252,7 +252,7 @@ def build_margin_source_query() -> str:
        and c.esb_code::text = r.esb_code::text
        and c.branch_code = coalesce(nullif(btrim(coalesce(r.branch_code,'')),''), r.esb_code::text)
       where r.channel = 'POS'
-        and r.revenue_date >= %(since)s
+        and r.revenue_date >= current_date - ((%s::int - 1) * interval '1 day')
       group by r.revenue_date, r.esb_code, 3
       order by r.revenue_date, r.esb_code, 3
     """
@@ -294,10 +294,9 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
             "Missing dependency: install psycopg on the VPS snapshot environment"
         ) from exc
 
-    since = (snapshot_as_of.date() - timedelta(days=config.window_days - 1)).isoformat()
     with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as warehouse_conn:
         with warehouse_conn.cursor() as warehouse_cur:
-            warehouse_cur.execute(build_margin_source_query(), {"since": since})
+            warehouse_cur.execute(build_margin_source_query(), (config.window_days,))
             source_rows = warehouse_cur.fetchall()
 
     normalized_rows = [
