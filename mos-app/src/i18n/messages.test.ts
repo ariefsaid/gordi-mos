@@ -1,0 +1,65 @@
+import { createElement, type ReactNode } from 'react'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { renderHook } from '@testing-library/react'
+import { messages } from './messages'
+import { I18nProvider } from './I18nProvider'
+import { useT, interpolate } from './use-t'
+
+/**
+ * i18n catalog + seam tests (ADR-0021, plan §4.6/§5).
+ * The catalog is the seam: both locales must expose identical key sets
+ * (compile-time via MessageKey, and here at test-time as a guard), and
+ * useT() must resolve/interpolate/fall back without ever throwing.
+ *
+ * (Plain .ts, not .tsx — the wrapper uses createElement instead of JSX.)
+ */
+function wrapper({ children }: { children: ReactNode }) {
+  return createElement(I18nProvider, null, children)
+}
+
+describe('i18n messages catalog', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('AC-I01: en and id key sets are identical', () => {
+    const enKeys = Object.keys(messages.en).sort()
+    const idKeys = Object.keys(messages.id).sort()
+    expect(idKeys).toEqual(enKeys)
+  })
+
+  it('AC-I02: with locale persisted as id, t("dest.home") returns "Beranda"', () => {
+    localStorage.setItem('mos.locale', 'id')
+    const { result } = renderHook(() => useT(), { wrapper })
+    expect(result.current('dest.home')).toBe('Beranda')
+  })
+
+  it('AC-I02: default locale (en) resolves t("dest.home") to "Home"', () => {
+    const { result } = renderHook(() => useT(), { wrapper })
+    expect(result.current('dest.home')).toBe('Home')
+  })
+
+  it('AC-I03: t() for a key missing at runtime falls back to en, then the key, and never throws', () => {
+    const { result } = renderHook(() => useT(), { wrapper })
+    // @ts-expect-error — deliberately passing an unknown key to prove runtime safety
+    expect(() => result.current('not.a.real.key')).not.toThrow()
+    // @ts-expect-error — same as above
+    expect(result.current('not.a.real.key')).toBe('not.a.real.key')
+  })
+
+  it('useT resolves a catalog string unchanged when no vars are passed', () => {
+    const { result } = renderHook(() => useT(), { wrapper })
+    expect(result.current('home.kpi.tasks')).toBe('My open tasks')
+  })
+
+  it('interpolate() replaces ${name} placeholders with the provided vars', () => {
+    expect(interpolate('Hello ${name}, you have ${count} tasks', { name: 'Arief', count: 3 })).toBe(
+      'Hello Arief, you have 3 tasks'
+    )
+  })
+
+  it('interpolate() leaves unknown placeholders untouched and never throws', () => {
+    expect(() => interpolate('Hi ${missing}', {})).not.toThrow()
+    expect(interpolate('Hi ${missing}', {})).toBe('Hi ${missing}')
+  })
+})
