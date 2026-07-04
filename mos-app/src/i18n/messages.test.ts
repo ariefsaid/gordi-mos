@@ -63,3 +63,55 @@ describe('i18n messages catalog', () => {
     expect(interpolate('Hi ${missing}', {})).toBe('Hi ${missing}')
   })
 })
+
+// AC-P2-AP-004/005 (plan T26) — the assistant panel's i18n catalog. Every assistant.* key must
+// ship in BOTH locales and resolve to a real localized string under `id` (never fall back to the
+// key itself — that would surface an English-key stub to an Indonesian user).
+describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
+  const ASSISTANT_KEYS = [
+    'assistant.title',
+    'assistant.close',
+    'assistant.history',
+    'assistant.newConversation',
+    'assistant.open',
+    'assistant.empty.title',
+    'assistant.empty.body',
+    'assistant.empty.suggestion1',
+    'assistant.empty.suggestion2',
+    'assistant.empty.suggestion3',
+    'assistant.composer.placeholder',
+    'assistant.send',
+    'assistant.stop',
+    'assistant.retry',
+    'assistant.streaming',
+    'assistant.approval.header',
+    'assistant.approval.approve',
+    'assistant.approval.deny',
+    'assistant.action.create_task',
+    'assistant.action.post_update',
+    'assistant.error.title',
+    'assistant.error.cta',
+    'assistant.stuck.banner',
+    'assistant.stuck.stop',
+    'assistant.thread.empty',
+  ] as const
+
+  it('every assistant.* key is present in both en and id (key-parity holds)', () => {
+    for (const key of ASSISTANT_KEYS) {
+      expect(messages.en[key], `en missing ${key}`).toBeDefined()
+      expect(messages.id[key], `id missing ${key}`).toBeDefined()
+    }
+  })
+
+  it('under locale:id, every assistant.* key resolves to a localized string, not the key itself', () => {
+    localStorage.setItem('mos.locale', 'id')
+    const { result } = renderHook(() => useT(), { wrapper })
+    for (const key of ASSISTANT_KEYS) {
+      const resolved = result.current(key)
+      expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
+      // A localized string must contain at least one non-ASCII OR be a real Indonesian word;
+      // the guard above (not the key) is the binding assertion.
+      expect(resolved.length).toBeGreaterThan(0)
+    }
+  })
+})
