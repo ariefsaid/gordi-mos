@@ -1,8 +1,9 @@
 # Gordi MOS — Roadmap (living doc; created 2026-06-10)
 
-Phasing to MVP, optimized for speed-to-daily-use. Source of product truth: `docs/project-brief.md`.
-One issue at a time per the Director loop (`docs/director-playbook.md`). Each phase ends at an
-**owner gate**.
+Phasing to MVP, optimized for speed-to-daily-use. Source of product truth: `docs/project-brief.md`
+(era-bound E1) — **the requirement bar has evolved since; read `docs/requirements-evolution.md`
+(era timeline E1→E6) before trusting any phase's original scope.** One issue at a time per the
+Director loop (`docs/director-playbook.md`). Each phase ends at an **owner gate**.
 
 ## Phase 0 — Frontend mockups (DONE)
 Goal: lock the IA and the look of the first slice on paper before any code. Static HTML only

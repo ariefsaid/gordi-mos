@@ -1,7 +1,8 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
-Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
+Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
+bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 
 > **NEXT SESSION: read `docs/platform-workstream-status.md` first** — that is the current
 > handoff. It covers: Kitchen Module (SHIPPED 2026-06-21), access-role layer (SHIPPED),

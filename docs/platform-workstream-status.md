@@ -2,7 +2,8 @@
 
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
 > state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`;
-> ESB warehouse online (box/op/cron/observability): `docs/reference/warehouse-online.md`.
+> ESB warehouse online (box/op/cron/observability): `docs/reference/warehouse-online.md`. How the
+> requirement bar evolved (era timeline E1→E6 — later era wins): `docs/requirements-evolution.md`.
 
 Durable handoff for the **platform-foundation** workstream (turning MOS into the shared platform:
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
