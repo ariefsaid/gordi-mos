@@ -29,22 +29,8 @@ import { composeViewHandler } from './handler.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveComposeModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
+import { decodeJwtClaims } from '../_shared/jwt.ts'
 import type { ComposeViewRequest } from './types.ts'
-
-/**
- * Decode the org_id/person_id/access_roles claims from a JWT payload (D1 — the JWT claim
- * IS the authority; no profiles lookup). Base64url-decodes the payload segment; returns an
- * empty object on any parse failure (the caller must still gate on missing claims).
- */
-function decodeJwtClaims(jwt: string): { org_id?: string; person_id?: string; access_roles?: string[] } {
-  try {
-    const payload = jwt.split('.')[1]
-    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-    return { org_id: json.org_id, person_id: json.person_id, access_roles: json.access_roles }
-  } catch {
-    return {}
-  }
-}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsHeaders = {
