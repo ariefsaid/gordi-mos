@@ -51,7 +51,11 @@ describe('registry-manifest — pure, React-free primitive catalog (Director bui
   it('import-graph guard: compiler.ts (compileCompositionSpec, called from Deno edge functions '
     + 'via T8/FR-P2-CV-002) imports registry-manifest, NOT registry.ts (which pulls in React)', () => {
     const source = readFileSync(resolve(__dirname, 'compiler.ts'), 'utf-8')
-    expect(source).toMatch(/from ['"]\.\/registry-manifest['"]/)
-    expect(source).not.toMatch(/from ['"]\.\/registry['"]/)
+    // Extension is optional in the regex (Deno-strict compat, JOB 0): compiler.ts's relative
+    // imports now carry an explicit `.ts` suffix (deno check requires it — Vite/Vitest resolve
+    // either form identically) — the guard's actual guarantee (manifest, never registry.ts's
+    // React-bound module) is unaffected by the suffix.
+    expect(source).toMatch(/from ['"]\.\/registry-manifest(\.ts)?['"]/)
+    expect(source).not.toMatch(/from ['"]\.\/registry(\.ts)?['"]/)
   })
 })
