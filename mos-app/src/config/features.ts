@@ -8,3 +8,8 @@ export const SHOW_DAILY_LOG = false
 // ADR-0018 P1 — view-composition substrate (user views). Hide-first (ADR-0017 D6): the dev harness
 // route redirects to / when off. Flip true to enable /dev/views for a rollout cohort.
 export const SHOW_USER_VIEWS = false
+
+// ADR-0018 P2 — the deputy assistant panel + runtime (FR-P2-CF-003). Hide-first: the panel, FAB,
+// top-bar button, and AgentRuntimeProvider all short-circuit to null/no-op when this is false.
+// Flip true (local/staging only) to enable the deputy for a rollout cohort.
+export const SHOW_ASSISTANT = false
