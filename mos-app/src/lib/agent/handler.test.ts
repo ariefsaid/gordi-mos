@@ -99,6 +99,40 @@ describe('agentChatHandler — gate (1) UNAUTHORIZED', () => {
   })
 })
 
+// ── SEC-Medium: transcript size cap (DoS) ─────────────────────────────────────
+
+describe('agentChatHandler — transcript size cap (SEC-Medium)', () => {
+  it('rejects a body with more than 40 messages with a 400-equivalent BAD_REQUEST, BEFORE any model call', async () => {
+    const deps = makeDeps()
+    const messages = Array.from({ length: 41 }, (_, i) => ({ role: 'user' as const, content: `msg ${i}` }))
+    const events = await collect({ messages }, deps)
+    const last = events.at(-1)
+    expect(last?.type).toBe('status')
+    expect((last?.payload as { status?: string; error?: string })?.status).toBe('error')
+    expect((last?.payload as { status?: string; error?: string })?.error).toBe('BAD_REQUEST')
+    expect(deps.modelClient.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body whose total JSON size exceeds 32KB, BEFORE any model call', async () => {
+    const deps = makeDeps()
+    const messages = [{ role: 'user' as const, content: 'x'.repeat(33 * 1024) }]
+    const events = await collect({ messages }, deps)
+    const last = events.at(-1)
+    expect((last?.payload as { status?: string; error?: string })?.status).toBe('error')
+    expect((last?.payload as { status?: string; error?: string })?.error).toBe('BAD_REQUEST')
+    expect(deps.modelClient.create).not.toHaveBeenCalled()
+  })
+
+  it('accepts a body within both caps (40 messages, under 32KB) — no rejection', async () => {
+    const deps = makeDeps({ modelResponses: [textResponse('ok')] })
+    const messages = Array.from({ length: 40 }, (_, i) => ({ role: 'user' as const, content: `msg ${i}` }))
+    const events = await collect({ messages }, deps)
+    const last = events.at(-1)
+    expect((last?.payload as { status?: string; error?: string })?.error).not.toBe('BAD_REQUEST')
+    expect(deps.modelClient.create).toHaveBeenCalled()
+  })
+})
+
 // ── ADR-0043 §4-analog: cancel branch ──────────────────────────────────────────
 
 describe('agentChatHandler — cancel branch', () => {

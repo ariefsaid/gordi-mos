@@ -114,6 +114,36 @@ describe('useAssistantPanel (T25)', () => {
     expect(result.current.transcript).toHaveLength(2)
   })
 
+  it('CQ#2/SEC-Medium: a second send() reuses the active runId via followUp — no second createRun (no orphan-thread fragmentation)', async () => {
+    const runtime = makeFakeRuntime([
+      [assistantEv('First answer.'), statusEv('completed')],
+      [assistantEv('Second answer.'), statusEv('completed')],
+    ])
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: hookWrapper(runtime) })
+
+    await act(async () => { await result.current.send('first question') })
+    await waitFor(() => expect(result.current.phase).toBe('idle'))
+    expect(runtime.createRun).toHaveBeenCalledTimes(1)
+    const firstRunId = result.current.runId
+
+    await act(async () => { await result.current.send('second question') })
+    await waitFor(() => expect(result.current.phase).toBe('idle'))
+
+    // Still only ONE createRun — the second turn followed up on the same run.
+    expect(runtime.createRun).toHaveBeenCalledTimes(1)
+    expect(runtime.followUp).toHaveBeenCalledTimes(1)
+    expect(runtime.followUp).toHaveBeenCalledWith(firstRunId, 'second question')
+    expect(result.current.runId).toBe(firstRunId)
+
+    // Both turns' transcript items persist.
+    expect(result.current.transcript.map((t) => `${t.role}:${t.text}`)).toEqual([
+      'user:first question',
+      'assistant:First answer.',
+      'user:second question',
+      'assistant:Second answer.',
+    ])
+  })
+
   it('a terminal error status flips phase to error and surfaces the error', async () => {
     const runtime = makeFakeRuntime([[statusEv('error', { error: 'UPSTREAM_ERROR' })]])
     const { result } = renderHook(() => useAssistantPanel(), { wrapper: hookWrapper(runtime) })

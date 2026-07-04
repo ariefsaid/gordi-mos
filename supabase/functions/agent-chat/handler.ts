@@ -40,7 +40,23 @@ import type { AgentChatRequest, ConversationMessage } from '../../../mos-app/src
 /** Hard cap on tool-use rounds per run. */
 export const MAX_TOOL_ROUNDS = 8
 
+/**
+ * SEC-Medium (DoS): a client-supplied transcript is trusted as the full conversation history
+ * (the server is stateless — D8-analog, see file header). Without a cap, an unbounded
+ * `req.messages` array reaches the model call directly (cost + latency abuse). Mirrors
+ * compose-view's prompt-length gate (400 BEFORE any model call).
+ */
+export const MAX_TRANSCRIPT_MESSAGES = 40
+export const MAX_TRANSCRIPT_BYTES = 32 * 1024
+
 const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]))
+
+/** True when req.messages exceeds either the message-count or total-byte cap. */
+function transcriptExceedsCap(messages: ConversationMessage[]): boolean {
+  if (messages.length > MAX_TRANSCRIPT_MESSAGES) return true
+  const bytes = new TextEncoder().encode(JSON.stringify(messages)).length
+  return bytes > MAX_TRANSCRIPT_BYTES
+}
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
 
@@ -422,6 +438,12 @@ async function* agentChatHandlerInner(
   // ── Gate (1): userId present ───────────────────────────────────────────────
   if (!deps.userId) {
     yield statusEvent('error', { error: 'UNAUTHORIZED' })
+    return
+  }
+
+  // ── Gate (1b): transcript size cap (SEC-Medium, DoS) — BEFORE any model call ─
+  if (transcriptExceedsCap(req.messages)) {
+    yield statusEvent('error', { error: 'BAD_REQUEST' })
     return
   }
 

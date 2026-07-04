@@ -147,6 +147,19 @@ export function useAssistantPanel() {
       setIsStuck(false)
       lastProgressAtRef.current = Date.now()
       setTranscript((prev) => [...prev, { id: makeId(), role: 'user', text: goal }])
+
+      // CQ#2/SEC-Medium (conversation-model fix): a run already active on this panel surface
+      // (i.e. a second-or-later turn in the SAME conversation) follows up on it rather than
+      // minting a new thread/run — otherwise every send() fragmented the conversation into
+      // orphan single-turn threads. Only the FIRST turn (no active run yet, or after
+      // newConversation()/openThread() reset activeRunIdRef) creates a new run.
+      if (activeRunIdRef.current) {
+        const runId = activeRunIdRef.current
+        await runtime.followUp(runId, goal)
+        await drain(runId)
+        return
+      }
+
       const run = await runtime.createRun({ goal })
       setRunId(run.id)
       activeRunIdRef.current = run.id
