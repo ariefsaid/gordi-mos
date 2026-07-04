@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -78,19 +79,22 @@ function renderNarrow() {
     signOut: vi.fn(),
   })
   return render(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route
-          path="*"
-          element={<TestHarness />}
-        />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="*"
+            element={<TestHarness />}
+          />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
 })
 
 afterEach(() => {
