@@ -95,4 +95,54 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
 
     expect(rec.rpcs).toEqual([])
   })
+
+  it('CQ#1: a transient mention-notify failure does not invalidate the committed comment row', async () => {
+    // The comment INSERT succeeds (row is durable); the create_notification RPC rejects.
+    // postComment must return the comment id and swallow the per-mention error, so a retry
+    // does not duplicate the comment. Regression for the all-or-nothing fan-out bug.
+    const rec = {
+      schemas: [] as string[],
+      tables: [] as string[],
+      selects: [] as string[],
+      inserts: [] as unknown[],
+      filters: [] as Array<[string, unknown]>,
+      orders: [] as Array<[string, unknown]>,
+      rpcs: [] as Array<[string, unknown]>,
+    }
+    const commentResult = { data: { id: 'comment-1' }, error: null }
+    const peopleResult = {
+      data: [{ id: 'person-riri', full_name: 'Riri Kitchen' }],
+      error: null,
+    }
+    const schema = vi.fn((name: string) => {
+      rec.schemas.push(name)
+      return {
+        from: vi.fn((table: string) => {
+          rec.tables.push(table)
+          const builder = makeBuilder(
+            name === 'shared' && table === 'people' ? peopleResult : commentResult,
+            rec,
+          )
+          return builder
+        }),
+        rpc: vi.fn((name: string, args: unknown) => {
+          rec.rpcs.push([name, args])
+          return Promise.resolve({ data: null, error: { message: 'transient rpc blowup' } })
+        }),
+      }
+    })
+    const sb = { schema }
+
+    const id = await postComment({
+      sb: sb as unknown as CommentSupabase,
+      entityType: 'task',
+      entityId: 'task-1',
+      body: 'Hey @riri',
+    })
+
+    // The comment row is the durable unit — its id is returned despite the mention failure.
+    expect(id).toBe('comment-1')
+    // The fan-out was attempted exactly once.
+    expect(rec.rpcs).toHaveLength(1)
+  })
 })

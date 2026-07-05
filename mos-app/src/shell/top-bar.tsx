@@ -6,7 +6,7 @@ import { SHOW_ASSISTANT, SHOW_INBOX } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { useNavigate } from 'react-router-dom'
-import { useNotifications } from '@/hooks/useNotifications'
+import { useUnreadCount } from '@/hooks/useUnreadCount'
 
 type TopBarProps = {
   /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
@@ -134,10 +134,11 @@ function AssistantTopBarButton() {
 }
 
 // The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Rendered only
-// when SHOW_INBOX, so the useNotifications fetch never fires while the feature is hidden.
+// when SHOW_INBOX, so the fetch never fires while the feature is hidden. Uses the dedicated
+// useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
 function NotificationBell() {
   const navigate = useNavigate()
-  const { unreadCount } = useNotifications()
+  const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? `Inbox, ${unreadCount} unread` : 'Inbox'
   return (
     <button

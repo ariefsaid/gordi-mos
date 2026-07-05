@@ -89,16 +89,21 @@ export async function postComment({
   const personIndex = await loadPersonIndex(sb)
   const mentionedPersonIds = extractMentions(body, personIndex)
 
-  for (const personId of mentionedPersonIds) {
-    const { error: notifyError } = await sb.schema('mos').rpc('create_notification', {
-      p_owner: personId,
-      p_severity: 'info',
-      p_title: `@mention in ${entityType}`,
-      p_body: body.slice(0, 200),
-      p_metadata: { source: 'mention', entity: { type: entityType, id: entityId } },
-    })
-    if (notifyError) throw new Error(notifyError.message ?? 'Could not notify mention')
-  }
+  // Mention fan-out is best-effort + parallel: the comment row is the durable unit (already
+  // committed above), so a transient create_notification failure must NOT invalidate it or
+  // abort the call (which would push the user to retry and duplicate the comment). Per-mention
+  // errors are swallowed; NFR-P3-CM-001 (fail-quiet) already governs unresolvable slugs.
+  await Promise.allSettled(
+    mentionedPersonIds.map((personId) =>
+      sb.schema('mos').rpc('create_notification', {
+        p_owner: personId,
+        p_severity: 'info',
+        p_title: `@mention in ${entityType}`,
+        p_body: body.slice(0, 200),
+        p_metadata: { source: 'mention', entity: { type: entityType, id: entityId } },
+      }),
+    ),
+  )
 
   return data.id
 }
