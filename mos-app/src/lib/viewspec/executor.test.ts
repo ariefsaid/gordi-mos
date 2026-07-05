@@ -193,6 +193,21 @@ describe('executeCompiledQuery — AC-P2-RT-006 (DB-side aggregate via mos.aggre
 
     expect(out.rows).toEqual([{ total: 500 }]) // 50 × 10 — a lower bound over the capped fetch
     expect(out.truncated).toBe(true) // honestly flagged: the underlying fetch hit the cap
+    expect(out.degraded).toBe('aggregate-fallback') // CQ I3: renderer can badge "partial data"
+  })
+
+  it('does NOT set degraded on the RPC happy path (true total, clean)', async () => {
+    const rec = freshRec()
+    const rpcRows = [{ group_key: null, agg_value: 60000 }]
+    const rpcResolving = vi.fn(() => Promise.resolve({ data: rpcRows, error: null }))
+    schemaMock.mockReturnValue(makeSchema([], null, rec, rpcResolving) as never)
+
+    const out = await executeCompiledQuery(mkCompiled({
+      resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
+    }))
+
+    expect(out.degraded).toBeUndefined() // happy path: no degradation flag
+    expect(out.truncated).toBe(false)
   })
 })
 

@@ -54,6 +54,14 @@ export interface ExecutedQueryResult {
   rows: unknown[]
   /** true when rows.length === the effective row cap — the fetch MAY have been cut off. */
   truncated: boolean
+  /**
+   * Present ONLY when an aggregate query degraded to the in-memory fallback because the
+   * `aggregate_compiled` RPC rejected. On this path the aggregate is a LOWER BOUND over the capped
+   * fetch (not the true total) and `truncated` will be true. The renderer badges this distinctly
+   * from a clean cap so a finance surface never renders a plausible-but-wrong total as a clean one.
+   * Undefined on the happy path (RPC succeeded → true total) and on non-aggregate queries.
+   */
+  degraded?: 'aggregate-fallback'
 }
 
 /**
@@ -144,5 +152,9 @@ export async function executeCompiledQuery(compiled: CompiledQuery): Promise<Exe
   const outRows = isAggregateQuery
     ? applyGroupByAggregate(rows, compiled.resolvedGroupBy, compiled.resolvedAggregate)
     : rows
-  return { rows: outRows, truncated }
+  // On the aggregate fallback path the result is a lower bound over the capped fetch — flag it so
+  // the renderer can badge "partial data" distinctly from a clean cap.
+  return isAggregateQuery
+    ? { rows: outRows, truncated, degraded: 'aggregate-fallback' }
+    : { rows: outRows, truncated }
 }

@@ -69,6 +69,11 @@ declare
 begin
   -- ── Second trust boundary: dispatch + allow-set per whitelisted entity ─────────────────────
   -- Identifiers below are hard-coded literals — the jsonb payload never supplies them.
+  -- DRIFT-PAIR: this case-dispatch must stay byte-for-byte in sync with ENTITY_WHITELIST in
+  -- mos-app/src/lib/viewspec/types.ts (the client trust boundary) on schema/table/allowed/numeric/
+  -- groupable/requiresTimeRange for all 8 entities. A column added on one side MUST be added on the
+  -- other. sales_margin_daily.bom_coverage_pct is intentionally NOT in v_numeric — it is a ratio,
+  -- not summable; do not "fix" by adding it without also adding it to numericColumns client-side.
   case v_entity
     when 'sales_daily_revenue' then
       v_schema := 'reporting'; v_table := 'sales_daily_revenue'; v_requires_time := true;
@@ -112,15 +117,13 @@ begin
       v_groupable := array[]::text[];
     else
       raise invalid_parameter_value using
-        message = 'aggregate_compiled: entity not whitelisted',
-        hint = v_entity;
+        message = 'aggregate_compiled: entity not whitelisted';
   end case;
 
   -- ── D7 ceiling: required time-range bound on entities that need it ─────────────────────────
   if v_requires_time and not v_has_time_range then
     raise invalid_parameter_value using
-      message = 'aggregate_compiled: entity requires a resolvedTimeRange',
-      hint = v_entity;
+      message = 'aggregate_compiled: entity requires a resolvedTimeRange';
   end if;
 
   -- ── Validate the aggregate fn + column against the allow-set ───────────────────────────────
@@ -128,7 +131,7 @@ begin
     raise invalid_parameter_value using message = 'aggregate_compiled: resolvedAggregate.fn required';
   end if;
   if v_agg_fn not in ('count','sum','avg','min','max') then
-    raise invalid_parameter_value using message = 'aggregate_compiled: unsupported aggregate fn', hint = v_agg_fn;
+    raise invalid_parameter_value using message = 'aggregate_compiled: unsupported aggregate fn';
   end if;
   -- count operates on rows, not a column; sum/avg/min/max require a numeric column.
   if v_agg_fn <> 'count' then
@@ -137,8 +140,7 @@ begin
     end if;
     if not (v_agg_col = any(v_numeric)) then
       raise invalid_parameter_value using
-        message = 'aggregate_compiled: aggregate column not in numeric allow-set',
-        hint = v_agg_col;
+        message = 'aggregate_compiled: aggregate column not in numeric allow-set';
     end if;
   end if;
 
@@ -146,8 +148,7 @@ begin
   if v_group_by is not null and v_group_by <> '' then
     if not (v_group_by = any(v_groupable)) then
       raise invalid_parameter_value using
-        message = 'aggregate_compiled: groupBy column not in groupable allow-set',
-        hint = v_group_by;
+        message = 'aggregate_compiled: groupBy column not in groupable allow-set';
     end if;
   end if;
 
@@ -158,11 +159,10 @@ begin
     v_op := lower(coalesce(v_f->>'op', ''));
     if v_col is null or not (v_col = any(v_allowed)) then
       raise invalid_parameter_value using
-        message = 'aggregate_compiled: filter column not in allow-set',
-        hint = coalesce(v_col, '<null>');
+        message = 'aggregate_compiled: filter column not in allow-set';
     end if;
     if v_op not in ('eq','neq','in','gt','gte','lt','lte','between','date-range') then
-      raise invalid_parameter_value using message = 'aggregate_compiled: unsupported filter op', hint = v_op;
+      raise invalid_parameter_value using message = 'aggregate_compiled: unsupported filter op';
     end if;
   end loop;
 
@@ -219,8 +219,7 @@ begin
     v_col := p_compiled->'resolvedTimeRange'->>'column';
     if v_col is null or not (v_col = any(v_allowed)) then
       raise invalid_parameter_value using
-        message = 'aggregate_compiled: timeRange column not in allow-set',
-        hint = coalesce(v_col, '<null>');
+        message = 'aggregate_compiled: timeRange column not in allow-set';
     end if;
     if v_filter_count = 0 then v_where := v_where || ' where '; else v_where := v_where || ' and '; end if;
     v_where := v_where || format('%I between %L and %L',
@@ -237,8 +236,7 @@ begin
       v_order_clause := format(' order by agg_value %s', case when v_order_dir = 'asc' then 'asc' else 'desc' end);
     else
       raise invalid_parameter_value using
-        message = 'aggregate_compiled: orderBy must target the groupBy or aggregate alias',
-        hint = v_order_col;
+        message = 'aggregate_compiled: orderBy must target the groupBy or aggregate alias';
     end if;
   end if;
 
@@ -250,3 +248,11 @@ $$;
 
 comment on function mos.aggregate_compiled(jsonb) is
   'DB-side aggregate over a CompiledQuery (T34/P2.1, AC-P2-RT-006). SECURITY INVOKER: base-table RLS fires. Hard-coded whitelist mirror is the second trust boundary (client ENTITY_WHITELIST is the first). Identifiers via format(%I); values via format(%L) literal-quoting. Returns (group_key jsonb, agg_value numeric) per group.';
+
+-- Privilege: INVOKER grants no elevation, but EXECUTE defaults to PUBLIC — narrow to authenticated
+-- (matches the app's caller-JWT posture; anon has no path to this function and RLS would deny
+-- anyway, but the surface should not be open). Mirror the create_notification grant pattern.
+revoke execute on function mos.aggregate_compiled(jsonb) from public, anon;
+grant execute on function mos.aggregate_compiled(jsonb) to authenticated;
+
+-- DOWN: drop function if exists mos.aggregate_compiled(jsonb);

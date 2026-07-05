@@ -6,7 +6,7 @@
 -- isolation under SECURITY INVOKER (a caller sees only their own org's rows).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(12);
 
 select mos._test_seed_role_tree();
 
@@ -122,6 +122,29 @@ select is(
   }'::jsonb)),
   0::numeric,
   'AC-P2-RT-006/RLS: a cross-org caller aggregates 0 of org A rows (SECURITY INVOKER base-table RLS)');
+
+-- Back to org A caller for the injection-attempt suite.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+
+-- ── SQL-injection guards (the first dynamic builder in the repo — exercise the value-quoting) ─
+-- A crafted aggregate fn with embedded SQL must be rejected by the fn allow-set (never reach %s).
+select throws_ok(
+  $$ select * from mos.aggregate_compiled('{"entity":"sales_daily_revenue","resolvedAggregate":{"fn":"sum; drop table mos.tasks--","column":"clean_revenue","alias":"x"},"resolvedTimeRange":{"column":"revenue_date","from":"2025-01-01","to":"2027-01-01"}}'::jsonb) $$,
+  '22023', null,
+  'AC-P2-RT-006/sec: crafted fn ("sum; drop table...") rejected — never reaches the SQL');
+
+-- A crafted filter value with SQL metacharacters must be %L-escaped (no breakout). The value
+-- "POS) OR (1=1" would widen the row set under naive string concatenation; under %L-quoting it is
+-- treated as a literal channel name that matches 0 rows.
+select is(
+  (select agg_value from mos.aggregate_compiled('{
+    "entity":"sales_daily_revenue",
+    "resolvedAggregate":{"fn":"count","column":"id","alias":"n"},
+    "resolvedFilters":[{"column":"channel","op":"eq","value":"POS) OR (1=1"}],
+    "resolvedTimeRange":{"column":"revenue_date","from":"2025-01-01","to":"2027-01-01"}
+  }'::jsonb)),
+  0::numeric,
+  'AC-P2-RT-006/sec: crafted value with SQL metacharacters is %L-escaped (no injection; 0 rows match the literal)');
 
 select * from finish();
 rollback;
