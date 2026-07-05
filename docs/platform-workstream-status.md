@@ -9,12 +9,12 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-05) — 6 slices SHIPPED to `dev`; P3a ~75% built (▶ NEXT-AGENT resume block below)
+## Current focus (2026-07-05) — 6 slices SHIPPED to `dev`; P3a built through Phase G (▶ NEXT-AGENT resume block below)
 
 > **HANDOFF (2026-07-05):** agent-native port P1+P2 shipped to `dev` (full batteries); P3 planned +
-> decided; **P3a built through Phase E** on `feat/port-p3a-replay-inbox` (replay + notifications backend
-> + Inbox destination + ask_user + rating), backend security-CLEAR. **Remaining P3a: Phase F (comments+
-> @mention) → G (PWA) → H (battery) → ship** — see the ▶ NEXT AGENT block in this section. The six
+> decided; **P3a built through Phase G** on `feat/port-p3a-replay-inbox` (replay + notifications backend
+> + Inbox destination + ask_user + rating + comments/@mention + PWA seam), backend security-CLEAR.
+> **Remaining P3a: Phase H (battery) → ship** — see the ▶ NEXT AGENT block in this section. The six
 > owner-gated items (bottom of this section) are the real bottleneck to reaching users.
 
 **Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
@@ -65,28 +65,26 @@ the latest run for `{replay:true}` follow-ups), T18–T21 ask_user (schema + han
 fully green. **Phase E (rating/downvote) — DONE** (T22–T23, commit `32b78e5`): hook-level
 `rate(eventId, rating, reason?)` caller-JWT UPDATE of `agent_events.rating/downvote_reason`, panel
 thumbs-up/down control, downvote reason picker, and pgTAP `68_agent_events_feedback_owner.sql`.
-Current verified baseline after Phase E: **2189 vitest + 420 pgTAP + typecheck + eslint + deno-check
-all green**. **Security lens on the P3a backend
+**Phase F (comments + @mention) — DONE** (T24–T28, commit `209e705`): `mos.comments` + RLS/pgTAP,
+mention extraction, comment-post notification fan-out through `mos.create_notification`, and the task-detail
+comment thread wired into the record feed. **Phase G (PWA seam) — DONE** (T29–T30, commit `0ec69a3`):
+manifest + service-worker registration, `mos.push_subscriptions` RLS, browser subscribe hook, and inert
+no-VAPID behavior. Current verified baseline after Phase G: **2200 vitest + 437 pgTAP + typecheck +
+eslint + deno-check + production build all green**. **Security lens on the P3a backend
 already ran: CLEAR** (no Crit/High/Med; the one actionable hardening — Low-2 route guard — is committed
 `583ad93`; Low-1 unbounded *self*-notify volume is tracked for the credits ledger, ship-acceptable).
 
 > ### ▶ NEXT AGENT — resume P3a here
-> 1. **Sanity-check green** on `feat/port-p3a-replay-inbox` (branch is coherent as of `32b78e5`): `cd
+> 1. **Sanity-check green** on `feat/port-p3a-replay-inbox` (branch is coherent as of `0ec69a3`): `cd
 >    mos-app && export PATH="$HOME/.nvm/versions/node/v22.20.0/bin:$PATH" && npx vitest run` (baseline
->    **2189**) + `npm run typecheck` + `npx eslint src --max-warnings=0`; from repo root `npx supabase
->    test db` (baseline **420**) + `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`.
-> 2. **Phase F — comments + @mention** (plan T24–T28): a `mos.comments` migration + pgTAP, `mentions.ts`
->    slug→person resolution, comment-post→notification fan-out **via `mos.create_notification`** (the
->    definer helper already exists), task-detail comment thread UI. Has a migration → run it ALONE (no
->    other DB-touching agent concurrently; local `supabase db reset` is shared state).
-> 3. **Phase G — PWA seam** (plan T29–T30): manifest + service-worker registration + `mos.push_subscriptions`
->    + subscribe RPC (inert without VAPID). Also a migration → sequential after F.
-> 4. **Phase H — the P3a review battery** (plan T31–T33): run the FULL 3-lens battery (spec · code-quality ·
+>    **2200**) + `npm run typecheck` + `npx eslint src --max-warnings=0` + `npm run build`; from repo root
+>    `npx supabase test db` (baseline **437**) + `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`.
+> 2. **Phase H — the P3a review battery** (plan T31–T33): run the FULL 3-lens battery (spec · code-quality ·
 >    security-RE-run · design via render-verify) on complete P3a, record `docs/reviews/feat-port-p3a-replay-inbox.md`,
 >    `bash scripts/pre-merge-check.sh` exit 0, then ship to `dev`. **The branch is NOT reviewed/merged until
 >    this battery runs** — do not merge on green gates alone (CLAUDE.md binding gate).
-> 5. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
-> 6. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
+> 3. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
+> 4. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
 >    follow-up plan once verified. Do NOT build P3b until that's recorded green.
 >
 > Full task text + acceptance criteria: `docs/plans/2026-07-06-port-p3-automations-inbox.md`. All P3a
