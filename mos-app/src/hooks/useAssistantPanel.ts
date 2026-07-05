@@ -20,7 +20,7 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { makeId } from '@/lib/agent/runtime/makeId'
 import { loadThreadForDisplay } from '@/lib/agent/history'
 import type {
-  AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload,
+  AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload, QuestionPayload,
 } from '@/lib/agent/runtime/port'
 
 export type RunPhase = 'idle' | 'running' | 'error'
@@ -38,6 +38,14 @@ export interface ChipState {
   state: 'pending' | 'approved' | 'denied'
 }
 
+/** A pending ask_user question awaiting the user's answer (P3a, T21, FR-P3-AU-001). */
+export interface PendingQuestion {
+  questionId: string
+  prompt: string
+  options: { id: string; label: string }[]
+  allowFreeText?: boolean
+}
+
 /** How long a running phase may go without progress before the stuck banner shows. */
 const STUCK_TIMEOUT_MS = 5000
 
@@ -50,6 +58,7 @@ export function useAssistantPanel() {
   const [chips, setChips] = useState<ChipState[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isStuck, setIsStuck] = useState(false)
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
 
   // lastProgressAt drives the stuck-run heartbeat: any streamed event refreshes it; a running
   // phase silent for STUCK_TIMEOUT_MS flips isStuck so the banner offers Stop.
@@ -81,16 +90,24 @@ export function useAssistantPanel() {
         }
         break
       case 'status': {
-        const payload = ev.payload as RunStatusPayload | NeedsApprovalPayload
-        if (payload?.status === 'needs-approval') {
+        const payload = ev.payload as RunStatusPayload | NeedsApprovalPayload | QuestionPayload
+        // ask_user (P3a, FR-P3-AU-001): rides the `status` channel but WITHOUT an AgentRunStatus
+        // `status` field of its own — distinguished by `payload.kind`, not `payload.status`. The
+        // run pauses (the stream ends) awaiting the answer; phase stays 'running' (not idle) so
+        // the composer stays disabled until the question resolves — mirrors the needs-approval
+        // pending-chip UX (the run is "paused for input", not "idle").
+        if ((payload as QuestionPayload)?.kind === 'question') {
+          const q = payload as QuestionPayload
+          setPendingQuestion({ questionId: q.questionId, prompt: q.prompt, options: q.options, allowFreeText: q.allowFreeText })
+        } else if ((payload as RunStatusPayload).status === 'needs-approval') {
           const na = payload as NeedsApprovalPayload
           setChips((prev) => [
             ...prev,
             { pendingId: na.pendingId, actionName: na.actionName, humanSummary: na.humanSummary, state: 'pending' },
           ])
-        } else if (payload?.status === 'completed' || payload?.status === 'cancelled') {
+        } else if ((payload as RunStatusPayload).status === 'completed' || (payload as RunStatusPayload).status === 'cancelled') {
           setPhase('idle')
-        } else if (payload?.status === 'error') {
+        } else if ((payload as RunStatusPayload).status === 'error') {
           setPhase('error')
           setError((payload as RunStatusPayload).error ?? 'error')
         }
@@ -184,6 +201,27 @@ export function useAssistantPanel() {
   const approve = useCallback((pendingId: string) => decide(pendingId, 'approve'), [decide])
   const deny = useCallback((pendingId: string) => decide(pendingId, 'reject'), [decide])
 
+  /**
+   * answer(questionId, optionId?, freeText?) — resolve a pending ask_user question (P3a, T21,
+   * FR-P3-AU-002/AC-P3-AU-004). Clears pendingQuestion immediately (the chips disappear on tap,
+   * mirroring the approve/deny chip's optimistic-in-flight feel) and continues the SAME run via
+   * runtime.control('answer', ...) + drain.
+   */
+  const answer = useCallback(
+    async (questionId: string, optionId?: string, freeText?: string) => {
+      if (!runtime || !activeRunIdRef.current) return
+      setPendingQuestion(null)
+      setPhase('running')
+      setIsStuck(false)
+      lastProgressAtRef.current = Date.now()
+      await runtime.control(activeRunIdRef.current, 'answer', {
+        answer: { questionId, ...(optionId !== undefined ? { optionId } : {}), ...(freeText !== undefined ? { freeText } : {}) },
+      })
+      await drain(activeRunIdRef.current)
+    },
+    [runtime, drain],
+  )
+
   const stop = useCallback(() => {
     if (!runtime || !activeRunIdRef.current) return
     void runtime.control(activeRunIdRef.current, 'cancel', {})
@@ -208,6 +246,7 @@ export function useAssistantPanel() {
     setError(null)
     setPhase('idle')
     setIsStuck(false)
+    setPendingQuestion(null)
   }, [])
 
   // P3a (T6, AC-P3-RP-003): opening a prior thread loads its transcript from the DB
@@ -221,6 +260,7 @@ export function useAssistantPanel() {
     setError(null)
     setPhase('idle')
     setIsStuck(false)
+    setPendingQuestion(null)
 
     const { activeRunId, transcript: loaded } = await loadThreadForDisplay(threadId)
 
@@ -245,11 +285,13 @@ export function useAssistantPanel() {
     chips,
     error,
     isStuck,
+    pendingQuestion,
     send,
     stop,
     retry,
     approve,
     deny,
+    answer,
     newConversation,
     openThread,
   }

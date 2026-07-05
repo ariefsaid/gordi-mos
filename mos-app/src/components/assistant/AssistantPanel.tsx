@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
-import { useAssistantPanel, type TranscriptItem, type ChipState } from '@/hooks/useAssistantPanel'
+import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
 import { useIsNarrow } from '@/shell/use-is-narrow'
 import { ThreadList } from './ThreadList'
@@ -225,7 +225,20 @@ export function AssistantPanel() {
               onPick={(s) => void submit(s)}
             />
           ) : (
-            <Transcript items={panel.transcript} chips={panel.chips} error={panel.error} errorTitle={t('assistant.error.title')} errorCta={t('assistant.error.cta')} onRetry={() => void panel.retry()} onApprove={panel.approve} onDeny={panel.deny} />
+            <Transcript
+              items={panel.transcript}
+              chips={panel.chips}
+              error={panel.error}
+              errorTitle={t('assistant.error.title')}
+              errorCta={t('assistant.error.cta')}
+              onRetry={() => void panel.retry()}
+              onApprove={panel.approve}
+              onDeny={panel.deny}
+              pendingQuestion={panel.pendingQuestion}
+              onAnswer={panel.answer}
+              freeTextPlaceholder={t('assistant.question.freeTextPlaceholder')}
+              freeTextSubmitLabel={t('assistant.question.freeTextSubmit')}
+            />
           )}
         </div>
 
@@ -257,6 +270,7 @@ export function AssistantPanel() {
 
 function Transcript({
   items, chips, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
+  pendingQuestion, onAnswer, freeTextPlaceholder, freeTextSubmitLabel,
 }: {
   items: TranscriptItem[]
   chips: ChipState[]
@@ -266,6 +280,10 @@ function Transcript({
   onRetry: () => void
   onApprove: (pendingId: string) => void
   onDeny: (pendingId: string) => void
+  pendingQuestion: PendingQuestion | null
+  onAnswer: (questionId: string, optionId?: string, freeText?: string) => void
+  freeTextPlaceholder: string
+  freeTextSubmitLabel: string
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -292,6 +310,14 @@ function Transcript({
       {chips.map((chip) => (
         <ApprovalChip key={chip.pendingId} chip={chip} onApprove={onApprove} onDeny={onDeny} />
       ))}
+      {pendingQuestion && (
+        <QuestionChips
+          question={pendingQuestion}
+          onAnswer={onAnswer}
+          freeTextPlaceholder={freeTextPlaceholder}
+          freeTextSubmitLabel={freeTextSubmitLabel}
+        />
+      )}
       {error && (
         <div
           className="rounded-md border border-border bg-secondary flex items-center gap-2"
@@ -384,6 +410,75 @@ function ApprovalChip({ chip, onApprove, onDeny }: { chip: ChipState; onApprove:
         <div className="text-muted-foreground" style={{ fontSize: 12 }}>
           {chip.state === 'approved' ? approveLabel : denyLabel}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * QuestionChips — the ask_user clarifying-question affordance (P3a Phase D, AC-P3-AU-004).
+ * Renders the server-composed prompt (plain text) + tappable option chips; tapping a chip calls
+ * answer(questionId, optionId). When allowFreeText is set, an inline free-text box + submit button
+ * offer a typed answer instead (answer(questionId, undefined, freeText)).
+ */
+function QuestionChips({
+  question, onAnswer, freeTextPlaceholder, freeTextSubmitLabel,
+}: {
+  question: PendingQuestion
+  onAnswer: (questionId: string, optionId?: string, freeText?: string) => void
+  freeTextPlaceholder: string
+  freeTextSubmitLabel: string
+}) {
+  const [freeText, setFreeText] = useState('')
+  return (
+    <div
+      className="rounded-md border bg-secondary flex flex-col gap-2"
+      style={{ borderColor: 'var(--border-accent)', padding: '0.625rem 0.75rem' }}
+    >
+      {/* Plain text — the server-composed question prompt, never model HTML. */}
+      <div className="text-foreground" style={{ fontSize: 14 }}>{question.prompt}</div>
+      <div className="flex flex-wrap gap-2">
+        {question.options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onAnswer(question.questionId, opt.id)}
+            className="rounded-sm font-medium border border-border text-foreground"
+            style={{ padding: '0.4rem 0.625rem', fontSize: 14 }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {question.allowFreeText && (
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const trimmed = freeText.trim()
+            if (!trimmed) return
+            onAnswer(question.questionId, undefined, trimmed)
+            setFreeText('')
+          }}
+        >
+          <input
+            type="text"
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            placeholder={freeTextPlaceholder}
+            aria-label={freeTextPlaceholder}
+            className="bg-background border-border text-foreground rounded-sm flex-1 min-w-0"
+            style={{ padding: '0.4rem 0.625rem', fontSize: 14 }}
+          />
+          <button
+            type="submit"
+            disabled={!freeText.trim()}
+            className="rounded-sm font-medium flex-none"
+            style={{ padding: '0.4rem 0.625rem', fontSize: 14, background: 'var(--accent)', color: 'var(--text-inverted)', opacity: freeText.trim() ? 1 : 0.5 }}
+          >
+            {freeTextSubmitLabel}
+          </button>
+        </form>
       )}
     </div>
   )
