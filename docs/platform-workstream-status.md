@@ -70,7 +70,11 @@ mention extraction, comment-post notification fan-out through `mos.create_notifi
 comment thread wired into the record feed. **Phase G (PWA seam) — DONE** (T29–T30, commit `0ec69a3`):
 manifest + service-worker registration, `mos.push_subscriptions` RLS, browser subscribe hook, and inert
 no-VAPID behavior. Current verified baseline after Phase G: **2200 vitest + 437 pgTAP + typecheck +
-eslint + deno-check + production build all green**. **Security lens on the P3a backend
+eslint + deno-check + production build all green**. **Phase H started (uncommitted, 2026-07-05):**
+T31 deputy-invariant source guard extended for replay/ask_user/notify and `npm test -- handlerDeputyInvariant`
+passes (6 tests); T32 `mos-app/e2e/inbox-replay.spec.ts` live-gated e2e added and `npx playwright test
+inbox-replay` skips cleanly under default-off flags. Focused `npm run typecheck` and targeted ESLint on
+the changed files pass. **Security lens on the P3a backend
 already ran: CLEAR** (no Crit/High/Med; the one actionable hardening — Low-2 route guard — is committed
 `583ad93`; Low-1 unbounded *self*-notify volume is tracked for the credits ledger, ship-acceptable).
 
@@ -79,10 +83,11 @@ already ran: CLEAR** (no Crit/High/Med; the one actionable hardening — Low-2 r
 >    mos-app && export PATH="$HOME/.nvm/versions/node/v22.20.0/bin:$PATH" && npx vitest run` (baseline
 >    **2200**) + `npm run typecheck` + `npx eslint src --max-warnings=0` + `npm run build`; from repo root
 >    `npx supabase test db` (baseline **437**) + `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`.
-> 2. **Phase H — the P3a review battery** (plan T31–T33): run the FULL 3-lens battery (spec · code-quality ·
->    security-RE-run · design via render-verify) on complete P3a, record `docs/reviews/feat-port-p3a-replay-inbox.md`,
->    `bash scripts/pre-merge-check.sh` exit 0, then ship to `dev`. **The branch is NOT reviewed/merged until
->    this battery runs** — do not merge on green gates alone (CLAUDE.md binding gate).
+> 2. **Phase H — the P3a review battery** (plan T31–T33): T31/T32 are in the current uncommitted tree;
+>    next run the FULL 3-lens battery (spec · code-quality · security-RE-run · design via render-verify) on
+>    complete P3a, record `docs/reviews/feat-port-p3a-replay-inbox.md`, `bash scripts/pre-merge-check.sh`
+>    exit 0, then ship to `dev`. **The branch is NOT reviewed/merged until this battery runs** — do not merge
+>    on green gates alone (CLAUDE.md binding gate).
 > 3. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
 > 4. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
 >    follow-up plan once verified. Do NOT build P3b until that's recorded green.

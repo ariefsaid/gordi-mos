@@ -10,6 +10,12 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
+> **2026-07-05 — P3a Inbox/replay train is in Phase H.** Phases A–G are built on
+> `feat/port-p3a-replay-inbox`; T31 deputy-invariant guard and T32 live-gated Inbox replay e2e are in
+> the current uncommitted tree. Remaining before ship: full review battery, `docs/reviews/feat-port-p3a-replay-inbox.md`,
+> `scripts/pre-merge-check.sh`, then ship to `dev`. Canonical state:
+> `docs/platform-workstream-status.md`; task detail: `docs/plans/2026-07-06-port-p3-automations-inbox.md`.
+>
 > **2026-07-04 EOD — FOUR SLICES SHIPPED TO `dev` (full batteries in `docs/reviews/`); P2 in flight:**
 > Home v1 + margin read-model (§7a interim contract) · helper dedup · **port P1 substrate**
 > (viewspec + user_views + /dev/views harness, flags off) · **BU taxonomy remap** (6 team BUs,
