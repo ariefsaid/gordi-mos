@@ -62,32 +62,31 @@ T6–T7 replay client-wiring (thread reopen + populated ThreadList; the **thread
 was resolved — a ThreadList entry is a *thread*, `openThread` folds its runs' events for display + binds
 the latest run for `{replay:true}` follow-ups), T18–T21 ask_user (schema + handler dispatch +
 `handleAnswer` + transport/port/runtime `answer` wiring + panel question-chips). Branch is coherent +
-fully green. **Phase E (rating) i18n keys are pre-added** (`assistant.rating.*`, both locales) but the
-T22–T23 rating COMPONENTS are NOT built — that's the next task. **Security lens on the P3a backend
+fully green. **Phase E (rating/downvote) — DONE** (T22–T23, commit `32b78e5`): hook-level
+`rate(eventId, rating, reason?)` caller-JWT UPDATE of `agent_events.rating/downvote_reason`, panel
+thumbs-up/down control, downvote reason picker, and pgTAP `68_agent_events_feedback_owner.sql`.
+Current verified baseline after Phase E: **2189 vitest + 420 pgTAP + typecheck + eslint + deno-check
+all green**. **Security lens on the P3a backend
 already ran: CLEAR** (no Crit/High/Med; the one actionable hardening — Low-2 route guard — is committed
 `583ad93`; Low-1 unbounded *self*-notify volume is tracked for the credits ledger, ship-acceptable).
 
 > ### ▶ NEXT AGENT — resume P3a here
-> 1. **Sanity-check green** on `feat/port-p3a-replay-inbox` (branch is coherent as of `406531b`): `cd
+> 1. **Sanity-check green** on `feat/port-p3a-replay-inbox` (branch is coherent as of `32b78e5`): `cd
 >    mos-app && export PATH="$HOME/.nvm/versions/node/v22.20.0/bin:$PATH" && npx vitest run` (baseline
->    **2182**) + `npm run typecheck` + `npx eslint src --max-warnings=0`; from repo root `npx supabase
->    test db` (baseline **414**) + `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`.
-> 2. **Phase E — rating components** (plan T22–T23): the `assistant.rating.*` i18n keys already exist
->    (both locales); build the hook `rateAssistant(eventId, rating, reason?)` (updates
->    `agent_events.rating/downvote_reason` — columns + feedback-only guard trigger exist from P2) + the
->    panel 👍/👎 control + reason picker. No migration.
-> 3. **Phase F — comments + @mention** (plan T24–T28): a `mos.comments` migration + pgTAP, `mentions.ts`
+>    **2189**) + `npm run typecheck` + `npx eslint src --max-warnings=0`; from repo root `npx supabase
+>    test db` (baseline **420**) + `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`.
+> 2. **Phase F — comments + @mention** (plan T24–T28): a `mos.comments` migration + pgTAP, `mentions.ts`
 >    slug→person resolution, comment-post→notification fan-out **via `mos.create_notification`** (the
 >    definer helper already exists), task-detail comment thread UI. Has a migration → run it ALONE (no
 >    other DB-touching agent concurrently; local `supabase db reset` is shared state).
-> 4. **Phase G — PWA seam** (plan T29–T30): manifest + service-worker registration + `mos.push_subscriptions`
+> 3. **Phase G — PWA seam** (plan T29–T30): manifest + service-worker registration + `mos.push_subscriptions`
 >    + subscribe RPC (inert without VAPID). Also a migration → sequential after F.
-> 5. **Phase H — the P3a review battery** (plan T31–T33): run the FULL 3-lens battery (spec · code-quality ·
+> 4. **Phase H — the P3a review battery** (plan T31–T33): run the FULL 3-lens battery (spec · code-quality ·
 >    security-RE-run · design via render-verify) on complete P3a, record `docs/reviews/feat-port-p3a-replay-inbox.md`,
 >    `bash scripts/pre-merge-check.sh` exit 0, then ship to `dev`. **The branch is NOT reviewed/merged until
 >    this battery runs** — do not merge on green gates alone (CLAUDE.md binding gate).
-> 6. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
-> 7. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
+> 5. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
+> 6. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
 >    follow-up plan once verified. Do NOT build P3b until that's recorded green.
 >
 > Full task text + acceptance criteria: `docs/plans/2026-07-06-port-p3-automations-inbox.md`. All P3a
