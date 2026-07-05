@@ -44,12 +44,19 @@ index), the ONE sanctioned `SECURITY DEFINER mos.create_notification` cross-owne
 (org-walled), the boundary-clean channel-adapter seam (in-app fan-out + inert push stub until VAPID),
 and the `notify` self-notification deputy tool (catalog now 4 tools). **2127 vitest + 414 pgTAP +
 deno-check all green.**
-**RESUME AT T6 + T13** (pi/GLM 5-hour cap resets ~12:04 WIB; prefer delegation for the render-verify +
-review load): T6–T7 replay client-wiring (`openThread`→`{runId,replay:true}` + `loadThreadForDisplay`
-DAL + ThreadList — note the **thread-vs-run identity design question**, §T6) → Phase C Inbox destination
-UI (T13–T17, needs Director render-verify) → D ask_user / E rating / F comments+@mention / G PWA seam →
-Phase H battery + ship. **Branch NOT reviewed/merged — one P3a battery at the end.** Backend (replay +
-notifications) is done + gate-green; what remains is UI + interaction contracts + the battery.
+**Phase C (Inbox destination UI) ALSO built + RENDER-VERIFIED** (Director, solo — T13–T17, commit
+`f98283c`): notifications DAL + `useNotifications` (unread-first, optimistic mark-read w/ revert) +
+`InboxList` (severity dots, deep-link rows, XSS-inert) + `InboxPage` + `SHOW_INBOX` flag/destination/
+route wiring + top-bar bell w/ unread badge + en/id strings. **Render-verified end-to-end:** 3 seeded
+notifications render unread-first with severity colors, click marks-read + navigates to the deep-link,
+badge decrements 3→2 and PERSISTS across navigation. All flag-gated (default off). Suite 2136 green.
+**RESUME AT T6 + T18** (pi/GLM 5-hour cap resets ~12:04 WIB; prefer delegation for the review load):
+T6–T7 replay client-wiring (`openThread`→`{runId,replay:true}` + `loadThreadForDisplay` DAL + ThreadList
+— note the **thread-vs-run identity design question**, §T6) → Phase D ask_user (T18–T21, touches the
+handler loop) / E rating / F comments+@mention (T24–28, another migration + mention resolution) / G PWA
+seam → Phase H battery + ship. **Branch NOT reviewed/merged — one P3a battery at the end** (needs the
+3 opus lenses, so best run when delegation returns). Done + gate-green: replay + notifications backend
++ **the complete Inbox destination**. What remains: replay client, interaction contracts, PWA, battery.
 
 **Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
 1. **`dev`→`main` merge** — 113 commits, **5 green ledgers**.
