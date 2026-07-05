@@ -56,8 +56,10 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 |---|---|
 | **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
 | **Where everything stands + outstanding** | `docs/platform-workstream-status.md` (canonical handoff) |
+| **Agent-native port (ADR-0018) — plans per train** | `docs/plans/2026-07-04-port-p1-substrate.md` · `docs/plans/2026-07-05-port-p2-panel-runtime.md` · `docs/plans/2026-07-06-port-p3-automations-inbox.md` |
+| **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` (P3a ledger pending its end-of-train battery) |
 | Full task list / backlog | `docs/backlog.md` |
-| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` |
+| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` (0017–0021 = agent-native/IA/can()/i18n) |
 | Domain glossary | `CONTEXT.md` (repo root) |
 | Binding charter + per-layer Definition of Done | `docs/product-expectations.md` |
 | Director runbook / loop / UI cycle | `docs/director-playbook.md`, `docs/design-workflow.md` |
