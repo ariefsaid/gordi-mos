@@ -1,15 +1,20 @@
-// T32 — agent tool catalog v1 firewall (FR-P2-WT-005, AC-WT-005). The deputy exposes EXACTLY
-// {query_entity, create_task, post_update} (+ compose_view registered separately when enabled) and
-// NO provisioning/SECURITY-DEFINER RPC. A static scan of the action source asserts no privileged
-// RPC call site exists.
+// T32 — agent tool catalog firewall (FR-P2-WT-005 / FR-P3-NT-001, AC-WT-005). The deputy exposes
+// EXACTLY {query_entity, create_task, post_update, notify} (+ compose_view registered separately when
+// enabled) and NO provisioning/SECURITY-DEFINER RPC. A static scan of the action source asserts no
+// privileged call site exists. (P3a added `notify` — a self-only inbox write, confirm:false.)
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BASE_ACTIONS } from './../../../../supabase/functions/agent-chat/actions'
 
-describe('agent tool catalog v1 (T32, AC-WT-005)', () => {
-  it('BASE_ACTIONS exposes exactly [query_entity, create_task, post_update] — no provisioning tool', () => {
-    expect(BASE_ACTIONS.map((a) => a.name)).toEqual(['query_entity', 'create_task', 'post_update'])
+describe('agent tool catalog (T32, AC-WT-005 / FR-P3-NT-001)', () => {
+  it('BASE_ACTIONS exposes exactly [query_entity, create_task, post_update, notify] — no provisioning tool', () => {
+    expect(BASE_ACTIONS.map((a) => a.name)).toEqual([
+      'query_entity',
+      'create_task',
+      'post_update',
+      'notify',
+    ])
   })
 
   it('every BASE_ACTION carries the required AgentAction shape (name/description/inputSchema/run)', () => {
@@ -21,11 +26,13 @@ describe('agent tool catalog v1 (T32, AC-WT-005)', () => {
     }
   })
 
-  it('the two writes are confirm:true (never auto-execute); the read is confirm:false', () => {
+  it('writes-to-others are confirm:true; the read and the self-only notify are confirm:false', () => {
     const byName = new Map(BASE_ACTIONS.map((a) => [a.name, a]))
     expect(byName.get('query_entity')!.confirm).toBeFalsy()
     expect(byName.get('create_task')!.confirm).toBe(true)
     expect(byName.get('post_update')!.confirm).toBe(true)
+    // notify only writes the CALLER'S OWN inbox (RLS-pinned) — not a consequential external write.
+    expect(byName.get('notify')!.confirm).toBeFalsy()
   })
 
   it('no action source invokes a SECURITY DEFINER / shared.admin_* / .rpc(...) privileged call site', () => {

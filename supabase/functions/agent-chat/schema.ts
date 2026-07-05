@@ -6,8 +6,8 @@
  * query_entity is built from AGENT_READ_ENTITIES (D2 — derived from ENTITY_WHITELIST, never
  * hand-listed). Importable in both Deno (edge function) and Node/Vitest (D7).
  *
- * P2 scope (§0): only 4 schemas ship. DROPPED vs the sibling reference: NOTIFY_SCHEMA,
- * CREATE_AUTOMATION_SCHEMA, ASK_USER_SCHEMA (all P3).
+ * P2 scope (§0): 4 schemas shipped. NOTIFY_SCHEMA added in P3a (self-notification). Still DROPPED
+ * vs the sibling reference: CREATE_AUTOMATION_SCHEMA, ASK_USER_SCHEMA (later P3 tasks).
  *
  * FR-P2-WT-004: createdBy/author are NEVER model inputs — CREATE_TASK_SCHEMA has no
  * createdBy property; the handler always attributes writes to the caller's JWT person_id.
@@ -131,5 +131,24 @@ export const COMPOSE_VIEW_INPUT_SCHEMA = {
       description: "The user's natural-language request describing the dashboard view to compose.",
       maxLength: 2000,
     },
+  },
+}
+
+// ── notify (P3a; self-notification, confirm:false) — FR-P3-NT-001/002 ────────
+//
+// The deputy drops a notification into the CALLER'S OWN inbox (e.g. "remind me to follow up").
+// Self-only: the insert omits owner_id so the DB default + RLS pin it to the caller — the model
+// can never address another person (cross-owner delivery is the @mention path via
+// mos.create_notification, not this tool). No model-supplied metadata/route (avoids the model
+// forging a deep-link); the notification is a plain title/body/severity. confirm:false — a
+// self-note is not a consequential external write.
+export const NOTIFY_SCHEMA = {
+  type: 'object' as const,
+  additionalProperties: false,
+  required: ['title'] as string[],
+  properties: {
+    title: { type: 'string' as const, maxLength: 200 },
+    body: { type: 'string' as const, maxLength: 2000 },
+    severity: { type: 'string' as const, enum: ['info', 'warning', 'critical'] },
   },
 }
