@@ -74,6 +74,13 @@ export const messages = {
     'assistant.stuck.banner': 'This is taking longer than expected.',
     'assistant.stuck.stop': 'Stop',
     'assistant.thread.empty': 'No conversations yet',
+    'inbox.title': 'Inbox',
+    'inbox.subtitle': 'Notifications, mentions, and approvals',
+    'inbox.empty': "You're all caught up",
+    'inbox.markRead': 'Mark read',
+    'inbox.severity.info': 'Info',
+    'inbox.severity.warning': 'Warning',
+    'inbox.severity.critical': 'Critical',
   },
   id: {
     'dest.home': 'Beranda',
@@ -142,6 +149,13 @@ export const messages = {
     'assistant.stuck.banner': 'Proses ini lebih lama dari biasanya.',
     'assistant.stuck.stop': 'Hentikan',
     'assistant.thread.empty': 'Belum ada percakapan',
+    'inbox.title': 'Kotak Masuk',
+    'inbox.subtitle': 'Notifikasi, sebutan, dan persetujuan',
+    'inbox.empty': 'Semua sudah terbaca',
+    'inbox.markRead': 'Tandai dibaca',
+    'inbox.severity.info': 'Info',
+    'inbox.severity.warning': 'Peringatan',
+    'inbox.severity.critical': 'Kritis',
   },
 } as const
 
