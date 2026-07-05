@@ -52,7 +52,7 @@
   background: var(--primary);
 }
 .inbox-row__dot--warning {
-  background: var(--warning, #b45309);
+  background: var(--warning);
 }
 .inbox-row__dot--critical {
   background: var(--destructive);
