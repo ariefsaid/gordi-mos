@@ -14,7 +14,7 @@
 
 // Explicit `.ts` extension (Deno-strict compat — this module is imported by the agent-chat edge
 // function's handler.ts); Vite/Vitest resolve the extension-ful form identically.
-import type { AgentEvent, RunContext } from './port.ts'
+import type { AgentEvent, RunContext, AgentAnswer } from './port.ts'
 
 export type { AgentEvent }
 
@@ -60,6 +60,12 @@ export interface AgentChatRequest {
    * client memory. No tool re-executes — replay rebuilds messages, never re-dispatches.
    */
   replay?: boolean
+  /**
+   * Present on a re-POST resolving a pending ask_user question (P3a, FR-P3-AU-002): the handler
+   * finds the trailing unresolved ask_user tool_use and continues the SAME run with the chosen
+   * option's label (or freeText) as the tool_result — never a new turn.
+   */
+  answer?: AgentAnswer
 }
 
 /** Typed error shape for non-2xx responses from agent-chat. */

@@ -347,6 +347,30 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         continue
       }
 
+      // ── ask_user dispatch branch (P3a, FR-P3-AU-001) ────────────────────────
+      // Same interaction family as the propose branch below (needs-approval): a structured
+      // question pauses the run; the client resolves it via control('answer', ...), which
+      // continues the SAME run (handleAnswer, below). Gated on allowProposeConfirm so the
+      // decision-continuation pass cannot pose a SECOND pending question before the first
+      // resolves (mirrors the confirm-action guard). NOT a write tool — no approval chip; this
+      // rides the `status` channel but WITHOUT an AgentRunStatus `status` field of its own
+      // (payload.kind distinguishes it, not payload.status).
+      if (toolName === 'ask_user' && allowProposeConfirm) {
+        const input = toolInput as { prompt?: string; options?: { id: string; label: string }[]; allowFreeText?: boolean }
+        yield emit('status', {
+          payload: {
+            kind: 'question',
+            questionId: makeId(),
+            prompt: input.prompt ?? '',
+            options: input.options ?? [],
+            ...(input.allowFreeText !== undefined ? { allowFreeText: input.allowFreeText } : {}),
+          },
+        })
+        // End the stream — the client re-POSTs with req.answer on the next turn (mirrors the
+        // needs-approval propose branch ending the stream).
+        return
+      }
+
       const action = actionByName.get(toolName)
 
       if (!action || (action.confirm && !allowProposeConfirm)) {
@@ -483,6 +507,16 @@ async function* agentChatHandlerInner(
   // ── Decision branch (req.decision present -> approve/reject a pending write) ─
   if (req.decision) {
     yield* handleDecision(req, deps, emit, statusEvent, deputyCtx, persist)
+    return
+  }
+
+  // ── Answer branch (req.answer present -> resolve a pending ask_user question, FR-P3-AU-002) ──
+  // Routed BEFORE the model call for the same reason as the decision branch: resolving a pending
+  // question (finding the trailing tool_use + injecting the answer as its tool_result) never
+  // itself costs a model call. The continuation IS a genuine new model call (handleAnswer's own
+  // runLoopAfterAnswer).
+  if (req.answer) {
+    yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist)
     return
   }
 
@@ -663,6 +697,83 @@ async function* runLoop(
     deps, emit, statusEvent, deputyCtx, messages, persist, runId,
     allowCompose: false, allowProposeConfirm: false, onMissingToolCall: 'complete',
   })
+}
+
+// ── Answer handler (P3a, FR-P3-AU-002) — resolve a pending ask_user question ──────────────────
+
+/**
+ * Handle a re-POST with req.answer (resolve a pending ask_user question).
+ *
+ * Protocol (mirrors handleDecision — the "question" and "needs-approval" interactions share one
+ * resolution family):
+ * 1. Find the trailing unresolved ask_user tool_use in the replayed transcript
+ *    (findTrailingUnresolvedToolUse + isAskUserToolUse). If none (stale/duplicate re-POST,
+ *    AC-P3-AU-003), it is a no-op: continue the model with the messages as replayed, no re-injection.
+ * 2. Otherwise, append the answer as the tool_result resolving that tool_use (the chosen option's
+ *    label, or the free text) and continue the SAME run via runLoopAfterAnswer — never a new
+ *    createRun.
+ *
+ * Answering a clarifying question is NOT itself a resolution of anything write-shaped (unlike a
+ * decision, which is terminal): the model may need to immediately propose a confirm action or
+ * compose a view to actually satisfy the request the question was blocking. So the continuation
+ * runs with allowCompose:true, allowProposeConfirm:true (runLoopAfterAnswer) — the SAME
+ * capabilities as the main pass, NOT runLoop's terminal-by-design restriction.
+ */
+async function* handleAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: DeputyContext,
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  const answer = req.answer!
+
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
+
+  const messages: ModelMessage[] = [
+    { role: 'system', content: system },
+    ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
+  ]
+
+  const trailingQuestion = findTrailingUnresolvedToolUse(req.messages, isAskUserToolUse)
+
+  if (trailingQuestion) {
+    const { toolId, toolName, toolInput } = trailingQuestion
+    // Prefer the option's human-readable label (the model asked with labels, not ids) — fall
+    // back to the raw optionId if the option isn't found, then freeText.
+    const questionInput = toolInput as { options?: { id: string; label: string }[] } | undefined
+    const matchedOption = questionInput?.options?.find((o) => o.id === answer.optionId)
+    const answerText = answer.freeText ?? matchedOption?.label ?? answer.optionId ?? ''
+    messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ answer: answerText }) })
+  }
+  // No trailingQuestion found -> stale/duplicate answer (AC-P3-AU-003): fall through and simply
+  // continue the model with the messages as replayed (no re-injection).
+
+  yield* runLoopAfterAnswer(req, deps, emit, statusEvent, deputyCtx, messages, persist)
+}
+
+/** Inner tool-use loop for the answer continuation — allowCompose/allowProposeConfirm stay ON
+ *  (an answer is non-terminal, unlike a decision's continuation via runLoop). */
+async function* runLoopAfterAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: DeputyContext,
+  messages: ModelMessage[],
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  const runId = req.runId ?? ''
+  yield* runToolLoop({
+    deps, emit, statusEvent, deputyCtx, messages, persist, runId,
+    allowCompose: true, allowProposeConfirm: true, onMissingToolCall: 'complete',
+  })
+}
+
+/** matchToolUse for the ask_user question interaction family (FR-P3-AU-002). */
+function isAskUserToolUse(b: { name?: string }): boolean {
+  return b.name === 'ask_user'
 }
 
 // ── Trailing unresolved tool_use finder ────────────────────────────────────────
