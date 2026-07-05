@@ -21,6 +21,7 @@ import type {
   AgentEvent, AgentRun, AgentRuntime, RunContext,
 } from './port.ts'
 import type { AgentChatRequest, ConversationMessage, AgentDecision, AgentCancel } from './transport.ts'
+import type { AgentAnswer } from './port.ts'
 import { decodeSseStream } from './transport.ts'
 import { makeId } from './makeId.ts'
 
@@ -45,6 +46,9 @@ interface RunState {
    * a subsequent turn in the same session is a normal (non-replay) followUp.
    */
   replay?: boolean
+  /** Stamped by control('answer', {answer}); consumed + cleared on the next subscribe (P3a, T20,
+   *  FR-P3-AU-002/AC-P3-AU-005) — resolves a pending ask_user question on the SAME run. */
+  answer?: AgentAnswer
   /** The in-flight subscribe's controller (aborted by control('cancel')). */
   abort?: AbortController
 }
@@ -87,8 +91,8 @@ export class MosNativeRuntime implements AgentRuntime {
 
   async control(
     runId: string,
-    cmd: 'approve' | 'reject' | 'cancel',
-    payload?: { pendingId?: string },
+    cmd: 'approve' | 'reject' | 'cancel' | 'answer',
+    payload?: { pendingId?: string; answer?: AgentAnswer },
   ): Promise<void> {
     const state = this.runs.get(runId)
     if (cmd === 'cancel') {
@@ -96,6 +100,13 @@ export class MosNativeRuntime implements AgentRuntime {
       // cancel so a subsequent subscribe (if any) carries it.
       state?.abort?.abort()
       if (state) state.cancel = { runId }
+      return
+    }
+    // T20 (AC-P3-AU-005): control('answer', {answer}) resolves a pending ask_user question on
+    // the SAME run — stamp it for the next subscribe (mirrors decision/cancel one-shot stamping).
+    if (cmd === 'answer') {
+      if (!state || !payload?.answer) return
+      state.answer = payload.answer
       return
     }
     if (!state || !payload?.pendingId) return
@@ -113,12 +124,15 @@ export class MosNativeRuntime implements AgentRuntime {
       ...(state.decision ? { decision: state.decision } : {}),
       ...(state.cancel ? { cancel: state.cancel } : {}),
       ...(state.replay ? { replay: true } : {}),
+      ...(state.answer ? { answer: state.answer } : {}),
     }
-    // Decisions/cancels/replay are one-shot — clear after building the request so a followUp
-    // doesn't re-send them (a subsequent turn is a normal followUp, not a replay re-ask).
+    // Decisions/cancels/replay/answers are one-shot — clear after building the request so a
+    // followUp doesn't re-send them (a subsequent turn is a normal followUp, not a replay re-ask
+    // or a stale answer re-post).
     state.decision = undefined
     state.cancel = undefined
     state.replay = undefined
+    state.answer = undefined
 
     const controller = new AbortController()
     state.abort = controller
