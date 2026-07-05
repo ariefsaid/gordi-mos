@@ -19,9 +19,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { makeId } from '@/lib/agent/runtime/makeId'
 import { loadThreadForDisplay } from '@/lib/agent/history'
+import { supabase } from '@/lib/supabase'
 import type {
   AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload, QuestionPayload,
 } from '@/lib/agent/runtime/port'
+
+export type AssistantRating = 'up' | 'down'
 
 export type RunPhase = 'idle' | 'running' | 'error'
 
@@ -59,6 +62,7 @@ export function useAssistantPanel() {
   const [error, setError] = useState<string | null>(null)
   const [isStuck, setIsStuck] = useState(false)
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
+  const [ratings, setRatings] = useState<Record<string, AssistantRating>>({})
 
   // lastProgressAt drives the stuck-run heartbeat: any streamed event refreshes it; a running
   // phase silent for STUCK_TIMEOUT_MS flips isStuck so the banner offers Stop.
@@ -238,6 +242,27 @@ export function useAssistantPanel() {
     await drain(activeRunIdRef.current)
   }, [runtime, drain])
 
+  /**
+   * rate(eventId, rating, reason?) — record 👍/👎 feedback on an assistant turn (P3a, T22,
+   * AC-P3-FB-001/002). A caller-JWT UPDATE on mos.agent_events.{rating, downvote_reason} — the
+   * columns + the feedback-only guard trigger already exist (P2 migration); RLS's owner-only
+   * UPDATE policy + the trigger's assistant-row-only narrowing are the enforcement authority, so
+   * this never sends event ownership fields. Fails closed: only a successful update is reflected
+   * in `ratings` (no optimistic write — a rating that silently failed must not lie in the UI).
+   */
+  const rate = useCallback(
+    async (eventId: string, rating: AssistantRating, reason?: string) => {
+      const { error } = await supabase
+        .schema('mos')
+        .from('agent_events')
+        .update({ rating, downvote_reason: rating === 'down' ? (reason ?? null) : null })
+        .eq('id', eventId)
+      if (error) return
+      setRatings((prev) => ({ ...prev, [eventId]: rating }))
+    },
+    [],
+  )
+
   const newConversation = useCallback(() => {
     activeRunIdRef.current = null
     setTranscript([])
@@ -286,12 +311,14 @@ export function useAssistantPanel() {
     error,
     isStuck,
     pendingQuestion,
+    ratings,
     send,
     stop,
     retry,
     approve,
     deny,
     answer,
+    rate,
     newConversation,
     openThread,
   }
