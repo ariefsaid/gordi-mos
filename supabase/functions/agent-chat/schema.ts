@@ -6,8 +6,9 @@
  * query_entity is built from AGENT_READ_ENTITIES (D2 — derived from ENTITY_WHITELIST, never
  * hand-listed). Importable in both Deno (edge function) and Node/Vitest (D7).
  *
- * P2 scope (§0): 4 schemas shipped. NOTIFY_SCHEMA added in P3a (self-notification). Still DROPPED
- * vs the sibling reference: CREATE_AUTOMATION_SCHEMA, ASK_USER_SCHEMA (later P3 tasks).
+ * P2 scope (§0): 4 schemas shipped. NOTIFY_SCHEMA + ASK_USER_SCHEMA added in P3a (self-notification;
+ * clarifying-question contract). Still DROPPED vs the sibling reference: CREATE_AUTOMATION_SCHEMA
+ * (P3b, gated on the mint/hook live-verify).
  *
  * FR-P2-WT-004: createdBy/author are NEVER model inputs — CREATE_TASK_SCHEMA has no
  * createdBy property; the handler always attributes writes to the caller's JWT person_id.
@@ -150,5 +151,42 @@ export const NOTIFY_SCHEMA = {
     title: { type: 'string' as const, maxLength: 200 },
     body: { type: 'string' as const, maxLength: 2000 },
     severity: { type: 'string' as const, enum: ['info', 'warning', 'critical'] },
+  },
+}
+
+// ── ask_user (P3a; clarifying-question contract, ADR-0045 §2 port) — FR-P3-AU-001 ────────────
+//
+// The model calls this to pose a structured clarifying question inline — the handler emits it as
+// a status{kind:'question'} event and ends the stream; the client resolves it via
+// control('answer', {questionId, optionId?, freeText?}), which continues the SAME run
+// (handleAnswer, T19). NOT a write tool — no approval chip; it is a question/answer turn, always
+// registered (unlike compose_view, which is composeEnabled-gated).
+export const ASK_USER_SCHEMA = {
+  type: 'object' as const,
+  required: ['prompt', 'options'] as string[],
+  additionalProperties: false,
+  properties: {
+    prompt: {
+      type: 'string' as const,
+      maxLength: 300,
+      description: 'The clarifying question to show the user.',
+    },
+    options: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        required: ['id', 'label'] as string[],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' as const },
+          label: { type: 'string' as const },
+        },
+      },
+      description: 'The choices to present as tappable chips.',
+    },
+    allowFreeText: {
+      type: 'boolean' as const,
+      description: 'Whether to also offer a free-text answer box.',
+    },
   },
 }
