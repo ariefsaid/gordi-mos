@@ -25,7 +25,7 @@ interface Recorder {
 function freshRec(): Recorder {
   return { fromTables: [], selects: [], limits: [], orders: [], calls: [] }
 }
-function makeSchema(finalData: unknown[], finalError: unknown, rec: Recorder) {
+function makeSchema(finalData: unknown[], finalError: unknown, rec: Recorder, rpc?: unknown) {
   const fromImpl = (table: string) => {
     rec.fromTables.push(table)
     const builder: Record<string, unknown> = {}
@@ -43,7 +43,11 @@ function makeSchema(finalData: unknown[], finalError: unknown, rec: Recorder) {
       Promise.resolve({ data: finalData, error: finalError }).then(resolve)
     return builder
   }
-  return { from: vi.fn(fromImpl) }
+  // The aggregate path uses .rpc('aggregate_compiled', { p_compiled }) on the schema object.
+  // Default rpc = resolve with finalData/finalError; tests can override (e.g. to reject → fallback).
+  const schemaObj: Record<string, unknown> = { from: vi.fn(fromImpl) }
+  schemaObj.rpc = rpc ?? vi.fn(() => Promise.resolve({ data: finalData as unknown, error: finalError }))
+  return schemaObj
 }
 
 function mkCompiled(over: Partial<CompiledQuery> = {}): CompiledQuery {
@@ -102,15 +106,19 @@ describe('executeCompiledQuery — AC-UV-008 (schema-scoped dispatch)', () => {
   })
 })
 
-describe('executeCompiledQuery — AC-UV-009 (in-mem aggregate)', () => {
-  it('applies groupBy + sum over the returned rows', async () => {
+describe('executeCompiledQuery — AC-UV-009 (in-mem aggregate fallback when RPC unavailable)', () => {
+  it('falls back to in-memory groupBy + sum when the aggregate_compiled RPC rejects', async () => {
+    // The RPC is the happy path (AC-P2-RT-006). When it rejects (e.g. function missing, db error),
+    // the executor falls back to the P1 in-memory reduction over a capped fetch and reports the
+    // truncation signal honestly. This preserves the P1 lower-bound contract as a safety net.
     const rows = [
       { branch_code: 'BGR', clean_revenue: 100 },
       { branch_code: 'BGR', clean_revenue: 50 },
       { branch_code: 'KMG', clean_revenue: 200 },
     ]
     const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema(rows, null, rec) as never)
+    const rpcRejecting = vi.fn(() => Promise.reject(new Error('rpc unavailable')))
+    schemaMock.mockReturnValue(makeSchema(rows, null, rec, rpcRejecting) as never)
     const out = await executeCompiledQuery(mkCompiled({
       resolvedGroupBy: 'branch_code',
       resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
@@ -119,6 +127,72 @@ describe('executeCompiledQuery — AC-UV-009 (in-mem aggregate)', () => {
       { branch_code: 'BGR', total: 150 },
       { branch_code: 'KMG', total: 200 },
     ])
+  })
+})
+
+describe('executeCompiledQuery — AC-P2-RT-006 (DB-side aggregate via mos.aggregate_compiled)', () => {
+  it('routes an aggregate query through the RPC and returns truncated:false over the full predicate', async () => {
+    // The RPC computes the real SQL aggregate uncapped by the 500 row limit. The executor's job is
+    // to call it when resolvedAggregate/resolvedGroupBy is present and map {group_key, agg_value}
+    // back to the renderer's { [groupBy]: ..., [alias]: ... } shape. truncated is honestly false:
+    // the aggregate covers the full set, not a capped fetch.
+    const rec = freshRec()
+    const rpcRows = [
+      { group_key: 'BGR', agg_value: 60000 },
+      { group_key: 'KMG', agg_value: 42000 },
+    ]
+    const rpcResolving = vi.fn(() => Promise.resolve({ data: rpcRows, error: null }))
+    schemaMock.mockReturnValue(makeSchema([], null, rec, rpcResolving) as never)
+
+    const out = await executeCompiledQuery(mkCompiled({
+      resolvedGroupBy: 'branch_code',
+      resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
+      resolvedOrderBy: { column: 'total', dir: 'desc' },
+    }))
+
+    expect(rpcResolving).toHaveBeenCalledWith('aggregate_compiled', {
+      p_compiled: expect.objectContaining({
+        entity: 'tasks',
+        resolvedGroupBy: 'branch_code',
+        resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
+      }),
+    })
+    expect(out.rows).toEqual([
+      { branch_code: 'BGR', total: 60000 },
+      { branch_code: 'KMG', total: 42000 },
+    ])
+    expect(out.truncated).toBe(false) // the load-bearing assertion: not a lower bound
+  })
+
+  it('maps a single-row (no groupBy) aggregate to { [alias]: value } with group_key null', async () => {
+    const rec = freshRec()
+    const rpcRows = [{ group_key: null, agg_value: 102000 }]
+    const rpcResolving = vi.fn(() => Promise.resolve({ data: rpcRows, error: null }))
+    schemaMock.mockReturnValue(makeSchema([], null, rec, rpcResolving) as never)
+
+    const out = await executeCompiledQuery(mkCompiled({
+      resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'grand_total' },
+    }))
+
+    expect(out.rows).toEqual([{ grand_total: 102000 }])
+    expect(out.truncated).toBe(false)
+  })
+
+  it('surfaces an RPC error by falling back to in-memory (lower-bound) rather than throwing', async () => {
+    // The fallback is the safety net: a transient RPC failure must not break the renderer. The
+    // aggregate degrades to a lower bound over the capped fetch and truncated reflects the cap.
+    const rec = freshRec()
+    const rpcRejecting = vi.fn(() => Promise.reject(new Error('function missing')))
+    const rawRows = Array.from({ length: 50 }, () => ({ clean_revenue: 10 }))
+    schemaMock.mockReturnValue(makeSchema(rawRows, null, rec, rpcRejecting) as never)
+
+    const out = await executeCompiledQuery(mkCompiled({
+      limit: 50,
+      resolvedAggregate: { fn: 'sum', column: 'clean_revenue', alias: 'total' },
+    }))
+
+    expect(out.rows).toEqual([{ total: 500 }]) // 50 × 10 — a lower bound over the capped fetch
+    expect(out.truncated).toBe(true) // honestly flagged: the underlying fetch hit the cap
   })
 })
 
@@ -147,13 +221,15 @@ describe('executeCompiledQuery — truncation signal (P1 review fix-wave item 6)
     const out = await executeCompiledQuery(compiled)
     expect(out.truncated).toBe(true)
   })
-  it('reflects truncation on the post-aggregate row count is NOT what truncated signals — truncated reflects the raw fetch, not the reduced group count', async () => {
+  it('reflects truncation on the post-aggregate row count is NOT what truncated signals — truncated reflects the raw fetch, not the reduced group count (fallback path)', async () => {
     // A capped fetch of `limit` raw rows can reduce to far fewer grouped rows; truncated must
     // still flag that the UNDERLYING fetch was capped (i.e. the aggregate is a LOWER BOUND),
-    // not whether the post-groupBy row count happens to equal the limit.
+    // not whether the post-groupBy row count happens to equal the limit. Exercises the in-memory
+    // fallback (RPC rejects); on the RPC happy path truncated is always false (full predicate).
     const rec = freshRec()
     const rows = Array.from({ length: 3 }, () => ({ branch_code: 'BGR', clean_revenue: 1 }))
-    schemaMock.mockReturnValue(makeSchema(rows, null, rec) as never)
+    const rpcRejecting = vi.fn(() => Promise.reject(new Error('rpc unavailable')))
+    schemaMock.mockReturnValue(makeSchema(rows, null, rec, rpcRejecting) as never)
     const out = await executeCompiledQuery(mkCompiled({
       limit: 3,
       resolvedGroupBy: 'branch_code',

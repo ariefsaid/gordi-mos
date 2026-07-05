@@ -57,24 +57,76 @@ export interface ExecutedQueryResult {
 }
 
 /**
+ * The DB-side aggregate RPC row: { group_key, agg_value }. group_key is null when there is no
+ * groupBy (single-row aggregate); otherwise it is the group's key value as jsonb.
+ */
+interface AggregateRpcRow {
+  group_key: unknown
+  agg_value: number | null
+}
+
+/**
+ * Runs the DB-side aggregate path (T34 / P2.1, AC-P2-RT-006). Calls the `mos.aggregate_compiled`
+ * SECURITY INVOKER RPC, which computes the real SQL aggregate over the FULL predicate — uncapped by
+ * the row limit — so a wide reporting window returns the true total, not a lower bound over the
+ * first 500 rows. The RPC re-validates entity/column/op against its own hard-coded whitelist (the
+ * second trust boundary; the client-side ENTITY_WHITELIST is the first). RLS fires under INVOKER.
+ *
+ * Maps the RPC's generic `{group_key, agg_value}` rows back to the shape the renderer expects:
+ * `{ [groupBy]: ..., [alias]: ... }` per group, or `{ [alias]: ... }` for a single-row aggregate.
+ * Returns `truncated: false` — the aggregate is computed over the full set, so there is no cap.
+ */
+async function executeAggregateViaRpc(compiled: CompiledQuery): Promise<ExecutedQueryResult> {
+  // The supabase client is schema-pinned to `shared` by default; .schema() re-points it per call.
+  const db = supabase as unknown as { schema: (s: string) => { rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: AggregateRpcRow[] | null; error: { message?: string } | null }> } }
+  const { data, error } = await db
+    .schema('mos')
+    .rpc('aggregate_compiled', { p_compiled: compiled as unknown as Record<string, unknown> })
+
+  if (error) throw new Error(`aggregate_compiled failed — ${error.message}`)
+  const rows = data ?? []
+  const groupBy = compiled.resolvedGroupBy
+  const alias = compiled.resolvedAggregate?.alias ?? 'value'
+  const out: Row[] = rows.map((r) => {
+    if (groupBy) {
+      // group_key arrives as the JSON value of the group; the renderer treats it as the group value.
+      return { [groupBy]: r.group_key, [alias]: r.agg_value ?? 0 }
+    }
+    return { [alias]: r.agg_value ?? 0 }
+  })
+  return { rows: out, truncated: false }
+}
+
+/**
  * Executes a CompiledQuery under the current viewer's JWT (the same RLS-scoped client the DAL uses).
  * Dispatch is SCHEMA-SCOPED (MOS delta). Never service_role. Row cap (≤500) applied as .limit().
- * Throws Error on PostgREST failure (MOS DAL convention). In-memory groupBy/aggregate when present.
+ * Throws Error on PostgREST failure (MOS DAL convention).
  *
- * CAVEAT (P1 review fix-wave item 6) — when `truncated` is true, any `resolvedAggregate` in the
- * returned rows is a LOWER BOUND, not the true total: the aggregate is computed in-memory over
- * only the capped fetch (≤ limit raw rows), not the full matching set. A DB-side aggregate (real
- * SQL sum/count/avg over the full predicate, uncapped by the row limit) is the P2 fix — this
- * executor's in-memory reduction is a P1 stopgap that trades correctness-at-scale for shipping
- * without a Postgres RPC/view per aggregate shape.
- *
- * CAVEAT (item 7) — `resolvedOrderBy` is applied to the PostgREST query BEFORE the in-memory
- * groupBy/aggregate reduction runs, so when both are present the order is discarded by the
- * reduction (the reduced rows come out in Map-insertion order, not the requested order). orderBy
- * is only meaningful for a non-aggregated query in P1; ordering the aggregated output is a P2
- * concern (DB-side aggregation would let ORDER BY apply to the real reduced rows).
+ * AGGREGATE PATH (T34 / P2.1, AC-P2-RT-006 — RESOLVED): when `resolvedAggregate || resolvedGroupBy`
+ * is present, the work runs DB-side via `mos.aggregate_compiled` (SECURITY INVOKER RPC) over the
+ * full predicate — uncapped by the row limit — so the aggregate is the true total, not a lower bound.
+ * The earlier P1 in-memory reduction (`applyGroupByAggregate`) is retained ONLY as a defensive
+ * fallback when the RPC call rejects: on RPC failure the in-memory reduction runs over the capped
+ * fetch and `truncated` is set honestly, preserving the P1 lower-bound + truncation contract. The
+ * happy path is now correct. Item 7 (orderBy-on-aggregate) is also resolved: the RPC applies
+ * ORDER BY to the real reduced rows.
  */
 export async function executeCompiledQuery(compiled: CompiledQuery): Promise<ExecutedQueryResult> {
+  const isAggregateQuery = !!(compiled.resolvedAggregate || compiled.resolvedGroupBy)
+
+  if (isAggregateQuery) {
+    try {
+      return await executeAggregateViaRpc(compiled)
+    } catch (rpcError) {
+      // Defensive fallback: the RPC is the happy path; if it is unavailable or errors, fall back to
+      // the P1 in-memory reduction over a capped fetch and report `truncated` honestly. This keeps
+      // the renderer working (with the documented lower-bound semantics) instead of failing hard.
+      // The error is swallowed intentionally — surfaced only via the truncation signal + the
+      // agg-value being a lower bound — but logged for observability.
+      console.warn('[viewspec] aggregate_compiled RPC failed; falling back to in-memory (lower-bound)', rpcError)
+    }
+  }
+
   const entry = ENTITY_WHITELIST[compiled.entity]
   // The supabase client is schema-pinned to `shared` by default; .schema() re-points it per call.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,7 +141,7 @@ export async function executeCompiledQuery(compiled: CompiledQuery): Promise<Exe
   if (error) throw new Error(`executeCompiledQuery failed — ${error.message}`)
   const rows: Row[] = (data as Row[]) ?? []
   const truncated = rows.length === effectiveLimit
-  const outRows = (compiled.resolvedAggregate || compiled.resolvedGroupBy)
+  const outRows = isAggregateQuery
     ? applyGroupByAggregate(rows, compiled.resolvedGroupBy, compiled.resolvedAggregate)
     : rows
   return { rows: outRows, truncated }
