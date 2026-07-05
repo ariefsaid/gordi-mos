@@ -46,6 +46,7 @@ comment on function mos.create_notification(uuid, text, text, text, jsonb) is
   'Sanctioned cross-owner notification delivery (@mention). SECURITY DEFINER; org-walled to a same-org non-archived target; the only path that writes a notification for another owner (FR-P3-CM-005).';
 
 -- Callers are authenticated end users (the mention author); the org assertion is the guard.
+revoke execute on function mos.create_notification(uuid, text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function mos.create_notification(uuid, text, text, text, jsonb) to authenticated;
 
 -- DOWN (manual, pre-production):

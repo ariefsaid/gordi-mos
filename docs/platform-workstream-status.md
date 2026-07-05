@@ -9,13 +9,15 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-05) — 6 slices SHIPPED to `dev`; P3a built through Phase G (▶ NEXT-AGENT resume block below)
+## Current focus (2026-07-05) — 6 slices SHIPPED to `dev`; P3a PR open, locally CI-fixed
 
 > **HANDOFF (2026-07-05):** agent-native port P1+P2 shipped to `dev` (full batteries); P3 planned +
-> decided; **P3a built through Phase G** on `feat/port-p3a-replay-inbox` (replay + notifications backend
+> decided; **P3a built through Phase H** on `feat/port-p3a-replay-inbox` (replay + notifications backend
 > + Inbox destination + ask_user + rating + comments/@mention + PWA seam), backend security-CLEAR.
-> **Remaining P3a: Phase H (battery) → ship** — see the ▶ NEXT AGENT block in this section. The six
-> owner-gated items (bottom of this section) are the real bottleneck to reaching users.
+> **PR #88 is open, not merged**. Close-out verification on 2026-07-05 found GitHub `db` red because
+> `mos.create_notification` lacked the explicit PUBLIC/anon/authenticated EXECUTE revoke required by
+> integration CI; the local branch now contains that one-line fix and needs push + CI rerun before owner
+> merge. The six owner-gated items (bottom of this section) remain the real bottleneck to reaching users.
 
 **Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
 1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
@@ -70,7 +72,7 @@ mention extraction, comment-post notification fan-out through `mos.create_notifi
 comment thread wired into the record feed. **Phase G (PWA seam) — DONE** (T29–T30, commit `0ec69a3`):
 manifest + service-worker registration, `mos.push_subscriptions` RLS, browser subscribe hook, and inert
 no-VAPID behavior. Current verified baseline after Phase G: **2200 vitest + 437 pgTAP + typecheck +
-eslint + deno-check + production build all green**. **Phase H — COMPLETE (PR #88 → `dev`, 2026-07-05):**
+eslint + deno-check + production build all green**. **Phase H — COMPLETE (PR #88 open → `dev`, 2026-07-05):**
 4-lens battery ledger at `docs/reviews/feat-port-p3a-replay-inbox.md` (spec PASS · code-quality
 FIX-THEN-SHIP → resolved, both Importants fixed `3762070` · security RE-run PASS · design SHIP);
 `pre-merge-check.sh` PASS. T31 deputy-invariant source guard covers replay/ask_user/notify (6 tests);
@@ -78,9 +80,13 @@ T32 live-gated cross-stack e2e. Verified baseline: **2210 vitest + 437 pgTAP + t
 deno-check + build all green** (also fixed a pre-existing BU-taxonomy pgTAP failure from a stale e2e
 fixture pointing at an archived legacy BU). **Security lens: CLEAR** (no Crit/High/Med; Low-2 route
 guard confirmed fixed; Low-1 unbounded *self*-notify volume tracked for the credits ledger, ship-acceptable).
+**CI close-out (2026-07-05):** GitHub `db` was red until the local `mos.create_notification` revoke fix;
+the exact integration lint now passes locally. GitHub `verify` coverage failure did not reproduce locally:
+`npm run test:coverage` on P3a passes (229 files / 2210 tests). #88 still needs push + CI rerun.
 
 > ### ▶ NEXT AGENT — platform workstream, post-P3a
-> 1. **PR #88** (`feat/port-p3a-replay-inbox` → `dev`) is open and battery-green. Owner merges.
+> 1. **PR #88** (`feat/port-p3a-replay-inbox` → `dev`) is open. Push the local revoke fix, rerun CI,
+>    then owner merges if checks are green.
 > 2. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
 >    This is the next build item — the viewspec executor currently hydrates in the client; a DB-side aggregate
 >    path closes the truncation risk before the flag flips on for a real cohort.
@@ -91,14 +97,15 @@ guard confirmed fixed; Low-1 unbounded *self*-notify volume tracked for the cred
 > UI is behind `SHOW_INBOX`/`SHOW_ASSISTANT` (default off) — flip locally to render-verify.
 
 **Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
-1. **`dev`→`main` merge** — 113 commits, **5 green ledgers**.
-2. **Staging `db push`** — margin read-model · user_views · **BU remap (mutates real staging rows**,
+1. **PR #88 → `dev` merge** — after the local CI fix is pushed and GitHub checks rerun green.
+2. **`dev`→`main` merge** — after the open platform PRs land on `dev`; owner call.
+3. **Staging `db push`** — margin read-model · user_views · **BU remap (mutates real staging rows**,
    dual-path guard verified) · (soon) agent-persistence + replay migrations.
-3. **Live deputy verify** — set `AGENT_MODEL_API_KEY` (direct Anthropic `claude-sonnet-5`) as an op
+4. **Live deputy verify** — set `AGENT_MODEL_API_KEY` (direct Anthropic `claude-sonnet-5`) as an op
    edge-function secret on staging → Director verifies grounding + approve/deny (AC-P2-GR-003).
-4. **P3b unblock** — the `generateLink`→`custom_access_token` staging check.
-5. **VAPID keys** — flips PWA push delivery on (in-app Inbox ships without it).
-6. **ESB PIC question** — undocumented AR-settlement API (`docs/reference/esb-settlement-api-spike.md`).
+5. **P3b unblock** — the `generateLink`→`custom_access_token` staging check.
+6. **VAPID keys** — flips PWA push delivery on (in-app Inbox ships without it).
+7. **ESB PIC question** — undocumented AR-settlement API (`docs/reference/esb-settlement-api-spike.md`).
 
 ---
 

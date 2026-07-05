@@ -25,11 +25,20 @@ Diff scope: `git diff origin/dev..HEAD` — 31 commits, ~94 files, ~5k LOC acros
 | `deno check .../agent-chat/index.ts` | PASS |
 | `npm run build` | PASS |
 
+**CI close-out note (2026-07-05):** GitHub PR #88 was still open/red after this ledger was written.
+The integration job failed the repository SECURITY DEFINER lint because
+`supabase/migrations/20260706000003_mos_create_notification.sql` granted EXECUTE without first revoking
+PUBLIC/anon/authenticated. The local branch now adds the explicit revoke; the exact integration lint
+passes locally. GitHub `verify`'s coverage failure did not reproduce in the local close-out run on the
+P3a branch (`npm run test:coverage` → 229 files / 2210 tests), but #88 still needs push + CI rerun before
+merge.
+
 ## Decision
 
-MERGE to `dev`. Slice is flag-gated default-off; the two code-quality Importants are resolved; no
-Critical/High/Med security findings; design SHIP with a deferred live-pass recommendation. P3b
-(automations) stays gated on the owner's `generateLink`→hook staging verify (separate plan).
+MERGE to `dev` after the local CI close-out fix is pushed and GitHub checks rerun green. Slice is
+flag-gated default-off; the two code-quality Importants are resolved; no Critical/High/Med security
+findings; design SHIP with a deferred live-pass recommendation. P3b (automations) stays gated on the
+owner's `generateLink`→hook staging verify (separate plan).
 
 ---
 
