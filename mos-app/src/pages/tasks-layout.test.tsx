@@ -30,11 +30,16 @@ vi.mock('../lib/db/directory', () => ({
 // would otherwise wipe a factory-set implementation, leaving listObjectives() === undefined.)
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
+vi.mock('../lib/comments/postComment', () => ({
+  listComments: vi.fn(),
+  postComment: vi.fn(),
+}))
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { __resetExpandPrefForTests } from '@/components/tasks/use-expand-pref'
@@ -114,6 +119,7 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  vi.mocked(listComments).mockResolvedValue([])
 })
 
 function renderAt(path: string) {
@@ -165,7 +171,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/tasks/task-1')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     // table still present
-    expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     expect(document.querySelector('.split.nodrawer')).toBeNull()
   })
 
