@@ -37,13 +37,19 @@ ship-blocker; credits + typed-widgets deferred). **P3a Phase A (thread-replay) b
 `feat/port-p3a-replay-inbox` (T1–T5, commits `2c9cff5`..`9b9e47d`): `agent_events.type` widened +
 enrichment (user turn + assistant `tool_calls` + tool `tool_call_id`, which P2 dropped) +
 `agent-chat/replay.ts` server-side `ModelMessage[]` reconstruction — **closes the P2 "deep thread
-replay" escalation at the server layer**; 2119 vitest + 397 pgTAP + deno-check green (Director-verified).
-**RESUME AT T6** (both pi/GLM + Claude subagent quotas exhausted mid-train; GLM 5-hour cap resets
-~12:04 WIB): T6–T7 replay client-wiring (`openThread`→`{runId,replay:true}` + `loadThreadForDisplay`
-DAL + ThreadList) → Phase B notifications table+seam (T8–T12, incl. the ONE sanctioned
-`SECURITY DEFINER mos.create_notification` cross-owner helper) → Phase C Inbox destination UI (T13–T17,
-needs Director render-verify) → D ask_user / E rating / F comments+@mention / G PWA seam → Phase H
-battery + ship. **Branch NOT reviewed/merged — one P3a battery at the end.**
+replay" escalation at the server layer**. **Phase B (notifications backend) ALSO built** (Director,
+solo on opus while quotas were down — T8–T12, commits `b2ad586`..`25f2052`): `mos.notifications`
+(owner-private, org-gate every branch, content-immutable mark-read-only trigger, unread fast-path
+index), the ONE sanctioned `SECURITY DEFINER mos.create_notification` cross-owner @mention helper
+(org-walled), the boundary-clean channel-adapter seam (in-app fan-out + inert push stub until VAPID),
+and the `notify` self-notification deputy tool (catalog now 4 tools). **2127 vitest + 414 pgTAP +
+deno-check all green.**
+**RESUME AT T6 + T13** (pi/GLM 5-hour cap resets ~12:04 WIB; prefer delegation for the render-verify +
+review load): T6–T7 replay client-wiring (`openThread`→`{runId,replay:true}` + `loadThreadForDisplay`
+DAL + ThreadList — note the **thread-vs-run identity design question**, §T6) → Phase C Inbox destination
+UI (T13–T17, needs Director render-verify) → D ask_user / E rating / F comments+@mention / G PWA seam →
+Phase H battery + ship. **Branch NOT reviewed/merged — one P3a battery at the end.** Backend (replay +
+notifications) is done + gate-green; what remains is UI + interaction contracts + the battery.
 
 **Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
 1. **`dev`→`main` merge** — 113 commits, **5 green ledgers**.
