@@ -12,6 +12,7 @@ import type { TaskDetail as TaskDetailData, CreateTaskInput } from '@/lib/db/tas
 import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
+import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import type { ObjectiveRow } from '@/lib/db/objectives'
@@ -106,6 +107,7 @@ function ViewSurface({
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
+  const [comments, setComments] = useState<CommentRow[]>([])
 
   // Optimistic local state
   const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
@@ -130,12 +132,14 @@ function ViewSurface({
       getTask(taskId),
       getBusinessUnits(),
       getPeople(),
-    ]).then(([taskData, bus, people]) => {
+      listComments({ entityType: 'task', entityId: taskId }).catch(() => []),
+    ]).then(([taskData, bus, people, loadedComments]) => {
       setData(taskData)
       setLocalTask(taskData.task)
       setLocalChecklist(taskData.checklist)
       setBusDirectory(bus)
       setPeopleDirectory(people)
+      setComments(loadedComments)
       setLoading(false)
     }).catch(() => {
       setNotFound(true)
@@ -201,6 +205,13 @@ function ViewSurface({
       const refreshed = await getTask(id)
       setData(refreshed)
     } catch { /* non-critical — stale events are acceptable */ }
+  }
+
+  async function handlePostComment(body: string) {
+    if (!localTask) return
+    await postComment({ entityType: 'task', entityId: localTask.id, body })
+    const loadedComments = await listComments({ entityType: 'task', entityId: localTask.id }).catch(() => comments)
+    setComments(loadedComments)
   }
 
   // ── RACI C/I change ──────────────────────────────────────────────────────
@@ -424,6 +435,7 @@ function ViewSurface({
             task={task}
             checklist={localChecklist}
             events={events}
+            comments={comments}
             people={peopleDirectory}
             now={now}
             editable={editable}
@@ -434,6 +446,7 @@ function ViewSurface({
             onToggleChecklist={handleToggle}
             onReorderChecklist={handleReorder}
             onDeleteChecklist={handleDeleteChecklist}
+            onPostComment={handlePostComment}
           />
         </div>
 
@@ -558,6 +571,7 @@ function ViewSurface({
             task={task}
             checklist={localChecklist}
             events={events}
+            comments={comments}
             people={peopleDirectory}
             now={now}
             editable={editable}
@@ -568,6 +582,7 @@ function ViewSurface({
             onToggleChecklist={handleToggle}
             onReorderChecklist={handleReorder}
             onDeleteChecklist={handleDeleteChecklist}
+            onPostComment={handlePostComment}
           />
         </div>
       </div>
