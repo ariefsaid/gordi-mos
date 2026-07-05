@@ -139,16 +139,17 @@ function findJournaledWrite(
 }
 
 /**
- * agent_events.type is DB-constrained to ('assistant','tool','status','system') (migration
- * 20260705000003) — narrower than the port's AgentEventType ('user'/'artifact' also exist on
- * the wire, e.g. the echoed user turn / a compose_view artifact). Only the 4 persistable types
- * are mirrored as a row; 'user'/'artifact' events still stream to the client (never dropped from
- * the SSE response) but are not journaled — the landed schema has no column for them in P2.
+ * agent_events.type is DB-constrained to ('user','assistant','tool','artifact','status','system')
+ * (migration 20260706000001 widened the P2 4-value check for P3a replay, §3.1 #1). All six types are
+ * mirrored as a row — the echoed `user` turn and `artifact` (compose_view) are journaled too, so
+ * deep thread-history replay can rebuild the full ModelMessage[] the model expects (AC-P3-RP-002).
+ * A `user`/`artifact` row is fully immutable exactly like tool/status/system (the feedback-only
+ * trigger rejects any non-rating drift on non-assistant rows).
  */
 function isPersistableEvent(
   ev: AgentEvent,
-): ev is AgentEvent & { type: 'assistant' | 'tool' | 'status' | 'system' } {
-  return ev.type === 'assistant' || ev.type === 'tool' || ev.type === 'status' || ev.type === 'system'
+): ev is AgentEvent & { type: 'user' | 'assistant' | 'tool' | 'artifact' | 'status' | 'system' } {
+  return ev.type === 'user' || ev.type === 'assistant' || ev.type === 'tool' || ev.type === 'artifact' || ev.type === 'status' || ev.type === 'system'
 }
 
 /**
@@ -254,8 +255,20 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
 
       const resp = await deps.modelClient.create({ model: deps.model, max_tokens: 2048, messages, tools })
 
-      if (resp.message.content) {
-        yield emit('assistant', { text: resp.message.content })
+      // P3a replay enrichment (AC-P3-RP-002, §3.1 #2): emit the assistant turn even when content is
+      // empty but tool_calls is present (a pure tool-call turn), and carry the raw tool_calls in the
+      // payload so replay can rebuild the assistant tool_use. P2 gated this on `content` only, so a
+      // content=null tool-call turn emitted NO assistant event — replay then could not reconstruct
+      // the model's turn. Guard: emit only when there is text OR tool_calls (never an empty no-op).
+      const assistantText = resp.message.content ?? ''
+      const assistantToolCalls = resp.message.tool_calls
+      if (assistantText || (assistantToolCalls && assistantToolCalls.length > 0)) {
+        yield emit('assistant', {
+          text: assistantText,
+          ...(assistantToolCalls && assistantToolCalls.length > 0
+            ? { payload: { tool_calls: assistantToolCalls } }
+            : {}),
+        })
       }
 
       if (resp.finish_reason === 'length') {
@@ -327,7 +340,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           yield emit('artifact', {
             payload: { kind: 'compose_view', spec: out.spec, repairAttempts: out.repairAttempts, title: out.title, tokensUsed: out.tokensUsed },
           })
-          yield emit('tool', { payload: { name: toolName, input: toolInput, result: { ok: true, panels: out.spec.panels.length } } })
+          yield emit('tool', { payload: { name: toolName, input: toolInput, result: { ok: true, panels: out.spec.panels.length }, tool_call_id: toolId } })
           messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ ok: true, panels: out.spec.panels.length }) })
         }
         continue
@@ -366,7 +379,8 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // ── Read action (confirm:false) — dispatch immediately ──────────────────
       const toolResult = await dispatchAction(action, toolInput, deputyCtx)
 
-      yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult } })
+      // tool_call_id (§3.1 #3): pairs this tool_result to the assistant tool_use on replay.
+      yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult, tool_call_id: toolId } })
 
       messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(toolResult) })
     }
@@ -599,8 +613,9 @@ async function* handleDecision(
   }
 
   // `input` carries the VALIDATED args (never raw toolInput) so the journal hash matches
-  // what dispatchActionForced actually executed against (FR-P2-OB-001).
-  yield emit('tool', { payload: { name: toolName, pendingId, input: validation.value, result: writeResult } })
+  // what dispatchActionForced actually executed against (FR-P2-OB-001). tool_call_id pairs the
+  // resolved write's tool_result to the trailing assistant tool_use on replay (§3.1 #3).
+  yield emit('tool', { payload: { name: toolName, pendingId, input: validation.value, result: writeResult, tool_call_id: toolId } })
 
   yield emit('system', { text: 'approved', payload: { event: 'write_resolved', decision: 'approved', actionName: toolName, pendingId } })
 

@@ -124,12 +124,14 @@ export interface JournaledWrite {
 /**
  * Minimal shape of a streamed AgentEvent this module persists a mirror row for — a structural
  * subset of the runtime port's `AgentEvent` (T21); `createdAt` is accepted (the real event
- * carries it) but not read here (the DB stamps its own `created_at`).
+ * carries it) but not read here (the DB stamps its own `created_at`). P3a (migration
+ * 20260706000001) widened agent_events.type to also admit 'user' (the echoed user turn) and
+ * 'artifact' (compose_view journal) so deep replay can rebuild ModelMessage[] (AC-P3-RP-002).
  */
 export interface PersistableEvent {
   id: string
   runId: string
-  type: 'assistant' | 'tool' | 'status' | 'system'
+  type: 'user' | 'assistant' | 'tool' | 'artifact' | 'status' | 'system'
   text?: string
   payload?: unknown
   createdAt?: string
