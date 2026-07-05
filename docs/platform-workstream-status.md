@@ -9,9 +9,9 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-04 EOD) — four slices SHIPPED to `dev`; P2 deputy train in flight
+## Current focus (2026-07-05 EOD) — 6 slices SHIPPED to `dev`; P3a in progress (resume at T6)
 
-**Shipped to `dev` today (each with a full recorded battery — `docs/reviews/feat-*.md`):**
+**Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
 1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
    rail (ADR-0019 D2/D8), bilingual i18n seam (ADR-0021), margin read-model on the **§7a INTERIM
    contract** (BOM=budget doctrine; plan `docs/plans/2026-07-04-home-v1-margin.md` §7a).
@@ -21,17 +21,39 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
    primitive hydration**, save-time spec validation.
 4. **BU taxonomy remap** (ADR-0019 D1/OD-IA-1) — 6 team BUs with stable `code`s, legacy soft-retired,
    kitchen-logs resolves by code, org-scoped re-point UPDATEs.
+5. **Port P2 deputy** (ADR-0018) — `agent-chat` + `compose-view` edge functions (deputy loop,
+   grounding prompt, 4-tool catalog, SSE, single LLM call site, server-side re-validation),
+   `mos.agent_threads/runs/events`, AssistantPanel slide-over + FAB behind `SHOW_ASSISTANT` (default
+   off). Security lens: **deputy invariant holds by construction**. Ledger
+   `docs/reviews/feat-port-p2-panel-runtime.md`.
+6. **RI-3 flake fix** (`5d0cb57`) — load-sensitive waitFor-timeout, not a logic race; widened to 4000ms,
+   proven 0/10 under CPU-burner load.
 
-**In flight:** **P2 deputy train** (`feat/port-p2-panel-runtime`, plan
-`docs/plans/2026-07-05-port-p2-panel-runtime.md` + Director decisions §11): edge functions
-`agent-chat` (deputy loop, grounding prompt, 4-tool catalog, SSE, journal persistence) +
-`compose-view` (single LLM call site, server-side re-validation) are **built + deno-check clean**;
-persistence tables landed (391 pgTAP); remaining = client runtime adapter + AssistantPanel UI +
-grounding harness + firewall extension (GLM dispatch), then battery + Director live-verify.
+**P3 port train (automations + notifications Inbox) — PLANNED + started (2026-07-05):** plan
+`docs/plans/2026-07-06-port-p3-automations-inbox.md` (Director decisions §8: P3a/P3b split; **P3b
+automations GATED** on an owner staging verify — does `generateLink` route through the
+`custom_access_token` hook so a cron run acts as a user without service_role; PWA push delivery NOT a
+ship-blocker; credits + typed-widgets deferred). **P3a Phase A (thread-replay) built on branch**
+`feat/port-p3a-replay-inbox` (T1–T5, commits `2c9cff5`..`9b9e47d`): `agent_events.type` widened +
+enrichment (user turn + assistant `tool_calls` + tool `tool_call_id`, which P2 dropped) +
+`agent-chat/replay.ts` server-side `ModelMessage[]` reconstruction — **closes the P2 "deep thread
+replay" escalation at the server layer**; 2119 vitest + 397 pgTAP + deno-check green (Director-verified).
+**RESUME AT T6** (both pi/GLM + Claude subagent quotas exhausted mid-train; GLM 5-hour cap resets
+~12:04 WIB): T6–T7 replay client-wiring (`openThread`→`{runId,replay:true}` + `loadThreadForDisplay`
+DAL + ThreadList) → Phase B notifications table+seam (T8–T12, incl. the ONE sanctioned
+`SECURITY DEFINER mos.create_notification` cross-owner helper) → Phase C Inbox destination UI (T13–T17,
+needs Director render-verify) → D ask_user / E rating / F comments+@mention / G PWA seam → Phase H
+battery + ship. **Branch NOT reviewed/merged — one P3a battery at the end.**
 
-**Owner-gated queue:** dev→main merge offer (4 green ledgers); staging `db push`
-(3 migrations: margin read-model · user_views · **BU remap — mutates real staging rows**, dual-path
-guard verified); ESB PIC question (undocumented settlement API — `docs/reference/esb-settlement-api-spike.md`).
+**Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
+1. **`dev`→`main` merge** — 113 commits, **5 green ledgers**.
+2. **Staging `db push`** — margin read-model · user_views · **BU remap (mutates real staging rows**,
+   dual-path guard verified) · (soon) agent-persistence + replay migrations.
+3. **Live deputy verify** — set `AGENT_MODEL_API_KEY` (direct Anthropic `claude-sonnet-5`) as an op
+   edge-function secret on staging → Director verifies grounding + approve/deny (AC-P2-GR-003).
+4. **P3b unblock** — the `generateLink`→`custom_access_token` staging check.
+5. **VAPID keys** — flips PWA push delivery on (in-app Inbox ships without it).
+6. **ESB PIC question** — undocumented AR-settlement API (`docs/reference/esb-settlement-api-spike.md`).
 
 ---
 
