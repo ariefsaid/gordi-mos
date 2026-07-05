@@ -9,7 +9,13 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-05 EOD) — 6 slices SHIPPED to `dev`; P3a in progress (resume at T6)
+## Current focus (2026-07-05) — 6 slices SHIPPED to `dev`; P3a ~75% built (▶ NEXT-AGENT resume block below)
+
+> **HANDOFF (2026-07-05):** agent-native port P1+P2 shipped to `dev` (full batteries); P3 planned +
+> decided; **P3a built through Phase E** on `feat/port-p3a-replay-inbox` (replay + notifications backend
+> + Inbox destination + ask_user + rating), backend security-CLEAR. **Remaining P3a: Phase F (comments+
+> @mention) → G (PWA) → H (battery) → ship** — see the ▶ NEXT AGENT block in this section. The six
+> owner-gated items (bottom of this section) are the real bottleneck to reaching users.
 
 **Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
 1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
@@ -50,13 +56,37 @@ deno-check all green.**
 route wiring + top-bar bell w/ unread badge + en/id strings. **Render-verified end-to-end:** 3 seeded
 notifications render unread-first with severity colors, click marks-read + navigates to the deep-link,
 badge decrements 3→2 and PERSISTS across navigation. All flag-gated (default off). Suite 2136 green.
-**RESUME AT T6 + T18** (pi/GLM 5-hour cap resets ~12:04 WIB; prefer delegation for the review load):
-T6–T7 replay client-wiring (`openThread`→`{runId,replay:true}` + `loadThreadForDisplay` DAL + ThreadList
-— note the **thread-vs-run identity design question**, §T6) → Phase D ask_user (T18–T21, touches the
-handler loop) / E rating / F comments+@mention (T24–28, another migration + mention resolution) / G PWA
-seam → Phase H battery + ship. **Branch NOT reviewed/merged — one P3a battery at the end** (needs the
-3 opus lenses, so best run when delegation returns). Done + gate-green: replay + notifications backend
-+ **the complete Inbox destination**. What remains: replay client, interaction contracts, PWA, battery.
+**Phase D (ask_user) + E (rating) — IN PROGRESS** (2026-07-05, a Claude sonnet build agent on the
+branch): T6–T7 replay client-wiring (thread reopen + populated ThreadList; the **thread-vs-run identity
+question** was resolved — a ThreadList entry is a *thread*, `openThread` folds its runs' events for
+display + binds the latest run for `{replay:true}` follow-ups), T18–T20 ask_user (schema + handler
+dispatch + `handleAnswer` + transport/port/runtime `answer` wiring) committed; T21 panel question-chips
++ T22–T23 rating finishing as of this write. **Security lens on the P3a backend already ran: CLEAR**
+(no Crit/High/Med; the one actionable hardening — Low-2 route guard — is committed `583ad93`; Low-1
+unbounded *self*-notify volume is tracked for the credits ledger, ship-acceptable).
+
+> ### ▶ NEXT AGENT — resume P3a here
+> 1. **Confirm the current round landed green** on `feat/port-p3a-replay-inbox`: `cd mos-app && export
+>    PATH="$HOME/.nvm/versions/node/v22.20.0/bin:$PATH" && npx vitest run` + `npm run typecheck` +
+>    `npx eslint src --max-warnings=0`; from repo root `npx supabase test db` (baseline 414) +
+>    `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`. If the
+>    build agent left an uncommitted partial (check `git status`), finish or discard it to a coherent state.
+> 2. **Phase F — comments + @mention** (plan T24–T28): a `mos.comments` migration + pgTAP, `mentions.ts`
+>    slug→person resolution, comment-post→notification fan-out **via `mos.create_notification`** (the
+>    definer helper already exists), task-detail comment thread UI. Has a migration → run it ALONE (no
+>    other DB-touching agent concurrently; local `supabase db reset` is shared state).
+> 3. **Phase G — PWA seam** (plan T29–T30): manifest + service-worker registration + `mos.push_subscriptions`
+>    + subscribe RPC (inert without VAPID). Also a migration → sequential after F.
+> 4. **Phase H — the P3a review battery** (plan T31–T33): run the FULL 3-lens battery (spec · code-quality ·
+>    security-RE-run · design via render-verify) on complete P3a, record `docs/reviews/feat-port-p3a-replay-inbox.md`,
+>    `bash scripts/pre-merge-check.sh` exit 0, then ship to `dev`. **The branch is NOT reviewed/merged until
+>    this battery runs** — do not merge on green gates alone (CLAUDE.md binding gate).
+> 5. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
+> 6. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
+>    follow-up plan once verified. Do NOT build P3b until that's recorded green.
+>
+> Full task text + acceptance criteria: `docs/plans/2026-07-06-port-p3-automations-inbox.md`. All P3a
+> UI is behind `SHOW_INBOX`/`SHOW_ASSISTANT` (default off) — flip locally to render-verify.
 
 **Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
 1. **`dev`→`main` merge** — 113 commits, **5 green ledgers**.
