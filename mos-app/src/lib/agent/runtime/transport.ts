@@ -53,6 +53,13 @@ export interface AgentChatRequest {
   decision?: AgentDecision
   /** Present on a re-POST driving a server-side abort. */
   cancel?: AgentCancel
+  /**
+   * Present on a re-POST reopening a persisted run (P3a, FR-P3-RP-001): the handler reconstructs
+   * the model's ModelMessage[] from mos.agent_events (seq-ordered, with tool_use<->tool_result
+   * pairing) and appends only the new user turn, so openThread/followUp work from the DB, not
+   * client memory. No tool re-executes — replay rebuilds messages, never re-dispatches.
+   */
+  replay?: boolean
 }
 
 /** Typed error shape for non-2xx responses from agent-chat. */

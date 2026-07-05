@@ -31,6 +31,7 @@ import {
   hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus,
 } from './persistence.ts'
 import type { PersistenceDeps, JournaledWrite, ToolJournal, HandlerSupabaseLike } from './persistence.ts'
+import { replayRunHistory } from './replay.ts'
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts'
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext, SupabaseLike } from '../../../mos-app/src/lib/agent/runtime/port.ts'
 import type { AgentChatRequest, ConversationMessage } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
@@ -494,10 +495,28 @@ async function* agentChatHandlerInner(
   // ── Build system prompt (GROUNDING, FR-P2-GR-001) ───────────────────────────
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
 
-  const messages: ModelMessage[] = [
-    { role: 'system', content: system },
-    ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
-  ]
+  // ── Replay branch (P3a, FR-P3-RP-001/AC-P3-RP-002): reopen a persisted run from the DB ───────
+  // When req.runId && req.replay, reconstruct ModelMessage[] from mos.agent_events (seq-ordered,
+  // tool_use<->tool_result paired) under the caller JWT (owner RLS), prepend the system prompt,
+  // and append only the new user turn. No tool re-executes — replay rebuilds messages, the loop's
+  // existing journal de-dupe gate still guards any write. Falls back to the stateless path when
+  // persistence is off (no deps.supabase to read from) — a degraded but functional fresh turn.
+  let messages: ModelMessage[]
+  if (req.runId && req.replay && persist) {
+    const replayed = await replayRunHistory(persist.deps, req.runId)
+    messages = [
+      { role: 'system', content: system },
+      ...replayed,
+      ...(lastUserMsg
+        ? [{ role: 'user' as const, content: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '' }]
+        : []),
+    ]
+  } else {
+    messages = [
+      { role: 'system', content: system },
+      ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
+    ]
+  }
 
   // ── Tool-use loop ────────────────────────────────────────────────────────────
   yield* runToolLoop({
