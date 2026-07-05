@@ -70,27 +70,22 @@ mention extraction, comment-post notification fan-out through `mos.create_notifi
 comment thread wired into the record feed. **Phase G (PWA seam) — DONE** (T29–T30, commit `0ec69a3`):
 manifest + service-worker registration, `mos.push_subscriptions` RLS, browser subscribe hook, and inert
 no-VAPID behavior. Current verified baseline after Phase G: **2200 vitest + 437 pgTAP + typecheck +
-eslint + deno-check + production build all green**. **Phase H started (uncommitted, 2026-07-05):**
-T31 deputy-invariant source guard extended for replay/ask_user/notify and `npm test -- handlerDeputyInvariant`
-passes (6 tests); T32 `mos-app/e2e/inbox-replay.spec.ts` live-gated e2e added and `npx playwright test
-inbox-replay` skips cleanly under default-off flags. Focused `npm run typecheck` and targeted ESLint on
-the changed files pass. **Security lens on the P3a backend
-already ran: CLEAR** (no Crit/High/Med; the one actionable hardening — Low-2 route guard — is committed
-`583ad93`; Low-1 unbounded *self*-notify volume is tracked for the credits ledger, ship-acceptable).
+eslint + deno-check + production build all green**. **Phase H — COMPLETE (PR #88 → `dev`, 2026-07-05):**
+4-lens battery ledger at `docs/reviews/feat-port-p3a-replay-inbox.md` (spec PASS · code-quality
+FIX-THEN-SHIP → resolved, both Importants fixed `3762070` · security RE-run PASS · design SHIP);
+`pre-merge-check.sh` PASS. T31 deputy-invariant source guard covers replay/ask_user/notify (6 tests);
+T32 live-gated cross-stack e2e. Verified baseline: **2210 vitest + 437 pgTAP + typecheck + eslint +
+deno-check + build all green** (also fixed a pre-existing BU-taxonomy pgTAP failure from a stale e2e
+fixture pointing at an archived legacy BU). **Security lens: CLEAR** (no Crit/High/Med; Low-2 route
+guard confirmed fixed; Low-1 unbounded *self*-notify volume tracked for the credits ledger, ship-acceptable).
 
-> ### ▶ NEXT AGENT — resume P3a here
-> 1. **Sanity-check green** on `feat/port-p3a-replay-inbox` (branch is coherent as of `0ec69a3`): `cd
->    mos-app && export PATH="$HOME/.nvm/versions/node/v22.20.0/bin:$PATH" && npx vitest run` (baseline
->    **2200**) + `npm run typecheck` + `npx eslint src --max-warnings=0` + `npm run build`; from repo root
->    `npx supabase test db` (baseline **437**) + `deno check --config supabase/functions/deno.json supabase/functions/agent-chat/index.ts`.
-> 2. **Phase H — the P3a review battery** (plan T31–T33): T31/T32 are in the current uncommitted tree;
->    next run the FULL 3-lens battery (spec · code-quality · security-RE-run · design via render-verify) on
->    complete P3a, record `docs/reviews/feat-port-p3a-replay-inbox.md`, `bash scripts/pre-merge-check.sh`
->    exit 0, then ship to `dev`. **The branch is NOT reviewed/merged until this battery runs** — do not merge
->    on green gates alone (CLAUDE.md binding gate).
-> 3. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
-> 4. **P3b (automations)** stays GATED on the owner's `generateLink`→hook staging verify (§3.3) — a separate
->    follow-up plan once verified. Do NOT build P3b until that's recorded green.
+> ### ▶ NEXT AGENT — platform workstream, post-P3a
+> 1. **PR #88** (`feat/port-p3a-replay-inbox` → `dev`) is open and battery-green. Owner merges.
+> 2. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
+>    This is the next build item — the viewspec executor currently hydrates in the client; a DB-side aggregate
+>    path closes the truncation risk before the flag flips on for a real cohort.
+> 3. **P3b (automations)** stays GATED on the owner's `generateLink`→`custom_access_token` staging verify (§3.3)
+>    — a separate follow-up plan once verified. Do NOT build P3b until that's recorded green.
 >
 > Full task text + acceptance criteria: `docs/plans/2026-07-06-port-p3-automations-inbox.md`. All P3a
 > UI is behind `SHOW_INBOX`/`SHOW_ASSISTANT` (default off) — flip locally to render-verify.
