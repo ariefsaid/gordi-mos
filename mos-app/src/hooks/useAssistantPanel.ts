@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { makeId } from '@/lib/agent/runtime/makeId'
+import { loadThreadForDisplay } from '@/lib/agent/history'
 import type {
   AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload,
 } from '@/lib/agent/runtime/port'
@@ -209,17 +210,32 @@ export function useAssistantPanel() {
     setIsStuck(false)
   }, [])
 
-  // P2 minimal: opening a prior thread resets the surface + binds the runId so a subsequent
-  // send follows up on it (full transcript replay is P3 with the notifications inbox).
-  const openThread = useCallback((threadId: string) => {
-    activeRunIdRef.current = threadId
-    setRunId(threadId)
-    setTranscript([])
+  // P3a (T6, AC-P3-RP-003): opening a prior thread loads its transcript from the DB
+  // (loadThreadForDisplay — the thread's most-recent run's agent_events, RLS-scoped) and binds
+  // that run as the active run via runtime.openThread, so a subsequent send() follows up on it
+  // with replay:true (the server reconstructs model context from mos.agent_events — Phase A).
+  // A thread with no runs yet (or a read failure — loadThreadForDisplay fails open) resets the
+  // surface to a fresh, unbound conversation rather than binding a nonexistent run.
+  const openThread = useCallback(async (threadId: string) => {
     setChips([])
     setError(null)
     setPhase('idle')
     setIsStuck(false)
-  }, [])
+
+    const { activeRunId, transcript: loaded } = await loadThreadForDisplay(threadId)
+
+    if (!activeRunId) {
+      activeRunIdRef.current = null
+      setRunId(null)
+      setTranscript([])
+      return
+    }
+
+    runtime?.openThread(activeRunId)
+    activeRunIdRef.current = activeRunId
+    setRunId(activeRunId)
+    setTranscript(loaded)
+  }, [runtime])
 
   return {
     runtime,

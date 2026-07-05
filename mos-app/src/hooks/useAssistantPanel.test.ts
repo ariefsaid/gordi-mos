@@ -20,6 +20,7 @@ function makeFakeRuntime(scripts: AgentEvent[][]): AgentRuntime {
       status: 'running' as const,
     })),
     followUp: vi.fn(async () => {}),
+    openThread: vi.fn(),
     control: vi.fn(async () => {}),
     subscribe: vi.fn(async function* () {
       const script = scripts[Math.min(call, scripts.length - 1)]

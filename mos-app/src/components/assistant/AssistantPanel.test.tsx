@@ -28,6 +28,7 @@ function makeFakeRuntime(): AgentRuntime {
   return {
     createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
     followUp: vi.fn(async () => {}),
+    openThread: vi.fn(),
     control: vi.fn(async () => {}),
     subscribe: vi.fn(async function* () {
       for (const ev of replyScript()) yield ev
@@ -142,6 +143,7 @@ describe('AssistantPanel (T27)', () => {
       return {
         createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
         followUp: vi.fn(async () => {}),
+        openThread: vi.fn(),
         control: vi.fn(async () => {}),
         subscribe: vi.fn(async function* () {
           const ev: AgentEvent = { id: 's1', runId: 'r1', type: 'status', payload: { status: 'error', error: 'UPSTREAM_ERROR' }, createdAt: '2026-01-01T00:00:00.000Z' }

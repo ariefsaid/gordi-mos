@@ -72,14 +72,16 @@ describe('agent runtime port — pure type seam (T21)', () => {
     expect(action.confirm).toBe(false)
   })
 
-  it('AgentRuntime shape: createRun/followUp/control/subscribe', () => {
+  it('AgentRuntime shape: createRun/followUp/openThread/control/subscribe', () => {
     const runtime: AgentRuntime = {
       createRun: async () => ({ id: 'r1', title: 't', status: 'running' }) as AgentRun,
       followUp: async () => {},
+      openThread: () => {},
       control: async () => {},
       subscribe: () => (async function* (): AsyncIterable<AgentEvent> {})(),
     }
     expect(typeof runtime.createRun).toBe('function')
+    expect(typeof runtime.openThread).toBe('function')
   })
 
   it('RunStatusPayload/NeedsApprovalPayload/WriteResolvedPayload/AgentAnswer shapes compile', () => {

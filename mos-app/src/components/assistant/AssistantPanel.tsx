@@ -20,6 +20,7 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAssistantPanel, type TranscriptItem, type ChipState } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
 import { useIsNarrow } from '@/shell/use-is-narrow'
+import { ThreadList } from './ThreadList'
 
 const SUGGESTION_KEYS = [
   'assistant.empty.suggestion1',
@@ -209,7 +210,13 @@ export function AssistantPanel() {
         {/* Body */}
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '0.75rem' }}>
           {showHistory ? (
-            <ThreadList emptyText={t('assistant.thread.empty')} />
+            <ThreadList
+              emptyText={t('assistant.thread.empty')}
+              onOpen={(threadId) => {
+                setShowHistory(false)
+                void panel.openThread(threadId)
+              }}
+            />
           ) : transcriptEmpty ? (
             <EmptyState
               title={t('assistant.empty.title')}
@@ -398,16 +405,6 @@ function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLab
       >
         {stopLabel}
       </button>
-    </div>
-  )
-}
-
-function ThreadList({ emptyText }: { emptyText: string }) {
-  // P2 minimal: no client-side thread index yet (the notifications inbox is P3). The region still
-  // renders so the history affordance is honest about its empty state rather than hiding.
-  return (
-    <div className="text-muted-foreground" style={{ padding: '1rem 0.25rem', fontSize: 14 }}>
-      {emptyText}
     </div>
   )
 }

@@ -113,6 +113,12 @@ export interface AgentAction {
 export interface AgentRuntime {
   createRun(input: { goal: string; context?: RunContext }): Promise<AgentRun>
   followUp(runId: string, message: string): Promise<void>
+  /**
+   * Bind a persisted thread's most-recent run as the active runId (P3a, T6) — a subsequent
+   * followUp + subscribe reconstructs the model's context server-side via replay (FR-P3-RP-001)
+   * rather than requiring the client to hold the full transcript in memory.
+   */
+  openThread(runId: string): void
   control(
     runId: string,
     cmd: 'approve' | 'reject' | 'cancel',
