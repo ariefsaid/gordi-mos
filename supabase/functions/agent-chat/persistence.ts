@@ -97,10 +97,11 @@ export function hashToolArgs(validatedArgs: unknown): string {
 
 /**
  * Row cap for the "load this run's full agent_events history" reads below (loadMaxSeq/
- * loadJournaledWrites). Wide, deliberately generous safety margin — not a tuned value; exists
- * so a pathological run degrades (truncated read) rather than the query becoming unbounded.
+ * loadJournaledWrites, AND replayRunHistory in replay.ts). Wide, deliberately generous safety
+ * margin — not a tuned value; exists so a pathological run degrades (truncated read) rather than
+ * the query becoming unbounded.
  */
-const MAX_RUN_EVENTS_READ = 1000
+export const MAX_RUN_EVENTS_READ = 1000
 
 // ── PersistenceDeps ───────────────────────────────────────────────────────────
 
