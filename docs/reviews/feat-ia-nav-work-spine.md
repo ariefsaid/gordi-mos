@@ -18,6 +18,12 @@
 | **Security** | gpt-5.5 | **PASS — no hole** | Relocated `/work/*` manage routes behind `RequireCapability`; retired paths redirect to a fixed internal target (no open-redirect); RLS/`can()` remains the real boundary, nav-hiding is convenience only. No schema change (absorbed `can()` migrations already reviewed on work-spine; pgTAP 72/73 untouched). |
 | **Design (4-lens, nav is UI)** | Director (Playwright MCP render) | **PASS** | Desktop rail = HOME·WORK·OPERATE·PLAN·INBOX·ADMIN, correct grouping, no Catalog group, existing chrome (no new visual language). Phone = exactly 5 bottom tabs (Home/Work/Operate/Plan/Inbox), Home active. Language toggle intact. Real backend auth (Director/admin persona). |
 
+## Verdict lines (machine-checked by `scripts/pre-merge-check.sh`)
+- spec: PASS — gpt-5.5 cross-family; every FR-400..450 has an owning AC; FR-440/AC-409 gap fixed.
+- code-quality: PASS — gpt-5.5 + Director close-read; reuse-not-rebuild, up-trace sound, flag mocks intent-preserving.
+- design: PASS — Director Playwright render; 5-destination rail (desktop) + 5 bottom tabs (phone), existing chrome, no dead-ends.
+- security: PASS — gpt-5.5; `/work/*` manage routes behind `RequireCapability`, redirects safe, RLS/`can()` the real boundary, no schema change.
+
 ## gpt-5.5 findings — all resolved (commit `9435a97`)
 - **Important:** Home/Inbox sub-item links lacked `labelKey` (id-locale hardcoded-English leak) → added
   `nav.home`/`nav.inbox` (en+id) + AC-409 parity. ✔
