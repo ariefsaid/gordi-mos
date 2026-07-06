@@ -21,6 +21,7 @@ import type {
   AgentEvent, AgentRun, AgentRuntime, RunContext,
 } from './port.ts'
 import type { AgentChatRequest, ConversationMessage, AgentDecision, AgentCancel } from './transport.ts'
+import type { AgentAnswer } from './port.ts'
 import { decodeSseStream } from './transport.ts'
 import { makeId } from './makeId.ts'
 
@@ -38,6 +39,16 @@ interface RunState {
   decision?: AgentDecision
   /** Stamped by control('cancel'); consumed + cleared on the next subscribe. */
   cancel?: AgentCancel
+  /**
+   * Stamped by openThread (P3a, FR-P3-RP-001/AC-P3-RP-003): the NEXT subscribe carries
+   * `replay:true` so the server reconstructs the model's context from mos.agent_events instead of
+   * the (empty, for a reopened thread) in-memory `messages`. Consumed + cleared on that subscribe —
+   * a subsequent turn in the same session is a normal (non-replay) followUp.
+   */
+  replay?: boolean
+  /** Stamped by control('answer', {answer}); consumed + cleared on the next subscribe (P3a, T20,
+   *  FR-P3-AU-002/AC-P3-AU-005) — resolves a pending ask_user question on the SAME run. */
+  answer?: AgentAnswer
   /** The in-flight subscribe's controller (aborted by control('cancel')). */
   abort?: AbortController
 }
@@ -65,10 +76,23 @@ export class MosNativeRuntime implements AgentRuntime {
     state.messages.push({ role: 'user', content: message })
   }
 
+  /**
+   * openThread — bind a persisted thread's most-recent run as the active runId (P3a, T6). No
+   * in-memory `messages` exist for a reopened thread (a page reload / a different session), so
+   * `messages` seeds empty; the `replay:true` flag stamped here tells the NEXT subscribe to ask
+   * the server to reconstruct history from `mos.agent_events` (the caller-JWT, owner-RLS-scoped
+   * replay path) rather than send an (empty) client transcript. A subsequent `followUp(runId, …)`
+   * appends the new turn exactly like any other run; `subscribe` then POSTs
+   * `{runId, replay:true, messages:[newMsg]}` and clears the flag.
+   */
+  openThread(runId: string): void {
+    this.runs.set(runId, { messages: [], replay: true })
+  }
+
   async control(
     runId: string,
-    cmd: 'approve' | 'reject' | 'cancel',
-    payload?: { pendingId?: string },
+    cmd: 'approve' | 'reject' | 'cancel' | 'answer',
+    payload?: { pendingId?: string; answer?: AgentAnswer },
   ): Promise<void> {
     const state = this.runs.get(runId)
     if (cmd === 'cancel') {
@@ -76,6 +100,13 @@ export class MosNativeRuntime implements AgentRuntime {
       // cancel so a subsequent subscribe (if any) carries it.
       state?.abort?.abort()
       if (state) state.cancel = { runId }
+      return
+    }
+    // T20 (AC-P3-AU-005): control('answer', {answer}) resolves a pending ask_user question on
+    // the SAME run — stamp it for the next subscribe (mirrors decision/cancel one-shot stamping).
+    if (cmd === 'answer') {
+      if (!state || !payload?.answer) return
+      state.answer = payload.answer
       return
     }
     if (!state || !payload?.pendingId) return
@@ -92,10 +123,16 @@ export class MosNativeRuntime implements AgentRuntime {
       ...(state.context ? { context: state.context } : {}),
       ...(state.decision ? { decision: state.decision } : {}),
       ...(state.cancel ? { cancel: state.cancel } : {}),
+      ...(state.replay ? { replay: true } : {}),
+      ...(state.answer ? { answer: state.answer } : {}),
     }
-    // Decisions/cancels are one-shot — clear after building the request so a followUp doesn't re-send.
+    // Decisions/cancels/replay/answers are one-shot — clear after building the request so a
+    // followUp doesn't re-send them (a subsequent turn is a normal followUp, not a replay re-ask
+    // or a stale answer re-post).
     state.decision = undefined
     state.cancel = undefined
+    state.replay = undefined
+    state.answer = undefined
 
     const controller = new AbortController()
     state.abort = controller

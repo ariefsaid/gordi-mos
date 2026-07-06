@@ -1,6 +1,6 @@
 # Plan — ADR-0018 P3 port train: automations + notifications inbox + transcript contracts
 
-**Status:** Draft (eng-planner) — awaiting Director review.
+**Status:** P3a built/reviewed as PR #88; P2.1 aggregate RPC stacked as PR #89; CI-fix pass locally verified 2026-07-06 and awaiting PR rerun.
 **Date:** 2026-07-06 · **Branch target:** `dev` → `feat/port-p3-automations-inbox`
 **Consumes:** ADR-0018 (P3 = D6 "Batteries"), ADR-0019 (D2 Inbox destination, D4 comms+mentions, D9
 notifications adapter seam + PWA push v1, D11 deputy placement), ADR-0001/0011 (org_id + RLS + access roles).
@@ -517,10 +517,17 @@ File: `mos-app/src/lib/agent/handlerDeputyInvariant.test.ts` — assert the P3a 
 introduce no new `service_role` site; the replay path uses the caller-JWT `persist.deps.supabase` only.
 Verify: `npm test -- handlerDeputyInvariant`. ACs: NFR-P3-RP-001.
 
+Status 2026-07-05: implemented in the current uncommitted tree. Verification: `npm test --
+handlerDeputyInvariant` PASS (6 tests).
+
 **T32 · Curated e2e (one cross-stack).**
 File: `mos-app/e2e/inbox-replay.spec.ts` — deputy conversation → reload → transcript restored (replay); a `notify`
 action → Inbox badge increments; mark-read clears it. (Live model = owner-gated, like P2.)
 Verify: `npx playwright test inbox-replay` (live-gated). ACs: AC-P3-RP-003, AC-P3-IB-002/003.
+
+Status 2026-07-05: spec added in the current uncommitted tree, gated by `SHOW_ASSISTANT` + `SHOW_INBOX`
+and `MOS_P3A_LIVE_E2E=1`. Local default verification: `npx playwright test inbox-replay` PASS with 1 skipped
+because flags/live-model gate are off.
 
 **T33 · Pre-merge gate.**
 `cd mos-app && npm run typecheck && npm run lint -- --max-warnings=0 && npm test`; `supabase test db`;

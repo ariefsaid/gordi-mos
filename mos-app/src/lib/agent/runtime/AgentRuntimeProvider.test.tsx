@@ -13,6 +13,7 @@ import type { AgentRuntime } from './port'
 const fakeRuntime: AgentRuntime = {
   createRun: vi.fn(),
   followUp: vi.fn(),
+  openThread: vi.fn(),
   control: vi.fn(),
   subscribe: vi.fn(),
 }

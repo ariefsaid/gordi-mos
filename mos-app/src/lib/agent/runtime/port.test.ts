@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest'
 import type {
   AgentRunStatus, AgentRun, AgentEventType, AgentEvent, RunContext, SupabaseLike, DeputyContext,
   AgentAction, AgentRuntime, RunStatusPayload, NeedsApprovalPayload, WriteResolvedPayload,
-  AgentAnswer, SupabaseLikeWithWrites,
+  AgentAnswer, SupabaseLikeWithWrites, QuestionPayload,
 } from './port'
 
 /** A minimal FilterBuilder-shaped test double satisfying every chain/terminal in the port. */
@@ -72,14 +72,16 @@ describe('agent runtime port — pure type seam (T21)', () => {
     expect(action.confirm).toBe(false)
   })
 
-  it('AgentRuntime shape: createRun/followUp/control/subscribe', () => {
+  it('AgentRuntime shape: createRun/followUp/openThread/control/subscribe', () => {
     const runtime: AgentRuntime = {
       createRun: async () => ({ id: 'r1', title: 't', status: 'running' }) as AgentRun,
       followUp: async () => {},
+      openThread: () => {},
       control: async () => {},
       subscribe: () => (async function* (): AsyncIterable<AgentEvent> {})(),
     }
     expect(typeof runtime.createRun).toBe('function')
+    expect(typeof runtime.openThread).toBe('function')
   })
 
   it('RunStatusPayload/NeedsApprovalPayload/WriteResolvedPayload/AgentAnswer shapes compile', () => {
@@ -96,6 +98,32 @@ describe('agent runtime port — pure type seam (T21)', () => {
     expect(needsApproval.pendingId).toBe('p1')
     expect(resolved.decision).toBe('approved')
     expect(answer.questionId).toBe('q1')
+  })
+
+  it("T20 (AC-P3-AU-005): AgentRuntime.control's command set gains 'answer' — a superset, no existing member changed", () => {
+    const runtime: AgentRuntime = {
+      createRun: async () => ({ id: 'r1', title: 't', status: 'running' }) as AgentRun,
+      followUp: async () => {},
+      openThread: () => {},
+      // Every P2 cmd still compiles unchanged...
+      control: async () => {},
+      subscribe: () => (async function* (): AsyncIterable<AgentEvent> {})(),
+    }
+    // ...and 'answer' is now also a valid cmd, carrying the AgentAnswer payload.
+    void runtime.control('r1', 'answer', { answer: { questionId: 'q1', optionId: 'o1' } })
+    expect(typeof runtime.control).toBe('function')
+  })
+
+  it('QuestionPayload (ask_user) shape: status{type:status, payload:{kind:"question",...}}', () => {
+    const q: QuestionPayload = {
+      kind: 'question',
+      questionId: 'q1',
+      prompt: 'Which business unit?',
+      options: [{ id: 'bu-1', label: 'Kitchen' }],
+      allowFreeText: true,
+    }
+    expect(q.kind).toBe('question')
+    expect(q.options[0].label).toBe('Kitchen')
   })
 
   it('SupabaseLikeWithWrites extends SupabaseLike with insert/update', () => {

@@ -15,6 +15,9 @@ import './index.css'
 import './components/ui/Button.css'
 import './components/ui/Pill.css'
 import { App } from './app.tsx'
+import { registerServiceWorker } from './sw-register'
+
+registerServiceWorker()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

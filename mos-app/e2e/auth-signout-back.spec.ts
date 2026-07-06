@@ -11,8 +11,8 @@ test('AC-002: sign-out and back-button guard', async ({ page }) => {
   // Sign in as VIEWER
   await loginAs(page, VIEWER.email, VIEWER.password)
 
-  // Wait for home — My Week page heading confirms successful auth (FR-013)
-  await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
+  // Wait for home — Home page heading confirms successful auth (FR-013)
+  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
 
   // Sign out via the user chip menu (FR-006 — sign-out now in chip menu, T-031)
   await page.getByRole('button', { name: /cahya cafe/i }).click()

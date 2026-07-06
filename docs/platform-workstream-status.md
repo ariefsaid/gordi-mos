@@ -9,9 +9,20 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-04 EOD) — four slices SHIPPED to `dev`; P2 deputy train in flight
+## Current focus (2026-07-06) — P3a + P2.1 built; CI fix locally verified before `dev`
 
-**Shipped to `dev` today (each with a full recorded battery — `docs/reviews/feat-*.md`):**
+> **HANDOFF (2026-07-06):** agent-native port P1+P2 shipped to `dev` (full batteries); P3a and P2.1
+> are built/reviewed as open PRs but **not merged**. PR #88 (`feat/port-p3a-replay-inbox`) now contains
+> P3a through Phase H plus the `mos.create_notification` EXECUTE revoke CI fix; PR #89
+> (`feat/p2.1-db-side-aggregate`) stacks on #88 and contains the `mos.aggregate_compiled` DB-side
+> aggregate RPC. Both branches were pushed on 2026-07-06. GitHub CI then exposed additional verify/e2e
+> failures beyond the revoke lint: task detail/drawer async loading races and Home-v1 e2e assertions that
+> still expected the old `My Week` index route. The P3a-base CI-fix pass is now locally verified; do
+> **not** merge #88 or #89 until the fix is pushed/re-stacked and fresh GitHub `verify` + `db` checks are green.
+> The owner-gated items (bottom of this
+> section) remain the real bottleneck to reaching users after the PRs land.
+
+**Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
 1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
    rail (ADR-0019 D2/D8), bilingual i18n seam (ADR-0021), margin read-model on the **§7a INTERIM
    contract** (BOM=budget doctrine; plan `docs/plans/2026-07-04-home-v1-margin.md` §7a).
@@ -21,17 +32,106 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
    primitive hydration**, save-time spec validation.
 4. **BU taxonomy remap** (ADR-0019 D1/OD-IA-1) — 6 team BUs with stable `code`s, legacy soft-retired,
    kitchen-logs resolves by code, org-scoped re-point UPDATEs.
+5. **Port P2 deputy** (ADR-0018) — `agent-chat` + `compose-view` edge functions (deputy loop,
+   grounding prompt, 4-tool catalog, SSE, single LLM call site, server-side re-validation),
+   `mos.agent_threads/runs/events`, AssistantPanel slide-over + FAB behind `SHOW_ASSISTANT` (default
+   off). Security lens: **deputy invariant holds by construction**. Ledger
+   `docs/reviews/feat-port-p2-panel-runtime.md`.
+6. **RI-3 flake fix** (`5d0cb57`) — load-sensitive waitFor-timeout, not a logic race; widened to 4000ms,
+   proven 0/10 under CPU-burner load.
 
-**In flight:** **P2 deputy train** (`feat/port-p2-panel-runtime`, plan
-`docs/plans/2026-07-05-port-p2-panel-runtime.md` + Director decisions §11): edge functions
-`agent-chat` (deputy loop, grounding prompt, 4-tool catalog, SSE, journal persistence) +
-`compose-view` (single LLM call site, server-side re-validation) are **built + deno-check clean**;
-persistence tables landed (391 pgTAP); remaining = client runtime adapter + AssistantPanel UI +
-grounding harness + firewall extension (GLM dispatch), then battery + Director live-verify.
+**P3 port train (automations + notifications Inbox) — PLANNED + started (2026-07-05):** plan
+`docs/plans/2026-07-06-port-p3-automations-inbox.md` (Director decisions §8: P3a/P3b split; **P3b
+automations GATED** on an owner staging verify — does `generateLink` route through the
+`custom_access_token` hook so a cron run acts as a user without service_role; PWA push delivery NOT a
+ship-blocker; credits + typed-widgets deferred). **P3a Phase A (thread-replay) built on branch**
+`feat/port-p3a-replay-inbox` (T1–T5, commits `2c9cff5`..`9b9e47d`): `agent_events.type` widened +
+enrichment (user turn + assistant `tool_calls` + tool `tool_call_id`, which P2 dropped) +
+`agent-chat/replay.ts` server-side `ModelMessage[]` reconstruction — **closes the P2 "deep thread
+replay" escalation at the server layer**. **Phase B (notifications backend) ALSO built** (Director,
+solo on opus while quotas were down — T8–T12, commits `b2ad586`..`25f2052`): `mos.notifications`
+(owner-private, org-gate every branch, content-immutable mark-read-only trigger, unread fast-path
+index), the ONE sanctioned `SECURITY DEFINER mos.create_notification` cross-owner @mention helper
+(org-walled), the boundary-clean channel-adapter seam (in-app fan-out + inert push stub until VAPID),
+and the `notify` self-notification deputy tool (catalog now 4 tools). **2127 vitest + 414 pgTAP +
+deno-check all green.**
+**Phase C (Inbox destination UI) ALSO built + RENDER-VERIFIED** (Director, solo — T13–T17, commit
+`f98283c`): notifications DAL + `useNotifications` (unread-first, optimistic mark-read w/ revert) +
+`InboxList` (severity dots, deep-link rows, XSS-inert) + `InboxPage` + `SHOW_INBOX` flag/destination/
+route wiring + top-bar bell w/ unread badge + en/id strings. **Render-verified end-to-end:** 3 seeded
+notifications render unread-first with severity colors, click marks-read + navigates to the deep-link,
+badge decrements 3→2 and PERSISTS across navigation. All flag-gated (default off). Suite 2136 green.
+**Phase D (ask_user) — DONE** (2026-07-05; a Claude sonnet build agent, quota-interrupted at the final
+T21 commit — Director verified 2182 vitest + typecheck + eslint + deno green and committed T21 `406531b`):
+T6–T7 replay client-wiring (thread reopen + populated ThreadList; the **thread-vs-run identity question**
+was resolved — a ThreadList entry is a *thread*, `openThread` folds its runs' events for display + binds
+the latest run for `{replay:true}` follow-ups), T18–T21 ask_user (schema + handler dispatch +
+`handleAnswer` + transport/port/runtime `answer` wiring + panel question-chips). Branch is coherent +
+fully green. **Phase E (rating/downvote) — DONE** (T22–T23, commit `32b78e5`): hook-level
+`rate(eventId, rating, reason?)` caller-JWT UPDATE of `agent_events.rating/downvote_reason`, panel
+thumbs-up/down control, downvote reason picker, and pgTAP `68_agent_events_feedback_owner.sql`.
+**Phase F (comments + @mention) — DONE** (T24–T28, commit `209e705`): `mos.comments` + RLS/pgTAP,
+mention extraction, comment-post notification fan-out through `mos.create_notification`, and the task-detail
+comment thread wired into the record feed. **Phase G (PWA seam) — DONE** (T29–T30, commit `0ec69a3`):
+manifest + service-worker registration, `mos.push_subscriptions` RLS, browser subscribe hook, and inert
+no-VAPID behavior. Current verified baseline after Phase G: **2200 vitest + 437 pgTAP + typecheck +
+eslint + deno-check + production build all green**. **Phase H — COMPLETE (PR #88 open → `dev`, 2026-07-05):**
+4-lens battery ledger at `docs/reviews/feat-port-p3a-replay-inbox.md` (spec PASS · code-quality
+FIX-THEN-SHIP → resolved, both Importants fixed `3762070` · security RE-run PASS · design SHIP);
+`pre-merge-check.sh` PASS. T31 deputy-invariant source guard covers replay/ask_user/notify (6 tests);
+T32 live-gated cross-stack e2e. Verified baseline: **2210 vitest + 437 pgTAP + typecheck + eslint +
+deno-check + build all green** (also fixed a pre-existing BU-taxonomy pgTAP failure from a stale e2e
+fixture pointing at an archived legacy BU). **Security lens: CLEAR** (no Crit/High/Med; Low-2 route
+guard confirmed fixed; Low-1 unbounded *self*-notify volume tracked for the credits ledger, ship-acceptable).
+**CI close-out status (2026-07-06):** the revoke lint issue was fixed and pushed, but GitHub still reported
+red `verify`/`db` on #88/#89. Local CI-fix pass:
+- `TaskSurface` initial load now gates only task + directory data; comments/catalogs are non-blocking and
+  stale async completions are ignored. This addresses full-suite loading-skeleton flakes in
+  `task-drawer.test.tsx` / `task-detail.test.tsx`.
+- Home-v1 e2e contracts are aligned from old `My Week` index assertions to the live `Home` route.
+- Sales dashboard e2e KPI locators are scoped to `.sdp-kpi-grid` so unrelated shell `role=group` elements do not
+  inflate the expected four KPI tiles.
+- Recovery e2e now rotates to a password satisfying the configured `lower_upper_letters_digits` policy; the
+  set-password page also waits for the Supabase `PASSWORD_RECOVERY` session and keeps weak-password errors on
+  the form instead of mislabeling them as expired links.
+- Full-coverage-only timing failures in three already-passing tests were stabilized by widening the specific
+  test/wait budgets without changing their behavioral assertions.
+- Verified locally so far: `CI=true npm test -- src/components/tasks/task-drawer.test.tsx src/pages/task-detail.test.tsx`
+  = **38/38 pass**; `CI=true npm test -- src/pages/recovery-page.test.tsx` = **10/10 pass**; targeted
+  Playwright recovery = **1/1 pass**; targeted Playwright sales responsive = **2/2 pass**; broader
+  Playwright subset (`auth-password-login`, `auth-signout-back`, `shell-nav`, `auth-recovery`,
+  `AC-010-011-sales-dashboard-responsive`) = **6 passed / 1 skipped**; full coverage =
+  **2213/2213 pass**; `npm run typecheck`, `npm run lint:ci`, `npm run build` PASS; `supabase test db` =
+  **437/437 pgTAP pass on P3a base**. P2.1 adds the aggregate RPC pgTAP files and should rerun at
+  **449/449** after re-stack. Treat GitHub CI as **not green yet** until the fix is pushed/re-stacked and
+  checks rerun green.
 
-**Owner-gated queue:** dev→main merge offer (4 green ledgers); staging `db push`
-(3 migrations: margin read-model · user_views · **BU remap — mutates real staging rows**, dual-path
-guard verified); ESB PIC question (undocumented settlement API — `docs/reference/esb-settlement-api-spike.md`).
+> ### ▶ NEXT AGENT — platform workstream, CI-fix continuation
+> 1. **Push the verified CI-fix pass before any merge.** Branch `feat/p2.1-db-side-aggregate` is stacked on
+>    `feat/port-p3a-replay-inbox`; put the CI fix on the P3a base branch first, then rebase/force-push P2.1.
+>    After push, confirm fresh GitHub `verify`+`db` green via `gh pr checks 88` and `gh pr checks 89`.
+>    Only then merge #88 → `dev`, rebase #89 on the new `dev`, re-check, merge #89.
+> 2. **T34/P2.1 DONE** (branch `feat/p2.1-db-side-aggregate`, stacks on PR #88): `mos.aggregate_compiled`
+>    DB-side aggregate RPC + executor wiring — closes the P1 truncation carry-in (AC-P2-RT-006). The
+>    `SHOW_USER_VIEWS` un-gate condition is now MET at the code level (cohort rollout still owner-gated).
+>    Ledger: `docs/reviews/feat-p2.1-db-side-aggregate.md`. Security-auditor: no SQL-injection vector found;
+>    all findings fixed. PR #89 to `dev` is open and stacked behind #88; rebase/rerun after #88 lands.
+> 3. **P3b (automations)** stays GATED on the owner's `generateLink`→`custom_access_token` staging verify (§3.3)
+>    — a separate follow-up plan once verified. Do NOT build P3b until that's recorded green.
+>
+> Full task text + acceptance criteria: `docs/plans/2026-07-06-port-p3-automations-inbox.md`. All P3a
+> UI is behind `SHOW_INBOX`/`SHOW_ASSISTANT` (default off) — flip locally to render-verify.
+
+**Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
+1. **PR #88 → `dev` merge** — after the CI-fix pass is committed/pushed and GitHub `verify` + `db` rerun green.
+2. **`dev`→`main` merge** — after the open platform PRs land on `dev`; owner call.
+3. **Staging `db push`** — margin read-model · user_views · **BU remap (mutates real staging rows**,
+   dual-path guard verified) · (soon) agent-persistence + replay migrations.
+4. **Live deputy verify** — set `AGENT_MODEL_API_KEY` (direct Anthropic `claude-sonnet-5`) as an op
+   edge-function secret on staging → Director verifies grounding + approve/deny (AC-P2-GR-003).
+5. **P3b unblock** — the `generateLink`→`custom_access_token` staging check.
+6. **VAPID keys** — flips PWA push delivery on (in-app Inbox ships without it).
+7. **ESB PIC question** — undocumented AR-settlement API (`docs/reference/esb-settlement-api-spike.md`).
 
 ---
 

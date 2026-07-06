@@ -56,8 +56,10 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 |---|---|
 | **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
 | **Where everything stands + outstanding** | `docs/platform-workstream-status.md` (canonical handoff) |
+| **Agent-native port (ADR-0018) — plans per train** | `docs/plans/2026-07-04-port-p1-substrate.md` · `docs/plans/2026-07-05-port-p2-panel-runtime.md` · `docs/plans/2026-07-06-port-p3-automations-inbox.md` |
+| **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` · `feat-port-p3a-replay-inbox.md` |
 | Full task list / backlog | `docs/backlog.md` |
-| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` |
+| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` (0017–0021 = agent-native/IA/can()/i18n) |
 | Domain glossary | `CONTEXT.md` (repo root) |
 | Binding charter + per-layer Definition of Done | `docs/product-expectations.md` |
 | Director runbook / loop / UI cycle | `docs/director-playbook.md`, `docs/design-workflow.md` |
@@ -67,14 +69,19 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 | Delegation via pi CLI | `docs/pi-delegation.md` |
 | Staging env + gotchas | `docs/environments.md` |
 
-## Headline current state (2026-06-30)
+## Headline current state (2026-07-06)
 - Kitchen Module + access roles + UI-revamp + Strategy→Execution cascade first slice **SHIPPED to main**.
-- **ESB outbox worker BUILT + SHIPPED** (extends `gordi-kitchen-app`; PRs #1/#2/#3 + gordi-mos #76/#77).
-  GOO transfer round-trip validated live; **deploy + the GKID flip remain owner-gated.**
-- **NEW (2026-06-30):** **ADR-0017 agent-native/user-composed UI ACCEPTED** (deputy/RLS dual-plane;
-  value-first build, Issue 1 = mobile-first ops dashboard births the kit; next = `feature-forge` spec) +
-  **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, self-sustaining; next = `reporting` migration +
-  snapshot for the sales dashboard). Both on the new **`dev`** branch. See status §Current focus +
-  `docs/reference/warehouse-online.md`; memory `agent-native-ui-program`.
-- **Mid-flight / not merged:** kitchen UI redesign `feat/kitchen-log-redesign` (awaiting owner visual
-  sign-off); kitchen data migration LOAD (Teable→`ops`); curated kitchen e2e.
+- Agent-native platform slices through P2 are on `dev`; P3a is built/reviewed on
+  `feat/port-p3a-replay-inbox` / PR #88, and P2.1 DB-side aggregate work is stacked on
+  `feat/p2.1-db-side-aggregate` / PR #89. Both PRs are open, pushed, and **not merged**.
+- Current active work is making #88/#89 CI green. The missing `mos.create_notification` EXECUTE revoke was
+  fixed/pushed; the follow-on CI-fix pass covers task-detail async loading, Home-v1 e2e assertions, Sales
+  KPI locator scope, recovery e2e password-policy drift, and full-coverage timing budgets. Local P3a-base
+  gates are green as of this update: 2213 Vitest coverage, 437 pgTAP, targeted Playwright 6 passed/1 skipped,
+  typecheck, lint, and build. P2.1 adds the aggregate RPC pgTAP files and should rerun at 449 pgTAP after
+  re-stack. Do not merge to `dev` until the fix is pushed/re-stacked and fresh GitHub `verify` + `db` are green.
+- **Delegation posture (owner-directed 2026-07-06):** orchestrate build/fix via **pi** (GLM-4.7/GLM-5.2
+  builders, gpt-5.4 cross-family reviewers — `docs/pi-delegation.md`) to preserve Anthropic tokens;
+  Director retains verify + merge/git + final visual taste.
+- Remaining user-facing rollout work is owner-gated: staging db push, edge-function model secret/live
+  deputy verify, P3b generateLink hook check, VAPID keys, and ESB PIC settlement answer.

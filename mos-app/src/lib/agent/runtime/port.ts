@@ -113,11 +113,20 @@ export interface AgentAction {
 export interface AgentRuntime {
   createRun(input: { goal: string; context?: RunContext }): Promise<AgentRun>
   followUp(runId: string, message: string): Promise<void>
+  /**
+   * Bind a persisted thread's most-recent run as the active runId (P3a, T6) — a subsequent
+   * followUp + subscribe reconstructs the model's context server-side via replay (FR-P3-RP-001)
+   * rather than requiring the client to hold the full transcript in memory.
+   */
+  openThread(runId: string): void
   control(
     runId: string,
-    cmd: 'approve' | 'reject' | 'cancel',
-    /** P2 carries { pendingId } for approve/reject of a needs-approval write. P3 will also carry
-     *  the ask_user `answer` (AgentAnswer) — the optional object leaves room without a rewrite. */
+    /**
+     * P2 carried {'approve','reject','cancel'}. P3a (T20, AC-P3-AU-005) adds 'answer' — a
+     * superset, no existing member changed: control('answer', {answer}) resolves a pending
+     * ask_user question (FR-P3-AU-002), carrying the AgentAnswer payload.
+     */
+    cmd: 'approve' | 'reject' | 'cancel' | 'answer',
     payload?: { pendingId?: string; answer?: AgentAnswer },
   ): Promise<void>
   subscribe(runId: string): AsyncIterable<AgentEvent>
@@ -151,12 +160,25 @@ export interface WriteResolvedPayload {
   pendingId: string
 }
 
-/** The answer wire shape carried on a re-POST resolving a pending question. DROPPED from the
- * P2 request flow's ask_user branch (P3) but the type stays for AgentRuntime.control's shape. */
+/** The answer wire shape carried on a re-POST resolving a pending question (P3a, FR-P3-AU-002). */
 export interface AgentAnswer {
   questionId: string
   optionId?: string
   freeText?: string
+}
+
+/**
+ * Payload shape for AgentEvent{type:'status', payload:QuestionPayload} — the ask_user clarifying
+ * question (P3a, T20, ADR-0045 §2 port). Rides the `status` channel but WITHOUT an AgentRunStatus
+ * `status` field of its own — `payload.kind` distinguishes it from a run-lifecycle status frame,
+ * not `payload.status` (a QuestionPayload frame is not itself a terminal/running run status).
+ */
+export interface QuestionPayload {
+  kind: 'question'
+  questionId: string
+  prompt: string
+  options: { id: string; label: string }[]
+  allowFreeText?: boolean
 }
 
 /** Extended SupabaseLike that also supports write operations (create_task/post_update). */

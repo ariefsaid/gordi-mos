@@ -2,9 +2,11 @@ import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
 import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
-import { SHOW_ASSISTANT } from '@/config/features'
+import { SHOW_ASSISTANT, SHOW_INBOX } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
+import { useNavigate } from 'react-router-dom'
+import { useUnreadCount } from '@/hooks/useUnreadCount'
 
 type TopBarProps = {
   /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
@@ -131,6 +133,46 @@ function AssistantTopBarButton() {
   )
 }
 
+// The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Rendered only
+// when SHOW_INBOX, so the fetch never fires while the feature is hidden. Uses the dedicated
+// useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
+function NotificationBell() {
+  const navigate = useNavigate()
+  const { unreadCount } = useUnreadCount()
+  const label = unreadCount > 0 ? `Inbox, ${unreadCount} unread` : 'Inbox'
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className="relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+      style={{ width: 32, height: 32 }}
+      onClick={() => navigate('/inbox')}
+    >
+      <BellIcon />
+      {unreadCount > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full bg-primary text-primary-foreground"
+          style={{
+            top: 2,
+            right: 2,
+            minWidth: 15,
+            height: 15,
+            fontSize: 9,
+            lineHeight: '15px',
+            fontWeight: 600,
+            textAlign: 'center',
+            padding: '0 3px',
+          }}
+        >
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
 // Global top bar (ADR-0013 D1).
 // Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · user chip]
 // At <920px the leading hamburger appears and calls onOpenDrawer.
@@ -239,17 +281,22 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
             the FAB). Absent when SHOW_ASSISTANT=false. */}
         {SHOW_ASSISTANT && !isNarrow && <AssistantTopBarButton />}
 
-        {/* Notification bell — icon-only stub, non-functional (AC-S07, ADR-0013 D1) */}
-        <button
-          type="button"
-          aria-label="Notifications"
-          title="Notifications — coming soon"
-          disabled
-          className="flex items-center justify-center rounded-sm text-muted-foreground"
-          style={{ width: 32, height: 32 }}
-        >
-          <BellIcon />
-        </button>
+        {/* Notification bell — a live Inbox link + unread badge when SHOW_INBOX (T16); the
+            disabled "coming soon" stub otherwise (AC-S07, ADR-0013 D1). */}
+        {SHOW_INBOX ? (
+          <NotificationBell />
+        ) : (
+          <button
+            type="button"
+            aria-label="Notifications"
+            title="Notifications — coming soon"
+            disabled
+            className="flex items-center justify-center rounded-sm text-muted-foreground"
+            style={{ width: 32, height: 32 }}
+          >
+            <BellIcon />
+          </button>
+        )}
 
         {/* User chip — avatar-only at <920px (FR-020); name/role show on wider viewports (AC-S08) */}
         <UserChip variant="header" compact={isNarrow} />

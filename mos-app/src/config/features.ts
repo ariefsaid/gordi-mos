@@ -13,3 +13,8 @@ export const SHOW_USER_VIEWS = false
 // top-bar button, and AgentRuntimeProvider all short-circuit to null/no-op when this is false.
 // Flip true (local/staging only) to enable the deputy for a rollout cohort.
 export const SHOW_ASSISTANT = false
+
+// ADR-0019 D9 / ADR-0044 — the Inbox destination (notifications). Hide-first: the /inbox route, the
+// nav destination, and the bell badge all short-circuit when false. Flip true once notification
+// producers (@mentions, automations) are wired for a rollout cohort.
+export const SHOW_INBOX = false

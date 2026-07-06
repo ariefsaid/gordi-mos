@@ -14,7 +14,7 @@ import { RECOVERY_VIEWER } from './fixtures/users'
 import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
-const NEW_PASSWORD = `e2e-recovery-${Date.now()}`
+const NEW_PASSWORD = `E2eRecovery${Date.now()}`
 
 test('AC-005: password-recovery journey — link opens set-password form, rotation verified', async ({ page }) => {
   // This test performs a full email round-trip; allow extra time.

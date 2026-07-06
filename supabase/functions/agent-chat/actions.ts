@@ -16,7 +16,8 @@
 import { ENTITY_WHITELIST } from '../../../mos-app/src/lib/viewspec/types.ts'
 import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../mos-app/src/lib/agent/runtime/port.ts'
 import {
-  QUERY_ENTITY_SCHEMA, CREATE_TASK_SCHEMA, POST_UPDATE_SCHEMA, COMPOSE_VIEW_INPUT_SCHEMA,
+  QUERY_ENTITY_SCHEMA, CREATE_TASK_SCHEMA, POST_UPDATE_SCHEMA, COMPOSE_VIEW_INPUT_SCHEMA, NOTIFY_SCHEMA,
+  ASK_USER_SCHEMA,
 } from './schema.ts'
 import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec.ts'
 import type { ModelClient } from '../_shared/modelClient.ts'
@@ -390,6 +391,89 @@ export const composeViewAction: AgentAction = {
   },
 }
 
-// ── BASE_ACTIONS — the P2 catalog (FR-P2-WT-005: no provisioning tool) ────────
+// ── notify (P3a; self-notification, confirm:false) — FR-P3-NT-001/002 ────────
 
-export const BASE_ACTIONS: AgentAction[] = [queryEntityAction, createTaskAction, postUpdateAction]
+export interface NotifyInput {
+  title: string
+  body?: string
+  severity?: 'info' | 'warning' | 'critical'
+}
+
+function validateNotify(
+  input: unknown,
+): { ok: true; value: NotifyInput } | { ok: false; error: string } {
+  const i = input as Partial<NotifyInput>
+  if (typeof i?.title !== 'string' || !i.title.trim() || i.title.length > 200) {
+    return { ok: false, error: 'title is required (max 200 chars)' }
+  }
+  if (i?.body !== undefined && (typeof i.body !== 'string' || i.body.length > 2000)) {
+    return { ok: false, error: 'body must be a string (max 2000 chars)' }
+  }
+  if (i?.severity !== undefined && !['info', 'warning', 'critical'].includes(i.severity)) {
+    return { ok: false, error: 'severity must be info|warning|critical' }
+  }
+  return { ok: true, value: { title: i.title, body: i.body, severity: i.severity } }
+}
+
+export const notifyAction: AgentAction & {
+  validate: (input: unknown) => { ok: true; value: NotifyInput } | { ok: false; error: string }
+} = {
+  name: 'notify',
+  description: 'Drop a note into your OWN inbox (e.g. a reminder). Only notifies you, no one else.',
+  inputSchema: NOTIFY_SCHEMA,
+  surfaces: ['agent'],
+  confirm: false, // self-only inbox write — not a consequential external action
+  validate: validateNotify,
+  run: async (input: unknown, ctx: DeputyContext) => {
+    const v = validateNotify(input)
+    if (v.ok === false) return { error: v.error }
+    const sb = ctx.supabase as unknown as SupabaseLikeWithWrites
+    // owner_id/org_id are OMITTED — the DB defaults (current_person_id / current_org_id) + RLS
+    // WITH CHECK pin the row to the caller. The model can never address another person here.
+    const { data, error } = await sb
+      .schema('mos')
+      .from('notifications')
+      .insert({
+        severity: v.value.severity ?? 'info',
+        title: v.value.title,
+        body: v.value.body ?? null,
+      })
+      .select('id')
+      .single()
+    if (error) return { error: 'write_failed' }
+    return { id: (data as { id?: string }).id }
+  },
+}
+
+// ── ask_user (P3a; clarifying-question contract, ADR-0045 §2 port) — FR-P3-AU-001 ────────────
+//
+// askUserAction is a GUARD STUB — the handler NEVER calls this via dispatchAction/
+// dispatchActionForced. The runToolLoop dispatch branch (T19) intercepts `toolName==='ask_user'`
+// BEFORE the actionByName lookup and emits a status{kind:'question'} event + ends the stream
+// directly. This catalog entry exists only so ask_user appears in the model's tool list (buildTools
+// iterates BASE_ACTIONS to build the JSON-schema tool catalog) — its `run` is never invoked.
+// confirm is OMITTED (falsy): ask_user is NOT a write tool, so it must never be routed through the
+// A3 propose/approval-chip branch — it is a question/answer turn, resolved by control('answer').
+export const askUserAction: AgentAction = {
+  name: 'ask_user',
+  description: 'Ask the user a clarifying question with tappable option chips (and optionally free text) before proceeding.',
+  inputSchema: ASK_USER_SCHEMA,
+  surfaces: ['agent'],
+  run: () => {
+    throw new Error(
+      'ask_user is dispatched specially by runToolLoop (a status{kind:"question"} emit); never call run() directly',
+    )
+  },
+}
+
+// ── BASE_ACTIONS — the catalog. P2: query/create_task/post_update. P3a adds notify (self-only,
+// caller-JWT, gated by the SHOW_ASSISTANT panel flag like the rest) + ask_user (clarifying
+// question; guard-stub run, dispatched specially by the handler). Still NO provisioning tool
+// (FR-P2-WT-005).
+export const BASE_ACTIONS: AgentAction[] = [
+  queryEntityAction,
+  createTaskAction,
+  postUpdateAction,
+  notifyAction,
+  askUserAction,
+]

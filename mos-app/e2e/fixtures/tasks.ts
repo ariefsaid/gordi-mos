@@ -6,8 +6,10 @@ export const TASKS = {
   VIEWER_ACCOUNTABLE: {
     id: 'a0000000-0000-0000-0000-000000000001',
     title:  'E2E Archiveable Task',
-    // BU: Cafe Ops – General (20000000-…-0001); R and A = VIEWER (40000000-…-0001)
-    businessUnitId:         '20000000-0000-0000-0000-000000000001',
+    // BU: Retail Ops (20000000-…-0014, code=retail_ops) — the live team BU Cafe Ops folded into
+    // post-ADR-0019 D1 remap. The legacy Cafe Ops – General BU (…-0001) is archived and must not
+    // be referenced by any mos.tasks row (AC-BU-003). R and A = VIEWER (40000000-…-0001).
+    businessUnitId:         '20000000-0000-0000-0000-000000000014',
     responsiblePersonId:    '40000000-0000-0000-0000-000000000001',
     accountablePersonId:    '40000000-0000-0000-0000-000000000001',
     orgId:                  '10000000-0000-0000-0000-000000000001',

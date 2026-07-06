@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -10,6 +10,7 @@ import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
+import { InboxPage } from './pages/inbox-page'
 import { OpsAddForm } from './pages/ops-add-form'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
@@ -78,6 +79,7 @@ export const routeConfig: RouteObject[] = [
           // but redirect to My Week so a stale deep-link can't reach a hidden section.
           { path: 'updates', element: SHOW_WEEKLY_UPDATES ? <UpdatesPage /> : <Navigate to="/" replace /> },
           { path: 'ops', element: SHOW_DAILY_LOG ? <OpsPage /> : <Navigate to="/" replace /> },
+          { path: 'inbox', element: SHOW_INBOX ? <InboxPage /> : <Navigate to="/" replace /> },
           { path: 'ops/new', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           { path: 'ops/:id/edit', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           // Kitchen Module (S1 — Log capture; S2 — Plan editor (ops_lead/admin) +

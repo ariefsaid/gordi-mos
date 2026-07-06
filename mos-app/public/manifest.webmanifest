@@ -1,0 +1,11 @@
+{
+  "name": "Gordi MOS",
+  "short_name": "MOS",
+  "description": "Gordi management operating system",
+  "start_url": "/mos/",
+  "scope": "/mos/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "icons": []
+}

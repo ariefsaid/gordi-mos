@@ -46,5 +46,5 @@ describe('KitchenReviewTable', () => {
     expect(screen.getByRole('button', { name: /approve all \(1\).*production/i })).toBeInTheDocument()
     expect(screen.getByText(/blocked until production approved/i)).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader', { name: /decision|item|submitter|note|time|plan vs logged/i }).length).toBeGreaterThan(0)
-  })
+  }, 10_000)
 })

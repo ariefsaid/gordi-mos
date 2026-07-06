@@ -97,10 +97,11 @@ export function hashToolArgs(validatedArgs: unknown): string {
 
 /**
  * Row cap for the "load this run's full agent_events history" reads below (loadMaxSeq/
- * loadJournaledWrites). Wide, deliberately generous safety margin — not a tuned value; exists
- * so a pathological run degrades (truncated read) rather than the query becoming unbounded.
+ * loadJournaledWrites, AND replayRunHistory in replay.ts). Wide, deliberately generous safety
+ * margin — not a tuned value; exists so a pathological run degrades (truncated read) rather than
+ * the query becoming unbounded.
  */
-const MAX_RUN_EVENTS_READ = 1000
+export const MAX_RUN_EVENTS_READ = 1000
 
 // ── PersistenceDeps ───────────────────────────────────────────────────────────
 
@@ -124,12 +125,14 @@ export interface JournaledWrite {
 /**
  * Minimal shape of a streamed AgentEvent this module persists a mirror row for — a structural
  * subset of the runtime port's `AgentEvent` (T21); `createdAt` is accepted (the real event
- * carries it) but not read here (the DB stamps its own `created_at`).
+ * carries it) but not read here (the DB stamps its own `created_at`). P3a (migration
+ * 20260706000001) widened agent_events.type to also admit 'user' (the echoed user turn) and
+ * 'artifact' (compose_view journal) so deep replay can rebuild ModelMessage[] (AC-P3-RP-002).
  */
 export interface PersistableEvent {
   id: string
   runId: string
-  type: 'assistant' | 'tool' | 'status' | 'system'
+  type: 'user' | 'assistant' | 'tool' | 'artifact' | 'status' | 'system'
   text?: string
   payload?: unknown
   createdAt?: string

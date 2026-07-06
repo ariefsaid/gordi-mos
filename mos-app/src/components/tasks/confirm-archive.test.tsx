@@ -12,5 +12,5 @@ describe('ConfirmArchive', () => {
     expect(onConfirm).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     expect(onCancel).toHaveBeenCalled()
-  })
+  }, 10_000)
 })

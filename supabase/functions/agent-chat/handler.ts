@@ -31,6 +31,7 @@ import {
   hashToolArgs, createThreadAndRun, insertEvent, heartbeat, setRunStatus,
 } from './persistence.ts'
 import type { PersistenceDeps, JournaledWrite, ToolJournal, HandlerSupabaseLike } from './persistence.ts'
+import { replayRunHistory } from './replay.ts'
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts'
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext, SupabaseLike } from '../../../mos-app/src/lib/agent/runtime/port.ts'
 import type { AgentChatRequest, ConversationMessage } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
@@ -139,16 +140,17 @@ function findJournaledWrite(
 }
 
 /**
- * agent_events.type is DB-constrained to ('assistant','tool','status','system') (migration
- * 20260705000003) — narrower than the port's AgentEventType ('user'/'artifact' also exist on
- * the wire, e.g. the echoed user turn / a compose_view artifact). Only the 4 persistable types
- * are mirrored as a row; 'user'/'artifact' events still stream to the client (never dropped from
- * the SSE response) but are not journaled — the landed schema has no column for them in P2.
+ * agent_events.type is DB-constrained to ('user','assistant','tool','artifact','status','system')
+ * (migration 20260706000001 widened the P2 4-value check for P3a replay, §3.1 #1). All six types are
+ * mirrored as a row — the echoed `user` turn and `artifact` (compose_view) are journaled too, so
+ * deep thread-history replay can rebuild the full ModelMessage[] the model expects (AC-P3-RP-002).
+ * A `user`/`artifact` row is fully immutable exactly like tool/status/system (the feedback-only
+ * trigger rejects any non-rating drift on non-assistant rows).
  */
 function isPersistableEvent(
   ev: AgentEvent,
-): ev is AgentEvent & { type: 'assistant' | 'tool' | 'status' | 'system' } {
-  return ev.type === 'assistant' || ev.type === 'tool' || ev.type === 'status' || ev.type === 'system'
+): ev is AgentEvent & { type: 'user' | 'assistant' | 'tool' | 'artifact' | 'status' | 'system' } {
+  return ev.type === 'user' || ev.type === 'assistant' || ev.type === 'tool' || ev.type === 'artifact' || ev.type === 'status' || ev.type === 'system'
 }
 
 /**
@@ -254,8 +256,20 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
 
       const resp = await deps.modelClient.create({ model: deps.model, max_tokens: 2048, messages, tools })
 
-      if (resp.message.content) {
-        yield emit('assistant', { text: resp.message.content })
+      // P3a replay enrichment (AC-P3-RP-002, §3.1 #2): emit the assistant turn even when content is
+      // empty but tool_calls is present (a pure tool-call turn), and carry the raw tool_calls in the
+      // payload so replay can rebuild the assistant tool_use. P2 gated this on `content` only, so a
+      // content=null tool-call turn emitted NO assistant event — replay then could not reconstruct
+      // the model's turn. Guard: emit only when there is text OR tool_calls (never an empty no-op).
+      const assistantText = resp.message.content ?? ''
+      const assistantToolCalls = resp.message.tool_calls
+      if (assistantText || (assistantToolCalls && assistantToolCalls.length > 0)) {
+        yield emit('assistant', {
+          text: assistantText,
+          ...(assistantToolCalls && assistantToolCalls.length > 0
+            ? { payload: { tool_calls: assistantToolCalls } }
+            : {}),
+        })
       }
 
       if (resp.finish_reason === 'length') {
@@ -327,10 +341,34 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           yield emit('artifact', {
             payload: { kind: 'compose_view', spec: out.spec, repairAttempts: out.repairAttempts, title: out.title, tokensUsed: out.tokensUsed },
           })
-          yield emit('tool', { payload: { name: toolName, input: toolInput, result: { ok: true, panels: out.spec.panels.length } } })
+          yield emit('tool', { payload: { name: toolName, input: toolInput, result: { ok: true, panels: out.spec.panels.length }, tool_call_id: toolId } })
           messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ ok: true, panels: out.spec.panels.length }) })
         }
         continue
+      }
+
+      // ── ask_user dispatch branch (P3a, FR-P3-AU-001) ────────────────────────
+      // Same interaction family as the propose branch below (needs-approval): a structured
+      // question pauses the run; the client resolves it via control('answer', ...), which
+      // continues the SAME run (handleAnswer, below). Gated on allowProposeConfirm so the
+      // decision-continuation pass cannot pose a SECOND pending question before the first
+      // resolves (mirrors the confirm-action guard). NOT a write tool — no approval chip; this
+      // rides the `status` channel but WITHOUT an AgentRunStatus `status` field of its own
+      // (payload.kind distinguishes it, not payload.status).
+      if (toolName === 'ask_user' && allowProposeConfirm) {
+        const input = toolInput as { prompt?: string; options?: { id: string; label: string }[]; allowFreeText?: boolean }
+        yield emit('status', {
+          payload: {
+            kind: 'question',
+            questionId: makeId(),
+            prompt: input.prompt ?? '',
+            options: input.options ?? [],
+            ...(input.allowFreeText !== undefined ? { allowFreeText: input.allowFreeText } : {}),
+          },
+        })
+        // End the stream — the client re-POSTs with req.answer on the next turn (mirrors the
+        // needs-approval propose branch ending the stream).
+        return
       }
 
       const action = actionByName.get(toolName)
@@ -366,7 +404,8 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // ── Read action (confirm:false) — dispatch immediately ──────────────────
       const toolResult = await dispatchAction(action, toolInput, deputyCtx)
 
-      yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult } })
+      // tool_call_id (§3.1 #3): pairs this tool_result to the assistant tool_use on replay.
+      yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult, tool_call_id: toolId } })
 
       messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(toolResult) })
     }
@@ -471,6 +510,16 @@ async function* agentChatHandlerInner(
     return
   }
 
+  // ── Answer branch (req.answer present -> resolve a pending ask_user question, FR-P3-AU-002) ──
+  // Routed BEFORE the model call for the same reason as the decision branch: resolving a pending
+  // question (finding the trailing tool_use + injecting the answer as its tool_result) never
+  // itself costs a model call. The continuation IS a genuine new model call (handleAnswer's own
+  // runLoopAfterAnswer).
+  if (req.answer) {
+    yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist)
+    return
+  }
+
   // ── Yield the last user message ─────────────────────────────────────────────
   const lastUserMsg = req.messages.filter((m) => m.role === 'user').at(-1)
   if (lastUserMsg) {
@@ -480,10 +529,28 @@ async function* agentChatHandlerInner(
   // ── Build system prompt (GROUNDING, FR-P2-GR-001) ───────────────────────────
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
 
-  const messages: ModelMessage[] = [
-    { role: 'system', content: system },
-    ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
-  ]
+  // ── Replay branch (P3a, FR-P3-RP-001/AC-P3-RP-002): reopen a persisted run from the DB ───────
+  // When req.runId && req.replay, reconstruct ModelMessage[] from mos.agent_events (seq-ordered,
+  // tool_use<->tool_result paired) under the caller JWT (owner RLS), prepend the system prompt,
+  // and append only the new user turn. No tool re-executes — replay rebuilds messages, the loop's
+  // existing journal de-dupe gate still guards any write. Falls back to the stateless path when
+  // persistence is off (no deps.supabase to read from) — a degraded but functional fresh turn.
+  let messages: ModelMessage[]
+  if (req.runId && req.replay && persist) {
+    const replayed = await replayRunHistory(persist.deps, req.runId)
+    messages = [
+      { role: 'system', content: system },
+      ...replayed,
+      ...(lastUserMsg
+        ? [{ role: 'user' as const, content: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '' }]
+        : []),
+    ]
+  } else {
+    messages = [
+      { role: 'system', content: system },
+      ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
+    ]
+  }
 
   // ── Tool-use loop ────────────────────────────────────────────────────────────
   yield* runToolLoop({
@@ -599,8 +666,9 @@ async function* handleDecision(
   }
 
   // `input` carries the VALIDATED args (never raw toolInput) so the journal hash matches
-  // what dispatchActionForced actually executed against (FR-P2-OB-001).
-  yield emit('tool', { payload: { name: toolName, pendingId, input: validation.value, result: writeResult } })
+  // what dispatchActionForced actually executed against (FR-P2-OB-001). tool_call_id pairs the
+  // resolved write's tool_result to the trailing assistant tool_use on replay (§3.1 #3).
+  yield emit('tool', { payload: { name: toolName, pendingId, input: validation.value, result: writeResult, tool_call_id: toolId } })
 
   yield emit('system', { text: 'approved', payload: { event: 'write_resolved', decision: 'approved', actionName: toolName, pendingId } })
 
@@ -629,6 +697,83 @@ async function* runLoop(
     deps, emit, statusEvent, deputyCtx, messages, persist, runId,
     allowCompose: false, allowProposeConfirm: false, onMissingToolCall: 'complete',
   })
+}
+
+// ── Answer handler (P3a, FR-P3-AU-002) — resolve a pending ask_user question ──────────────────
+
+/**
+ * Handle a re-POST with req.answer (resolve a pending ask_user question).
+ *
+ * Protocol (mirrors handleDecision — the "question" and "needs-approval" interactions share one
+ * resolution family):
+ * 1. Find the trailing unresolved ask_user tool_use in the replayed transcript
+ *    (findTrailingUnresolvedToolUse + isAskUserToolUse). If none (stale/duplicate re-POST,
+ *    AC-P3-AU-003), it is a no-op: continue the model with the messages as replayed, no re-injection.
+ * 2. Otherwise, append the answer as the tool_result resolving that tool_use (the chosen option's
+ *    label, or the free text) and continue the SAME run via runLoopAfterAnswer — never a new
+ *    createRun.
+ *
+ * Answering a clarifying question is NOT itself a resolution of anything write-shaped (unlike a
+ * decision, which is terminal): the model may need to immediately propose a confirm action or
+ * compose a view to actually satisfy the request the question was blocking. So the continuation
+ * runs with allowCompose:true, allowProposeConfirm:true (runLoopAfterAnswer) — the SAME
+ * capabilities as the main pass, NOT runLoop's terminal-by-design restriction.
+ */
+async function* handleAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: DeputyContext,
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  const answer = req.answer!
+
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP)
+
+  const messages: ModelMessage[] = [
+    { role: 'system', content: system },
+    ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
+  ]
+
+  const trailingQuestion = findTrailingUnresolvedToolUse(req.messages, isAskUserToolUse)
+
+  if (trailingQuestion) {
+    const { toolId, toolName, toolInput } = trailingQuestion
+    // Prefer the option's human-readable label (the model asked with labels, not ids) — fall
+    // back to the raw optionId if the option isn't found, then freeText.
+    const questionInput = toolInput as { options?: { id: string; label: string }[] } | undefined
+    const matchedOption = questionInput?.options?.find((o) => o.id === answer.optionId)
+    const answerText = answer.freeText ?? matchedOption?.label ?? answer.optionId ?? ''
+    messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ answer: answerText }) })
+  }
+  // No trailingQuestion found -> stale/duplicate answer (AC-P3-AU-003): fall through and simply
+  // continue the model with the messages as replayed (no re-injection).
+
+  yield* runLoopAfterAnswer(req, deps, emit, statusEvent, deputyCtx, messages, persist)
+}
+
+/** Inner tool-use loop for the answer continuation — allowCompose/allowProposeConfirm stay ON
+ *  (an answer is non-terminal, unlike a decision's continuation via runLoop). */
+async function* runLoopAfterAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: DeputyContext,
+  messages: ModelMessage[],
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  const runId = req.runId ?? ''
+  yield* runToolLoop({
+    deps, emit, statusEvent, deputyCtx, messages, persist, runId,
+    allowCompose: true, allowProposeConfirm: true, onMissingToolCall: 'complete',
+  })
+}
+
+/** matchToolUse for the ask_user question interaction family (FR-P3-AU-002). */
+function isAskUserToolUse(b: { name?: string }): boolean {
+  return b.name === 'ask_user'
 }
 
 // ── Trailing unresolved tool_use finder ────────────────────────────────────────

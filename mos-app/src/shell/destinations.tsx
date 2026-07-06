@@ -2,7 +2,7 @@ import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
 import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon } from './icons'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX } from '@/config/features'
 
 /**
  * DESTINATIONS — the single source of truth for both chromes (plan §1.5).
@@ -60,7 +60,8 @@ export const DESTINATIONS: Destination[] = [
     id: 'inbox',
     labelKey: 'dest.inbox',
     Icon: InboxIcon,
-    links: [],
+    // Live only when the notifications feature is on (ADR-0019 D9 / ADR-0044). Hide-first.
+    links: SHOW_INBOX ? [{ path: '/inbox', label: 'Inbox', Icon: InboxIcon }] : [],
   },
 ]
 

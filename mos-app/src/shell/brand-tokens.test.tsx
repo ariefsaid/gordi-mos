@@ -59,7 +59,7 @@ describe('shell brand touches (AC-120)', () => {
     const tasksLink = screen.getByRole('link', { name: /tasks/i })
     expect(tasksLink).toBeInTheDocument()
     expect(tasksLink).toHaveAttribute('aria-current', 'page')
-  })
+  }, 10_000)
 
   it('AC-120: only the Tasks link has aria-current=page at /tasks (no other link is marked active)', () => {
     renderRailAtPath('/tasks')

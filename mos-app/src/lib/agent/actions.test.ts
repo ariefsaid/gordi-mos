@@ -242,9 +242,9 @@ describe('composeViewAction / runComposeView (T16)', () => {
 // ── BASE_ACTIONS catalog (AC-WT-005) ──────────────────────────────────────────
 
 describe('BASE_ACTIONS catalog (T16, AC-WT-005/FR-WT-005)', () => {
-  it('contains exactly query_entity, create_task, post_update — no provisioning tool', () => {
+  it('contains exactly query_entity, create_task, post_update, notify, ask_user — no provisioning tool', () => {
     expect(BASE_ACTIONS.map((a) => a.name).sort()).toEqual(
-      ['create_task', 'post_update', 'query_entity'].sort(),
+      ['ask_user', 'create_task', 'notify', 'post_update', 'query_entity'].sort(),
     )
   })
 })

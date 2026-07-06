@@ -25,9 +25,14 @@ vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+vi.mock('../../lib/comments/postComment', () => ({
+  listComments: vi.fn(),
+  postComment: vi.fn(),
+}))
 
 import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
 
 const mockGetTask = vi.mocked(getTask)
@@ -35,6 +40,8 @@ const mockCreateTask = vi.mocked(createTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListComments = vi.mocked(listComments)
+const mockPostComment = vi.mocked(postComment)
 
 const VIEWER_ID = 'viewer-person-id'
 
@@ -85,6 +92,8 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  mockListComments.mockResolvedValue([])
+  mockPostComment.mockResolvedValue('comment-new')
   mockUpdateTaskStatus.mockResolvedValue()
   mockCreateTask.mockResolvedValue('new-task-id')
 })
@@ -140,6 +149,21 @@ describe('TaskSurface — view mode', () => {
     const feedCol = document.querySelector('.record-feed-col') as HTMLElement | null
     expect(feedCol).toBeTruthy()
     expect(feedCol?.style.minWidth).toBe('0')
+  })
+
+  it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    mockListComments.mockResolvedValue([
+      { id: 'comment-1', author_id: VIEWER_ID, body: 'Please check the blocker', created_at: '2026-07-05T01:00:00Z' },
+    ])
+
+    renderSurface()
+
+    await waitFor(() => expect(screen.getByText('Please check the blocker')).toBeInTheDocument())
+    expect(mockListComments).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'task',
+      entityId: 'task-abc',
+    }))
   })
 
   it('AC-R05: full width keeps the archived banner + Unarchive above the two columns', async () => {

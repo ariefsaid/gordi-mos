@@ -17,15 +17,26 @@
 
 import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
-import { useAssistantPanel, type TranscriptItem, type ChipState } from '@/hooks/useAssistantPanel'
+import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion, type AssistantRating } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
 import { useIsNarrow } from '@/shell/use-is-narrow'
+import { ThreadList } from './ThreadList'
 
 const SUGGESTION_KEYS = [
   'assistant.empty.suggestion1',
   'assistant.empty.suggestion2',
   'assistant.empty.suggestion3',
 ] as const
+
+/** The downvote reason vocabulary (T23, AC-P3-FB-002) — matches the plan's fixed reason set. */
+const DOWNVOTE_REASONS = ['inaccurate', 'not_helpful', 'wrong_tool', 'too_slow'] as const
+
+interface RatingLabels {
+  up: string
+  down: string
+  reasonLabel: string
+  reasons: { id: string; label: string }[]
+}
 
 export function AssistantPanel() {
   const { open, closePanel } = useAgentRuntime()
@@ -209,7 +220,13 @@ export function AssistantPanel() {
         {/* Body */}
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '0.75rem' }}>
           {showHistory ? (
-            <ThreadList emptyText={t('assistant.thread.empty')} />
+            <ThreadList
+              emptyText={t('assistant.thread.empty')}
+              onOpen={(threadId) => {
+                setShowHistory(false)
+                void panel.openThread(threadId)
+              }}
+            />
           ) : transcriptEmpty ? (
             <EmptyState
               title={t('assistant.empty.title')}
@@ -218,7 +235,28 @@ export function AssistantPanel() {
               onPick={(s) => void submit(s)}
             />
           ) : (
-            <Transcript items={panel.transcript} chips={panel.chips} error={panel.error} errorTitle={t('assistant.error.title')} errorCta={t('assistant.error.cta')} onRetry={() => void panel.retry()} onApprove={panel.approve} onDeny={panel.deny} />
+            <Transcript
+              items={panel.transcript}
+              chips={panel.chips}
+              error={panel.error}
+              errorTitle={t('assistant.error.title')}
+              errorCta={t('assistant.error.cta')}
+              onRetry={() => void panel.retry()}
+              onApprove={panel.approve}
+              onDeny={panel.deny}
+              pendingQuestion={panel.pendingQuestion}
+              onAnswer={panel.answer}
+              freeTextPlaceholder={t('assistant.question.freeTextPlaceholder')}
+              freeTextSubmitLabel={t('assistant.question.freeTextSubmit')}
+              ratings={panel.ratings}
+              onRate={panel.rate}
+              ratingLabels={{
+                up: t('assistant.rating.up'),
+                down: t('assistant.rating.down'),
+                reasonLabel: t('assistant.rating.reason.label'),
+                reasons: DOWNVOTE_REASONS.map((r) => ({ id: r, label: t(`assistant.rating.reason.${r}`) })),
+              }}
+            />
           )}
         </div>
 
@@ -250,6 +288,8 @@ export function AssistantPanel() {
 
 function Transcript({
   items, chips, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
+  pendingQuestion, onAnswer, freeTextPlaceholder, freeTextSubmitLabel,
+  ratings, onRate, ratingLabels,
 }: {
   items: TranscriptItem[]
   chips: ChipState[]
@@ -259,32 +299,56 @@ function Transcript({
   onRetry: () => void
   onApprove: (pendingId: string) => void
   onDeny: (pendingId: string) => void
+  pendingQuestion: PendingQuestion | null
+  onAnswer: (questionId: string, optionId?: string, freeText?: string) => void
+  freeTextPlaceholder: string
+  freeTextSubmitLabel: string
+  ratings: Record<string, AssistantRating>
+  onRate: (eventId: string, rating: AssistantRating, reason?: string) => void
+  ratingLabels: RatingLabels
 }) {
   return (
     <div className="flex flex-col gap-3">
       {items.map((item) => (
-        <div
-          key={item.id}
-          className="flex"
-          style={{ justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}
-        >
-          {/* Plain text only (FR-P2-AP-004): {item.text} — never dangerouslySetInnerHTML. */}
+        <div key={item.id} className="flex flex-col" style={{ alignItems: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
           <div
-            className="rounded-md text-sm whitespace-pre-wrap break-words"
-            style={{
-              maxWidth: '85%',
-              padding: '0.5rem 0.75rem',
-              background: item.role === 'user' ? 'var(--accent)' : 'var(--surface-secondary)',
-              color: item.role === 'user' ? 'var(--text-inverted)' : 'var(--text-primary)',
-            }}
+            className="flex"
+            style={{ justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}
           >
-            {item.text}
+            {/* Plain text only (FR-P2-AP-004): {item.text} — never dangerouslySetInnerHTML. */}
+            <div
+              className="rounded-md text-sm whitespace-pre-wrap break-words"
+              style={{
+                maxWidth: '85%',
+                padding: '0.5rem 0.75rem',
+                background: item.role === 'user' ? 'var(--accent)' : 'var(--surface-secondary)',
+                color: item.role === 'user' ? 'var(--text-inverted)' : 'var(--text-primary)',
+              }}
+            >
+              {item.text}
+            </div>
           </div>
+          {item.role === 'assistant' && (
+            <RatingControl
+              eventId={item.id}
+              rating={ratings[item.id]}
+              onRate={onRate}
+              labels={ratingLabels}
+            />
+          )}
         </div>
       ))}
       {chips.map((chip) => (
         <ApprovalChip key={chip.pendingId} chip={chip} onApprove={onApprove} onDeny={onDeny} />
       ))}
+      {pendingQuestion && (
+        <QuestionChips
+          question={pendingQuestion}
+          onAnswer={onAnswer}
+          freeTextPlaceholder={freeTextPlaceholder}
+          freeTextSubmitLabel={freeTextSubmitLabel}
+        />
+      )}
       {error && (
         <div
           className="rounded-md border border-border bg-secondary flex items-center gap-2"
@@ -382,6 +446,150 @@ function ApprovalChip({ chip, onApprove, onDeny }: { chip: ChipState; onApprove:
   )
 }
 
+/**
+ * QuestionChips — the ask_user clarifying-question affordance (P3a Phase D, AC-P3-AU-004).
+ * Renders the server-composed prompt (plain text) + tappable option chips; tapping a chip calls
+ * answer(questionId, optionId). When allowFreeText is set, an inline free-text box + submit button
+ * offer a typed answer instead (answer(questionId, undefined, freeText)).
+ */
+function QuestionChips({
+  question, onAnswer, freeTextPlaceholder, freeTextSubmitLabel,
+}: {
+  question: PendingQuestion
+  onAnswer: (questionId: string, optionId?: string, freeText?: string) => void
+  freeTextPlaceholder: string
+  freeTextSubmitLabel: string
+}) {
+  const [freeText, setFreeText] = useState('')
+  return (
+    <div
+      className="rounded-md border bg-secondary flex flex-col gap-2"
+      style={{ borderColor: 'var(--border-accent)', padding: '0.625rem 0.75rem' }}
+    >
+      {/* Plain text — the server-composed question prompt, never model HTML. */}
+      <div className="text-foreground" style={{ fontSize: 14 }}>{question.prompt}</div>
+      <div className="flex flex-wrap gap-2">
+        {question.options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onAnswer(question.questionId, opt.id)}
+            className="rounded-sm font-medium border border-border text-foreground"
+            style={{ padding: '0.4rem 0.625rem', fontSize: 14 }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {question.allowFreeText && (
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const trimmed = freeText.trim()
+            if (!trimmed) return
+            onAnswer(question.questionId, undefined, trimmed)
+            setFreeText('')
+          }}
+        >
+          <input
+            type="text"
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            placeholder={freeTextPlaceholder}
+            aria-label={freeTextPlaceholder}
+            className="bg-background border-border text-foreground rounded-sm flex-1 min-w-0"
+            style={{ padding: '0.4rem 0.625rem', fontSize: 14 }}
+          />
+          <button
+            type="submit"
+            disabled={!freeText.trim()}
+            className="rounded-sm font-medium flex-none"
+            style={{ padding: '0.4rem 0.625rem', fontSize: 14, background: 'var(--accent)', color: 'var(--text-inverted)', opacity: freeText.trim() ? 1 : 0.5 }}
+          >
+            {freeTextSubmitLabel}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
+/**
+ * RatingControl — 👍/👎 on each assistant turn (P3a Phase E, T23, AC-P3-FB-002). A downvote opens
+ * an inline reason picker (inaccurate|not_helpful|wrong_tool|too_slow); choosing a reason submits
+ * the rate() call with it. Once rated, the control shows the resolved state (no re-tap loop).
+ */
+function RatingControl({
+  eventId, rating, onRate, labels,
+}: {
+  eventId: string
+  rating: AssistantRating | undefined
+  onRate: (eventId: string, rating: AssistantRating, reason?: string) => void
+  labels: RatingLabels
+}) {
+  const [pickingReason, setPickingReason] = useState(false)
+
+  if (rating) {
+    return (
+      <div className="text-muted-foreground" style={{ fontSize: 12, marginTop: '0.25rem' }}>
+        {rating === 'up' ? labels.up : labels.down}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1" style={{ marginTop: '0.25rem' }}>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          aria-label={labels.up}
+          title={labels.up}
+          onClick={() => onRate(eventId, 'up')}
+          className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center"
+          style={{ width: 24, height: 24 }}
+        >
+          <ThumbsUpIcon />
+        </button>
+        <button
+          type="button"
+          aria-label={labels.down}
+          title={labels.down}
+          onClick={() => setPickingReason(true)}
+          className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center"
+          style={{ width: 24, height: 24 }}
+        >
+          <ThumbsDownIcon />
+        </button>
+      </div>
+      {pickingReason && (
+        <div
+          className="rounded-md border border-border bg-secondary flex flex-col gap-2"
+          style={{ padding: '0.5rem 0.625rem', maxWidth: '85%' }}
+        >
+          <div className="text-muted-foreground" style={{ fontSize: 12 }}>{labels.reasonLabel}</div>
+          <div className="flex flex-wrap gap-1">
+            {labels.reasons.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => {
+                  onRate(eventId, 'down', r.id)
+                  setPickingReason(false)
+                }}
+                className="rounded-sm border border-border text-foreground"
+                style={{ padding: '0.3rem 0.5rem', fontSize: 12 }}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLabel: string; onStop: () => void }) {
   return (
     <div
@@ -398,16 +606,6 @@ function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLab
       >
         {stopLabel}
       </button>
-    </div>
-  )
-}
-
-function ThreadList({ emptyText }: { emptyText: string }) {
-  // P2 minimal: no client-side thread index yet (the notifications inbox is P3). The region still
-  // renders so the history affordance is honest about its empty state rather than hiding.
-  return (
-    <div className="text-muted-foreground" style={{ padding: '1rem 0.25rem', fontSize: 14 }}>
-      {emptyText}
     </div>
   )
 }
@@ -500,6 +698,22 @@ function HistoryIcon() {
       <path d="M3 3v5h5" />
       <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
       <path d="M12 7v5l4 2" />
+    </svg>
+  )
+}
+function ThumbsUpIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path d="M7 10v12" />
+      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+    </svg>
+  )
+}
+function ThumbsDownIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path d="M17 14V2" />
+      <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
     </svg>
   )
 }

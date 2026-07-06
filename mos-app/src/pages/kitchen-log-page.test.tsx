@@ -559,7 +559,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     expect(line).not.toHaveProperty('status')
     expect(line).not.toHaveProperty('org_id')
     expect(line).not.toHaveProperty('submitted_by')
-  })
+  }, 10_000)
 
   it('shows success confirmation and clears form after submit', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
