@@ -32,7 +32,7 @@
   (passes 20/20 isolated in 2.84s; untouched by this slice — Kitchen code, timing under full-suite load,
   same class as the RI-3 flake). Not a regression; flagged as pre-existing suite tech-debt.
 - pgTAP 72/73 (the absorbed `can()` substrate) present; no new migrations (NFR-402).
-- e2e AC-410/411 authored (BDD-faithful); Director render confirmed the journeys live.
+- e2e AC-410/411 **5/5 passed (48.2s)** on the seeded Playwright stack: admin=5 tabs/no-Catalog, member=4 tabs/Plan-hidden, aria-current, Work→Cascade→Manage→/work/objectives+down-trace, /objectives→cascade redirect.
 
 ## Outstanding / notes
 - **Pre-existing kitchen-plan load-flake** — backlog item (suite-stability, not this slice).
