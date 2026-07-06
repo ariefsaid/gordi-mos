@@ -145,7 +145,7 @@ The nav is a **derived view** of `DESTINATIONS` × the viewer's access roles × 
 - **AC-411** *(FR-420/421/422/423, e2e — catalog is Work's manage-mode)* — *Given* an `admin` signed in, *When* they navigate **Work → Cascade → Manage objectives**, *Then* they land on `/work/objectives` with the down-trace (child work_lines + task counts) visible; *when* they visit `/objectives` **directly** (typed/bookmarked), *Then* they are redirected to `/work/cascade`.
 
 ### FR → AC coverage (every FR has ≥1 AC)
-FR-400→AC-400/410 · FR-401→AC-400 · FR-402→AC-400/401 · FR-403→AC-400/401/410 · FR-404→AC-400/402/410 · FR-405→AC-400 · FR-410→AC-402/403/410 · FR-411→AC-405 (route-guard) + held pgTAP 72/73 (RLS authority, via reconciliation) · FR-420→AC-404/410 · FR-421→AC-405/411 · FR-422→AC-406/411 · FR-423→AC-407/411 · FR-424→AC-408 · FR-440→AC-409 · FR-450→AC-406/407 (states) + held cascade states (work-spine FR-321).
+FR-400→AC-400/410 · FR-401→AC-400 · FR-402→AC-400/401 · FR-403→AC-400/401/410 · FR-404→AC-400/402/410 · FR-405→AC-400 · FR-410→AC-402/403/410 · FR-411→AC-405 (route-guard) + held pgTAP 72/73 (RLS authority, via reconciliation) · FR-420→AC-404/410 · FR-421→AC-405/411 · FR-422→AC-406/411 · FR-423→AC-407/411 · FR-424→AC-408 · FR-440→AC-409 · FR-450→**gated** state proven by AC-402/403 (destination hidden when no authorized child); **loading/empty** states are inherited from the reused pages' own existing tests (ObjectivesPage/ProjectsProcessesPage/SalesDashboard/Ops/Kitchen) + the cascade's states (work-spine FR-321) — not re-proven in this slice (the slice reassigns routes/labels, it does not reshape page states, NFR-404).
 
 ---
 

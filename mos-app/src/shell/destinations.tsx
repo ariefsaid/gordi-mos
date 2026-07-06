@@ -28,7 +28,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'home',
     labelKey: 'dest.home',
     Icon: HomeIcon,
-    links: [{ path: '/', label: 'Home', Icon: HomeIcon }],
+    links: [{ path: '/', label: 'Home', labelKey: 'nav.home', Icon: HomeIcon }],
     primaryPath: '/',
   },
   {
@@ -76,7 +76,7 @@ export const DESTINATIONS: Destination[] = [
     labelKey: 'dest.inbox',
     Icon: InboxIcon,
     // Live only when the notifications feature is on (ADR-0019 D9 / ADR-0044). Hide-first.
-    links: SHOW_INBOX ? [{ path: '/inbox', label: 'Inbox', Icon: InboxIcon }] : [],
+    links: SHOW_INBOX ? [{ path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon }] : [],
   },
 ]
 

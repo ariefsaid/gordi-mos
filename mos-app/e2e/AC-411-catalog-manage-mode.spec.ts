@@ -25,8 +25,12 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     await expect(page).toHaveURL(/\/work\/objectives$/)
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
-    // Down-trace (FR-422): the seeded objective has a linked task, so a trace line renders.
-    await expect(page.getByTestId('catalog-trace').first()).toBeVisible({ timeout: 10_000 })
+    // Down-trace (FR-422): assert the trace CONTENT, not just presence — the seeded objective's
+    // trace must show a real task count (e.g. "3 tasks · <work_line>"), proving the derived up/down
+    // link actually resolved, not an empty element.
+    const trace = page.getByTestId('catalog-trace').first()
+    await expect(trace).toBeVisible({ timeout: 10_000 })
+    await expect(trace).toHaveText(/\d+\s+task/i)
   })
 
   test('a direct visit to the retired /objectives redirects into the cascade', async ({ page }) => {

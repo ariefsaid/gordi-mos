@@ -67,6 +67,8 @@ describe('i18n messages catalog', () => {
 describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', () => {
   const NAV_KEYS = [
     'nav.tasks',
+    'nav.home',
+    'nav.inbox',
     'nav.updates',
     'nav.dailyLog',
     'nav.sales',

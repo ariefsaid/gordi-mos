@@ -16,6 +16,8 @@ export const messages = {
     // Nav sub-item labels — every nav string flows through the catalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id shape-identical (AC-409).
     'nav.tasks': 'Tasks',
+    'nav.home': 'Home',
+    'nav.inbox': 'Inbox',
     'nav.updates': 'Weekly Updates',
     'nav.dailyLog': 'Daily Log',
     'nav.sales': 'Sales',
@@ -138,6 +140,8 @@ export const messages = {
     // Label sub-nav — setiap string nav mengalir melalui katalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id bentuk-identik (AC-409).
     'nav.tasks': 'Tugas',
+    'nav.home': 'Beranda',
+    'nav.inbox': 'Kotak Masuk',
     'nav.updates': 'Update Mingguan',
     'nav.dailyLog': 'Log Harian',
     'nav.sales': 'Penjualan',

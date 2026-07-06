@@ -37,21 +37,26 @@ function useWorkLineUpTrace(): (item: CatalogItem) => CatalogTrace | undefined {
       .then(([tasks, objectives]) => {
         if (cancelled) return
         const objName = new Map(objectives.map((o) => [o.id, o.name]))
-        // workLineId → (objectiveId → task count)
+        // workLineId → (objectiveId | '' → task count). '' buckets tasks that have a work_line
+        // but no parent objective (FR-422 edge case: don't drop them — surface the count).
+        const NO_OBJ = ''
         const byWorkLine = new Map<string, Map<string, number>>()
         for (const task of tasks) {
-          if (!task.work_line_id || !task.objective_id) continue
+          if (!task.work_line_id) continue
+          const key = task.objective_id ?? NO_OBJ
           const inner = byWorkLine.get(task.work_line_id) ?? new Map<string, number>()
-          inner.set(task.objective_id, (inner.get(task.objective_id) ?? 0) + 1)
+          inner.set(key, (inner.get(key) ?? 0) + 1)
           byWorkLine.set(task.work_line_id, inner)
         }
         const next = new Map<string, CatalogTrace>()
         for (const [workLineId, objCounts] of byWorkLine) {
-          const parents = [...objCounts.entries()]
-            .filter(([objId]) => objName.has(objId))
+          const segments = [...objCounts.entries()]
+            .filter(([objId]) => objId !== NO_OBJ && objName.has(objId))
             .map(([objId, n]) => `${objName.get(objId)} (${n})`)
-          if (parents.length === 0) continue
-          next.set(workLineId, { line: `Under: ${parents.join(', ')}` })
+          const orphan = objCounts.get(NO_OBJ) ?? 0
+          if (orphan > 0) segments.push(`no parent objective (${orphan})`)
+          if (segments.length === 0) continue
+          next.set(workLineId, { line: `Under: ${segments.join(', ')}` })
         }
         setMap(next)
       })

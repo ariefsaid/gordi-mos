@@ -70,8 +70,9 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
     expect(trace.textContent).toContain('Brand love (1)')
   })
 
-  it('renders no trace for a work_line with no objective-linked tasks', async () => {
-    // wl-1 has an objective-linked task; wl-2 has only an unlinked task → no up-trace.
+  it('surfaces "no parent objective (N)" for a work_line whose tasks have a work_line but no objective (FR-422 edge case)', async () => {
+    // wl-1 has an objective-linked task; wl-2 has only an unlinked task → wl-2 must NOT be dropped:
+    // it shows a "no parent objective" trace with the count (the review-flagged edge case).
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1'),
       task('t2', null, 'wl-2'),
@@ -80,7 +81,10 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
     await screen.findByText('Menu launch')
     await screen.findByText('Daily prep')
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-testid="catalog-trace"]')).toHaveLength(1)
+      // both work_lines are traced now (wl-1 → parent objective; wl-2 → no parent objective)
+      expect(container.querySelectorAll('[data-testid="catalog-trace"]')).toHaveLength(2)
     })
+    const traces = [...container.querySelectorAll('[data-testid="catalog-trace"]')].map((n) => n.textContent)
+    expect(traces.some((t) => t?.includes('no parent objective (1)'))).toBe(true)
   })
 })
