@@ -52,7 +52,13 @@ _Avoid_: activity / BU (when grouping revenue), channel (reserve for the POS/B2B
 **Follow-up**:
 A work item for chasing an outstanding commitment — a **B2B AR invoice** or a retail **Pending bill**.
 A task-family record (counterparty, amount, due) attached to the underlying money record; worked from
-a queue in **Work**, with comments/@mentions like any task.
+a queue in **Work**, with comments/@mentions like any task. **Settlement lifecycle MOS owns:** open (aging)
+→ **chased** (contact logged: when + who) → **promised** (promise-to-pay date) → **partial** (payment logged,
+MOS tracks the **running balance**) → **settled** (paid, **requires evidence** — transfer/receipt proof).
+MOS's "settled" is the truth; it **reconciles** against ESB's aggregate AR-reduction journals (the ESB
+write-back spike returned LIKELY-NOT, so MOS does not close invoices back in ESB). **Chase-vs-confirm split:**
+the relationship owner chases + logs promises/partials (**B2B Sales** for AR, **Retail Ops/cafe** for pending
+bills); **Finance** confirms *settled*.
 _Avoid_: reminder, chase (as nouns), collection (accounting jargon)
 
 **Pending bill**:
@@ -235,8 +241,14 @@ _Avoid_: role (reserve for org position), permission group, RACI role
 
 **Home**:
 The hub surface at `/` every user lands on: a role-aware composition of KPI tiles with drill-downs
-plus the **My Week** panel. What a user's Home shows follows their access (finance sees revenue KPIs;
-a member sees their My Week + ops content dominant). "Dashboard" is acceptable UI copy for its KPI area.
+plus the **My Week** panel — every tile drills, no dead-end numbers (ADR-0019 D2). What a user's Home
+shows follows their **persona/access**. For the **owner-director / function-owner** it is a **financial +
+ops cockpit**: revenue · margins · a **money-position strip (AR · AP · unbilled · unearned)** · **ops KPIs**
+(the "state of ops" per Activity — specific metric set TBD, owner-decided) · the **cascade progress +
+updates** list. Money-position workflow scope: **AR is a worked queue now** (the Follow-up lifecycle);
+**AP / unbilled** are visibility + drill-to-read-only with their engagement workflows phased later;
+**unearned** stays visibility-only. A **member** sees their My Week + ops content dominant, no finance row.
+"Dashboard" is acceptable UI copy for its KPI area.
 _Avoid_: My Week (as the name of the surface — that's a panel on it)
 
 **My Week**:
@@ -263,12 +275,34 @@ What were once standalone "apps" become Modules within the one MOS app. Names th
 cross-cutting seams: the ESB-outbox `source_module` and a Daily Log entry's `origin` identify the
 emitting Module. Distinct from a **Feature** (finer capability *within* a Module) and from a
 **Business Unit** (the owning team) and from an **Activity** (the operating workstream a Module serves — a Module usually covers one slice of one Activity).
+**WIP-based activities share the ops-module spine:** **Kitchen and Bar are both WIP-producing** (they
+pre-produce), so both are served by the **Kitchen Module's** pattern — plan → log → stock → review. The
+eventual per-Activity scoping (a "WIP folder" so the kitchen team sees kitchen WIPs and the bar team bar
+WIPs) is **deliberately deferred** — you don't disrupt an incumbent team's established UX for model-purity;
+change it only as a considered UX decision, not incidentally.
 _Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained, below)
 
 **Feature**:
 A capability *within* a Module — e.g. task filtering, bulk-approve, the review queue. Finer-grained
 than a Module.
 _Avoid_: module (coarser), app
+
+**Stock location & internal replenishment**:
+Inventory is **not global — it is scoped per location/Activity**: the **Roastery** (production output),
+**HQ retail** (cafe bean stock), and **Ecommerce** (online-fulfilment stock) each hold their *own* pool of
+the same roasted beans. The Roastery is the **internal supplier**: HQ retail and Ecommerce raise
+**internal replenishment orders** to the Roastery to refill their stock (a roastery→retail / roastery→
+ecommerce transfer, distinct from an external B2B sale). So Operate needs **location-scoped stock** + an
+**internal-order/transfer** flow between Activities — not just each Activity's own WIP log. (ESB tracks
+stock per company code — GKID vs GRI — so a roastery→HQ transfer is a GRI→GKID movement.)
+_Avoid_: warehouse (implementation), "the stock" (say which location), transfer (bare — say internal replenishment)
+
+**Ecommerce fulfilment**:
+The light **order → picked → packed → shipped** queue MOS owns for online orders, drawing down the
+Ecommerce stock location. The ecommerce *platform* still owns the storefront, pricing, and the order
+intake; MOS owns the **hand-fulfilment step** the team currently tracks in a sheet. Visibility of online
+sales (revenue/margin) is separate and already flows via the reporting read-models.
+_Avoid_: order management (too broad — the platform owns intake), shipping (that's one state)
 
 ## Agent-composed UI & analytics
 
@@ -314,6 +348,26 @@ The record analog of a **Certified metric** (which blesses a *figure's definitio
 blesses the *record itself*). Exists to kill the forked-spreadsheet failure: a consumer never copies
 reference data into their own artifact — they link it.
 _Avoid_: master data (jargon), lookup table (implementation), "the sheet"
+
+**Ingredient cost line** (a kind of Reference data):
+The budgetary unit cost of one ingredient that recipe COGS and promo pricing consume. **MVP basis = ESB's
+`last_hpp`** (ESB already calculates a last-known cost per ingredient) — read as the budgetary cost, not
+recomputed in MOS; **Finance + Procurement own and are responsible** for the numbers; consumers link, never
+copy. _Later (not MVP):_ a last-purchase-vs-30/90/180-day trend + a **Normal market variation** band (wide
+for traditional-market/fresh produce, tight for contracted goods) whose outside-band moves fire a
+Follow-up/Inbox alert to Finance + affected managers. MVP just uses `last_hpp`.
+_Avoid_: "the cost sheet", hardcoded price, master price list
+
+**Budget** (the Plan destination's core create-verb):
+A MOS-captured **budgeted COGS** = a menu item's **BOM (recipe: qty × materials)** costed at the ingredient
+cost lines (`last_hpp`). Plan is where budgets are **created/captured** — new-branch costing, promo/menu
+scenarios — as the **certified number pricing prices against** (the anti-stale-copy fix). The actual price
+still lands in ecommerce/POS; MOS never writes prices there.
+**MVP boundary — read-and-budget only:** MOS **reads** ESB's BOM + `last_hpp` and captures budget scenarios
+on top; it does **not edit recipes** in MVP. Recipe editing would fork the recipe from ESB unless it writes
+back, so **recipe-edit + ESB BOM write-back are one deferred v2**, gated on an **ESB-BOM-write API spike**
+(same discipline as the AR write-back spike). MVP never writes BOMs to ESB.
+_Avoid_: forecast (that's a different lens), "the costing sheet", plan (collides with the destination name)
 
 **OLTP / OLAP** (the engagement/analysis split):
 **OLTP** = MOS itself — the live system of *engagement* (per-user reads/writes, auth, RLS). **OLAP** = the
