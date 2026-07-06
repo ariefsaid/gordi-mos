@@ -1,7 +1,7 @@
 import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
-import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon } from './icons'
+import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon } from './icons'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX } from '@/config/features'
 
 /**
@@ -40,6 +40,7 @@ export const DESTINATIONS: Destination[] = [
     // rendering when the rail moved to DESTINATIONS).
     links: [
       { path: '/tasks', label: 'Tasks', Icon: TasksIcon },
+      { path: '/work/cascade', label: 'Cascade', labelKey: 'cascade.link', Icon: ObjectiveIcon },
       ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon }] : []),
       ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', Icon: OpsIcon }] : []),
     ],

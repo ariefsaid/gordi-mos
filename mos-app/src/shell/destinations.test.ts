@@ -18,10 +18,11 @@ describe('AC-D01: DESTINATIONS + isLive', () => {
     expect(isLive(home, [])).toBe(true)
   })
 
-  it('work has a single link to /tasks and is live for any viewer', () => {
+  it('AC-304: work has Tasks + Cascade links and is live for any viewer', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
-    expect(work.links).toHaveLength(1)
-    expect(work.links[0].path).toBe('/tasks')
+    expect(work.links).toHaveLength(2)
+    expect(work.links.map((link) => link.path)).toEqual(['/tasks', '/work/cascade'])
+    expect(work.links[1].labelKey).toBe('cascade.link')
     expect(isLive(work, [])).toBe(true)
   })
 
@@ -62,8 +63,9 @@ describe('AC-D01: DESTINATIONS + isLive', () => {
 // "Operate › Log", "/tasks/123" reads "Work › Tasks" — the SECTION crumb is the
 // owning destination's labelKey, the LEAF crumb is the specific link's own label.
 describe('destinationForPath — breadcrumb resolution (FR-S03)', () => {
-  it('returns the "work" destination for /tasks and /tasks/some-id (prefix match)', () => {
+  it('returns the "work" destination for /tasks, /work/cascade, and /tasks/some-id (prefix match)', () => {
     expect(destinationForPath('/tasks')?.id).toBe('work')
+    expect(destinationForPath('/work/cascade')?.id).toBe('work')
     expect(destinationForPath('/tasks/some-id')?.id).toBe('work')
   })
 

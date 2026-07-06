@@ -3,10 +3,12 @@ import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX } from
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
+import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
 import { TasksLayout } from './pages/tasks-layout'
+import { CascadePage } from './pages/cascade-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
@@ -75,6 +77,7 @@ export const routeConfig: RouteObject[] = [
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
+          { path: 'work/cascade', element: <CascadePage /> },
           // Flag-hidden for the first rollout (config/features.ts): the routes stay mounted
           // but redirect to My Week so a stale deep-link can't reach a hidden section.
           { path: 'updates', element: SHOW_WEEKLY_UPDATES ? <UpdatesPage /> : <Navigate to="/" replace /> },
@@ -100,11 +103,11 @@ export const routeConfig: RouteObject[] = [
           // Cascade catalog (OD-C-2). RequireAccessRole bounces non-permitted viewers
           // to /; RLS is the real gate. Objectives → admin; Projects & Processes → ops_lead/admin.
           {
-            element: <RequireAccessRole anyOf={['admin']} />,
+            element: <RequireCapability capability="objective.manage" />,
             children: [{ path: 'objectives', element: <ObjectivesPage /> }],
           },
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            element: <RequireCapability capability="workline.manage" />,
             children: [{ path: 'projects-processes', element: <ProjectsProcessesPage /> }],
           },
           // Sales dashboard (Issue 1, reporting read-model). FR-001/AC-001/002:
