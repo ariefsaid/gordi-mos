@@ -10,10 +10,20 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
-> **2026-07-05 — P3a Inbox/replay train is Phase-H complete; PR #88 is open, not merged.**
-> The full review battery is recorded at `docs/reviews/feat-port-p3a-replay-inbox.md`.
-> Close-out found GitHub `db` red on the missing `mos.create_notification` EXECUTE revoke; the local
-> branch now contains that one-line fix and needs push + CI rerun before owner merge to `dev`.
+> **2026-07-06 — P3a Inbox/replay train + P2.1 aggregate RPC are built, pushed, and still CI-gated.**
+> PR #88 (`feat/port-p3a-replay-inbox`) and PR #89 (`feat/p2.1-db-side-aggregate`, stacked on #88)
+> are open against `dev`, not merged. The full P3a review battery is recorded at
+> `docs/reviews/feat-port-p3a-replay-inbox.md`; P2.1 at `docs/reviews/feat-p2.1-db-side-aggregate.md`.
+> The first CI red was the missing `mos.create_notification` EXECUTE revoke; that fix was pushed.
+> GitHub then exposed additional verify/e2e reds. Current local CI-fix pass: non-blocking task comments
+> load in `TaskSurface`, stale async task loads are ignored, Home-v1 e2e assertions are aligned to the live
+> `Home` index route, Sales dashboard e2e KPI locators are scoped to `.sdp-kpi-grid`, and the recovery e2e
+> now rotates to a password satisfying `lower_upper_letters_digits` while weak-password errors stay on the
+> set-password form; full-coverage-only timeouts were stabilized without changing their behavioral oracles.
+> Local P3a-base gates are green (2213 Vitest coverage, 437 pgTAP, targeted Playwright 6 passed/1 skipped,
+> typecheck, lint, build). P2.1 adds the aggregate RPC pgTAP files and should rerun at 449 pgTAP after
+> re-stack. Treat GitHub CI as **not green** until this fix is pushed/re-stacked and GitHub checks rerun
+> green.
 > Canonical state: `docs/platform-workstream-status.md`; task detail:
 > `docs/plans/2026-07-06-port-p3-automations-inbox.md`.
 >

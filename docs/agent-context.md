@@ -69,12 +69,19 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 | Delegation via pi CLI | `docs/pi-delegation.md` |
 | Staging env + gotchas | `docs/environments.md` |
 
-## Headline current state (2026-07-05)
+## Headline current state (2026-07-06)
 - Kitchen Module + access roles + UI-revamp + Strategy→Execution cascade first slice **SHIPPED to main**.
-- Agent-native platform slices through P2 are on `dev`; P3a is built and reviewed on
-  `feat/port-p3a-replay-inbox`, but **PR #88 is open, not merged**. A local CI close-out fix adds the
-  required `mos.create_notification` EXECUTE revoke; push + CI rerun + owner merge remain.
-- P2.1 DB-side aggregate work is stacked after P3a on `feat/p2.1-db-side-aggregate` / PR #89; it must
-  follow #88 into `dev`.
+- Agent-native platform slices through P2 are on `dev`; P3a is built/reviewed on
+  `feat/port-p3a-replay-inbox` / PR #88, and P2.1 DB-side aggregate work is stacked on
+  `feat/p2.1-db-side-aggregate` / PR #89. Both PRs are open, pushed, and **not merged**.
+- Current active work is making #88/#89 CI green. The missing `mos.create_notification` EXECUTE revoke was
+  fixed/pushed; the follow-on CI-fix pass covers task-detail async loading, Home-v1 e2e assertions, Sales
+  KPI locator scope, recovery e2e password-policy drift, and full-coverage timing budgets. Local P3a-base
+  gates are green as of this update: 2213 Vitest coverage, 437 pgTAP, targeted Playwright 6 passed/1 skipped,
+  typecheck, lint, and build. P2.1 adds the aggregate RPC pgTAP files and should rerun at 449 pgTAP after
+  re-stack. Do not merge to `dev` until the fix is pushed/re-stacked and fresh GitHub `verify` + `db` are green.
+- **Delegation posture (owner-directed 2026-07-06):** orchestrate build/fix via **pi** (GLM-4.7/GLM-5.2
+  builders, gpt-5.4 cross-family reviewers — `docs/pi-delegation.md`) to preserve Anthropic tokens;
+  Director retains verify + merge/git + final visual taste.
 - Remaining user-facing rollout work is owner-gated: staging db push, edge-function model secret/live
   deputy verify, P3b generateLink hook check, VAPID keys, and ESB PIC settlement answer.

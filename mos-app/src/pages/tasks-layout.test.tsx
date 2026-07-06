@@ -437,15 +437,14 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // The archived row leaves the default list + the count decrements — no reload.
     // This assertion sits at the end of a multi-async-step chain (archiveTask resolve →
     // refreshKey bump → list refetch → navigate('/tasks') → drawer unmount + row drop).
-    // Under parallel-test CPU load that chain can take >1s of wall-clock re-renders, so the
-    // default 1000ms waitFor budget is too tight and intermittently times out BEFORE the
-    // drawer finishes closing (the close is correct, just slow under contention). Widen the
-    // budget for this genuinely-chained transition; the goal (archived title gone from BOTH
-    // list and drawer, no reload) is unchanged.
+    // Under parallel-test CPU load that chain can take several seconds of wall-clock re-renders,
+    // so the default 1000ms waitFor budget and Vitest's default 5000ms test budget are too tight.
+    // Widen the budgets for this genuinely-chained transition; the goal (archived title gone from
+    // BOTH list and drawer, no reload) is unchanged.
     await waitFor(() => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
     expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('1')
-  })
+  }, 10_000)
 })

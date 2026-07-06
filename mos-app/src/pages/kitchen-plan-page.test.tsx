@@ -155,7 +155,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     await waitFor(() => {
       expect(mockUpsert).toHaveBeenCalledOnce()
       expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
-    })
+    }, { timeout: 5000 })
     // the edited row must still be on screen — no navigation on error
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })

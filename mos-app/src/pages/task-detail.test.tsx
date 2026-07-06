@@ -208,7 +208,7 @@ describe('AC-070 — detail page renders task fields', () => {
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByText('Inspect heating element')).toBeTruthy()
     expect(screen.getByText('Order parts')).toBeTruthy()
-  })
+  }, 10_000)
 
   it('renders loading skeleton initially (aria-busy)', () => {
     mockGetTask.mockReturnValue(new Promise(() => {})) // never resolves

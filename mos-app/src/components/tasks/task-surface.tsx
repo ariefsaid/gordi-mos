@@ -1,5 +1,5 @@
 import './TaskSurface.css'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
@@ -112,6 +112,7 @@ function ViewSurface({
   // Optimistic local state
   const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
   const [localChecklist, setLocalChecklist] = useState<ChecklistItemRow[]>([])
+  const loadSeq = useRef(0)
 
   // AC-111: off-screen live region announcing optimistic-save / rollback outcomes.
   const [liveMessage, setLiveMessage] = useState('')
@@ -126,31 +127,43 @@ function ViewSurface({
 
   const load = useCallback(() => {
     if (!taskId) return
+    const seq = ++loadSeq.current
+    const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     setNotFound(false)
     Promise.all([
       getTask(taskId),
       getBusinessUnits(),
       getPeople(),
-      listComments({ entityType: 'task', entityId: taskId }).catch(() => []),
-    ]).then(([taskData, bus, people, loadedComments]) => {
+    ]).then(([taskData, bus, people]) => {
+      if (!isCurrent()) return
       setData(taskData)
       setLocalTask(taskData.task)
       setLocalChecklist(taskData.checklist)
       setBusDirectory(bus)
       setPeopleDirectory(people)
-      setComments(loadedComments)
       setLoading(false)
     }).catch(() => {
+      if (!isCurrent()) return
       setNotFound(true)
       setLoading(false)
     })
+    // Non-blocking comments load — a slow comments API must not keep task detail on skeleton.
+    setComments([])
+    listComments({ entityType: 'task', entityId: taskId }).then((loadedComments) => {
+      if (isCurrent()) setComments(loadedComments)
+    }).catch(() => {})
     // Non-blocking catalog loads — a slow catalog must never block the form.
-    listObjectives().then(setObjectivesDir).catch(() => {})
-    listWorkLines().then(setWorkLinesDir).catch(() => {})
+    listObjectives().then((rows) => {
+      if (isCurrent()) setObjectivesDir(rows)
+    }).catch(() => {})
+    listWorkLines().then((rows) => {
+      if (isCurrent()) setWorkLinesDir(rows)
+    }).catch(() => {})
   }, [taskId])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => () => { loadSeq.current += 1 }, [])
 
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {

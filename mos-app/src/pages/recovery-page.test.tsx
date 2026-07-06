@@ -15,13 +15,18 @@ vi.mock('../lib/supabase', () => ({
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => mockNavigate }
+  return {
+    ...actual,
+    useLocation: () => ({ pathname: '/recovery', search: '', hash: '', state: null, key: 'test' }),
+    useNavigate: () => mockNavigate,
+  }
 })
 
-// Mock useAuth for clearRecovering tests
+// Mock useAuth for recovery-state tests
 const mockClearRecovering = vi.fn()
+let mockAuthState: unknown = { status: 'recovering', clearRecovering: mockClearRecovering }
 vi.mock('../auth/use-auth', () => ({
-  useAuth: () => ({ status: 'recovering', clearRecovering: mockClearRecovering }),
+  useAuth: () => mockAuthState,
 }))
 
 import { RecoveryPage } from './recovery-page'
@@ -34,6 +39,7 @@ describe('RecoveryPage', () => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
     mockClearRecovering.mockClear()
+    mockAuthState = { status: 'recovering', clearRecovering: mockClearRecovering }
   })
 
   // FR-005: form renders a labelled new-password input
@@ -41,6 +47,20 @@ describe('RecoveryPage', () => {
     render(<RecoveryPage />)
     expect(screen.getByLabelText('New password')).toBeInTheDocument()
     expect(screen.getByLabelText('Confirm password')).toBeInTheDocument()
+  })
+
+  it('FR-005: recovery link exchange — form waits until PASSWORD_RECOVERY is active', () => {
+    mockAuthState = { status: 'loading' }
+    render(<RecoveryPage />)
+    expect(screen.getByRole('status', { name: /verifying recovery link/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it('FR-005: direct recovery route without a recovery session shows expired notice', () => {
+    mockAuthState = { status: 'unauthenticated' }
+    render(<RecoveryPage />)
+    expect(screen.getByText(/that link has expired/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
   })
 
   it('FR-005: recovery set-new-password — on submit calls updateUser with new password', async () => {
@@ -109,6 +129,29 @@ describe('RecoveryPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/that link has expired/i)).toBeInTheDocument()
     })
+  })
+
+  it('FR-005: weak password error stays on the form instead of showing expired-link notice', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: {
+        code: 'weak_password',
+        message: 'Password should contain lower, upper, and digits.',
+        status: 422,
+      } as unknown as import('@supabase/supabase-js').AuthError,
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('New password'), 'lowercase123')
+    await user.type(screen.getByLabelText('Confirm password'), 'lowercase123')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/password should contain/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
   })
 
   it('FR-005: recovery success — calls clearRecovering before navigating home', async () => {

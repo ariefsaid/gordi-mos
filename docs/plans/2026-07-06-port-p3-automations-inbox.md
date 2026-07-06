@@ -1,6 +1,6 @@
 # Plan — ADR-0018 P3 port train: automations + notifications inbox + transcript contracts
 
-**Status:** Draft (eng-planner) — awaiting Director review.
+**Status:** P3a built/reviewed as PR #88; P2.1 aggregate RPC stacked as PR #89; CI-fix pass locally verified 2026-07-06 and awaiting PR rerun.
 **Date:** 2026-07-06 · **Branch target:** `dev` → `feat/port-p3-automations-inbox`
 **Consumes:** ADR-0018 (P3 = D6 "Batteries"), ADR-0019 (D2 Inbox destination, D4 comms+mentions, D9
 notifications adapter seam + PWA push v1, D11 deputy placement), ADR-0001/0011 (org_id + RLS + access roles).

@@ -1,5 +1,5 @@
 import { useState, useId } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { useAuth } from '@/auth/use-auth'
@@ -9,6 +9,7 @@ const ERR_EXPIRED = 'That link has expired — request a new one.'
 
 export function RecoveryPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const auth = useAuth()
   const newPasswordId = useId()
   const confirmPasswordId = useId()
@@ -22,7 +23,13 @@ export function RecoveryPage() {
   const [loading, setLoading] = useState(false)
   const [expired, setExpired] = useState(false)
 
-  const isDisabled = loading
+  const hasRecoveryParams =
+    /\b(code|token_hash|access_token|refresh_token)=/.test(location.search)
+    || /\b(access_token|refresh_token|type=recovery)=/.test(location.hash)
+  const waitingForRecoverySession =
+    auth.status === 'loading' || (auth.status === 'unauthenticated' && hasRecoveryParams)
+  const isRecoveryReady = auth.status === 'recovering'
+  const isDisabled = loading || !isRecoveryReady
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -35,17 +42,24 @@ export function RecoveryPage() {
       return
     }
 
+    if (!isRecoveryReady) {
+      setExpired(true)
+      return
+    }
+
     setLoading(true)
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) {
-        // Any error from updateUser on a recovery link = expired/invalid link
-        setExpired(true)
+        if (error.code === 'weak_password') {
+          setServerError(error.message)
+        } else {
+          // Link/session errors from updateUser on a recovery link = expired/invalid link.
+          setExpired(true)
+        }
       } else {
         // Clear the recovering flag so AuthProvider can resolve the viewer (audit L1 fix).
-        if (auth.status === 'recovering') {
-          auth.clearRecovering()
-        }
+        await auth.clearRecovering()
         navigate('/', { replace: true })
       }
     } catch {
@@ -61,6 +75,47 @@ export function RecoveryPage() {
       <AuthShell>
         <AuthCard>
           {/* Warning notice — warning/18% tint + warning-foreground */}
+          <div
+            className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
+              color: 'var(--warning-foreground)',
+              fontSize: 15,
+            }}
+            role="alert"
+          >
+            <span aria-hidden="true" style={{ marginTop: 1 }}>⚠</span>
+            <span>{ERR_EXPIRED}</span>
+          </div>
+          <a
+            href="/mos/login"
+            className="text-primary font-medium hover:underline"
+            style={{ fontSize: 16 }}
+          >
+            Back to sign in
+          </a>
+        </AuthCard>
+      </AuthShell>
+    )
+  }
+
+  if (waitingForRecoverySession) {
+    return (
+      <AuthShell>
+        <AuthCard>
+          <div role="status" aria-label="Verifying recovery link" className="flex items-center gap-2">
+            <Spinner />
+            <span>Verifying recovery link…</span>
+          </div>
+        </AuthCard>
+      </AuthShell>
+    )
+  }
+
+  if (!isRecoveryReady) {
+    return (
+      <AuthShell>
+        <AuthCard>
           <div
             className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
             style={{

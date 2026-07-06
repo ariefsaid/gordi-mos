@@ -123,7 +123,7 @@ test.describe('AC-010: Sales dashboard — phone layout (375px)', () => {
 
     // No text overlap proxy: every visible KPI tile has a non-zero bounding box and
     // tiles don't intersect each other (cheap pairwise check on the 4 KPI groups).
-    const tiles = await page.getByRole('group').all()
+    const tiles = await page.locator('.sdp-kpi-grid').getByRole('group').all()
     const boxes = await Promise.all(tiles.map((t) => t.boundingBox()))
     for (let i = 0; i < boxes.length; i++) {
       expect(boxes[i], `KPI tile ${i} must have a visible box`).not.toBeNull()
@@ -142,7 +142,7 @@ test.describe('AC-011: Sales dashboard — desktop layout (≥1280px)', () => {
     await expect(page.getByRole('heading', { name: 'Sales' })).toBeVisible()
 
     // KPI row: 4 tiles in one row (desktop grid — repeat(4, 1fr))
-    const kpiGroups = page.getByRole('group')
+    const kpiGroups = page.locator('.sdp-kpi-grid').getByRole('group')
     await expect(kpiGroups).toHaveCount(4)
 
     // Chart is visible (dense dashboard layout, FR-010)

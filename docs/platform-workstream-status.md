@@ -9,15 +9,18 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-05) — 6 slices SHIPPED to `dev`; P3a PR open, locally CI-fixed
+## Current focus (2026-07-06) — P3a + P2.1 built; CI fix locally verified before `dev`
 
-> **HANDOFF (2026-07-05):** agent-native port P1+P2 shipped to `dev` (full batteries); P3 planned +
-> decided; **P3a built through Phase H** on `feat/port-p3a-replay-inbox` (replay + notifications backend
-> + Inbox destination + ask_user + rating + comments/@mention + PWA seam), backend security-CLEAR.
-> **PR #88 is open, not merged**. Close-out verification on 2026-07-05 found GitHub `db` red because
-> `mos.create_notification` lacked the explicit PUBLIC/anon/authenticated EXECUTE revoke required by
-> integration CI; the local branch now contains that one-line fix and needs push + CI rerun before owner
-> merge. The six owner-gated items (bottom of this section) remain the real bottleneck to reaching users.
+> **HANDOFF (2026-07-06):** agent-native port P1+P2 shipped to `dev` (full batteries); P3a and P2.1
+> are built/reviewed as open PRs but **not merged**. PR #88 (`feat/port-p3a-replay-inbox`) now contains
+> P3a through Phase H plus the `mos.create_notification` EXECUTE revoke CI fix; PR #89
+> (`feat/p2.1-db-side-aggregate`) stacks on #88 and contains the `mos.aggregate_compiled` DB-side
+> aggregate RPC. Both branches were pushed on 2026-07-06. GitHub CI then exposed additional verify/e2e
+> failures beyond the revoke lint: task detail/drawer async loading races and Home-v1 e2e assertions that
+> still expected the old `My Week` index route. The P3a-base CI-fix pass is now locally verified; do
+> **not** merge #88 or #89 until the fix is pushed/re-stacked and fresh GitHub `verify` + `db` checks are green.
+> The owner-gated items (bottom of this
+> section) remain the real bottleneck to reaching users after the PRs land.
 
 **Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
 1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
@@ -80,16 +83,39 @@ T32 live-gated cross-stack e2e. Verified baseline: **2210 vitest + 437 pgTAP + t
 deno-check + build all green** (also fixed a pre-existing BU-taxonomy pgTAP failure from a stale e2e
 fixture pointing at an archived legacy BU). **Security lens: CLEAR** (no Crit/High/Med; Low-2 route
 guard confirmed fixed; Low-1 unbounded *self*-notify volume tracked for the credits ledger, ship-acceptable).
-**CI close-out (2026-07-05):** GitHub `db` was red until the local `mos.create_notification` revoke fix;
-the exact integration lint now passes locally. GitHub `verify` coverage failure did not reproduce locally:
-`npm run test:coverage` on P3a passes (229 files / 2210 tests). #88 still needs push + CI rerun.
+**CI close-out status (2026-07-06):** the revoke lint issue was fixed and pushed, but GitHub still reported
+red `verify`/`db` on #88/#89. Local CI-fix pass:
+- `TaskSurface` initial load now gates only task + directory data; comments/catalogs are non-blocking and
+  stale async completions are ignored. This addresses full-suite loading-skeleton flakes in
+  `task-drawer.test.tsx` / `task-detail.test.tsx`.
+- Home-v1 e2e contracts are aligned from old `My Week` index assertions to the live `Home` route.
+- Sales dashboard e2e KPI locators are scoped to `.sdp-kpi-grid` so unrelated shell `role=group` elements do not
+  inflate the expected four KPI tiles.
+- Recovery e2e now rotates to a password satisfying the configured `lower_upper_letters_digits` policy; the
+  set-password page also waits for the Supabase `PASSWORD_RECOVERY` session and keeps weak-password errors on
+  the form instead of mislabeling them as expired links.
+- Full-coverage-only timing failures in three already-passing tests were stabilized by widening the specific
+  test/wait budgets without changing their behavioral assertions.
+- Verified locally so far: `CI=true npm test -- src/components/tasks/task-drawer.test.tsx src/pages/task-detail.test.tsx`
+  = **38/38 pass**; `CI=true npm test -- src/pages/recovery-page.test.tsx` = **10/10 pass**; targeted
+  Playwright recovery = **1/1 pass**; targeted Playwright sales responsive = **2/2 pass**; broader
+  Playwright subset (`auth-password-login`, `auth-signout-back`, `shell-nav`, `auth-recovery`,
+  `AC-010-011-sales-dashboard-responsive`) = **6 passed / 1 skipped**; full coverage =
+  **2213/2213 pass**; `npm run typecheck`, `npm run lint:ci`, `npm run build` PASS; `supabase test db` =
+  **437/437 pgTAP pass on P3a base**. P2.1 adds the aggregate RPC pgTAP files and should rerun at
+  **449/449** after re-stack. Treat GitHub CI as **not green yet** until the fix is pushed/re-stacked and
+  checks rerun green.
 
-> ### ▶ NEXT AGENT — platform workstream, post-P3a
-> 1. **PR #88** (`feat/port-p3a-replay-inbox` → `dev`) is open. Push the local revoke fix, rerun CI,
->    then owner merges if checks are green.
-> 2. **T34 (DB-side aggregation, P2.1)** must land before `SHOW_USER_VIEWS` un-gates (P1 truncation carry-in).
->    This is the next build item — the viewspec executor currently hydrates in the client; a DB-side aggregate
->    path closes the truncation risk before the flag flips on for a real cohort.
+> ### ▶ NEXT AGENT — platform workstream, CI-fix continuation
+> 1. **Push the verified CI-fix pass before any merge.** Branch `feat/p2.1-db-side-aggregate` is stacked on
+>    `feat/port-p3a-replay-inbox`; put the CI fix on the P3a base branch first, then rebase/force-push P2.1.
+>    After push, confirm fresh GitHub `verify`+`db` green via `gh pr checks 88` and `gh pr checks 89`.
+>    Only then merge #88 → `dev`, rebase #89 on the new `dev`, re-check, merge #89.
+> 2. **T34/P2.1 DONE** (branch `feat/p2.1-db-side-aggregate`, stacks on PR #88): `mos.aggregate_compiled`
+>    DB-side aggregate RPC + executor wiring — closes the P1 truncation carry-in (AC-P2-RT-006). The
+>    `SHOW_USER_VIEWS` un-gate condition is now MET at the code level (cohort rollout still owner-gated).
+>    Ledger: `docs/reviews/feat-p2.1-db-side-aggregate.md`. Security-auditor: no SQL-injection vector found;
+>    all findings fixed. PR #89 to `dev` is open and stacked behind #88; rebase/rerun after #88 lands.
 > 3. **P3b (automations)** stays GATED on the owner's `generateLink`→`custom_access_token` staging verify (§3.3)
 >    — a separate follow-up plan once verified. Do NOT build P3b until that's recorded green.
 >
@@ -97,7 +123,7 @@ the exact integration lint now passes locally. GitHub `verify` coverage failure 
 > UI is behind `SHOW_INBOX`/`SHOW_ASSISTANT` (default off) — flip locally to render-verify.
 
 **Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
-1. **PR #88 → `dev` merge** — after the local CI fix is pushed and GitHub checks rerun green.
+1. **PR #88 → `dev` merge** — after the CI-fix pass is committed/pushed and GitHub `verify` + `db` rerun green.
 2. **`dev`→`main` merge** — after the open platform PRs land on `dev`; owner call.
 3. **Staging `db push`** — margin read-model · user_views · **BU remap (mutates real staging rows**,
    dual-path guard verified) · (soon) agent-persistence + replay migrations.
