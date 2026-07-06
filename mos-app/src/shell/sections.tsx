@@ -1,4 +1,5 @@
 import type React from 'react'
+import type { MessageKey } from '@/i18n/messages'
 import {
   MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon, KitchenIcon, PeopleIcon,
   ObjectiveIcon, WorkLineIcon, SalesIcon,
@@ -8,6 +9,7 @@ import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 export interface Section {
   path: string
   label: string
+  labelKey?: MessageKey
   Icon: React.FC
 }
 

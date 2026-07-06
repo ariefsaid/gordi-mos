@@ -814,6 +814,19 @@ inherits it all via the caller's JWT (no parallel agent permission model). Intra
 deferred until a real conflict shows. Full spine: `docs/adr/0020-capability-authorization.md`. Status:
 Accepted (owner, 2026-07-04, grill-with-docs).
 
+### OD-WS-1 — Work spine v1: objective→task cascade as an everyone-surface (spec Accepted, ADR-0019 D14 step 3)
+The first ADR-0019 Work-destination slice. Adds a **`/work/cascade`** view where **every** authenticated
+org member reads the objective→work_line→task ladder and their own line-of-sight ("Mine"); the existing
+admin `/objectives` + Projects & Processes pages become the **capability-gated manage mode** reached via an
+inline affordance (no second editor). Elevates the shipped Tasks DB-view cascade machinery (group-by-work_line,
+Workload caption, `useCascadeCatalogs`) — reuse, not rebuild. **READ stays org-wide** (already shipped; the
+"admin-only read" premise was verified false). **WRITE migrates from `has_access_role` to `shared.can()`** —
+this slice **introduces the minimal `shared.can()`** (function + `objective.manage`/`workline.manage` keys +
+seeded grants: admin→both, ops_lead→workline; `org` scope for v1) as ADR-0020's named first consumer; the
+admin-editable-roles UI is deferred. Follow-up queues / AR / pending-bills (D5/D14 step 4) explicitly OUT
+(gated on ESB spike + backup gate). Security-sensitive (`can()` + RLS) → gpt-5.4 cross-family + security-auditor
+review binding. Spec: `docs/specs/work-spine.spec.md`. Status: Accepted (owner, 2026-07-06).
+
 ---
 
 ### Accepted (owner, 2026-07-06 grill) — merged from `docs/jtbd-refresh`

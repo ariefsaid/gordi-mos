@@ -100,6 +100,13 @@ describe('AC-RG01: Rail regroup — destination groups', () => {
     expect(workLabel).toBeInTheDocument()
   })
 
+  it('AC-304: under locale=id, the Cascade link label resolves through useT()', () => {
+    localStorage.setItem('mos.locale', 'id')
+    renderRailNav('/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Cascade' })).toBeInTheDocument()
+  })
+
   it('does NOT render Plan or Inbox group labels (not live today — AC-D01)', () => {
     renderRailNav('/tasks')
     expect(queryGroupLabel('Plan')).toBeNull()

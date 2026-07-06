@@ -15,6 +15,7 @@ type RailNavProps = {
 const KITCHEN_ELEVATED_ROLES = ['ops_lead', 'admin'] as const
 
 function NavItem({ section, onNavigate }: { section: Section; onNavigate?: () => void }) {
+  const t = useT()
   return (
     <NavLink
       key={section.path}
@@ -38,7 +39,7 @@ function NavItem({ section, onNavigate }: { section: Section; onNavigate?: () =>
           <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
             <section.Icon />
           </span>
-          <span className={isActive ? 'text-foreground' : undefined}>{section.label}</span>
+          <span className={isActive ? 'text-foreground' : undefined}>{section.labelKey ? t(section.labelKey) : section.label}</span>
         </>
       )}
     </NavLink>

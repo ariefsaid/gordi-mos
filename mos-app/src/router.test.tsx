@@ -6,6 +6,7 @@ vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
+import { RequireCapability } from './auth/require-capability'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -99,6 +100,27 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS defa
 // RequireAccessRole anyOf={['finance','admin']} — the guard itself is proven at
 // require-access-role.test.tsx; this asserts the ROUTE uses that gate with the
 // right role set (structural wiring, not a re-test of the guard's redirect logic).
+describe('router — capability-gated work spine routes', () => {
+  it('AC-302/304: wires /work/cascade directly and gates /objectives + /projects-processes by capability', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+
+    expect(shell.children!.some((r) => r.path === 'work/cascade')).toBe(true)
+
+    const objectivesGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'objectives'),
+    )!
+    expect(objectivesGate.element).toEqual(<RequireCapability capability="objective.manage" />)
+
+    const workLinesGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'projects-processes'),
+    )!
+    expect(workLinesGate.element).toEqual(<RequireCapability capability="workline.manage" />)
+  })
+})
+
 describe('router — sales dashboard route gate (FR-001)', () => {
   it('AC-001/002: /sales sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
     const protectedRoute = routeConfig.find(
