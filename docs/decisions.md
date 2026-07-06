@@ -885,6 +885,17 @@ Feeds ADR-0024 + the roastery/agent/Home specs when their D14 turn comes. Terms 
 follow-up = **Telegram or in-app group chat** over WhatsApp (WA too tedious to integrate for the payoff);
 channel-adapter seam takes either. D4 stays hard: external channel = doorbell only, conversation on the entity.
 
+**Catalog placement** (owner feedback 2026-07-06 — confirms ADR-0019 line 44; origin OD-C-1/C-2, the
+cascade came in pre-IA as "two nav items under Workspace"): the objective→task catalog belongs **in Work
+as the manage-mode of the everyone-cascade**, **traced up and down**. Refinement over the held Work-spine
+spec (FR-310–313 link out to the existing *flat* catalog pages, which persist as standalone `/objectives` +
+`/projects-processes` routes): (a) **retire the standalone nav** — the catalog is reachable **only** from
+the Work cascade (direct visits redirect into it), so it's genuinely "in the Work folder," not a separate
+destination; (b) each manage page **shows the node's up/down trace context** (an objective → its child
+work_lines + task count; a project/process → its parent objective) so managing is traceable both ways —
+**reuse the existing pages + add the trace context, don't rebuild as an inline tree** (YAGNI). Lands with
+the Work-spine merge (D14 step 3); update `docs/specs/work-spine.spec.md` FR-310–313 on that branch.
+
 **Certified metrics** (anchor A7; *Director-defaulted from recommendation — flag to change*): **Finance
 certifies** financial-statement figures + the second-class figures feeding them; **migration-seeded registry,
 no runtime certification UI in MVP** (same discipline as `can()`); **uncertified/stale renders a fail-loud
