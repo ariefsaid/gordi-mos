@@ -204,12 +204,12 @@ class MarginSnapshotTests(unittest.TestCase):
 
     def test_margin_source_query_reads_pos_only_join(self):
         """AC-SN03: Given the margin source query, when built, then it reads
-        v_daily_revenue_unified filtered to channel='POS' joined with v_daily_cogs_comparison
-        (the §7a corrected contract)."""
+        v_daily_revenue_unified filtered to channel='POS' joined with fact_daily_cogs_interim
+        (the bounded §7a corrected contract)."""
         sql = " ".join(build_margin_source_query().split())
 
         self.assertIn("from public.v_daily_revenue_unified r", sql)
-        self.assertIn("left join public.v_daily_cogs_comparison c", sql)
+        self.assertIn("left join public.fact_daily_cogs_interim c", sql)
         self.assertIn("r.channel = 'POS'", sql)
         self.assertIn("c.sm_total", sql)
         self.assertIn("c.bom_total", sql)
