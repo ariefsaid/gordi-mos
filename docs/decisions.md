@@ -871,6 +871,18 @@ Feeds ADR-0024 + the roastery/agent/Home specs when their D14 turn comes. Terms 
   read-only as context) — **no rostering in MVP**. **Shift-scheduling deferred but NEAR-TERM** (manual today,
   "sooner than later") — leave the seam for a "your shift today" slot; backlogged.
 
+**Whole-company reach — Marketing & HR** (tests the E6 all-6-BUs claim): Marketing/HR are project/knowledge
+functions with **no Operate module** — they live in the **universal cross-cutting planes** (**Work**
+tasks/RACI/cascade/updates/follow-ups · **Home** their cockpit + owned budgets, e.g. Marketing's promo
+budgets · **Plan** budgets/pricing they consume · **Inbox**). For their varied, not-yet-modelled needs:
+**tasks-first now, plus the composable Notion/Airtable-style UI as the escape hatch** — **already ADR'd**,
+not new: user-composed **user views** + the **promotion** path (user view → coded Module) per **ADR-0017**,
+rendered on the two vendored primitives **`doc-editor` (Notion-like blocks) + `data-grid` (Airtable-like
+grid)** per **ADR-0019 D6**. A dedicated Marketing/HR module (content calendar; a recruitment/onboarding
+queue — the latter *would* be an Operate queue Activity) lands only when a user view **demonstrates the
+demand** (promotion), never speculatively. So the whole-company claim holds via **Work+Home+Plan+Inbox being
+universal + the composable-UI escape hatch**, not via everyone getting a module on day one.
+
 **AR bridge / Follow-up reconciliation** (D14 step 4; underpins the Home money-position strip; [CONTEXT *Follow-up*]):
 - **MOS owns per-invoice reconciliation — it REPLACES Finance's per-invoice recon gsheet** (dual-run →
   cutover). MOS = invoice-grain settlement system-of-record; ESB's aggregate AR-reduction journal = a
