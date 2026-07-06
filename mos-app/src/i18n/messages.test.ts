@@ -134,6 +134,11 @@ describe('cascade i18n (AC-304)', () => {
     'cascade.error.title',
     'cascade.error.retry',
     'cascade.loading',
+    'cascade.card.owner',
+    'cascade.card.due',
+    'cascade.overdue',
+    'cascade.untitledObjective',
+    'cascade.untitledWorkLine',
   ] as const
 
   it('every cascade.* key is present in both en and id', () => {

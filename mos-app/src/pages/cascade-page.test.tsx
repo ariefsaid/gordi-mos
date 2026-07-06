@@ -16,6 +16,7 @@ import { listTasks } from '@/lib/db/tasks'
 import { getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { CascadePage } from './cascade-page'
 
 const VIEWER_ID = 'viewer-1'
@@ -80,6 +81,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(useIsDesktop).mockReturnValue(true)
   vi.mocked(listTasks).mockResolvedValue([
     makeTask({ id: 'task-1', title: 'Project task', objective_id: 'obj-1', work_line_id: 'wl-1' }),
     makeTask({ id: 'task-2', title: 'Process task', objective_id: 'obj-1', work_line_id: 'wl-2' }),
@@ -194,5 +196,27 @@ describe('CascadePage', () => {
     vi.mocked(listTasks).mockResolvedValueOnce([])
     renderPage()
     expect(await screen.findByText('Nothing ladders up yet')).toBeInTheDocument()
+  })
+
+  it('AC-305/NFR-300: phone branch renders grouped cards (.task-card) instead of the desktop table', async () => {
+    vi.mocked(useIsDesktop).mockReturnValue(false)
+    renderPage()
+
+    // The ladder still renders (objective + work-line + task) …
+    expect(await screen.findByText('Grow revenue')).toBeInTheDocument()
+    expect(screen.getByText('Menu launch')).toBeInTheDocument()
+    expect(screen.getByText('Project task')).toBeInTheDocument()
+    // … but on phone each task renders as a .task-card (the shipped Tasks DB-view card grammar).
+    expect(document.querySelectorAll('[data-testid="task-card"]').length).toBe(2)
+    // The i18n'd card labels render (Owner / Due).
+    expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Due').length).toBeGreaterThan(0)
+  })
+
+  it('AC-305/NFR-300: desktop branch renders NO .task-card (uses the dense grouped table)', async () => {
+    vi.mocked(useIsDesktop).mockReturnValue(true)
+    renderPage()
+    expect(await screen.findByText('Project task')).toBeInTheDocument()
+    expect(document.querySelectorAll('[data-testid="task-card"]').length).toBe(0)
   })
 })

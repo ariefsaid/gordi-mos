@@ -109,6 +109,12 @@ export const messages = {
     'cascade.error.title': "Couldn't load the cascade",
     'cascade.error.retry': 'Try again',
     'cascade.loading': 'Loading the cascade…',
+    // NFR-300/FR-321 — phone card grammar + overdue prefix + catalog-resilience fallbacks.
+    'cascade.card.owner': 'Owner',
+    'cascade.card.due': 'Due',
+    'cascade.overdue': 'Overdue',
+    'cascade.untitledObjective': 'Untitled objective',
+    'cascade.untitledWorkLine': 'Untitled project/process',
   },
   id: {
     'dest.home': 'Beranda',
@@ -210,6 +216,12 @@ export const messages = {
     'cascade.error.title': 'Tidak dapat memuat cascade',
     'cascade.error.retry': 'Coba lagi',
     'cascade.loading': 'Memuat cascade…',
+    // NFR-300/FR-321 — tata bahasa kartu ponsel + prefiks terlambat + fallback ketahanan katalog.
+    'cascade.card.owner': 'Pemilik',
+    'cascade.card.due': 'Jatuh tempo',
+    'cascade.overdue': 'Terlambat',
+    'cascade.untitledObjective': 'Objective tanpa nama',
+    'cascade.untitledWorkLine': 'Proyek/proses tanpa nama',
   },
 } as const
 

@@ -40,7 +40,12 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   }
 }
 
-const labels = { unlinked: '(Unlinked)', noWorkLine: 'No Project/Process' }
+const labels = {
+  unlinked: '(Unlinked)',
+  noWorkLine: 'No Project/Process',
+  untitledObjective: 'Untitled objective',
+  untitledWorkLine: 'Untitled project/process',
+}
 
 describe('buildLadder', () => {
   it('AC-301: nests tasks under objective then work-line groups', () => {
@@ -127,5 +132,51 @@ describe('buildLadder', () => {
 
   it('AC-301: returns an empty ladder when there are no tasks', () => {
     expect(buildLadder({ objectives, workLines, tasks: [], viewerId: VIEWER_ID, mine: false, labels })).toEqual([])
+  })
+
+  it('review-fix #4: never drops a task when the objective/work_line catalogs are empty — renders fallback groups', () => {
+    // Catalogs empty/late/failed (useCascadeCatalogs non-blocking contract): tasks reference ids
+    // the catalog doesn't know. They must STILL render under fallback labels — never vanish.
+    const ladder = buildLadder({
+      objectives: [],
+      workLines: [],
+      tasks: [
+        makeTask({ id: 't-1', title: 'Linked task', objective_id: 'obj-9', work_line_id: 'wl-9' }),
+        makeTask({ id: 't-2', title: 'No work line', objective_id: 'obj-9', work_line_id: null }),
+        makeTask({ id: 't-3', title: 'Unlinked task', objective_id: null, work_line_id: 'wl-9' }),
+      ],
+      viewerId: VIEWER_ID,
+      mine: false,
+      labels,
+    })
+
+    // Objective obj-9 (not in catalog) renders under the fallback label, with its two work_line
+    // branches (wl-9 fallback + the No Project/Process synthetic group).
+    expect(ladder).toHaveLength(2)
+    expect(ladder[0]).toMatchObject({ key: 'obj-9', label: 'Untitled objective', isUnlinked: false })
+    expect(ladder[0].workLines.map((g) => g.label)).toEqual(['Untitled project/process', 'No Project/Process'])
+    expect(ladder[0].workLines[0]).toMatchObject({ key: 'wl-9', type: null, isNoWorkLine: false })
+    expect(ladder[0].workLines[0].tasks.map((t) => t.title)).toEqual(['Linked task'])
+    expect(ladder[0].workLines[1].tasks.map((t) => t.title)).toEqual(['No work line'])
+    // Unlinked objective branch keeps its task too.
+    expect(ladder[1]).toMatchObject({ key: '__unlinked__', label: '(Unlinked)', isUnlinked: true })
+    expect(ladder[1].workLines[0].label).toBe('Untitled project/process')
+    expect(ladder[1].workLines[0].tasks.map((t) => t.title)).toEqual(['Unlinked task'])
+  })
+
+  it('review-fix #4: a partial catalog (only objectives loaded) still renders work_line fallbacks', () => {
+    const ladder = buildLadder({
+      objectives: [{ id: 'obj-1', name: 'Objective 1' }],
+      workLines: [],
+      tasks: [makeTask({ id: 't-1', title: 'Task', objective_id: 'obj-1', work_line_id: 'wl-7' })],
+      viewerId: VIEWER_ID,
+      mine: false,
+      labels,
+    })
+
+    expect(ladder).toHaveLength(1)
+    expect(ladder[0].label).toBe('Objective 1')
+    expect(ladder[0].workLines[0]).toMatchObject({ key: 'wl-7', label: 'Untitled project/process', type: null })
+    expect(ladder[0].workLines[0].tasks.map((t) => t.title)).toEqual(['Task'])
   })
 })
