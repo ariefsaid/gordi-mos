@@ -27,11 +27,14 @@ begin
   select id into p_sari    from shared.people where email = 'sari.dev@example.test';
   select id into p_fitri   from shared.people where email = 'fitri.dev@example.test';
 
-  select id into bu_cafe    from shared.business_units where name = 'Cafe Ops – General';
-  select id into bu_kitchen from shared.business_units where name = 'Kitchen and Bar';
-  select id into bu_roast   from shared.business_units where name = 'Roastery';
-  select id into bu_sales   from shared.business_units where name = 'Sales – CRM';
-  select id into bu_fin     from shared.business_units where name = 'Finance and People';
+  -- Resolved by the stable `code` column (ADR-0019 D1 remap), not display name — the legacy
+  -- operating-area names no longer exist post-remap (renamed "... (legacy)" + archived). Cafe Ops
+  -- and Kitchen both fold into the Retail Ops team BU; Roastery -> B2B Ops; Sales -> B2B Sales.
+  select id into bu_cafe    from shared.business_units where code = 'retail_ops';
+  select id into bu_kitchen from shared.business_units where code = 'retail_ops';
+  select id into bu_roast   from shared.business_units where code = 'b2b_ops';
+  select id into bu_sales   from shared.business_units where code = 'b2b_sales';
+  select id into bu_fin     from shared.business_units where code = 'finance';
 
   insert into mos.tasks
     (id, org_id, title, business_unit_id, status, responsible_person_id, accountable_person_id,

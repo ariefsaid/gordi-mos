@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -31,16 +32,19 @@ const viewer = {
 
 function renderTopBar(path = '/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   mockUseAuth.mockReturnValue({ status: 'authenticated', viewer, signOut: vi.fn() })
   mockUseIsNarrow.mockReturnValue(false)
 })

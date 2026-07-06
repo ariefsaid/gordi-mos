@@ -1,11 +1,11 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
-import { MyWeek } from './pages/my-week'
+import { HomePage } from './pages/home-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
@@ -19,10 +19,12 @@ import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
+import { SalesDashboardPage } from './pages/sales-dashboard-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { UiGallery } from './pages/ui-gallery'
+import { DevViewsPage } from './pages/dev-views-page'
 
 // Route layout:
 // / (RedirectIfAuthed gate) — unauthenticated users can access these
@@ -30,7 +32,8 @@ import { UiGallery } from './pages/ui-gallery'
 //   /recovery     → RecoveryPage
 // / (ProtectedRoute gate) — authenticated viewers only
 //   AppShell (layout route — rail + header + drawer, persistent across nav)
-//     /           → MyWeek (index)
+//     /           → HomePage (index) — ADR-0019 D2/D3; MyWeek survives as a component
+//                   (rendered inline via MyWeekPanel) but is no longer routed here.
 //     /tasks      → TasksLayout (ADR-0007 split-view shell — persistent table + <Outlet> drawer)
 //                     (index)        → table full width (.split.nodrawer)
 //       /tasks/new      → TaskDrawer (create mode, beside the table)
@@ -62,7 +65,7 @@ export const routeConfig: RouteObject[] = [
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <MyWeek /> },
+          { index: true, element: <HomePage /> },
           {
             path: 'tasks',
             element: <TasksLayout />,
@@ -101,6 +104,24 @@ export const routeConfig: RouteObject[] = [
           {
             element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
             children: [{ path: 'projects-processes', element: <ProjectsProcessesPage /> }],
+          },
+          // Sales dashboard (Issue 1, reporting read-model). FR-001/AC-001/002:
+          // finance/admin only; RequireAccessRole bounces non-permitted viewers to /.
+          // RLS on reporting.sales_daily_revenue is the real security boundary.
+          {
+            element: <RequireAccessRole anyOf={['finance', 'admin']} />,
+            children: [{ path: 'sales', element: <SalesDashboardPage /> }],
+          },
+          // ADR-0018 P1 — view-composition dev harness (zero-agent proof). DEV-only +
+          // feature-flagged; redirects to / otherwise. Auth-gated by ProtectedRoute (reads/
+          // writes user_views via the viewer's own JWT — RLS is the real security boundary).
+          {
+            path: 'dev/views',
+            element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+          },
+          {
+            path: 'dev/views/:viewId',
+            element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
           },
           { path: '*', element: <NotFoundPage /> },
         ],

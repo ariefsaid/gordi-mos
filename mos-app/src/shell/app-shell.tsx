@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import { Rail } from './rail'
 import { TopBar } from './top-bar'
 import { MobileDrawer } from './mobile-drawer'
+import { BottomTabBar } from './bottom-tab-bar'
 import { useIsNarrow } from './use-is-narrow'
 import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
@@ -30,9 +31,11 @@ export function AppShell() {
           // min-content — bare 1fr's implicit min-width:auto lets wide content (a dense
           // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
           gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'var(--rail-w) minmax(0, 1fr)',
-          gridTemplateRows: 'var(--header-h) 1fr',
+          gridTemplateRows: isNarrow
+            ? 'var(--header-h) 1fr var(--tabbar-h)'
+            : 'var(--header-h) 1fr',
           gridTemplateAreas: isNarrow
-            ? '"topbar" "main"'
+            ? '"topbar" "main" "tabbar"'
             : '"topbar topbar" "rail main"',
         }}
       >
@@ -54,9 +57,14 @@ export function AppShell() {
         >
           <Outlet />
         </div>
+
+        {/* BottomTabBar — grid-area: tabbar, phone-first primary nav (ADR-0019 D8, plan §4.4) */}
+        {isNarrow && <BottomTabBar />}
       </div>
 
-      {/* Mobile drawer — rendered outside the grid so it can be fixed/overlaid */}
+      {/* Mobile drawer — rendered outside the grid so it can be fixed/overlaid.
+          The drawer stays the "more" surface (Admin, locale, secondary routes) even
+          on phone where BottomTabBar is the primary nav — plan §1.7. */}
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

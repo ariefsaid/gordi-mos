@@ -1,7 +1,7 @@
 import type React from 'react'
 import {
   MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon, KitchenIcon, PeopleIcon,
-  ObjectiveIcon, WorkLineIcon,
+  ObjectiveIcon, WorkLineIcon, SalesIcon,
 } from './icons'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
@@ -50,13 +50,22 @@ export const CATALOG_SECTIONS: GatedSection[] = [
   { path: '/projects-processes', label: 'Projects & Processes', Icon: WorkLineIcon, anyOf: ['ops_lead', 'admin'] },
 ]
 
+// Sales dashboard (Issue 1, docs/specs/sales-dashboard.spec.md FR-001). Finance/admin
+// only — mirrors the route's own RequireAccessRole gate in router.tsx; a hidden nav
+// entry is convenience, not the security boundary (RLS is).
+export const SALES_SECTIONS: GatedSection[] = [
+  { path: '/sales', label: 'Sales', Icon: SalesIcon, anyOf: ['finance', 'admin'] },
+]
+
 /**
  * Returns the Section whose path matches the given pathname, or null.
- * Checks SECTIONS, KITCHEN_SECTIONS, CATALOG_SECTIONS, then ADMIN_SECTIONS.
+ * Checks SECTIONS, KITCHEN_SECTIONS, CATALOG_SECTIONS, SALES_SECTIONS, then ADMIN_SECTIONS.
  * '/' matches exactly; other paths match exactly or by prefix.
  */
 export function sectionForPath(pathname: string): Section | null {
-  const allSections = [...SECTIONS, ...KITCHEN_SECTIONS, ...CATALOG_SECTIONS, ...ADMIN_SECTIONS]
+  const allSections = [
+    ...SECTIONS, ...KITCHEN_SECTIONS, ...CATALOG_SECTIONS, ...SALES_SECTIONS, ...ADMIN_SECTIONS,
+  ]
   for (const section of allSections) {
     if (section.path === '/') {
       if (pathname === '/') return section

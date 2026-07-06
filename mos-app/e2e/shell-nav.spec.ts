@@ -1,5 +1,5 @@
 // AC-001: Cross-section navigation journey (shell-level, P1-4)
-// Given a provisioned signed-in viewer on My Week,
+// Given a provisioned signed-in viewer on Home,
 // When they navigate via the rail to Tasks, then Updates, then Ops, and finally reload on /updates,
 // Then at each section: URL, document.title, breadcrumb, aria-current nav item, and surface-rendered signal
 // all match, and the reload lands back on Updates with all three signals intact (FR-002/003/005/008/010/011).
@@ -20,21 +20,21 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page).toHaveURL(/\/login/)
   await expect(page).toHaveTitle('Gordi MOS — Management OS')
 
-  // --- Setup: sign in and land on My Week ---
+  // --- Setup: sign in and land on Home ---
   await loginAs(page, VIEWER.email, VIEWER.password)
 
-  // My Week: URL, title, breadcrumb, aria-current, empty state
-  await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
+  // Home: URL, title, breadcrumb, aria-current, empty state
+  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
   await expect(page).toHaveURL(/\/$|\/mos\/?$/)
   // Use toHaveTitle for auto-retry (document.title is set by a React effect, not sync with URL)
-  await expect(page).toHaveTitle('My Week — Gordi MOS')
+  await expect(page).toHaveTitle('Home — Gordi MOS')
   // Breadcrumb "Gordi MOS" prefix — scoped to banner to avoid collision with rail logo
   await expect(page.getByRole('banner').getByText('Gordi MOS')).toBeVisible()
   // Breadcrumb section part
-  await expect(page.locator('header b:text("My Week")')).toBeVisible()
+  await expect(page.locator('header b:text("Home")')).toBeVisible()
   // Rail active item
-  const myWeekNavLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'My Week' })
-  await expect(myWeekNavLink).toHaveAttribute('aria-current', 'page')
+  const homeNavLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Home' })
+  await expect(homeNavLink).toHaveAttribute('aria-current', 'page')
 
   // --- Navigate to Tasks ---
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' }).click()
@@ -89,9 +89,9 @@ test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page
   // The team module IS the weekly-update review surface — flag-hidden for the first rollout
   // (src/config/features.ts). Skip while hidden; auto-restores when SHOW_WEEKLY_UPDATES flips on.
   test.skip(!SHOW_WEEKLY_UPDATES, 'Weekly Updates (team module) is flag-hidden (config/features.ts)')
-  // ── MANAGER: signs in → My Week should show "Your team" overline ──
+  // ── MANAGER: signs in → Home should show "Your team" overline ──
   await loginAs(page, MANAGER.email, MANAGER.password)
-  await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
   // The team-module overline is a <p> element starting with "Your team —"
   await expect(page.locator('p').filter({ hasText: /^Your team —/ })).toBeVisible({ timeout: 5_000 })
 
@@ -100,8 +100,8 @@ test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page
   await page.getByRole('menuitem', { name: /sign out/i }).click()
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
 
-  // ── VIEWER: signs in → My Week should NOT show "Your team" overline ──
+  // ── VIEWER: signs in → Home should NOT show "Your team" overline ──
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await expect(page.getByRole('heading', { name: 'My Week' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('p').filter({ hasText: /^Your team —/ })).not.toBeVisible()
 })

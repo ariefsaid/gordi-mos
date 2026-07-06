@@ -23,6 +23,7 @@ export async function getBusinessUnits(): Promise<BusinessUnitOption[]> {
   const { data, error } = await shared()
     .from('business_units')
     .select('id,name')
+    .is('archived_at', null)
     .order('name', { ascending: true })
   if (error) throw new Error(`getBusinessUnits failed — ${error.message}`)
   return (data ?? []) as BusinessUnitOption[]

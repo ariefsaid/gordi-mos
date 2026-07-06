@@ -1,8 +1,9 @@
 # Gordi MOS — Roadmap (living doc; created 2026-06-10)
 
-Phasing to MVP, optimized for speed-to-daily-use. Source of product truth: `docs/project-brief.md`.
-One issue at a time per the Director loop (`docs/director-playbook.md`). Each phase ends at an
-**owner gate**.
+Phasing to MVP, optimized for speed-to-daily-use. Source of product truth: `docs/project-brief.md`
+(era-bound E1) — **the requirement bar has evolved since; read `docs/requirements-evolution.md`
+(era timeline E1→E6) before trusting any phase's original scope.** One issue at a time per the
+Director loop (`docs/director-playbook.md`). Each phase ends at an **owner gate**.
 
 ## Phase 0 — Frontend mockups (DONE)
 Goal: lock the IA and the look of the first slice on paper before any code. Static HTML only
@@ -54,3 +55,29 @@ Supabase-native from day one) · ESB write-back visibility · shared UI package 
 both PMO and MOS show repeated use of the same components).
 
 > **Note on "kitchen backend migration":** **Superseded 2026-06-19 by OD-P4-1 / ADR-0010 D10:** the kitchen app migrates into MOS as its first ops Module **before** user rollout (a pre-rollout foundation slice), not Post-MVP. Foundation sequence + status: `docs/platform-workstream-status.md`.
+
+> **Note on agent-composed UI + reporting/sales (2026-06-30):** the **agent-native, user-composed UI**
+> program (ADR-0017, Accepted — deputy/RLS dual-plane; OD-AN-1) and its **OLAP→`reporting` snapshot →
+> sales-dashboard** track are now **active**, not deferred: they reuse the foundation (RLS · `org_id` ·
+> DAL seam · the now-online OLAP warehouse) the architecture is unusually ready for. Build is value-first
+> (Issue 1 = a mobile-first operational dashboard that births the primitive kit). Tracked in
+> `docs/platform-workstream-status.md` §Current focus + `docs/reference/warehouse-online.md`.
+>
+> **Note on the agent-stack port (2026-07-04):** ADR-0018 **Accepted** (OD-AN-3) — MOS **ports PMO's
+> native agent stack** (copy-adapt, no shared package, no auto-sync), superseding ADR-0017 D8's retired
+> sidecar and re-scoping D9 + §4a Issues 2–3 (the registry/DSL now **arrive by port, not grown from
+> scratch**). Runtime = same-origin Supabase Edge Functions (no MOS backend tier; the VPS-Node option
+> rejected); MOS adds a binding, test-enforced **grounding NFR** PMO lacks. **Sequencing (ADR-0018 D6):**
+> next = the `sales_margin_daily` read-model + the **My-Week-replacement dashboard**; **then** the port in
+> three trains — **P1 substrate** (shippable with zero conversational agent) → **P2 panel+runtime** →
+> **P3 batteries** — each through the full loop, each independently shippable, cherry-pick window
+> between trains. Tracked in `docs/backlog.md` (2026-07-04 banner) + `docs/platform-workstream-status.md`.
+>
+> **IA north-star (2026-07-04):** ADR-0019 **Accepted** (OD-IA-1) — five fixed destinations (**Home /
+> Work / Operate / Plan / Inbox** + Admin); taxonomy BU(team)/Activity(workstream)/Revenue-stream(lens);
+> Home replaces My Week as `/` (My Week survives as a panel); phone-first + bottom tabs binding;
+> bilingual en/id from the Home slice on. ADR-0020 **Accepted** (OD-IA-2) — `can()` capability
+> authorization with admin-editable roles. **Refined order:** Home v1 + `sales_margin_daily` → agent
+> port P1–P3 (ESB-API spike parallel) → Work spine (objective→task for everyone + follow-up family →
+> live management-week validation) → AR/pending-bills bridge (backup-drill gated) → Plan/reference data
+> → activity roll-ins (bar/roastery/ecommerce, per ops pain). Full spine: `docs/adr/0019-ia-north-star.md`.

@@ -73,6 +73,11 @@ export default defineConfig({
         'src/pages/OpsPage.tsx',
         'src/pages/OpsAddForm.tsx',
         'src/pages/NotFoundPage.tsx',
+        // Home v1 (ADR-0019 D2/D3) — the index-route replacement for MyWeek + its
+        // pure KPI selectors.
+        'src/pages/home-page.tsx',
+        'src/lib/home-kpis.ts',
+        'src/i18n/**',
         'src/shell/**',
         // P2-2b: weekly update components
         'src/components/weekly/**',
@@ -80,6 +85,12 @@ export default defineConfig({
         // Kitchen Module (S1..S5)
         'src/pages/kitchen-*.tsx',
         'src/components/kitchen/**',
+        // Dashboard kit primitives (Issue 1, ADR-0017 kit-birthing)
+        'src/components/dashboard/**',
+        // View-composition substrate (ADR-0018 P1 port)
+        'src/lib/viewspec/**',
+        'src/lib/db/user-views.ts',
+        'src/pages/dev-views-page.tsx',
       ],
       exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },

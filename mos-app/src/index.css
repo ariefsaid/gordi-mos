@@ -50,6 +50,7 @@
 .dark {
   --rail-w: 236px;     /* Issue 3: 224→236 to match the mos-design-kit Sidebar pattern */
   --header-h: 56px;
+  --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
@@ -139,6 +140,9 @@
   --font-sans:    "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  /* Sanctioned Inter-tabular fallback (OD-P3-9, DM Sans tnum verified no-op 2026-06-18) —
+     scoped SOLELY to the .tabular utility (money/%/counts/deltas). Never body/UI text. */
+  --font-tabular: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* Expose resting shadow + gradients as Tailwind utilities. */
   --shadow-rest: var(--shadow-rest);
@@ -209,10 +213,13 @@
 
 @layer utilities {
   /* Mandatory on all money/%/counts/deltas/ages (DESIGN.md Tabular-Numbers Rule).
-     Numeric cells use the theme mono token — monospace digits column-align by
-     construction (DM Sans's "tnum" no-ops in its build). Numeric-only scope. */
+     Money is Inter-tabular, NEVER mono (DESIGN.md OD-P3-9 / The Mono-For-Identifiers
+     Rule — SF Mono is reserved for IDs/codes/⌘K only). DM Sans's "tnum" is a verified
+     no-op in its @fontsource build (2026-06-18), so this scope engages the sanctioned
+     Inter-tabular fallback instead — numeric-only, never body/UI text. */
   .tabular {
-    font-family: var(--font-mono);
+    font-family: var(--font-tabular);
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }

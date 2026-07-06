@@ -269,8 +269,18 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
 // the Ops source badge re-skin onto <Pill>; the weekly <StatePill> does too.
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
-  it('MyWeek.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
+  // Home v1 (Task 4.1) extracted the My Week strips out of pages/my-week.tsx into
+  // components/weekly/my-week-panel.tsx — the <Pill> usage (and the "no bespoke
+  // pillStyle" guarantee) moved with them. my-week.tsx is now a thin frame wrapper
+  // with no pill usage of its own; the goal (no hand-rolled pillStyle) is asserted
+  // against the strips' new home.
+  it('my-week.tsx has no hand-rolled pillStyle object (it is a thin frame wrapper now)', () => {
     const src = readSrc('pages/my-week.tsx')
+    expect(src).not.toMatch(/\bpillStyle\b/)
+  })
+
+  it('my-week-panel.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
+    const src = readSrc('components/weekly/my-week-panel.tsx')
     expect(src).not.toMatch(/\bpillStyle\b/)
     expect(src).toMatch(/from '@\/components\/ui\/pill'/)
   })

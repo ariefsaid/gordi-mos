@@ -7,23 +7,42 @@ insert into shared.orgs (id, name, slug) values
   ('10000000-0000-0000-0000-000000000001', 'Gordi', 'gordi')
 on conflict (id) do nothing;
 
--- The five real business units (OD-P1-5).
-insert into shared.business_units (id, org_id, name) values
-  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Cafe Ops – General'),
-  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Kitchen and Bar'),
-  ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Roastery'),
-  ('20000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Sales – CRM'),
-  ('20000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'Finance and People')
+-- The 6 team business units (ADR-0019 D1 / OD-IA-1 — BU = team in the org chart). Superseded the
+-- earlier 5 operating-area rows (Cafe Ops – General / Kitchen and Bar / Roastery / Sales – CRM /
+-- Finance and People) — those are re-seeded below already retired (renamed + archived_at set) so a
+-- fresh `supabase db reset` lands in the same post-remap state the 20260705000002 migration produces
+-- on a pre-existing database. `code` is the stable, name-independent identifier app code resolves by
+-- (e.g. kitchen-logs.ts resolveKitchenBuId -> code = 'retail_ops').
+insert into shared.business_units (id, org_id, name, code) values
+  ('20000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', 'Marketing',   'marketing'),
+  ('20000000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000001', 'HR',          'hr'),
+  ('20000000-0000-0000-0000-000000000013', '10000000-0000-0000-0000-000000000001', 'Finance',     'finance'),
+  ('20000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Retail Ops',  'retail_ops'),
+  ('20000000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'B2B Ops',     'b2b_ops'),
+  ('20000000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000001', 'B2B Sales',   'b2b_sales')
+on conflict (id) do nothing;
+
+-- Legacy operating-area BUs, seeded already-retired (archived_at set, ' (legacy)' suffix, code
+-- NULL) — kept for historical id stability, not for any live lookup. See the 20260705000002
+-- migration header for the full old->new mapping + retirement rationale.
+insert into shared.business_units (id, org_id, name, code, archived_at) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Cafe Ops – General (legacy)', null, now()),
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Kitchen and Bar (legacy)',    null, now()),
+  ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Roastery (legacy)',          null, now()),
+  ('20000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Sales – CRM (legacy)',       null, now()),
+  ('20000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'Finance and People (legacy)', null, now())
 on conflict (id) do nothing;
 
 -- Placeholder role tree: one org-lead role (no reports_to) + one lead role per unit reporting to it.
+-- business_unit_id points at the TEAM BU each lead now belongs to post-remap (Cafe Ops Lead + Kitchen
+-- Lead -> Retail Ops; Roastery Lead -> B2B Ops; Sales Lead -> B2B Sales; Finance Lead -> Finance).
 insert into shared.roles (id, org_id, business_unit_id, name, reports_to_role_id) values
   ('30000000-0000-0000-0000-000000000000', '10000000-0000-0000-0000-000000000001', null,                                   'Managing Director', null),
-  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Cafe Ops Lead',     '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Kitchen Lead',      '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'Roastery Lead',     '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000004', 'Sales Lead',        '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000005', 'Finance Lead',      '30000000-0000-0000-0000-000000000000')
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Cafe Ops Lead',     '30000000-0000-0000-0000-000000000000'),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Kitchen Lead',      '30000000-0000-0000-0000-000000000000'),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000015', 'Roastery Lead',     '30000000-0000-0000-0000-000000000000'),
+  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000016', 'Sales Lead',        '30000000-0000-0000-0000-000000000000'),
+  ('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000013', 'Finance Lead',      '30000000-0000-0000-0000-000000000000')
 on conflict (id) do nothing;
 
 -- Fictional canon dev people (OD-P1-6). No auth link (user_id NULL) — provisioned in Phase 1.3.
@@ -47,17 +66,19 @@ insert into shared.person_roles (org_id, person_id, role_id) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005')
 on conflict (person_id, role_id) do nothing;
 
--- Access-role assignments (ADR-0011 D5 / OD-P4-4). Owner stand-in (Dewi) -> admin; everyone else ->
--- member (the default). Real roster admin/ops_lead/finance lands via the gitignored deploy seed
--- (OD-P1-6) at the provisioning slice. granted_by is NULL for these seed rows (no granting person:
--- under the seed/service-role connection current_person_id() is NULL). All six rows use the Gordi org.
+-- Access-role assignments (ADR-0011 D5 / OD-P4-4). Owner stand-in (Dewi) -> admin; Fitri Finance ->
+-- finance (her demo persona label, reporting.* RLS); everyone else -> member (the default). Real
+-- roster admin/ops_lead/finance lands via the gitignored deploy seed (OD-P1-6) at the provisioning
+-- slice. granted_by is NULL for these seed rows (no granting person: under the seed/service-role
+-- connection current_person_id() is NULL). All seven rows use the Gordi org.
 insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'admin'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000002', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000004', 'member'),
-  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member')
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member'),
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'finance')
 on conflict (person_id, access_role) do nothing;
 
 -- Kitchen WIP items — the REAL Gordi roster (the 32 dishes from the old kitchen app's

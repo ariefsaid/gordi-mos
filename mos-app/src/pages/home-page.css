@@ -1,0 +1,27 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   HomePage — layout only (Task 4.4/§4.5). Two stacked KPI rows (finance row is
+   role-guarded and absent entirely for non-finance/admin viewers) reflowing
+   auto-fit 160px→1fr, a FreshnessLabel, then the MyWeekPanel below. Token-only
+   (DESIGN.md spacing scale) — mirrors sales-dashboard-page.css's KPI grid.
+   ════════════════════════════════════════════════════════════════════════════ */
+.home-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.home-kpi-grid + .freshness-label {
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+/* Link wrapper around each KPITile: no underline/color-bleed onto the tile's own
+   text colors (KPITile owns its own foreground/muted-foreground) — the anchor is
+   purely the drill-target hit area (no-bleed, mirrors .mini-name-chip). */
+.home-kpi-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}

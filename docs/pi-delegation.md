@@ -30,9 +30,9 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 
 | Substrate | Use for | Claude analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **Newest GLM (out 2026-06; trialed-good as builder 2026-06-16 — first-pass-correct, none of the §6 tendencies).** Preferred **builder** for implementation slices; also a capable **orchestrator/Director** of a parallel pi team (§3e) | opus/sonnet |
-| `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC, auth), orchestrator / manager-grade judgment | opus |
-| `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
+| `zai` / `glm-5.2` | **PLANNER + top tier (owner-directed 2026-06-21, re-confirmed 2026-07-04 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth); orchestrator/Director of a parallel pi team (§3e) | opus |
+| `zai` / `glm-5.1` | Opus-alt **implementer** — hard/cross-cutting build slices; also the same-family degraded reviewer (⚑ below) | opus-impl |
+| `zai` / `glm-4.7` | Sonnet-alt **implementer** — routine build slices, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback **only when BOTH z.ai AND OpenAI are rate-limited** — keeps the loop moving rather than stalling on a 429 | best-effort |
 

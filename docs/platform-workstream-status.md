@@ -1,11 +1,61 @@
-# Platform workstream — status & handoff (updated 2026-06-29)
+# Platform workstream — status & handoff (updated 2026-06-30)
 
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
-> state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`.
+> state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`;
+> ESB warehouse online (box/op/cron/observability): `docs/reference/warehouse-online.md`. How the
+> requirement bar evolved (era timeline E1→E6 — later era wins): `docs/requirements-evolution.md`.
 
 Durable handoff for the **platform-foundation** workstream (turning MOS into the shared platform:
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
-(OD-P4-*, OD-K-*), `docs/adr/0010–0013`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
+(OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
+
+## Current focus (2026-07-02) — Issue 1 done (kit born); next = margin read-model · font fix · registry
+
+Two strategic tracks opened/advanced this session (decisions in `docs/adr/0017` + the `docs/adr/0010`
+2026-06-30 amendment; grill `docs/decisions.md` OD-AN-1 / OD-P4-2):
+
+- **Agent-native, user-composed UI — ADR-0017 ACCEPTED (merged to `dev`).** Lets the team compose their
+  own UI (analyse/input/present) without a dev cycle, via a **deputy agent** bound to the user's own
+  JWT→RLS (security by construction), over a **dual-plane** read surface (base + operational
+  `security_invoker` views + the finance/admin `reporting` snapshot; raw warehouse fenced to a
+  server-side analyst agent). **Build is value-first** (inverts PMO §10 — MOS has no kit yet):
+  **Issue 1 = a mobile-first operational dashboard that *births* the primitive kit** → registry → query
+  DSL/compiler → `user_views` + renderer → manual builder → agent (sidecar behind a MOS-specific spike).
+  **Issue 1 is COMPLETE on `dev` (2026-07-02):** 5 registry-ready primitives
+  (`mos-app/src/components/dashboard/`), the reporting DAL (`src/lib/db/reporting.ts`), and the
+  finance/admin-gated `SalesDashboardPage` (`/mos/sales`) — Director render-verified populated +
+  responsive + B2B/Roastery end-to-end, 1725 tests green. **The primitive kit is born**, which unblocks
+  Issue 2+. Design-plan `docs/plans/2026-07-02-sales-dashboard-design.md`. **Later PMO reference:** the
+  sister app adopted the full agent-native framework whole (PMO PR #209, ADR-0040 Option B) — a working
+  reference + gotchas for MOS's eventual D8 sidecar (embed same-origin proxy, host-owned deputy ALS,
+  supabase-js caller-client not Drizzle, framework pinned exact-version).
+- **OLAP ESB warehouse — ONLINE on the Tencent VPS (2026-06-30).** PG 17, loopback-only, self-sustaining
+  (3:05am JKT cooperative sync via op) + monitored. First scheduled run was verified 2026-07-01; after
+  same-day cleanup, `run_sync.sh` has no Teable push and `sync.validate` exits 0 when only ESB-source /
+  business warnings remain. Full runbook + open owner-actions:
+  **`docs/reference/warehouse-online.md`**. **Reporting data track is live on staging as of 2026-07-02:**
+  `reporting.sales_daily_revenue` migration pushed to Supabase Cloud staging (`hvnwcsmkdeqmgqlbwflm`),
+  one live snapshot upserted 191 trailing-window rows, and B2B/Roastery verified as
+  `branch_code=GRI`. Cron is installed for **03:30 WIB** after the 03:05 sync. CloudMonitor webhook
+  exposure is deferred; active open ops items are sync alerting and a git deploy key — see the runbook.
+
+**Next steps (three parallel, non-colliding):**
+1. **`sales_margin_daily` read-model** — the "shallow data" answer + the cashflow lens: margin/COGS at
+   day × channel × branch from the warehouse `v_daily_cogs_comparison` (daily COGS confirmed available),
+   snapshot-fed + finance/admin-RLS'd like `sales_daily_revenue`, surfaced as a margin KPI + table cut
+   (reuses the kit). The first concrete instance of OD-AN-2's "growing read-model set." Data-layer work,
+   Codex-buildable.
+2. **Font regression fix** — `.tabular`→SF Mono is an app-wide DESIGN.md violation (money must be
+   Inter-tabular, not mono; OD-P3-9). See `docs/backlog.md` §Doc & code debt. CSS/font-import work.
+3. **Issue 2 — kit → primitive registry** (ADR-0017 §4a): describe the 5 primitives machine-readably
+   (name → prop schema → data contract) so the query-DSL (Issue 3) and agent can arrange them. Then
+   Issue 3 (query-spec DSL/compiler — which makes weekly/last-X-days/comparisons expressible over the
+   existing daily grain, per OD-AN-2).
+
+Sales-dashboard spec `docs/specs/sales-dashboard.spec.md`; reporting-slice spec/plan
+`docs/specs/reporting-sales-snapshot.spec.md` + `docs/plans/2026-07-01-reporting-sales-snapshot.md`.
+The Activity-mapping owner decision is resolved (2-activity v1: Cafe Ops = POS, Roastery = B2B;
+Kitchen-Bar + Sales-CRM deferred — spec §Resolved).
 
 ## Landed on `main` (all merged as of 2026-06-21)
 

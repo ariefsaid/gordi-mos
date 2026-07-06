@@ -1,0 +1,44 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   CutToggle — the `seg` segmented control grammar (DESIGN.md §Tabs / Segmented,
+   design-plan §2.5). 32px track on `secondary`; "on" = white `background` pill +
+   `foreground` + 600 + a 0 1px 2px lift. Token-only.
+   ════════════════════════════════════════════════════════════════════════════ */
+.cut-toggle {
+  display: inline-flex;
+  gap: 4px;
+  height: 32px;
+  padding: 3px;
+  background: var(--secondary);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.cut-toggle-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px; /* phone tap target floor (design-plan §4.2) */
+  height: 100%;
+  padding: 0 12px;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+.cut-toggle-tab:hover:not([aria-selected='true']) {
+  color: var(--foreground);
+}
+.cut-toggle-tab[aria-selected='true'] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cut-toggle-tab { transition: none; }
+}

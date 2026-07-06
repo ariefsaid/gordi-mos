@@ -1,0 +1,47 @@
+/* BottomTabBar — phone-first primary nav (plan §4.3, ADR-0019 D8). Token-only. */
+
+.bottom-tab-bar {
+  display: flex;
+  align-items: stretch;
+  height: var(--tabbar-h);
+  border-top: 1px solid var(--border);
+  background: var(--background);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-tab {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-decoration: none;
+  color: var(--muted-foreground);
+  border-top: 2px solid transparent;
+}
+
+.bottom-tab-icon {
+  display: flex;
+  color: inherit;
+}
+
+.bottom-tab-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.bottom-tab-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.bottom-tab--active {
+  color: var(--primary);
+  border-top-color: var(--primary);
+}

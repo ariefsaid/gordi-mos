@@ -1,5 +1,10 @@
 # Gordi MOS Project Brief
 
+> **⚠ Era-bound (E1, 2026-06-10) — kept as history.** The requirement has evolved several times since
+> this brief; the "first slice" scope below is **no longer the bar**. Current bar: E6 "viable, not
+> minimum — the whole-company OS" (ADR-0019/0020). Read `docs/requirements-evolution.md` for the
+> timeline before treating anything here as current.
+
 ## Status
 
 Draft brief captured from the 2026-06-10 planning discussion. This is not an implementation plan yet.

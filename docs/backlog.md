@@ -1,13 +1,65 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
-Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`.
+Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
+bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 
 > **NEXT SESSION: read `docs/platform-workstream-status.md` first** — that is the current
 > handoff. It covers: Kitchen Module (SHIPPED 2026-06-21), access-role layer (SHIPPED),
 > UI-revamp (SHIPPED PRs #29/#34/#35..#52..#66), and all outstanding items.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
+>
+> **2026-07-04 — IA NORTH-STAR + can() ACCEPTED (ADR-0019 / ADR-0020, OD-IA-1/2):** five destinations
+> (**Home / Work / Operate / Plan / Inbox**; activity is a dimension, never a nav root); taxonomy
+> **BU=team / Activity=workstream / Revenue stream=money lens** (old BU seed rows need re-mapping —
+> tracked below); My Week → a *panel* on Home; MOS owns **settlement grain** for B2B AR + retail pending
+> bills (ESB write-back gated on an API spike — inventory `gordi-esb-bak` first); reference data = ESB
+> feeds / MOS owns; vendored `doc-editor` + `data-grid` kit primitives (AGPL out); phone-first + bottom
+> tabs binding; bilingual en/id string catalog from the Home slice on; **backup/restore drill gates the
+> AR bridge**; **ESB spike RESULT (2026-07-04): settlement write-back LIKELY-NOT → reconciliation
+> branch** (`docs/reference/esb-settlement-api-spike.md`; owner action: ask ESB PIC re undocumented
+> endpoints); authorization moves to **`shared.can(capability)` + admin-editable roles** (new modules
+> from day one, existing RLS opportunistic). **ORDER: Home v1 + `sales_margin_daily` → agent port
+> (P1–P3; ESB spike parallel) → Work spine (→ live management-week validation) → AR/pending-bills
+> bridge → Plan/reference data → activity roll-ins.** Full spines: `docs/adr/0019-ia-north-star.md`,
+> `docs/adr/0020-capability-authorization.md`.
+>
+> **2026-07-02 — Issue 1 COMPLETE (kit born); reporting live on staging; all on `dev`, not `main`:**
+> - **Sales dashboard SHIPPED to `dev`** — the value-first Issue-1 build that *births the primitive kit*:
+>   5 registry-ready primitives (`KPITile`/`ChartFrame`/`DataTable`/`FreshnessLabel`/`CutToggle` in
+>   `mos-app/src/components/dashboard/`), the reporting DAL (`src/lib/db/reporting.ts`), the
+>   `SalesDashboardPage` (`/mos/sales`, finance/admin-gated). **Director render-verified** populated +
+>   responsive + B2B/Roastery end-to-end; 1725 tests green. Spec `docs/specs/sales-dashboard.spec.md`;
+>   design-plan `docs/plans/2026-07-02-sales-dashboard-design.md`.
+> - **`reporting.sales_daily_revenue` LIVE on staging** (Supabase Cloud `hvnwcsmkdeqmgqlbwflm`) —
+>   snapshot-fed from the OLAP warehouse @03:30 JKT (day × channel × branch → revenue + txns). Spec
+>   `docs/specs/reporting-sales-snapshot.spec.md`, plan `docs/plans/2026-07-01-reporting-sales-snapshot.md`,
+>   runbook `docs/reference/warehouse-online.md`.
+> - **ADR-0017 D3 extension + OD-AN-2 (2026-07-02):** `reporting` is a growing SET of bounded curated
+>   read-models; drill-down is mostly a query-DSL problem not new-data; two-tier drill-down (deputy reads
+>   curated read-models, server analyst agent explores raw OLAP + promotes); bounded curation ≠ wholesale
+>   duplication. **MOS = analysis surface, OLAP = analysis engine.**
+> - Node pinned to **22** via `mos-app/.nvmrc` (Vite needs 20.19+/22.12+).
+> - **NEXT (three parallel, non-colliding):** (1) **`sales_margin_daily`** read-model — margin/COGS depth
+>   from the warehouse `v_daily_cogs_comparison` (the "shallow data" answer + cashflow lens); (2) **font
+>   regression fix** (see Debt — `.tabular`→SF Mono violates DESIGN.md — DONE 2026-07-02); (3) **Issue 2**
+>   — extract the kit into the primitive **registry** (ADR-0017 §4a). Then Issue 3 (query-DSL/compiler).
+>   **⚠ 2026-07-04 re-scope (ADR-0018): Issues 2–3 are no longer grown from scratch — the registry + DSL
+>   arrive by port from PMO as the ADR-0018 P1 train (substrate, shippable with zero agent); see the
+>   2026-07-04 banner above.** Memory `agent-native-ui-program`.
+>
+> **2026-06-30 — TWO NEW TRACKS (decisions on `dev`, not yet `main`):**
+> - **Agent-native / user-composed UI — ADR-0017 ACCEPTED** (merged to new `dev` branch; +ADR-0010
+>   2026-06-30 amendment; CONTEXT.md glossary; OD-AN-1). Deputy/RLS dual-plane model; **value-first build**
+>   (Issue 1 = mobile-first ops dashboard that births the primitive kit → registry → DSL/compiler →
+>   `user_views`+renderer → manual builder → agent sidecar behind a MOS spike). **NEXT = `feature-forge`
+>   spec for Issue 1.** Full track in `docs/platform-workstream-status.md` §Current focus; memory
+>   `agent-native-ui-program`.
+> - **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, loopback, self-sustaining op-native sync @3:05
+>   JKT, monitored). Runbook + open owner-actions: **`docs/reference/warehouse-online.md`**. **NEXT on this
+>   track = the `reporting` migration + warehouse→Supabase snapshot job** (feeds the sales dashboard).
+>   Owner-actions pending: CloudMonitor webhook exposure + its 🔴 auth fix, a git deploy key.
 >
 > **Current main (2026-06-25):** kitchen Module shipped (#45/#41/#43/#62/#64/#65/#66); UI-revamp on main;
 > **Strategy→Execution cascade FIRST SLICE SHIPPED** — PR #69 (task-centric: `objective_id`/`work_line_id`
@@ -214,6 +266,10 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
 - Gates green. **NEXT:** owner verifies wide-width → merge → update spec (remove FR-121/AC-122).
 
 ## Doc & code debt (non-blocking)
+- [x] **`.tabular` → SF Mono app-wide DESIGN.md violation — FIXED (2026-07-02).** Re-imported
+  `@fontsource-variable/inter`, scoped to a new `--font-tabular` token used ONLY by `.tabular`
+  (`mos-app/src/index.css`); body/UI stays DM Sans/Plus Jakarta. Regression guard added
+  (`src/styles/css-var-wiring.test.ts`) asserting `.tabular` never references `--font-mono` again.
 - [ ] **ADR-0007 Decision snippet uses pre-impl names** (`TasksSplitView`/`TaskSurface` children);
   as-built is `TasksLayout` + `TaskDrawer`(→`TaskSurface`). Add an "As-built" note.
 - [ ] **`docs/environments.md` P3-1 section is a stub** — write the actual ris-dev deploy runbook.

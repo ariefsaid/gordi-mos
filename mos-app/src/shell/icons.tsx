@@ -185,6 +185,92 @@ export function WorkLineIcon() {
   )
 }
 
+// SalesIcon — a rising trend line, the sales-reporting dashboard (Issue 1).
+// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
+export function SalesIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M15 7h6v6" />
+    </svg>
+  )
+}
+
+// HomeIcon — house silhouette, the Home destination (ADR-0019 D2/D8).
+// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
+export function HomeIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 11l9-7 9 7" />
+      <path d="M5 10v10h14V10" />
+      <path d="M9 20v-6h6v6" />
+    </svg>
+  )
+}
+
+// PlanIcon — a checklist/map, the Plan destination (not yet rolled in — ADR-0019 D2).
+// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
+export function PlanIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 4h11v16H9z" />
+      <path d="M4 4h2v2H4zM4 11h2v2H4zM4 18h2v2H4z" />
+      <path d="M13 8h4M13 13h4" />
+    </svg>
+  )
+}
+
+// InboxIcon — a tray, the Inbox destination (not yet rolled in — ADR-0019 D2).
+// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
+export function InboxIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  )
+}
+
 export function SettingsIcon() {
   return (
     <svg

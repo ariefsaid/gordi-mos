@@ -6,15 +6,20 @@
  * AC-120 also covers: breadcrumb/landmark survive the change (verified by AppShell.test.tsx
  * AC-015 which must stay green; this file focuses on the Tasks-specific aria-current guard).
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
 import { RailNav } from './rail-nav'
+
+beforeEach(() => {
+  localStorage.clear()
+})
 
 function renderRailAtPath(path: string) {
   mockUseAuth.mockReturnValue({
@@ -38,11 +43,13 @@ function renderRailAtPath(path: string) {
   })
 
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="*" element={<RailNav />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="*" element={<RailNav />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 

@@ -703,4 +703,118 @@ seed; the task form reads them but no one can add/edit them). Grilled against `C
 
 ---
 
+## OD-AN — Agent-native / user-composed UI (LOCKED 2026-06-30, grill-with-docs; ADR-0017)
+
+### OD-AN-1 — Adopt agent-native user-composed UI on the existing Supabase stack (ADR-0017, Accepted)
+Let the team compose their own UI (analyse · input · present) without waiting for a dev cycle, and
+**promote** views into the product. Adopt the *pattern*, not the framework as host (Supabase stays
+authority). Core invariant = the **deputy agent** runs as the user's own JWT → RLS (security by
+construction; never `service_role`/privileged/provisioning RPCs). **Dual-plane reach:** deputy reads base
+tables + operational `security_invoker` views + the **finance/admin `reporting`** snapshot; the raw,
+multi-company OLAP warehouse is reserved to a server-side analyst agent. Input = **existing entities only**
+(novel shapes → a promotion request). Sharing = the derived `is_manager_of` chain (no new access role).
+Financial visibility stays **finance+admin** (no new tier — owner, 2026-06-30). Build is **value-first**,
+inverting PMO ADR-0036 §10 (MOS has no kit to register): Issue 1 = a mobile-first operational dashboard
+that births the primitive kit. Agent-native runtime is config-over-fork behind a **MOS-specific spike**
+(ADR-0017 D9 — PMO's green does not transfer: self-hosted, multi-schema, `access_roles`/`current_org_id`
+claim shape). Full decision spine: `docs/adr/0017-agent-native-user-composed-ui.md`. Status: Accepted,
+merged to `dev`.
+
+> **AMENDED 2026-06-30 (ADR-0010 amendment A1; refines OD-P4-2):** the OLAP warehouse's **online home is
+> the Tencent VPS** (`tencent-OpenClaw`), co-located with the agentic layer, off the OLTP box — PG17,
+> loopback-only, self-sustaining op-native sync, monitored (CloudMonitor + resource-watch→Telegram),
+> rebuildable-from-ESB so no backup. The `reporting` read-model + warehouse→Supabase snapshot job that
+> OD-P4-2 specifies remain **to build** (the sales-dashboard enabler). Runbook + open owner-actions:
+> `docs/reference/warehouse-online.md`.
+
+### OD-AN-2 — `reporting` grows as a set of bounded read-models; drill-down is mostly a DSL problem, not a data problem (extends ADR-0017 D3, 2026-07-02)
+Grilled against the first live `reporting` tenant, `sales_daily_revenue` (date × channel × branch →
+revenue + txns, OD-P4-2/ADR-0010 D5). Owner asked whether the shallow-looking dashboard means shallow
+data, whether the deputy should point at the raw OLAP warehouse instead, and whether curated read-models
+mean "too many data duplicates." Locked:
+- **`reporting` is a growing SET of curated, bounded read-models, never one table.** Cardinality =
+  dimensions × grain, never transaction volume. `sales_daily_revenue` is v1; drill-down needs are met by
+  **adding targeted read-models** (e.g. `sales_daily_by_item`, `sales_weekly`, `sales_by_hour`,
+  `margin_daily`), each snapshot-fed + finance/admin-RLS'd like v1 — OD-P4-2/ADR-0010 D5 curation,
+  applied incrementally.
+- **Bounded curated duplication is the accepted OLTP/OLAP-federation trade (ADR-0010 D2), not wholesale
+  duplication.** The OLAP holds millions of raw rows; `reporting` stays thousands (aggregates) — only
+  the curated slices actually queried are copied, at aggregate grain.
+- **Many drill-downs need no new data, only the query-spec DSL (ADR-0017 §4b / build-sequence Issue 3).**
+  "Last X days" and week-over-week comparisons are computable from the existing daily-grain 60-day
+  window via grouping/window comparison — the dashboard looked shallow because the UI shows one fixed
+  cut, not because the read-model can't express it. New read-models are warranted only for cuts the
+  daily aggregate structurally cannot express (item / hour / margin / customer).
+- **Two-tier drill-down (extends ADR-0017 D3's dual-plane reach):** the **user deputy** (in MOS) reads
+  only the curated `reporting` read-models, RLS-bounded — never the raw OLAP warehouse (owner-preferred,
+  structurally required). The **server-side analyst agent** (OpenClaw on the VPS, `gordi_readonly`) does
+  deep raw-OLAP exploration; useful findings get **promoted into new curated `reporting` read-models**
+  (explore in OLAP → curate the valuable slice → deputy composes over it — mirrors the ADR-0017
+  promotion concept, applied to read-models). **Net framing: MOS is the analysis *surface* (curated
+  read-models + the query DSL), not the analysis *engine* (which stays in the OLAP).**
+Full text: `docs/adr/0017-agent-native-user-composed-ui.md` D3 extension (2026-07-02). Cross-refs:
+ADR-0010 D2/D5, OD-P4-2, ADR-0017 D3/D7 + build sequence.
+
+### OD-AN-3 — Port PMO's native agent stack into MOS, copy-adapt, no shared package (ADR-0018, Accepted)
+The upstream agent-native sidecar ADR-0017 D8 adopted was **retired upstream as a user surface** (PMO
+ADR-0040, 2026-07-03 — builder/admin-grade, not app-user-grade; PMO's adoption PR closed UNMERGED; owner
+ruled "cherry-pick"), and PMO **rebuilt its agent stack PMO-NATIVE** on its own substrate (in-app
+`AssistantPanel` + same-origin Supabase Edge Functions + a caller-JWT deputy loop + a curated tool
+catalog), now **complete + post-audit** on PMO dev with **no upstream-framework code** in it. MOS **ports
+that stack maximum — substrate + agent + batteries — copy-adapt, and owns the fork outright** (no shared
+package, no runtime dependency, no auto-sync; future PMO fixes arrive by deliberate cherry-pick
+re-reviewed under MOS gates). Runtime home = **Supabase Edge Functions** (staging Cloud + self-hosted
+edge-runtime container, ADR-0010) — **no bespoke MOS backend tier** (the VPS-Node option rejected, same
+ops cost PMO ADR-0040 declined); the Tencent VPS stays the **server-side analyst agent's** OLAP home
+(ADR-0017 D3 / OD-AN-2). The deputy tool catalog + DSL entity whitelist span **both planes** (mos OLTP
+entities + `reporting` read-models; RLS already ceilings finance/admin — no extra gate); read tools
+auto-execute, write tools v1 = only `create-task` + `post-update` behind approve/deny chips; the raw
+warehouse (analyst-only) and the ADR-0016 provisioning RPCs (never a business action) are
+**hard-excluded**. MOS adds a **binding, test-enforced grounding NFR** PMO lacks: every data claim traces
+to a tool result; a data question must query, never recall; empty/failed read → say so + stop; non-live
+figures carry as-of — applies even when the user has access (CONTEXT.md "Grounded answer"). Port ships
+as **three trains** (P1 substrate → P2 panel+runtime → P3 batteries), each through the full loop, each
+shippable, cherry-pick window between — starting **after** the `sales_margin_daily` read-model + the
+My-Week-replacement dashboard. All agent tables live in `mos` with `org_id`+RLS; UI re-skinned to MOS
+DESIGN.md; ADR-0017 D9's SSO half is **moot** (same-origin edge functions). **ADR-0017 D1–D7 survive
+unchanged**; this supersedes only D8's runtime-adoption half and re-scopes D9 + §4a Issues 2–3 (registry +
+DSL now arrive by port, not grown). Full decision spine + consequences:
+`docs/adr/0018-port-pmo-native-agent-stack.md`. Cross-refs: ADR-0017 D1–D9, ADR-0010 D5/D6/A1, ADR-0011
+D5, ADR-0016, PMO ADRs 0037–0046; CONTEXT.md "Port". Status: Accepted (owner, 2026-07-04, grill-with-
+docs).
+
+### OD-IA-1 — IA north-star: five destinations; taxonomy BU/Activity/Revenue-stream (ADR-0019, Accepted)
+The bar is **viable, not minimum** — MOS becomes the operating system for all ~30 people, absorbing
+kitchen/bar/roastery/ecommerce ops, KPI drill-down, COGS+budgeting, comms, and money follow-ups without
+nav growth. Locked: **taxonomy** (BU = team: Marketing/HR/Finance/Retail Ops/B2B Ops/B2B Sales; Activity =
+workstream within a BU; Revenue stream = money lens; old BU seed rows need re-mapping) · **five
+destinations** (Home = KPI hub + My Week *panel*, every tile has a drill target; Work = tasks + everyone's
+cascade view + follow-up queues + updates; Operate = per-Activity modules; Plan = reference data +
+workbenches; Inbox = to-triage router) · **Home coded v1 → org-default user-view v2** (post-port) ·
+**work-item comms only** (free-form stays in WhatsApp) · **MOS owns settlement grain** for B2B AR + retail
+pending bills (ESB write-back only if the API spike validates — check `gordi-esb-bak` first) · **canonical
+record, many presentations** + vendored `doc-editor`/`data-grid` primitives (MIT/Apache/MPL only; AGPL
+out) · **reference data: ESB feeds, MOS owns** · **phone-first + bottom tabs** binding · **Inbox + PWA
+push v1**, channel-adapter seam, WhatsApp only on evidence · **sheet-retirement playbook** (port →
+time-boxed dual-run → gsheet permission-flip cutover → tombstone) · **agent = global panel**, not a
+destination · **bilingual en/id** — string catalog from the Home slice on · **backup/restore drill gates
+the AR bridge**. Sequencing: Home v1 + margin read-model → port (ESB spike parallel) → Work spine (enables
+the live management-week validation) → AR bridge → Plan/reference data → activity roll-ins. Full spine:
+`docs/adr/0019-ia-north-star.md`. Status: Accepted (owner, 2026-07-04, grill-with-docs).
+
+### OD-IA-2 — Capability authorization: `can()` + admin-editable roles (ADR-0020, Accepted)
+RLS policies stop naming roles and call **`shared.can(capability)`**; **capabilities are a code-owned
+vocabulary** (new keys ship with features); **roles become rows** the admin creates/edits and toggles
+capabilities on per role (the four ADR-0011 roles = seeded, renameable, not deletable); **every grant is
+scoped `own_bu` or `org`**, own-BU derived from the org chart (person → position → BU) + an owning-BU
+column on contended records — the org chart becomes load-bearing for authorization, deliberately.
+Guardrails: admin capabilities immutable, last-admin protected, all toggles audit-logged. Migration is
+opportunistic: new modules use `can()` from day one, existing RLS migrates when touched. The deputy
+inherits it all via the caller's JWT (no parallel agent permission model). Intra-BU activity-level scoping
+deferred until a real conflict shows. Full spine: `docs/adr/0020-capability-authorization.md`. Status:
+Accepted (owner, 2026-07-04, grill-with-docs).
+
+---
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
+</content>
