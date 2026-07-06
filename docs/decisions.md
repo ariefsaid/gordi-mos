@@ -816,5 +816,17 @@ Accepted (owner, 2026-07-04, grill-with-docs).
 
 ---
 
+### Proposed (owner sign-off pending, 2026-07-06 grill) — on branch `docs/jtbd-refresh`
+From the E6 IA/JTBD grill-with-docs (2026-07-06). Awaiting owner acceptance; not yet locked:
+- **ADR-0022 — Plan destination / COGS-budget model** (extends ADR-0019 D7): Plan = budget-creation;
+  ingredient cost basis = ESB `last_hpp` (trend/variance alert deferred); **read-and-budget MVP**;
+  recipe-edit + ESB BOM write-back = one spike-gated v2; MOS is the pre-flight margin check, **never**
+  the price-setter (price lands in ecommerce). `docs/adr/0022-plan-destination-cogs-budget.md`.
+- **ADR-0023 — Multi-location inventory + internal replenishment** (new): stock is location-scoped
+  (Roastery/HQ-retail/Ecommerce, each its own pool); internal replenishment (roastery→retail/ecommerce,
+  GRI→GKID) is a first-class flow **≠ a B2B sale** (stays out of Follow-up); ecommerce fulfilment queue;
+  additive to the Kitchen spine. `docs/adr/0023-multi-location-inventory-internal-replenishment.md`.
+- **JTBD v0.3** (`docs/jtbd.md`) — the E6 Lens-D oracle (4 personas × 5 destinations), supersedes E1 v0.2.
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
 </content>

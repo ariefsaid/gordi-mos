@@ -70,9 +70,14 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 | **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
 | **Where everything stands + outstanding** | `docs/platform-workstream-status.md` (canonical handoff) |
 | **Agent-native port (ADR-0018) — plans per train** | `docs/plans/2026-07-04-port-p1-substrate.md` · `docs/plans/2026-07-05-port-p2-panel-runtime.md` · `docs/plans/2026-07-06-port-p3-automations-inbox.md` |
-| **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` · `feat-port-p3a-replay-inbox.md` |
+| **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` · `feat-port-p3a-replay-inbox.md` · `feat-p2.1-db-side-aggregate.md` · `release-staging-bu-remap.md` · `feat-work-spine.md` |
+| **JTBD design oracle (Lens-D) — E6, refresh 2026-07-06** | `docs/jtbd.md` (**v0.3** — 4 personas × 5 destinations; supersedes E1 v0.2) |
+| **IA/product ADRs (proposed 2026-07-06, owner sign-off pending)** | `docs/adr/0022-plan-destination-cogs-budget.md` · `docs/adr/0023-multi-location-inventory-internal-replenishment.md` (both on `docs/jtbd-refresh`) |
+| **Work-spine slice (D14 step 3, held on `feat/work-spine`)** | `docs/specs/work-spine.spec.md` · `docs/plans/2026-07-06-work-spine.md` · `docs/reviews/feat-work-spine.md` |
+| **Roastery Operate requirements (10 owner-decisions in §6)** | `docs/specs/roastery-module.requirements.md` |
+| **PMO→MOS agent-capability expansion (feeds next grill)** | `docs/specs/agent-capability-expansion.md` |
 | Full task list / backlog | `docs/backlog.md` |
-| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` (0017–0021 = agent-native/IA/can()/i18n) |
+| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` (0017–0021 = agent-native/IA/can()/i18n; **0022 Plan-COGS-budget · 0023 multi-location-inventory = Proposed**) |
 | Domain glossary | `CONTEXT.md` (repo root) |
 | Binding charter + per-layer Definition of Done | `docs/product-expectations.md` |
 | Director runbook / loop / UI cycle | `docs/director-playbook.md`, `docs/design-workflow.md` |
@@ -82,11 +87,10 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 | Delegation via pi CLI | `docs/pi-delegation.md` |
 | Staging env + gotchas | `docs/environments.md` |
 
-## Headline current state (2026-07-06)
+## Headline current state (2026-07-06 EOD)
+- **⚠️ READ the `## Current focus (2026-07-06 EOD)` SESSION-CLOSE block in `docs/platform-workstream-status.md` first** — it has the full state + branch map + ▶ NEXT-AGENT resume. Summary: staging LIVE (up to BU remap, `gordi-mos.pages.dev/mos`); COGS root-cause fix deployed to the box (margin populates tonight's 3am cron, GKID+GRI); **Work-spine v1 held** on `feat/work-spine` (battery-green, needs cross-family pgTAP re-review + phone render before merge); **IA/JTBD grill** produced JTBD v0.3 + ADR-0022/0023 (Proposed) on `docs/jtbd-refresh`; dev ungated (all 5 flags) for testing.
 - Kitchen Module + access roles + UI-revamp + Strategy→Execution cascade first slice **SHIPPED to main**.
-- Agent-native platform port P1/P2/**P3a/P2.1 all on `dev`** (green CI). **PR #88**
-  (`feat/port-p3a-replay-inbox`→`da31e3a`) and **PR #89** (`feat/p2.1-db-side-aggregate`→`1b37b10`) are
-  **MERGED** (2026-07-06); both PR branches deleted; dev tip `1b37b10`.
+- Agent-native platform port P1/P2/**P3a/P2.1 all on `dev`** (green CI, PRs #88/#89 MERGED 2026-07-06). `main`/`staging` deliberately conservative at up-to-BU-remap (`669ee0a`).
 - CI-fix pass (task-detail async races, Home-v1 e2e `My Week`→Home route, Sales KPI locator scope,
   recovery password-policy, coverage timing budgets) landed via `c96fb5a` + `4f67080`; full local battery
   re-verified green (typecheck/eslint/2217 unit/449 pgTAP/22 e2e/build) + fresh GitHub `verify`+`db` green

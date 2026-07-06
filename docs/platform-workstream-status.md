@@ -9,7 +9,72 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-06) — P3a + P2.1 MERGED to `dev` (green CI); owner-gated queue next
+## Current focus (2026-07-06 EOD) — staging deployed · COGS root-cause fixed · Work-spine held · JTBD v0.3 grill
+
+> **SESSION CLOSE (2026-07-06 EOD) — read this first.** Big session; state below. All new docs are
+> referenced here + in the pointer tables (no orphans).
+>
+> **Shipped / deployed:**
+> - **P3a + P2.1 merged to `dev`** (green CI); details in the "Earlier 2026-07-06" block below.
+> - **`dev`→`main`→`staging` UP TO BU remap** (owner-directed cut). `main` = `staging` = **`669ee0a`**;
+>   staging Cloud DB `supabase db push`ed through `20260705000002_bu_taxonomy_remap` (real-row BU
+>   mutation applied clean). **Staging is LIVE + testable: `https://gordi-mos.pages.dev/mos`.** The
+>   agent port (P2/P3a/P2.1) is intentionally **NOT** on main/staging — staging stays conservative.
+> - **Dev ungate (`ae7cffa`):** all 5 `SHOW_*` flags flipped true on `dev` so the full built stack is
+>   testable on the dev build (staging stays conservative). Dev server verified at `localhost:5173/mos`
+>   (`.claude/launch.json` `mos-dev`). ⚠️ the Assistant needs `AGENT_MODEL_API_KEY` in the env to respond.
+>
+> **COGS/margin root-cause fix — deployed to the box, populates OFF-HOURS tonight:**
+> - Root cause: `v_daily_cogs_comparison` is a FULL OUTER JOIN of two **unbounded** aggregates →
+>   recomputes full history every pass (~10 min). Fix = a **windowed `public.fact_daily_cogs_interim`**
+>   (built from base tables with date-bounded CTEs) refreshed at the 03:05 sync; snapshot reads it (fast,
+>   0.19s/3-day validated). **GRI `stock_movement` now captured** in the nightly sync (was GKID-only) so
+>   **Roastery/B2B margin** works too. Code: `feat/margin-cogs-fact` (`a3a2015`, unpushed) + a local
+>   commit in `~/Coding/gordi-esb-bak` + **deployed to the box** (`~/gordi-esb-bak/scripts/` +
+>   `init-db/43-schema-fact-daily-cogs.sql` applied; box cron = `run_all_snapshots`). **TONIGHT 03:05
+>   refreshes the fact + 03:30 pushes revenue+margin(GKID+GRI)→staging → verify tomorrow AM.**
+>   `feat/margin-matview-wip` (`751efb6`) = the earlier matview attempt, **superseded/shelved**.
+>
+> **Work-spine v1 — BUILT + FIXED + battery-green, HELD (unpushed) on `feat/work-spine` (`0bf7cdd`):**
+> - The first ADR-0019 D14-step-3 slice: `/work/cascade` everyone-read view + minimal `shared.can()` +
+>   objectives/work_lines write policies migrated to `can()`. Built gpt-5.4 → reviewed gpt-5.4 cross-family
+>   (FIX-THEN-SHIP, `can()` verified sound) → all 5 fixes applied glm-5.2 (phone split, i18n, **pgTAP
+>   plan(14)→plan(23) fully proving AC-310..315**, ladder resilience, e2e fixtures). Battery green:
+>   pgTAP 481 · vitest 2246 · typecheck/eslint/build · AC-305 e2e. Ledger: `docs/reviews/feat-work-spine.md`.
+>   **Before merge:** (1) a **cross-family gpt-5.4 re-review of the pgTAP** (the fix was GLM-only; our own
+>   rule says security proofs don't merge on a single family), (2) **Director phone render-check** (visual
+>   lens), then push→CI→merge to `dev`. Spec `docs/specs/work-spine.spec.md` (OD-WS-1), plan
+>   `docs/plans/2026-07-06-work-spine.md`.
+>
+> **IA / JTBD grill (owner-directed grill-with-docs) — on `docs/jtbd-refresh` (`cbebe6c`, unpushed):**
+> - Refreshed the whole IA per E6. **`CONTEXT.md` +7 term resolutions** (Ingredient cost line, Budget,
+>   Follow-up settlement lifecycle, Home cockpit, Kitchen/Bar WIP module, Stock location & internal
+>   replenishment, Ecommerce fulfilment). **`docs/jtbd.md` → v0.3** (E6 oracle, supersedes E1 v0.2: 4
+>   personas × 5 destinations, 8 anchors). Two **Proposed** ADRs (owner sign-off pending): **ADR-0022**
+>   (Plan / COGS-budget model, extends D7), **ADR-0023** (multi-location inventory + internal
+>   replenishment, new). Plus `docs/specs/roastery-module.requirements.md` (synthesized from the
+>   `~/Coding/Roast-App` prototypes; has 10 owner-decisions in §6) and
+>   `docs/specs/agent-capability-expansion.md` (PMO-vs-MOS agent capability gap; feeds the next grill).
+>   Director-verified all faithful to the grill. `docs/jtbd-refresh` also carries the `a3a2015` COGS
+>   re-point (branch cut from `feat/margin-cogs-fact`).
+>
+> ### ▶ NEXT AGENT — 2026-07-06 EOD resume
+> 1. **Owner sign-off** on ADR-0022 + ADR-0023 (Proposed) + JTBD v0.3; then merge `docs/jtbd-refresh`.
+> 2. **Resume the grill** (owner opted "keep grilling"): the **PMO agent-capability expansion**
+>    (drive off `docs/specs/agent-capability-expansion.md`) + the **roastery §6** 10 owner-decisions.
+> 3. **Design audit** — run the 4-lens design-review against the *refreshed* JTBD v0.3 (the whole point:
+>    the IA slices were only Director-eyeballed, never given the prescribed IA/IxD/UX battery).
+> 4. **Work-spine → merge:** cross-family gpt-5.4 pgTAP re-review + Director phone render → push→CI→merge.
+> 5. **Verify tomorrow AM:** the 03:05/03:30 cron populated `reporting.sales_margin_daily` on staging
+>    (GKID+GRI); if green, the margin tile lights up — consider un-gating margin display.
+> 6. **Owner-gated queue** (unchanged): `dev`→`main` promote (agent port), live-deputy `AGENT_MODEL_API_KEY`,
+>    VAPID, P3b `generateLink` hook, ESB PIC settlement answer.
+>
+> **Branch map:** `dev`=`ae7cffa` · `main`/`staging`=`669ee0a` · `feat/work-spine`=`0bf7cdd` (held) ·
+> `feat/margin-cogs-fact`=`a3a2015` (box-deployed, unpushed) · `docs/jtbd-refresh`=`cbebe6c` (grill, unpushed) ·
+> `feat/margin-matview-wip`=`751efb6` (shelved). All feature branches UNPUSHED — owner-gated.
+
+### Earlier 2026-07-06 (P3a + P2.1 merge — history)
 
 > **HANDOFF (2026-07-06, updated):** agent-native port P1+P2+**P3a+P2.1 all on `dev`**. **PR #88**
 > (`feat/port-p3a-replay-inbox`) and **PR #89** (`feat/p2.1-db-side-aggregate`) both **MERGED to `dev`**
