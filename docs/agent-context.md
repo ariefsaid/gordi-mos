@@ -71,17 +71,20 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 
 ## Headline current state (2026-07-06)
 - Kitchen Module + access roles + UI-revamp + Strategy→Execution cascade first slice **SHIPPED to main**.
-- Agent-native platform slices through P2 are on `dev`; P3a is built/reviewed on
-  `feat/port-p3a-replay-inbox` / PR #88, and P2.1 DB-side aggregate work is stacked on
-  `feat/p2.1-db-side-aggregate` / PR #89. Both PRs are open, pushed, and **not merged**.
-- Current active work is making #88/#89 CI green. The missing `mos.create_notification` EXECUTE revoke was
-  fixed/pushed; the follow-on CI-fix pass covers task-detail async loading, Home-v1 e2e assertions, Sales
-  KPI locator scope, recovery e2e password-policy drift, and full-coverage timing budgets. Local P3a-base
-  gates are green as of this update: 2213 Vitest coverage, 437 pgTAP, targeted Playwright 6 passed/1 skipped,
-  typecheck, lint, and build. P2.1 adds the aggregate RPC pgTAP files and should rerun at 449 pgTAP after
-  re-stack. Do not merge to `dev` until the fix is pushed/re-stacked and fresh GitHub `verify` + `db` are green.
-- **Delegation posture (owner-directed 2026-07-06):** orchestrate build/fix via **pi** (GLM-4.7/GLM-5.2
+- Agent-native platform port P1/P2/**P3a/P2.1 all on `dev`** (green CI). **PR #88**
+  (`feat/port-p3a-replay-inbox`→`da31e3a`) and **PR #89** (`feat/p2.1-db-side-aggregate`→`1b37b10`) are
+  **MERGED** (2026-07-06); both PR branches deleted; dev tip `1b37b10`.
+- CI-fix pass (task-detail async races, Home-v1 e2e `My Week`→Home route, Sales KPI locator scope,
+  recovery password-policy, coverage timing budgets) landed via `c96fb5a` + `4f67080`; full local battery
+  re-verified green (typecheck/eslint/2217 unit/449 pgTAP/22 e2e/build) + fresh GitHub `verify`+`db` green
+  before merge.
+- **Multi-agent hazard (hit + resolved 2026-07-06):** a parallel Codex session shared this working tree and
+  moved HEAD mid-work. Two agents on one checkout = clobber risk. Owner stopped Codex; Director took sole
+  ownership, adopted Codex's clean rebased stack (verified byte-identical code), merged, cleaned up stale
+  branches. If HEAD ever looks wrong, check `git branch --show-current` + reflog before acting.
+- **Delegation posture (owner-directed 2026-07-06):** orchestrate heavy build/fix via **pi** (GLM-4.7/GLM-5.2
   builders, gpt-5.4 cross-family reviewers — `docs/pi-delegation.md`) to preserve Anthropic tokens;
-  Director retains verify + merge/git + final visual taste.
+  Director retains verify + merge/git + final visual taste. (The #88/#89 close-out needed no code fix — it
+  was git orchestration + CI-watch, no pi spend.)
 - Remaining user-facing rollout work is owner-gated: staging db push, edge-function model secret/live
   deputy verify, P3b generateLink hook check, VAPID keys, and ESB PIC settlement answer.

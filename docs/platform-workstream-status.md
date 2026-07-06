@@ -1,4 +1,4 @@
-# Platform workstream — status & handoff (updated 2026-06-30)
+# Platform workstream — status & handoff (updated 2026-07-06)
 
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
 > state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`;
@@ -9,18 +9,22 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-06) — P3a + P2.1 built; CI fix locally verified before `dev`
+## Current focus (2026-07-06) — P3a + P2.1 MERGED to `dev` (green CI); owner-gated queue next
 
-> **HANDOFF (2026-07-06):** agent-native port P1+P2 shipped to `dev` (full batteries); P3a and P2.1
-> are built/reviewed as open PRs but **not merged**. PR #88 (`feat/port-p3a-replay-inbox`) now contains
-> P3a through Phase H plus the `mos.create_notification` EXECUTE revoke CI fix; PR #89
-> (`feat/p2.1-db-side-aggregate`) stacks on #88 and contains the `mos.aggregate_compiled` DB-side
-> aggregate RPC. Both branches were pushed on 2026-07-06. GitHub CI then exposed additional verify/e2e
-> failures beyond the revoke lint: task detail/drawer async loading races and Home-v1 e2e assertions that
-> still expected the old `My Week` index route. The P3a-base CI-fix pass is now locally verified; do
-> **not** merge #88 or #89 until the fix is pushed/re-stacked and fresh GitHub `verify` + `db` checks are green.
-> The owner-gated items (bottom of this
-> section) remain the real bottleneck to reaching users after the PRs land.
+> **HANDOFF (2026-07-06, updated):** agent-native port P1+P2+**P3a+P2.1 all on `dev`**. **PR #88**
+> (`feat/port-p3a-replay-inbox`) and **PR #89** (`feat/p2.1-db-side-aggregate`) both **MERGED to `dev`**
+> with fresh GitHub `verify` + `db` **green** (dev tip `1b37b10`; #88→`da31e3a`, #89→`1b37b10`). The
+> CI-fix pass (task detail/drawer async races + Home-v1 e2e `My Week`→Home route + recovery
+> password-policy + Sales KPI locator scope) landed via the stabilized p3a commit `c96fb5a` and the
+> clean p2.1 rebase `4f67080` (code byte-identical to the Director-verified tree; full local battery
+> green: typecheck/eslint/2217 unit/449 pgTAP/22 e2e/build). Both PR branches deleted; stale local
+> branches (codex/p2-clean, worktree-agent-*, superseded fix/design-system-e2e-dark) cleaned up.
+> **The owner-gated items (bottom of this section) are now the sole bottleneck to reaching users.**
+>
+> _Concurrency note (resolved):_ a parallel Codex session (`codex/p2-clean`) was doing the same CI-fix
+> work on this shared checkout and moved the working tree; owner stopped it, Director took sole
+> ownership, adopted Codex's clean rebased stack (verified identical code), merged, and cleaned up.
+> Two agents on one working tree = clobber risk — see [[mos-multiagent-git-gotchas]].
 
 **Shipped to `dev` (each with a full recorded battery — `docs/reviews/feat-*.md`):**
 1. **Home v1 + `sales_margin_daily`** — `/` = Home hub (My Week → panel), bottom tabs + regrouped
@@ -102,20 +106,16 @@ red `verify`/`db` on #88/#89. Local CI-fix pass:
   Playwright subset (`auth-password-login`, `auth-signout-back`, `shell-nav`, `auth-recovery`,
   `AC-010-011-sales-dashboard-responsive`) = **6 passed / 1 skipped**; full coverage =
   **2213/2213 pass**; `npm run typecheck`, `npm run lint:ci`, `npm run build` PASS; `supabase test db` =
-  **437/437 pgTAP pass on P3a base**. P2.1 adds the aggregate RPC pgTAP files and should rerun at
-  **449/449** after re-stack. Treat GitHub CI as **not green yet** until the fix is pushed/re-stacked and
-  checks rerun green.
+  **437/437 pgTAP pass on P3a base**; P2.1 reruns at **449/449** with the aggregate RPC pgTAP files.
+  **GitHub CI is now GREEN** on both merged PRs (#88 `verify`+`db` pass, #89 `verify`+`db` pass).
 
-> ### ▶ NEXT AGENT — platform workstream, CI-fix continuation
-> 1. **Push the verified CI-fix pass before any merge.** Branch `feat/p2.1-db-side-aggregate` is stacked on
->    `feat/port-p3a-replay-inbox`; put the CI fix on the P3a base branch first, then rebase/force-push P2.1.
->    After push, confirm fresh GitHub `verify`+`db` green via `gh pr checks 88` and `gh pr checks 89`.
->    Only then merge #88 → `dev`, rebase #89 on the new `dev`, re-check, merge #89.
-> 2. **T34/P2.1 DONE** (branch `feat/p2.1-db-side-aggregate`, stacks on PR #88): `mos.aggregate_compiled`
->    DB-side aggregate RPC + executor wiring — closes the P1 truncation carry-in (AC-P2-RT-006). The
->    `SHOW_USER_VIEWS` un-gate condition is now MET at the code level (cohort rollout still owner-gated).
->    Ledger: `docs/reviews/feat-p2.1-db-side-aggregate.md`. Security-auditor: no SQL-injection vector found;
->    all findings fixed. PR #89 to `dev` is open and stacked behind #88; rebase/rerun after #88 lands.
+> ### ▶ NEXT AGENT — platform workstream, port train landed on `dev`
+> 1. **P3a + P2.1 MERGED to `dev`** (2026-07-06; #88→`da31e3a`, #89→`1b37b10`). Nothing to push/re-stack —
+>    the CI-fix pass is on `dev` via `c96fb5a` (p3a stabilize) + `4f67080` (clean p2.1 rebase). The
+>    `SHOW_USER_VIEWS` un-gate condition is MET at code level (cohort rollout still owner-gated). Ledgers:
+>    `docs/reviews/feat-port-p3a-replay-inbox.md`, `docs/reviews/feat-p2.1-db-side-aggregate.md`.
+> 2. **Next work is the owner-gated queue below** — the sole bottleneck to users. Also open: the standing
+>    `dev`→`main` merge (owner call) now that P1/P2/P3a/P2.1 are all on `dev`.
 > 3. **P3b (automations)** stays GATED on the owner's `generateLink`→`custom_access_token` staging verify (§3.3)
 >    — a separate follow-up plan once verified. Do NOT build P3b until that's recorded green.
 >
@@ -123,8 +123,7 @@ red `verify`/`db` on #88/#89. Local CI-fix pass:
 > UI is behind `SHOW_INBOX`/`SHOW_ASSISTANT` (default off) — flip locally to render-verify.
 
 **Owner-gated queue (the real bottleneck — none of the above reaches users until actioned):**
-1. **PR #88 → `dev` merge** — after the CI-fix pass is committed/pushed and GitHub `verify` + `db` rerun green.
-2. **`dev`→`main` merge** — after the open platform PRs land on `dev`; owner call.
+1. **`dev`→`main` merge** — P1/P2/P3a/P2.1 all landed on `dev` (green CI); owner call to promote to `main`.
 3. **Staging `db push`** — margin read-model · user_views · **BU remap (mutates real staging rows**,
    dual-path guard verified) · (soon) agent-persistence + replay migrations.
 4. **Live deputy verify** — set `AGENT_MODEL_API_KEY` (direct Anthropic `claude-sonnet-5`) as an op
