@@ -237,24 +237,23 @@ def normalize_margin_row(
 
 
 def build_margin_source_query() -> str:
+    # Reads the pre-materialized daily margin (public.mv_daily_margin_interim), refreshed once per run
+    # in run_margin_snapshot(). The heavy BOM/stock-movement COGS compute lives in the matview REFRESH
+    # (v_daily_cogs_comparison recomputes full-history each pass — it does not push the date filter),
+    # so this read is a cheap indexed scan over the trailing window. The matview already carries the
+    # branch_code coalesce + the POS/§7a shape; column names match normalize_margin_row 1:1.
     return """
-      select r.revenue_date               as margin_date,
-             r.esb_code,
-             coalesce(nullif(btrim(coalesce(r.branch_code,'')),''), r.esb_code::text) as branch_code,
-             max(r.branch_name)           as branch_name,
-             sum(r.clean_revenue)         as revenue,
-             max(c.sm_total)              as cogs_interim_sm,
-             max(c.bom_total)             as cogs_budget_bom,
-             max(c.bom_coverage_pct)      as bom_coverage_pct
-      from public.v_daily_revenue_unified r
-      left join public.v_daily_cogs_comparison c
-        on c.cogs_date = r.revenue_date
-       and c.esb_code::text = r.esb_code::text
-       and c.branch_code = coalesce(nullif(btrim(coalesce(r.branch_code,'')),''), r.esb_code::text)
-      where r.channel = 'POS'
-        and r.revenue_date >= current_date - ((%s::int - 1) * interval '1 day')
-      group by r.revenue_date, r.esb_code, 3
-      order by r.revenue_date, r.esb_code, 3
+      select margin_date,
+             esb_code,
+             branch_code,
+             branch_name,
+             revenue,
+             cogs_interim_sm,
+             cogs_budget_bom,
+             bom_coverage_pct
+      from public.mv_daily_margin_interim
+      where margin_date >= current_date - ((%s::int - 1) * interval '1 day')
+      order by margin_date, esb_code, branch_code
     """
 
 
@@ -293,6 +292,15 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
         raise SystemExit(
             "Missing dependency: install psycopg on the VPS snapshot environment"
         ) from exc
+
+    # Refresh the pre-materialized margin aggregate FIRST — this is where the heavy full-history
+    # BOM/stock-movement COGS compute runs (v_daily_cogs_comparison does not push the date filter),
+    # so it belongs in the off-hours 03:30 cron, not on every read. CONCURRENTLY needs autocommit
+    # (it cannot run inside a transaction block) and a unique index on the matview (present).
+    with psycopg.connect(config.warehouse_db_url, autocommit=True) as refresh_conn:
+        refresh_conn.execute(
+            "refresh materialized view concurrently public.mv_daily_margin_interim"
+        )
 
     with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as warehouse_conn:
         with warehouse_conn.cursor() as warehouse_cur:
