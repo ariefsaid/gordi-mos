@@ -54,4 +54,11 @@ describe('GroupHeaderRow', () => {
     fireEvent.click(add)
     expect(onAddTask).toHaveBeenCalled()
   })
+
+  it('AC-300: readOnly hides the add button and renders overdue as plain text', () => {
+    renderRow({ readOnly: true, overdue: 2 })
+    expect(screen.queryByRole('button', { name: /add task/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /filter to 2 overdue tasks/i })).toBeNull()
+    expect(screen.getByText(/2 overdue/i).tagName).toBe('SPAN')
+  })
 })
