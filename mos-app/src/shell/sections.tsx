@@ -2,7 +2,6 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import {
   MyWeekIcon, TasksIcon, UpdatesIcon, OpsIcon, KitchenIcon, PeopleIcon,
-  ObjectiveIcon, WorkLineIcon, SalesIcon,
 } from './icons'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
@@ -11,12 +10,13 @@ export interface Section {
   label: string
   labelKey?: MessageKey
   Icon: React.FC
-}
-
-// A section that is gated by access role (OD-C-2). The rail shows it only when the
-// viewer holds ANY of `anyOf`; the route is independently guarded by RequireAccessRole.
-export interface GatedSection extends Section {
-  anyOf: string[]
+  /**
+   * FR-420 (nav-five-destinations): a railHidden link still resolves its route through the
+   * owning destination (so the bottom-tab stays active + the breadcrumb reads "Work › …") but is
+   * NEVER rendered as a rail item — the catalog manage routes are reachable only from the cascade.
+   * The ONLY behavioral flag on Section (YAGNI).
+   */
+  railHidden?: boolean
 }
 
 // Rail + breadcrumb consume this. Weekly Updates / Daily Log are conditionally included via
@@ -28,15 +28,16 @@ export const SECTIONS: Section[] = [
   ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', Icon: OpsIcon }] : []),
 ]
 
-// Kitchen module sections — 5 screens reachable from the "Kitchen" nav group.
-// Role visibility (Review + Pushes: ops_lead/admin only) is enforced in the rail;
-// all 5 are in this list for breadcrumb resolution regardless of role.
+// Kitchen module sections — 5 screens reachable from the "Operate" nav group (ADR-0019 D2/D3).
+// Role visibility (Review + Pushes: ops_lead/admin only) is enforced in the rail; all 5 are in
+// this list for breadcrumb resolution regardless of role. Every label flows through the i18n
+// catalog (FR-440) via its labelKey.
 export const KITCHEN_SECTIONS: Section[] = [
-  { path: '/kitchen/log', label: 'Log', Icon: KitchenIcon },
-  { path: '/kitchen/plan', label: 'Plan', Icon: KitchenIcon },
-  { path: '/kitchen/stock', label: 'Stock', Icon: KitchenIcon },
-  { path: '/kitchen/review', label: 'Review', Icon: KitchenIcon },
-  { path: '/kitchen/pushes', label: 'Pushes', Icon: KitchenIcon },
+  { path: '/kitchen/log', label: 'Log', labelKey: 'nav.kitchen.log', Icon: KitchenIcon },
+  { path: '/kitchen/plan', label: 'Plan', labelKey: 'nav.kitchen.plan', Icon: KitchenIcon },
+  { path: '/kitchen/stock', label: 'Stock', labelKey: 'nav.kitchen.stock', Icon: KitchenIcon },
+  { path: '/kitchen/review', label: 'Review', labelKey: 'nav.kitchen.review', Icon: KitchenIcon },
+  { path: '/kitchen/pushes', label: 'Pushes', labelKey: 'nav.kitchen.pushes', Icon: KitchenIcon },
 ]
 
 // Admin module sections — admin-only; rendered conditionally in the rail.
@@ -44,30 +45,21 @@ export const ADMIN_SECTIONS: Section[] = [
   { path: '/admin/people', label: 'People', Icon: PeopleIcon },
 ]
 
-// Cascade catalog sections (OD-C-2) — rendered under Workspace, each gated to the
-// roles that may write it (so a non-manager sees no dead-end). Objectives: admin
-// only; Projects & Processes: ops_lead or admin. All listed for breadcrumb resolution.
-export const CATALOG_SECTIONS: GatedSection[] = [
-  { path: '/objectives', label: 'Objectives', Icon: ObjectiveIcon, anyOf: ['admin'] },
-  { path: '/projects-processes', label: 'Projects & Processes', Icon: WorkLineIcon, anyOf: ['ops_lead', 'admin'] },
-]
-
-// Sales dashboard (Issue 1, docs/specs/sales-dashboard.spec.md FR-001). Finance/admin
-// only — mirrors the route's own RequireAccessRole gate in router.tsx; a hidden nav
-// entry is convenience, not the security boundary (RLS is).
-export const SALES_SECTIONS: GatedSection[] = [
-  { path: '/sales', label: 'Sales', Icon: SalesIcon, anyOf: ['finance', 'admin'] },
-]
+// NOTE (nav-five-destinations FR-420): the standalone CATALOG_SECTIONS + SALES_SECTIONS nav groups
+// are RETIRED. Objectives + Projects & Processes are now Work's manage-mode (relocated under
+// /work/, reachable only from the cascade — see destinations.tsx + router.tsx); Sales is now a
+// Plan destination link. Neither appears as a rail group for any role.
 
 /**
  * Returns the Section whose path matches the given pathname, or null.
- * Checks SECTIONS, KITCHEN_SECTIONS, CATALOG_SECTIONS, SALES_SECTIONS, then ADMIN_SECTIONS.
- * '/' matches exactly; other paths match exactly or by prefix.
+ * Scans SECTIONS, KITCHEN_SECTIONS, then ADMIN_SECTIONS. (Destination-owned routes — Tasks,
+ * Cascade, Daily Log, Sales, the Work manage routes — are resolved in the Breadcrumb via the
+ * DESTINATIONS model's own links, so they need no entry here; this registry is the fallback for
+ * routes owned by no destination, e.g. /admin/*.) '/' matches exactly; other paths match exactly
+ * or by prefix.
  */
 export function sectionForPath(pathname: string): Section | null {
-  const allSections = [
-    ...SECTIONS, ...KITCHEN_SECTIONS, ...CATALOG_SECTIONS, ...SALES_SECTIONS, ...ADMIN_SECTIONS,
-  ]
+  const allSections = [...SECTIONS, ...KITCHEN_SECTIONS, ...ADMIN_SECTIONS]
   for (const section of allSections) {
     if (section.path === '/') {
       if (pathname === '/') return section

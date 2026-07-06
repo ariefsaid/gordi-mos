@@ -58,12 +58,21 @@ beforeEach(() => {
   setAuthAs([])
 })
 
-describe('AC-T01: phone viewport — one tab per live destination', () => {
-  it('renders exactly Home, Work, Operate tabs — no Plan/Inbox tab', () => {
+describe('AC-T01 / AC-410: phone viewport — one tab per live destination', () => {
+  it('AC-410: a member sees exactly Home, Work, Operate, Inbox tabs (Plan gated off)', () => {
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate'])
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate', 'Inbox'])
+  })
+
+  it('AC-410: finance sees all five tabs including Plan; Plan links to /sales', () => {
+    setAuthAs(['finance'])
+    renderTabBar('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const links = within(nav).getAllByRole('link')
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate', 'Plan', 'Inbox'])
+    expect(within(nav).getByRole('link', { name: /Plan/ })).toHaveAttribute('href', '/sales')
   })
 
   it('every tab has an accessible name via aria-label (t(labelKey))', () => {
@@ -72,14 +81,24 @@ describe('AC-T01: phone viewport — one tab per live destination', () => {
     expect(within(nav).getByRole('link', { name: /Home/ })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: /Work/ })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: /Operate/ })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
   })
 
-  it('Home tab links to "/", Work to "/tasks", Operate to the first kitchen link', () => {
+  it('Home links to /, Work to /tasks, Operate to Daily Log (/ops, first Operate link), Inbox to /inbox', () => {
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: /Home/ })).toHaveAttribute('href', '/')
     expect(within(nav).getByRole('link', { name: /Work/ })).toHaveAttribute('href', '/tasks')
-    expect(within(nav).getByRole('link', { name: /Operate/ })).toHaveAttribute('href', '/kitchen/log')
+    expect(within(nav).getByRole('link', { name: /Operate/ })).toHaveAttribute('href', '/ops')
+    expect(within(nav).getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
+  })
+
+  it('AC-408: Work tab stays active on a railHidden manage route (/work/objectives)', () => {
+    renderTabBar('/work/objectives')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const active = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(active).toHaveLength(1)
+    expect(active[0]).toHaveAccessibleName(/Work/)
   })
 })
 

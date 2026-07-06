@@ -97,6 +97,30 @@ describe('FR-S03: Kitchen routes read "Operate › <Log|Plan|Stock|Review|Pushes
   })
 })
 
+// FR-424 (nav-five-destinations): the relocated Work manage routes + the Plan Sales link + the
+// Operate Daily Log all resolve through their owning destination — "Work › Objectives",
+// "Work › Projects & Processes", "Plan › Sales", "Operate › Daily Log".
+describe('AC-408: breadcrumb resolves manage/Plan/Operate routes through their destination (FR-424)', () => {
+  const cases = [
+    { path: '/work/objectives', section: 'Work', leaf: 'Objectives' },
+    { path: '/work/projects-processes', section: 'Work', leaf: 'Projects & Processes' },
+    { path: '/sales', section: 'Plan', leaf: 'Sales' },
+    { path: '/ops', section: 'Operate', leaf: 'Daily Log' },
+  ]
+
+  for (const { path, section, leaf } of cases) {
+    it(`renders "${section} › ${leaf}" at "${path}"`, () => {
+      const { container } = renderBreadcrumb(path)
+      expect(screen.getByText(section)).toBeInTheDocument()
+      const leafEl = screen.getByText(leaf)
+      expect(leafEl.tagName.toLowerCase()).toBe('b')
+      const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+        .filter((el) => el.textContent === '›')
+      expect(separators).toHaveLength(1)
+    })
+  }
+})
+
 // Routes NOT owned by a destination (Admin, cascade catalog, Sales — drill-only or
 // role-gated manage surfaces) keep resolving via sectionForPath's own label, unaffected.
 describe('Routes outside DESTINATIONS resolve via their own section label (unaffected)', () => {

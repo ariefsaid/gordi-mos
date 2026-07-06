@@ -100,15 +100,19 @@ export const routeConfig: RouteObject[] = [
             element: <AdminRoute />,
             children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
           },
-          // Cascade catalog (OD-C-2). RequireAccessRole bounces non-permitted viewers
-          // to /; RLS is the real gate. Objectives → admin; Projects & Processes → ops_lead/admin.
+          // Cascade catalog = Work's manage-mode (nav-five-destinations FR-421). The retired
+          // top-level paths redirect into the cascade (decisions.md: "direct visits redirect into
+          // it"); the manage pages are relocated under /work/ behind RequireCapability (which
+          // bounces non-holders to /work/cascade). Page components are reused unchanged (NFR-404).
+          { path: 'objectives', element: <Navigate to="/work/cascade" replace /> },
+          { path: 'projects-processes', element: <Navigate to="/work/cascade" replace /> },
           {
             element: <RequireCapability capability="objective.manage" />,
-            children: [{ path: 'objectives', element: <ObjectivesPage /> }],
+            children: [{ path: 'work/objectives', element: <ObjectivesPage /> }],
           },
           {
             element: <RequireCapability capability="workline.manage" />,
-            children: [{ path: 'projects-processes', element: <ProjectsProcessesPage /> }],
+            children: [{ path: 'work/projects-processes', element: <ProjectsProcessesPage /> }],
           },
           // Sales dashboard (Issue 1, reporting read-model). FR-001/AC-001/002:
           // finance/admin only; RequireAccessRole bounces non-permitted viewers to /.

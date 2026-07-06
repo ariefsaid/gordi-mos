@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RailNav } from './rail-nav'
+import { DESTINATIONS } from './destinations'
 
 // RailNav now reads useAuth to role-filter the Kitchen group.
 vi.mock('@/auth/use-auth')
@@ -107,16 +108,14 @@ describe('AC-RG01: Rail regroup — destination groups', () => {
     expect(within(nav).getByRole('link', { name: 'Cascade' })).toBeInTheDocument()
   })
 
-  it('does NOT render Plan or Inbox group labels (not live today — AC-D01)', () => {
+  it('AC-403: a member sees Home/Work/Operate/Inbox groups but NO Plan group (gated off)', () => {
     renderRailNav('/tasks')
+    expect(groupLabel('Home')).toBeInTheDocument()
+    expect(groupLabel('Work')).toBeInTheDocument()
+    expect(groupLabel('Operate')).toBeInTheDocument()
+    expect(groupLabel('Inbox')).toBeInTheDocument()
+    // Plan is gated finance/admin — a member has no Plan children, so the whole group is hidden.
     expect(queryGroupLabel('Plan')).toBeNull()
-    expect(queryGroupLabel('Inbox')).toBeNull()
-  })
-
-  it('does NOT render a Sales group in the rail (drill-only per plan §1.5)', () => {
-    setAuthAs(['finance'])
-    renderRailNav('/tasks')
-    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
   })
 
   it('the Home link has href "/" and label "Home"', () => {
@@ -376,52 +375,52 @@ describe('AC-070: Admin nav group', () => {
   })
 })
 
-// ── Cascade catalog nav (OD-C-2, AC-002/AC-003 spec cascade-catalog) ───────────
-describe('AC-002/003: cascade catalog nav visibility', () => {
-  it('AC-002: plain member sees neither Objectives nor Projects & Processes', () => {
-    setAuthAs(['member'])
-    renderRailNav('/tasks')
+// ── Catalog = Work's manage-mode (nav-five-destinations FR-420) ──────────────────
+// The standalone "Catalog" rail group is RETIRED. Objectives + Projects & Processes are reachable
+// only from the Work cascade's Manage affordance; they NEVER appear as rail links for any role.
+describe('AC-404: no standalone Catalog nav group for any role', () => {
+  it('AC-404: admin sees NO Catalog group, NO Objectives/Projects & Processes rail links', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/cascade')
+    expect(queryGroupLabel('Catalog')).toBeNull()
     expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
   })
 
-  it('AC-003: ops_lead sees Projects & Processes but NOT Objectives (admin-only)', () => {
+  it('AC-404: ops_lead sees NO Catalog group, NO Objectives/Projects & Processes rail links', () => {
     setAuthAs(['ops_lead'])
     renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
-    expect(within(nav).queryByRole('link', { name: 'Objectives' })).toBeNull()
-  })
-
-  it('AC-002: admin sees BOTH Objectives and Projects & Processes', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
-  })
-
-  it('catalog links carry their hrefs', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/objectives')
-    expect(within(nav).getByRole('link', { name: 'Projects & Processes' }))
-      .toHaveAttribute('href', '/projects-processes')
+    expect(queryGroupLabel('Catalog')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
   })
 })
 
-// ── Sales dashboard nav — dropped from the rail (drill-only, plan §1.5) ────────
-describe('Sales dashboard is NOT in the rail (drill-only per Home KPI + ⌘K)', () => {
-  it('finance viewer does NOT see a Sales nav entry in the rail', () => {
+// ── Plan destination (nav-five-destinations FR-404) — Sales is now a Plan link, not drill-only ─
+describe('AC-402: Plan destination — finance sees Sales; member sees no Plan group', () => {
+  it('AC-402: finance sees a Plan group with a Sales link', () => {
     setAuthAs(['finance'])
-    renderRailNav('/tasks')
-    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
+    renderRailNav('/sales')
+    expect(groupLabel('Plan')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sales' })).toHaveAttribute('href', '/sales')
   })
 
-  it('admin viewer does NOT see a Sales nav entry in the rail', () => {
-    setAuthAs(['admin'])
+  it('AC-402: member sees NO Plan group and NO Sales link', () => {
+    setAuthAs(['member'])
     renderRailNav('/tasks')
+    expect(queryGroupLabel('Plan')).toBeNull()
     expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
+  })
+})
+
+// ── Operate destination (nav-five-destinations FR-403) — Daily Log moved here from Work ─────
+describe('AC-401: Daily Log renders under the Operate group', () => {
+  it('AC-401: Daily Log link appears under Operate, not Work', () => {
+    renderRailNav('/ops')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Daily Log' })).toHaveAttribute('href', '/ops')
+    // And it is NOT under Work (Work has Tasks/Cascade/Updates only).
+    const work = DESTINATIONS.find((d) => d.id === 'work')!
+    expect(work.links.some((l) => l.path === '/ops')).toBe(false)
   })
 })

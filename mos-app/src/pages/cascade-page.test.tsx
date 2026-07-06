@@ -162,7 +162,7 @@ describe('CascadePage', () => {
     expect(await screen.findByRole('status', { name: /workload summary/i })).toBeInTheDocument()
   })
 
-  it('AC-302: hides manage links for members, shows only projects for ops_lead, and both for admin', async () => {
+  it('AC-302/407: hides manage links for members, shows only projects for ops_lead, and both for admin (links to relocated /work/* routes)', async () => {
     renderPage(authWithRoles(['member']))
     await screen.findByText('Project task')
     expect(screen.queryByRole('link', { name: 'Manage objectives' })).toBeNull()
@@ -172,13 +172,13 @@ describe('CascadePage', () => {
     renderPage(authWithRoles(['ops_lead']))
     await screen.findByText('Project task')
     expect(screen.queryByRole('link', { name: 'Manage objectives' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Manage projects & processes' })).toHaveAttribute('href', '/projects-processes')
+    expect(screen.getByRole('link', { name: 'Manage projects & processes' })).toHaveAttribute('href', '/work/projects-processes')
 
     cleanup()
     renderPage(authWithRoles(['admin']))
     await screen.findByText('Project task')
-    expect(screen.getByRole('link', { name: 'Manage objectives' })).toHaveAttribute('href', '/objectives')
-    expect(screen.getByRole('link', { name: 'Manage projects & processes' })).toHaveAttribute('href', '/projects-processes')
+    expect(screen.getByRole('link', { name: 'Manage objectives' })).toHaveAttribute('href', '/work/objectives')
+    expect(screen.getByRole('link', { name: 'Manage projects & processes' })).toHaveAttribute('href', '/work/projects-processes')
   })
 
   it('AC-302: renders loading, error, and empty states', async () => {

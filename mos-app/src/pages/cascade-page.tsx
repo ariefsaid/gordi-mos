@@ -171,10 +171,10 @@ export function CascadePage() {
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
         {can(accessRoles, 'objective.manage') && (
-          <Link to="/objectives">{t('cascade.manage.objectives')}</Link>
+          <Link to="/work/objectives">{t('cascade.manage.objectives')}</Link>
         )}
         {can(accessRoles, 'workline.manage') && (
-          <Link to="/projects-processes">{t('cascade.manage.projects')}</Link>
+          <Link to="/work/projects-processes">{t('cascade.manage.projects')}</Link>
         )}
       </div>
 

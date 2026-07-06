@@ -23,35 +23,42 @@ export function Breadcrumb() {
   const dynamicTitle = useBreadcrumbTitle()
   const t = useT()
   const destination = destinationForPath(pathname)
-  const section = sectionForPath(pathname)
+
+  // Resolve the leaf Section: prefer the destination's own matching link (so the Work manage
+  // routes /work/objectives + /work/projects-processes, the Plan /sales link, and the Operate
+  // /ops link all resolve with their labelKey — FR-424), then fall back to the flat section
+  // registry for routes owned by no destination (Admin). '/' matches exactly; others prefix.
+  const destLink = destination?.links.find((l) =>
+    l.path === '/' ? pathname === '/' : pathname === l.path || pathname.startsWith(l.path + '/'),
+  ) ?? null
+  const section = destLink ?? sectionForPath(pathname)
 
   // No section → nothing to show (unknown/404 path)
   if (!section) return null
 
-  // FR-S03 (spec home-v1): a route owned by a destination (Home/Work/Operate) reads its
-  // destination label as the SECTION crumb. For Work/Operate the route's own section
-  // label is promoted to the leaf (e.g. "Work › Tasks", "Operate › Log") — or the
-  // explicit/dynamic leaf ("New task", a resolved task title) when one applies. Home has
-  // nothing to promote to a leaf — it renders bare ("Home", no "Home › Home"). A route
-  // owned by no destination (Admin, cascade catalog, Sales) keeps its own section label,
-  // unaffected by the regroup.
+  // FR-S03 (spec home-v1) + FR-424: a route owned by a destination (Home/Work/Operate/Plan/Inbox)
+  // reads its destination label as the SECTION crumb. For non-Home destinations the route's own
+  // label is promoted to the leaf (e.g. "Work › Tasks", "Operate › Log", "Work › Objectives",
+  // "Plan › Sales", "Operate › Daily Log") — or the explicit/dynamic leaf ("New task", a resolved
+  // task title) when one applies. Home renders bare ("Home", no "Home › Home"). Labels resolve
+  // through the i18n catalog when a labelKey is present (FR-440).
   const promotesDestinationLabel = !!destination && destination.id !== 'home'
   const explicitLeaf = explicitLeafForPath(pathname, dynamicTitle)
-  const leaf = explicitLeaf ?? (promotesDestinationLabel ? section.label : null)
-  const sectionLabel = destination ? t(destination.labelKey) : section.label
+  const leafLabel = explicitLeaf ?? (promotesDestinationLabel ? (section.labelKey ? t(section.labelKey) : section.label) : null)
+  const sectionLabel = destination ? t(destination.labelKey) : (section.labelKey ? t(section.labelKey) : section.label)
 
   return (
     <span style={{ fontSize: 15 }}>
-      {leaf ? (
+      {leafLabel ? (
         // Sub-page: section is muted intermediate, leaf is the bold current
         <>
           <span className="text-muted-foreground">{sectionLabel}</span>
           <span className="mx-[7px]" aria-hidden="true">›</span>
           <b
             className="truncate text-foreground font-semibold"
-            title={leaf}
+            title={leafLabel}
           >
-            {leaf}
+            {leafLabel}
           </b>
         </>
       ) : (

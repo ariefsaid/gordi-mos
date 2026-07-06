@@ -8,6 +8,17 @@ import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
 
+// nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
+// but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
+// to false LOCALLY so the flag-gating coverage is preserved (BDD rule — the behavior is valid).
+vi.mock('./config/features', () => ({
+  SHOW_WEEKLY_UPDATES: true,
+  SHOW_DAILY_LOG: true,
+  SHOW_USER_VIEWS: false,
+  SHOW_ASSISTANT: true,
+  SHOW_INBOX: true,
+}))
+
 const mockUseAuth = vi.mocked(useAuth)
 
 // Import components used in the route tree to verify guard behavior
@@ -96,12 +107,11 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS defa
   })
 })
 
-// FR-001/AC-001/002 (sales-dashboard.spec.md): /sales is wired behind
-// RequireAccessRole anyOf={['finance','admin']} — the guard itself is proven at
-// require-access-role.test.tsx; this asserts the ROUTE uses that gate with the
-// right role set (structural wiring, not a re-test of the guard's redirect logic).
-describe('router — capability-gated work spine routes', () => {
-  it('AC-302/304: wires /work/cascade directly and gates /objectives + /projects-processes by capability', () => {
+// FR-421 (nav-five-destinations): the catalog manage routes are RELOCATED under /work/ as
+// Work's manage-mode, and the retired top-level paths redirect into the cascade. The manage pages
+// stay behind RequireCapability (bounces non-holders to /work/cascade); page components reused.
+describe('router — catalog manage-mode relocated under /work/ (FR-421)', () => {
+  it('AC-302/304: wires /work/cascade directly + /work/objectives + /work/projects-processes behind capability gates', () => {
     const protectedRoute = routeConfig.find(
       r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
     )!
@@ -110,14 +120,27 @@ describe('router — capability-gated work spine routes', () => {
     expect(shell.children!.some((r) => r.path === 'work/cascade')).toBe(true)
 
     const objectivesGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'objectives'),
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/objectives'),
     )!
     expect(objectivesGate.element).toEqual(<RequireCapability capability="objective.manage" />)
 
     const workLinesGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'projects-processes'),
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/projects-processes'),
     )!
     expect(workLinesGate.element).toEqual(<RequireCapability capability="workline.manage" />)
+  })
+
+  it('AC-405: /objectives + /projects-processes are redirect routes to /work/cascade (replace)', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+
+    const objectivesRedirect = shell.children!.find((r) => r.path === 'objectives')!
+    expect(objectivesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+
+    const workLinesRedirect = shell.children!.find((r) => r.path === 'projects-processes')!
+    expect(workLinesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
   })
 })
 

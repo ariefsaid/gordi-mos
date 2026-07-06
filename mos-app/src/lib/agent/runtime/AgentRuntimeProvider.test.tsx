@@ -7,6 +7,19 @@ import { createElement, type ReactNode } from 'react'
 import { AgentRuntimeProvider, useAgentRuntime } from './AgentRuntimeContext'
 import type { AgentRuntime } from './port'
 
+// Flag-staleness cleanup (nav-five-destinations): dev (ae7cffa) ungated SHOW_ASSISTANT to true,
+// so the provider now constructs a MosNativeRuntime by default. This test's intent is the
+// flag-OFF branch (runtime null → the whole capability is hidden). Mock SHOW_ASSISTANT=false
+// LOCALLY so the flag-gating coverage is preserved (BDD rule). Every other test injects a
+// runtime via the prop, so the blanket file-level mock is safe for them.
+vi.mock('@/config/features', () => ({
+  SHOW_WEEKLY_UPDATES: true,
+  SHOW_DAILY_LOG: true,
+  SHOW_USER_VIEWS: true,
+  SHOW_ASSISTANT: false,
+  SHOW_INBOX: true,
+}))
+
 // A fake runtime injected via the provider's `runtime` prop — proves the provider exposes whatever
 // it's given (the real MosNativeRuntime is constructed in-app when SHOW_ASSISTANT=true; tests inject
 // a fake to avoid fetch/env coupling).

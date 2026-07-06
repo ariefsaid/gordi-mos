@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, isLive } from './destinations'
-import { ADMIN_SECTIONS, CATALOG_SECTIONS } from './sections'
+import { ADMIN_SECTIONS } from './sections'
 import type { Section } from './sections'
 import { SettingsIcon } from './icons'
 import { LocaleToggle } from './locale-toggle'
@@ -87,13 +87,9 @@ export function RailNav({ onNavigate }: RailNavProps) {
 
   // DESTINATIONS (plan §1.5/§4.2) is the single source of truth for both the rail
   // and the phone bottom-tab bar. Only live destinations (>=1 link, gate satisfied)
-  // render as a rail group — Plan/Inbox are not live today (AC-D01).
+  // render as a rail group. railHidden links (FR-420: the Work manage routes) never
+  // render as rail items — the catalog is reachable only from the cascade.
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
-
-  // Cascade catalog (OD-C-2): each item shows only when the viewer holds a role that may write it.
-  const visibleCatalogSections = CATALOG_SECTIONS.filter((s) =>
-    s.anyOf.some((r) => accessRoles.includes(r)),
-  )
 
   return (
     <>
@@ -101,25 +97,19 @@ export function RailNav({ onNavigate }: RailNavProps) {
           brand lockup, ⌘K search trigger, and user chip (ADR-0013 D1). */}
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         {liveDestinations.map((d) => {
+          // FR-420: manage-mode routes are railHidden — never shown as rail items.
+          let sections = d.links.filter((s) => !s.railHidden)
           // Operate (Kitchen): Log/Plan/Stock for everyone; Review/Pushes gated.
-          const sections =
-            d.id === 'operate'
-              ? d.links.filter((s) => {
-                  if (s.label === 'Review' || s.label === 'Pushes') return hasElevatedKitchenAccess
-                  return true
-                })
-              : d.links
+          if (d.id === 'operate') {
+            sections = sections.filter((s) => {
+              if (s.label === 'Review' || s.label === 'Pushes') return hasElevatedKitchenAccess
+              return true
+            })
+          }
           return (
             <NavGroup key={d.id} label={t(d.labelKey)} sections={sections} onNavigate={onNavigate} />
           )
         })}
-
-        {/* Cascade catalog (OD-C-2) — role-gated, sits below the destination groups
-            until it migrates under Work (ADR-0019 D2's "admin catalog becomes its
-            manage mode") — out of scope for this slice. */}
-        {visibleCatalogSections.length > 0 && (
-          <NavGroup label="Catalog" sections={visibleCatalogSections} onNavigate={onNavigate} />
-        )}
 
         {/* Admin group — rendered only for admin viewers (AC-070: absent from DOM for non-admins). */}
         {isAdmin && <NavGroup label="Admin" sections={ADMIN_SECTIONS} onNavigate={onNavigate} />}

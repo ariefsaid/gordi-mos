@@ -1,7 +1,7 @@
 import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
-import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon } from './icons'
+import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon, WorkLineIcon, SalesIcon } from './icons'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX } from '@/config/features'
 
 /**
@@ -35,27 +35,41 @@ export const DESTINATIONS: Destination[] = [
     id: 'work',
     labelKey: 'dest.work',
     Icon: TasksIcon,
-    // Work owns tasks + updates + the daily log (ADR-0019 D2); the flag-gated
-    // routes must reappear here when their flags flip on (they left SECTIONS-driven
-    // rendering when the rail moved to DESTINATIONS).
+    // Work owns Tasks + the Cascade everyone-view + Weekly Updates (ADR-0019 D2 / jtbd §2).
+    // Daily Log moved to Operate; Follow-up queues are a documented future link (not rendered).
+    // The two catalog manage routes are Work's manage-mode (FR-420): present so the bottom-tab
+    // stays active + the breadcrumb reads "Work › Objectives", but railHidden so they never
+    // render as rail items — reachable only from the cascade's Manage affordance.
     links: [
-      { path: '/tasks', label: 'Tasks', Icon: TasksIcon },
+      { path: '/tasks', label: 'Tasks', labelKey: 'nav.tasks', Icon: TasksIcon },
       { path: '/work/cascade', label: 'Cascade', labelKey: 'cascade.link', Icon: ObjectiveIcon },
-      ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon }] : []),
-      ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', Icon: OpsIcon }] : []),
+      ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', labelKey: 'nav.updates' as const, Icon: UpdatesIcon }] : []),
+      { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.objectives', Icon: ObjectiveIcon, railHidden: true },
+      { path: '/work/projects-processes', label: 'Projects & Processes', labelKey: 'nav.projectsProcesses', Icon: WorkLineIcon, railHidden: true },
     ],
   },
   {
     id: 'operate',
     labelKey: 'dest.operate',
     Icon: KitchenIcon,
-    links: KITCHEN_SECTIONS,
+    // Operate owns the Daily Log (moved here from Work — the cross-Activity chronological feed,
+    // most general, first) + the Kitchen module (ADR-0019 D2 / jtbd §2).
+    links: [
+      ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', labelKey: 'nav.dailyLog' as const, Icon: OpsIcon }] : []),
+      ...KITCHEN_SECTIONS,
+    ],
   },
   {
     id: 'plan',
     labelKey: 'dest.plan',
     Icon: PlanIcon,
-    links: [],
+    // Plan = the reference/money-lens destination (ADR-0019 D2). Sales is its first content
+    // (finance/admin-gated); budget/COGS workbenches are a documented future link (not rendered).
+    // anyOf hides the whole destination for a role with no Plan children (no dead-end — FR-410).
+    anyOf: ['finance', 'admin'],
+    links: [
+      { path: '/sales', label: 'Sales', labelKey: 'nav.sales', Icon: SalesIcon },
+    ],
   },
   {
     id: 'inbox',
@@ -78,9 +92,9 @@ export function isLive(d: Destination, accessRoles: string[]): boolean {
 /**
  * Returns the Destination that owns the given pathname (by matching one of its
  * links, exact-or-prefix — mirrors sectionForPath), or null if no destination
- * owns it (e.g. /admin/*, /sales, /objectives — regrouped elsewhere or drill-only).
- * Consumed by Breadcrumb to resolve the SECTION crumb to the destination label
- * (spec home-v1 FR-S03: "/tasks/123" reads "Work › Tasks").
+ * owns it (e.g. /admin/* — regrouped elsewhere). Consumed by Breadcrumb to resolve
+ * the SECTION crumb to the destination label (spec home-v1 FR-S03: "/tasks/123"
+ * reads "Work › Tasks"; "/work/objectives" reads "Work › Objectives" — FR-424).
  */
 export function destinationForPath(pathname: string): Destination | null {
   for (const d of DESTINATIONS) {
