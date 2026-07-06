@@ -64,6 +64,39 @@ describe('i18n messages catalog', () => {
   })
 })
 
+describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', () => {
+  const NAV_KEYS = [
+    'nav.tasks',
+    'nav.updates',
+    'nav.dailyLog',
+    'nav.sales',
+    'nav.objectives',
+    'nav.projectsProcesses',
+    'nav.kitchen.log',
+    'nav.kitchen.plan',
+    'nav.kitchen.stock',
+    'nav.kitchen.review',
+    'nav.kitchen.pushes',
+  ] as const
+
+  it('AC-409: every nav.* key is present in both en and id (shape-identical parity)', () => {
+    for (const key of NAV_KEYS) {
+      expect(messages.en[key], `en missing ${key}`).toBeDefined()
+      expect(messages.id[key], `id missing ${key}`).toBeDefined()
+    }
+  })
+
+  it('AC-409: under locale:id, every nav.* key resolves to a localized string, not the key itself', () => {
+    localStorage.setItem('mos.locale', 'id')
+    const { result } = renderHook(() => useT(), { wrapper })
+    for (const key of NAV_KEYS) {
+      const resolved = result.current(key)
+      expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
+      expect(resolved.length).toBeGreaterThan(0)
+    }
+  })
+})
+
 // AC-P2-AP-004/005 (plan T26) — the assistant panel's i18n catalog. Every assistant.* key must
 // ship in BOTH locales and resolve to a real localized string under `id` (never fall back to the
 // key itself — that would surface an English-key stub to an Indonesian user).
