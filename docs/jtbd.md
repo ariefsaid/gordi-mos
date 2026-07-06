@@ -107,9 +107,15 @@ test).
 
 ### Home — the role-aware cockpit (`/`)
 
-Home composes **per persona/access** (ADR-0019 D2/D3). A reviewer grades it **once per persona whose
-cockpit differs**. The binding invariant across all four: **every tile declares a drill target — no
-dead-end numbers** (§3.10, anchor A4).
+Home composes **per persona/access** (ADR-0019 D2/D3) as a **stacked union of the roles a person holds** —
+one scrollable surface, **widest-scope section first** (a BU-head-who-is-also-a-lead lands on their function
+cockpit with the My-Week lead panel stacked below; a pure lead sees only My Week; a member sees only "what
+needs me"). **Not a toggle, not a separate login** (grill 2026-07-06); separate workspaces / a
+toggle-with-layered-rails are a deferred v2 only if the union gets too dense. A reviewer grades Home **once
+per persona whose cockpit differs** (grade the *stack* the person actually sees). The binding invariant
+across all four: **every tile declares a drill target — no dead-end numbers** (§3.10, anchor A4). The
+**contributor** stack is **capture-first** (Activity fast-capture + assigned steps; team plan read-only as
+context) — **no rostering in MVP** (shift-scheduling deferred but near-term; leave the "your shift today" seam).
 
 | Surface (route) | Primary persona | Top job — job story | Above the fold (decision-relevant) | The one adjacent next action |
 |---|---|---|---|---|
@@ -156,8 +162,10 @@ Ecommerce is the fulfilment queue; internal replenishment is the cross-location 
 
 Roastery is an **Activity under B2B Ops** (ADR-0019 D1; ESB `branch_code = GRI`), WIP-producing like
 Kitchen, so it reuses the spine — *extended* with roastery-specific divergences (two-stage stock;
-yield-capturing roast log). MVP is green+roasted stock + the yield-capturing roast log; blends/QC/
-repack/sales-entry are later (per the requirements doc §5).
+yield-capturing roast log). **MVP (owner grill 2026-07-06)** = green+roasted stock + the yield-capturing
+roast log **+ blends (multi-level BOM) + repack → packed-FG + B2B sales-order entry** (the SL pushed to ESB
+create-and-authorize, ADR-0024; ESB keeps the invoice + AR, Follow-up reads status). **Only QC/cupping is
+deferred to v2.** Roasted COGS = MOS floor-truth (green `last_hpp` ÷ yield%); green = lot grain.
 
 | Surface | Primary persona | Top job — job story | Above the fold (decision-relevant) | The one adjacent next action |
 |---|---|---|---|---|

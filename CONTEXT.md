@@ -55,10 +55,16 @@ A task-family record (counterparty, amount, due) attached to the underlying mone
 a queue in **Work**, with comments/@mentions like any task. **Settlement lifecycle MOS owns:** open (aging)
 → **chased** (contact logged: when + who) → **promised** (promise-to-pay date) → **partial** (payment logged,
 MOS tracks the **running balance**) → **settled** (paid, **requires evidence** — transfer/receipt proof).
-MOS's "settled" is the truth; it **reconciles** against ESB's aggregate AR-reduction journals (the ESB
-write-back spike returned LIKELY-NOT, so MOS does not close invoices back in ESB). **Chase-vs-confirm split:**
+Every partial/settle captures a **required cash-in date** (when the money actually landed in the bank) +
+proof — the field Finance matches to the bank statement (and what a future bank feed would auto-populate).
+**MOS owns per-invoice reconciliation** — it *replaces* Finance's per-invoice recon gsheet (dual-run →
+cutover, the sheet-retirement playbook), so MOS is the invoice-grain settlement system-of-record; ESB's
+**aggregate** AR-reduction journal drops to a **secondary cross-check** (Σ MOS-confirmed per counterparty/
+period should tie to ESB's aggregate drop; drift → a Finance exception). The ESB write-back spike returned
+LIKELY-NOT, so MOS does **not** close invoices back in ESB — reconciliation replaces write-back. Bank-feed
+auto-matching is deferred (manual evidence + cash-in date in MVP). **Chase-vs-confirm split:**
 the relationship owner chases + logs promises/partials (**B2B Sales** for AR, **Retail Ops/cafe** for pending
-bills); **Finance** confirms *settled*.
+bills); **Finance** confirms *settled* (per-invoice, matching cash-in date + proof to the bank).
 _Avoid_: reminder, chase (as nouns), collection (accounting jargon)
 
 **Pending bill**:
@@ -242,7 +248,12 @@ _Avoid_: role (reserve for org position), permission group, RACI role
 **Home**:
 The hub surface at `/` every user lands on: a role-aware composition of KPI tiles with drill-downs
 plus the **My Week** panel — every tile drills, no dead-end numbers (ADR-0019 D2). What a user's Home
-shows follows their **persona/access**. For the **owner-director / function-owner** it is a **financial +
+shows follows their **persona/access**, composed as a **stacked union of the roles the person holds** —
+one scrollable surface, **widest-scope section first** (a BU-head-who-is-also-a-lead lands on their function
+cockpit with the **My Week** lead panel stacked below; a pure lead sees only My Week). **Not a toggle, not a
+separate login** — the same person's distinct jobs stack in one Home. _(Later, if the union gets too dense:
+separate **workspaces** or a **toggle with layered rails** — deferred v2, don't build until density forces
+it.)_ For the **owner-director / function-owner** it is a **financial +
 ops cockpit**: revenue · margins · a **money-position strip (AR · AP · unbilled · unearned)** · **ops KPIs**
 (the "state of ops" per Activity — specific metric set TBD, owner-decided) · the **cascade progress +
 updates** list. Money-position workflow scope: **AR is a worked queue now** (the Follow-up lifecycle);
@@ -303,6 +314,21 @@ Ecommerce stock location. The ecommerce *platform* still owns the storefront, pr
 intake; MOS owns the **hand-fulfilment step** the team currently tracks in a sheet. Visibility of online
 sales (revenue/margin) is separate and already flows via the reporting read-models.
 _Avoid_: order management (too broad — the platform owns intake), shipping (that's one state)
+
+**Green lot** (roastery Raw stock grain):
+The lot-level green-coffee receipt — **origin/variety/process + cost-per-kg + running balance** — modelled
+at the **lot** (not product) level, kept **lightweight** for MVP. It is the **cost-and-traceability atom**:
+every roasted kg traces back to a green lot (green lot → roast batch → FG SKU), and the lot's `cost_per_kg`
+is the input to **yield costing**. Basis = ESB `last_hpp` at receipt.
+_Avoid_: green SKU (loses lot trace), "the beans", batch (that's the roast, not the intake)
+
+**Yield costing** (roasted-coffee COGS):
+Cost per **roasted** kg = the green lot's cost ÷ the roast batch's **actual yield%** (`yield% = roasted‑out ÷
+green‑in`; `shrink% = 1 − yield%`, domain-typical ~20%). **Computed in MOS on the floor (floor truth)** from
+ESB `last_hpp` green cost × the batch's real yield — not read from ESB's ledger — then reconciled against ESB
+`Manufacturing In/Value` later. This is the roastery COGS input that kitchen has no analog for (kitchen costs
+by portion, not by material yield).
+_Avoid_: standard cost (that's ESB ledger truth), "the roast cost" (say per-kg, name the yield basis)
 
 ## Agent-composed UI & analytics
 

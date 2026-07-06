@@ -318,9 +318,21 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
   `ConfirmDialog` · `PersonPicker` empty state.
 - P2-2b polish: shared `<TintPill>` · inline-style → co-located CSS · marker-picker up-flip.
 
+## Near-term follow-ups (from the 2026-07-06 IA/product grill — see `docs/decisions.md` "Continued grill session 2")
+- **Shift scheduling / rostering** — flagged NEAR-TERM by owner ("manual today, needed sooner than later").
+  Contributor Home is capture-first w/ no roster in MVP but leaves a "your shift today" seam; this fills it.
+- **Notification re-push trigger** — re-nudge untriaged/unread Inbox notifications after an interval (single
+  PWA push is insufficient). Near-term; cheaper than any external channel.
+- **External notification channel** — **Telegram or in-app group chat** (WhatsApp deprioritized — too tedious
+  to integrate). Channel-adapter seam (P3a) takes either; doorbell-only, conversation stays on the entity.
+- **Agent experience batch** (next agent work, before automations): C2 safe-markdown · C3 typed-widget tables
+  · C4 layered prompt. Then C1 automations (P3b). See `docs/specs/agent-capability-expansion.md`.
+
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade ·
-roastery app · ESB write-back visibility · shared UI package extraction.
+roastery app · ESB write-back visibility · shared UI package extraction ·
+agent attachments (C5) · agent credits/metering (C8) · roastery QC/cupping module ·
+bank-feed auto-matching (AR recon) · certified-metric admin UI · WhatsApp channel.
 
 ---
 

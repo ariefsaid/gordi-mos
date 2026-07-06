@@ -828,5 +828,67 @@ From the E6 IA/JTBD grill-with-docs (2026-07-06). Awaiting owner acceptance; not
   additive to the Kitchen spine. `docs/adr/0023-multi-location-inventory-internal-replenishment.md`.
 - **JTBD v0.3** (`docs/jtbd.md`) — the E6 Lens-D oracle (4 personas × 5 destinations), supersedes E1 v0.2.
 
+### Continued IA/product grill — session 2 (2026-07-06, owner-confirmed turn-by-turn)
+Extends the E6 grill above; each call confirmed by the owner in conversation (on `docs/jtbd-refresh`).
+Feeds ADR-0024 + the roastery/agent/Home specs when their D14 turn comes. Terms captured in `CONTEXT.md`.
+
+**Agent-capability** (`docs/specs/agent-capability-expansion.md`; OQ-7 answered — deputy = `claude-sonnet-5`, a strong tool-selector):
+- **Experience batch is next, before automations** — ship C2 safe-markdown + C3 typed-widget tables + C4
+  layered prompt (charter + tool-index + skills), *then* C1 automations (P3b). Reverses the doc's C1-first
+  default: the felt "raw chatbot" UI pain outranks automations.
+- **Adopt safe markdown** in the deputy transcript (react-markdown + remark-gfm, no raw HTML, url-scheme
+  allowlist, hostile-markdown gate test) — consciously **reverses FR-P2-AP-004 "respond in plain text"**;
+  compatible with the grounding NFR (grounding = sourcing, not formatting). PMO analog: ADR-0049.
+- **Deferred (seams reserved):** attachments (C5, largest build; roastery cupping-photos are roll-in #6),
+  credits/metering (C8, premature at ~15 interactive-only), conditional-approval (C7), live-context (C9),
+  eval-harness (C6, low leverage on a strong selector).
+
+**Roastery module** (`docs/specs/roastery-module.requirements.md §6` resolved):
+- **Green stock = lot grain (lightweight)**; **roasted COGS = MOS computes floor-truth** (green `last_hpp` ÷
+  actual yield%), reconciled vs ESB `Manufacturing In/Value` later. [CONTEXT: *Green lot*, *Yield costing*]
+- **MVP scope expanded**: green+roasted stock + yield roast-log **+ blends (multi-level BOM) + repack →
+  packed-FG + B2B sales-order entry**; **QC/cupping deferred v2** (owner pulled blends/repack/sales-order
+  in — only QC stays out).
+- **Sales-order → ESB push (create-and-authorize, kitchen-style)** — see **ADR-0024**. MOS pushes the SL
+  (`POST /sales/product-sales` then `/authorize`) via the module-agnostic `integrations.esb_push` outbox
+  (`source_module='roastery'`, additive, no schema change); ESB stays invoice-of-record (SI) + AR-of-record;
+  Follow-up only reads ESB invoice status. Gate: sales-order-create GOO spike (FR-084 sandbox IDs) before
+  build; GKID proof at flip.
+- **Product master**: **B2B Ops curates; ESB owns identity (`productDetailID`)**; MOS = reference-data
+  canonical + strict type axis (Raw/WIP/FG/Packaging/Consumable) + **alias table** (read-and-curate, no
+  runtime write-back). The alias table bridges the GB/RB/Blend name chaos so roastery ships without waiting
+  on a **one-time ESB product-master cleanup** (rename/restructure in ESB directly, at roll-in — a separate
+  remediation track). Finance/Procurement own the cost lines.
+- **Confirms:** labour = SGA, never per-batch COGS; ignore the sample-roaster PDF (equipment purchase).
+  **Roll-in timing holds** — roastery stays D14 step 6.
+
+**Home composition** (`docs/jtbd.md` §1/§2; [CONTEXT *Home*]):
+- **Stacked-union cockpit** — Home composes the **union of the roles a person holds** as one scrollable
+  surface, **widest-scope section first** (BU-head-who-is-lead → function cockpit with the My-Week panel
+  below; pure lead → My-Week only; member → "what needs me"). **Not a toggle, not a separate login.**
+  Deferred v2 only if the union gets too dense: separate workspaces or a toggle-with-layered-rails.
+- **Contributor Home = capture-first** (Activity fast-capture + @mentions/assigned steps; team plan shown
+  read-only as context) — **no rostering in MVP**. **Shift-scheduling deferred but NEAR-TERM** (manual today,
+  "sooner than later") — leave the seam for a "your shift today" slot; backlogged.
+
+**AR bridge / Follow-up reconciliation** (D14 step 4; underpins the Home money-position strip; [CONTEXT *Follow-up*]):
+- **MOS owns per-invoice reconciliation — it REPLACES Finance's per-invoice recon gsheet** (dual-run →
+  cutover). MOS = invoice-grain settlement system-of-record; ESB's aggregate AR-reduction journal = a
+  **secondary cross-check** (Σ MOS-confirmed per counterparty/period ties to ESB's drop; drift → a Finance
+  exception). **No ESB write-back** — reconciliation replaces it (spike returned LIKELY-NOT).
+- **settled = operationally settled + evidence; confirmed = Finance reconciled to bank/ESB** (two states).
+- **Manual per-invoice evidence attach; bank-feed deferred.** Required field on partial/settle: **cash-in
+  date** (money-landed date) — the bank-statement match key a bank feed would later auto-populate.
+
+**Notifications / Inbox channel** (ADR-0019 D4/D9): **PWA push only for MVP**; add a **re-push trigger**
+(re-nudge untriaged/unread after an interval — single push insufficient; near-term). External-channel
+follow-up = **Telegram or in-app group chat** over WhatsApp (WA too tedious to integrate for the payoff);
+channel-adapter seam takes either. D4 stays hard: external channel = doorbell only, conversation on the entity.
+
+**Certified metrics** (anchor A7; *Director-defaulted from recommendation — flag to change*): **Finance
+certifies** financial-statement figures + the second-class figures feeding them; **migration-seeded registry,
+no runtime certification UI in MVP** (same discipline as `can()`); **uncertified/stale renders a fail-loud
+badge** and Plan pricing pre-flight warns/blocks against it.
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
 </content>
