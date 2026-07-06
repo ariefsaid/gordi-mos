@@ -37,11 +37,24 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 6. **One issue / one PR.** Pause at issue boundaries; owner approves spec sign-off + prod deploy /
    irreversible infra; Director approves merge-to-main within the signed spec.
 
+## Multi-agent dispatch — worktrees are the DEFAULT (owner-directed 2026-07-06)
+Dispatch every role/build agent in its **own git worktree** (`isolation: "worktree"` on the Agent tool,
+or the pi equivalent) so parallel agents never share one checkout. The shared-tree clobber that bit us on
+2026-07-06 (a Codex session moved our HEAD mid-merge) does not happen when each agent has its own tree.
+- **Never put `git checkout`/`checkout -b` in an agent's brief** — the harness already parks it on its own
+  `worktree-agent-<id>` branch; a `checkout` in the brief leaks to the MAIN tree's HEAD. Tell it to work in
+  place, commit to its branch, and report; the Director merges from `worktree-agent-<id>`.
+- **After merging an agent's work, clean up:** `bash scripts/worktree-cleanup.sh [target=dev] [--remote]`
+  removes merged worktrees + deletes merged local (and optionally remote) branches. Protected: main/dev/
+  staging/current. It only ever deletes MERGED branches — unmerged work is safe.
+- **After any worktree-agent dispatch,** confirm your own HEAD didn't wander:
+  `git branch --show-current` + `git rev-parse --short HEAD`. See [[mos-multiagent-git-gotchas]].
+
 ## Gotchas (will bite you)
 - **Stale local `main`:** `git worktree add … main` uses your *local* ref, which lags `origin/main` after
   you merge a PR. `git fetch` + rebase the worktree, or it'll miss/clobber recent merges.
-- **Multi-agent repo:** subagents only see the current tree; another agent may hold a branch
-  (`feat/admin-user-mgmt` does the kitchen data migration). Keep paths disjoint; use worktrees.
+- **Multi-agent repo:** subagents only see their own worktree; a separate session (even a non-Claude one
+  like Codex) may share the primary checkout. Keep agents in worktrees; verify HEAD after dispatch.
 - **Mocked unit tests miss DB reality:** a wrong column name / RPC signature passes mocked Vitest but 400s
   against real PostgREST (the `log_date` bug). Verify-live any DB-column/RPC change against a running stack.
 - **GOO ≠ `stg-erp`:** GOO Core API is `stg7.esb.co.id/core-stg`; `stg-erp.esb.co.id` is the ESB web UI.
