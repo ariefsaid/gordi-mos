@@ -1,7 +1,6 @@
 # ADR-0024 — Roastery B2B sales-order push to ESB (create-and-authorize; ESB keeps the invoice)
 
-- Status: **Proposed** (2026-07-06; surfaced by the continued 2026-07-06 grill-with-docs session —
-  owner sign-off pending). Records the **architectural decision**; authorizes no schema, migration,
+- Status: **Accepted** (owner, 2026-07-06, grill-with-docs). Records the **architectural decision**; authorizes no schema, migration,
   route, or component by itself. Roastery is an Activity roll-in — ADR-0019 D14 step **6 of 6** — so
   this builds only when roastery's turn comes; the decision is recorded now so the boundary is known.
 - Deciders: Owner (Arief) + Director

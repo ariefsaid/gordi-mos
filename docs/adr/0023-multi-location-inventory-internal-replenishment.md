@@ -1,7 +1,6 @@
 # ADR-0023 — Location-scoped inventory + internal replenishment across Operate Activities
 
-- Status: **Proposed** (2026-07-06; surfaced by the 2026-07-06 grill-with-docs session — owner
-  sign-off pending). This ADR records the **architectural decision**; it authorizes no schema,
+- Status: **Accepted** (owner, 2026-07-06, grill-with-docs). This ADR records the **architectural decision**; it authorizes no schema,
   migration, route, or component by itself. Each slice goes through its own spec → plan → build →
   review loop, and — per ADR-0019 D14 — Activity roll-ins (Roastery, Ecommerce) are step **6 of 6**,
   after Home, agent port, Work spine, AR/pending-bills bridge, and Plan/reference-data.
@@ -405,6 +404,6 @@ multi-level BOM; QC/cupping; ESB write-back of inter-company transfers; automate
 
 ---
 
-*End of ADR-0023. Status: Proposed — owner sign-off pending. No migration, table, route, or module
+*End of ADR-0023. Status: Accepted (owner, 2026-07-06). No migration, table, route, or module
 is authorized by this ADR; consuming slices follow the per-issue loop (intake → spec → plan → build →
 review → accept → ship).*

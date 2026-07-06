@@ -1,6 +1,6 @@
 # Jobs-to-Be-Done map — the Lens-D oracle (persona × job, across the five destinations)
 
-**Status:** v0.3 — owner-grilled 2026-07-06. **Supersedes v0.2.** The **oracle** that **Lens D —
+**Status:** v0.3 — owner-grilled + **Accepted** (owner, 2026-07-06). **Supersedes v0.2.** The **oracle** that **Lens D —
 Product / Intent** grades every MOS surface against. v0.2 graded the E1 *five-screen manager app*
 (My Week · Tasks · Task detail · Weekly update · Daily Log); v0.3 re-scopes the lens to the **E6
 whole-company OS** — the **five destinations** (Home · Work · Operate · Plan · Inbox, ADR-0019 D2),

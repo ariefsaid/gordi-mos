@@ -1,6 +1,6 @@
 # ADR-0022 — Plan destination: the COGS-budget model (concretizing ADR-0019 D7)
 
-- Status: **Proposed** (grill-proposed 2026-07-06; owner sign-off pending)
+- Status: **Accepted** (owner, 2026-07-06, grill-with-docs)
 - Deciders: Owner (Arief) + Director
 - Related:
   - **ADR-0019** — the parent IA north-star: **D2** (the Plan destination owns reference data + the

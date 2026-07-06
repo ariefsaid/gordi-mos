@@ -816,8 +816,9 @@ Accepted (owner, 2026-07-04, grill-with-docs).
 
 ---
 
-### Proposed (owner sign-off pending, 2026-07-06 grill) — on branch `docs/jtbd-refresh`
-From the E6 IA/JTBD grill-with-docs (2026-07-06). Awaiting owner acceptance; not yet locked:
+### Accepted (owner, 2026-07-06 grill) — merged from `docs/jtbd-refresh`
+From the E6 IA/JTBD grill-with-docs (2026-07-06). **Owner accepted all four 2026-07-06; ADR-0022/0023/0024
+flipped to Accepted, JTBD v0.3 accepted as the Lens-D oracle.**
 - **ADR-0022 — Plan destination / COGS-budget model** (extends ADR-0019 D7): Plan = budget-creation;
   ingredient cost basis = ESB `last_hpp` (trend/variance alert deferred); **read-and-budget MVP**;
   recipe-edit + ESB BOM write-back = one spike-gated v2; MOS is the pre-flight margin check, **never**
