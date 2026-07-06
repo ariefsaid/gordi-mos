@@ -162,7 +162,7 @@ describe('CascadePage', () => {
     expect(await screen.findByRole('status', { name: /workload summary/i })).toBeInTheDocument()
   })
 
-  it('AC-302/407: hides manage links for members, shows only projects for ops_lead, and both for admin (links to relocated /work/* routes)', async () => {
+  it('AC-302 + AC-407: hides manage links for members, shows only projects for ops_lead, and both for admin (links to relocated /work/* routes)', async () => {
     renderPage(authWithRoles(['member']))
     await screen.findByText('Project task')
     expect(screen.queryByRole('link', { name: 'Manage objectives' })).toBeNull()

@@ -109,18 +109,31 @@ org chart becomes load-bearing for any `own_bu`-scoped grant (§7-f).
   `useCascadeCatalogs`, and the `db/objectives` + `db/work-lines` read functions — and shall **not**
   introduce a parallel cascade data layer or a second task editor.
 
-### Manage mode — reachable from the cascade view
-- **FR-310** — While the viewer holds `objective.manage` and/or `workline.manage`, the system shall
-  surface a **Manage** affordance on the cascade view leading to the corresponding catalog management
-  surface(s).
+### Manage mode — Work's manage-mode, reachable only from the cascade view
+
+> **Amended 2026-07-07 by the nav-five-destinations slice** (`docs/specs/nav-five-destinations.spec.md`, FR-420..424)
+> per the decisions.md **"Catalog placement"** refinement (2026-07-06): the catalog is **in Work as the manage-mode of the
+> everyone-cascade**, not standalone nav. The manage routes are **relocated under `/work/`** (`/work/objectives`,
+> `/work/projects-processes`); the retired top-level paths **redirect into the cascade**; each manage page shows the node's
+> **up/down trace context**. This amendment supersedes the original FR-310–313 posture ("manage links out to flat
+> standalone `/objectives` + `/projects-processes` routes"); the `can()` substrate, the cascade page, and pgTAP 72/73 are
+> unchanged. Reversible UI routing — not a new ADR.
+
+- **FR-310** *(amended)* — While the viewer holds `objective.manage` and/or `workline.manage`, the system shall
+  surface a **Manage** affordance on the cascade view leading to the corresponding catalog management surface(s), now
+  **relocated under `/work/`** (`/work/objectives`, `/work/projects-processes`) — nav-five-destinations FR-421/423.
 - **FR-311** — While the viewer holds **neither** capability, the system shall **not** render the
   Manage affordance (no dead-end page — extends cascade-catalog FR-002/FR-011's direct-visit-denied
   posture to the affordance itself).
-- **FR-312** — The management surface(s) shall be the **existing** Objectives + Projects & Processes
-  catalog behaviors (create / rename / archive per cascade-catalog FR-003..015), now reachable *from*
-  the cascade view as "manage mode"; **no new edit behavior** is introduced (cite FR-020/021/022).
-- **FR-313** — When a viewer lacking the capability visits a manage route directly, the system shall
-  deny it (redirect to the cascade view with a neutral message), matching cascade-catalog FR-002/FR-011.
+- **FR-312** *(amended)* — The management surface(s) shall be the **existing** Objectives + Projects & Processes
+  catalog behaviors (create / rename / archive per cascade-catalog FR-003..015), now relocated under `/work/` as **Work's
+  manage-mode** — reachable **only** from the cascade (no standalone nav group — nav-five-destinations FR-420); each
+  manage page shows the node's **up/down trace context** (nav-five-destinations FR-422); **no new edit behavior** is
+  introduced (cite FR-020/021/022).
+- **FR-313** *(amended)* — A **direct visit** to the **retired** top-level paths (`/objectives`, `/projects-processes`)
+  shall **redirect into the cascade** (`/work/cascade`, `replace`) — nav-five-destinations FR-421; a viewer lacking the
+  capability visiting a manage route is **denied** (the `RequireCapability` guard redirects to `/work/cascade`), matching
+  cascade-catalog FR-002/FR-011.
 
 ### Navigation — regroup only (do not redesign the shell)
 - **FR-320** — The cascade view shall be registered as one **live link** under the **Work**
@@ -305,9 +318,10 @@ org chart becomes load-bearing for any `own_bu`-scoped grant (§7-f).
 - **AC-302** *(FR-310/311/313, unit)* — *Given* a viewer **without** `objective.manage` or
   `workline.manage`, *When* the cascade view renders, *Then* no "Manage" affordance appears; *and
   given* a viewer **with** `workline.manage` only, *Then* the affordance leads to the Projects &
-  Processes surface (not Objectives); *and given* that same non-capability viewer visits a manage
-  route **directly**, *Then* the route guard denies it and redirects to the cascade view (parity with
-  cascade-catalog FR-002/FR-011, now keyed on `can()` instead of `has_access_role`).
+  Processes surface **relocated under `/work/`** (`/work/projects-processes`, not Objectives); *and
+  given* an `admin`, *Then* the objectives affordance links to `/work/objectives`. *(Amended 2026-07-07:
+  the relocated `/work/*` hrefs + the redirect/deny of retired top-level paths are proven by
+  nav-five-destinations AC-405/407; the up/down trace is proven by AC-406.)*
 - **AC-303** *(FR-305, unit)* — *Given* the cascade filtered to a single person, *When* it renders,
   *Then* the `WorkloadCaption` ("Name's work: N projects and M daily jobs.") appears (reuse, not a
   rebuilt caption).
@@ -347,9 +361,10 @@ org chart becomes load-bearing for any `own_bu`-scoped grant (§7-f).
 
 ### FR → AC coverage (every FR has ≥1 AC)
 FR-300→AC-300/304 · FR-301→AC-300/305 · FR-302→AC-301/305 · FR-303→AC-301 · FR-304→AC-301 ·
-FR-305→AC-300/303 · FR-310→AC-302 · FR-311→AC-302 · FR-312→AC-302 + existing AC-020 (the manage
+FR-305→AC-300/303 · FR-310→AC-302/407 · FR-311→AC-302 · FR-312→AC-302/406 + existing AC-020 (the manage
 surface IS the existing catalog behavior — create/rename/archive path already curated by AC-020; this
-slice only re-keys its gate to `can()`) · FR-313→AC-302 (direct-visit-denied parity) · FR-320→AC-304 ·
+slice only re-keys its gate to `can()` and relocates it under `/work/` with trace — nav-five-destinations
+FR-420/421/422) · FR-313→AC-302/405 (direct-visit redirects into the cascade) · FR-320→AC-304 ·
 FR-321→AC-304 · FR-330→AC-310 · FR-331→AC-311/312 · FR-332→AC-311/312 (can() proven by the write
 decisions) · FR-333→AC-313 · FR-334→AC-314.
 
