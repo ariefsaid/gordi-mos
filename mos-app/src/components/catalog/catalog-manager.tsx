@@ -23,6 +23,13 @@ export interface CatalogTypeField {
   options: { value: string; label: string }[]
 }
 
+// Up/down trace context (nav-five-destinations FR-422): a one-line read computed by the owning
+// page over existing cascade data (no schema change), rendered under each active row. The page
+// supplies a `traceFor(item)` resolver; the manager just renders what it returns (or nothing).
+export interface CatalogTrace {
+  line: string
+}
+
 export interface CatalogManagerProps {
   title: string
   subtitle: string
@@ -35,12 +42,14 @@ export interface CatalogManagerProps {
   rename: (id: string, name: string) => Promise<void>
   setArchived: (id: string, archived: boolean) => Promise<void>
   typeField?: CatalogTypeField
+  /** Optional up/down trace resolver (FR-422). Returns undefined to render no trace for an item. */
+  traceFor?: (item: CatalogItem) => CatalogTrace | undefined
 }
 
 type LoadState = 'loading' | 'loaded' | 'error'
 
 export function CatalogManager({
-  title, subtitle, noun, nounPlural, load, create, rename, setArchived, typeField,
+  title, subtitle, noun, nounPlural, load, create, rename, setArchived, typeField, traceFor,
 }: CatalogManagerProps) {
   const plural = nounPlural ?? `${noun}s`
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -229,6 +238,11 @@ export function CatalogManager({
                       <Button variant="ghost" onClick={() => startEdit(item)} aria-label={`Rename ${item.name}`}>Rename</Button>
                       <Button variant="ghost" onClick={() => void handleArchive(item, true)}
                         disabled={savingId === item.id} aria-label={`Archive ${item.name}`}>Archive</Button>
+                      {traceFor?.(item) && (
+                        <span className="basis-full text-xs text-muted-foreground" data-testid="catalog-trace">
+                          {traceFor(item)!.line}
+                        </span>
+                      )}
                     </>
                   )}
                 </li>
