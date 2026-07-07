@@ -259,8 +259,12 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
   it('groups dishes by category (F2 categories render as group headers)', async () => {
     const { container } = render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
-    // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards)
-    const labels = Array.from(container.querySelectorAll('.kgh-label')).map(el => el.textContent)
+    // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards).
+    // Selector note: grouping now renders via the shared DataTable. Phone cards emit the
+    // group label under .dt-cards-group-label (desktop would be .dt-group-label); this
+    // test runs the default phone matchMedia, so query the phone class — a mechanical
+    // selector update, the goal (category group label renders) is unchanged.
+    const labels = Array.from(container.querySelectorAll('.dt-cards-group-label')).map(el => el.textContent)
     expect(labels).toContain('Main')
   })
 

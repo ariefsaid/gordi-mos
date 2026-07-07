@@ -5,9 +5,13 @@
 //     upsert/replace (FR-031); a quiet "saved" confirms in place (no view transition).
 //   • member        → PESANAN: read-only 14-day forward horizon of planned items
 //     (FR-035, AC-024) — grouped by date, NO logging/approve/edit affordance.
-// Proves (unit): AC-024 (member read-only horizon), FR-030/031 (lead edit → upsert,
-// payload never carries org_id/plan_by). All states: loading, empty, error+retry,
-// saving/saved, offline (online-only writes, NFR-008), read-only, unauthenticated.
+// Both faces now render through the ONE shared <DataTable> primitive (RI-IXD-8),
+// retiring the bespoke kitchen-plan/pesanan table+cards pair. Grouping is expressed
+// as DataTableGroup[] (label:null = inline bucket, no header — preserves the
+// "null category is never dropped" behavior). Proves (unit): AC-024 (member
+// read-only horizon), FR-030/031 (lead edit → upsert, payload never carries
+// org_id/plan_by). All states: loading, empty, error+retry, saving/saved, offline
+// (online-only writes, NFR-008), read-only, unauthenticated.
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
@@ -15,6 +19,7 @@ import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listActiveWipItems } from '@/lib/db/kitchen-logs'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
@@ -26,12 +31,16 @@ import type {
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
-import { useIsDesktop } from '@/shell/use-is-desktop'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
-import { KitchenPlanTable } from '@/components/kitchen/kitchen-plan-table'
-import { KitchenPlanCards } from '@/components/kitchen/kitchen-plan-cards'
-import { KitchenPesananTable } from '@/components/kitchen/kitchen-pesanan-table'
-import { KitchenPesananCards } from '@/components/kitchen/kitchen-pesanan-cards'
+import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { PlanQtyCell } from '@/components/kitchen/plan-qty-cell'
+import { PlanQtyStepper } from '@/components/kitchen/plan-qty-stepper'
+import { groupByCategory } from '@/lib/kitchen-category'
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableGroup,
+} from '@/components/dashboard/data-table'
 import { usePlanKpiStripData } from '@/lib/kitchen-plan-kpis'
 import './kitchen-plan-page.css'
 
@@ -152,6 +161,67 @@ function PlanEditor() {
     }
   }
 
+  // Client-side search + category filter + null-safe category grouping (lifted from
+  // the retired KitchenPlanTable/Cards so the shared DataTable owns all rendering).
+  const q = search.trim().toLowerCase()
+  const matchSearch = (it: WipItemOption) => !q || it.name.toLowerCase().includes(q)
+  const matchCat = (it: WipItemOption) => category === 'All' || (it.category ?? '') === category
+  const visible = items.filter(it => matchSearch(it) && matchCat(it))
+  // Category options derived from ALL items (unique, sorted) + "All" — so filtering
+  // by one category doesn't remove the others from the select.
+  const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean))).sort()]
+  // Group the visible items by category (sorted), with null-category items in a
+  // fallback bucket so they are never silently dropped (staging/prod has no categories).
+  const planGroups: DataTableGroup<WipItemOption>[] = useMemo(
+    () => groupByCategory(visible).map(g => ({
+      key: g.cat ?? '__uncategorised__',
+      // null cat = uncategorised fallback bucket → no group header (label: null).
+      label: g.cat,
+      rows: g.rows,
+    })),
+    // visible is recomputed each render from items/search/category; depend on its inputs.
+    [items, q, category],
+  )
+
+  // Plan editor columns: Dish (name + category sub-label) · Plan (editable cell).
+  // The Plan render picks the desktop compact cell vs the phone 44px stepper from the
+  // useIsDesktop() branch — same props the retired KitchenPlanTable/Cards passed.
+  const planColumns: DataTableColumn<WipItemOption>[] = [
+    {
+      key: 'dish',
+      header: 'Dish',
+      cardLabel: '', // the phone card title line
+      render: item => (
+        <span className="kp-dish">
+          <span className="kp-name">{item.name}</span>
+          {item.category && <span className="kp-cat">{item.category}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      header: 'Plan',
+      numeric: true,
+      render: item => isDesktop ? (
+        <PlanQtyCell
+          itemName={item.name}
+          qty={qtyOf(item.id)}
+          saving={savingId === item.id}
+          disabled={!isOnline}
+          onSave={next => saveCell(item.id, next)}
+        />
+      ) : (
+        <PlanQtyStepper
+          itemName={item.name}
+          qty={qtyOf(item.id)}
+          saving={savingId === item.id}
+          disabled={!isOnline}
+          onSave={next => saveCell(item.id, next)}
+        />
+      ),
+    },
+  ]
+
   return (
     <PageFrame variant="data">
       <PageHead
@@ -201,38 +271,30 @@ function PlanEditor() {
       )}
 
       {load.kind === 'ready' && items.length > 0 && (
-        isDesktop ? (
-          <KitchenPlanTable
-            items={items}
-            qtyOf={qtyOf}
-            savingId={savingId}
-            disabled={!isOnline}
-            onSave={saveCell}
+        <div className="kp-block">
+          <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
+            categories={categories}
             category={category}
             onCategoryChange={setCategory}
+            searchPlaceholder="Find a dish to plan"
+            ariaLabel="Plan filters"
           />
-        ) : (
-          <KitchenPlanCards
-            items={items}
-            qtyOf={qtyOf}
-            savingId={savingId}
-            disabled={!isOnline}
-            onSave={saveCell}
-            search={search}
-            onSearchChange={setSearch}
-            category={category}
-            onCategoryChange={setCategory}
+          <DataTable
+            columns={planColumns}
+            rows={visible}
+            groups={planGroups}
+            isDesktop={isDesktop}
+            state={visible.length > 0 ? 'ready' : 'empty'}
+            emptyLabel="No dishes match your filter."
+            caption="Kitchen plan — set planned quantity per dish"
           />
-        )
+        </div>
       )}
     </PageFrame>
   )
 }
-
-// (The plan editor's inline PlanRow was lifted into PlanQtyCell (desktop) +
-// PlanQtyStepper (phone) — see components/kitchen/.)
 
 // ════════════════════════════════════════════════════════════════════════════
 // member — the read-only PESANAN horizon (FR-035 / AC-024)
@@ -258,15 +320,38 @@ function PesananView() {
   useEffect(() => { fetchHorizon() }, [fetchHorizon, retryKey])
 
   // Group the flat rows by date (already date-sorted by the query) for the read view.
-  const groups = useMemo(() => {
+  const pesananGroups: DataTableGroup<PesananRow>[] = useMemo(() => {
     const byDate = new Map<string, PesananRow[]>()
     for (const r of rows) {
       const list = byDate.get(r.log_date) ?? []
       list.push(r)
       byDate.set(r.log_date, list)
     }
-    return [...byDate.entries()].map(([date, items]) => ({ date, items }))
+    return [...byDate.entries()].map(([date, dateRows]) => ({
+      key: date,
+      label: date,
+      count: dateRows.length,
+      rows: dateRows,
+    }))
   }, [rows])
+
+  // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
+  // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
+  const pesananColumns: DataTableColumn<PesananRow>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      cardLabel: '', // the phone card title line
+      render: r => (
+        <span className="kp-dish">
+          <span className="kp-name">{r.wip_item_name}</span>
+          {r.category && <span className="kp-cat">{r.category}</span>}
+        </span>
+      ),
+    },
+    { key: 'action_type', header: 'Action' },
+    { key: 'qty_porsi', header: 'Planned', numeric: true },
+  ]
 
   return (
     <PageFrame variant="data">
@@ -294,11 +379,13 @@ function PesananView() {
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        isDesktop ? (
-          <KitchenPesananTable groups={groups} />
-        ) : (
-          <KitchenPesananCards groups={groups} />
-        )
+        <DataTable
+          columns={pesananColumns}
+          rows={rows}
+          groups={pesananGroups}
+          isDesktop={isDesktop}
+          caption="Planned items — pesanan horizon"
+        />
       )}
     </PageFrame>
   )
