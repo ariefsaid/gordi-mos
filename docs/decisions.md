@@ -927,5 +927,73 @@ certifies** financial-statement figures + the second-class figures feeding them;
 no runtime certification UI in MVP** (same discipline as `can()`); **uncertified/stale renders a fail-loud
 badge** and Plan pricing pre-flight warns/blocks against it.
 
+## OD-DASH — Dashboard analysis surface: `/sales` → `/dashboard` (LOCKED 2026-07-07, grill-with-docs session; spec `docs/specs/dashboard.spec.md`)
+
+### OD-DASH-1 — Metabase deferred (third time); MOS-native dashboards, revisit only on the D4 guardrail
+
+Metabase was proposed a third time (2026-07-07) as "easier than building drill-down in MOS." **Deferred
+again, on the owner's own two constraints:** (i) no additional box/VPS to host it; (ii) no separate login.
+Both are precisely the costs ADR-0010 D4 + the `reporting`-copied-into-Supabase design were built to avoid.
+The owner's actual need ("drill-down that normal dashboards should have") is covered by work that is
+**specced but not yet built** — the drill-down query-spec DSL (ADR-0017 §4b, OD-AN-2) + the next
+read-models — not by a tool that would give a worse drill-down, bypass RLS, and add a box + login. **D4
+guardrail holds:** revisit a BI tool only if, *after* the DSL + read-models ship, MOS dashboards drift
+toward a generic charting/pivot playground — that drift is itself the signal. Decision is **reversible**:
+if the shipped dashboard is still unusable for drill-down, the Metabase-revisit ADR gets written honestly.
+
+### OD-DASH-2 — Route: `/sales` → `/dashboard` (rename + broaden); Home stays a light landing
+
+The analytical KPI hub is **`/dashboard`**, not Home. `/sales` is renamed and broadened: it covered only
+revenue, the name lied about scope. `/dashboard` covers all warehouse-backed KPIs (revenue + interim gross
+margin/COGS first slice) and grows sections as warehouse facts arrive (opex, material usage, labor, roastery
+yield). **Home (route `/`) stays a light role-aware landing** — its finance tiles link to `/dashboard`
+instead of `/sales`. This **clarifies, not reverses, ADR-0019** ("Home = KPI hub"): Home is the role-aware
+entry; `/dashboard` is the analytical hub + drill-down surface. The StackedUnionHome scaffold
+(`SHOW_HOME_STACKED`) is left untouched — not finished, not deleted; a future slice may pick it up. Recorded
+as a clarification (lightweight, not a new ADR).
+
+### OD-DASH-3 — First slice = the data spine + drill-down on warehouse-backed KPIs (one slice)
+
+One slice, not two: **(a) staging verify/fix** (verify post-`a3a2015` margin rows landed; merge `a3a2015`
+to main/staging; wire Telegram snapshot alerting; correct stale `AGENTS.md`/`CLAUDE.md`
+"migration not yet written" lines) + **(b) local data unblock** (run the *existing* `reporting_snapshot.py`
+locally against `localhost:5432/gordi_esb` → local Supabase `:44322`, via a `scripts/reporting-snapshot-local.sh`
+wrapper — no dump, no FastAPI, no domain, no new box; the snapshot job is the only writer in prod *and*
+locally) + **(c) `/dashboard` rebuild** (Variant B Tabs, signed-off mockup). The spine is small and the
+dashboards are only as trustworthy as the data feeding them, so they ship together.
+
+### OD-DASH-4 — Drill-down = A (filter-in-place) + B (navigate-to-detail); deputy/analyst handoff (C) deferred
+
+First-slice drill-down is two patterns: **A — filter-in-place** (clicking a KPI tile or changing the
+cut/window re-filters chart + table on the same screen) and **B — navigate-to-detail** (a "full detail"
+affordance opens `/dashboard/detail?window=…&branch=…` with the complete daily breakdown). **C — the
+deputy↔analyst-agent handoff** (ADR-0017 D3, natural-language drill with raw-OLAP escalation) is **deferred**
+to a follow-up: it's the differentiating long-term play but depends on the ADR-0018 port Issue 3 wiring,
+a separate larger build. A+B already cover "what normal dashboards should have."
+
+### OD-DASH-5 — KPIs: revenue-led, gross margin/COGS secondary (basis-labelled); not-yet-backed = honest stubs
+
+First-slice KPIs (only these are warehouse-backed): **Revenue row** (trailing 7d +WoW, trailing 30d +MoM,
+latest reporting-day, avg check, channel mix as a string "POS 77% · B2B 23%") leads. **Gross margin row**
+(interim gross margin %, interim gross margin amount, interim COGS amount, BOM-coverage DQ badge) is
+secondary and **basis-labelled "interim — stock-movement"** on every figure — never bare "margin" or bare
+"COGS" (see CONTEXT.md canon). **Not-yet-backed KPIs** (opex, material usage/portion, labor %, roastery
+yield) render as **one "What's coming" strip** (not four stub tiles) — gap-visibility as a feature, not
+debt. Cuts: Branch (default) + Channel + Activity. Time-window: 30d default, presets [7d/30d/60d] + a
+custom date picker **bounded to the 60-day snapshot window** (can't pick dates the warehouse doesn't
+have); WoW on 7d, MoM on 30d, custom = same-length prior window auto. **No save/share/save-as-default**
+(that's BI-tool territory — the D4 slope).
+
+### OD-DASH-6 — Layout: Variant B (Tabs), signed-off mockup gate (Phase-0)
+
+Owner picked **Variant B (Tabs)** from three design-architect mockups (`docs/design-mockups/dashboard-{A,B,C}-*.html`).
+Summary tab = KPI tiles + chart (filter-in-place); Detail tab = full table. **One global Cut/Window
+toolbar above the tabs** (filters apply to both — no per-tab duplication). Active tab persists in URL
+(`?tab=summary|detail`). The Detail tab *is* the parameterized `/dashboard/detail` route (B's
+navigate-to-detail), so it's shareable without per-KPI route sprawl. Both desktop and mobile are
+first-class. Mockup open questions resolved: channel mix = string; stubs = one strip; ratify two semantic
+token reuses in `DESIGN.md` (`--basis-chip` role for COGS-basis labels, DQ-as-warning/success); `?tab=`
+persistence + global toolbar. Gate passed 2026-07-07.
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
 </content>
