@@ -111,7 +111,7 @@ export function SalesDashboardPage() {
         <PageHead title="Sales" />
         <EmptyState
           title="No sales snapshot data yet"
-          copy="No sales snapshot rows are available yet from reporting.sales_daily_revenue."
+          copy="No sales snapshot rows are available yet. The next warehouse snapshot will populate this page."
         />
       </PageFrame>
     )
