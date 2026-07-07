@@ -34,7 +34,7 @@ describe('AC-KIT-006: sectionForPath — kitchen sections', () => {
   it('returns Log section for /kitchen/log', () => {
     const s = sectionForPath('/kitchen/log')
     expect(s).not.toBeNull()
-    expect(s!.label).toBe('Log')
+    expect(s!.label).toBe('Kitchen Log')
     expect(s!.path).toBe('/kitchen/log')
   })
 
@@ -72,7 +72,7 @@ describe('KITCHEN_SECTIONS export', () => {
   it('exports exactly 5 kitchen sections in the canonical order', () => {
     expect(KITCHEN_SECTIONS).toHaveLength(5)
     const labels = KITCHEN_SECTIONS.map((s) => s.label)
-    expect(labels).toEqual(['Log', 'Plan', 'Stock', 'Review', 'Pushes'])
+    expect(labels).toEqual(['Kitchen Log', 'Plan', 'Stock', 'Review', 'Pushes'])
   })
 
   it('each section has a path, label, and Icon', () => {

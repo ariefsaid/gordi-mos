@@ -11,7 +11,6 @@ import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
-import { AssistantFab } from '@/components/assistant/AssistantFab'
 
 function ShellContent() {
   const isNarrow = useIsNarrow()
@@ -78,15 +77,11 @@ function ShellContent() {
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4) */}
       <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* Deputy assistant (ADR-0018 P2) — mounted once at the shell root, behind SHOW_ASSISTANT.
-          The panel is keep-mounted (self-gates visibility on `open`); the FAB self-gates on
-          narrow + flag. Absent entirely when the flag is off (FR-P2-CF-003). */}
-      {SHOW_ASSISTANT && (
-        <>
-          <AssistantPanel />
-          <AssistantFab />
-        </>
-      )}
+      {/* Deputy assistant (ADR-0018 P2) — the panel is mounted once at the shell root, behind
+          SHOW_ASSISTANT (keep-mounted; self-gates visibility on `open`). The launcher is a neutral
+          header icon in the top-bar on every viewport (DESIGN.md No-FAB Rule — no floating FAB).
+          Absent entirely when the flag is off (FR-P2-CF-003). */}
+      {SHOW_ASSISTANT && <AssistantPanel />}
     </BreadcrumbTitleProvider>
   )
 }
