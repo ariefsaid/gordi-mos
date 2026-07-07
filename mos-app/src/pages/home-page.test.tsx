@@ -172,20 +172,20 @@ beforeEach(() => {
   mockGetPeople.mockResolvedValue([])
 })
 
-describe('AC-H01: finance viewer sees revenue + margin tiles, each drilling to /sales', () => {
-  it('renders revenue + margin KPI tiles as links to /sales', async () => {
+describe('AC-H01: finance viewer sees revenue + margin tiles, each drilling to /dashboard', () => {
+  it('renders revenue + margin KPI tiles as links to /dashboard', async () => {
     await renderHome(financeViewer)
     await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
 
     const revenueTile = screen.getByRole('group', { name: /revenue/i })
     const revenueLink = revenueTile.closest('a')
     expect(revenueLink).not.toBeNull()
-    expect(revenueLink!.getAttribute('href')).toBe('/sales')
+    expect(revenueLink!.getAttribute('href')).toBe('/dashboard')
 
     const marginTile = screen.getByRole('group', { name: /gross margin/i })
     const marginLink = marginTile.closest('a')
     expect(marginLink).not.toBeNull()
-    expect(marginLink!.getAttribute('href')).toBe('/sales')
+    expect(marginLink!.getAttribute('href')).toBe('/dashboard')
   })
 
   it('AC-H07: margin tile shows the formatted margin value, a delta, and the "(interim)" label', async () => {

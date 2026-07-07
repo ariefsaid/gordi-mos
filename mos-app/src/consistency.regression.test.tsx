@@ -453,6 +453,8 @@ describe('RI-IXD-7: no brand-orange outside the logo, active view-tab underline,
     'index.css',
     'shell/top-bar.tsx',
     'components/tasks/TasksWorkspace.css',
+    'components/dashboard/tab-strip.css',
+    'components/dashboard/tab-strip.tsx',
     'styles/tokens/theme-dark.css',
     'styles/tokens/theme-light.css',
   ])
