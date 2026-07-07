@@ -22,6 +22,21 @@ const mockGetPeople       = vi.mocked(getPeople)
 
 import { MyTasksCard } from './my-tasks-card'
 
+function setDesktopMatch(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('min-width') ? matches : !matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 const VIEWER_ID = 'person-001'
 const NOW       = new Date('2026-06-20T05:00:00Z') // Fri 12:00 WIB
@@ -115,6 +130,7 @@ async function renderCard(viewerId = VIEWER_ID, now = NOW) {
 // ── beforeEach defaults ───────────────────────────────────────────────────────
 beforeEach(() => {
   vi.clearAllMocks()
+  setDesktopMatch(true)
   mockGetBUs.mockResolvedValue(buOptions)
   mockGetPeople.mockResolvedValue(people)
   mockListTasks.mockResolvedValue([taskBlocked, taskInProgress, taskOpen, taskOther])
@@ -218,6 +234,21 @@ describe('AC-W02: mini-table th use the weight-400 overline (shared class)', () 
     expect(texts).toContain('Due')
     expect(texts).toContain('Activity')
     expect(headers).toHaveLength(5)
+  })
+})
+
+describe('RI-MOBILE: MyTasksCard reflows to cards below the DataTable breakpoint', () => {
+  it('renders a phone card list instead of the five-column table', async () => {
+    setDesktopMatch(false)
+    const { container } = await renderCard()
+    await waitFor(() =>
+      expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
+    )
+
+    expect(container.querySelector('.mini-mobile-list')).not.toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Activity' })).toBeNull()
+    expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Due').length).toBeGreaterThan(0)
   })
 })
 

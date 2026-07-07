@@ -2,7 +2,13 @@
 
 Branch `feat/ui-coherence` off `dev` @ `6b36295`. Executes the retrofit plan in
 [docs/reviews/ui-coherence-audit-2026-07-07.md](ui-coherence-audit-2026-07-07.md) §F. **NOT merged.**
-Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see bottom).
+Review battery is recorded below; `scripts/pre-merge-check.sh` still owed before merge.
+
+## Review verdicts
+- spec: PASS — Director review, 2026-07-07. Branch conforms to audit §F plus deputy C2/C3 after ADR-0045/0049; no scope expansion beyond the ratified no-FAB deputy launcher, shared-kit cleanup, typed widgets, safe markdown, and rendered mobile follow-up.
+- code-quality: PASS — Director close-read + green gates. Shared primitives reused; Tasks native-select exceptions preserved; assistant widget validation is shared server/client; phone `MyTasksCard` is a single-render breakpoint branch. Verification: `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (244 files / 2362 tests), and `npm run build`.
+- design: PASS — Director 4-lens rendered review (desktop auth/home/deputy and phone auth/home/deputy). One phone Home issue was found: `MyTasksCard` clipped a five-column table under the bottom tab bar. Fixed with stacked phone cards and re-rendered; no remaining visual blocker.
+- security: PASS — Director trust-boundary review. Markdown uses a fixed allowlist with no raw HTML and URL-scheme filtering; user turns remain literal; invalid widget artifacts fail closed; `query_entity` reads still run through caller-JWT/RLS and no service-role or business-write path changed.
 
 ## Owner decisions locked
 - **FAB: RESOLVED (owner-agreed).** No floating action button paradigm. Deputy launcher = neutral
@@ -85,11 +91,15 @@ Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see b
   src/lib/agent/handler.test.ts src/lib/agent/history.test.ts src/lib/agent/agentPrompt.test.ts` (44 tests),
   `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (244 files / 2361 tests), and
   `npm run build` (existing large-chunk warning only).
+- **Rendered review follow-up**: phone viewport review caught the Home `MyTasksCard` still rendering its
+  five-column mini-table, clipping Status/Owner/Due/Activity under the bottom tab bar. Fixed with a
+  single-render `useIsDesktop()` branch: desktop keeps the table; phone renders stacked task cards with
+  the same task link/status/owner/due/activity data. Verification: red `RI-MOBILE` component test, then
+  green `npm test -- src/components/weekly/my-tasks-card.test.tsx`; refreshed Playwright phone screenshot
+  confirmed the clipped table is gone.
 
 ## REMAINING (retrofit plan §F)
-Implementation is complete on branch. Remaining gate before merge: review battery (spec · code-quality ·
-design 4-lens rendered · security review for the markdown/widget trust boundary) and
-`bash scripts/pre-merge-check.sh` exit 0.
+Implementation is complete on branch. Remaining gate before merge: `bash scripts/pre-merge-check.sh` exit 0.
 
 ## Deferred (needs design-eyeball, NOT mechanical — own reviewed pass)
 Kitchen **rail nesting/parent** (nest the 5 under a "Kitchen" sub-heading — audit C2 residue), 3-level
