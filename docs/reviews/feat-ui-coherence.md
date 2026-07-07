@@ -111,7 +111,8 @@ wash — fold into state-kit rollout), Admin bare-crumb parent.
 ## Regression guards still to add (audit §Regression-invariant)
 (a) **DONE:** no raw `<select>` in `src/pages`/`src/components` outside the primitive + documented Tasks
 exceptions (`RI-IXD-5`);
-(b) every list page imports shared DataTable + state-kit; (c) **DONE for Follow-ups:** renders card-list <768px
+(b) **DONE for retrofit targets:** Follow-ups, Sales, Kitchen Stock, and Kitchen Pushes import shared
+DataTable + state-kit (`RI-IXD-8`); (c) **DONE for Follow-ups:** renders card-list <768px
 (RTL, no h-overflow); (d) **DONE:** no `brand-orange` outside tokens/logo/view-tab underline (`RI-IXD-7`).
 
 ## Future merge-to-main note

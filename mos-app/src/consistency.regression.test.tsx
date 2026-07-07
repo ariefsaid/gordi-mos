@@ -463,3 +463,25 @@ describe('RI-IXD-7: no brand-orange outside the logo, active view-tab underline,
     expect(offenders).toEqual([])
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-8: Retrofit list/table targets stay on the shared table + state kit.
+// These are the audit §F surfaces that were explicitly rebuilt away from
+// private list grammar in feat/ui-coherence.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit', () => {
+  const sharedTableTargets = [
+    'pages/follow-ups-page.tsx',
+    'pages/sales-dashboard-page.tsx',
+    'pages/kitchen-stock-page.tsx',
+    'pages/kitchen-pushes-page.tsx',
+  ]
+
+  for (const file of sharedTableTargets) {
+    it(`${file} uses the shared DataTable and state-kit`, () => {
+      const body = readSrc(file)
+      expect(body).toMatch(/@\/components\/dashboard\/data-table/)
+      expect(body).toMatch(/@\/components\/ui\/state-kit/)
+    })
+  }
+})
