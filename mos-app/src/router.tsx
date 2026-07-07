@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED, SHOW_FOLLOWUPS } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -10,6 +10,7 @@ import { HomePage } from './pages/home-page'
 import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
 import { CascadePage } from './pages/cascade-page'
+import { FollowUpsPage } from './pages/follow-ups-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
@@ -85,6 +86,7 @@ export const routeConfig: RouteObject[] = [
             ],
           },
           { path: 'work/cascade', element: <CascadePage /> },
+          { path: 'work/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
           // Flag-hidden for the first rollout (config/features.ts): the routes stay mounted
           // but redirect to My Week so a stale deep-link can't reach a hidden section.
           { path: 'updates', element: SHOW_WEEKLY_UPDATES ? <UpdatesPage /> : <Navigate to="/" replace /> },

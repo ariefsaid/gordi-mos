@@ -18,6 +18,7 @@ vi.mock('@/config/features', () => ({
   SHOW_USER_VIEWS: true,
   SHOW_ASSISTANT: false,
   SHOW_INBOX: true,
+  SHOW_FOLLOWUPS: false,
 }))
 
 // A fake runtime injected via the provider's `runtime` prop — proves the provider exposes whatever

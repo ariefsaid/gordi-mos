@@ -7,7 +7,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 // Force both sections OFF regardless of the live default.
-vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: false, SHOW_DAILY_LOG: false }))
+vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: false, SHOW_DAILY_LOG: false, SHOW_FOLLOWUPS: false }))
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'

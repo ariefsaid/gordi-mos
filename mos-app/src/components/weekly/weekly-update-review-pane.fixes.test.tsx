@@ -15,7 +15,7 @@ import { MyWeek } from '@/pages/my-week'
 // The submitted-strip RI-5 cases render <MyWeek/>, where the weekly-update strip is
 // flag-hidden in production (config/features.ts). Force the flags on so the strip renders
 // and its formatting is still exercised.
-vi.mock('../../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG: true }))
+vi.mock('../../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG: true, SHOW_FOLLOWUPS: false }))
 
 // ── Mock data layer ─────────────────────────────────────────────────────────
 vi.mock('../../lib/db/weekly-updates', () => ({

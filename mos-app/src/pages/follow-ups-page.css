@@ -1,0 +1,46 @@
+.follow-ups-summary {
+  color: var(--muted-foreground);
+  margin: 0 0 1rem;
+}
+
+.follow-ups-table-wrap {
+  overflow-x: auto;
+}
+
+.follow-ups-table {
+  border-collapse: collapse;
+  min-width: 860px;
+  width: 100%;
+}
+
+.follow-ups-table th,
+.follow-ups-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.follow-ups-pill {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  text-transform: capitalize;
+}
+
+.follow-ups-pill.is-settled,
+.follow-ups-pill.is-confirmed {
+  background: var(--muted);
+}
+
+.follow-ups-actions,
+.follow-ups-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.follow-ups-form {
+  margin-top: 0.5rem;
+}

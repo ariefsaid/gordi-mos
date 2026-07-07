@@ -11,6 +11,7 @@ const shared = () => supabase.schema('shared')
 export interface BusinessUnitOption {
   id: string
   name: string
+  code?: string | null
 }
 
 export interface PersonOption {
@@ -28,7 +29,7 @@ export interface RoleScopeRow {
 export async function getBusinessUnits(): Promise<BusinessUnitOption[]> {
   const { data, error } = await shared()
     .from('business_units')
-    .select('id,name')
+    .select('id,name,code')
     .is('archived_at', null)
     .order('name', { ascending: true })
   if (error) throw new Error(`getBusinessUnits failed — ${error.message}`)

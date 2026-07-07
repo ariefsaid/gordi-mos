@@ -25,3 +25,5 @@ export const SHOW_INBOX = true
 // until the owner flips this during rollout. A DEV-only preview route (`/__home-stacked`) renders the
 // stacked home regardless of the flag, for e2e + visual verification.
 export const SHOW_HOME_STACKED = false
+// Follow-up settlement bridge v1 ships dark until the owner backup/restore go-live gate.
+export const SHOW_FOLLOWUPS = false

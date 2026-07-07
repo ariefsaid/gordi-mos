@@ -2,7 +2,7 @@ import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
 import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon, WorkLineIcon, SalesIcon } from './icons'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX } from '@/config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX, SHOW_FOLLOWUPS } from '@/config/features'
 
 /**
  * DESTINATIONS — the single source of truth for both chromes (plan §1.5).
@@ -44,6 +44,7 @@ export const DESTINATIONS: Destination[] = [
       { path: '/tasks', label: 'Tasks', labelKey: 'nav.tasks', Icon: TasksIcon },
       { path: '/work/cascade', label: 'Cascade', labelKey: 'cascade.link', Icon: ObjectiveIcon },
       ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', labelKey: 'nav.updates' as const, Icon: UpdatesIcon }] : []),
+      ...(SHOW_FOLLOWUPS ? [{ path: '/work/follow-ups', label: 'Follow-ups', labelKey: 'nav.followUps' as const, Icon: SalesIcon }] : []),
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.objectives', Icon: ObjectiveIcon, railHidden: true },
       { path: '/work/projects-processes', label: 'Projects & Processes', labelKey: 'nav.projectsProcesses', Icon: WorkLineIcon, railHidden: true },
     ],

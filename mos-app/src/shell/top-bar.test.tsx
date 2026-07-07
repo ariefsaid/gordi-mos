@@ -20,6 +20,7 @@ vi.mock('../config/features', () => ({
   SHOW_USER_VIEWS: true,
   SHOW_ASSISTANT: true,
   SHOW_INBOX: false,
+  SHOW_FOLLOWUPS: false,
 }))
 
 const mockUseAuth = vi.mocked(useAuth)
