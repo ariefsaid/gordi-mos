@@ -31,14 +31,18 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
   environmental timeout-flake (heavy RTL files under docker+vitest contention). Run heavy files isolated; don't trust a flaky red.
 
 **▶ CURRENT — UI-coherence polish (task #19, owner-directed):** owner verdict = the app "feels like several apps thrown
-into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. A render-grounded
-**coherence audit is IN FLIGHT** (design-reviewer subagent, all screens desktop+phone; output under the session tasks dir —
-re-dispatch if lost to compaction). Working hypothesis: `DESIGN.md` (608 lines) ALREADY defines the canonical patterns
-(Data Table signature, DB-view toolbar, segmented controls, status pills, buttons, state-kit, density) → the incoherence is
-an **application gap** (Follow-ups/Cascade/Plan/stacked-Home built without adopting them) → a systematic **retrofit to
-convention** + bleeds fixes, not from-scratch. Flow: audit → DESIGN.md convention updates (only for genuine gaps) +
-module-by-module plan → ui-implementer → design-reviewer. Pre-rollout blockers folded in: follow-up `:id` 404, Home AR/AP
-dead-end drills, plus the A-1..A-8 polish list in `docs/reviews/design-mvp-push-2026-07-07.md`.
+into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. The render-grounded
+**coherence audit is DONE → `docs/reviews/ui-coherence-audit-2026-07-07.md`** (design-reviewer, every screen desktop+phone).
+**Verdict CONFIRMED: application gap, not ground-up redesign** — `DESIGN.md` already defines the canonical kit (Data Table w/
+768px reflow, DB-view toolbar, `seg`, status pills, `state-kit`, `PageHead`); ~5 modules ignore it (Follow-ups, Kitchen ×5,
+catalog managers, Budget/Pricing, Sales). Divergences D1–D8, bleeds B1–B5 (worst = **B1 Follow-ups phone table overflow**),
+IA C1–C4. **Retrofit plan (ledger §F, highest-leverage first):** (1) rebuild Follow-ups onto the kit · (2) kill the 11 native
+`<select>` w/ a tokened `Select` `[NEW DESIGN.md primitive]` · (3) Kitchen→shared toolbar+DataTable+state-kit + fix floating-bar
+collision · (4) state-kit rollout (Kitchen Review/Pushes, Sales, Pricing, Inbox) · (5) PageHead standardize (7 screens) ·
+(6) IA cleanup (Kitchen rail parent, "Log"→"Kitchen Log", "Inbox › Inbox" self-crumb) · (7) **orange FAB ruling — OWNER
+DECISION** (DESIGN.md forbids orange-as-action; move deputy launcher to a neutral header affordance or sanction+spec a FAB).
+Flow: DESIGN.md addition (`Select` + FAB ruling) → module plan in `docs/plans/` → ui-implementer → design-reviewer. Pre-rollout
+blockers folded in: follow-up `:id` 404, Home AR/AP dead-end drills, A-1..A-8 in `docs/reviews/design-mvp-push-2026-07-07.md`.
 - **Deputy is text-only BY DESIGN, not for lack of a battery.** The PMO widget battery IS ported + live (`src/lib/viewspec`
   registry: KPITile/DataTable/ChartFrame/CutToggle/FreshnessLabel, `status:'live'`), but `AssistantPanel.tsx` is stamped
   `FR-P2-AP-004: plain-text only`. The bridge to it = **C2 safe-markdown (ADR-0049, client-only) + C3 typed-widget results
