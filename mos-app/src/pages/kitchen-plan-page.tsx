@@ -13,7 +13,7 @@
 // org_id/plan_by). All states: loading, empty, error+retry, saving/saved, offline
 // (online-only writes, NFR-008), read-only, unauthenticated.
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
@@ -90,7 +90,11 @@ function PlanEditor() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [savingId, setSavingId] = useState<string | null>(null) // wip_item_id mid-save
-  const [notice, setNotice] = useState('')
+  // The last-committed cell — drives the transient inline ✓ Saved tick (A5). Page-level
+  // (not a local saving→idle transition) because `savingId` also clears on save ERROR,
+  // so only a success-set flag can safely mean "this cell stuck".
+  const [justSavedId, setJustSavedId] = useState<string | null>(null)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveError, setSaveError] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   // NEW presentational state (P-3): reflow branch + client-side search/category filter.
@@ -107,6 +111,9 @@ function PlanEditor() {
     window.addEventListener('offline', off)
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
+
+  // Clear the transient ✓ Saved timer on unmount so it can't setState after teardown.
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
   const fetchEditor = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -140,7 +147,6 @@ function PlanEditor() {
     if (nextQty === current) return
     setSavingId(wipItemId)
     setSaveError('')
-    setNotice('')
     try {
       const id = await upsertKitchenPlan({
         log_date: logDate,
@@ -153,7 +159,11 @@ function PlanEditor() {
         const without = prev.filter(c => !(c.wip_item_id === wipItemId && c.action_type === action))
         return [...without, { id, wip_item_id: wipItemId, action_type: action, qty_porsi: nextQty }]
       })
-      setNotice('Saved')
+      // Surface the commit INLINE at THIS cell (A5): a transient ✓ Saved tick, then
+      // idle. Reset any in-flight tick (e.g. rapid back-to-back edits) before re-arming.
+      setJustSavedId(wipItemId)
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+      savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
       setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
     } finally {
@@ -207,6 +217,7 @@ function PlanEditor() {
           itemName={item.name}
           qty={qtyOf(item.id)}
           saving={savingId === item.id}
+          justSaved={justSavedId === item.id}
           disabled={!isOnline}
           onSave={next => saveCell(item.id, next)}
         />
@@ -215,6 +226,7 @@ function PlanEditor() {
           itemName={item.name}
           qty={qtyOf(item.id)}
           saving={savingId === item.id}
+          justSaved={justSavedId === item.id}
           disabled={!isOnline}
           onSave={next => saveCell(item.id, next)}
         />
@@ -243,11 +255,6 @@ function PlanEditor() {
       {!isOnline && (
         <div role="alert" className="kp-banner kp-banner-offline kp-block">
           You're offline — editing the plan needs a connection. Reconnect to save.
-        </div>
-      )}
-      {notice && (
-        <div role="status" aria-live="polite" className="kp-banner kp-banner-notice kp-block">
-          {notice}
         </div>
       )}
       {saveError && (
