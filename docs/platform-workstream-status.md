@@ -9,7 +9,52 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-07) — MVP push: all 5 slices A–E on `dev` · round-2 audit → pre-F hardening
+## Current focus (2026-07-07 late) — pre-F hardening DONE · nav-catalog fix · UI-coherence polish IN FLIGHT
+
+**⚠️ FRESH-AGENT START HERE** (supersedes the MVP-push block below, now history). `dev` is now **`c145e2a`** (pushed).
+
+**Shipped to `dev` since the MVP push:**
+- **Pre-F hardening A1–A6 DONE + merged** (round-2 audit blocklist; task #17). Battery: `docs/reviews/feat-harden-round2.md`
+  (pgTAP **570** · unit **2345** · coverage **95.43%** · typecheck/lint green). A1 `mos.tasks` same-org ref guard · A2
+  `mos.comments` entity guard · A3 `<ErrorBoundary>`+telemetry sink · A4 reporting_writer (**reframed**: null/bogus org
+  already blocked by NOT-NULL+FK → the exists-check was broken+redundant → documented; true per-run org-scope = an **F**
+  job-GUC item) · A5 atomic `mos.capture_budget` DEFINER RPC + server-recompute COGS (+Director-added `owning_bu_id`
+  guard) · A6 coverage `include→src/**` + CI `VITE_SHOW_PLAN_BUDGET=true`. Built via pi glm-5.2/4.7; **Director
+  caught+fixed real defects the builders' self-reports missed** (A4 broke existing 61/76, A2 malformed UUIDs, A5 `plan()`
+  miscount) — glm builders can't run pgTAP under the shared-DB rule, so verify serially yourself.
+- **Nav catalog discoverability — FR-424 (supersedes FR-420):** Objectives + Projects & Processes are back as
+  **capability-gated Work rail entries** (`objective.manage`/`workline.manage`; member sees neither), not buried cascade
+  links. Answers "why did process/project/objective go missing" — they were `railHidden`. `cb608f8`.
+- **4-lens design review of the MVP-push, RENDER-VERIFIED** (`docs/reviews/design-mvp-push-2026-07-07.md`): fix-then-ship,
+  no identity drift; D-1/D-2 Home AR/AP cockpit dead-ends confirmed on screen; Budget production-quality; nav clean both widths.
+- **Test-infra note:** the full 2345-test unit suite is genuinely GREEN unloaded — earlier "100–194 failures" were 100%
+  environmental timeout-flake (heavy RTL files under docker+vitest contention). Run heavy files isolated; don't trust a flaky red.
+
+**▶ CURRENT — UI-coherence polish (task #19, owner-directed):** owner verdict = the app "feels like several apps thrown
+into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. A render-grounded
+**coherence audit is IN FLIGHT** (design-reviewer subagent, all screens desktop+phone; output under the session tasks dir —
+re-dispatch if lost to compaction). Working hypothesis: `DESIGN.md` (608 lines) ALREADY defines the canonical patterns
+(Data Table signature, DB-view toolbar, segmented controls, status pills, buttons, state-kit, density) → the incoherence is
+an **application gap** (Follow-ups/Cascade/Plan/stacked-Home built without adopting them) → a systematic **retrofit to
+convention** + bleeds fixes, not from-scratch. Flow: audit → DESIGN.md convention updates (only for genuine gaps) +
+module-by-module plan → ui-implementer → design-reviewer. Pre-rollout blockers folded in: follow-up `:id` 404, Home AR/AP
+dead-end drills, plus the A-1..A-8 polish list in `docs/reviews/design-mvp-push-2026-07-07.md`.
+- **Deputy is text-only BY DESIGN, not for lack of a battery.** The PMO widget battery IS ported + live (`src/lib/viewspec`
+  registry: KPITile/DataTable/ChartFrame/CutToggle/FreshnessLabel, `status:'live'`), but `AssistantPanel.tsx` is stamped
+  `FR-P2-AP-004: plain-text only`. The bridge to it = **C2 safe-markdown (ADR-0049, client-only) + C3 typed-widget results
+  (ADR-0045 §1, server emits + client renders via the registry)** — both tracked **MISSING** in
+  `docs/specs/agent-capability-expansion.md` (OQ-8: "feels like a raw chatbot"). Owner wants C2+C3 folded into the polish
+  push; flipping FR-P2-AP-004 is the gate (safe path: react-markdown no-raw-HTML + registry-rendered, twice-validated widgets).
+
+**▶ THEN — F (task #16, owner-gated):** promote dev→main→staging→prod + secrets (deputy model key, VAPID) + backup/restore
+drill (gates AR go-live) + OWASP/STRIDE prod gate + ESB worker DEPLOY + edge rate-limit/quota + **A4 reporting_writer true
+org-scope** (snapshot job sets `set_config('app.reporting_org', …)`; policies scope `with check (org_id = current_setting(…))`).
+**Branch map:** `dev`=`c145e2a` · `main`/`staging`=`669ee0a` (conservative, up-to-BU-remap). Flags default-OFF in
+`mos-app/src/config/features.ts`. **Local-stack gotcha:** `supabase start --ignore-health-check -x studio,imgproxy,inbucket,
+edge-runtime,vector,analytics,realtime` (flaky health gates roll back the whole stack); `supabase db reset` reseeds dev
+personas (pw `Passw0rd!dev`, Director=admin); clear `localStorage` + retry if the deputy/auth hangs on a transient DB-conn timeout.
+
+## Current focus (2026-07-07) — MVP push: all 5 slices A–E on `dev` · round-2 audit → pre-F hardening (SUPERSEDED — history)
 
 **⚠️ FRESH-AGENT START HERE.** MVP-push (owner `/goal push to MVP-ready`) delivered **5 slices to `dev`
 (`151876a`)**, all behind flags (ship dark): **A** five-destination nav shell + **B** Work-spine absorb ·
