@@ -36,6 +36,8 @@ export interface DataTableGroup<Row> {
   label: string | null
   /** header count; defaults to rows.length */
   count?: number
+  /** optional muted hint rendered after the count (e.g. "log as produced") */
+  hint?: string
   rows: Row[]
 }
 
@@ -218,6 +220,7 @@ function GroupHeaderRow<Row>({
           </button>
           <span className="dt-group-label">{group.label}</span>
           <span className="dt-group-count">{group.count ?? group.rows.length}</span>
+          {group.hint && <span className="dt-group-hint">{group.hint}</span>}
         </div>
       </th>
     </tr>
@@ -449,6 +452,7 @@ function PhoneCards<Row>({
               </button>
               <span className="dt-cards-group-label">{group.label}</span>
               <span className="dt-cards-group-count">{group.count ?? group.rows.length}</span>
+              {group.hint && <span className="dt-cards-group-hint">{group.hint}</span>}
             </div>
           )}
           {!collapsed.has(group.key) && group.rows.map((row, rowIndex) => (
