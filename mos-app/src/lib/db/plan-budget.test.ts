@@ -26,6 +26,7 @@ const schemaMock = vi.mocked(supabase.schema)
 interface Recorder {
   schemaNames: string[]
   fromTables: string[]
+  rpcCalls: Array<{ name: string; params: Record<string, unknown> }>
   selects: string[]
   eqs: Array<[string, unknown]>
   isCalls: Array<[string, unknown]>
@@ -73,13 +74,18 @@ function makeSchema(
       Promise.resolve(result()).then(resolve, reject)
     return builder
   }
-  // schema() returns the {from, rpc} object; also record the schema name requested.
-  const api = { from: vi.fn(fromImpl) }
+  const rpcImpl = (name: string, params: Record<string, unknown>) => {
+    rec.rpcCalls.push({ name, params })
+    const result = responses[name]?.[0] ?? { data: null, error: { message: 'Unknown RPC' } }
+    if (result.error) return Promise.resolve(result)
+    return Promise.resolve(result)
+  }
+  const api = { from: vi.fn(fromImpl), rpc: vi.fn(rpcImpl) }
   return api
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], isCalls: [], orders: [], inserts: [] }
+  return { schemaNames: [], fromTables: [], rpcCalls: [], selects: [], eqs: [], isCalls: [], orders: [], inserts: [] }
 }
 
 beforeEach(() => {
@@ -158,7 +164,6 @@ describe('AC-PB-008: captureBudget writes the linked shape (no unit cost, no org
     scenarioLabel: 'Baseline',
     scenarioType: 'baseline' as const,
     owningBuId: 'BU-1',
-    totalBudgetedCogs: 40000,
     costBasisAsOf: '2026-07-01T00:00:00Z',
     isComplete: true,
     lines: [
@@ -167,58 +172,47 @@ describe('AC-PB-008: captureBudget writes the linked shape (no unit cost, no org
     ],
   }
 
-  it('inserts a budget row (mos.budgets) + its lines (mos.budget_lines)', async () => {
+  it('calls mos.capture_budget RPC with the right args and NO total param', async () => {
     const rec = freshRec()
     install(
       {
-        budgets: [{ data: { id: 'NEW-BUDGET' }, error: null }],
-        budget_lines: [{ data: null, error: null }],
+        capture_budget: [{ data: 'NEW-BUDGET-ID', error: null }],
       },
       rec,
     )
     const id = await captureBudget(CAPTURE_INPUT)
-    expect(id).toBe('NEW-BUDGET')
-    expect(rec.inserts).toHaveLength(2) // the budget row + the lines array
-
-    // The budget row payload — no server-stamped org_id/created_by/created_at.
-    const budgetPayload = rec.inserts[0] as Record<string, unknown>
-    expect(budgetPayload.menu_item_esb_code).toBe('MENU-1')
-    expect(budgetPayload.total_budgeted_cogs).toBe(40000)
-    expect(Object.keys(budgetPayload)).not.toContain('org_id')
-    expect(Object.keys(budgetPayload)).not.toContain('created_by')
-    expect(Object.keys(budgetPayload)).not.toContain('created_at')
+    expect(id).toBe('NEW-BUDGET-ID')
+    expect(rec.rpcCalls).toHaveLength(1)
+    expect(rec.rpcCalls[0].name).toBe('capture_budget')
+    // Verify NO totalBudgetedCogs param is sent (A5 fix — server computes it).
+    expect(rec.rpcCalls[0].params).not.toHaveProperty('p_total_budgeted_cogs')
+    expect(rec.rpcCalls[0].params).not.toHaveProperty('totalBudgetedCogs')
+    // Verify the lines param is sent as-is (link-never-copy — no unit_cost).
+    expect(rec.rpcCalls[0].params.p_lines).toEqual(CAPTURE_INPUT.lines)
   })
 
   it('AC-PB-007/008 (link-never-copy): budget_lines carry ingredient + qty ONLY — NO unit_cost', async () => {
     const rec = freshRec()
     install(
       {
-        budgets: [{ data: { id: 'NEW-BUDGET' }, error: null }],
-        budget_lines: [{ data: null, error: null }],
+        capture_budget: [{ data: 'NEW-BUDGET-ID', error: null }],
       },
       rec,
     )
     await captureBudget(CAPTURE_INPUT)
-    const lineRows = rec.inserts[1] as Array<Record<string, unknown>>
-    expect(lineRows).toHaveLength(2)
-    for (const row of lineRows) {
-      expect(row).toHaveProperty('ingredient_esb_code')
-      expect(row).toHaveProperty('recipe_qty')
-      expect(row).toHaveProperty('qty_unit')
-      // A5 link-never-copy: there is NO embedded/copied unit cost on a budget line.
-      expect(Object.keys(row)).not.toContain('unit_cost')
-      expect(Object.keys(row)).not.toContain('cost')
-    }
+    // The RPC handles lines internally; client only sends the lines array.
+    // Verify that the input shape has NO unit_cost, NO totalBudgetedCogs.
+    expect(CAPTURE_INPUT.lines[0]).not.toHaveProperty('unit_cost')
+    expect(CAPTURE_INPUT).not.toHaveProperty('totalBudgetedCogs')
   })
 
-  it('throws on insert error', async () => {
+  it('throws on RPC error', async () => {
     install(
       {
-        budgets: [{ data: null, error: { message: 'row-level security policy' } }],
-        budget_lines: [{ data: null, error: null }],
+        capture_budget: [{ data: null, error: { message: 'permission denied' } }],
       },
       freshRec(),
     )
-    await expect(captureBudget(CAPTURE_INPUT)).rejects.toThrow(/captureBudget/)
+    await expect(captureBudget(CAPTURE_INPUT)).rejects.toThrow(/captureBudget RPC failed/)
   })
 })
