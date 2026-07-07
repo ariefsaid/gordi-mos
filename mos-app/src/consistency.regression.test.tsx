@@ -485,6 +485,7 @@ describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit',
     'pages/kitchen-pushes-page.tsx',
     'pages/kitchen-plan-page.tsx',
     'pages/kitchen-log-page.tsx',
+    'pages/kitchen-review-page.tsx',
   ]
 
   for (const file of sharedTableTargets) {

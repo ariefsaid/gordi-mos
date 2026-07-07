@@ -370,6 +370,22 @@ describe('DataTable — grouping (desktop)', () => {
     expect(screen.queryByText('SKC')).toBeNull()
     expect(container.querySelectorAll('tr.dt-group-row')).toHaveLength(1)
   })
+
+  it('renders a group headerActions node on the RIGHT of the desktop group-header row', () => {
+    const groups: DataTableGroup<Row>[] = [
+      { key: 'hot', label: 'Hot Kitchen', rows: [ROWS[0]], headerActions: <button type="button">Approve all (1)</button> },
+    ]
+    const { container } = render(
+      <DataTable columns={COLUMNS} rows={[]} groups={groups} isDesktop caption="Kitchen prep" />,
+    )
+    const bulk = screen.getByRole('button', { name: /approve all \(1\)/i })
+    expect(bulk).toBeInTheDocument()
+    // the actions sit inside the group-header bar (the .dt-group-actions wrapper)
+    const groupBar = container.querySelector('.dt-group-bar')
+    expect(groupBar).not.toBeNull()
+    expect(groupBar).toContain(bulk)
+    expect(container.querySelector('.dt-group-actions')).not.toBeNull()
+  })
 })
 
 describe('DataTable — grouping (phone cards)', () => {
@@ -394,6 +410,23 @@ describe('DataTable — grouping (phone cards)', () => {
     expect(screen.getByText('GHQ')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /collapse hot kitchen/i }))
     expect(screen.queryByText('GHQ')).toBeNull()
+  })
+
+  it('renders a group headerActions node UNDER the phone group heading', () => {
+    const groups: DataTableGroup<Row>[] = [
+      { key: 'hot', label: 'Hot Kitchen', rows: [ROWS[0]], headerActions: <button type="button">Approve all (1)</button> },
+    ]
+    const { container } = render(
+      <DataTable columns={COLUMNS} rows={[]} groups={groups} isDesktop={false} caption="Kitchen prep" />,
+    )
+    const bulk = screen.getByRole('button', { name: /approve all \(1\)/i })
+    expect(bulk).toBeInTheDocument()
+    // the actions render in a dedicated block under the heading (NOT inside the heading row)
+    const actions = container.querySelector('.dt-cards-group-actions')
+    expect(actions).not.toBeNull()
+    expect(actions).toContain(bulk)
+    const heading = container.querySelector('.dt-cards-group')
+    expect(heading).not.toContain(bulk)
   })
 })
 

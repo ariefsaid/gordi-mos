@@ -39,6 +39,12 @@ export interface DataTableGroup<Row> {
   /** optional muted hint rendered after the count (e.g. "log as produced") */
   hint?: string
   rows: Row[]
+  /** optional actions rendered on the RIGHT of the group-header row (desktop) /
+   *  under the group heading (phone) — e.g. a per-group "Approve all" button + a
+   *  sequencing-gate message. Ignored for null-label (uncategorised) groups, which
+   *  carry no header to anchor them. Additive + opt-in: callers passing none are
+   *  unaffected. */
+  headerActions?: ReactNode
 }
 
 export interface DataTableProps<Row> {
@@ -221,6 +227,9 @@ function GroupHeaderRow<Row>({
           <span className="dt-group-label">{group.label}</span>
           <span className="dt-group-count">{group.count ?? group.rows.length}</span>
           {group.hint && <span className="dt-group-hint">{group.hint}</span>}
+          {group.headerActions && (
+            <span className="dt-group-actions">{group.headerActions}</span>
+          )}
         </div>
       </th>
     </tr>
@@ -454,6 +463,9 @@ function PhoneCards<Row>({
               <span className="dt-cards-group-count">{group.count ?? group.rows.length}</span>
               {group.hint && <span className="dt-cards-group-hint">{group.hint}</span>}
             </div>
+          )}
+          {group.label !== null && group.headerActions && (
+            <div className="dt-cards-group-actions">{group.headerActions}</div>
           )}
           {!collapsed.has(group.key) && group.rows.map((row, rowIndex) => (
             <PhoneCard

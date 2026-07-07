@@ -259,6 +259,14 @@
   font-size: 12px;
   color: var(--muted-foreground);
 }
+/* optional per-group actions (e.g. "Approve all") — pushed to the RIGHT edge of
+   the flex .dt-group-bar (margin-left:auto) so they follow the label/count. */
+.dt-group-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
 
 /* ── Phone: group heading (matches the desktop group label — 13px/700 navy) ── */
 .dt-cards-group {
@@ -301,4 +309,12 @@
 .dt-cards-group-hint {
   font-size: 12px;
   color: var(--muted-foreground);
+}
+/* optional per-group actions rendered UNDER the phone group heading. */
+.dt-cards-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 6px;
 }
