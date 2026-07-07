@@ -103,10 +103,10 @@ Implementation is merged to `dev`. Gate evidence: `npm run typecheck`, `npm run 
 full `npm test` (244 files / 2362 tests), `npm run build`, rendered desktop/phone review, and
 `bash scripts/pre-merge-check.sh` exit 0.
 
-## Deferred (needs design-eyeball, NOT mechanical — own reviewed pass)
-**Header-tint B5** (Inbox no `secondary/35%` wash — fold into state-kit rollout). Kitchen rail nesting,
-3-level Kitchen breadcrumbs (`Operate › Kitchen › Plan`), and Admin parent breadcrumbs are done on `dev`
-with shell regression coverage.
+## Deferred
+None. Header-tint B5 is closed by the Inbox content-header retrofit; Kitchen rail nesting, 3-level
+Kitchen breadcrumbs (`Operate › Kitchen › Plan`), and Admin parent breadcrumbs are done on `dev`
+with regression coverage.
 
 ## Regression guards still to add (audit §Regression-invariant)
 (a) **DONE:** no raw `<select>` in `src/pages`/`src/components` outside the primitive + documented Tasks

@@ -83,6 +83,7 @@ describe('InboxPage — shared state kit', () => {
     const { container } = renderPage()
 
     expect(screen.getByRole('list', { name: /inbox/i })).toBeInTheDocument()
+    expect(container.querySelector('.content-header')).not.toBeNull()
     expect(container.querySelector('main')?.style.backgroundImage).toBe('')
   })
 })

@@ -229,6 +229,7 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
     'pages/updates-page.tsx',
+    'pages/inbox-page.tsx',
     'components/catalog/catalog-manager.tsx',
   ]
 

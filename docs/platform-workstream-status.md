@@ -44,8 +44,8 @@ UI-coherence merge, closure regression guards, and post-merge IA cleanup describ
   `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (244 files / 2362 tests),
   `npm run build`, rendered desktop/phone review, and `scripts/pre-merge-check.sh` PASS.
   Post-merge IA cleanup also landed: Kitchen links are nested under a Kitchen rail subheading, Kitchen
-  breadcrumbs read `Operate › Kitchen › <leaf>`, and Admin breadcrumbs read `Admin › People`. Remaining
-  non-blocker: Inbox header-tint B5 needs a separate design-eyeball pass.
+  breadcrumbs read `Operate › Kitchen › <leaf>`, Admin breadcrumbs read `Admin › People`, and Inbox uses
+  the shared content-header chrome. No UI-coherence deferred items remain in this ledger.
 
 **▶ THEN — F (task #16, owner-gated):** promote dev→main→staging→prod + secrets (deputy model key, VAPID) + backup/restore
 drill (gates AR go-live) + OWASP/STRIDE prod gate + ESB worker DEPLOY + edge rate-limit/quota + **A4 reporting_writer true

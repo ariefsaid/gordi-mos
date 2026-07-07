@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
+import { InboxIcon } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import { useNotifications } from '@/hooks/useNotifications'
 import { InboxList } from '@/components/inbox/InboxList'
@@ -16,6 +17,7 @@ export function InboxPage() {
   const t = useT()
   const navigate = useNavigate()
   const { notifications, markRead, loading, error, refresh } = useNotifications()
+  const count = loading || error ? null : notifications.length
 
   const onOpen = (row: NotificationRow) => {
     void markRead(row.id)
@@ -24,8 +26,13 @@ export function InboxPage() {
   }
 
   return (
-    <PageFrame>
-      <PageHead title={t('inbox.title')} subtitle={t('inbox.subtitle')} />
+    <PageFrame variant="data">
+      <PageHead
+        variant="content"
+        title={t('inbox.title')}
+        count={count}
+        icon={<InboxIcon />}
+      />
       {loading ? (
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={4} />
