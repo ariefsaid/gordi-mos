@@ -152,10 +152,13 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
     fireEvent.blur(input)
+    // Wait for the GOAL — the error alert surfaces (load-robust: only the alert gates the poll, not the
+    // call-count, which under full-suite load could momentarily re-throw inside waitFor and flake).
     await waitFor(() => {
-      expect(mockUpsert).toHaveBeenCalledOnce()
       expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
     }, { timeout: 5000 })
+    // Once the error alert is shown the save has fired exactly once — now a deterministic check.
+    expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
