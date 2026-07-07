@@ -55,13 +55,26 @@ Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see b
   src/pages/kitchen-pushes-page.test.tsx src/pages/kitchen-log-page.test.tsx` (106 tests),
   `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (243 files / 2339 tests),
   and `npm run build` (existing large-chunk warning only).
+- `198dd27` — **Inbox/Sales state-kit cleanup**: Inbox now respects `useNotifications.loading/error`
+  and renders shared `SkeletonRows`, `ErrorState`, and `EmptyState`; removed the Inbox surface wash
+  so the header band no longer carries the home-only tint. Sales empty copy no longer exposes the
+  internal `reporting.sales_daily_revenue` table name. Verification: red Inbox page state tests + Sales
+  D4 copy test; then green `npm test -- src/pages/sales-dashboard-page.test.tsx
+  src/pages/inbox-page.test.tsx src/components/inbox/InboxList.test.tsx`,
+  `npm test -- src/consistency.regression.test.tsx`, `npm run typecheck`, and
+  `npm run lint -- --max-warnings=0`.
+- `cc1a0eb` — **content-header/PageHead standardization**: Follow-ups, Sales, Pricing, Budget, Weekly
+  Updates, and CatalogManager-backed Objectives/Projects now use `PageHead variant="content"` with
+  stable count/meta slots. Added `RI-IA-2` source guard for those targets and `RI-SEC-1` guard against
+  internal reporting table names in page copy; Budget empty copy now avoids `reporting.bom_lines`.
+  Verification: red source guards and stale Budget expectation; then green `npm test --
+  src/consistency.regression.test.tsx src/pages/sales-dashboard-page.test.tsx src/pages/budget-page.test.tsx
+  src/pages/pricing-page.test.tsx src/pages/updates-page.test.tsx src/pages/follow-ups-page.test.tsx
+  src/components/catalog/catalog-manager.test.tsx src/pages/inbox-page.test.tsx` (134 tests),
+  `npm run typecheck`, and `npm run lint -- --max-warnings=0`.
 
 ## REMAINING (retrofit plan §F, do in this order)
-1. **state-kit rollout** (glm-4.7): Kitchen Review, Sales, Pricing, Inbox hand-rolled states →
-   `state-kit`. **Strip the Sales schema-string leak** ("…from `reporting.sales_daily_revenue`" **D4**).
-2. **PageHead standardize** (glm-4.7): bare `<h1>` → full `PageHead` on Sales, Pricing, Budget, Weekly
-   Updates, Objectives, Projects (**D5**). (Follow-ups already has it.)
-3. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
+1. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
    C2 = safe-markdown in AssistantPanel; C3 = typed-widget results. ⚠️ ADR-0045 §1 / ADR-0049 are
    **referenced but NOT written** — re-read the spec, author the ADRs (eng-planner) before build.
    Battery/viewspec registry is already ported; AssistantPanel is plain-text by design (FR-P2-AP-004).

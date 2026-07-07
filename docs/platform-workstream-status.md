@@ -36,8 +36,8 @@ step-by-step handoff (what's done, what's left, the Tasks-select nuance, pi gotc
 session: **FAB decision RESOLVED (owner-agreed — no FAB; neutral header launcher)**; landed `5739c70` (Select primitive +
 DESIGN.md ratifications: `[NEW]` Select spec + Deputy-Launcher/No-FAB Rule) and `0832bd1` (retire orange FAB → header
 launcher all viewports; "Log"→"Kitchen Log"; breadcrumb self-crumb collapse). Select safe-swap + `RI-IXD-5` guard,
-Follow-ups rebuild-to-kit, and Kitchen Stock/Pushes shared-table + Log footer collision fix now landed on this branch
-as WIP; remaining ledger items start with state-kit/PageHead rollout + deputy C2/C3.
+Follow-ups rebuild-to-kit, Kitchen Stock/Pushes shared-table + Log footer collision fix, Inbox/Sales state-kit cleanup,
+and content-header PageHead standardization now landed on this branch as WIP; remaining ledger item is deputy C2/C3.
 
 Owner verdict = the app "feels like several apps thrown
 into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. The render-grounded
@@ -47,8 +47,8 @@ into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to
 catalog managers, Budget/Pricing, Sales). Divergences D1–D8, bleeds B1–B5 (worst = **B1 Follow-ups phone table overflow**),
 IA C1–C4. **Retrofit plan (ledger §F, highest-leverage first):** (1) **DONE on branch:**
 rebuild Follow-ups onto the kit · (2) **DONE on branch:** kill the safe raw dropdowns w/ tokened `Select` `[NEW DESIGN.md primitive]` + guard · (3) **DONE on branch:**
-Kitchen Stock/Pushes→shared DataTable + Kitchen Log floating-bar collision fixed · (4) state-kit rollout (Kitchen Review,
-Sales, Pricing, Inbox) · (5) PageHead standardize (7 screens) ·
+Kitchen Stock/Pushes→shared DataTable + Kitchen Log floating-bar collision fixed · (4) **DONE on branch:** state-kit/copy
+cleanup (Inbox/Sales + existing Kitchen/Pricing state-kit) · (5) **DONE on branch:** content-header PageHead standardize ·
 (6) IA cleanup (partly DONE: "Log"→"Kitchen Log" + "Inbox › Inbox" self-crumb landed; Kitchen rail nesting/parent
 DEFERRED to a design-eyeball pass) · (7) **orange FAB — RESOLVED (owner-agreed 2026-07-07):** no FAB paradigm; deputy
 launcher is a neutral top-bar icon on every viewport (DESIGN.md Deputy-Launcher/No-FAB Rule, supersedes ADR-0019 D11) — DONE.
