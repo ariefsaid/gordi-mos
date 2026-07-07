@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -7,6 +7,7 @@ import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
+import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
 import { CascadePage } from './pages/cascade-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
@@ -68,7 +69,13 @@ export const routeConfig: RouteObject[] = [
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <HomePage /> },
+          { index: true, element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage /> },
+          // Issue E — DEV-only preview of the stacked-union Home, reachable regardless of the
+          // SHOW_HOME_STACKED flag so e2e + visual verification is deterministic. Production `/`
+          // still branches on the flag (above). Stripped from the production build via DEV.
+          ...(import.meta.env.DEV
+            ? [{ path: '__home-stacked', element: <StackedUnionHome /> }]
+            : []),
           {
             path: 'tasks',
             element: <TasksLayout />,

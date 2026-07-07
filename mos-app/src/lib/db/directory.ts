@@ -18,6 +18,12 @@ export interface PersonOption {
   full_name: string
 }
 
+export interface RoleScopeRow {
+  id: string
+  business_unit_id: string | null
+  reports_to_role_id: string | null
+}
+
 /** Load all non-archived business units for the org (ordered by name). */
 export async function getBusinessUnits(): Promise<BusinessUnitOption[]> {
   const { data, error } = await shared()
@@ -38,4 +44,15 @@ export async function getPeople(): Promise<PersonOption[]> {
     .order('full_name', { ascending: true })
   if (error) throw new Error(`getPeople failed — ${error.message}`)
   return (data ?? []) as PersonOption[]
+}
+
+/** Load all org roles with their BU + reports-to seam (for Home role-scope detection, Issue E).
+ *  Reads the role tree the stacked-union selector needs to test BU apex (parent's business_unit_id).
+ *  Org-readable per OD-P1-3 (RLS scopes it). Never sends org_id. */
+export async function getRoles(): Promise<RoleScopeRow[]> {
+  const { data, error } = await shared()
+    .from('roles')
+    .select('id,business_unit_id,reports_to_role_id')
+  if (error) throw new Error(`getRoles failed — ${error.message}`)
+  return (data ?? []) as RoleScopeRow[]
 }

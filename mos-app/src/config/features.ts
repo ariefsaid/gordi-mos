@@ -18,3 +18,10 @@ export const SHOW_ASSISTANT = true
 // nav destination, and the bell badge all short-circuit when false. Flip true once notification
 // producers (@mentions, automations) are wired for a rollout cohort.
 export const SHOW_INBOX = true
+
+// Issue E — Home stacked-union cockpit (docs/specs/home-stacked-union.spec.md). Hide-first: when
+// false, the `/` route renders Home v1 (HomePage) unchanged; when true, it renders the stacked-union
+// Home (StackedUnionHome). Both compositions coexist behind the flag — Home v1 stays the default
+// until the owner flips this during rollout. A DEV-only preview route (`/__home-stacked`) renders the
+// stacked home regardless of the flag, for e2e + visual verification.
+export const SHOW_HOME_STACKED = false
