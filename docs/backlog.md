@@ -329,6 +329,15 @@ Source: `docs/reviews/mvp-readiness-audit-round2-2026-07-07.md`. Each via the re
 - **F (owner-gated) absorbs ops/infra:** ESB worker DEPLOY · edge rate-limit/quota · VAPID · prod auth config
   (`enable_signup`/`confirmations`) · request-id tracing · admin audit trail.
 
+## ▶ Pre-rollout UI polish (from the 2026-07-07 4-lens design review — gates flag-flip; task #19)
+Source: `docs/reviews/design-mvp-push-2026-07-07.md`. All on **dark** surfaces → don't block `dev`; gate the cohort flag-flip.
+- **[BLOCKER] B-1/C-1** Follow-up row drills `/work/follow-ups/:id` but no route exists → 404. Add read-only detail route or pull the link.
+- **[BLOCKER] D-2** Home AR + AP placeholder slots are dead-end (anchor A4). AR → `/work/follow-ups?filter=overdue`; AP → drill or explicit visibility-only.
+- Polish: follow-up pill per-state dot+tint (A-1) · Button-ify follow-up/cascade controls + `seg` for Mine/All (A-2,A-3) · `SkeletonRows` on follow-ups+cascade (B-2) · transition success toast (B-3) · budget token drift `--border`/600 overline (A-4,A-5) · cascade inline-px→grid grammar (A-6) · localize follow-up enum via `t()` (D-7).
+- **[owner confirm] C-3** Plan gated finance/admin but jtbd assigns pricing pre-flight to Marketing/BU-head — confirm intended Plan visibility.
+- **Render debt:** authenticated states were NOT rendered (local Supabase port/seed mismatch) — Director owes a per-persona render taste-check before sign-off (owner judges look-vs-mockup).
+- Add 4 regression-invariant tests (settle-needs-evidence · no label-only Home slots · `/work/follow-ups/:id` resolves · BU-scope hides whole-co money) — see ledger.
+
 ## Near-term follow-ups (from the 2026-07-06 IA/product grill — see `docs/decisions.md` "Continued grill session 2")
 - **Shift scheduling / rostering** — flagged NEAR-TERM by owner ("manual today, needed sooner than later").
   Contributor Home is capture-first w/ no roster in MVP but leaves a "your shift today" seam; this fills it.
