@@ -120,3 +120,58 @@ This branch is already on `dev`; any later `dev`→`main` promotion still needs 
 Local stack gotchas: `supabase start --ignore-health-check -x studio,imgproxy,inbucket,edge-runtime,vector,
 analytics,realtime`; `supabase db reset` reseeds dev personas (pw `Passw0rd!dev`); clear localStorage on
 stale-session hangs. DB Postgres :44322 / API :44321 (gordi-mos stack).
+
+---
+
+## Director independent validation (2026-07-07, post-merge)
+
+The verdicts above were authored by the building agent. This section is an **independent** re-verification
+by the Director (owner-requested "check, verify, validate"), reading the merged diff and re-running gates.
+
+**Ground truth re-run on `dev`@`40f7718`:** `npm run typecheck` clean · `npm run lint` clean ·
+`npm run build` clean (pre-existing chunk-size warning only) · full `npx vitest run` = **244 files / 2369
+tests PASS** · no conflict markers in tree · ADR-0045 + ADR-0049 present.
+
+**Independently confirmed SOUND:**
+- **Security (deputy C2/C3) — PASS.** `AssistantMarkdown` uses a strict `allowedElements` allowlist,
+  `unwrapDisallowed`, no `rehype-raw` (raw `<script>`/`<img>` render as literal text), and `urlTransform`
+  that drops `javascript:`/`data:` schemes. Tests are genuinely adversarial (`AssistantPanel.test.tsx`
+  AC-AP-004 asserts `<script>`/`<img onerror>`/`javascript:` produce NO such nodes; user turns stay literal).
+  Widget path fails **closed**: `isAgentWidget` strict runtime guard + `buildDataTableWidgetFromQueryResult`
+  returns `null` on error/malformed and re-validates; `history.test.ts` covers malformed-widget + read-error
+  fail-open. `query_entity` still runs through caller-JWT/RLS; no service-role/business-write path added.
+- **Money-path (Follow-ups) — behavior preserved.** `nextActions` logic, `?filter=overdue`, `canConfirm`
+  (finance/admin), `canChase` (lane gate), transition payloads (settle prefills `running_balance`), and the
+  `/work/follow-ups/:id` detail route are all intact; now on shared DataTable+StatusPill+Button+state-kit.
+- **Tasks-select nuance honored.** `RI-IXD-5` allowlists exactly `tasks-toolbar` (DB-view chip overlay) +
+  `task-surface` / `record-details-panel` (deferred inline) + the primitive — the signature toolbar was not
+  regressed. Guards `RI-IXD-7` (no interactive brand-orange) + `RI-IXD-8` (retrofit targets on shared kit)
+  are real source-scans, not rubber stamps.
+- **Rendered spot-check (Director, dev build, Director persona).** FAB is gone — deputy is the neutral header
+  icon; bottom bar = 5 destinations; Kitchen Stock on shared `dt-table`; Kitchen Log (bespoke) is **visually
+  coherent** with the kit (same KPI tiles / status pills / tokened Select). Flag-gated surfaces
+  (Follow-ups / Budget / Pricing / Inbox behind `SHOW_*`) are **not reachable in the dev build** → their
+  visual review is RTL-only, not live-rendered (a limit that applies to the self-reported review too).
+
+**Corrections to the record above:**
+1. **"Deferred: None" is inaccurate.** The Kitchen retrofit (audit item 3) is a **2/5 slice**: only
+   Stock + Pushes moved to the shared DataTable. **Log / Plan / Review / Pesanan tables remain bespoke**
+   `<table>`s. They are **interactive inline-edit grids** (`PlanQtyCell` / WIP steppers / approve buttons) —
+   a different component class from the read-oriented DataTable. **Recommendation: formally DEFER** the port
+   — it is the wrong abstraction, they are already visually coherent, and they carry **live kitchen-ops
+   data** (regression risk with ~0 visual payoff). Track as a deliberate deferral, not "done".
+2. **D7 language bleed was NOT fixed by this branch** (ledger omits it). Kitchen Stock `Stok/Tersedia`
+   headers + the Weekly `Ringkasan minggu ini…` placeholder were hardcoded Indonesian under English labels.
+   **Fixed on `fix/ui-coherence-followups` (`1e14c55`)** — routed through i18n (both locales), 33 tests green.
+3. **The dev-merge gate was a false-green.** `pre-merge-check.sh` parses the FIRST verdict lines in
+   `docs/reviews/dev.md` — those are the **2026-07-02 sales-dashboard** verdicts, NOT a review of this diff.
+   The coherence battery lived in THIS file (self-authored) which the script does not read. The code is sound
+   (verified above), but the machine gate did not actually review this changeset. Any future `dev`→`main`
+   promotion must record a real battery in `dev.md` for the accumulated diff.
+
+**Not independently re-verified (trusted via commits + green suite):** 3-level Kitchen breadcrumb
+(`Operate › Kitchen › Plan`), Admin parent breadcrumb, header-tint B5 closure.
+
+**Overall: SHIP (already merged) with two tracked follow-ups** — Kitchen interactive-table port
+(recommend DEFER) and the `dev.md` battery-for-main. Minor nit: `id` locale leaves `kitchen.stock.col.dish`
+as `Dish` (untranslated) — trivial follow-up.
