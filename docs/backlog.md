@@ -318,6 +318,17 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
   `ConfirmDialog` · `PersonPicker` empty state.
 - P2-2b polish: shared `<TintPill>` · inline-style → co-located CSS · marker-picker up-flip.
 
+## ▶ Pre-F hardening (from the 2026-07-07 round-2 audit — BLOCKS rollout; task #17)
+Source: `docs/reviews/mvp-readiness-audit-round2-2026-07-07.md`. Each via the review loop.
+- **A1 [Sec High, MUST-FIX]** `mos.tasks` same-org reference guard (R/A/BU/C/I/created_by) — trigger/RPC +
+  pgTAP; the guard pattern exists on ops/kitchen logs, not tasks.
+- **A3 [Rel/Obs High, MUST-FIX]** React `<ErrorBoundary>` + router `errorElement` + a telemetry/error sink.
+- A2 `comments.entity_id` FK + entity-aware read-guard. · A4 `reporting_writer` org-scoped RLS (drop `using(true)`).
+- A5 budget capture SECURITY DEFINER RPC + server-recompute COGS (stop storing a client double as capture-of-record).
+- A6 (cheap) CI coverage `include`→`src/**` globs + set `VITE_SHOW_PLAN_BUDGET=true` so `AC-PB-012` e2e runs.
+- **F (owner-gated) absorbs ops/infra:** ESB worker DEPLOY · edge rate-limit/quota · VAPID · prod auth config
+  (`enable_signup`/`confirmations`) · request-id tracing · admin audit trail.
+
 ## Near-term follow-ups (from the 2026-07-06 IA/product grill — see `docs/decisions.md` "Continued grill session 2")
 - **Shift scheduling / rostering** — flagged NEAR-TERM by owner ("manual today, needed sooner than later").
   Contributor Home is capture-first w/ no roster in MVP but leaves a "your shift today" seam; this fills it.

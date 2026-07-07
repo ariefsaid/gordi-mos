@@ -1,4 +1,4 @@
-# Platform workstream — status & handoff (updated 2026-07-06)
+# Platform workstream — status & handoff (updated 2026-07-07)
 
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
 > state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`;
@@ -8,6 +8,34 @@
 Durable handoff for the **platform-foundation** workstream (turning MOS into the shared platform:
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
+
+## Current focus (2026-07-07) — MVP push: all 5 slices A–E on `dev` · round-2 audit → pre-F hardening
+
+**⚠️ FRESH-AGENT START HERE.** MVP-push (owner `/goal push to MVP-ready`) delivered **5 slices to `dev`
+(`151876a`)**, all behind flags (ship dark): **A** five-destination nav shell + **B** Work-spine absorb ·
+**C** AR/Follow-up bridge (money-path RPC `mos.transition_follow_up`) · **D** Plan v1 (budget/COGS +
+certified-metric registry) · **E** Home stacked-union cockpit. Each Director-verified (typecheck/lint/unit
+~2327 · pgTAP 74–78 · e2e) + ledgered (`docs/reviews/feat-{ia-nav-work-spine,ar-followup-bridge,plan-v1,
+home-stacked-union}.md`). Delegated via pi glm-5.2 then gpt-5.5 fallback (both hit 5h rate limits mid-run —
+Director finished verification+merges solo). Plus a kitchen-plan de-flake (`151876a`).
+
+**Round-2 MVP audit (gpt-5.5 ×3, Director-synthesized): `docs/reviews/mvp-readiness-audit-round2-2026-07-07.md`.**
+Verdict = **SHIP-WITH-FIXES, not yet rollout-ready.** Security *core* strong (org_id seam unspoofable,
+DEFINER guards, RLS ~all tables — verified). Director resolved the one agent-disagreement: the **`mos.tasks`
+cross-org *reference* seam is a REAL Sec-High** (R/A/BU/C/I/created_by are existence-FKs with no same-org
+guard — the guard exists on ops/kitchen logs but not tasks). **Pre-F hardening blocklist (task #17):**
+A1 task same-org guard *[must-fix]* · A2 comments.entity_id guard · A3 React error boundary + telemetry
+*[must-fix]* · A4 reporting_writer org-RLS · A5 budget capture RPC + server-recompute · A6 CI coverage-globs
++ enable flag e2e. **F (task #16, owner-gated) absorbs ops/infra:** ESB worker DEPLOY, edge rate-limit/quota,
+VAPID, prod auth config, request-id tracing.
+
+**▶ NEXT-AGENT:** (1) owner picks — full pre-F hardening (A1–A6) vs minimum (A1+A3) before a tiny-cohort
+rollout; (2) run the chosen hardening through the loop (builders rate-limited until ~09:28 z.ai / gpt-5.5
+reset — do small ones solo or dispatch when reset); (3) then **F**: promote dev→main→staging→prod + secrets
++ backup/restore drill (gates AR go-live) + OWASP/STRIDE prod gate + pilot accounts. **Deferred to F:** C's
+Home AR tile → E's money-position slot; GLM cross-family money-path review of C. **Branch map:** `dev`=`151876a`
+(all 5 slices + audit ledger) · `main`/`staging`=`669ee0a` (conservative, up-to-BU-remap) · `feat/margin-cogs-fact`
++ `feat/margin-matview-wip` (older, unrelated). Flags all default-OFF in `mos-app/src/config/features.ts`.
 
 ## Current focus (2026-07-06 EOD) — staging deployed · COGS root-cause fixed · Work-spine held · JTBD v0.3 grill
 
