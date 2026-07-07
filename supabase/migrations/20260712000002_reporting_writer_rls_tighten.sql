@@ -1,111 +1,48 @@
--- Tighten reporting_writer RLS policies (audit finding A4 — Sec Med).
+-- reporting_writer policy hardening review (audit finding A4 — Sec Med). DOCUMENTATION + rationale.
 --
--- CONTEXT:
--- The snapshot job (scripts/reporting_snapshot.py) is single-org per run: it reads REPORTING_ORG_ID
--- from env and writes that org_id into every row. The job does NOT set a Postgres session-level
--- org context (no GUC, no set_config), so RLS cannot scope writes to a specific org_id at runtime.
+-- FINDING: the three reporting write policies use `using (true) with check (true)` for the
+-- reporting_writer role, so a leaked reporting_writer credential = cross-org financial WRITE.
 --
--- PRIOR STATE (VULNERABLE):
--- All three policies used `using (true) with check (true)`, meaning a leak of the reporting_writer
--- credential = unbounded cross-org financial READ+WRITE (any org_id, including NULL/bogus values).
+-- INVESTIGATION (Director, 2026-07-07): the two concerns collapse to different owners.
+--   1) NULL / bogus / non-existent org_id injection — ALREADY PREVENTED by the schema, not RLS:
+--      every reporting.* table declares `org_id uuid NOT NULL references shared.orgs(id)`. A NULL
+--      org_id is rejected by the column (23502); a non-existent org_id is rejected by the FK (23503).
+--      Neither requires the RLS WITH CHECK to re-validate. A first pass at this fix added
+--      `with check (exists (select 1 from shared.orgs ...))` — that BROKE every writer INSERT with
+--      `42501 permission denied for table orgs` (reporting_writer has no SELECT on shared.orgs, by
+--      design), while adding nothing the FK + NOT NULL didn't already guarantee. Reverted.
+--   2) Cross-org WRITE to a VALID other org by a leaked credential — the real residual risk. This
+--      CANNOT be scoped at the RLS layer today: the snapshot job (scripts/reporting_snapshot.py) is
+--      single-org-per-run (reads REPORTING_ORG_ID from env) but does NOT set a Postgres session org
+--      context (no GUC / set_config), so a policy has no per-session org to scope `with check` to.
 --
--- FIX:
--- Replace `with check (true)` with a predicate that validates org_id:
---   - org_id must be NOT NULL (rejects NULL-org rows)
---   - org_id must exist in shared.orgs (rejects bogus/non-existent orgs)
+-- RESOLUTION: leave the policies functionally as-is (the schema already blocks null/bogus org; the
+-- write bypass is required for the trusted batch feed), and record the residual cross-org-write risk
+-- as an F/rollout hardening item with a concrete fix path. The mitigation until then is credential
+-- CUSTODY (docs/reference/warehouse-online.md) — reporting_writer is a server-only snapshot credential,
+-- never exposed to end users; it also has NO SELECT grant on these tables (write-only).
 --
--- LIMITATIONS (why this is the tightest feasible fix):
---   1. No session-level org context → RLS cannot scope to a single org at runtime
---   2. The job legitimately needs to UPDATE rows it previously inserted (same org)
---   3. UPDATE path keeps `using (true)` because:
---      - Conflict targets include org_id, so the job only updates rows it wrote
---      - WITH CHECK still validates the new row data
---   4. A credential leak still allows writes to ANY valid org (all orgs that exist)
+-- F FIX PATH (tracked in docs/backlog.md): the snapshot job sets `select set_config('app.reporting_org',
+-- <org_id>, false)` at session start, and each write policy becomes
+--   `with check (org_id = current_setting('app.reporting_org', true)::uuid)` — truly scoping the writer
+-- to one org per run. Deferred because it changes + must redeploy the Python job (F/ops).
 --
--- MITIGATION (beyond RLS):
---   - Credential custody is an F/ops control (docs/reference/warehouse-online.md)
---   - SELECT policies are org-scoped to shared.current_org_id(), so read exposure is contained
---   - reporting_writer has no SELECT grant on these tables (write-only, no read privilege)
---
--- This fix closes the immediate vulnerability (NULL/bogus org injection) while accepting the
--- cross-org WRITE risk as a credential-custody issue. A full fix would require changing the
--- snapshot job to set a session GUC and scoping RLS to that GUC, which is outside the scope
--- of this security-hardening round.
-
--- ── reporting.ingredient_cost_lines ────────────────────────────────────────────
-drop policy if exists ingredient_cost_lines_write_reporting_writer
-  on reporting.ingredient_cost_lines;
-
-create policy ingredient_cost_lines_write_reporting_writer
-  on reporting.ingredient_cost_lines
-  for all
-  to reporting_writer
-  using (true)  -- UPDATE path: job only updates rows it previously inserted (org_id in conflict target)
-  with check (
-    org_id is not null
-    and exists (select 1 from shared.orgs o where o.id = org_id)
-  );
+-- This migration only re-states the policy comments (unchanged predicate) documenting the above, so the
+-- rationale lives next to the policy. No behavioral change. A4.
 
 comment on policy ingredient_cost_lines_write_reporting_writer on reporting.ingredient_cost_lines is
-  'Scoped snapshot-writer role bypass for FORCE RLS. Tightened (A4): requires org_id NOT NULL and '
-  'exists in shared.orgs. UPDATE path keeps using(true) because conflict target includes org_id, '
-  'so the job only updates rows it previously inserted. Cross-org WRITE risk remains if credential '
-  'leaks (F/ops mitigation). No SELECT privilege on this table.';
-
--- ── reporting.bom_lines ────────────────────────────────────────────────────────
-drop policy if exists bom_lines_write_reporting_writer
-  on reporting.bom_lines;
-
-create policy bom_lines_write_reporting_writer
-  on reporting.bom_lines
-  for all
-  to reporting_writer
-  using (true)  -- UPDATE path: job only updates rows it previously inserted (org_id in conflict target)
-  with check (
-    org_id is not null
-    and exists (select 1 from shared.orgs o where o.id = org_id)
-  );
+  'Snapshot-writer bypass for FORCE RLS. A4 (2026-07): null/bogus org_id already blocked by NOT NULL + '
+  'FK to shared.orgs; cross-org WRITE to a valid org is a residual risk mitigated by credential custody '
+  '(write-only role, no SELECT). True per-run org scoping needs the job to set app.reporting_org (F).';
 
 comment on policy bom_lines_write_reporting_writer on reporting.bom_lines is
-  'Scoped snapshot-writer role bypass for FORCE RLS. Tightened (A4): requires org_id NOT NULL and '
-  'exists in shared.orgs. UPDATE path keeps using(true) because conflict target includes org_id, '
-  'so the job only updates rows it previously inserted. Cross-org WRITE risk remains if credential '
-  'leaks (F/ops mitigation). No SELECT privilege on this table.';
-
--- ── reporting.sales_margin_daily ────────────────────────────────────────────────
-drop policy if exists sales_margin_daily_write_reporting_writer
-  on reporting.sales_margin_daily;
-
-create policy sales_margin_daily_write_reporting_writer
-  on reporting.sales_margin_daily
-  for all
-  to reporting_writer
-  using (true)  -- UPDATE path: job only updates rows it previously inserted (org_id in conflict target)
-  with check (
-    org_id is not null
-    and exists (select 1 from shared.orgs o where o.id = org_id)
-  );
+  'Snapshot-writer bypass for FORCE RLS. A4 (2026-07): null/bogus org_id already blocked by NOT NULL + '
+  'FK to shared.orgs; cross-org WRITE to a valid org is a residual risk mitigated by credential custody '
+  '(write-only role, no SELECT). True per-run org scoping needs the job to set app.reporting_org (F).';
 
 comment on policy sales_margin_daily_write_reporting_writer on reporting.sales_margin_daily is
-  'Scoped snapshot-writer role bypass for FORCE RLS. Tightened (A4): requires org_id NOT NULL and '
-  'exists in shared.orgs. UPDATE path keeps using(true) because conflict target includes org_id, '
-  'so the job only updates rows it previously inserted. Cross-org WRITE risk remains if credential '
-  'leaks (F/ops mitigation). No SELECT privilege on this table.';
+  'Snapshot-writer bypass for FORCE RLS. A4 (2026-07): null/bogus org_id already blocked by NOT NULL + '
+  'FK to shared.orgs; cross-org WRITE to a valid org is a residual risk mitigated by credential custody '
+  '(write-only role, no SELECT). True per-run org scoping needs the job to set app.reporting_org (F).';
 
--- DOWN: recreate original permissive policies
--- drop policy if exists sales_margin_daily_write_reporting_writer on reporting.sales_margin_daily;
--- drop policy if exists bom_lines_write_reporting_writer on reporting.bom_lines;
--- drop policy if exists ingredient_cost_lines_write_reporting_writer on reporting.ingredient_cost_lines;
--- create policy ingredient_cost_lines_write_reporting_writer on reporting.ingredient_cost_lines
---   for all to reporting_writer using (true) with check (true);
--- create policy bom_lines_write_reporting_writer on reporting.bom_lines
---   for all to reporting_writer using (true) with check (true);
--- create policy sales_margin_daily_write_reporting_writer on reporting.sales_margin_daily
---   for all to reporting_writer using (true) with check (true);
--- comment on policy ingredient_cost_lines_write_reporting_writer on reporting.ingredient_cost_lines is
---   'Scoped snapshot-writer role bypass for FORCE RLS (warehouse→Supabase job). No SELECT-policy exposure to end users.';
--- comment on policy bom_lines_write_reporting_writer on reporting.bom_lines is
---   'Scoped snapshot-writer role bypass for FORCE RLS (warehouse→Supabase job). No SELECT-policy exposure to end users.';
--- comment on policy sales_margin_daily_write_reporting_writer on reporting.sales_margin_daily is
---   'Scoped snapshot-writer role bypass for FORCE RLS. Grain-narrowing happens at the app/query layer '
---   '(single-org snapshot job); this role has no SELECT-policy exposure to end users.';
+-- DOWN: restore the prior (pre-A4) comments — cosmetic only, no policy change.

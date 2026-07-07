@@ -65,14 +65,14 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select lives_ok($$
   insert into mos.comments (id, entity_type, entity_id, body)
   values ('00000000-0000-0000-0000-00000000c104', 'follow_up',
-          '00000000-0000-0000-0000-0000000000e01', 'chasing this')
+          '00000000-0000-0000-0000-000000000e01', 'chasing this')
 $$, 'AC-A2: a comment on a SAME-ORG follow_up inserts (CASE mapping for entity_type follow_up)');
 
 -- RAISE: a comment pointing at a FOREIGN-ORG follow_up (...0e03, WU-B) — cross-org -> NULL -> raise.
 select throws_ok($$
   insert into mos.comments (id, entity_type, entity_id, body)
   values ('00000000-0000-0000-0000-00000000c105', 'follow_up',
-          '00000000-0000-0000-0000-0000000000e03', 'reach across')
+          '00000000-0000-0000-0000-000000000e03', 'reach across')
 $$, '23514', null, 'AC-A2: a comment pointing at a FOREIGN-ORG follow_up is rejected (23514)');
 
 reset role;

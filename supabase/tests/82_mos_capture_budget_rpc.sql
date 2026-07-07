@@ -6,7 +6,7 @@
 -- Tag: A5 / AC-PB-008.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(17);
 
 select mos._test_seed_role_tree();
 

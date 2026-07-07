@@ -140,7 +140,9 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     await waitFor(() => expect(captureBudget).toHaveBeenCalledTimes(1))
     const arg = vi.mocked(captureBudget).mock.calls[0][0]
     expect(arg.menuItemEsbCode).toBe('MENU-CAPPUC')
-    expect(arg.totalBudgetedCogs).toBe(9000)
+    // A5: the client no longer sends a computed COGS total — capture_budget recomputes it
+    // server-side from the linked cost lines (link-never-copy). No totalBudgetedCogs on the input.
+    expect('totalBudgetedCogs' in arg).toBe(false)
     expect(arg.isComplete).toBe(true)
     // link-never-copy: the lines carry ingredient + qty only — NO unit_cost field.
     for (const line of arg.lines) {
