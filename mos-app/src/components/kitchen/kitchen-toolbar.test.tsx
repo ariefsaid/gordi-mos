@@ -1,7 +1,7 @@
 // B2 (OD-K-5 redesign plan §2.3): KitchenToolbar — the shared search-mini + category
 // filter, lifted from Log's .klt-toolbar so Plan + Stock (and optionally Review) share
 // it. Flat utility surface (no --shadow-rest); --card bg + --border bottom. One
-// search-mini (role="search") + an optional category <select> + an optional children
+// search-mini (role="search") + an optional category dropdown + an optional children
 // slot (e.g. ActionTypeSeg on the Plan editor). Token-only (DESIGN.md).
 
 import { describe, it, expect, vi } from 'vitest'
@@ -34,7 +34,7 @@ describe('KitchenToolbar — search-mini', () => {
 })
 
 describe('KitchenToolbar — category filter', () => {
-  it('renders a category <select> when categories are provided', () => {
+  it('renders a category dropdown when categories are provided', () => {
     render(
       <KitchenToolbar
         search=""

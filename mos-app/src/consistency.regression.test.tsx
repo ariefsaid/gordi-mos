@@ -85,6 +85,11 @@ function listNonTestSource(dir: string, acc: string[] = []): string[] {
   return acc
 }
 
+/** Path relative to src/, using POSIX separators for stable snapshots. */
+function srcRel(path: string): string {
+  return path.slice(SRC.length + 1).replaceAll('\\', '/')
+}
+
 /** True if a retired bespoke head class is re-defined as a CSS rule or applied as a className. */
 function retiredHeadClassUsed(body: string): boolean {
   // (a) re-defined as a CSS rule selector: `.tasks-page-title {` / `.ops-page-title {`
@@ -364,5 +369,36 @@ describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, › separato
 
   it('the shell <Breadcrumb> renders the › separator (single breadcrumb system)', () => {
     expect(readSrc('shell/breadcrumb.tsx')).toMatch(/›/)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-5: ONE Select shell — bounded-choice dropdowns use the shared
+// <Select> primitive. The only raw native selects left are the Tasks DB-view
+// chip overlays plus deferred task detail/create inline cases documented in
+// docs/reviews/feat-ui-coherence.md.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-5: no raw select outside documented Tasks exceptions', () => {
+  const allowedRawSelectFiles = new Set([
+    'components/tasks/tasks-toolbar.tsx',
+    'components/tasks/task-surface.tsx',
+    'components/tasks/record-details-panel.tsx',
+    'components/ui/select.tsx',
+  ])
+
+  it('pages/components bounded-choice dropdowns import the shared Select primitive', () => {
+    const roots = [resolve(SRC, 'pages'), resolve(SRC, 'components')]
+    const offenders: string[] = []
+
+    for (const root of roots) {
+      for (const file of listNonTestSource(root)) {
+        if (!file.endsWith('.tsx')) continue
+        const rel = srcRel(file)
+        if (allowedRawSelectFiles.has(rel)) continue
+        if (/<select\b/.test(readFileSync(file, 'utf8'))) offenders.push(rel)
+      }
+    }
+
+    expect(offenders).toEqual([])
   })
 })

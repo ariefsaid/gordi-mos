@@ -16,6 +16,7 @@ import type { BusinessUnitOption } from '@/lib/db/directory'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { toWibInputValue, wibInputToUTCISO } from '@/lib/week'
+import { Select } from '@/components/ui/select'
 
 export function OpsAddForm() {
   const { id: entryId } = useParams<{ id: string }>()
@@ -186,9 +187,10 @@ export function OpsAddForm() {
             <label htmlFor="ops-bu" className="tc-label">
               Business unit <span aria-hidden="true" className="tc-required">*</span>
             </label>
-            <select
+            <Select
               id="ops-bu"
-              className={`tc-select${buError ? ' tc-input-error' : ''}`}
+              fullWidth
+              error={!!buError}
               value={businessUnitId}
               onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
               aria-required="true"
@@ -201,7 +203,7 @@ export function OpsAddForm() {
               {busDirectory.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
-            </select>
+            </Select>
             {buError && (
               <span id="ops-bu-err" role="alert" className="tc-field-error">{buError}</span>
             )}
@@ -210,9 +212,9 @@ export function OpsAddForm() {
           {/* Type */}
           <div className="tc-field">
             <label htmlFor="ops-type" className="tc-label">Type</label>
-            <select
+            <Select
               id="ops-type"
-              className="tc-select"
+              fullWidth
               value={eventType}
               onChange={e => setEventType(e.target.value as LogEventType)}
               disabled={submitting}
@@ -223,7 +225,7 @@ export function OpsAddForm() {
               <option value="qc">QC</option>
               <option value="follow_up">Follow-up</option>
               <option value="other">Other</option>
-            </select>
+            </Select>
           </div>
 
           {/* Title */}
@@ -304,9 +306,9 @@ export function OpsAddForm() {
           {/* Linked task (optional; FR-045) */}
           <div className="tc-field">
             <label htmlFor="ops-linked-task" className="tc-label">Linked task</label>
-            <select
+            <Select
               id="ops-linked-task"
-              className="tc-select"
+              fullWidth
               value={linkedTaskId}
               onChange={e => setLinkedTaskId(e.target.value)}
               disabled={submitting}
@@ -316,7 +318,7 @@ export function OpsAddForm() {
               {taskDirectory.map(task => (
                 <option key={task.id} value={task.id}>{task.title}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Actions */}
@@ -368,18 +370,17 @@ export function OpsAddForm() {
         }
         .tc-required { color: var(--destructive); margin-left: 2px; }
 
-        .tc-input, .tc-select, .tc-textarea {
+        .tc-input, .tc-textarea {
           width: 100%; height: 36px; padding: 0 12px;
           border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
           background: var(--background); font: inherit; font-size: 14px;
           color: var(--foreground);
         }
-        .tc-input:focus-visible, .tc-select:focus-visible, .tc-textarea:focus-visible {
+        .tc-input:focus-visible, .tc-textarea:focus-visible {
           outline: 2px solid var(--ring); outline-offset: 2px;
         }
         .tc-input-error { border-color: var(--destructive); }
         .tc-textarea { height: auto; padding: 8px 12px; resize: vertical; }
-        .tc-select { cursor: pointer; }
         .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
 
         /* VIS-2: error TEXT uses the AA-darkened --status-lost-text. The invalid field

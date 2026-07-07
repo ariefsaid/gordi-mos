@@ -83,8 +83,7 @@
   margin-top: 8px;
 }
 
-.dev-views__input,
-.dev-views__select {
+.dev-views__input {
   height: 32px;
   padding: 0 10px;
   border: 1px solid var(--input);
@@ -96,7 +95,6 @@
   box-sizing: border-box;
 }
 .dev-views__input:focus-visible,
-.dev-views__select:focus-visible,
 .dev-views__textarea:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;

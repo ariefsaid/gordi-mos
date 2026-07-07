@@ -31,6 +31,7 @@ import {
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import './budget-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -196,10 +197,11 @@ export function BudgetPage() {
     <PageFrame variant="data">
       <PageHead title={t('plan.budget.title')} subtitle={t('plan.budget.subtitle')} />
       <section className="bp-section" aria-label="Menu item">
-        <label className="bp-field">
-          <span className="bp-label">Menu item</span>
-          <select
-            className="bp-select"
+        <div className="bp-field">
+          <label className="bp-label" htmlFor="budget-menu-item">Menu item</label>
+          <Select
+            id="budget-menu-item"
+            fullWidth
             value={selectedMenu}
             onChange={(e) => setSelectedMenu(e.target.value)}
           >
@@ -208,8 +210,8 @@ export function BudgetPage() {
                 {code}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </div>
       </section>
 
       <section className="bp-section bp-cogs" aria-label="Budgeted COGS preview">
@@ -280,18 +282,20 @@ export function BudgetPage() {
           (never a forked copy). The actual price still lands in ecommerce/POS — MOS never writes it.
         </p>
         <div className="bp-form">
-          <label className="bp-field">
-            <span className="bp-label">Scenario label</span>
+          <div className="bp-field">
+            <label className="bp-label" htmlFor="budget-scenario-label">Scenario label</label>
             <input
+              id="budget-scenario-label"
               className="bp-input"
               value={scenarioLabel}
               onChange={(e) => setScenarioLabel(e.target.value)}
             />
-          </label>
-          <label className="bp-field">
-            <span className="bp-label">Scenario type</span>
-            <select
-              className="bp-select"
+          </div>
+          <div className="bp-field">
+            <label className="bp-label" htmlFor="budget-scenario-type">Scenario type</label>
+            <Select
+              id="budget-scenario-type"
+              fullWidth
               value={scenarioType}
               onChange={(e) => setScenarioType(e.target.value as BudgetRow['scenario_type'])}
             >
@@ -299,12 +303,13 @@ export function BudgetPage() {
               <option value="promo">Promo</option>
               <option value="new_branch">New branch</option>
               <option value="menu">Menu</option>
-            </select>
-          </label>
-          <label className="bp-field">
-            <span className="bp-label">Owning business unit</span>
-            <select
-              className="bp-select"
+            </Select>
+          </div>
+          <div className="bp-field">
+            <label className="bp-label" htmlFor="budget-owning-bu">Owning business unit</label>
+            <Select
+              id="budget-owning-bu"
+              fullWidth
               value={owningBu}
               onChange={(e) => setOwningBu(e.target.value)}
             >
@@ -313,8 +318,8 @@ export function BudgetPage() {
                   {u.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
           <div className="bp-field bp-actions">
             <Button onClick={handleCapture} disabled={!canCapture}>
               {saving ? 'Capturing…' : 'Capture budget'}

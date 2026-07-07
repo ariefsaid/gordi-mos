@@ -11,6 +11,7 @@ import { UserViewRenderer, buildCompilerContext } from '@/lib/viewspec/renderer'
 import { compileCompositionSpec } from '@/lib/viewspec/compiler'
 import { listUserViews, getUserView, createUserView, type UserViewRow, type UserViewScope } from '@/lib/db/user-views'
 import { ValidationError, type CompositionSpec } from '@/lib/viewspec/types'
+import { Select } from '@/components/ui/select'
 import './dev-views-page.css'
 
 const SAMPLE: CompositionSpec = {
@@ -137,15 +138,15 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
           />
 
           <label className="dev-views__field" htmlFor="dev-views-scope">{t('dev.views.scope.label')}</label>
-          <select
+          <Select
             id="dev-views-scope"
-            className="dev-views__select"
+            fullWidth
             value={scope}
             onChange={(e) => setScope(e.target.value as UserViewScope)}
           >
             <option value="private">{t('dev.views.scope.private')}</option>
             <option value="shared_team">{t('dev.views.scope.shared_team')}</option>
-          </select>
+          </Select>
 
           <label className="dev-views__field" htmlFor="dev-views-json">{t('dev.views.json')}</label>
           <textarea

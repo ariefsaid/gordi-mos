@@ -23,21 +23,20 @@ Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see b
   (`messages.ts` en `Kitchen Log`/id `Log Dapur`, `sections.tsx`); breadcrumb **self-crumb collapse**
   ("Inbox › Inbox"→"Inbox"). AC-AP-001 narrow assertion migrated to the top-bar launcher tests.
   Shell suite green (186), typecheck+lint clean. Fixes audit **D8/B3/B4, C1, C3**.
+- WIP (post-handoff, uncommitted as of this note) — **Select swap**: safe raw dropdowns in Budget,
+  Pricing, Ops add/edit, Daily Log toolbar, Dev Views, CatalogManager, KitchenToolbar, and
+  KitchenLogTable now use `@/components/ui/select`. Added `RI-IXD-5` source guard in
+  `src/consistency.regression.test.tsx`: no raw `<select>` outside the primitive and documented Tasks
+  exceptions (`tasks-toolbar.tsx` overlay + deferred `task-surface.tsx` / `record-details-panel.tsx`).
+  Verification: red guard caught the 8 safe-swap files; then green `npm test -- src/components/ui/select.test.tsx
+  src/pages/budget-page.test.tsx src/pages/pricing-page.test.tsx src/pages/dev-views-page.test.tsx
+  src/pages/ops-add-form.test.tsx src/pages/ops-page.test.tsx src/components/catalog/catalog-manager.test.tsx
+  src/components/kitchen/kitchen-toolbar.test.tsx src/components/kitchen/kitchen-log-table.test.tsx
+  src/consistency.regression.test.tsx` (137 tests), `npm run typecheck`, and
+  `npm run lint -- --max-warnings=0`.
 
 ## REMAINING (retrofit plan §F, do in this order)
-1. **Select swap — the 11 native `<select>`.** ⚠️ NUANCE (verified this session): NOT all are plain.
-   - **Safe to swap → `@/components/ui/select`:** `pages/budget-page.tsx`, `pages/pricing-page.tsx`,
-     `pages/ops-add-form.tsx`, `pages/ops-page.tsx`, `pages/dev-views-page.tsx`,
-     `components/catalog/catalog-manager.tsx`, `components/kitchen/kitchen-toolbar.tsx`,
-     `components/kitchen/kitchen-log-table.tsx`.
-   - **DO NOT blanket-swap Tasks — judgment required:** `tasks-toolbar.tsx` deliberately wraps a native
-     `<select>` as a *transparent overlay inside the DB-view `control` chip* (intentional re-skin, has
-     `.chip-select`) — leaving it is correct; swapping regresses the signature toolbar.
-     `task-surface.tsx` (`.tc-select`) + `record-details-panel.tsx` (`.rd-inline-select`) are form/inline
-     selects — swap only if it doesn't fight their layout; otherwise leave + note.
-   - Preserve value/onChange/disabled/aria-label; carry `<option>` children as-is; drop redundant
-     field-chrome classes. Then add regression guard test (a) below.
-2. **Follow-ups rebuild-to-kit** (money-path, **glm-5.2**). `pages/follow-ups-page.tsx` (+`.css` to delete,
+1. **Follow-ups rebuild-to-kit** (money-path, **glm-5.2**). `pages/follow-ups-page.tsx` (+`.css` to delete,
    `.test.tsx`). Move to DataTable (`components/dashboard/data-table.tsx`, has 768px card reflow — fixes
    **B1** phone overflow) + StatusPill (`components/tasks/status-pill.tsx`, retire `follow-ups-pill` **D3**)
    + Button (`components/ui/button.tsx`, retire bare verbs **D6**) + state-kit (`components/ui/state-kit.tsx`
@@ -46,13 +45,13 @@ Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see b
    role gates (`canConfirm`=finance/admin, `canChase`=`canWorkAnyLane` via `lib/follow-up-lanes.ts`);
    transitions chase/promise/partial/settle/confirm via `lib/db/follow-ups.ts`; running_balance recon.
    This is the C money-path → run qa-acceptance after. Already uses PageHead (audit D5 was stale here).
-3. **Kitchen retrofit** (rebuild, **glm-5.2**). `components/kitchen/*`. Shared DB-view toolbar + DataTable
+2. **Kitchen retrofit** (rebuild, **glm-5.2**). `components/kitchen/*`. Shared DB-view toolbar + DataTable
    + state-kit; fix the floating Submit-bar collision (**B3**). Owns kitchen files exclusively.
-4. **state-kit rollout** (glm-4.7): Kitchen Review/Pushes, Sales, Pricing, Inbox hand-rolled states →
+3. **state-kit rollout** (glm-4.7): Kitchen Review/Pushes, Sales, Pricing, Inbox hand-rolled states →
    `state-kit`. **Strip the Sales schema-string leak** ("…from `reporting.sales_daily_revenue`" **D4**).
-5. **PageHead standardize** (glm-4.7): bare `<h1>` → full `PageHead` on Sales, Pricing, Budget, Weekly
+4. **PageHead standardize** (glm-4.7): bare `<h1>` → full `PageHead` on Sales, Pricing, Budget, Weekly
    Updates, Objectives, Projects (**D5**). (Follow-ups already has it.)
-6. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
+5. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
    C2 = safe-markdown in AssistantPanel; C3 = typed-widget results. ⚠️ ADR-0045 §1 / ADR-0049 are
    **referenced but NOT written** — re-read the spec, author the ADRs (eng-planner) before build.
    Battery/viewspec registry is already ported; AssistantPanel is plain-text by design (FR-P2-AP-004).
@@ -63,7 +62,8 @@ Kitchen **breadcrumb node** ("Operate › Kitchen › Plan"), **header-tint B5**
 wash — fold into state-kit rollout), Admin bare-crumb parent.
 
 ## Regression guards still to add (audit §Regression-invariant)
-(a) no raw `<select>` in `src/pages`/`src/components` (grep/lint guard, excl. the primitive + tests);
+(a) **DONE:** no raw `<select>` in `src/pages`/`src/components` outside the primitive + documented Tasks
+exceptions (`RI-IXD-5`);
 (b) every list page imports shared DataTable + state-kit; (c) Follow-ups renders card-list <768px
 (RTL, no h-overflow); (d) no `brand-orange` on an interactive element (token guard).
 
