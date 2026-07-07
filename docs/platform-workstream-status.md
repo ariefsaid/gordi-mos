@@ -9,10 +9,24 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-07 late) — pre-F hardening DONE · nav-catalog fix · UI-coherence/deputy battery SHIPPED
+## Current focus (2026-07-07 latest) — design teardown + A-level polish + parallel dashboard build
 
-**⚠️ FRESH-AGENT START HERE** (supersedes the MVP-push block below, now history). `dev` now includes the
-UI-coherence merge, closure regression guards, and post-merge IA cleanup described below.
+**⚠️ FRESH-AGENT START HERE →** read [docs/reviews/fix-ui-coherence-followups.md](reviews/fix-ui-coherence-followups.md)
+**"## Session 2"** (the full handoff: branch/worktree map, the 3-lens teardown, A-level done, next = B2 archetypes).
+TL;DR:
+- **Kitchen coherence + deputy battery DONE** on `fix/ui-coherence-followups` (unmerged); **A-level UI polish**
+  (A1 bleeds · A2 type-scale · A3 empty-state · A5 kitchen saved-state · A7 header reflow) DONE on the
+  **`feat/ui-polish-a` worktree** (`/Users/ariefsaid/Coding/gordi-mos-uipolish`, @ `1482f93`, unmerged).
+- **3-lens rendered design teardown** → [design-teardown-2026-07-07.md](reviews/design-teardown-2026-07-07.md):
+  the "several apps" root = **no page-archetype system**. **NEXT = B2**: author Workspace/Write-Review/
+  Catalog-Manage archetypes in `DESIGN.md`, then retrofit (fresh context budget).
+- **PARALLEL session** builds `/sales`→`/dashboard` on `feat/dashboard` (OD-DASH in `docs/decisions.md`, its
+  uncommitted files sit in the main checkout — do NOT clobber). Lanes disjoint; reconcile at merge. Its OD-DASH-2
+  ("Home = light landing + `/dashboard` cockpit") already answers the teardown's Home-identity question.
+- Gotcha: the lint gate is a **false-green on warnings** (npm eats `--max-warnings=0`) — fix the `package.json`
+  `lint` script. Delegation: background long pi dispatches; gpt-5.4 = vision, glm-5.2 = text-only.
+
+*(History below: `dev` includes the UI-coherence merge, closure regression guards, and post-merge IA cleanup.)*
 
 **Shipped to `dev` since the MVP push:**
 - **Pre-F hardening A1–A6 DONE + merged** (round-2 audit blocklist; task #17). Battery: `docs/reviews/feat-harden-round2.md`
