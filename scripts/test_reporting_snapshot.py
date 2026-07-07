@@ -246,5 +246,62 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION, "pos_margin_interim.v1")
 
 
+class LocalSnapshotEnvTests(unittest.TestCase):
+    """AC-030: Given local targets, when reporting-snapshot-local.sh runs, then it sets the
+    correct WAREHOUSE_DB_URL / SUPABASE_REPORTING_DB_URL / REPORTING_ORG_ID for the local
+    gordi-esb-pg (:5432) and local Supabase (:44322). The bash wrapper delegates env-var
+    construction to this helper so it stays unit-testable."""
+
+    def test_defaults_target_local_gordi_esb_pg_and_local_supabase(self):
+        """Given no overrides, when build_local_env runs, then it points at the local
+        gordi-esb-pg container (:5432, trust auth, no password) and local Supabase (:44322)."""
+        from reporting_local_env import build_local_env
+
+        env = build_local_env({})
+
+        self.assertEqual(
+            env["WAREHOUSE_DB_URL"], "postgresql://gordi@127.0.0.1:5432/gordi_esb"
+        )
+        self.assertEqual(
+            env["SUPABASE_REPORTING_DB_URL"],
+            "postgresql://postgres@127.0.0.1:44322/postgres",
+        )
+        # trust auth — no password in the local DSNs
+        self.assertNotIn(":", env["WAREHOUSE_DB_URL"].split("@")[0].rsplit("//", 1)[-1])
+        self.assertNotIn(
+            ":", env["SUPABASE_REPORTING_DB_URL"].split("@")[0].rsplit("//", 1)[-1]
+        )
+
+    def test_org_id_falls_back_to_canonical_gordi_org_from_seed(self):
+        """Given no REPORTING_ORG_ID, when build_local_env runs, then REPORTING_ORG_ID is the
+        canonical Gordi org id from supabase/seed.sql (10000000-...-001)."""
+        from reporting_local_env import build_local_env, DEFAULT_GORDI_ORG_ID
+
+        env = build_local_env({})
+
+        self.assertEqual(env["REPORTING_ORG_ID"], DEFAULT_GORDI_ORG_ID)
+        self.assertEqual(DEFAULT_GORDI_ORG_ID, "10000000-0000-0000-0000-000000000001")
+
+    def test_org_id_override_via_report_env_takes_precedence(self):
+        """Given REPORTING_ORG_ID is set in the environment, when build_local_env runs, then the
+        override wins over the canonical fallback."""
+        from reporting_local_env import build_local_env
+
+        env = build_local_env({"REPORTING_ORG_ID": "00000000-0000-0000-0000-0000000000a1"})
+
+        self.assertEqual(env["REPORTING_ORG_ID"], "00000000-0000-0000-0000-0000000000a1")
+
+    def test_env_returns_exactly_the_three_snapshot_required_keys(self):
+        """Given build_local_env runs, then the returned dict carries exactly the three keys that
+        reporting_snapshot.py's SnapshotConfig.from_env requires (no more, no less)."""
+        from reporting_local_env import build_local_env
+
+        env = build_local_env({})
+
+        self.assertEqual(
+            set(env), {"WAREHOUSE_DB_URL", "SUPABASE_REPORTING_DB_URL", "REPORTING_ORG_ID"}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
