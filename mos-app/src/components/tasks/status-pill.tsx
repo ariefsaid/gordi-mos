@@ -15,7 +15,7 @@ import './status-pill.css'
 
 export type { TaskStatus }
 
-type StatusPillProps = { status: TaskStatus }
+type StatusPillProps = { status: TaskStatus; label?: string }
 
 const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'In Progress': 'blue',
@@ -24,7 +24,7 @@ const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'Done': 'green',
 }
 
-export function StatusPill({ status }: StatusPillProps) {
+export function StatusPill({ status, label }: StatusPillProps) {
   // NO aria-label: the visible text IS the accessible name. StatusTrigger renders
   // StatusPill inside a role=option / button, and an aria-label would override the
   // option's computed name, breaking status-change (AC-071/103/111).
@@ -35,7 +35,7 @@ export function StatusPill({ status }: StatusPillProps) {
       className="status-pill"
       Icon={<span className="status-dot" aria-hidden="true" />}
     >
-      {status}
+      {label ?? status}
     </Tag>
   )
 }

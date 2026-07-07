@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { getBusinessUnits } from '@/lib/db/directory'
 import { canWorkAnyLane } from '@/lib/follow-up-lanes'
-import { listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpTransition } from '@/lib/db/follow-ups'
-import './follow-ups-page.css'
+import { listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
+import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { Button } from '@/components/ui/button'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 
 type FetchState = 'loading' | 'ready' | 'error'
 
@@ -22,11 +26,19 @@ function nextActions(row: FollowUpRow, canConfirm: boolean, canChase: boolean): 
   return basic
 }
 
+function followUpStatusTone(state: FollowUpState): TaskStatus {
+  if (state === 'open') return 'Open'
+  if (state === 'confirmed') return 'Done'
+  return 'In Progress'
+}
+
 export function FollowUpsPage() {
   useDocumentTitle('Follow-up queue — Gordi MOS')
   const t = useT()
   const auth = useAuth()
+  const isDesktop = useIsDesktop()
   const [params] = useSearchParams()
+  const route = useParams<{ id?: string }>()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const accessRoles = useMemo(() => viewer?.accessRoles ?? [], [viewer])
   const canConfirm = accessRoles.includes('finance') || accessRoles.includes('admin')
@@ -81,50 +93,171 @@ export function FollowUpsPage() {
     load()
   }
 
+  function renderTransitionForm(row: FollowUpRow, verb: FollowUpTransition) {
+    if (verb === 'chase' || verb === 'confirm') return null
+    const formReady = verb === 'promise'
+      ? !!form.promise_date
+      : !!form.cash_in_date && !!form.evidence && !!form.amount
+
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {verb === 'promise' ? (
+          <input
+            aria-label={t('followUps.promiseDate')}
+            type="date"
+            value={form.promise_date}
+            onChange={(e) => setForm({ ...form, promise_date: e.target.value })}
+          />
+        ) : (
+          <>
+            <input
+              aria-label={t('followUps.amountInput')}
+              type="number"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            />
+            <input
+              aria-label={t('followUps.cashInDate')}
+              type="date"
+              value={form.cash_in_date}
+              onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })}
+            />
+            <input
+              aria-label={t('followUps.evidence')}
+              placeholder={t('followUps.evidence')}
+              value={form.evidence}
+              onChange={(e) => setForm({ ...form, evidence: e.target.value })}
+            />
+          </>
+        )}
+        <Button variant="primary" disabled={!formReady} onClick={() => void submit(row, verb)}>
+          {t('followUps.submit')}
+        </Button>
+      </div>
+    )
+  }
+
+  const detailRow = rows.find((row) => row.id === (active?.id ?? route.id)) ?? null
+
+  const columns: DataTableColumn<FollowUpRow>[] = [
+    {
+      key: 'counterparty',
+      header: t('followUps.counterparty'),
+      cardLabel: '',
+      render: (row) => (
+        <div>
+          <strong>{row.counterparty}</strong>
+          <br />
+          <Link
+            to={`/work/follow-ups/${row.id}`}
+            aria-label={`Read-only source ${row.source_invoice_ref ?? row.id}`}
+          >
+            {row.source_invoice_ref ?? row.kind}
+          </Link>
+        </div>
+      ),
+    },
+    {
+      key: 'original_amount',
+      header: t('followUps.amount'),
+      numeric: true,
+      render: (row) => money.format(row.original_amount),
+    },
+    {
+      key: 'running_balance',
+      header: t('followUps.balance'),
+      numeric: true,
+      render: (row) => money.format(row.running_balance),
+    },
+    {
+      key: 'state',
+      header: t('followUps.state'),
+      render: (row) => (
+        <StatusPill status={followUpStatusTone(row.state)} label={row.state} />
+      ),
+    },
+    {
+      key: 'due_date',
+      header: t('followUps.due'),
+      render: (row) => (
+        <>
+          {row.due_date ?? '—'}
+          {isOverdue(row) ? ` · ${t('followUps.overdue')}` : ''}
+        </>
+      ),
+    },
+    {
+      key: 'actions',
+      header: t('followUps.actions'),
+      render: (row) => {
+        const actions = nextActions(row, canConfirm, canChase)
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {actions.length === 0 && <span style={{ color: 'var(--muted-foreground)' }}>—</span>}
+              {actions.map((verb) => (
+                <Button key={verb} variant="outline" onClick={() => void run(row, verb)}>
+                  {t(`followUps.action.${verb}`)}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <PageFrame variant="data">
       <PageHead title={t('followUps.title')} subtitle={t('followUps.subtitle')} />
-      <p className="follow-ups-summary">{t('followUps.overdue')}: {overdueCount}</p>
-      {state === 'loading' && <p>{t('followUps.loading')}</p>}
-      {state === 'error' && <p role="alert">{error ?? t('followUps.error')}</p>}
-      {state === 'ready' && rows.length === 0 && <p>{t('followUps.empty')}</p>}
+      <p style={{ color: 'var(--muted-foreground)', margin: '0 0 16px' }}>
+        {t('followUps.overdue')}: {overdueCount}
+      </p>
+      {state === 'loading' && <SkeletonRows count={5} />}
+      {state === 'error' && (
+        <ErrorState
+          message={error ?? t('followUps.error')}
+          onRetry={() => { load() }}
+        />
+      )}
+      {state === 'ready' && rows.length === 0 && (
+        <EmptyState title={t('followUps.empty')} />
+      )}
       {state === 'ready' && rows.length > 0 && (
-        <div className="follow-ups-table-wrap">
-          <table className="follow-ups-table">
-            <thead><tr><th>{t('followUps.counterparty')}</th><th>{t('followUps.amount')}</th><th>{t('followUps.balance')}</th><th>{t('followUps.state')}</th><th>{t('followUps.due')}</th><th>{t('followUps.actions')}</th></tr></thead>
-            <tbody>
-              {rows.map((row) => {
-                const actions = nextActions(row, canConfirm, canChase)
-                const activeForRow = active?.id === row.id ? active.verb : null
-                const formReady = activeForRow === 'promise' ? !!form.promise_date : !!form.cash_in_date && !!form.evidence && !!form.amount
-                return (
-                  <tr key={row.id}>
-                    <td><strong>{row.counterparty}</strong><br /><Link to={`/work/follow-ups/${row.id}`} aria-label={`Read-only source ${row.source_invoice_ref ?? row.id}`}>{row.source_invoice_ref ?? row.kind}</Link></td>
-                    <td>{money.format(row.original_amount)}</td>
-                    <td>{money.format(row.running_balance)}</td>
-                    <td><span className={`follow-ups-pill is-${row.state}`}>{row.state}</span></td>
-                    <td>{row.due_date ?? '—'} {isOverdue(row) ? `· ${t('followUps.overdue')}` : ''}</td>
-                    <td>
-                      <div className="follow-ups-actions">
-                        {actions.map((verb) => <button key={verb} type="button" onClick={() => void run(row, verb)}>{t(`followUps.action.${verb}`)}</button>)}
-                      </div>
-                      {activeForRow && activeForRow !== 'chase' && activeForRow !== 'confirm' && (
-                        <div className="follow-ups-form">
-                          {activeForRow === 'promise' ? <input aria-label={t('followUps.promiseDate')} type="date" value={form.promise_date} onChange={(e) => setForm({ ...form, promise_date: e.target.value })} /> : <>
-                            <input aria-label={t('followUps.amountInput')} type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-                            <input aria-label={t('followUps.cashInDate')} type="date" value={form.cash_in_date} onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })} />
-                            <input aria-label={t('followUps.evidence')} placeholder={t('followUps.evidence')} value={form.evidence} onChange={(e) => setForm({ ...form, evidence: e.target.value })} />
-                          </>}
-                          <button type="button" disabled={!formReady} onClick={() => void submit(row, activeForRow)}>{t('followUps.submit')}</button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          isDesktop={isDesktop}
+          caption={t('followUps.title')}
+        />
+      )}
+      {state === 'ready' && detailRow && (
+        <aside
+          role="complementary"
+          aria-label="Follow-up detail"
+          style={{
+            marginTop: 16,
+            padding: 16,
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            background: 'var(--card)',
+            boxShadow: 'var(--shadow-rest)',
+          }}
+        >
+          <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>{detailRow.counterparty}</h2>
+          <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 12px', margin: '0 0 12px' }}>
+            <dt style={{ color: 'var(--muted-foreground)' }}>Source</dt>
+            <dd style={{ margin: 0 }}>{detailRow.source_invoice_ref ?? detailRow.kind}</dd>
+            <dt style={{ color: 'var(--muted-foreground)' }}>State</dt>
+            <dd style={{ margin: 0 }}>
+              <StatusPill status={followUpStatusTone(detailRow.state)} label={detailRow.state} />
+            </dd>
+            <dt style={{ color: 'var(--muted-foreground)' }}>Running balance</dt>
+            <dd className="tabular" style={{ margin: 0 }}>{money.format(detailRow.running_balance)}</dd>
+          </dl>
+          {active?.id === detailRow.id && renderTransitionForm(detailRow, active.verb)}
+        </aside>
       )}
     </PageFrame>
   )
