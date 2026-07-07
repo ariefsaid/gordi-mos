@@ -418,20 +418,20 @@ describe('AC-404: Work catalog links are capability-gated (no standalone Catalog
   })
 })
 
-// ── Plan destination (nav-five-destinations FR-404) — Sales is now a Plan link, not drill-only ─
-describe('AC-402: Plan destination — finance sees Sales; member sees no Plan group', () => {
-  it('AC-402: finance sees a Plan group with a Sales link', () => {
+// ── Plan destination (nav-five-destinations FR-404) — Dashboard is now a Plan link, not drill-only ─
+describe('AC-402: Plan destination — finance sees Dashboard; member sees no Plan group', () => {
+  it('AC-402: finance sees a Plan group with a Dashboard link', () => {
     setAuthAs(['finance'])
-    renderRailNav('/sales')
+    renderRailNav('/dashboard')
     expect(groupLabel('Plan')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Sales' })).toHaveAttribute('href', '/sales')
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard')
   })
 
-  it('AC-402: member sees NO Plan group and NO Sales link', () => {
+  it('AC-402: member sees NO Plan group and NO Dashboard link', () => {
     setAuthAs(['member'])
     renderRailNav('/tasks')
     expect(queryGroupLabel('Plan')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Sales' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
   })
 })
 

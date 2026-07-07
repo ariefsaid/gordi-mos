@@ -98,14 +98,14 @@ describe('FR-S03/RI-IA-KITCHEN: Kitchen routes read "Operate › Kitchen › <Lo
   })
 })
 
-// FR-424 (nav-five-destinations): the relocated Work manage routes + the Plan Sales link + the
+// FR-424 (nav-five-destinations): the relocated Work manage routes + the Plan Dashboard link + the
 // Operate Daily Log all resolve through their owning destination — "Work › Objectives",
-// "Work › Projects & Processes", "Plan › Sales", "Operate › Daily Log".
+// "Work › Projects & Processes", "Plan › Dashboard", "Operate › Daily Log".
 describe('AC-408: breadcrumb resolves manage/Plan/Operate routes through their destination (FR-424)', () => {
   const cases = [
     { path: '/work/objectives', section: 'Work', leaf: 'Objectives' },
     { path: '/work/projects-processes', section: 'Work', leaf: 'Projects & Processes' },
-    { path: '/sales', section: 'Plan', leaf: 'Sales' },
+    { path: '/dashboard', section: 'Plan', leaf: 'Dashboard' },
     { path: '/ops', section: 'Operate', leaf: 'Daily Log' },
   ]
 
@@ -122,8 +122,8 @@ describe('AC-408: breadcrumb resolves manage/Plan/Operate routes through their d
   }
 })
 
-// Routes NOT owned by a destination (Admin, cascade catalog, Sales — drill-only or
-// role-gated manage surfaces) keep resolving via sectionForPath's own label, unaffected.
+// Routes NOT owned by a destination (Admin, cascade catalog, manage surfaces — drill-only or
+// role-gated) keep resolving via sectionForPath's own label, unaffected.
 describe('Routes outside DESTINATIONS resolve via their own section label (unaffected)', () => {
   it('renders "Admin › People" at /admin/people', () => {
     const { container } = renderBreadcrumb('/admin/people')

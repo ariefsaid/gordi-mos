@@ -147,17 +147,38 @@ describe('router — catalog manage-mode relocated under /work/ (FR-421)', () =>
   })
 })
 
-describe('router — sales dashboard route gate (FR-001)', () => {
-  it('AC-001/002: /sales sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
+describe('router — dashboard route gate + redirect (OD-DASH-2, FR-001/002)', () => {
+  // Helper: find the AppShell route node.
+  function shellChildren() {
     const protectedRoute = routeConfig.find(
       r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
     )!
     const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const salesGate = shell.children!.find(
+    return shell.children!
+  }
+
+  it('AC-002/003: /dashboard sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
+    const dashGate = shellChildren().find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
+    )!
+    expect(dashGate).toBeDefined()
+    expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+  })
+
+  it('AC-001: /sales redirects to /dashboard (back-compat)', () => {
+    const gate = shellChildren().find(
       r => Array.isArray(r.children) && r.children.some(c => c.path === 'sales'),
     )!
-    expect(salesGate).toBeDefined()
-    expect(salesGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    const salesRoute = gate.children!.find(r => r.path === 'sales')!
+    expect(salesRoute.element).toEqual(<Navigate to="/dashboard" replace />)
+  })
+
+  it('AC-017: /dashboard/detail is wired (parameterized detail sub-view)', () => {
+    const gate = shellChildren().find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
+    )!
+    const detailRoute = gate.children!.find(r => r.path === 'dashboard/detail')
+    expect(detailRoute).toBeDefined()
   })
 })
 

@@ -1,0 +1,87 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   DashboardPage — the /dashboard composition layout (design-plan §1, Variant B).
+   Desktop: page head → global toolbar → tab strip → one pane (Summary or Detail).
+   Token-only (DESIGN.md). Soft-Elevation: shadow on KPI tiles/chart/table only.
+   ════════════════════════════════════════════════════════════════════════════ */
+.dash-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 22px 24px 6px;
+  box-sizing: border-box;
+}
+
+.dash-fresh {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.dash-pane {
+  padding: 16px 24px 24px;
+  box-sizing: border-box;
+}
+
+/* KPI grid — desktop 5-up (design-plan §1.1), tablet 3-up, phone 2-up (§1.3). */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dash-kpi-grid--gm {
+  margin-top: 12px;
+}
+
+.dash-loading {
+  padding: 16px 24px;
+}
+.dash-loading .dash-kpi-grid {
+  margin-bottom: 16px;
+}
+
+.dash-footnote {
+  padding: 10px 0 4px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+}
+.dash-footnote b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.dash-pane .chart-frame {
+  margin-top: 14px;
+}
+
+/* Tablet (768–1279px): KPI grids reduce to 3-up (design-plan §1.4). */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Mobile (<768px): phone-first. 2-up KPI tiles, sticky toolbar rail, padding shrinks. */
+@media (max-width: 767px) {
+  .dash-head {
+    padding: 16px 14px 6px;
+  }
+  .dash-pane {
+    padding: 10px 14px 16px;
+  }
+  .dash-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .dash-loading {
+    padding: 10px 14px;
+  }
+}
