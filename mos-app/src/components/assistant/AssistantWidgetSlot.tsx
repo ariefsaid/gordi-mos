@@ -1,4 +1,6 @@
+import { ChartFrame } from '@/components/dashboard/chart-frame'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { KPITile } from '@/components/dashboard/kpi-tile'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import type { AgentWidget, AgentWidgetCell, DataChartWidget, DataInsightWidget, DataTableWidget } from '@/lib/agent/widgets'
 
@@ -32,29 +34,88 @@ function DataTableWidgetView({ widget }: { widget: DataTableWidget }) {
 
 function DataInsightWidgetView({ widget }: { widget: DataInsightWidget }) {
   return (
-    <div className="rounded-md border border-border bg-secondary" style={{ padding: '0.75rem' }}>
-      <h3 className="text-foreground font-semibold" style={{ fontSize: 14 }}>{widget.title}</h3>
-      <div className="text-foreground tabular" style={{ fontSize: 22, marginTop: '0.25rem' }}>{formatCell(widget.value)}</div>
-      {widget.label && <div className="text-muted-foreground" style={{ fontSize: 12 }}>{widget.label}</div>}
-      {widget.detail && <p className="text-muted-foreground" style={{ fontSize: 13, marginTop: '0.375rem' }}>{widget.detail}</p>}
-    </div>
+    <KPITile
+      label={widget.label ?? widget.title}
+      value={formatCell(widget.value)}
+      sub={widget.detail}
+    />
   )
 }
 
 function DataChartWidgetView({ widget }: { widget: DataChartWidget }) {
+  // Normalize values to bar heights (max = 100% of chart height).
+  const numericYValues = widget.points
+    .map((p) => p[widget.yKey])
+    .filter((v): v is number => typeof v === 'number')
+  const maxY = Math.max(...numericYValues, 1) // avoid division by zero
+
+  const barHeight = 120
+  const barWidth = 24
+  const gap = 12
+  const svgHeight = barHeight + 20 // +20 for labels below
+  const svgWidth = widget.points.length * (barWidth + gap) - gap
+
   return (
-    <div className="rounded-md border border-border bg-secondary" style={{ padding: '0.75rem' }}>
-      <h3 className="text-foreground font-semibold" style={{ fontSize: 14 }}>{widget.title}</h3>
-      <DataTable
-        columns={[
-          { key: widget.xKey, header: widget.xKey },
-          { key: widget.yKey, header: widget.yKey },
-        ]}
-        rows={widget.points}
-        isDesktop
-        caption={widget.title}
-      />
-    </div>
+    <ChartFrame
+      title={widget.title}
+      ariaLabel={widget.title}
+      tableFallback={
+        <DataTable
+          columns={[
+            { key: widget.xKey, header: widget.xKey },
+            { key: widget.yKey, header: widget.yKey },
+          ]}
+          rows={widget.points}
+          isDesktop
+          caption={widget.title}
+        />
+      }
+    >
+      <svg
+        role="img"
+        aria-label={`${widget.title} bar chart`}
+        width={svgWidth}
+        height={svgHeight}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="chart-frame-svg"
+      >
+        <title>{widget.title}</title>
+        {widget.points.map((point, idx) => {
+          const x = idx * (barWidth + gap)
+          const yVal = point[widget.yKey]
+          const numericY = typeof yVal === 'number' ? yVal : 0
+          const height = (numericY / maxY) * barHeight
+          const y = barHeight - height
+          const xLabel = String(point[widget.xKey])
+          const yLabel = String(yVal)
+
+          return (
+            <g key={idx}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={height}
+                fill="var(--primary)"
+                rx={2}
+                role="graphics-symbol"
+                aria-label={`${xLabel}: ${yLabel}`}
+              />
+              <text
+                x={x + barWidth / 2}
+                y={svgHeight - 4}
+                textAnchor="middle"
+                fontSize="10"
+                fill="var(--muted-foreground)"
+                className="tabular"
+              >
+                {xLabel.slice(0, 8)}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </ChartFrame>
   )
 }
 

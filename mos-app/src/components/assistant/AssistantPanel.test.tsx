@@ -207,6 +207,83 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Unsafe' })).toBeNull())
   })
 
+  it('ADR-0045: data_insight artifact renders a KPITile (value + label)', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime([
+        {
+          id: 'w2',
+          runId: 'r1',
+          type: 'artifact',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          payload: {
+            kind: 'data_insight',
+            title: 'Active Tasks',
+            value: 12,
+            label: 'In Progress',
+            detail: '3 due this week',
+          },
+        },
+        { id: 's1', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
+      ]),
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'show active tasks' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    // KPITile renders with label and value visible.
+    expect(await screen.findByText('In Progress')).toBeInTheDocument()
+    expect(screen.getByText('12')).toBeInTheDocument()
+    expect(screen.getByText('3 due this week')).toBeInTheDocument()
+  })
+
+  it('ADR-0045: data_chart artifact renders ChartFrame with SVG bar chart AND table fallback', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime([
+        {
+          id: 'w3',
+          runId: 'r1',
+          type: 'artifact',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          payload: {
+            kind: 'data_chart',
+            title: 'Weekly Revenue',
+            xKey: 'week',
+            yKey: 'revenue',
+            points: [
+              { week: 'W1', revenue: 45000 },
+              { week: 'W2', revenue: 52000 },
+              { week: 'W3', revenue: 38000 },
+            ],
+          },
+        },
+        { id: 's1', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
+      ]),
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'show revenue chart' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    // ChartFrame title visible.
+    expect(await screen.findByRole('heading', { name: 'Weekly Revenue' })).toBeInTheDocument()
+
+    // SVG bar chart present with proper a11y.
+    const svg = screen.getByRole('img', { name: 'Weekly Revenue bar chart' })
+    expect(svg).toBeInTheDocument()
+    expect(svg).toHaveAttribute('aria-label', 'Weekly Revenue bar chart')
+
+    // Table fallback present (DataTable in fallback div).
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'week' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'revenue' })).toBeInTheDocument()
+    // Verify both SVG labels and table rows exist (multiple W1 is OK — one in SVG, one in table).
+    expect(screen.getAllByText('W1')).toHaveLength(2)
+    expect(screen.getAllByText('45000')).toHaveLength(1)
+  })
+
   it('a11y: Esc closes the open panel (never cancels a run silently)', () => {
     renderPanel({ narrow: true, open: true })
     expect(screen.getByRole('dialog', { name: 'Deputy' })).toBeInTheDocument()
