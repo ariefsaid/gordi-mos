@@ -6,6 +6,7 @@ import { SettingsIcon } from './icons'
 import { LocaleToggle } from './locale-toggle'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { can } from '@/lib/capabilities'
 
 type RailNavProps = {
   onNavigate?: () => void
@@ -87,8 +88,8 @@ export function RailNav({ onNavigate }: RailNavProps) {
 
   // DESTINATIONS (plan §1.5/§4.2) is the single source of truth for both the rail
   // and the phone bottom-tab bar. Only live destinations (>=1 link, gate satisfied)
-  // render as a rail group. railHidden links (FR-420: the Work manage routes) never
-  // render as rail items — the catalog is reachable only from the cascade.
+  // render as a rail group. Capability-gated links (FR-424: the Work catalog manage routes)
+  // render only for a viewer who holds the named capability — see the filter below.
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
 
   return (
@@ -97,8 +98,9 @@ export function RailNav({ onNavigate }: RailNavProps) {
           brand lockup, ⌘K search trigger, and user chip (ADR-0013 D1). */}
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         {liveDestinations.map((d) => {
-          // FR-420: manage-mode routes are railHidden — never shown as rail items.
-          let sections = d.links.filter((s) => !s.railHidden)
+          // FR-424: a capability-gated link (Work's Objectives / Projects & Processes manage
+          // routes) shows only for a viewer who holds the named capability; ungated links always show.
+          let sections = d.links.filter((s) => !s.capability || can(accessRoles, s.capability))
           // Operate (Kitchen): Log/Plan/Stock for everyone; Review/Pushes gated.
           if (d.id === 'operate') {
             sections = sections.filter((s) => {

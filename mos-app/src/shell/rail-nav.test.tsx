@@ -375,22 +375,29 @@ describe('AC-070: Admin nav group', () => {
   })
 })
 
-// ── Catalog = Work's manage-mode (nav-five-destinations FR-420) ──────────────────
-// The standalone "Catalog" rail group is RETIRED. Objectives + Projects & Processes are reachable
-// only from the Work cascade's Manage affordance; they NEVER appear as rail links for any role.
-describe('AC-404: no standalone Catalog nav group for any role', () => {
-  it('AC-404: admin sees NO Catalog group, NO Objectives/Projects & Processes rail links', () => {
+// ── Catalog = capability-gated Work rail links (FR-424, owner decision 2026-07-07) ──────────────
+// Supersedes FR-420: Objectives + Projects & Processes render UNDER Work for a viewer who holds the
+// matching capability (objective.manage / workline.manage). Still NO standalone "Catalog" group,
+// and they never appear for a viewer without the capability. The cascade Manage links stay too.
+describe('AC-404: Work catalog links are capability-gated (no standalone Catalog group)', () => {
+  it('AC-404: admin (objective.manage + workline.manage) sees BOTH catalog links under Work', () => {
     setAuthAs(['admin'])
     renderRailNav('/work/cascade')
     expect(queryGroupLabel('Catalog')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
+    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects-processes')
   })
 
-  it('AC-404: ops_lead sees NO Catalog group, NO Objectives/Projects & Processes rail links', () => {
+  it('AC-404: ops_lead (workline.manage only) sees Projects & Processes but NOT Objectives', () => {
     setAuthAs(['ops_lead'])
     renderRailNav('/tasks')
-    expect(queryGroupLabel('Catalog')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects-processes')
+    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
+  })
+
+  it('AC-404: member (no capability) sees NEITHER catalog link', () => {
+    setAuthAs(['member'])
+    renderRailNav('/tasks')
     expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
   })

@@ -37,16 +37,17 @@ export const DESTINATIONS: Destination[] = [
     Icon: TasksIcon,
     // Work owns Tasks + the Cascade everyone-view + Weekly Updates (ADR-0019 D2 / jtbd §2).
     // Daily Log moved to Operate; Follow-up queues are a documented future link (not rendered).
-    // The two catalog manage routes are Work's manage-mode (FR-420): present so the bottom-tab
-    // stays active + the breadcrumb reads "Work › Objectives", but railHidden so they never
-    // render as rail items — reachable only from the cascade's Manage affordance.
+    // The two catalog manage routes (Objectives / Projects & Processes) render as capability-gated
+    // rail items (FR-424, owner decision 2026-07-07 superseding FR-420): a holder of
+    // objective.manage / workline.manage sees them; a non-holder does not. The cascade's Manage
+    // affordance stays too (belt + suspenders). RequireCapability is the real route gate.
     links: [
       { path: '/tasks', label: 'Tasks', labelKey: 'nav.tasks', Icon: TasksIcon },
       { path: '/work/cascade', label: 'Cascade', labelKey: 'cascade.link', Icon: ObjectiveIcon },
       ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', labelKey: 'nav.updates' as const, Icon: UpdatesIcon }] : []),
       ...(SHOW_FOLLOWUPS ? [{ path: '/work/follow-ups', label: 'Follow-ups', labelKey: 'nav.followUps' as const, Icon: SalesIcon }] : []),
-      { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.objectives', Icon: ObjectiveIcon, railHidden: true },
-      { path: '/work/projects-processes', label: 'Projects & Processes', labelKey: 'nav.projectsProcesses', Icon: WorkLineIcon, railHidden: true },
+      { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.objectives', Icon: ObjectiveIcon, capability: 'objective.manage' },
+      { path: '/work/projects-processes', label: 'Projects & Processes', labelKey: 'nav.projectsProcesses', Icon: WorkLineIcon, capability: 'workline.manage' },
     ],
   },
   {

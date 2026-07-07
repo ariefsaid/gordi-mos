@@ -93,7 +93,7 @@ describe('AC-T01 / AC-410: phone viewport — one tab per live destination', () 
     expect(within(nav).getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
   })
 
-  it('AC-408: Work tab stays active on a railHidden manage route (/work/objectives)', () => {
+  it('AC-408: Work tab stays active on a capability-gated manage route (/work/objectives)', () => {
     renderTabBar('/work/objectives')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const active = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')

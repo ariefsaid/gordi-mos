@@ -11,12 +11,14 @@ export interface Section {
   labelKey?: MessageKey
   Icon: React.FC
   /**
-   * FR-420 (nav-five-destinations): a railHidden link still resolves its route through the
-   * owning destination (so the bottom-tab stays active + the breadcrumb reads "Work › …") but is
-   * NEVER rendered as a rail item — the catalog manage routes are reachable only from the cascade.
-   * The ONLY behavioral flag on Section (YAGNI).
+   * FR-424 (owner decision 2026-07-07, supersedes FR-420): a capability-gated link renders in the
+   * rail ONLY for a viewer whose access-roles grant the named capability (via `can()`); it is
+   * filtered out otherwise. The link stays in the destination's `links` regardless (so the
+   * bottom-tab stays active + the breadcrumb reads "Work › …" if the viewer ever reaches the route —
+   * RequireCapability is the real gate). Used to surface the Work catalog manage routes
+   * (Objectives / Projects & Processes) to holders while keeping them out of a non-holder's rail.
    */
-  railHidden?: boolean
+  capability?: string
 }
 
 // Rail + breadcrumb consume this. Weekly Updates / Daily Log are conditionally included via

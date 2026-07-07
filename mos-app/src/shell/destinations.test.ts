@@ -1,7 +1,7 @@
 /**
  * DESTINATIONS model tests — the five-destination IA regroup (nav-five-destinations AC-400..408).
  * DESTINATIONS is the single source of truth consumed by both the desktop rail and the phone
- * bottom-tab bar (plan §1.5). Work = Tasks/Cascade/Updates(+manage-mode railHidden);
+ * bottom-tab bar (plan §1.5). Work = Tasks/Cascade/Updates(+catalog manage routes, capability-gated);
  * Operate = Daily Log + Kitchen; Plan = Sales (finance/admin-gated).
  */
 import { describe, it, expect } from 'vitest'
@@ -21,17 +21,20 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
     expect(isLive(home, [])).toBe(true)
   })
 
-  it('AC-400: Work live links = Tasks, Cascade, Updates(flag); NO Daily Log; manage routes railHidden', () => {
+  it('AC-400: Work links = Tasks, Cascade, Updates(flag) ungated; NO Daily Log; catalog routes capability-gated', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
-    // Visible (non-railHidden) live links.
-    const visible = work.links.filter((l) => !l.railHidden).map((l) => l.path)
-    expect(visible).toEqual(['/tasks', '/work/cascade', ...(SHOW_WEEKLY_UPDATES ? ['/updates'] : [])])
+    // Ungated links (no capability) show for everyone.
+    const ungated = work.links.filter((l) => !l.capability).map((l) => l.path)
+    expect(ungated).toEqual(['/tasks', '/work/cascade', ...(SHOW_WEEKLY_UPDATES ? ['/updates'] : [])])
     // Daily Log moved to Operate — must NOT appear under Work.
     expect(work.links.some((l) => l.path === '/ops')).toBe(false)
-    // The two catalog manage routes ARE in Work's links (so the bottom-tab stays active + the
-    // breadcrumb reads "Work › …") but are railHidden (FR-420 — reachable only from the cascade).
-    const hidden = work.links.filter((l) => l.railHidden).map((l) => l.path)
-    expect(hidden).toEqual(['/work/objectives', '/work/projects-processes'])
+    // The two catalog manage routes carry a capability gate (FR-424, owner decision 2026-07-07):
+    // rendered in the rail only for a holder of the named capability.
+    const gated = work.links.filter((l) => l.capability).map((l) => [l.path, l.capability])
+    expect(gated).toEqual([
+      ['/work/objectives', 'objective.manage'],
+      ['/work/projects-processes', 'workline.manage'],
+    ])
     expect(isLive(work, [])).toBe(true)
   })
 
@@ -97,7 +100,7 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
 })
 
 // Breadcrumb / bottom-tab resolution (FR-S03 + FR-424): a route resolves to its owning
-// destination via exact-or-prefix match on the destination's links (railHidden links included —
+// destination via exact-or-prefix match on the destination's links (capability-gated links included —
 // so the Work tab stays active on /work/objectives and the breadcrumb reads "Work › Objectives").
 describe('destinationForPath — resolution (FR-S03 / FR-424)', () => {
   it('AC-408: /work/objectives + /work/projects-processes resolve to Work; /sales to Plan', () => {
