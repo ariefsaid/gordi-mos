@@ -104,9 +104,9 @@ full `npm test` (244 files / 2362 tests), `npm run build`, rendered desktop/phon
 `bash scripts/pre-merge-check.sh` exit 0.
 
 ## Deferred (needs design-eyeball, NOT mechanical — own reviewed pass)
-Kitchen **rail nesting/parent** (nest the 5 under a "Kitchen" sub-heading — audit C2 residue), 3-level
-Kitchen **breadcrumb node** ("Operate › Kitchen › Plan"), **header-tint B5** (Inbox no `secondary/35%`
-wash — fold into state-kit rollout), Admin bare-crumb parent.
+**Header-tint B5** (Inbox no `secondary/35%` wash — fold into state-kit rollout). Kitchen rail nesting,
+3-level Kitchen breadcrumbs (`Operate › Kitchen › Plan`), and Admin parent breadcrumbs are done on `dev`
+with shell regression coverage.
 
 ## Regression guards still to add (audit §Regression-invariant)
 (a) **DONE:** no raw `<select>` in `src/pages`/`src/components` outside the primitive + documented Tasks

@@ -88,6 +88,7 @@ describe('AC-RG01: Rail regroup — destination groups', () => {
   it('AC-RG01: Kitchen links appear under the "Operate" group label', () => {
     renderRailNav('/kitchen/log')
     expect(groupLabel('Operate')).toBeInTheDocument()
+    expect(groupLabel('Kitchen')).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: 'Kitchen Log' })).toBeInTheDocument()
   })
@@ -261,6 +262,20 @@ describe('AC-KIT-001: Kitchen links render under the Operate destination group',
     renderRailNav('/tasks')
     const heading = screen.getByText('Operate')
     expect(heading.className).toMatch(/text-muted-foreground/)
+  })
+
+  it('RI-IA-KITCHEN: Kitchen links are nested under a Kitchen subheading, not flat siblings of Daily Log', () => {
+    renderRailNav('/kitchen/log')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const labels = Array.from(nav.querySelectorAll('div, a'))
+      .map((el) => el.textContent?.trim())
+      .filter(Boolean)
+    expect(labels).toContain('Operate')
+    expect(labels).toContain('Daily Log')
+    expect(labels).toContain('Kitchen')
+    expect(labels.indexOf('Operate')).toBeLessThan(labels.indexOf('Daily Log'))
+    expect(labels.indexOf('Daily Log')).toBeLessThan(labels.indexOf('Kitchen'))
+    expect(labels.indexOf('Kitchen')).toBeLessThan(labels.indexOf('Kitchen Log'))
   })
 
   it('AC-KIT-001: Log link is active (aria-current=page) when at /kitchen/log', () => {

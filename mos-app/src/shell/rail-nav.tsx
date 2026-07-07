@@ -74,6 +74,34 @@ function NavGroup({
   )
 }
 
+function NavSubgroup({
+  label,
+  sections,
+  onNavigate,
+}: {
+  label: string
+  sections: Section[]
+  onNavigate?: () => void
+}) {
+  if (sections.length === 0) return null
+
+  return (
+    <>
+      <div
+        className="px-2 pb-1 pt-2 font-medium text-muted-foreground"
+        style={{ fontSize: 12 }}
+      >
+        {label}
+      </div>
+      <div className="flex flex-col gap-[2px] pl-3">
+        {sections.map((section) => (
+          <NavItem key={section.path} section={section} onNavigate={onNavigate} />
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function RailNav({ onNavigate }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
@@ -107,6 +135,16 @@ export function RailNav({ onNavigate }: RailNavProps) {
               if (s.label === 'Review' || s.label === 'Pushes') return hasElevatedKitchenAccess
               return true
             })
+          }
+          if (d.id === 'operate') {
+            const kitchenSections = sections.filter((s) => s.path.startsWith('/kitchen/'))
+            const nonKitchenSections = sections.filter((s) => !s.path.startsWith('/kitchen/'))
+            return (
+              <div key={d.id}>
+                <NavGroup label={t(d.labelKey)} sections={nonKitchenSections} onNavigate={onNavigate} />
+                <NavSubgroup label={t('nav.kitchen')} sections={kitchenSections} onNavigate={onNavigate} />
+              </div>
+            )
           }
           return (
             <NavGroup key={d.id} label={t(d.labelKey)} sections={sections} onNavigate={onNavigate} />

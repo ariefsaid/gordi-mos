@@ -11,7 +11,8 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
 
 ## Current focus (2026-07-07 late) — pre-F hardening DONE · nav-catalog fix · UI-coherence/deputy battery SHIPPED
 
-**⚠️ FRESH-AGENT START HERE** (supersedes the MVP-push block below, now history). `dev` is now **`dee6f8b`** (pushed).
+**⚠️ FRESH-AGENT START HERE** (supersedes the MVP-push block below, now history). `dev` now includes the
+UI-coherence merge, closure regression guards, and post-merge IA cleanup described below.
 
 **Shipped to `dev` since the MVP push:**
 - **Pre-F hardening A1–A6 DONE + merged** (round-2 audit blocklist; task #17). Battery: `docs/reviews/feat-harden-round2.md`
@@ -42,13 +43,14 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
   validated `data_table` artifacts rendered through the assistant widget registry/DataTable). Branch battery:
   `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (244 files / 2362 tests),
   `npm run build`, rendered desktop/phone review, and `scripts/pre-merge-check.sh` PASS.
-  Deferred non-blockers: Kitchen rail parent / 3-level Kitchen breadcrumb / Admin bare-crumb parent need a
-  separate design-eyeball pass; they were not required for the shipped retrofit.
+  Post-merge IA cleanup also landed: Kitchen links are nested under a Kitchen rail subheading, Kitchen
+  breadcrumbs read `Operate › Kitchen › <leaf>`, and Admin breadcrumbs read `Admin › People`. Remaining
+  non-blocker: Inbox header-tint B5 needs a separate design-eyeball pass.
 
 **▶ THEN — F (task #16, owner-gated):** promote dev→main→staging→prod + secrets (deputy model key, VAPID) + backup/restore
 drill (gates AR go-live) + OWASP/STRIDE prod gate + ESB worker DEPLOY + edge rate-limit/quota + **A4 reporting_writer true
 org-scope** (snapshot job sets `set_config('app.reporting_org', …)`; policies scope `with check (org_id = current_setting(…))`).
-**Branch map:** `dev`=`dee6f8b` · `main`/`staging`=`669ee0a` (conservative, up-to-BU-remap). Flags default-OFF in
+**Branch map:** `dev`=UI-coherence + post-merge IA cleanup · `main`/`staging`=`669ee0a` (conservative, up-to-BU-remap). Flags default-OFF in
 `mos-app/src/config/features.ts`. **Local-stack gotcha:** `supabase start --ignore-health-check -x studio,imgproxy,inbucket,
 edge-runtime,vector,analytics,realtime` (flaky health gates roll back the whole stack); `supabase db reset` reseeds dev
 personas (pw `Passw0rd!dev`, Director=admin); clear `localStorage` + retry if the deputy/auth hangs on a transient DB-conn timeout.

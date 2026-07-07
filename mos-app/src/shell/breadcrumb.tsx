@@ -50,29 +50,41 @@ export function Breadcrumb() {
   // destination label would read "Inbox › Inbox" (UI-coherence audit C3) — render bare instead,
   // mirroring how Home renders "Home" not "Home › Home".
   const leafLabel = explicitLeaf ?? (promotedLeaf && promotedLeaf !== sectionLabel ? promotedLeaf : null)
+  const crumbLabels =
+    destination?.id === 'operate' && section.path.startsWith('/kitchen/')
+      ? [sectionLabel, t('nav.kitchen'), leafLabel ?? (section.labelKey ? t(section.labelKey) : section.label)]
+      : pathname.startsWith('/admin/')
+        ? ['Admin', section.labelKey ? t(section.labelKey) : section.label]
+        : leafLabel
+          ? [sectionLabel, leafLabel]
+          : [sectionLabel]
 
   return (
     <span style={{ fontSize: 15 }}>
-      {leafLabel ? (
-        // Sub-page: section is muted intermediate, leaf is the bold current
-        <>
-          <span className="text-muted-foreground">{sectionLabel}</span>
-          <span className="mx-[7px]" aria-hidden="true">›</span>
-          <b
-            className="truncate text-foreground font-semibold"
-            title={leafLabel}
-          >
-            {leafLabel}
-          </b>
-        </>
-      ) : (
+      {crumbLabels.length === 1 ? (
         // Section is the current page — bold, truncated
         <b
           className="truncate text-foreground font-semibold"
-          title={sectionLabel}
+          title={crumbLabels[0]}
         >
-          {sectionLabel}
+          {crumbLabels[0]}
         </b>
+      ) : (
+        // Sub-page: intermediate crumbs are muted, final crumb is the bold current.
+        <>
+          {crumbLabels.slice(0, -1).map((label) => (
+            <span key={label}>
+              <span className="text-muted-foreground">{label}</span>
+              <span className="mx-[7px]" aria-hidden="true">›</span>
+            </span>
+          ))}
+          <b
+            className="truncate text-foreground font-semibold"
+            title={crumbLabels[crumbLabels.length - 1]}
+          >
+            {crumbLabels[crumbLabels.length - 1]}
+          </b>
+        </>
       )}
     </span>
   )
