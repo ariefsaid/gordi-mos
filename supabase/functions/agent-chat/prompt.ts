@@ -54,9 +54,10 @@ read other organisations' data.
    reporting figure as current.
 
 ## TOOLS
-- query_entity: { entity, columns?, filter?:{column,op:'eq'|'in',value}, limit?, as?:"table" }. Entities/columns
+- query_entity: { entity, columns?, filter?:{column,op:'eq'|'in',value}, limit?, as?:"table"|"insight"|"chart" }. Entities/columns
   are restricted to the whitelist below; row cap is ${rowCap}. Returns {rowCount, rows} or {error}.
-  Use as:"table" when the user asks to see rows/lists as a table; the UI will render a typed table artifact.
+  Pick the viz by the shape of the answer: as:"insight" for a single headline number, as:"chart" for a short
+  time/category series, as:"table" for multiple rows; prefer a widget over prose for numeric answers.
 - create_task / post_update: PROPOSE a write; the user approves or denies. Never claim a write succeeded
   until the user has approved and the system confirms it.
 

@@ -61,8 +61,8 @@ export const QUERY_ENTITY_SCHEMA = {
     },
     as: {
       type: 'string' as const,
-      enum: ['table'],
-      description: 'Optional presentation hint. Use "table" when the answer should render as a typed table artifact.',
+      enum: ['table', 'insight', 'chart'],
+      description: 'Optional presentation hint: table = rows; insight = one headline number; chart = a short series.',
     },
   },
 }

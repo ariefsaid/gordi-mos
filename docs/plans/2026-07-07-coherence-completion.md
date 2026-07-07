@@ -44,16 +44,15 @@ ledger with a REAL battery. Then offer `fix/ui-coherence-followups` → dev.
 ## Progress (branch `fix/ui-coherence-followups`, off `dev`)
 - [x] **W1.1 DataTable grouping** — `96dc9db`. `groups?` API, collapsible headers, phone section labels, flat-mode unchanged. 34 tests.
 - [x] **W1.2 Kitchen Plan + Pesanan port** — `1fc4e5e`. Both faces on the shared grouped DataTable; retired kitchen-plan/pesanan table+cards. Behavior preserved (AC-024, FR-030/031, states). Full suite green.
-- [ ] **W1.3 Kitchen Log port — BLOCKED.** glm-5.2 failed to converge 3× (no-op timeouts); glm-4.7 produced a port that broke **30 kitchen-log-page tests** with a systematic **"Found multiple elements: <dish name>"** duplicate-render bug (planned/off-plan partition or a double-render — NOT the DataTable call, which looked correct; suspect the group partition `plannedItems`/`offPlanItems` or a name rendered twice per row). **Reverted** to keep the ops-critical capture screen safe. Needs a careful Director-hand port next session (the screen writes real production logs → ESB; do NOT ship a half-verified version).
-- [ ] **W1.4 Kitchen Review port** — not started (same DataTable-grouping approach; lower risk than Log).
-- [ ] **W1.5 retire kt-table grammar** — blocked on W1.3+W1.4 (Log/Review still use `kt-table`/`kitchen-group-header`).
-- [x] **W2.1 deputy widget slot → real primitives** — `e2df850`. data_insight→KPITile, data_chart→ChartFrame(SVG bar + table fallback), fail-closed. Deputy now renders real KPI/chart visualizations.
-- [ ] **W2.2 agent EMITS insight/chart widgets** — not started. `lib/agent/widgets.ts` only has `buildDataTableWidgetFromQueryResult`; add `buildInsightWidgetFromQueryResult` (single scalar) + `buildChartWidgetFromQueryResult` (2-col series) + teach the query_entity `as` param + agent prompt to pick insight|chart|table. (W2.1 renders them; the agent just doesn't produce insight/chart yet — so the richer widgets are reachable via replay/history but not yet auto-emitted.)
+- [x] **W1.3 Kitchen Log port** — `a98f179`. Was mis-diagnosed as "glm can't converge"; the real cause was the **10-min foreground `Bash` cap clipping pi mid-work** (glm-5.2 naming/API are fine). Re-run **backgrounded** (no clip) → glm-5.2 converged AND self-fixed the earlier duplicate-name bug (added `wip-item-stepper` `hideName?`). Full suite green.
+- [x] **W1.4 Kitchen Review port** — `8d65e54`. Extended `DataTableGroup` with a `headerActions?` slot to carry the per-group bulk "Approve all" button + transfer gate; per-row approve/reject via the Decision column render. Behavior preserved (AC-040/041/042, approve payload, productionPending gate).
+- [x] **W1.5 retire kt-table grammar** — `8d65e54`. Deleted `kitchen-group-header` + `kitchen-table.css` + the review table/cards/row (14 files). **All 5 kitchen screens now use the ONE shared DataTable; `kt-table` is gone.**
+- [x] **W2.1 deputy widget slot → real primitives** — `e2df850`. data_insight→KPITile, data_chart→ChartFrame(SVG bar + table fallback), fail-closed.
+- [~] **W2.2 agent EMITS insight/chart widgets** — IN PROGRESS (backgrounded glm-5.2 `btqi4puza`). Adds `buildInsight`/`buildChartWidgetFromQueryResult` to the shared `widgets.ts` + the query_entity `as` enum (handler + schema) + a prompt line. Rendering (W2.1) already done.
 
-## Session note (Director, for the next agent)
-Verified-good tip = `e2df850`. The two hard Kitchen editable ports (Log, Review) are the only UI-coherence
-gap left; glm could not converge on Log — port it by hand, one screen at a time, keeping every existing
-kitchen-log-page/kitchen-review-page test green (they encode submit-payload + gating invariants). The grouping
-primitive (W1.1) is the enabler and is proven by the Plan port. Deputy: rendering (W2.1) done; emission (W2.2)
-is the remaining half. ⚠️ ALWAYS run the FULL `npx vitest run` after any cross-cutting change (a D7 i18n edit
-silently broke 48 tests in 3 other files — caught only by the full suite).
+## Delegation lesson (durable — see memory [[pi-long-dispatch-timeout]])
+The "glm-5.2 can't converge" reads were WRONG — the foreground `Bash` 10-min cap was killing pi mid-work.
+glm-5.2 naming/API verified fine (real `zai/glm-5.2`, 1M ctx, 3.4s ping). Fix: **background long pi dispatches**
+(`run_in_background`) so they run to completion; keep glm's verify scope to FAST targeted checks (Director runs
+the full suite). ⚠️ ALWAYS run the FULL `npx vitest run` after any cross-cutting change (a D7 i18n edit silently
+broke 48 tests in 3 files — caught only by the full suite; `tsc` also caught a mock-cast error vitest missed).

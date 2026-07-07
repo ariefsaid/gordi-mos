@@ -43,6 +43,7 @@ interface QueryEntityResult {
 }
 
 const MAX_WIDGET_COLUMNS = 12
+const MAX_WIDGET_POINTS = 50
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -150,6 +151,94 @@ export function buildDataTableWidgetFromQueryResult(
     rows: sourceRows.map((row) =>
       Object.fromEntries(keys.map((key) => [key, coerceCell(row[key])])) as Record<string, AgentWidgetCell>,
     ),
+  }
+
+  return isAgentWidget(widget) ? widget : null
+}
+
+/** Number guard (rejects NaN). */
+function isNumeric(value: unknown): value is number {
+  return typeof value === 'number' && !Number.isNaN(value)
+}
+
+/** Coerce a `query_entity` result into a single-headline insight widget, or null.
+ *  Fail-closed: never throws; returns null unless as:'insight', no error, and >=1 row. */
+export function buildInsightWidgetFromQueryResult(
+  input: QueryEntityWidgetInput,
+  result: QueryEntityResult,
+): DataInsightWidget | null {
+  if (input.as !== 'insight' || result.error !== undefined || !Array.isArray(result.rows)) return null
+  const sourceRows = result.rows.filter(isRecord)
+  if (sourceRows.length === 0) return null
+
+  const firstRow = sourceRows[0]
+  const requestedColumns = Array.isArray(input.columns)
+    ? input.columns.filter((column): column is string => typeof column === 'string' && column.trim().length > 0)
+    : []
+
+  // Headline scalar = first requested column else the first numeric field of rows[0].
+  let columnKey: string | null = null
+  if (requestedColumns.length > 0) {
+    columnKey = requestedColumns[0]
+  } else {
+    columnKey = Object.keys(firstRow).find((key) => isNumeric(firstRow[key])) ?? null
+  }
+  if (columnKey === null || !(columnKey in firstRow)) return null
+
+  const rowCount = typeof result.rowCount === 'number' ? result.rowCount : sourceRows.length
+  const widget: DataInsightWidget = {
+    kind: 'data_insight',
+    title: typeof input.entity === 'string' && input.entity ? titleFromEntity(input.entity) : 'Insight',
+    value: coerceCell(firstRow[columnKey]),
+    label: humanizeKey(columnKey),
+    detail: `${rowCount} row${rowCount === 1 ? '' : 's'}`,
+  }
+
+  return isAgentWidget(widget) ? widget : null
+}
+
+/** Coerce a `query_entity` result into a short-series chart widget, or null.
+ *  Fail-closed: never throws; returns null unless as:'chart', no error, >=1 row, and >=1 numeric y point. */
+export function buildChartWidgetFromQueryResult(
+  input: QueryEntityWidgetInput,
+  result: QueryEntityResult,
+): DataChartWidget | null {
+  if (input.as !== 'chart' || result.error !== undefined || !Array.isArray(result.rows)) return null
+  const sourceRows = result.rows.filter(isRecord)
+  if (sourceRows.length === 0) return null
+
+  const firstRow = sourceRows[0]
+  const rowKeys = Object.keys(firstRow)
+  const requestedColumns = Array.isArray(input.columns)
+    ? input.columns.filter((column): column is string => typeof column === 'string' && column.trim().length > 0)
+    : []
+
+  // xKey = input.columns[0] else the first field; yKey = input.columns[1] else first numeric field != xKey.
+  const xKey = requestedColumns[0] ?? rowKeys[0]
+  if (xKey === undefined) return null
+  let yKey: string | null = null
+  if (requestedColumns.length > 1) {
+    yKey = requestedColumns[1]
+  } else {
+    yKey = rowKeys.find((key) => key !== xKey && isNumeric(firstRow[key])) ?? null
+  }
+  if (yKey === null || yKey === xKey) return null
+
+  // points = rows mapped to {xKey, yKey}; non-numeric y rows are dropped; fail closed if none numeric.
+  const points: Record<string, AgentWidgetCell>[] = []
+  for (const row of sourceRows) {
+    const y = row[yKey]
+    if (!isNumeric(y)) continue
+    points.push({ [xKey]: coerceCell(row[xKey]), [yKey]: y })
+  }
+  if (points.length === 0) return null
+
+  const widget: DataChartWidget = {
+    kind: 'data_chart',
+    title: typeof input.entity === 'string' && input.entity ? titleFromEntity(input.entity) : 'Chart',
+    xKey,
+    yKey,
+    points: points.slice(0, MAX_WIDGET_POINTS),
   }
 
   return isAgentWidget(widget) ? widget : null

@@ -40,8 +40,10 @@ describe('agent-chat/prompt — buildAgentSystemPrompt (T14, AC-P2-GR-001)', () 
     expect(prompt).toContain('do not include raw HTML')
   })
 
-  it('ADR-0045: advertises the query_entity as:"table" presentation hint', () => {
-    expect(prompt).toContain('as?:"table"')
-    expect(prompt).toContain('typed table artifact')
+  it('ADR-0045: advertises the query_entity as:"table"|"insight"|"chart" presentation hint', () => {
+    expect(prompt).toContain('as?:"table"|"insight"|"chart"')
+    // The prompt guides the model to pick the widget by the shape of the answer.
+    expect(prompt).toContain('as:"insight"')
+    expect(prompt).toContain('as:"chart"')
   })
 })

@@ -35,7 +35,11 @@ import { replayRunHistory } from './replay.ts'
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts'
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext, SupabaseLike } from '../../../mos-app/src/lib/agent/runtime/port.ts'
 import type { AgentChatRequest, ConversationMessage } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
-import { buildDataTableWidgetFromQueryResult } from '../../../mos-app/src/lib/agent/widgets.ts'
+import {
+  buildDataTableWidgetFromQueryResult,
+  buildInsightWidgetFromQueryResult,
+  buildChartWidgetFromQueryResult,
+} from '../../../mos-app/src/lib/agent/widgets.ts'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -405,10 +409,15 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // ── Read action (confirm:false) — dispatch immediately ──────────────────
       const toolResult = await dispatchAction(action, toolInput, deputyCtx)
       if (toolName === 'query_entity') {
-        const widget = buildDataTableWidgetFromQueryResult(
-          toolInput as { entity?: unknown; columns?: unknown; as?: unknown },
-          toolResult as { rowCount?: unknown; rows?: unknown; error?: unknown },
-        )
+        const widgetInput = toolInput as { entity?: unknown; columns?: unknown; as?: unknown }
+        const widgetResult = toolResult as { rowCount?: unknown; rows?: unknown; error?: unknown }
+        // Default to table when `as` is absent; unknown values also fall back to table (least lossy).
+        const requestedAs = widgetInput.as === 'insight' || widgetInput.as === 'chart' ? widgetInput.as : 'table'
+        const normalizedInput = { ...widgetInput, as: requestedAs }
+        const widget =
+          requestedAs === 'insight' ? buildInsightWidgetFromQueryResult(normalizedInput, widgetResult)
+          : requestedAs === 'chart' ? buildChartWidgetFromQueryResult(normalizedInput, widgetResult)
+          : buildDataTableWidgetFromQueryResult(normalizedInput, widgetResult)
         if (widget) {
           yield emit('artifact', { payload: widget })
         }
