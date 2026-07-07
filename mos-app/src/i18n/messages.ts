@@ -182,6 +182,12 @@ export const messages = {
     'plan.budget.subtitle': 'Capture a budgeted COGS from the linked BOM × ingredient cost lines',
     'plan.pricing.title': 'Pricing pre-flight',
     'plan.pricing.subtitle': 'Check the margin against the linked certified budgeted COGS',
+    // Kitchen Stock column headers (audit D7 fix)
+    'kitchen.stock.col.dish': 'Dish',
+    'kitchen.stock.col.stok': 'Stock',
+    'kitchen.stock.col.tersedia': 'Available',
+    // Weekly update placeholder (audit D7 fix)
+    'weekly.summaryPlaceholder': "This week's summary…",
   },
   id: {
     'dest.home': 'Beranda',
@@ -356,6 +362,12 @@ export const messages = {
     'plan.budget.subtitle': 'Catat COGS yang dianggarkan dari BOM tertaut × lini biaya bahan',
     'plan.pricing.title': 'Pracetak harga',
     'plan.pricing.subtitle': 'Periksa margin terhadap COGS terjanggar yang tersertifikasi dan tertaut',
+    // Kitchen Stock column headers (audit D7 fix)
+    'kitchen.stock.col.dish': 'Dish',
+    'kitchen.stock.col.stok': 'Stok',
+    'kitchen.stock.col.tersedia': 'Tersedia',
+    // Weekly update placeholder (audit D7 fix)
+    'weekly.summaryPlaceholder': 'Ringkasan minggu ini…',
   },
 } as const
 

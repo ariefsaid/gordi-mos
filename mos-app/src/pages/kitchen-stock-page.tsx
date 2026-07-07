@@ -21,6 +21,7 @@ import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
+import { useT } from '@/i18n/use-t'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -36,24 +37,27 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
-const stockColumns: DataTableColumn<KitchenStockRow>[] = [
-  {
-    key: 'wip_item_name',
-    header: 'Dish',
-    cardLabel: '',
-    render: row => (
-      <span className="ks-item">
-        <span>{row.wip_item_name}</span>
-        {row.category && <span className="ks-category">{row.category}</span>}
-      </span>
-    ),
-  },
-  { key: 'stok', header: 'Stok', numeric: true },
-  { key: 'tersedia', header: 'Tersedia', numeric: true },
-]
+function stockColumns(t: ReturnType<typeof useT>): DataTableColumn<KitchenStockRow>[] {
+  return [
+    {
+      key: 'wip_item_name',
+      header: t('kitchen.stock.col.dish'),
+      cardLabel: '',
+      render: row => (
+        <span className="ks-item">
+          <span>{row.wip_item_name}</span>
+          {row.category && <span className="ks-category">{row.category}</span>}
+        </span>
+      ),
+    },
+    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
+    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
+  ]
+}
 
 export function KitchenStockPage() {
   useDocumentTitle('Kitchen Stock — Gordi MOS')
+  const t = useT()
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
@@ -141,7 +145,7 @@ export function KitchenStockPage() {
             ariaLabel="Stock filters"
           />
           <DataTable
-            columns={stockColumns}
+            columns={stockColumns(t)}
             rows={visibleRows}
             isDesktop={isDesktop}
             state={visibleRows.length > 0 ? 'ready' : 'empty'}
