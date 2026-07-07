@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { WeeklyUpdateReviewPane } from './weekly-update-review-pane'
 import { WeeklyUpdateWritePane } from './weekly-update-write-pane'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter } from 'react-router-dom'
 import { MyWeek } from '@/pages/my-week'
 
@@ -93,11 +94,13 @@ async function renderWrite(weekStart: string) {
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <WeeklyUpdateWritePane
-        personId="person-1"
-        createdBy="person-1"
-        weekStart={weekStart}
-      />,
+      <I18nProvider>
+        <WeeklyUpdateWritePane
+          personId="person-1"
+          createdBy="person-1"
+          weekStart={weekStart}
+        />
+      </I18nProvider>,
     )
     // Flush the mock-resolved getMyUpdate Promise
     await Promise.resolve()
@@ -304,11 +307,13 @@ describe('RI-4 (I1) — Error state timeout (≤3s)', () => {
 
     await act(async () => {
       render(
-        <WeeklyUpdateWritePane
-          personId="person-1"
-          createdBy="person-1"
-          weekStart={CURRENT_WEEK}
-        />,
+        <I18nProvider>
+          <WeeklyUpdateWritePane
+            personId="person-1"
+            createdBy="person-1"
+            weekStart={CURRENT_WEEK}
+          />
+        </I18nProvider>,
       )
     })
 
@@ -366,9 +371,11 @@ describe('RI-5 (M1) — Submitted strip: no orphan space+period', () => {
     let utils!: ReturnType<typeof render>
     await act(async () => {
       utils = render(
-        <MemoryRouter>
-          <MyWeek />
-        </MemoryRouter>,
+        <I18nProvider>
+          <MemoryRouter>
+            <MyWeek />
+          </MemoryRouter>
+        </I18nProvider>,
       )
       await Promise.resolve()
     })
@@ -385,9 +392,11 @@ describe('RI-5 (M1) — Submitted strip: no orphan space+period', () => {
     let utils!: ReturnType<typeof render>
     await act(async () => {
       utils = render(
-        <MemoryRouter>
-          <MyWeek />
-        </MemoryRouter>,
+        <I18nProvider>
+          <MemoryRouter>
+            <MyWeek />
+          </MemoryRouter>
+        </I18nProvider>,
       )
       await Promise.resolve()
     })

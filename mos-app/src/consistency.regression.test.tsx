@@ -9,6 +9,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
+import { I18nProvider } from './i18n/I18nProvider'
 
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
@@ -61,7 +62,13 @@ const authedState: AuthState = {
 }
 
 function withAuth(node: React.ReactNode) {
-  return render(<AuthContext.Provider value={authedState}>{node}</AuthContext.Provider>)
+  // I18nProvider so pages whose subtrees call useT() (e.g. UpdatesPage → WeeklyUpdateWritePane)
+  // render without throwing outside a provider.
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider value={authedState}>{node}</AuthContext.Provider>
+    </I18nProvider>,
+  )
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

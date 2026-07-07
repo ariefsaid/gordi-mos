@@ -2,6 +2,7 @@
 // Review pane (PR-c, AC-040..046), My Week strip (AC-050..051)
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -107,11 +108,13 @@ const LATE_SUBMITTED_UPDATE: MyUpdate = {
 // ── Render helper ─────────────────────────────────────────────────────────────
 function renderPage(auth: AuthState = authedState) {
   return render(
-    <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/updates']}>
-        <UpdatesPage />
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <I18nProvider>
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={['/updates']}>
+          <UpdatesPage />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </I18nProvider>,
   )
 }
 
