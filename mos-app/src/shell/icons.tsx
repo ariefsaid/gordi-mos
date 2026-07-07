@@ -271,6 +271,48 @@ export function InboxIcon() {
   )
 }
 
+// BudgetIcon — a calculator/receipt, the Plan budget-capture surface (ADR-0022 D1).
+// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
+export function BudgetIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 3h11l3 3v15H5z" />
+      <path d="M8 8h7M8 12h7M8 16h4" />
+    </svg>
+  )
+}
+
+// PricingIcon — a percent tag, the Plan pricing pre-flight surface (ADR-0022 D5).
+// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
+export function PricingIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <path d="M7 7h.01M8.5 8.5l7 7" />
+    </svg>
+  )
+}
+
 export function SettingsIcon() {
   return (
     <svg

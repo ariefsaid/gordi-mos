@@ -27,3 +27,9 @@ export const SHOW_INBOX = true
 export const SHOW_HOME_STACKED = false
 // Follow-up settlement bridge v1 ships dark until the owner backup/restore go-live gate.
 export const SHOW_FOLLOWUPS = false
+// ADR-0022 (Issue D) — the Plan destination's budget/COGS capture + pricing pre-flight surfaces
+// (/plan/budget, /plan/pricing) and their Plan-destination nav links. Hide-first (default false):
+// the routes redirect to / and the nav links are absent when false. Flip true for a rollout cohort;
+// the unit/pgTAP layers prove correctness regardless (the e2e is authored runnable when true).
+export const SHOW_PLAN_BUDGET =
+  (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SHOW_PLAN_BUDGET === 'true'

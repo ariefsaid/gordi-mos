@@ -1,8 +1,8 @@
 import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
-import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon, WorkLineIcon, SalesIcon } from './icons'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX, SHOW_FOLLOWUPS } from '@/config/features'
+import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon, WorkLineIcon, SalesIcon, BudgetIcon, PricingIcon } from './icons'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
 
 /**
  * DESTINATIONS — the single source of truth for both chromes (plan §1.5).
@@ -70,6 +70,10 @@ export const DESTINATIONS: Destination[] = [
     anyOf: ['finance', 'admin'],
     links: [
       { path: '/sales', label: 'Sales', labelKey: 'nav.sales', Icon: SalesIcon },
+      ...(SHOW_PLAN_BUDGET ? [
+        { path: '/plan/budget', label: 'Budget', labelKey: 'nav.planBudget' as const, Icon: BudgetIcon },
+        { path: '/plan/pricing', label: 'Pricing pre-flight', labelKey: 'nav.planPricing' as const, Icon: PricingIcon },
+      ] : []),
     ],
   },
   {

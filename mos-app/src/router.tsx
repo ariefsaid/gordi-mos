@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED, SHOW_FOLLOWUPS } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -25,6 +25,8 @@ import { AdminUsersPage } from './pages/admin-users-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { SalesDashboardPage } from './pages/sales-dashboard-page'
+import { BudgetPage } from './pages/budget-page'
+import { PricingPage } from './pages/pricing-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -140,6 +142,16 @@ export const routeConfig: RouteObject[] = [
           {
             path: 'dev/views/:viewId',
             element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+          },
+          // ADR-0022 (Issue D) — Plan budget/COGS capture + pricing pre-flight (finance/admin).
+          // Hide-first (SHOW_PLAN_BUDGET, default false): redirect to / when off; the unit/pgTAP layers
+          // prove correctness regardless. RLS on the reporting/mos tables is the real security boundary.
+          {
+            element: <RequireAccessRole anyOf={['finance', 'admin']} />,
+            children: [
+              { path: 'plan/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace /> },
+              { path: 'plan/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace /> },
+            ],
           },
           { path: '*', element: <NotFoundPage /> },
         ],

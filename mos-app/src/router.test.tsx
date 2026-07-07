@@ -19,6 +19,7 @@ vi.mock('./config/features', () => ({
   SHOW_INBOX: true,
   SHOW_HOME_STACKED: false,
   SHOW_FOLLOWUPS: false,
+  SHOW_PLAN_BUDGET: false,
 }))
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -157,5 +158,36 @@ describe('router — sales dashboard route gate (FR-001)', () => {
     )!
     expect(salesGate).toBeDefined()
     expect(salesGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+  })
+})
+
+// ADR-0022 (Issue D) — Plan budget + pricing pre-flight routes are flag-gated (SHOW_PLAN_BUDGET
+// default false) AND finance/admin-gated. AC-PB-001 (flag-off redirect) + AC-PB-002 (role gate).
+describe('router — Plan budget + pricing routes (ADR-0022, SHOW_PLAN_BUDGET default false)', () => {
+  it('AC-PB-001: /plan/budget + /plan/pricing redirect to / while the flag is off', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const planGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    )!
+    expect(planGate).toBeDefined()
+    const budget = planGate.children!.find((r) => r.path === 'plan/budget')!
+    const pricing = planGate.children!.find((r) => r.path === 'plan/pricing')!
+    expect(budget.element).toEqual(<Navigate to="/" replace />)
+    expect(pricing.element).toEqual(<Navigate to="/" replace />)
+  })
+
+  it('AC-PB-002: the plan/budget + plan/pricing branch sits under RequireAccessRole anyOf={finance,admin}', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const planGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    )!
+    expect(planGate).toBeDefined()
+    expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
   })
 })

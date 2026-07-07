@@ -16,6 +16,7 @@ vi.mock('@/config/features', () => ({
   SHOW_WEEKLY_UPDATES: false,
   SHOW_INBOX: false,
   SHOW_FOLLOWUPS: false,
+  SHOW_PLAN_BUDGET: false,
   SHOW_DAILY_LOG: false,
 }))
 

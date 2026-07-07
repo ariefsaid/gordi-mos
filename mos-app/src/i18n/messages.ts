@@ -22,6 +22,8 @@ export const messages = {
     'nav.dailyLog': 'Daily Log',
     'nav.sales': 'Sales',
     'nav.followUps': 'Follow-ups',
+    'nav.planBudget': 'Budget',
+    'nav.planPricing': 'Pricing pre-flight',
     'nav.objectives': 'Objectives',
     'nav.projectsProcesses': 'Projects & Processes',
     'nav.kitchen.log': 'Log',
@@ -174,6 +176,11 @@ export const messages = {
     'followUps.cashInDate': 'Cash-in date',
     'followUps.evidence': 'Evidence',
     'followUps.submit': 'Submit',
+    // ADR-0022 (Issue D) — Plan budget/COGS + pricing pre-flight page strings.
+    'plan.budget.title': 'Budget creation',
+    'plan.budget.subtitle': 'Capture a budgeted COGS from the linked BOM × ingredient cost lines',
+    'plan.pricing.title': 'Pricing pre-flight',
+    'plan.pricing.subtitle': 'Check the margin against the linked certified budgeted COGS',
   },
   id: {
     'dest.home': 'Beranda',
@@ -190,6 +197,8 @@ export const messages = {
     'nav.dailyLog': 'Log Harian',
     'nav.sales': 'Penjualan',
     'nav.followUps': 'Follow-up',
+    'nav.planBudget': 'Anggaran',
+    'nav.planPricing': 'Pracetak harga',
     'nav.objectives': 'Objective',
     'nav.projectsProcesses': 'Proyek & Proses',
     'nav.kitchen.log': 'Log',
@@ -340,6 +349,11 @@ export const messages = {
     'followUps.cashInDate': 'Tanggal cash-in',
     'followUps.evidence': 'Bukti',
     'followUps.submit': 'Kirim',
+    // ADR-0022 (Issue D) — Plan budget/COGS + pricing pre-flight (string halaman).
+    'plan.budget.title': 'Penyusunan anggaran',
+    'plan.budget.subtitle': 'Catat COGS yang dianggarkan dari BOM tertaut × lini biaya bahan',
+    'plan.pricing.title': 'Pracetak harga',
+    'plan.pricing.subtitle': 'Periksa margin terhadap COGS terjanggar yang tersertifikasi dan tertaut',
   },
 } as const
 
