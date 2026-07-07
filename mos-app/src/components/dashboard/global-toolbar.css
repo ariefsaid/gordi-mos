@@ -1,0 +1,68 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   GlobalToolbar — the one toolbar above both tabs (design-plan §2.8, FR-011/AC-011).
+   Desktop: single flex row (window group · 1px divider · cut group · freshness).
+   Flat utility surface — NO resting shadow (Soft-Elevation Rule: shadow only on
+   tiles/chart/table/stub). Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.global-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 24px 10px;
+  box-sizing: border-box;
+}
+
+.global-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.global-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  flex: none;
+}
+
+.global-toolbar-overline {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.global-toolbar-freshness {
+  margin-left: auto;
+}
+
+/* Mobile: sticky filter rail (backdrop-blur, horizontally scrollable so the
+   3-option CutToggle never wraps). The toolbar keeps all 3 cut options on phone
+   (mockup-mobile drops Activity by mistake — design-plan gap G2). */
+@media (max-width: 767px) {
+  .global-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    gap: 8px;
+    padding: 8px 14px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    background: color-mix(in srgb, var(--secondary) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .global-toolbar-divider,
+  .global-toolbar-overline {
+    display: none; /* rail scrolls horizontally; no room for the divider/overline */
+  }
+  .global-toolbar-group {
+    flex: none;
+  }
+  .global-toolbar-freshness {
+    margin-left: 0;
+    flex: none;
+  }
+}

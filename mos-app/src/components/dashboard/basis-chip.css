@@ -1,0 +1,20 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   BasisChip — the neutral basis-qualifier badge (design-plan §2.9, FR-008).
+   --basis-chip semantic role = secondary bg + muted-foreground text. A badge-status
+   variant; height 20px, rounded.full, label type, NO dot (it is a qualifier, not a
+   status). Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.basis-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px; /* rounded.full */
+  background: var(--secondary);        /* --basis-chip-bg */
+  color: var(--muted-foreground);      /* --basis-chip-text */
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  width: fit-content;
+}

@@ -1,0 +1,81 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   TabStrip — the DESIGN.md view-tab strip grammar (OD-P3-6, design-plan §2.7).
+   inactive = muted-foreground; hover = foreground; active = brand-navy-text text +
+   a 2px brand-orange bottom border (the ONE orange sprinkle per screen — Orange-
+   Sprinkle Rule). Count pill = secondary bg + muted-foreground. Sticky under header.
+   Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.tab-strip-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.tab-strip-tab:hover {
+  color: var(--foreground);
+}
+/* active = brand-navy-text text + brand-orange underline (the single orange mark) */
+.tab-strip-tab--active {
+  color: var(--brand-navy-text);
+  border-bottom-color: var(--brand-orange);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-strip-tab { transition: none; }
+}
+
+.tab-strip-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border-radius: 999px; /* rounded.full */
+  padding: 1px 7px;
+}
+
+.tab-strip-trailing {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+/* Mobile: 40px touch floor (design-plan §1.3). */
+@media (max-width: 767px) {
+  .tab-strip {
+    padding: 0 14px;
+  }
+  .tab-strip-tab {
+    height: 40px;
+    padding: 0 12px;
+    font-size: 13.5px;
+  }
+  .tab-strip-trailing {
+    display: none; /* no room on phone; the sticky filter rail carries the hint */
+  }
+}
