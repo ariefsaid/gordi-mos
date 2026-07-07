@@ -85,6 +85,12 @@
   white-space: nowrap;
 }
 
+.mini-due-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Skeleton row shimmer (AC-W04) ───────────────────────────────────────────
    Using bg-muted (--muted) which resolves to the design-system secondary fill;
    no hardcoded color. */

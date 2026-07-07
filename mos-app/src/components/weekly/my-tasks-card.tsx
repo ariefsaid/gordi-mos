@@ -30,6 +30,8 @@ type FetchedData = {
   personMap: Map<string, string>
 }
 
+const desktopMiniColWidths = ['auto', '144px', '220px', '184px', '88px'] as const
+
 export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [data, setData] = useState<FetchedData | null>(null)
@@ -88,11 +90,9 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       {loadState === 'loading' && (isDesktop ? (
         <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: '40%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '20%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '10%' }} />
+            {desktopMiniColWidths.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
           </colgroup>
           <SkeletonBody rows={3} />
         </table>
@@ -120,11 +120,9 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
           style={{ tableLayout: 'fixed', fontSize: 15 }}
         >
           <colgroup>
-            <col style={{ width: '40%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '20%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '10%' }} />
+            {desktopMiniColWidths.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
           </colgroup>
           <thead>
             <tr>
@@ -210,7 +208,7 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
           others={others}
         />
       </td>
-      <td className={`mini-td mini-td-nowrap tabular-nums ${dueClass}`}>
+      <td className={`mini-td mini-td-nowrap mini-due-cell tabular-nums ${dueClass}`}>
         {dueText}
       </td>
       <td className="mini-td mini-meta">
@@ -354,12 +352,12 @@ function SkeletonBody({ rows }: { rows: number }) {
     <>
       <thead>
         <tr>
-          {[40, 16, 20, 14, 10].map((w, i) => (
+          {desktopMiniColWidths.map((width, i) => (
             <th
               key={i}
               scope="col"
               className="th-overline"
-              style={{ width: `${w}%` }}
+              style={{ width }}
             >
               {/* empty — overline chrome visible */}
             </th>
