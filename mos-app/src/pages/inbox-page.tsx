@@ -43,7 +43,7 @@ export function InboxPage() {
           onRetry={() => { void refresh() }}
         />
       ) : notifications.length === 0 ? (
-        <EmptyState title={t('inbox.empty')} />
+        <EmptyState title={t('inbox.empty')} copy={t('inbox.emptyCopy')} />
       ) : (
         <InboxList notifications={notifications} onOpen={onOpen} />
       )}
