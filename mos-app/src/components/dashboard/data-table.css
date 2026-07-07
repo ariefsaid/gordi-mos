@@ -197,3 +197,100 @@
 .dt-retry:hover {
   background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Row grouping — group-header row (OD-P3-6). Hairline-separated full-width row
+   (38px): top+bottom 1px border, transparent bg. A caret toggle (aria-expanded,
+   rotating the shared <Chevron>) + 13px/700 brand-navy-text label + muted
+   tabular count. Flat at rest (utility row — no shadow). Mirrors the kitchen
+   group-header idiom (.kgh-*); reuses the ONE shared <Chevron> (RI-IXD-1 — no
+   ▸/▾/▴ glyph). Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.dt-group-row > .dt-group-cell { padding: 0; }
+.dt-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* neutralise the <th> default bold so only the label reads 700 */
+  font-weight: 400;
+  height: 38px;
+  padding: 0 12px;
+  background: transparent;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.dt-group-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.dt-group-toggle:hover { color: var(--foreground); }
+
+/* shared <Chevron>: down = expanded, rotated -90° (right) = collapsed */
+.dt-group-chev { transition: transform 120ms ease; }
+.dt-group-chev-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .dt-group-chev { transition: none; }
+}
+
+.dt-group-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-navy-text);
+}
+.dt-group-count {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Phone: group heading (matches the desktop group label — 13px/700 navy) ── */
+.dt-cards-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px 2px;
+}
+.dt-cards-group-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.dt-cards-group-toggle:hover { color: var(--foreground); }
+.dt-cards-group-chev { transition: transform 120ms ease; }
+.dt-cards-group-chev-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .dt-cards-group-chev { transition: none; }
+}
+.dt-cards-group-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-navy-text);
+}
+.dt-cards-group-count {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
