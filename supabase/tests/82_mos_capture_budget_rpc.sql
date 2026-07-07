@@ -6,7 +6,7 @@
 -- Tag: A5 / AC-PB-008.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(15);
 
 select mos._test_seed_role_tree();
 
@@ -161,6 +161,22 @@ select throws_ok($$
     array[('ING-MILK', 0.1::numeric, 'L')::mos.budget_line_input]
   )
 $$, 'P0003', null, 'A5/AC-PB-008: cross-org guard prevents finance in org-B from writing to org-A (missing cost line in org-B)');
+
+-- Test 15: owning_bu_id same-org guard — finance in org-A cannot hang a budget off org-B's BU.
+-- Uses VALID org-A ingredients so the ONLY reason to fail is the cross-org owning_bu_id (23514),
+-- proving the guard fires before the cost-line recompute (A1-class reference seam, added in review).
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance","member"]}';
+select throws_ok($$
+  select mos.capture_budget(
+    'MENU-BUXORG', 'BU cross-org Test', 'Test', 'baseline',
+    '00000000-0000-0000-0000-0000000000b2',
+    '2026-07-01T00:00:00Z'::timestamptz,
+    'cogs.budgeted',
+    true,
+    null,
+    array[('ING-MILK', 0.1::numeric, 'L')::mos.budget_line_input]
+  )
+$$, '23514', null, 'A5/A1-class: owning_bu_id from another org is rejected (same-org guard, 23514)');
 
 reset role;
 select * from finish();

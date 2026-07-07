@@ -55,6 +55,17 @@ begin
   v_org_id := shared.current_org_id();
   v_person_id := shared.current_person_id();
 
+  -- (2a) owning_bu_id must resolve to a SAME-ORG business unit. mos.budgets.owning_bu_id is an
+  -- existence-only FK (references shared.business_units(id), no org guard); under this SECURITY
+  -- DEFINER RPC RLS is bypassed, so without this check a caller could hang a budget off another
+  -- org's BU (round-2 audit A1-class cross-org reference seam). Fail loud, 23514.
+  if not exists (
+    select 1 from shared.business_units bu
+    where bu.id = p_owning_bu_id and bu.org_id = v_org_id
+  ) then
+    raise exception 'owning_bu_id must belong to the caller''s org' using errcode = '23514';
+  end if;
+
   -- (3) validate scenario_type check constraint.
   if p_scenario_type not in ('baseline','promo','new_branch','menu') then
     raise exception 'invalid scenario_type: %', p_scenario_type using errcode = 'P0003';
