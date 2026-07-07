@@ -62,7 +62,7 @@ export function UpdatesPage() {
   return (
     <PageFrame>
       {/* Page head (§1.1) — h1 "Weekly Updates" */}
-      <PageHead title="Weekly Updates" subtitle={subtitle} />
+      <PageHead variant="content" title="Weekly Updates" meta={<span>{subtitle}</span>} />
 
       {/* Write pane caption (§1.2, overline style) */}
       <p

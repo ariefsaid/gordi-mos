@@ -222,6 +222,38 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
   })
 })
 
+describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () => {
+  const targets = [
+    'pages/follow-ups-page.tsx',
+    'pages/sales-dashboard-page.tsx',
+    'pages/pricing-page.tsx',
+    'pages/budget-page.tsx',
+    'pages/updates-page.tsx',
+    'components/catalog/catalog-manager.tsx',
+  ]
+
+  for (const file of targets) {
+    it(`${file} renders PageHead variant="content"`, () => {
+      expect(readSrc(file)).toMatch(/<PageHead[\s\S]{0,160}variant="content"/)
+    })
+  }
+})
+
+describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {
+  const pageFiles = [
+    'pages/sales-dashboard-page.tsx',
+    'pages/budget-page.tsx',
+    'pages/pricing-page.tsx',
+    'pages/inbox-page.tsx',
+  ]
+
+  for (const file of pageFiles) {
+    it(`${file} has no reporting.* table name in rendered page source`, () => {
+      expect(readSrc(file)).not.toMatch(/reporting\.[a-z0-9_]+/i)
+    })
+  }
+})
+
 // ══════════════════════════════════════════════════════════════════════════════
 // RI-LAYOUT-1: every page LEFT-aligns at the same gutter — PageFrame never centers
 // content (no `margin: 0 auto`), so the content origin is identical across routes.

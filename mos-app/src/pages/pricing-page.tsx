@@ -87,7 +87,7 @@ export function PricingPage() {
   if (load.kind === 'error') {
     return (
       <PageFrame variant="data">
-        <PageHead title={t('plan.pricing.title')} />
+        <PageHead variant="content" title={t('plan.pricing.title')} count={null} />
         <ErrorState
           message="Couldn't load budgets. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -98,7 +98,7 @@ export function PricingPage() {
   if (budgets.length === 0) {
     return (
       <PageFrame variant="data">
-        <PageHead title={t('plan.pricing.title')} />
+        <PageHead variant="content" title={t('plan.pricing.title')} count={0} />
         <EmptyState
           title="No budgets captured yet"
           copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
@@ -109,7 +109,7 @@ export function PricingPage() {
 
   return (
     <PageFrame variant="data">
-      <PageHead title={t('plan.pricing.title')} subtitle={t('plan.pricing.subtitle')} />
+      <PageHead variant="content" title={t('plan.pricing.title')} count={budgets.length} />
 
       <section className="pp-section" aria-label="Pricing pre-flight">
         <p className="pp-help">

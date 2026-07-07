@@ -147,7 +147,12 @@ export function CatalogManager({
 
   return (
     <PageFrame>
-      <PageHead title={title} subtitle={subtitle} />
+      <PageHead
+        variant="content"
+        title={title}
+        count={loadState === 'loaded' ? active.length : null}
+        meta={<span>{subtitle}</span>}
+      />
 
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 

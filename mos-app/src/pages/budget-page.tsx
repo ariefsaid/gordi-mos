@@ -173,7 +173,7 @@ export function BudgetPage() {
   if (load.kind === 'error') {
     return (
       <PageFrame variant="data">
-        <PageHead title={t('plan.budget.title')} />
+        <PageHead variant="content" title={t('plan.budget.title')} count={null} />
         <ErrorState
           message="Couldn't load the BOM + ingredient cost lines. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -184,10 +184,10 @@ export function BudgetPage() {
   if (bom.length === 0) {
     return (
       <PageFrame variant="data">
-        <PageHead title={t('plan.budget.title')} />
+        <PageHead variant="content" title={t('plan.budget.title')} count={0} />
         <EmptyState
           title="No BOM snapshot data yet"
-          copy="No BOM rows are available yet from reporting.bom_lines."
+          copy="No BOM rows are available yet. The next warehouse snapshot will populate this page."
         />
       </PageFrame>
     )
@@ -195,7 +195,7 @@ export function BudgetPage() {
 
   return (
     <PageFrame variant="data">
-      <PageHead title={t('plan.budget.title')} subtitle={t('plan.budget.subtitle')} />
+      <PageHead variant="content" title={t('plan.budget.title')} count={budgets.length} />
       <section className="bp-section" aria-label="Menu item">
         <div className="bp-field">
           <label className="bp-label" htmlFor="budget-menu-item">Menu item</label>

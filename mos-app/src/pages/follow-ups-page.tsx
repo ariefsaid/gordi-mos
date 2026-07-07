@@ -210,10 +210,12 @@ export function FollowUpsPage() {
 
   return (
     <PageFrame variant="data">
-      <PageHead title={t('followUps.title')} subtitle={t('followUps.subtitle')} />
-      <p style={{ color: 'var(--muted-foreground)', margin: '0 0 16px' }}>
-        {t('followUps.overdue')}: {overdueCount}
-      </p>
+      <PageHead
+        variant="content"
+        title={t('followUps.title')}
+        count={state === 'ready' ? rows.length : null}
+        meta={<span>{t('followUps.overdue')}: {overdueCount}</span>}
+      />
       {state === 'loading' && <SkeletonRows count={5} />}
       {state === 'error' && (
         <ErrorState
