@@ -59,6 +59,11 @@ export const QUERY_ENTITY_SCHEMA = {
       maximum: AGENT_READ_ROW_CAP,
       description: `Maximum rows to return. Hard cap is ${AGENT_READ_ROW_CAP}.`,
     },
+    as: {
+      type: 'string' as const,
+      enum: ['table'],
+      description: 'Optional presentation hint. Use "table" when the answer should render as a typed table artifact.',
+    },
   },
 }
 

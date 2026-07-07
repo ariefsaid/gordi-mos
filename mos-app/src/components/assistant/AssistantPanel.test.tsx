@@ -1,5 +1,5 @@
 // T27 — AssistantPanel slide-over. AC-AP-001 (renders open), AC-AP-002 (keep-mounted: transcript
-// survives close→open), AC-AP-003 (inert when closed), AC-AP-004 (plain-text only, no innerHTML),
+// survives close→open), AC-AP-003 (inert when closed), AC-AP-004 (safe assistant markdown),
 // a11y (role/aria/Esc/focus-trap). Phone = modal dialog; desktop = complementary drawer.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -17,32 +17,32 @@ function OpenHarness() {
   return createElement('button', { type: 'button', onClick: openPanel }, 'reopen')
 }
 
-function replyScript(): AgentEvent[] {
+function replyScript(text = 'Sure — here is your answer.'): AgentEvent[] {
   return [
-    { id: 'a1', runId: 'r1', type: 'assistant', text: 'Sure — here is your answer.', createdAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'a1', runId: 'r1', type: 'assistant', text, createdAt: '2026-01-01T00:00:00.000Z' },
     { id: 's1', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
   ]
 }
 
-function makeFakeRuntime(): AgentRuntime {
+function makeFakeRuntime(events: AgentEvent[] = replyScript()): AgentRuntime {
   return {
     createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
     followUp: vi.fn(async () => {}),
     openThread: vi.fn(),
     control: vi.fn(async () => {}),
     subscribe: vi.fn(async function* () {
-      for (const ev of replyScript()) yield ev
+      for (const ev of events) yield ev
     }),
   }
 }
 
-function renderPanel({ narrow, open }: { narrow: boolean; open: boolean }) {
+function renderPanel({ narrow, open, runtime = makeFakeRuntime() }: { narrow: boolean; open: boolean; runtime?: AgentRuntime }) {
   // matchMedia stub: narrow=true → phone (dialog); false → desktop (complementary).
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
     value: (query: string) => ({
-      matches: narrow,
+      matches: query.includes('max-width') ? narrow : query.includes('min-width') ? !narrow : narrow,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -54,7 +54,7 @@ function renderPanel({ narrow, open }: { narrow: boolean; open: boolean }) {
   return render(
     <I18nProvider>
       <MemoryRouter>
-        <AgentRuntimeProvider runtime={makeFakeRuntime()}>
+        <AgentRuntimeProvider runtime={runtime}>
           <AssistantPanel />
           <OpenHarness />
         </AgentRuntimeProvider>
@@ -105,14 +105,106 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
   })
 
-  it('AC-AP-004: assistant replies render as plain text (no dangerouslySetInnerHTML artifact)', async () => {
-    renderPanel({ narrow: false, open: true })
+  it('AC-AP-004: assistant prose renders safe markdown while user turns stay literal', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime(replyScript([
+        'Here are **blocked** items:',
+        '',
+        '- Roastery launch',
+        '- Finance review',
+        '',
+        '| Owner | Count |',
+        '| --- | ---: |',
+        '| Ops | 2 |',
+        '',
+        '[Open MOS](https://ops.gordi.id/mos)',
+      ].join('\n'))),
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: '**literal user text**' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByText('blocked')).toHaveProperty('tagName', 'STRONG')
+    expect(screen.getByRole('list')).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open MOS' })).toHaveAttribute('href', 'https://ops.gordi.id/mos')
+
+    const userTurn = screen.getByText('**literal user text**')
+    expect(userTurn.querySelector('strong')).toBeNull()
+  })
+
+  it('AC-AP-004: hostile assistant markdown cannot create raw HTML nodes or unsafe links', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime(replyScript([
+        '[safe](https://ops.gordi.id/mos)',
+        '[bad](javascript:alert(1))',
+        '<script>alert(1)</script>',
+        '<img src=x onerror=alert(1)>',
+        '<iframe src=x></iframe>',
+      ].join('\n'))),
+    })
+
     fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'hi' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    const reply = await screen.findByText('Sure — here is your answer.')
-    // The message bubble holds only a text node — no element children (no innerHTML injection point).
-    expect(reply.children.length).toBe(0)
-    expect(reply.textContent).toBe('Sure — here is your answer.')
+
+    expect(await screen.findByRole('link', { name: 'safe' })).toHaveAttribute('href', 'https://ops.gordi.id/mos')
+    expect(screen.queryByRole('link', { name: 'bad' })).toBeNull()
+    expect(document.querySelector('script,img,iframe')).toBeNull()
+    expect(document.querySelector('[href^="javascript:"]')).toBeNull()
+  })
+
+  it('ADR-0045: data_table artifact events render as typed assistant widgets', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime([
+        {
+          id: 'w1',
+          runId: 'r1',
+          type: 'artifact',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          payload: {
+            kind: 'data_table',
+            title: 'Blocked tasks',
+            columns: [
+              { key: 'title', header: 'Task' },
+              { key: 'owner', header: 'Owner' },
+            ],
+            rows: [
+              { title: 'Fix stock sync', owner: 'Ops' },
+              { title: 'Confirm pricing', owner: 'Finance' },
+            ],
+          },
+        },
+        { id: 's1', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
+      ]),
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'show blocked tasks as a table' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByRole('heading', { name: 'Blocked tasks' })).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Task' })).toBeInTheDocument()
+    expect(screen.getByText('Fix stock sync')).toBeInTheDocument()
+  })
+
+  it('ADR-0045: invalid artifact payloads are dropped fail-closed', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime([
+        { id: 'bad-widget', runId: 'r1', type: 'artifact', payload: { kind: 'data_table', title: 'Unsafe', rows: [{ x: 'missing columns' }] }, createdAt: '2026-01-01T00:00:00.000Z' },
+        { id: 's2', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
+      ]),
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'bad widget' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Unsafe' })).toBeNull())
   })
 
   it('a11y: Esc closes the open panel (never cancels a run silently)', () => {

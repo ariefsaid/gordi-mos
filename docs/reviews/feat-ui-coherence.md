@@ -72,12 +72,24 @@ Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see b
   src/pages/pricing-page.test.tsx src/pages/updates-page.test.tsx src/pages/follow-ups-page.test.tsx
   src/components/catalog/catalog-manager.test.tsx src/pages/inbox-page.test.tsx` (134 tests),
   `npm run typecheck`, and `npm run lint -- --max-warnings=0`.
+- `cdefdaa` — **ADR checkpoint for deputy C2/C3**: authored and accepted ADR-0045 (typed transcript widgets)
+  and ADR-0049 (safe assistant markdown), preserving the numeric IDs referenced by the expansion spec.
+- **Deputy C2/C3 implementation**: Assistant prose now renders through
+  `react-markdown` + `remark-gfm` with a fixed element set, no raw HTML, URL-scheme allowlist, and user turns
+  still literal. `query_entity` now accepts optional `as:"table"`; successful reads emit a validated
+  `data_table` artifact while the normal tool-result grounding loop remains unchanged. `widgets.ts` is the
+  shared server/client validation boundary; live SSE and persisted thread display both fold valid artifact
+  widgets into the transcript; invalid artifact payloads drop fail-closed. Prompt no longer says "respond in
+  plain text" and advertises the table hint. Verification so far: red Deputy tests first, then green
+  `npm test -- src/components/assistant/AssistantPanel.test.tsx src/lib/agent/agentSchema.test.ts
+  src/lib/agent/handler.test.ts src/lib/agent/history.test.ts src/lib/agent/agentPrompt.test.ts` (44 tests),
+  `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (244 files / 2361 tests), and
+  `npm run build` (existing large-chunk warning only).
 
-## REMAINING (retrofit plan §F, do in this order)
-1. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
-   C2 = safe-markdown in AssistantPanel; C3 = typed-widget results. ⚠️ ADR-0045 §1 / ADR-0049 are
-   **referenced but NOT written** — re-read the spec, author the ADRs (eng-planner) before build.
-   Battery/viewspec registry is already ported; AssistantPanel is plain-text by design (FR-P2-AP-004).
+## REMAINING (retrofit plan §F)
+Implementation is complete on branch. Remaining gate before merge: review battery (spec · code-quality ·
+design 4-lens rendered · security review for the markdown/widget trust boundary) and
+`bash scripts/pre-merge-check.sh` exit 0.
 
 ## Deferred (needs design-eyeball, NOT mechanical — own reviewed pass)
 Kitchen **rail nesting/parent** (nest the 5 under a "Kitchen" sub-heading — audit C2 residue), 3-level

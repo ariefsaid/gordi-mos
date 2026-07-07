@@ -54,12 +54,12 @@ DEFERRED to a design-eyeball pass) · (7) **orange FAB — RESOLVED (owner-agree
 launcher is a neutral top-bar icon on every viewport (DESIGN.md Deputy-Launcher/No-FAB Rule, supersedes ADR-0019 D11) — DONE.
 Flow: DESIGN.md addition (DONE) → per-module retrofit briefs → glm build → Director verify → design-reviewer battery. Pre-rollout
 blockers folded in: follow-up `:id` 404, Home AR/AP dead-end drills, A-1..A-8 in `docs/reviews/design-mvp-push-2026-07-07.md`.
-- **Deputy is text-only BY DESIGN, not for lack of a battery.** The PMO widget battery IS ported + live (`src/lib/viewspec`
-  registry: KPITile/DataTable/ChartFrame/CutToggle/FreshnessLabel, `status:'live'`), but `AssistantPanel.tsx` is stamped
-  `FR-P2-AP-004: plain-text only`. The bridge to it = **C2 safe-markdown (ADR-0049, client-only) + C3 typed-widget results
-  (ADR-0045 §1, server emits + client renders via the registry)** — both tracked **MISSING** in
-  `docs/specs/agent-capability-expansion.md` (OQ-8: "feels like a raw chatbot"). Owner wants C2+C3 folded into the polish
-  push; flipping FR-P2-AP-004 is the gate (safe path: react-markdown no-raw-HTML + registry-rendered, twice-validated widgets).
+- **Deputy C2/C3 DONE on branch.** `FR-P2-AP-004` plain-text-only is superseded for assistant prose by
+  ADR-0049 safe markdown (`react-markdown`/`remark-gfm`, no raw HTML, URL allowlist; user turns literal).
+  ADR-0045 typed widgets are live for `query_entity as:"table"`: server emits validated `data_table`
+  artifacts, client validates again and renders via the assistant widget registry/DataTable. Prompt no longer
+  says "respond in plain text" and advertises the table hint. Remaining branch gate = review battery +
+  `scripts/pre-merge-check.sh`.
 
 **▶ THEN — F (task #16, owner-gated):** promote dev→main→staging→prod + secrets (deputy model key, VAPID) + backup/restore
 drill (gates AR go-live) + OWASP/STRIDE prod gate + ESB worker DEPLOY + edge rate-limit/quota + **A4 reporting_writer true

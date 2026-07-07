@@ -35,6 +35,7 @@ import { replayRunHistory } from './replay.ts'
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts'
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext, SupabaseLike } from '../../../mos-app/src/lib/agent/runtime/port.ts'
 import type { AgentChatRequest, ConversationMessage } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
+import { buildDataTableWidgetFromQueryResult } from '../../../mos-app/src/lib/agent/widgets.ts'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -403,6 +404,15 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
 
       // ── Read action (confirm:false) — dispatch immediately ──────────────────
       const toolResult = await dispatchAction(action, toolInput, deputyCtx)
+      if (toolName === 'query_entity') {
+        const widget = buildDataTableWidgetFromQueryResult(
+          toolInput as { entity?: unknown; columns?: unknown; as?: unknown },
+          toolResult as { rowCount?: unknown; rows?: unknown; error?: unknown },
+        )
+        if (widget) {
+          yield emit('artifact', { payload: widget })
+        }
+      }
 
       // tool_call_id (§3.1 #3): pairs this tool_result to the assistant tool_use on replay.
       yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult, tool_call_id: toolId } })
