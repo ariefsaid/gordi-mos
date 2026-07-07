@@ -111,6 +111,7 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:44321
           VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+          VITE_SHOW_PLAN_BUDGET: 'true'
         run: npx playwright test
 
       - name: Stop stack

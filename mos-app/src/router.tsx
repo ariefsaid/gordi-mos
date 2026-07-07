@@ -32,6 +32,7 @@ import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { UiGallery } from './pages/ui-gallery'
 import { DevViewsPage } from './pages/dev-views-page'
+import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 
 // Route layout:
 // / (RedirectIfAuthed gate) — unauthenticated users can access these
@@ -61,6 +62,7 @@ export const routeConfig: RouteObject[] = [
     : []),
   {
     element: <RedirectIfAuthed />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/recovery', element: <RecoveryPage /> },
@@ -68,6 +70,7 @@ export const routeConfig: RouteObject[] = [
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <AppShell />,

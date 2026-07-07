@@ -318,16 +318,19 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
   `ConfirmDialog` · `PersonPicker` empty state.
 - P2-2b polish: shared `<TintPill>` · inline-style → co-located CSS · marker-picker up-flip.
 
-## ▶ Pre-F hardening (from the 2026-07-07 round-2 audit — BLOCKS rollout; task #17)
-Source: `docs/reviews/mvp-readiness-audit-round2-2026-07-07.md`. Each via the review loop.
-- **A1 [Sec High, MUST-FIX]** `mos.tasks` same-org reference guard (R/A/BU/C/I/created_by) — trigger/RPC +
-  pgTAP; the guard pattern exists on ops/kitchen logs, not tasks.
-- **A3 [Rel/Obs High, MUST-FIX]** React `<ErrorBoundary>` + router `errorElement` + a telemetry/error sink.
-- A2 `comments.entity_id` FK + entity-aware read-guard. · A4 `reporting_writer` org-scoped RLS (drop `using(true)`).
-- A5 budget capture SECURITY DEFINER RPC + server-recompute COGS (stop storing a client double as capture-of-record).
-- A6 (cheap) CI coverage `include`→`src/**` globs + set `VITE_SHOW_PLAN_BUDGET=true` so `AC-PB-012` e2e runs.
+## ✅ Pre-F hardening — DONE (2026-07-07, `feat/harden-round2`; task #17)
+Source: `docs/reviews/mvp-readiness-audit-round2-2026-07-07.md`. Battery: `docs/reviews/feat-harden-round2.md`
+(pgTAP 570 · unit 2345 · coverage 95.43% · typecheck/lint green). A1 task-tenancy guard · A2 comments
+entity-guard · A3 error-boundary+telemetry · A5 atomic budget RPC + server-recompute (+ owning_bu_id guard)
+· A6 coverage globs + CI plan-budget flag — all merged. **A4 was reframed:** null/bogus org already blocked
+by `NOT NULL`+FK; the RLS exists-check was broken+redundant → reverted to documentation; the real fix
+(per-run org scoping) is an F item ↓.
 - **F (owner-gated) absorbs ops/infra:** ESB worker DEPLOY · edge rate-limit/quota · VAPID · prod auth config
-  (`enable_signup`/`confirmations`) · request-id tracing · admin audit trail.
+  (`enable_signup`/`confirmations`) · request-id tracing · admin audit trail ·
+  **A4 reporting_writer true org-scope:** snapshot job (`scripts/reporting_snapshot.py`) sets
+  `set_config('app.reporting_org', <org>, false)` at session start; each `reporting.*` write policy becomes
+  `with check (org_id = current_setting('app.reporting_org', true)::uuid)` — scopes the writer to one org
+  per run (deferred: changes + redeploys the Python job).
 
 ## ▶ Pre-rollout UI polish (from the 2026-07-07 4-lens design review — gates flag-flip; task #19)
 Source: `docs/reviews/design-mvp-push-2026-07-07.md`. All on **dark** surfaces → don't block `dev`; gate the cohort flag-flip.

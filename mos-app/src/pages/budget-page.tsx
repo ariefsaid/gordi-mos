@@ -144,7 +144,6 @@ export function BudgetPage() {
         scenarioLabel,
         scenarioType,
         owningBuId: owningBu,
-        totalBudgetedCogs: cogs.total,
         costBasisAsOf: cogs.basis_as_of ?? new Date().toISOString(),
         isComplete: cogs.complete,
         lines: selectedBom.map((b) => ({

@@ -77,7 +77,6 @@ export interface CaptureBudgetInput {
   scenarioLabel: string
   scenarioType: 'baseline' | 'promo' | 'new_branch' | 'menu'
   owningBuId: string
-  totalBudgetedCogs: number
   costBasisAsOf: string
   certifiedMetricKey?: string
   isComplete: boolean
@@ -87,38 +86,24 @@ export interface CaptureBudgetInput {
 }
 
 /**
- * Capture a budget scenario: insert mos.budgets + its mos.budget_lines (ingredient + qty only).
+ * Capture a budget scenario via mos.capture_budget SECURITY DEFINER RPC (A5 fix).
+ * Atomic: inserts budget+lines in ONE transaction. Server-side total recompute from linked cost lines.
  * AC-PB-008. Write gated by can('cogs.write') + org seam (RLS). The unit cost is NEVER sent — it is
  * always resolved by joining the linked cost line (link-never-copy). Returns the new budget id.
  */
 export async function captureBudget(input: CaptureBudgetInput): Promise<string> {
-  const { data: budget, error } = await mos()
-    .from('budgets')
-    .insert({
-      menu_item_esb_code: input.menuItemEsbCode,
-      menu_item_name: input.menuItemName,
-      scenario_label: input.scenarioLabel,
-      scenario_type: input.scenarioType,
-      owning_bu_id: input.owningBuId,
-      total_budgeted_cogs: input.totalBudgetedCogs,
-      cost_basis_as_of: input.costBasisAsOf,
-      certified_metric_key: input.certifiedMetricKey ?? 'cogs.budgeted',
-      is_complete: input.isComplete,
-      notes: input.notes ?? null,
-    })
-    .select('id')
-    .single()
-  if (error) throw new Error(`captureBudget (budget) failed — ${error.message}`)
-
-  if (input.lines.length > 0) {
-    const rows = input.lines.map((l) => ({
-      budget_id: budget.id,
-      ingredient_esb_code: l.ingredient_esb_code,
-      recipe_qty: l.recipe_qty,
-      qty_unit: l.qty_unit,
-    }))
-    const { error: lineErr } = await mos().from('budget_lines').insert(rows)
-    if (lineErr) throw new Error(`captureBudget (lines) failed — ${lineErr.message}`)
-  }
-  return budget.id as string
+  const { data, error } = await mos().rpc('capture_budget', {
+    p_menu_item_esb_code: input.menuItemEsbCode,
+    p_menu_item_name: input.menuItemName,
+    p_scenario_label: input.scenarioLabel,
+    p_scenario_type: input.scenarioType,
+    p_owning_bu_id: input.owningBuId,
+    p_cost_basis_as_of: input.costBasisAsOf,
+    p_certified_metric_key: input.certifiedMetricKey ?? 'cogs.budgeted',
+    p_is_complete: input.isComplete,
+    p_notes: input.notes ?? null,
+    p_lines: input.lines,
+  })
+  if (error) throw new Error(`captureBudget RPC failed — ${error.message}`)
+  return data as string
 }
