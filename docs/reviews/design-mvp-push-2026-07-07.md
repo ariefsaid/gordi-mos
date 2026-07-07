@@ -6,12 +6,35 @@
   holds throughout. All findings are on surfaces **dark behind flags** (`SHOW_FOLLOWUPS`, `SHOW_PLAN_BUDGET`,
   `SHOW_HOME_STACKED`) → **none block current `dev`**; they are the **pre-rollout UI-polish gate** (flip-on before F cohort).
 
-## ⚠ Render gap (must close before rollout sign-off)
-Authenticated states could **not** be rendered: local Supabase port mismatch (`config.toml` → 44321/44322,
-running stack on 54321) + unseeded schema/auth → demo-login fails, every authed route redirects to `/login`.
-**Only the login page is render-verified** (clean, on-brand, phone-correct). Everything below is **code-read**;
-items tagged `[NEEDS RENDER]` need a human render pass against a seeded local stack. Owner judges UI by
-look-vs-mockup (`visual-fidelity-bar` memory) — Director owes a real render taste-check pre-rollout.
+## ✅ Render debt — CLOSED (Director render taste-check, 2026-07-07)
+The design-reviewer could not render authed states (it misread the port — there is no 54321; the stack
+IS on 44321/44322 per `config.toml`, it was just **stopped + unseeded**). Director brought the local
+`gordi-mos` stack up (`supabase start --ignore-health-check` — flaky studio/realtime/analytics health
+gates were rolling the whole stack back; db/kong/auth are what matter), `db reset` to seed dev personas,
+flipped the three flags locally, and rendered as **Director (dewi=admin)** at **desktop 1280 + phone 375**.
+Gotcha confirmed + logged: a stale `sb-127-auth-token` + a transient gotrue↔db connection timeout during
+container warm-up cause the "Loading…" hang + a one-shot "Invalid password" — **clear localStorage + retry**
+(the dev-login gotcha). Flags reverted to dark after.
+
+**Render-verified (desktop + phone):**
+- **A — five-destination nav:** rail (Home/Work/Operate/Plan/Inbox + Admin) desktop AND bottom-tab-bar on
+  phone — clean, on-brand, One-Blue, correct grouping. **NEW nit → see A-8.**
+- **E — owner cockpit (dewi):** renders honestly; **D-1 + D-2 CONFIRMED on screen** — "AR follow-ups —
+  coming" and "AP · unbilled · unearned — visibility coming" are dead-end dashed boxes with NO drill,
+  while "See today's floor activity on the Daily Log →" and "Cascade progress →" ARE blue links (the exact
+  A4 inconsistency). Money tiles show "—" (no seeded revenue). Phone stacks full-width correctly.
+- **C — Follow-ups:** empty state clean ("Overdue: 0" · "No follow-ups in your lane"); breadcrumb
+  "Work › Follow-ups" correct (resolves the C-2 note). Populated-row findings (A-1/A-2/B-1) still code-only
+  (no seeded rows) — trust the code-read.
+- **D — Budget:** **production-quality** — "Certified · fresh" green badge, linked unit-cost drills (blue
+  Rp values), explicit "never copied / MOS never writes it" captions. **A5 + A7 passes render-CONFIRMED.**
+- **Verdict holds: no AI-slop, no identity drift, mobile-first intact.** The one true gap you can SEE is
+  E's cockpit substance (placeholders) + the two dead-end slots (D-2).
+
+**A-8 [Minor, NEW from render] — OPERATE rail lists both "Daily Log" AND "Log"** (ops-log vs kitchen-log)
+plus "Plan" (kitchen plan) next to the Plan *destination* — label collision, ambiguous which "Log"/"Plan"
+is which. Disambiguate the kitchen items (e.g. "Kitchen Log" / "Kitchen Plan") or regroup.
+
 (Also: review worktrees must branch from `dev`, not a staging release — reviewer had to reset from `669ee0a`.)
 
 ## Merge-blockers before rollout (flag-flip)
