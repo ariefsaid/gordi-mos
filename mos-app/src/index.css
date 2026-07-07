@@ -197,7 +197,9 @@
     margin: 0;
     background-color: var(--surface-primary);
     color: var(--text-primary);
-    font-size: 16px;
+    /* Base 14px — the documented "well-set spreadsheet" base (DESIGN.md §Typography).
+       Was 16px, which inflated all inherited/unsized text +2px off the type scale. */
+    font-size: 14px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
