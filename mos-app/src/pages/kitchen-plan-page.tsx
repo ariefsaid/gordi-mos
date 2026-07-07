@@ -174,9 +174,14 @@ function PlanEditor() {
   // Client-side search + category filter + null-safe category grouping (lifted from
   // the retired KitchenPlanTable/Cards so the shared DataTable owns all rendering).
   const q = search.trim().toLowerCase()
-  const matchSearch = (it: WipItemOption) => !q || it.name.toLowerCase().includes(q)
-  const matchCat = (it: WipItemOption) => category === 'All' || (it.category ?? '') === category
-  const visible = items.filter(it => matchSearch(it) && matchCat(it))
+  // Memoised on its real inputs so the planGroups memo below can depend on a stable
+  // reference (predicates inlined — no closure deps leak).
+  const visible = useMemo(
+    () => items.filter(it =>
+      (!q || it.name.toLowerCase().includes(q)) &&
+      (category === 'All' || (it.category ?? '') === category)),
+    [items, q, category],
+  )
   // Category options derived from ALL items (unique, sorted) + "All" — so filtering
   // by one category doesn't remove the others from the select.
   const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean))).sort()]
@@ -189,8 +194,7 @@ function PlanEditor() {
       label: g.cat,
       rows: g.rows,
     })),
-    // visible is recomputed each render from items/search/category; depend on its inputs.
-    [items, q, category],
+    [visible],
   )
 
   // Plan editor columns: Dish (name + category sub-label) · Plan (editable cell).
