@@ -113,9 +113,11 @@ function GordiLogoMark() {
   )
 }
 
-// The deputy top-bar button (T28) — desktop only (phone uses the FAB). Gates on SHOW_ASSISTANT;
-// opens the slide-over via the runtime context. Reads the context safely (null-runtime no-op
-// default) so it never throws when the flag is off and no provider is mounted.
+// The deputy launcher (T28) — a neutral header icon on EVERY viewport (desktop + phone), the one
+// launcher location app-wide (DESIGN.md Deputy-Launcher/No-FAB Rule, owner-agreed 2026-07-07;
+// supersedes ADR-0019 D11's orange FAB). Gates on SHOW_ASSISTANT; opens the slide-over via the
+// runtime context. Reads the context safely (null-runtime no-op default) so it never throws when
+// the flag is off and no provider is mounted.
 function AssistantTopBarButton() {
   const t = useT()
   const { openPanel } = useAgentRuntime()
@@ -277,9 +279,9 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           </button>
         )}
 
-        {/* Deputy top-bar button (T28) — desktop only, next to the search affordance (phone uses
-            the FAB). Absent when SHOW_ASSISTANT=false. */}
-        {SHOW_ASSISTANT && !isNarrow && <AssistantTopBarButton />}
+        {/* Deputy launcher (T28) — neutral header icon on every viewport, next to the search
+            affordance (no floating orange FAB — DESIGN.md No-FAB Rule). Absent when SHOW_ASSISTANT=false. */}
+        {SHOW_ASSISTANT && <AssistantTopBarButton />}
 
         {/* Notification bell — a live Inbox link + unread badge when SHOW_INBOX (T16); the
             disabled "coming soon" stub otherwise (AC-S07, ADR-0013 D1). */}

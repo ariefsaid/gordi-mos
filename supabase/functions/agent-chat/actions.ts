@@ -44,6 +44,7 @@ interface QueryEntityInput {
   columns?: string[]
   filter?: QueryEntityFilter
   limit?: number
+  as?: 'table'
 }
 
 function timeoutPromise<T>(ms: number): Promise<T> {

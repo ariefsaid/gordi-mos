@@ -33,15 +33,14 @@
   border-color: var(--accent);
 }
 .klt-category {
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  flex: none;
+}
+.klt-category .mk-select__box {
   background: var(--card);
-  color: var(--foreground);
+  border-color: var(--border);
+}
+.klt-category .mk-select__field {
   font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
 }
 
 /* the table — sticky thead overline */

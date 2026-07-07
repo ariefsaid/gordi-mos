@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { makeId } from '@/lib/agent/runtime/makeId'
 import { loadThreadForDisplay } from '@/lib/agent/history'
+import { isAgentWidget, type AgentWidget } from '@/lib/agent/widgets'
 import { supabase } from '@/lib/supabase'
 import type {
   AgentEvent, NeedsApprovalPayload, RunStatusPayload, WriteResolvedPayload, QuestionPayload,
@@ -32,6 +33,7 @@ export interface TranscriptItem {
   id: string
   role: 'user' | 'assistant'
   text: string
+  widget?: AgentWidget
 }
 
 export interface ChipState {
@@ -91,6 +93,12 @@ export function useAssistantPanel() {
       case 'assistant':
         if (ev.text) {
           setTranscript((prev) => [...prev, { id: ev.id, role: 'assistant', text: ev.text! }])
+        }
+        break
+      case 'artifact':
+        if (isAgentWidget(ev.payload)) {
+          const widget = ev.payload
+          setTranscript((prev) => [...prev, { id: ev.id, role: 'assistant', text: '', widget }])
         }
         break
       case 'status': {

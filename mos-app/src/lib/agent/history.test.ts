@@ -59,6 +59,47 @@ describe('loadThreadForDisplay (T6, AC-P3-RP-003)', () => {
     ])
   })
 
+  it('ADR-0045: folds persisted typed artifact widgets back into the display transcript', async () => {
+    schemaMock.mockReturnValue(
+      makeSchema({
+        agent_runs: { data: [{ id: 'run-2', created_at: '2026-07-05T00:00:00.000Z' }], error: null },
+        agent_events: {
+          data: [
+            {
+              id: 'w1',
+              type: 'artifact',
+              text: null,
+              payload: {
+                kind: 'data_table',
+                title: 'Blocked tasks',
+                columns: [{ key: 'title', header: 'Task' }],
+                rows: [{ title: 'Fix stock sync' }],
+              },
+            },
+            { id: 'bad', type: 'artifact', text: null, payload: { kind: 'data_table', title: 'Broken', rows: [] } },
+          ],
+          error: null,
+        },
+      }) as never,
+    )
+
+    const result = await loadThreadForDisplay('thread-1')
+
+    expect(result.transcript).toEqual([
+      {
+        id: 'w1',
+        role: 'assistant',
+        text: '',
+        widget: {
+          kind: 'data_table',
+          title: 'Blocked tasks',
+          columns: [{ key: 'title', header: 'Task' }],
+          rows: [{ title: 'Fix stock sync' }],
+        },
+      },
+    ])
+  })
+
   it('returns an empty transcript + null activeRunId when the thread has no runs', async () => {
     schemaMock.mockReturnValue(makeSchema({ agent_runs: { data: [], error: null } }) as never)
     const result = await loadThreadForDisplay('thread-empty')

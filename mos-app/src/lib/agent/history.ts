@@ -18,6 +18,7 @@
 
 import { supabase } from '@/lib/supabase'
 import type { TranscriptItem } from '@/hooks/useAssistantPanel'
+import { isAgentWidget } from '@/lib/agent/widgets'
 
 const mos = () => supabase.schema('mos')
 
@@ -46,9 +47,10 @@ interface AgentEventRow {
 
 /**
  * Fold a run's agent_events rows into TranscriptItem[] for render — only `user`/`assistant` rows
- * with non-empty text become a visible transcript entry (tool/status/system/artifact are
- * lifecycle/journal rows, not chat turns; an assistant row with tool_calls but no text is a
- * silent tool-call turn, not a message to show).
+ * with non-empty text become a visible transcript entry; ADR-0045 data widgets replay from
+ * artifact rows. Other tool/status/system/artifact rows remain lifecycle/journal rows, not chat
+ * turns; an assistant row with tool_calls but no text is a silent tool-call turn, not a message
+ * to show.
  */
 function foldEventsToTranscript(rows: AgentEventRow[]): TranscriptItem[] {
   const items: TranscriptItem[] = []
@@ -57,6 +59,8 @@ function foldEventsToTranscript(rows: AgentEventRow[]): TranscriptItem[] {
       items.push({ id: row.id, role: 'user', text: row.text })
     } else if (row.type === 'assistant' && row.text) {
       items.push({ id: row.id, role: 'assistant', text: row.text })
+    } else if (row.type === 'artifact' && isAgentWidget(row.payload)) {
+      items.push({ id: row.id, role: 'assistant', text: '', widget: row.payload })
     }
   }
   return items

@@ -18,8 +18,8 @@ import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
-import { KitchenStockTable } from '@/components/kitchen/kitchen-stock-table'
-import { KitchenStockCards } from '@/components/kitchen/kitchen-stock-cards'
+import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
 import './kitchen-stock-page.css'
 
@@ -36,6 +36,22 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
+const stockColumns: DataTableColumn<KitchenStockRow>[] = [
+  {
+    key: 'wip_item_name',
+    header: 'Dish',
+    cardLabel: '',
+    render: row => (
+      <span className="ks-item">
+        <span>{row.wip_item_name}</span>
+        {row.category && <span className="ks-category">{row.category}</span>}
+      </span>
+    ),
+  },
+  { key: 'stok', header: 'Stok', numeric: true },
+  { key: 'tersedia', header: 'Tersedia', numeric: true },
+]
+
 export function KitchenStockPage() {
   useDocumentTitle('Kitchen Stock — Gordi MOS')
   const auth = useAuth()
@@ -49,6 +65,10 @@ export function KitchenStockPage() {
   const [search, setSearch] = useState('')
   // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
   const kpiData = useStockKpiStripData(rows)
+  const searchQuery = search.trim().toLowerCase()
+  const visibleRows = rows.filter(row => (
+    !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
+  ))
 
   const fetchStock = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -113,20 +133,22 @@ export function KitchenStockPage() {
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        isDesktop ? (
-          <KitchenStockTable
-            rows={rows}
-            asOf={asOf}
+        <div className="ks-block">
+          <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
+            searchPlaceholder="Find a dish"
+            ariaLabel="Stock filters"
           />
-        ) : (
-          <KitchenStockCards
-            rows={rows}
-            search={search}
-            onSearchChange={setSearch}
+          <DataTable
+            columns={stockColumns}
+            rows={visibleRows}
+            isDesktop={isDesktop}
+            state={visibleRows.length > 0 ? 'ready' : 'empty'}
+            emptyLabel="No items match your filter."
+            caption={`Kitchen stock — on-hand and available per dish for ${asOf}`}
           />
-        )
+        </div>
       )}
     </PageFrame>
   )

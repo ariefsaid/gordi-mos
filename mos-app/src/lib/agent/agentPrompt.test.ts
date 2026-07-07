@@ -33,4 +33,15 @@ describe('agent-chat/prompt — buildAgentSystemPrompt (T14, AC-P2-GR-001)', () 
   it('cites the row cap', () => {
     expect(prompt).toContain(String(AGENT_READ_ROW_CAP))
   })
+
+  it('ADR-0049: no longer tells the model to respond in plain text', () => {
+    expect(prompt).not.toContain('respond in plain text')
+    expect(prompt).toContain('You may use Markdown')
+    expect(prompt).toContain('do not include raw HTML')
+  })
+
+  it('ADR-0045: advertises the query_entity as:"table" presentation hint', () => {
+    expect(prompt).toContain('as?:"table"')
+    expect(prompt).toContain('typed table artifact')
+  })
 })

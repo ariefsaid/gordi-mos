@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════════
    KitchenToolbar — the shared search-mini + category filter (OD-K-5 redesign §2.3).
    Flat utility surface (no --shadow-rest): --card bg, --border bottom, 10–12px pad.
-   search-mini + <select> both --border + --radius-sm. One-Blue focus ring only.
+   search-mini + category dropdown both --border + --radius-sm. One-Blue focus ring only.
    Token-only (DESIGN.md); spacing in px (sibling kitchen idiom).
    ════════════════════════════════════════════════════════════════════════════ */
 
@@ -35,15 +35,14 @@
 }
 
 .ktb-category {
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  flex: none;
+}
+.ktb-category .mk-select__box {
   background: var(--card);
-  color: var(--foreground);
+  border-color: var(--border);
+}
+.ktb-category .mk-select__field {
   font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
 }
 
 .ktb-children {

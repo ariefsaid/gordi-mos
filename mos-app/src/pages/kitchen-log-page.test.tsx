@@ -245,14 +245,13 @@ describe('Populated state — WIP items loaded', () => {
     })
   })
 
-  it('F1: the sticky action bar (.kl-footer) is the last child of the form so position:sticky pins', async () => {
+  it('B3: the action bar stays in normal flow so it cannot overlap group headers or rows', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
     const form = document.getElementById('kitchen-log-form') as HTMLFormElement
     const footer = form.querySelector('.kl-footer') as HTMLElement
     expect(footer).not.toBeNull()
-    const lastChild = form.lastElementChild as HTMLElement
-    expect(lastChild).toBe(footer)
+    expect(getComputedStyle(footer).position).not.toBe('sticky')
   })
 })
 

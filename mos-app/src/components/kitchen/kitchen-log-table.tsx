@@ -5,6 +5,7 @@
 // the populated table (or an empty-filter message). Token-only (DESIGN.md).
 
 import type { WipItemOption, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
+import { Select } from '@/components/ui/select'
 import { KitchenLogRow } from './kitchen-log-row'
 import { KitchenGroupHeader } from './kitchen-group-header'
 import './kitchen-log-table.css'
@@ -55,14 +56,14 @@ export function KitchenLogTable({
           value={search}
           onChange={e => onSearchChange(e.target.value)}
         />
-        <select
+        <Select
           className="klt-category"
           aria-label="Category"
           value={category}
           onChange={e => onCategoryChange(e.target.value)}
         >
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        </Select>
       </div>
 
       {totalVisible === 0 ? (

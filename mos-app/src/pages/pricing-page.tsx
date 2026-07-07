@@ -21,6 +21,7 @@ import {
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { Select } from '@/components/ui/select'
 import './pricing-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -86,7 +87,7 @@ export function PricingPage() {
   if (load.kind === 'error') {
     return (
       <PageFrame variant="data">
-        <PageHead title={t('plan.pricing.title')} />
+        <PageHead variant="content" title={t('plan.pricing.title')} count={null} />
         <ErrorState
           message="Couldn't load budgets. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -97,7 +98,7 @@ export function PricingPage() {
   if (budgets.length === 0) {
     return (
       <PageFrame variant="data">
-        <PageHead title={t('plan.pricing.title')} />
+        <PageHead variant="content" title={t('plan.pricing.title')} count={0} />
         <EmptyState
           title="No budgets captured yet"
           copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
@@ -108,7 +109,7 @@ export function PricingPage() {
 
   return (
     <PageFrame variant="data">
-      <PageHead title={t('plan.pricing.title')} subtitle={t('plan.pricing.subtitle')} />
+      <PageHead variant="content" title={t('plan.pricing.title')} count={budgets.length} />
 
       <section className="pp-section" aria-label="Pricing pre-flight">
         <p className="pp-help">
@@ -117,10 +118,11 @@ export function PricingPage() {
         </p>
 
         <div className="pp-form">
-          <label className="pp-field">
-            <span className="pp-label">Budget scenario</span>
-            <select
-              className="pp-select"
+          <div className="pp-field">
+            <label className="pp-label" htmlFor="pricing-budget-scenario">Budget scenario</label>
+            <Select
+              id="pricing-budget-scenario"
+              fullWidth
               value={selectedBudgetId}
               onChange={(e) => setSelectedBudgetId(e.target.value)}
             >
@@ -129,11 +131,12 @@ export function PricingPage() {
                   {b.menu_item_name} — {b.scenario_label} ({b.scenario_type})
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="pp-field">
-            <span className="pp-label">Candidate price (Rp)</span>
+            </Select>
+          </div>
+          <div className="pp-field">
+            <label className="pp-label" htmlFor="pricing-candidate-price">Candidate price (Rp)</label>
             <input
+              id="pricing-candidate-price"
               className="pp-input"
               inputMode="decimal"
               type="number"
@@ -143,7 +146,7 @@ export function PricingPage() {
               value={priceText}
               onChange={(e) => setPriceText(e.target.value)}
             />
-          </label>
+          </div>
         </div>
 
         {budget && (

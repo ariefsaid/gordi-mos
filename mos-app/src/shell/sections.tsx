@@ -35,7 +35,7 @@ export const SECTIONS: Section[] = [
 // this list for breadcrumb resolution regardless of role. Every label flows through the i18n
 // catalog (FR-440) via its labelKey.
 export const KITCHEN_SECTIONS: Section[] = [
-  { path: '/kitchen/log', label: 'Log', labelKey: 'nav.kitchen.log', Icon: KitchenIcon },
+  { path: '/kitchen/log', label: 'Kitchen Log', labelKey: 'nav.kitchen.log', Icon: KitchenIcon },
   { path: '/kitchen/plan', label: 'Plan', labelKey: 'nav.kitchen.plan', Icon: KitchenIcon },
   { path: '/kitchen/stock', label: 'Stock', labelKey: 'nav.kitchen.stock', Icon: KitchenIcon },
   { path: '/kitchen/review', label: 'Review', labelKey: 'nav.kitchen.review', Icon: KitchenIcon },

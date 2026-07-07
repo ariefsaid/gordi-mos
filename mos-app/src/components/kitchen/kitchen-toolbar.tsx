@@ -1,10 +1,11 @@
 // KitchenToolbar — the shared search-mini + category filter (OD-K-5 redesign §2.3).
 // Lifted from Log's .klt-toolbar so Plan + Stock (optionally Review) share it. Flat
 // utility surface (no --shadow-rest): --card bg, --border bottom, 10–12px pad.
-// search-mini (role="search") + optional category <select> + optional children slot
+// search-mini (role="search") + optional category dropdown + optional children slot
 // (e.g. ActionTypeSeg on the Plan editor). Token-only (DESIGN.md).
 
 import type { ReactNode } from 'react'
+import { Select } from '@/components/ui/select'
 import './kitchen-toolbar.css'
 
 interface KitchenToolbarProps {
@@ -45,14 +46,14 @@ export function KitchenToolbar({
         />
       </div>
       {categories && onCategoryChange && (
-        <select
+        <Select
           className="ktb-category"
           aria-label="Category"
           value={category}
           onChange={e => onCategoryChange(e.target.value)}
         >
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        </Select>
       )}
       {children && <div className="ktb-children">{children}</div>}
     </div>

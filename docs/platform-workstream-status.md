@@ -30,25 +30,36 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
 - **Test-infra note:** the full 2345-test unit suite is genuinely GREEN unloaded — earlier "100–194 failures" were 100%
   environmental timeout-flake (heavy RTL files under docker+vitest contention). Run heavy files isolated; don't trust a flaky red.
 
-**▶ CURRENT — UI-coherence polish (task #19, owner-directed):** owner verdict = the app "feels like several apps thrown
+**▶ CURRENT — UI-coherence polish (task #19, owner-directed) — IN FLIGHT on `feat/ui-coherence` (off `dev`@`6b36295`).**
+**⚠️ RESUMING AGENT: read [docs/reviews/feat-ui-coherence.md](reviews/feat-ui-coherence.md) — the working ledger +
+step-by-step handoff (what's done, what's left, the Tasks-select nuance, pi gotchas, the merge gate).** Progress this
+session: **FAB decision RESOLVED (owner-agreed — no FAB; neutral header launcher)**; landed `5739c70` (Select primitive +
+DESIGN.md ratifications: `[NEW]` Select spec + Deputy-Launcher/No-FAB Rule) and `0832bd1` (retire orange FAB → header
+launcher all viewports; "Log"→"Kitchen Log"; breadcrumb self-crumb collapse). Select safe-swap + `RI-IXD-5` guard,
+Follow-ups rebuild-to-kit, Kitchen Stock/Pushes shared-table + Log footer collision fix, Inbox/Sales state-kit cleanup,
+and content-header PageHead standardization now landed on this branch as WIP; remaining ledger item is deputy C2/C3.
+
+Owner verdict = the app "feels like several apps thrown
 into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. The render-grounded
 **coherence audit is DONE → `docs/reviews/ui-coherence-audit-2026-07-07.md`** (design-reviewer, every screen desktop+phone).
 **Verdict CONFIRMED: application gap, not ground-up redesign** — `DESIGN.md` already defines the canonical kit (Data Table w/
 768px reflow, DB-view toolbar, `seg`, status pills, `state-kit`, `PageHead`); ~5 modules ignore it (Follow-ups, Kitchen ×5,
 catalog managers, Budget/Pricing, Sales). Divergences D1–D8, bleeds B1–B5 (worst = **B1 Follow-ups phone table overflow**),
-IA C1–C4. **Retrofit plan (ledger §F, highest-leverage first):** (1) rebuild Follow-ups onto the kit · (2) kill the 11 native
-`<select>` w/ a tokened `Select` `[NEW DESIGN.md primitive]` · (3) Kitchen→shared toolbar+DataTable+state-kit + fix floating-bar
-collision · (4) state-kit rollout (Kitchen Review/Pushes, Sales, Pricing, Inbox) · (5) PageHead standardize (7 screens) ·
-(6) IA cleanup (Kitchen rail parent, "Log"→"Kitchen Log", "Inbox › Inbox" self-crumb) · (7) **orange FAB ruling — OWNER
-DECISION** (DESIGN.md forbids orange-as-action; move deputy launcher to a neutral header affordance or sanction+spec a FAB).
-Flow: DESIGN.md addition (`Select` + FAB ruling) → module plan in `docs/plans/` → ui-implementer → design-reviewer. Pre-rollout
+IA C1–C4. **Retrofit plan (ledger §F, highest-leverage first):** (1) **DONE on branch:**
+rebuild Follow-ups onto the kit · (2) **DONE on branch:** kill the safe raw dropdowns w/ tokened `Select` `[NEW DESIGN.md primitive]` + guard · (3) **DONE on branch:**
+Kitchen Stock/Pushes→shared DataTable + Kitchen Log floating-bar collision fixed · (4) **DONE on branch:** state-kit/copy
+cleanup (Inbox/Sales + existing Kitchen/Pricing state-kit) · (5) **DONE on branch:** content-header PageHead standardize ·
+(6) IA cleanup (partly DONE: "Log"→"Kitchen Log" + "Inbox › Inbox" self-crumb landed; Kitchen rail nesting/parent
+DEFERRED to a design-eyeball pass) · (7) **orange FAB — RESOLVED (owner-agreed 2026-07-07):** no FAB paradigm; deputy
+launcher is a neutral top-bar icon on every viewport (DESIGN.md Deputy-Launcher/No-FAB Rule, supersedes ADR-0019 D11) — DONE.
+Flow: DESIGN.md addition (DONE) → per-module retrofit briefs → glm build → Director verify → design-reviewer battery. Pre-rollout
 blockers folded in: follow-up `:id` 404, Home AR/AP dead-end drills, A-1..A-8 in `docs/reviews/design-mvp-push-2026-07-07.md`.
-- **Deputy is text-only BY DESIGN, not for lack of a battery.** The PMO widget battery IS ported + live (`src/lib/viewspec`
-  registry: KPITile/DataTable/ChartFrame/CutToggle/FreshnessLabel, `status:'live'`), but `AssistantPanel.tsx` is stamped
-  `FR-P2-AP-004: plain-text only`. The bridge to it = **C2 safe-markdown (ADR-0049, client-only) + C3 typed-widget results
-  (ADR-0045 §1, server emits + client renders via the registry)** — both tracked **MISSING** in
-  `docs/specs/agent-capability-expansion.md` (OQ-8: "feels like a raw chatbot"). Owner wants C2+C3 folded into the polish
-  push; flipping FR-P2-AP-004 is the gate (safe path: react-markdown no-raw-HTML + registry-rendered, twice-validated widgets).
+- **Deputy C2/C3 DONE on branch.** `FR-P2-AP-004` plain-text-only is superseded for assistant prose by
+  ADR-0049 safe markdown (`react-markdown`/`remark-gfm`, no raw HTML, URL allowlist; user turns literal).
+  ADR-0045 typed widgets are live for `query_entity as:"table"`: server emits validated `data_table`
+  artifacts, client validates again and renders via the assistant widget registry/DataTable. Prompt no longer
+  says "respond in plain text" and advertises the table hint. Remaining branch gate = review battery +
+  `scripts/pre-merge-check.sh`.
 
 **▶ THEN — F (task #16, owner-gated):** promote dev→main→staging→prod + secrets (deputy model key, VAPID) + backup/restore
 drill (gates AR go-live) + OWASP/STRIDE prod gate + ESB worker DEPLOY + edge rate-limit/quota + **A4 reporting_writer true

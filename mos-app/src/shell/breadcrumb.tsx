@@ -44,8 +44,12 @@ export function Breadcrumb() {
   // through the i18n catalog when a labelKey is present (FR-440).
   const promotesDestinationLabel = !!destination && destination.id !== 'home'
   const explicitLeaf = explicitLeafForPath(pathname, dynamicTitle)
-  const leafLabel = explicitLeaf ?? (promotesDestinationLabel ? (section.labelKey ? t(section.labelKey) : section.label) : null)
   const sectionLabel = destination ? t(destination.labelKey) : (section.labelKey ? t(section.labelKey) : section.label)
+  const promotedLeaf = promotesDestinationLabel ? (section.labelKey ? t(section.labelKey) : section.label) : null
+  // Collapse a self-crumb: a single-link destination whose promoted leaf equals its own
+  // destination label would read "Inbox › Inbox" (UI-coherence audit C3) — render bare instead,
+  // mirroring how Home renders "Home" not "Home › Home".
+  const leafLabel = explicitLeaf ?? (promotedLeaf && promotedLeaf !== sectionLabel ? promotedLeaf : null)
 
   return (
     <span style={{ fontSize: 15 }}>

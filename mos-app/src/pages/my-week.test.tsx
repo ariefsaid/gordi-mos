@@ -128,8 +128,24 @@ const managerViewerWithRoles = {
   signOut: vi.fn(),
 }
 
+function stubMatchMedia(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('min-width') ? matches : !matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  stubMatchMedia(true)
   // Default: no update for this week (keeps existing tests stable)
   mockGetMyUpdate.mockResolvedValue(null)
   // Default team mocks: empty roster + empty updates

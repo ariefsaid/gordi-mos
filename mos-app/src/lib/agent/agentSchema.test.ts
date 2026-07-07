@@ -23,6 +23,14 @@ describe('agent-chat/schema — tool input schemas (T13)', () => {
     expect(QUERY_ENTITY_SCHEMA.additionalProperties).toBe(false)
   })
 
+  it('QUERY_ENTITY_SCHEMA supports an optional as:"table" presentation hint (ADR-0045)', () => {
+    expect(QUERY_ENTITY_SCHEMA.required).not.toContain('as')
+    expect(QUERY_ENTITY_SCHEMA.properties.as).toMatchObject({
+      type: 'string',
+      enum: ['table'],
+    })
+  })
+
   it('CREATE_TASK_SCHEMA requires title/businessUnitId/responsiblePersonId/accountablePersonId — never createdBy (FR-WT-004)', () => {
     expect(CREATE_TASK_SCHEMA.required.sort()).toEqual(
       ['accountablePersonId', 'businessUnitId', 'responsiblePersonId', 'title'].sort(),

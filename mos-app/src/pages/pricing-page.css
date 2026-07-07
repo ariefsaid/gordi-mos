@@ -26,8 +26,7 @@
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
 }
-.pp-input,
-.pp-select {
+.pp-input {
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;

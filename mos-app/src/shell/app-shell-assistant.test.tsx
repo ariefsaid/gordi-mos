@@ -1,7 +1,8 @@
 // T29 — wire the deputy into AppShell behind SHOW_ASSISTANT (FR-P2-CF-003). Flag-off removes the
-// panel, the FAB, and the top-bar button; flag-on mounts the provider + keep-mounted panel.
-// AC-AP-001/005, AC-CF-003. Isolated so the SHOW_ASSISTANT mock leaves the existing app-shell
-// tests (flag-off default) untouched.
+// panel and the top-bar launcher; flag-on mounts the provider + keep-mounted panel. The launcher is
+// a neutral top-bar icon on EVERY viewport (DESIGN.md No-FAB Rule, owner-agreed 2026-07-07 — no
+// floating orange FAB). AC-AP-001/005, AC-CF-003. Isolated so the SHOW_ASSISTANT mock leaves the
+// existing app-shell tests (flag-off default) untouched.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -86,16 +87,13 @@ describe('AppShell assistant wiring (T29)', () => {
   })
   afterEach(() => setNarrow(false))
 
-  it('AC-AP-005/AC-CF-003: flag-off mounts NO panel, NO FAB, NO top-bar button', () => {
+  it('AC-AP-005/AC-CF-003: flag-off mounts NO panel and NO top-bar launcher', () => {
     flag.SHOW_ASSISTANT = false
     setNarrow(false)
     renderShell()
     expect(screen.queryByRole('button', { name: 'Open deputy' })).toBeNull()
     expect(panelSection()).toBeNull()
-    // Narrow path: FAB absent too.
-    setNarrow(true)
-    // (one render asserts both — re-render is not needed; the FAB is absent regardless of viewport
-    //  when the flag is off because AssistantFab gates on SHOW_ASSISTANT before useIsNarrow renders.)
+    // The launcher gates on SHOW_ASSISTANT before viewport, so it is absent regardless of width.
   })
 
   it('AC-AP-001: flag-on desktop mounts the top-bar button + the keep-mounted (hidden) panel', () => {
@@ -111,14 +109,15 @@ describe('AppShell assistant wiring (T29)', () => {
     expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument()
   })
 
-  it('AC-AP-001: flag-on narrow mounts the FAB above the tab bar (no top-bar button)', () => {
+  it('AC-AP-001: flag-on narrow mounts the header launcher (no FAB); clicking opens the phone sheet', () => {
     setNarrow(true)
     renderShell()
-    const fab = screen.getByRole('button', { name: 'Open deputy' })
-    expect(fab).toBeInTheDocument()
-    expect((fab as HTMLElement).style.bottom).toContain('var(--tabbar-h)')
-    // Phone: clicking the FAB opens the modal sheet.
-    fireEvent.click(fab)
+    const launcher = screen.getByRole('button', { name: 'Open deputy' })
+    expect(launcher).toBeInTheDocument()
+    // It is the neutral header icon, not a floating FAB — no fixed bottom offset.
+    expect((launcher as HTMLElement).style.bottom).toBe('')
+    // Phone: clicking the launcher opens the modal sheet.
+    fireEvent.click(launcher)
     expect(screen.getByRole('dialog', { name: 'Deputy' })).toBeInTheDocument()
   })
 })

@@ -92,11 +92,11 @@ describe('SalesDashboardPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('AC-008: empty — names the reporting source, no misleading 0 KPI tiles', async () => {
+  it('AC-008/D4: empty — names the snapshot source without leaking internal schema strings', async () => {
     mockList.mockResolvedValue([])
     render(<SalesDashboardPage />)
     expect(await screen.findByText(/no sales snapshot rows/i)).toBeInTheDocument()
-    expect(screen.getByText(/reporting\.sales_daily_revenue/i)).toBeInTheDocument()
+    expect(document.body.textContent ?? '').not.toMatch(/reporting\.sales_daily_revenue/i)
     // No KPI tiles / values rendered at all in the empty state
     expect(screen.queryAllByRole('group')).toHaveLength(0)
     expect(screen.queryByText(/^Rp 0/)).not.toBeInTheDocument()

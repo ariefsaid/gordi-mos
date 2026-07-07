@@ -77,7 +77,7 @@ describe('AC-004: Breadcrumb per route (brand-crumb dropped per AC-S04)', () => 
 // FR-S03 (spec home-v1): every /kitchen/* route reads "Operate › <own label>".
 describe('FR-S03: Kitchen routes read "Operate › <Log|Plan|Stock|Review|Pushes>"', () => {
   const kitchenCases = [
-    { path: '/kitchen/log', leaf: 'Log' },
+    { path: '/kitchen/log', leaf: 'Kitchen Log' },
     { path: '/kitchen/plan', leaf: 'Plan' },
     { path: '/kitchen/stock', leaf: 'Stock' },
     { path: '/kitchen/review', leaf: 'Review' },

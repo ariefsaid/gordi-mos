@@ -1,7 +1,7 @@
 // SalesDashboardPage — /mos/sales, finance/admin only (route-gated in router.tsx via
 // RequireAccessRole anyOf={['finance','admin']}, FR-001/AC-001/002). The sales-specific
 // composition wiring the reusable dashboard kit (KPITile/ChartFrame/DataTable/
-// FreshnessLabel/CutToggle) to reporting.sales_daily_revenue. Reads via the reporting
+// FreshnessLabel/CutToggle) to the sales reporting read model. Reads via the reporting
 // DAL only (FR-002/AC-003); RLS is the security boundary. Never queries the warehouse
 // directly, never writes financial data.
 //
@@ -96,7 +96,7 @@ export function SalesDashboardPage() {
   if (load.kind === 'error') {
     return (
       <PageFrame variant="data">
-        <PageHead title="Sales" />
+        <PageHead variant="content" title="Sales" count={null} />
         <ErrorState
           message="Couldn't load sales reporting. Try again."
           onRetry={() => setRetryKey(k => k + 1)}
@@ -108,10 +108,10 @@ export function SalesDashboardPage() {
   if (rows.length === 0 || !kpis || !latestDate) {
     return (
       <PageFrame variant="data">
-        <PageHead title="Sales" />
+        <PageHead variant="content" title="Sales" count={0} />
         <EmptyState
           title="No sales snapshot data yet"
-          copy="No sales snapshot rows are available yet from reporting.sales_daily_revenue."
+          copy="No sales snapshot rows are available yet. The next warehouse snapshot will populate this page."
         />
       </PageFrame>
     )
@@ -123,8 +123,12 @@ export function SalesDashboardPage() {
   return (
     <PageFrame variant="data">
       <div className="sdp-head">
-        <PageHead title="Sales" />
-        {snapshotAsOf && <FreshnessLabel asOf={snapshotAsOf} />}
+        <PageHead
+          variant="content"
+          title="Sales"
+          count={tableRows.length}
+          meta={snapshotAsOf ? <FreshnessLabel asOf={snapshotAsOf} /> : undefined}
+        />
       </div>
 
       <div className="sdp-kpi-grid">

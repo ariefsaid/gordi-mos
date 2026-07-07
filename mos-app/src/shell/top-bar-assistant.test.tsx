@@ -1,6 +1,7 @@
-// T28 — the desktop top-bar assistant button (next to search). Gates on SHOW_ASSISTANT && !isNarrow;
-// aria-label = t('assistant.open'); calls openPanel(). AC-AP-001 (opens the slide-over),
-// AC-AP-005/AC-CF-003 (absent when the flag is off).
+// T28 — the top-bar deputy launcher (next to search), a neutral header icon on EVERY viewport
+// (desktop + phone; DESIGN.md No-FAB Rule, owner-agreed 2026-07-07 — no floating orange FAB).
+// Gates on SHOW_ASSISTANT only; aria-label = t('assistant.open'); calls openPanel().
+// AC-AP-001 (opens the slide-over), AC-AP-005/AC-CF-003 (absent when the flag is off).
 //
 // Isolated in its own file so the SHOW_ASSISTANT mock does not perturb the existing top-bar tests
 // (which assert the flag-off default: no assistant button).
@@ -93,9 +94,9 @@ describe('TopBar assistant button (T28)', () => {
     expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument()
   })
 
-  it('does not render on a narrow viewport (phone uses the FAB)', () => {
+  it('AC-AP-001: renders on a narrow viewport too (deputy launcher is in the header on every viewport, no FAB)', () => {
     renderTopBar({ narrow: true })
-    expect(screen.queryByRole('button', { name: 'Open deputy' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open deputy' })).toBeInTheDocument()
   })
 
   it('AC-AP-005/AC-CF-003: does not render when SHOW_ASSISTANT=false', () => {

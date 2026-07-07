@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
 import { ErrorState, EmptyState, SkeletonRows } from '@/components/ui/state-kit'
+import { Select } from '@/components/ui/select'
 import type { TagColor } from '@/components/ui/tag'
 
 // A managed catalog row: id + name + soft-archive flag, plus an optional display
@@ -146,7 +147,12 @@ export function CatalogManager({
 
   return (
     <PageFrame>
-      <PageHead title={title} subtitle={subtitle} />
+      <PageHead
+        variant="content"
+        title={title}
+        count={loadState === 'loaded' ? active.length : null}
+        meta={<span>{subtitle}</span>}
+      />
 
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 
@@ -170,23 +176,16 @@ export function CatalogManager({
             <label htmlFor={typeInputId} className="mb-1 block text-sm text-muted-foreground">
               {typeField.label}
             </label>
-            <select
+            <Select
               id={typeInputId}
               value={newType}
               onChange={(e) => setNewType(e.target.value)}
               disabled={adding}
-              className="h-8 border px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-              style={{
-                borderColor: 'var(--input)',
-                background: 'var(--card)',
-                color: 'var(--foreground)',
-                borderRadius: 'var(--radius-sm)', // control radius token — match the kit input/button beside it
-              }}
             >
               {typeField.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
         <Button type="submit" variant="primary" disabled={adding} aria-busy={adding}>

@@ -136,6 +136,41 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
       }),
     })
   }
+  function setPhone() {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+  }
+
+  it('RI-IXD-6: desktop stock uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
+    setDesktop()
+    mockFetch.mockResolvedValue(STOCK_ROWS)
+    const { container } = render(<KitchenStockPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(container.querySelector('.dt-table')).not.toBeNull()
+    expect(container.querySelector('.ks-tablewrap, .ks-table, .kst-table')).toBeNull()
+  })
+
+  it('RI-IXD-6: phone stock uses the shared DataTable card branch, not a parallel local table', async () => {
+    setPhone()
+    mockFetch.mockResolvedValue(STOCK_ROWS)
+    const { container } = render(<KitchenStockPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(container.querySelector('.dt-cards')).not.toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(container.querySelector('.ks-tablewrap, .ks-table, .kst-table, .ksc-cards')).toBeNull()
+  })
 
   it('renders stock-specific KPI labels (not Log labels)', async () => {
     setDesktop()

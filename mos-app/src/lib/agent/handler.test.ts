@@ -176,6 +176,32 @@ describe('agentChatHandler — query_entity read dispatch', () => {
     expect((toolEvent?.payload as { result?: { rowCount?: number } })?.result?.rowCount).toBe(2)
     expect(events.some((e) => e.type === 'assistant' && e.text === 'You have 2 objectives.')).toBe(true)
   })
+
+  it('ADR-0045: query_entity as:"table" emits a typed data_table artifact before continuing the loop', async () => {
+    const { supabase } = makeSupabaseMock({
+      selectResult: { data: [{ id: '1', title: 'Launch MOS', status: 'blocked' }], error: null },
+    })
+    const deps = makeDeps({
+      supabase,
+      modelResponses: [
+        toolCallResponse('query_entity', { entity: 'tasks', columns: ['title', 'status'], as: 'table' }),
+        textResponse('Here is the table.'),
+      ],
+    })
+    const events = await collect({ messages: [{ role: 'user', content: 'show objectives as a table' }] }, deps)
+    const artifact = events.find((e) => e.type === 'artifact')
+
+    expect(artifact?.payload).toMatchObject({
+      kind: 'data_table',
+      title: 'Tasks',
+      columns: [
+        { key: 'title', header: 'Title' },
+        { key: 'status', header: 'Status' },
+      ],
+      rows: [{ title: 'Launch MOS', status: 'blocked' }],
+    })
+    expect(events.some((e) => e.type === 'assistant' && e.text === 'Here is the table.')).toBe(true)
+  })
 })
 
 // ── AC-GR-002: empty read carries a tool_result the model must ground on ─────

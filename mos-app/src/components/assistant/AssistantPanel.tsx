@@ -9,7 +9,8 @@
  *
  * Keep-mounted (FR-P2-AP-003): the section is ALWAYS in the DOM — when closed it is `inert` +
  * `aria-hidden` + translated off-screen, so the hook's transcript/chip state survives close→open.
- * Plain-text only (FR-P2-AP-004): replies render via `{text}` — never dangerouslySetInnerHTML.
+ * Assistant prose renders through the safe markdown boundary (ADR-0049); user turns and control
+ * strings stay literal. Typed artifact widgets render through the ADR-0045 registry.
  * Every string flows through useT() (FR-P2-AP-005).
  *
  * AC-AP-001/002/003/004 + a11y (role/aria/Esc/focus-trap).
@@ -21,6 +22,8 @@ import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQue
 import { useT } from '@/i18n/use-t'
 import { useIsNarrow } from '@/shell/use-is-narrow'
 import { ThreadList } from './ThreadList'
+import { AssistantMarkdown } from './AssistantMarkdown'
+import { AssistantWidgetSlot } from './AssistantWidgetSlot'
 
 const SUGGESTION_KEYS = [
   'assistant.empty.suggestion1',
@@ -315,18 +318,32 @@ function Transcript({
             className="flex"
             style={{ justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}
           >
-            {/* Plain text only (FR-P2-AP-004): {item.text} — never dangerouslySetInnerHTML. */}
-            <div
-              className="rounded-md text-sm whitespace-pre-wrap break-words"
-              style={{
-                maxWidth: '85%',
-                padding: '0.5rem 0.75rem',
-                background: item.role === 'user' ? 'var(--accent)' : 'var(--surface-secondary)',
-                color: item.role === 'user' ? 'var(--text-inverted)' : 'var(--text-primary)',
-              }}
-            >
-              {item.text}
-            </div>
+            {item.widget ? (
+              <div
+                className="rounded-md text-sm"
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  padding: '0.75rem',
+                  background: 'var(--surface-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <AssistantWidgetSlot widget={item.widget} />
+              </div>
+            ) : (
+              <div
+                className="rounded-md text-sm whitespace-pre-wrap break-words"
+                style={{
+                  maxWidth: '85%',
+                  padding: '0.5rem 0.75rem',
+                  background: item.role === 'user' ? 'var(--accent)' : 'var(--surface-secondary)',
+                  color: item.role === 'user' ? 'var(--text-inverted)' : 'var(--text-primary)',
+                }}
+              >
+                {item.role === 'assistant' ? <AssistantMarkdown source={item.text} /> : item.text}
+              </div>
+            )}
           </div>
           {item.role === 'assistant' && (
             <RatingControl

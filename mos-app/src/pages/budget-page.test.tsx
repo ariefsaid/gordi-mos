@@ -72,12 +72,12 @@ describe('BudgetPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: names the reporting source when no BOM rows', async () => {
+  it('empty: names the snapshot source without leaking internal schema strings', async () => {
     vi.mocked(listBomLines).mockResolvedValue([])
     vi.mocked(listIngredientCostLines).mockResolvedValue([])
     renderPage()
     expect(await screen.findByText(/no bom snapshot data/i)).toBeInTheDocument()
-    expect(screen.getByText(/reporting\.bom_lines/i)).toBeInTheDocument()
+    expect(document.body.textContent ?? '').not.toMatch(/reporting\.bom_lines/i)
   })
 
   it('error: retryable, non-secret', async () => {
