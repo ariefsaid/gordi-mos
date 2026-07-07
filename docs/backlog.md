@@ -348,13 +348,10 @@ Source: `docs/reviews/design-mvp-push-2026-07-07.md`. All on **dark** surfaces �
   PWA push is insufficient). Near-term; cheaper than any external channel.
 - **External notification channel** — **Telegram or in-app group chat** (WhatsApp deprioritized — too tedious
   to integrate). Channel-adapter seam (P3a) takes either; doorbell-only, conversation stays on the entity.
-- **Agent experience batch** (next agent work, before automations): C2 safe-markdown · C3 typed-widget tables
-  · C4 layered prompt. Then C1 automations (P3b). See `docs/specs/agent-capability-expansion.md`.
-  **▶ OWNER-REQUESTED 2026-07-07 into the UI-coherence polish (task #19):** the deputy "feels like text only" —
-  the PMO widget **battery IS ported + live** (`src/lib/viewspec` registry: KPITile/DataTable/…), but
-  `AssistantPanel.tsx` is plain-text by design (`FR-P2-AP-004`). Fold **C2** (react-markdown, no-raw-HTML — client-only)
-  **+ C3** (server emits typed result + client renders via the registry) to make the deputy render rich widgets.
-  Gate = flipping FR-P2-AP-004 (OQ-1); safe path preserves the no-injection posture.
+- **Agent experience batch** (next agent work, before automations): **C2 safe-markdown + C3 typed-widget tables
+  are DONE on `dev`** via `feat/ui-coherence` (`docs/adr/0049-safe-markdown-rendering.md`,
+  `docs/adr/0045-typed-transcript-widgets.md`, ledger `docs/reviews/feat-ui-coherence.md`). Remaining:
+  C4 layered prompt, then C1 automations (P3b). See `docs/specs/agent-capability-expansion.md`.
 
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade ·

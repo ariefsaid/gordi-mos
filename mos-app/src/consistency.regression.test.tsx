@@ -434,3 +434,32 @@ describe('RI-IXD-5: no raw select outside documented Tasks exceptions', () => {
     expect(offenders).toEqual([])
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-7: Orange is a brand sprinkle only. DESIGN.md permits brand-orange
+// for tokens, the logo dot, and the active DB-view tab underline. It must not
+// reappear as an action/link/status affordance.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-7: no brand-orange outside the logo, active view-tab underline, and token definitions', () => {
+  const allowedBrandOrangeFiles = new Set([
+    'index.css',
+    'shell/top-bar.tsx',
+    'components/tasks/TasksWorkspace.css',
+    'styles/tokens/theme-dark.css',
+    'styles/tokens/theme-light.css',
+  ])
+
+  it('non-test source keeps brand-orange off interactive/status surfaces', () => {
+    const offenders: string[] = []
+
+    for (const file of listNonTestSource(SRC)) {
+      const rel = srcRel(file)
+      if (allowedBrandOrangeFiles.has(rel)) continue
+      if (/\bbrand-orange\b|--brand-orange/.test(readFileSync(file, 'utf8'))) {
+        offenders.push(rel)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+})

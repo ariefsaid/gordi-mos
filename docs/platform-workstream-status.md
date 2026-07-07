@@ -9,9 +9,9 @@ Durable handoff for the **platform-foundation** workstream (turning MOS into the
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`
 (OD-P4-*, OD-K-*, OD-AN-*), `docs/adr/0010–0017`, `CONTEXT.md`. Loop: `CLAUDE.md` §Operating model.
 
-## Current focus (2026-07-07 late) — pre-F hardening DONE · nav-catalog fix · UI-coherence polish IN FLIGHT
+## Current focus (2026-07-07 late) — pre-F hardening DONE · nav-catalog fix · UI-coherence/deputy battery SHIPPED
 
-**⚠️ FRESH-AGENT START HERE** (supersedes the MVP-push block below, now history). `dev` is now **`c145e2a`** (pushed).
+**⚠️ FRESH-AGENT START HERE** (supersedes the MVP-push block below, now history). `dev` is now **`dee6f8b`** (pushed).
 
 **Shipped to `dev` since the MVP push:**
 - **Pre-F hardening A1–A6 DONE + merged** (round-2 audit blocklist; task #17). Battery: `docs/reviews/feat-harden-round2.md`
@@ -29,42 +29,26 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
   no identity drift; D-1/D-2 Home AR/AP cockpit dead-ends confirmed on screen; Budget production-quality; nav clean both widths.
 - **Test-infra note:** the full 2345-test unit suite is genuinely GREEN unloaded — earlier "100–194 failures" were 100%
   environmental timeout-flake (heavy RTL files under docker+vitest contention). Run heavy files isolated; don't trust a flaky red.
-
-**▶ CURRENT — UI-coherence polish (task #19, owner-directed) — IN FLIGHT on `feat/ui-coherence` (off `dev`@`6b36295`).**
-**⚠️ RESUMING AGENT: read [docs/reviews/feat-ui-coherence.md](reviews/feat-ui-coherence.md) — the working ledger +
-step-by-step handoff (what's done, what's left, the Tasks-select nuance, pi gotchas, the merge gate).** Progress this
-session: **FAB decision RESOLVED (owner-agreed — no FAB; neutral header launcher)**; landed `5739c70` (Select primitive +
-DESIGN.md ratifications: `[NEW]` Select spec + Deputy-Launcher/No-FAB Rule) and `0832bd1` (retire orange FAB → header
-launcher all viewports; "Log"→"Kitchen Log"; breadcrumb self-crumb collapse). Select safe-swap + `RI-IXD-5` guard,
-Follow-ups rebuild-to-kit, Kitchen Stock/Pushes shared-table + Log footer collision fix, Inbox/Sales state-kit cleanup,
-and content-header PageHead standardization now landed on this branch as WIP; remaining ledger item is deputy C2/C3.
-
-Owner verdict = the app "feels like several apps thrown
-into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. The render-grounded
-**coherence audit is DONE → `docs/reviews/ui-coherence-audit-2026-07-07.md`** (design-reviewer, every screen desktop+phone).
-**Verdict CONFIRMED: application gap, not ground-up redesign** — `DESIGN.md` already defines the canonical kit (Data Table w/
-768px reflow, DB-view toolbar, `seg`, status pills, `state-kit`, `PageHead`); ~5 modules ignore it (Follow-ups, Kitchen ×5,
-catalog managers, Budget/Pricing, Sales). Divergences D1–D8, bleeds B1–B5 (worst = **B1 Follow-ups phone table overflow**),
-IA C1–C4. **Retrofit plan (ledger §F, highest-leverage first):** (1) **DONE on branch:**
-rebuild Follow-ups onto the kit · (2) **DONE on branch:** kill the safe raw dropdowns w/ tokened `Select` `[NEW DESIGN.md primitive]` + guard · (3) **DONE on branch:**
-Kitchen Stock/Pushes→shared DataTable + Kitchen Log floating-bar collision fixed · (4) **DONE on branch:** state-kit/copy
-cleanup (Inbox/Sales + existing Kitchen/Pricing state-kit) · (5) **DONE on branch:** content-header PageHead standardize ·
-(6) IA cleanup (partly DONE: "Log"→"Kitchen Log" + "Inbox › Inbox" self-crumb landed; Kitchen rail nesting/parent
-DEFERRED to a design-eyeball pass) · (7) **orange FAB — RESOLVED (owner-agreed 2026-07-07):** no FAB paradigm; deputy
-launcher is a neutral top-bar icon on every viewport (DESIGN.md Deputy-Launcher/No-FAB Rule, supersedes ADR-0019 D11) — DONE.
-Flow: DESIGN.md addition (DONE) → per-module retrofit briefs → glm build → Director verify → design-reviewer battery. Pre-rollout
-blockers folded in: follow-up `:id` 404, Home AR/AP dead-end drills, A-1..A-8 in `docs/reviews/design-mvp-push-2026-07-07.md`.
-- **Deputy C2/C3 DONE on branch.** `FR-P2-AP-004` plain-text-only is superseded for assistant prose by
-  ADR-0049 safe markdown (`react-markdown`/`remark-gfm`, no raw HTML, URL allowlist; user turns literal).
-  ADR-0045 typed widgets are live for `query_entity as:"table"`: server emits validated `data_table`
-  artifacts, client validates again and renders via the assistant widget registry/DataTable. Prompt no longer
-  says "respond in plain text" and advertises the table hint. Remaining branch gate = review battery +
-  `scripts/pre-merge-check.sh`.
+- **UI-coherence polish + deputy battery DONE + merged** (`feat/ui-coherence` → `dev`, merge `dee6f8b`;
+  ledger `docs/reviews/feat-ui-coherence.md`). Trigger: owner verdict that MOS felt like several apps with
+  bleeding IxD. Render-grounded audit: `docs/reviews/ui-coherence-audit-2026-07-07.md`.
+  Shipped: tokened `Select` primitive + safe call-site swap + `RI-IXD-5`; Follow-ups rebuilt onto
+  `DataTable`/`StatusPill`/`Button`/state-kit + `/work/follow-ups/:id`; Kitchen Stock/Pushes shared
+  `DataTable` + Kitchen Log footer collision fix; Inbox/Sales state-kit/copy cleanup; content-header
+  `PageHead` standardization; "Log"→"Kitchen Log"; breadcrumb self-crumb fix; no-FAB deputy ruling in
+  `DESIGN.md` and neutral top-bar assistant launcher on every viewport; phone `MyTasksCard` card reflow
+  found during rendered review and fixed. Deputy C2/C3: ADR-0049 safe markdown (`react-markdown`/`remark-gfm`,
+  no raw HTML, URL allowlist; user turns literal) + ADR-0045 typed widgets (`query_entity as:"table"` emits
+  validated `data_table` artifacts rendered through the assistant widget registry/DataTable). Branch battery:
+  `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (244 files / 2362 tests),
+  `npm run build`, rendered desktop/phone review, and `scripts/pre-merge-check.sh` PASS.
+  Deferred non-blockers: Kitchen rail parent / 3-level Kitchen breadcrumb / Admin bare-crumb parent need a
+  separate design-eyeball pass; they were not required for the shipped retrofit.
 
 **▶ THEN — F (task #16, owner-gated):** promote dev→main→staging→prod + secrets (deputy model key, VAPID) + backup/restore
 drill (gates AR go-live) + OWASP/STRIDE prod gate + ESB worker DEPLOY + edge rate-limit/quota + **A4 reporting_writer true
 org-scope** (snapshot job sets `set_config('app.reporting_org', …)`; policies scope `with check (org_id = current_setting(…))`).
-**Branch map:** `dev`=`c145e2a` · `main`/`staging`=`669ee0a` (conservative, up-to-BU-remap). Flags default-OFF in
+**Branch map:** `dev`=`dee6f8b` · `main`/`staging`=`669ee0a` (conservative, up-to-BU-remap). Flags default-OFF in
 `mos-app/src/config/features.ts`. **Local-stack gotcha:** `supabase start --ignore-health-check -x studio,imgproxy,inbucket,
 edge-runtime,vector,analytics,realtime` (flaky health gates roll back the whole stack); `supabase db reset` reseeds dev
 personas (pw `Passw0rd!dev`, Director=admin); clear `localStorage` + retry if the deputy/auth hangs on a transient DB-conn timeout.

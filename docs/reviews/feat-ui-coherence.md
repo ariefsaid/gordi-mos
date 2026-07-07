@@ -1,8 +1,8 @@
-# feat/ui-coherence — working ledger + agent handoff (2026-07-07)
+# feat/ui-coherence — shipped ledger (2026-07-07)
 
 Branch `feat/ui-coherence` off `dev` @ `6b36295`. Executes the retrofit plan in
-[docs/reviews/ui-coherence-audit-2026-07-07.md](ui-coherence-audit-2026-07-07.md) §F. **NOT merged.**
-Review battery is recorded below; `scripts/pre-merge-check.sh` still owed before merge.
+[docs/reviews/ui-coherence-audit-2026-07-07.md](ui-coherence-audit-2026-07-07.md) §F. **Merged to `dev`**
+in `dee6f8b` (pushed). Review battery is recorded below; `scripts/pre-merge-check.sh` passed before merge.
 
 ## Review verdicts
 - spec: PASS — Director review, 2026-07-07. Branch conforms to audit §F plus deputy C2/C3 after ADR-0045/0049; no scope expansion beyond the ratified no-FAB deputy launcher, shared-kit cleanup, typed widgets, safe markdown, and rendered mobile follow-up.
@@ -18,10 +18,10 @@ Review battery is recorded below; `scripts/pre-merge-check.sh` still owed before
   ⚠️ pi stdout is sometimes swallowed — **verify by `git status`/reading files, do NOT trust an empty return.**
   glm-5.2 was 429-saturated during this session; pace it, fall to glm-4.7 for templated work.
 
-## DONE (committed on branch)
+## DONE (committed on branch, merged to dev)
 - `5739c70` — **Select primitive** `mos-app/src/components/ui/select.tsx` (+`Select.css`,`select.test.tsx`,
   10/10 green). Mirrors `text-input.tsx`. Wraps native `<select>` + token chrome (appearance:none,
-  chevron, disabled/error parity). **Not yet wired to any call site.** Plus **DESIGN.md** ratifications:
+  chevron, disabled/error parity). Later commits wired the safe non-Tasks dropdown call sites. Plus **DESIGN.md** ratifications:
   the `[NEW]` Select spec (in §Inputs/Fields) + the **Deputy-Launcher/No-FAB Rule** (near the
   Orange-Sprinkle Rule; supersedes ADR-0019 D11).
 - `0832bd1` — **shell/IA/FAB**: deleted `AssistantFab` (orange float) → `AssistantTopBarButton` now
@@ -98,8 +98,10 @@ Review battery is recorded below; `scripts/pre-merge-check.sh` still owed before
   green `npm test -- src/components/weekly/my-tasks-card.test.tsx`; refreshed Playwright phone screenshot
   confirmed the clipped table is gone.
 
-## REMAINING (retrofit plan §F)
-Implementation is complete on branch. Remaining gate before merge: `bash scripts/pre-merge-check.sh` exit 0.
+## Merge verification
+Implementation is merged to `dev`. Gate evidence: `npm run typecheck`, `npm run lint -- --max-warnings=0`,
+full `npm test` (244 files / 2362 tests), `npm run build`, rendered desktop/phone review, and
+`bash scripts/pre-merge-check.sh` exit 0.
 
 ## Deferred (needs design-eyeball, NOT mechanical — own reviewed pass)
 Kitchen **rail nesting/parent** (nest the 5 under a "Kitchen" sub-heading — audit C2 residue), 3-level
@@ -110,12 +112,10 @@ wash — fold into state-kit rollout), Admin bare-crumb parent.
 (a) **DONE:** no raw `<select>` in `src/pages`/`src/components` outside the primitive + documented Tasks
 exceptions (`RI-IXD-5`);
 (b) every list page imports shared DataTable + state-kit; (c) **DONE for Follow-ups:** renders card-list <768px
-(RTL, no h-overflow); (d) no `brand-orange` on an interactive element (token guard).
+(RTL, no h-overflow); (d) **DONE:** no `brand-orange` outside tokens/logo/view-tab underline (`RI-IXD-7`).
 
-## Before merge-to-main (BINDING gate)
-Run the review battery (spec · code-quality · **design 4-lens rendered** since many `*.tsx`/`*.css` changed ·
-security if any auth/RLS touched — none so far) and record verdicts in THIS file, then
-`bash scripts/pre-merge-check.sh` (exit 0). Render-verify the whole app (owner judges by look-vs-mockup —
-[[visual-fidelity-bar]]). Local stack gotchas: `supabase start --ignore-health-check -x studio,imgproxy,
-inbucket,edge-runtime,vector,analytics,realtime`; `supabase db reset` reseeds dev personas (pw `Passw0rd!dev`);
-clear localStorage on stale-session hangs. DB Postgres :44322 / API :44321 (gordi-mos stack).
+## Future merge-to-main note
+This branch is already on `dev`; any later `dev`→`main` promotion still needs its own release ledger/battery.
+Local stack gotchas: `supabase start --ignore-health-check -x studio,imgproxy,inbucket,edge-runtime,vector,
+analytics,realtime`; `supabase db reset` reseeds dev personas (pw `Passw0rd!dev`); clear localStorage on
+stale-session hangs. DB Postgres :44322 / API :44321 (gordi-mos stack).
