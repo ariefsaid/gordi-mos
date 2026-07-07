@@ -45,15 +45,23 @@ Review battery + `scripts/pre-merge-check.sh` still owed before any merge (see b
   state-kit, and detail route; then green `npm test -- src/pages/follow-ups-page.test.tsx
   src/components/tasks/status-pill.test.tsx src/components/dashboard/data-table.test.tsx
   src/router.test.tsx` (47 tests), `npm run typecheck`, and `npm run lint -- --max-warnings=0`.
+- `0d1dd00` — **Kitchen shared-table retrofit slice**: Stock and Pushes now render through shared
+  `DataTable` (desktop table + <768px card reflow) with page-level RI-IXD-6 guards; Pushes preserves
+  the ratified dead-letter warning stripe via a new `DataTable.rowClassName` hook. Removed obsolete
+  `KitchenStockTable` / `KitchenStockCards` components and CSS. Fixed the Kitchen Log submit/footer
+  collision by moving `.kl-footer` back into normal flow and adding a B3 regression. Verification:
+  red guards for DataTable row classes, Stock/Pushes DataTable branches, and Log footer position; then
+  green `npm test -- src/components/dashboard/data-table.test.tsx src/pages/kitchen-stock-page.test.tsx
+  src/pages/kitchen-pushes-page.test.tsx src/pages/kitchen-log-page.test.tsx` (106 tests),
+  `npm run typecheck`, `npm run lint -- --max-warnings=0`, full `npm test` (243 files / 2339 tests),
+  and `npm run build` (existing large-chunk warning only).
 
 ## REMAINING (retrofit plan §F, do in this order)
-1. **Kitchen retrofit** (rebuild, **glm-5.2**). `components/kitchen/*`. Shared DB-view toolbar + DataTable
-   + state-kit; fix the floating Submit-bar collision (**B3**). Owns kitchen files exclusively.
-2. **state-kit rollout** (glm-4.7): Kitchen Review/Pushes, Sales, Pricing, Inbox hand-rolled states →
+1. **state-kit rollout** (glm-4.7): Kitchen Review, Sales, Pricing, Inbox hand-rolled states →
    `state-kit`. **Strip the Sales schema-string leak** ("…from `reporting.sales_daily_revenue`" **D4**).
-3. **PageHead standardize** (glm-4.7): bare `<h1>` → full `PageHead` on Sales, Pricing, Budget, Weekly
+2. **PageHead standardize** (glm-4.7): bare `<h1>` → full `PageHead` on Sales, Pricing, Budget, Weekly
    Updates, Objectives, Projects (**D5**). (Follow-ups already has it.)
-4. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
+3. **Deputy C2 + C3** (glm-5.2). Spec: [docs/specs/agent-capability-expansion.md](../specs/agent-capability-expansion.md).
    C2 = safe-markdown in AssistantPanel; C3 = typed-widget results. ⚠️ ADR-0045 §1 / ADR-0049 are
    **referenced but NOT written** — re-read the spec, author the ADRs (eng-planner) before build.
    Battery/viewspec registry is already ported; AssistantPanel is plain-text by design (FR-P2-AP-004).
