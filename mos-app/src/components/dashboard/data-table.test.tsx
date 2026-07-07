@@ -70,6 +70,20 @@ describe('DataTable — desktop, ready state', () => {
     )
     expect(screen.getByText('Total')).toBeInTheDocument()
   })
+
+  it('applies rowClassName to desktop rows for caller-owned attention states', () => {
+    render(
+      <DataTable
+        columns={COLUMNS}
+        rows={ROWS}
+        isDesktop
+        caption="Sales by branch"
+        rowClassName={row => row.revenue < 0 ? 'is-attention' : undefined}
+      />,
+    )
+    const row = screen.getByText('SKC').closest('tr')
+    expect(row).toHaveClass('is-attention')
+  })
 })
 
 describe('DataTable — sort (a11y keyboard path)', () => {

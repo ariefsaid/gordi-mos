@@ -26,6 +26,7 @@ export interface DataTableSort {
 export interface DataTableProps<Row> {
   columns: DataTableColumn<Row>[]
   rows: Row[]
+  rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
   /** totals row */
@@ -48,9 +49,10 @@ function isNegative(value: ReactNode): boolean {
   return typeof value === 'number' && value < 0
 }
 
-export function DataTable<Row extends { id?: string | number }>({
+export function DataTable<Row extends object>({
   columns,
   rows,
+  rowClassName,
   sort,
   onSortChange,
   footer,
@@ -78,6 +80,7 @@ export function DataTable<Row extends { id?: string | number }>({
         <DesktopTable
           columns={columns}
           rows={rows}
+          rowClassName={rowClassName}
           sort={sort}
           onSortChange={onSortChange}
           footer={footer}
@@ -90,6 +93,7 @@ export function DataTable<Row extends { id?: string | number }>({
         <PhoneCards
           columns={columns}
           rows={rows}
+          rowClassName={rowClassName}
           state={state}
           emptyLabel={emptyLabel}
           caption={caption}
@@ -100,6 +104,7 @@ export function DataTable<Row extends { id?: string | number }>({
 interface DesktopTableProps<Row> {
   columns: DataTableColumn<Row>[]
   rows: Row[]
+  rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
   footer?: ReactNode
@@ -111,6 +116,7 @@ interface DesktopTableProps<Row> {
 function DesktopTable<Row>({
   columns,
   rows,
+  rowClassName,
   sort,
   onSortChange,
   footer,
@@ -172,7 +178,10 @@ function DesktopTable<Row>({
           </tr>
         )}
         {state === 'ready' && rows.map((row, rowIndex) => (
-          <tr key={(row as { id?: string | number }).id ?? rowIndex}>
+          <tr
+            key={(row as { id?: string | number }).id ?? rowIndex}
+            className={rowClassName?.(row, rowIndex)}
+          >
             {columns.map(column => {
               const value = cellValue(row, column)
               const isNumeric = column.numeric || column.align === 'right'
@@ -211,12 +220,13 @@ function SkeletonRows({ columnCount }: { columnCount: number }) {
 interface PhoneCardsProps<Row> {
   columns: DataTableColumn<Row>[]
   rows: Row[]
+  rowClassName?: (row: Row, index: number) => string | undefined
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
 }
 
-function PhoneCards<Row>({ columns, rows, state, emptyLabel, caption }: PhoneCardsProps<Row>) {
+function PhoneCards<Row>({ columns, rows, rowClassName, state, emptyLabel, caption }: PhoneCardsProps<Row>) {
   if (state === 'loading') {
     return (
       <div className="dt-cards" aria-label={caption}>
@@ -242,7 +252,7 @@ function PhoneCards<Row>({ columns, rows, state, emptyLabel, caption }: PhoneCar
       {rows.map((row, rowIndex) => (
         <div
           key={(row as { id?: string | number }).id ?? rowIndex}
-          className="dt-card"
+          className={['dt-card', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
           data-touch-target="true"
         >
           <div className="dt-card-title">{cellValue(row, titleColumn)}</div>
