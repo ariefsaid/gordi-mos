@@ -30,7 +30,14 @@ OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions:
 - **Test-infra note:** the full 2345-test unit suite is genuinely GREEN unloaded — earlier "100–194 failures" were 100%
   environmental timeout-flake (heavy RTL files under docker+vitest contention). Run heavy files isolated; don't trust a flaky red.
 
-**▶ CURRENT — UI-coherence polish (task #19, owner-directed):** owner verdict = the app "feels like several apps thrown
+**▶ CURRENT — UI-coherence polish (task #19, owner-directed) — IN FLIGHT on `feat/ui-coherence` (off `dev`@`6b36295`).**
+**⚠️ RESUMING AGENT: read [docs/reviews/feat-ui-coherence.md](reviews/feat-ui-coherence.md) — the working ledger +
+step-by-step handoff (what's done, what's left, the Tasks-select nuance, pi gotchas, the merge gate).** Progress this
+session: **FAB decision RESOLVED (owner-agreed — no FAB; neutral header launcher)**; landed `5739c70` (Select primitive +
+DESIGN.md ratifications: `[NEW]` Select spec + Deputy-Launcher/No-FAB Rule) and `0832bd1` (retire orange FAB → header
+launcher all viewports; "Log"→"Kitchen Log"; breadcrumb self-crumb collapse). Remaining §F items 1–6 + deputy C2/C3 pending.
+
+Owner verdict = the app "feels like several apps thrown
 into 1, no IxD convention, bleeds"; wants **taste + impeccable** polish, open to a full redesign. The render-grounded
 **coherence audit is DONE → `docs/reviews/ui-coherence-audit-2026-07-07.md`** (design-reviewer, every screen desktop+phone).
 **Verdict CONFIRMED: application gap, not ground-up redesign** — `DESIGN.md` already defines the canonical kit (Data Table w/
@@ -39,9 +46,10 @@ catalog managers, Budget/Pricing, Sales). Divergences D1–D8, bleeds B1–B5 (w
 IA C1–C4. **Retrofit plan (ledger §F, highest-leverage first):** (1) rebuild Follow-ups onto the kit · (2) kill the 11 native
 `<select>` w/ a tokened `Select` `[NEW DESIGN.md primitive]` · (3) Kitchen→shared toolbar+DataTable+state-kit + fix floating-bar
 collision · (4) state-kit rollout (Kitchen Review/Pushes, Sales, Pricing, Inbox) · (5) PageHead standardize (7 screens) ·
-(6) IA cleanup (Kitchen rail parent, "Log"→"Kitchen Log", "Inbox › Inbox" self-crumb) · (7) **orange FAB ruling — OWNER
-DECISION** (DESIGN.md forbids orange-as-action; move deputy launcher to a neutral header affordance or sanction+spec a FAB).
-Flow: DESIGN.md addition (`Select` + FAB ruling) → module plan in `docs/plans/` → ui-implementer → design-reviewer. Pre-rollout
+(6) IA cleanup (partly DONE: "Log"→"Kitchen Log" + "Inbox › Inbox" self-crumb landed; Kitchen rail nesting/parent
+DEFERRED to a design-eyeball pass) · (7) **orange FAB — RESOLVED (owner-agreed 2026-07-07):** no FAB paradigm; deputy
+launcher is a neutral top-bar icon on every viewport (DESIGN.md Deputy-Launcher/No-FAB Rule, supersedes ADR-0019 D11) — DONE.
+Flow: DESIGN.md addition (DONE) → per-module retrofit briefs → glm build → Director verify → design-reviewer battery. Pre-rollout
 blockers folded in: follow-up `:id` 404, Home AR/AP dead-end drills, A-1..A-8 in `docs/reviews/design-mvp-push-2026-07-07.md`.
 - **Deputy is text-only BY DESIGN, not for lack of a battery.** The PMO widget battery IS ported + live (`src/lib/viewspec`
   registry: KPITile/DataTable/ChartFrame/CutToggle/FreshnessLabel, `status:'live'`), but `AssistantPanel.tsx` is stamped
