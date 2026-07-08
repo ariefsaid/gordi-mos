@@ -110,7 +110,9 @@ describe('CascadePage', () => {
   it('AC-300: renders the objective → work-line → task ladder and reuses the cascade catalogs loader', async () => {
     renderPage()
 
-    expect(await screen.findByText('Grow revenue')).toBeInTheDocument()
+    // W1-4: the objective now rides as the per-work-line group hint (the ladder folds to
+    // single-level work-line groups), so "Grow revenue" appears once per work-line.
+    expect((await screen.findAllByText('Grow revenue')).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Menu launch')).toBeInTheDocument()
     expect(screen.getByText('Daily prep')).toBeInTheDocument()
     expect(screen.getByText('Project task')).toBeInTheDocument()
@@ -136,7 +138,7 @@ describe('CascadePage', () => {
     expect(screen.getByText('Unlinked task')).toBeInTheDocument()
     expect(screen.getByText('No work line task')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Mine' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Mine' }))
 
     await waitFor(() => {
       expect(screen.getByText('My linked task')).toBeInTheDocument()
@@ -157,7 +159,7 @@ describe('CascadePage', () => {
     expect(await screen.findByText('Project task')).toBeInTheDocument()
     expect(screen.queryByRole('status', { name: /workload summary/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Mine' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Mine' }))
 
     expect(await screen.findByRole('status', { name: /workload summary/i })).toBeInTheDocument()
   })
@@ -198,25 +200,89 @@ describe('CascadePage', () => {
     expect(await screen.findByText('Nothing ladders up yet')).toBeInTheDocument()
   })
 
-  it('AC-305/NFR-300: phone branch renders grouped cards (.task-card) instead of the desktop table', async () => {
+  it('W1-1: content head renders the .content-header chrome + h1 + count pill (ready)', async () => {
+    renderPage()
+    await screen.findByText('Project task') // wait for the data to land
+    const head = screen.getByTestId('page-head')
+    expect(head).toHaveClass('content-header')
+    expect(head.querySelector('h1')).toHaveTextContent('Work cascade')
+    // Ready → the count pill reflects the total task rows across the ladder (2).
+    expect(head.querySelector('.ch-count')).toHaveTextContent('2')
+  })
+
+  it('W1-1: count pill is omitted while loading (count stays null until ready)', () => {
+    vi.mocked(listTasks).mockReturnValue(new Promise(() => {}))
+    renderPage()
+    const head = screen.getByTestId('page-head')
+    expect(head).toHaveClass('content-header')
+    expect(screen.getByText('Loading the cascade…')).toBeInTheDocument()
+    // Loading → count is null so the pill is omitted.
+    expect(head.querySelector('.ch-count')).toBeNull()
+  })
+
+  it('W1-2: Mine/All is a tool-rail segmented control (tablist) that flips the mine scope + arrow-keys', async () => {
+    renderPage()
+    await screen.findByText('Project task')
+
+    const seg = screen.getByRole('tablist', { name: 'Ownership filter' })
+    expect(seg).toBeInTheDocument()
+    const mineTab = screen.getByRole('tab', { name: 'Mine' })
+    const allTab = screen.getByRole('tab', { name: 'All' })
+    // Default scope = All.
+    expect(allTab).toHaveAttribute('aria-selected', 'true')
+    expect(mineTab).toHaveAttribute('aria-selected', 'false')
+
+    // Clicking Mine flips the scope.
+    fireEvent.click(mineTab)
+    expect(mineTab).toHaveAttribute('aria-selected', 'true')
+
+    // Arrow-key moves selection within the tablist (roving-tabindex grammar).
+    fireEvent.keyDown(mineTab, { key: 'ArrowRight' })
+    expect(allTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('W1-4: shared DataTable folds the ladder to single-level work-line groups (objective rides as hint)', async () => {
+    renderPage()
+    await screen.findByText('Project task')
+
+    // One group-header per work-line (Menu launch · Daily prep).
+    const groupLabels = Array.from(document.querySelectorAll('.dt-group-label')).map((n) => n.textContent)
+    expect(groupLabels).toEqual(expect.arrayContaining(['Menu launch', 'Daily prep']))
+    // Each group-header carries a count.
+    expect(document.querySelectorAll('.dt-group-count').length).toBeGreaterThanOrEqual(2)
+    // Objective line-of-sight survives the flatten as the group hint (once per work-line).
+    const hints = Array.from(document.querySelectorAll('.dt-group-hint')).map((n) => n.textContent)
+    expect(hints.filter((h) => h === 'Grow revenue').length).toBe(2)
+    // Work-line type tags survive in the group header (Project / Daily / ongoing).
+    expect(screen.getByText('Project')).toBeInTheDocument()
+    expect(screen.getByText('Daily / ongoing')).toBeInTheDocument()
+    // A known task row renders its title + owner (mirrors the Tasks DB-view row).
+    expect(screen.getByText('Project task')).toBeInTheDocument()
+    expect(screen.getAllByText('Cahya Cafe').length).toBe(2)
+  })
+
+  it('AC-305/NFR-300: phone branch renders the shared DataTable card list (.dt-card) instead of the desktop table', async () => {
     vi.mocked(useIsDesktop).mockReturnValue(false)
     renderPage()
 
-    // The ladder still renders (objective + work-line + task) …
-    expect(await screen.findByText('Grow revenue')).toBeInTheDocument()
+    // The ladder still renders (objective + work-line + task) … the objective now rides
+    // as the per-work-line group hint (W1-4 fold), so it appears on each work-line group.
+    expect((await screen.findAllByText('Grow revenue')).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Menu launch')).toBeInTheDocument()
     expect(screen.getByText('Project task')).toBeInTheDocument()
-    // … but on phone each task renders as a .task-card (the shipped Tasks DB-view card grammar).
-    expect(document.querySelectorAll('[data-testid="task-card"]').length).toBe(2)
-    // The i18n'd card labels render (Owner / Due).
+    // … on phone the shared DataTable single-renders its card branch (.dt-card).
+    expect(document.querySelectorAll('.dt-card').length).toBe(2)
+    // The i18n'd card labels render (Owner / Due) as the card detail dt labels.
     expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Due').length).toBeGreaterThan(0)
   })
 
-  it('AC-305/NFR-300: desktop branch renders NO .task-card (uses the dense grouped table)', async () => {
+  it('AC-305/NFR-300: desktop branch renders the shared DataTable (no phone cards)', async () => {
     vi.mocked(useIsDesktop).mockReturnValue(true)
     renderPage()
     expect(await screen.findByText('Project task')).toBeInTheDocument()
-    expect(document.querySelectorAll('[data-testid="task-card"]').length).toBe(0)
+    // Desktop renders the dense grouped table; the phone card branch is absent.
+    expect(document.querySelectorAll('.dt-table').length).toBe(1)
+    expect(document.querySelectorAll('.dt-card').length).toBe(0)
   })
 })

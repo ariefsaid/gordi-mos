@@ -1,3 +1,4 @@
+import './cascade-page.css'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
@@ -8,71 +9,26 @@ import { useT } from '@/i18n/use-t'
 import { listTasks } from '@/lib/db/tasks'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
 import { useCascadeCatalogs } from '@/components/tasks/use-cascade-catalogs'
-import { GroupHeaderRow } from '@/components/tasks/group-header-row'
 import { WorkloadCaption, type WorkloadSummary } from '@/components/tasks/workload-caption'
 import { can } from '@/lib/capabilities'
 import { buildLadder, type Ladder } from '@/lib/cascade/build-ladder'
 import { formatDate, firstName } from '@/components/tasks/task-formatters'
 import { dueStatus } from '@/lib/due-status'
 import { StatusPill } from '@/components/tasks/status-pill'
+import { DataTable } from '@/components/dashboard/data-table'
+import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
+import { CutToggle } from '@/components/dashboard/cut-toggle'
+import { Tag } from '@/components/ui/tag'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
-function CascadeTaskLeaf({ task, personMap, overdueLabel }: { task: TaskListRow; personMap: Map<string, string>; overdueLabel: string }) {
-  const dueLabel = task.due_date ? formatDate(task.due_date) : '—'
-  const ownerName = personMap.get(task.responsible_person_id) ?? '—'
-  const dueTone = task.due_date ? dueStatus(task.due_date, new Date()) : 'none'
-
-  return (
-    <div style={{ paddingLeft: 48, paddingTop: 8, paddingBottom: 8 }}>
-      <div>{task.title}</div>
-      <div className="text-muted-foreground" style={{ fontSize: 14, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span>{ownerName}</span>
-        <span>{dueTone === 'overdue' ? `${overdueLabel} · ${dueLabel}` : dueLabel}</span>
-        <StatusPill status={task.status} />
-      </div>
-    </div>
-  )
-}
-
-// ── Phone card (NFR-300 phone-first) ──────────────────────────────────────────
-// Matches the shipped Tasks DB-view card grammar (.task-card / .task-card-link /
-// .task-card-head / .task-card-meta, defined in TasksWorkspace.css) so the cascade phone surface
-// shares the same card visual as the Tasks workspace. Read-only (no +Add/overdue workspace
-// controls) — the everyone cascade surface has no write affordance (FR-311). The two-level ladder
-// (objective → work_line → task) is preserved so line-of-sight + the "(Unlinked)" / "No
-// Project/Process" branches render identically to desktop (keeps AC-305 e2e green).
-function CascadeTaskCard({ task, personMap, ownerLabel, dueLabel, overdueLabel }: {
-  task: TaskListRow
-  personMap: Map<string, string>
-  ownerLabel: string
-  dueLabel: string
-  overdueLabel: string
-}) {
-  const ownerName = personMap.get(task.responsible_person_id) ?? '—'
-  const dueText = task.due_date ? formatDate(task.due_date) : '—'
-  const dueTone = task.due_date ? dueStatus(task.due_date, new Date()) : 'none'
-  const shown = dueTone === 'overdue' ? `${overdueLabel} · ${dueText}` : dueText
-
-  return (
-    <article data-testid="task-card" className="task-card">
-      <Link to={`/tasks/${task.id}`} className="task-card-link">
-        <div className="task-card-head">
-          <span className="task-name">{task.title}</span>
-          <StatusPill status={task.status} />
-        </div>
-        <dl className="task-card-meta">
-          <span className="task-card-meta-pair">
-            <dt>{ownerLabel}</dt>
-            <dd>{ownerName}</dd>
-          </span>
-          <span className="task-card-meta-pair">
-            <dt>{dueLabel}</dt>
-            <dd className={dueTone === 'overdue' ? 'due-overdue' : 'due-calm'}>{shown}</dd>
-          </span>
-        </dl>
-      </Link>
-    </article>
-  )
+// Work-line type chip — mirrors the Tasks work-line group tag (FR-233 / WCAG 1.4.1:
+// text label always present, never color-only). Rides the DataTable group-header
+// `headerActions` slot so the project/daily classifier survives the single-level fold.
+function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
+  if (type === 'project') {
+    return <Tag color="blue" weight="medium">Project</Tag>
+  }
+  return <Tag color="gray" weight="medium">Daily / ongoing</Tag>
 }
 
 export function CascadePage() {
@@ -117,19 +73,101 @@ export function CascadePage() {
     return map
   }, [people])
 
+  const labels = useMemo(() => ({
+    unlinked: t('cascade.unlinked'),
+    noWorkLine: t('cascade.noWorkLine'),
+    untitledObjective: t('cascade.untitledObjective'),
+    untitledWorkLine: t('cascade.untitledWorkLine'),
+  }), [t])
+
   const ladder = useMemo<Ladder>(() => buildLadder({
     objectives,
     workLines,
     tasks,
     viewerId,
     mine,
-    labels: {
-      unlinked: t('cascade.unlinked'),
-      noWorkLine: t('cascade.noWorkLine'),
-      untitledObjective: t('cascade.untitledObjective'),
-      untitledWorkLine: t('cascade.untitledWorkLine'),
+    labels,
+  }), [mine, objectives, workLines, tasks, viewerId, labels])
+
+  // W1-4: fold the 3-level ladder (objective → work_line → task) to the shared
+  // DataTable's SINGLE-level groups. groups = work_lines; the parent objective
+  // rides as the group `hint` so line-of-sight survives the flatten; the
+  // synthetic buckets keep their labels — "(Unlinked)" as the objective hint,
+  // "No Project/Process" as the work-line label. No tree information is dropped
+  // (the work-line type tag rides the group headerActions).
+  const tableGroups = useMemo<DataTableGroup<TaskListRow>[]>(() => {
+    const out: DataTableGroup<TaskListRow>[] = []
+    for (const objective of ladder) {
+      for (const workLine of objective.workLines) {
+        out.push({
+          key: `${objective.key}:${workLine.key}`,
+          label: workLine.label,
+          hint: objective.label,
+          count: workLine.tasks.length,
+          rows: workLine.tasks,
+          headerActions: workLine.type ? <WorkLineTypeTag type={workLine.type} /> : undefined,
+        })
+      }
+    }
+    return out
+  }, [ladder])
+
+  const flatRows = useMemo<TaskListRow[]>(
+    () => tableGroups.flatMap((group) => group.rows),
+    [tableGroups],
+  )
+
+  const ready = !loading && !error
+  const overdueLabel = t('cascade.overdue')
+  const ownerLabel = t('cascade.card.owner')
+  const dueLabel = t('cascade.card.due')
+  const mineLabel = t('cascade.mine')
+  const allLabel = t('cascade.all')
+  const now = useMemo(() => new Date(), [])
+
+  // W1-4: task-row columns mirror the Tasks DB-view row (title link + owner +
+  // due/overdue signal + status) via DataTableColumn.render, so a cascade task
+  // row reads like a Tasks row. The DataTable single-renders desktop <table> /
+  // phone card list from the same columns (no bespoke ladder branches).
+  const columns = useMemo<DataTableColumn<TaskListRow>[]>(() => [
+    {
+      key: 'task',
+      header: t('cascade.link'),
+      cardLabel: '',
+      render: (task) => (
+        <Link to={`/tasks/${task.id}`} title={task.title} className="cascade-task-link">
+          {task.title}
+        </Link>
+      ),
     },
-  }), [mine, objectives, workLines, tasks, viewerId, t])
+    {
+      key: 'owner',
+      header: ownerLabel,
+      cardLabel: ownerLabel,
+      render: (task) => personMap.get(task.responsible_person_id) ?? '—',
+    },
+    {
+      key: 'due',
+      header: dueLabel,
+      cardLabel: dueLabel,
+      render: (task) => {
+        const tone = task.due_date ? dueStatus(task.due_date, now) : 'none'
+        const text = task.due_date ? formatDate(task.due_date) : '—'
+        const shown = tone === 'overdue' ? `${overdueLabel} · ${text}` : text
+        return (
+          <span style={tone === 'overdue' ? { color: 'var(--status-lost-text)', fontWeight: 600 } : undefined}>
+            {shown}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cardLabel: 'Status',
+      render: (task) => <StatusPill status={task.status} />,
+    },
+  ], [personMap, now, overdueLabel, ownerLabel, dueLabel, t])
 
   const workloadSummary = useMemo<WorkloadSummary | null>(() => {
     if (!mine || !viewerId) return null
@@ -161,26 +199,39 @@ export function CascadePage() {
     }
   }, [mine, people, tasks, viewerId, workLines])
 
-  const overdueLabel = t('cascade.overdue')
-  const ownerLabel = t('cascade.card.owner')
-  const dueLabel = t('cascade.card.due')
+  const showManageObjectives = can(accessRoles, 'objective.manage')
+  const showManageWorkLines = can(accessRoles, 'workline.manage')
 
   return (
     <PageFrame variant="data">
-      <PageHead title={t('cascade.title')} subtitle={t('cascade.subtitle')} />
+      <PageHead
+        variant="content"
+        title={t('cascade.title')}
+        count={ready ? flatRows.length : null}
+        meta={<span>{t('cascade.subtitle')}</span>}
+      />
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-        {can(accessRoles, 'objective.manage') && (
-          <Link to="/work/objectives">{t('cascade.manage.objectives')}</Link>
-        )}
-        {can(accessRoles, 'workline.manage') && (
-          <Link to="/work/projects-processes">{t('cascade.manage.projects')}</Link>
-        )}
-      </div>
+      {/* W1-3: secondary manage-links nav — a slim muted context row directly
+          under the head (not a tool rail, not floating above the body). */}
+      {(showManageObjectives || showManageWorkLines) && (
+        <div className="cascade-ctx text-muted-foreground">
+          {showManageObjectives && (
+            <Link to="/work/objectives" className="text-muted-foreground">{t('cascade.manage.objectives')}</Link>
+          )}
+          {showManageWorkLines && (
+            <Link to="/work/projects-processes" className="text-muted-foreground">{t('cascade.manage.projects')}</Link>
+          )}
+        </div>
+      )}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button type="button" onClick={() => setMine(true)}>{t('cascade.mine')}</button>
-        <button type="button" onClick={() => setMine(false)}>{t('cascade.all')}</button>
+      {/* W1-2: Mine/All tool-rail segmented control (the shared seg grammar). */}
+      <div style={{ marginBottom: 12 }}>
+        <CutToggle
+          options={[mineLabel, allLabel]}
+          value={mine ? mineLabel : allLabel}
+          onChange={(value) => setMine(value === mineLabel)}
+          ariaLabel="Ownership filter"
+        />
       </div>
 
       {workloadSummary && <WorkloadCaption summary={workloadSummary} />}
@@ -192,121 +243,25 @@ export function CascadePage() {
           <button type="button" onClick={() => load()}>{t('cascade.error.retry')}</button>
         </div>
       )}
-      {!loading && !error && ladder.length === 0 && (
+      {ready && ladder.length === 0 && (
         <div>
           <p>{mine ? t('cascade.mine.empty.title') : t('cascade.empty.title')}</p>
           <p>{mine ? t('cascade.mine.empty.body') : t('cascade.empty.body')}</p>
         </div>
       )}
 
-      {!loading && !error && ladder.length > 0 && (
-        isDesktop ? (
-          <DesktopLadder ladder={ladder} personMap={personMap} overdueLabel={overdueLabel} />
-        ) : (
-          <PhoneLadder ladder={ladder} personMap={personMap} overdueLabel={overdueLabel} ownerLabel={ownerLabel} dueLabel={dueLabel} title={t('cascade.title')} />
-        )
+      {/* W1-4: the body is the shared grouped DataTable (single-level work-line
+          groups). Desktop/phone single-render via the DataTable's own branch. */}
+      {ready && ladder.length > 0 && (
+        <DataTable
+          columns={columns}
+          rows={flatRows}
+          groups={tableGroups}
+          isDesktop={isDesktop}
+          state="ready"
+          caption={t('cascade.title')}
+        />
       )}
     </PageFrame>
-  )
-}
-
-// Desktop: dense grouped nested table (the pre-existing render — GroupHeaderRow reused).
-function DesktopLadder({ ladder, personMap, overdueLabel }: {
-  ladder: Ladder
-  personMap: Map<string, string>
-  overdueLabel: string
-}) {
-  return (
-    <>
-      {ladder.map((objective) => (
-        <div key={objective.key}>
-          <table style={{ width: '100%' }}>
-            <tbody>
-              <GroupHeaderRow
-                label={objective.label}
-                count={objective.workLines.reduce((sum, workLine) => sum + workLine.tasks.length, 0)}
-                overdue={0}
-                collapsed={false}
-                colSpan={1}
-                onToggle={() => {}}
-                onAddTask={() => {}}
-                onOverdueFilter={() => {}}
-                readOnly
-              />
-              {objective.workLines.map((workLine) => (
-                <tr key={workLine.key}>
-                  <td>
-                    <table style={{ width: '100%' }}>
-                      <tbody>
-                        <GroupHeaderRow
-                          label={workLine.label}
-                          count={workLine.tasks.length}
-                          overdue={0}
-                          collapsed={false}
-                          colSpan={1}
-                          onToggle={() => {}}
-                          onAddTask={() => {}}
-                          onOverdueFilter={() => {}}
-                          workLineType={workLine.type}
-                          readOnly
-                        />
-                      </tbody>
-                    </table>
-                    {workLine.tasks.map((task) => (
-                      <CascadeTaskLeaf key={task.id} task={task} personMap={personMap} overdueLabel={overdueLabel} />
-                    ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-    </>
-  )
-}
-
-// Phone: grouped cards reusing the Tasks DB-view .mgc-* / .task-card grammar (NFR-300). Two-level
-// (objective → work_line → card) so the ladder + synthetic branches render as on desktop.
-function PhoneLadder({ ladder, personMap, overdueLabel, ownerLabel, dueLabel, title }: {
-  ladder: Ladder
-  personMap: Map<string, string>
-  overdueLabel: string
-  ownerLabel: string
-  dueLabel: string
-  title: string
-}) {
-  return (
-    <div className="mgc" role="list" aria-label={title}>
-      {ladder.map((objective) => {
-        const objectiveCount = objective.workLines.reduce((sum, workLine) => sum + workLine.tasks.length, 0)
-        return (
-          <section key={objective.key} className="mgc-group" role="listitem" aria-label={objective.label}>
-            <div className="mgc-group-head">
-              <span className="mgc-label">{objective.label}</span>
-              <span className="mgc-count tabular-nums">{objectiveCount}</span>
-            </div>
-            {objective.workLines.map((workLine) => (
-              <div key={workLine.key} className="mgc-group">
-                <div className="mgc-group-head">
-                  <span className="mgc-label">{workLine.label}</span>
-                  <span className="mgc-count tabular-nums">{workLine.tasks.length}</span>
-                </div>
-                {workLine.tasks.map((task) => (
-                  <CascadeTaskCard
-                    key={task.id}
-                    task={task}
-                    personMap={personMap}
-                    ownerLabel={ownerLabel}
-                    dueLabel={dueLabel}
-                    overdueLabel={overdueLabel}
-                  />
-                ))}
-              </div>
-            ))}
-          </section>
-        )
-      })}
-    </div>
   )
 }
