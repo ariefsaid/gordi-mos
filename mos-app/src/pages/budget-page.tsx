@@ -196,7 +196,11 @@ export function BudgetPage() {
   return (
     <PageFrame variant="data">
       <PageHead variant="content" title={t('plan.budget.title')} count={budgets.length} />
-      <section className="bp-section" aria-label="Menu item">
+      {/* The section is a single-field wrapper — no aria-label landmark: a region named
+          identically to its sole field ("Menu item") made `getByLabel('Menu item')` ambiguous
+          (section + select) and created a duplicate accessible name for screen-reader users.
+          The field's own <label> is the unambiguous name. */}
+      <section className="bp-section">
         <div className="bp-field">
           <label className="bp-label" htmlFor="budget-menu-item">Menu item</label>
           <Select

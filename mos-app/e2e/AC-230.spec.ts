@@ -126,15 +126,37 @@ test.beforeAll(async () => {
     ON CONFLICT (id) DO NOTHING;
   `)
   console.log('[AC-230] seeded Cahya cascade tasks')
+
+  // ── Isolate from the AC-305 CASCADE fixture (seeded by global-setup) ──────────────────────
+  // global-setup seeds AC-305's own "Daily IG Content" work-line (c305…-0001, process) plus two
+  // Cahya tasks in it (linked + unlinked). That work-line shares its DISPLAY NAME with this spec's
+  // "Daily IG Content" work-line (c000…-0001), so grouping Cahya by work-line would render TWO
+  // "Daily IG Content" groups — and the workload caption would count 2 daily work-lines, not 1.
+  // This is a fixture collision, not an app bug (two distinct work-lines that happen to share a
+  // name render as two distinct groups — correct). Detach CASCADE's two process tasks (null their
+  // work_line_id) for the duration of this journey so Cahya's read-path is exactly this spec's
+  // seed (1 process + 1 project). Restored verbatim in afterAll; AC-305 runs later (alphabetical)
+  // and sees its original seeded state. The detach is idempotent (no-op if CASCADE is absent).
+  await execSql(`
+    UPDATE mos.tasks SET work_line_id = NULL
+    WHERE id IN ('c3050000-0000-0000-0000-000000000101', 'c3050000-0000-0000-0000-000000000102');
+  `)
+  console.log('[AC-230] detached AC-305 CASCADE process tasks (work_line_id → NULL) for isolation')
 })
 
 // ── Cleanup ────────────────────────────────────────────────────────────────────
 // Delete only the tasks seeded by this spec. Work-lines are left intact.
 test.afterAll(async () => {
+  // Restore the AC-305 CASCADE process tasks detached in beforeAll (work_line_id → c305…-0001) so
+  // AC-305 sees its seeded state. Idempotent + safe even if beforeAll's detach never ran.
+  await execSql(`
+    UPDATE mos.tasks SET work_line_id = 'c3050000-0000-0000-0000-000000000001'
+    WHERE id IN ('c3050000-0000-0000-0000-000000000101', 'c3050000-0000-0000-0000-000000000102');
+  `)
   await execSql(`
     DELETE FROM mos.tasks WHERE id IN ('${T_PROCESS}', '${T_PROJECT}');
   `)
-  console.log('[AC-230] cleaned up cascade tasks')
+  console.log('[AC-230] restored CASCADE process tasks + cleaned up this spec\'s tasks')
 })
 
 // ── AC-230: the single curated cascade read-path journey ──────────────────────
