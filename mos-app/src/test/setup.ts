@@ -1,6 +1,16 @@
 import '@testing-library/jest-dom/vitest'
 import { afterEach } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
+
+// Paired with css:false in vite.config.ts (the root overhead/contention fix), raise RTL's
+// default async budget ONCE, GLOBALLY. Under parallel-test load the host event loop can be
+// preempted long enough that the stock 1000ms waitFor lapses on even a trivial assertion
+// (the original tasks-workspace flake was `await waitFor(() => screen.getByText('A task'))`
+// after a resolved mock — pure starvation, never a logic race). A single global raise is the
+// deterministic replacement for the per-test `waitFor(..., { timeout })` whack-a-mole that
+// only moved the flake from file to file. 3000ms is comfortably under the default 5000ms
+// test timeout and gives ~3x headroom once css:false has cut the per-env CPU.
+configure({ asyncUtilTimeout: 3000 })
 
 afterEach(() => {
   cleanup()

@@ -41,7 +41,17 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
-    css: true,
+    // css:false — Vitest must NOT parse/inject the 51 imported stylesheets into every
+    // jsdom environment. That CSS injection is pure overhead here: this suite asserts on
+    // className strings (e.g. `.toolbar .chip`) and reads authored CSS rules straight off
+    // the file via readFileSync (cssRuleBody) — NOTHING reads jsdom *computed* styles in the
+    // hot path. The few getComputedStyle() usages (login-page, my-week, kitchen-log) all use
+    // inline styles or negative assertions that hold on jsdom defaults, verified green with
+    // css:false. Setting css:true made each per-file jsdom env re-parse 448K of CSS (~6s/env,
+    // ~1400s cumulative across workers), saturating the event loop under the default fork
+    // pool so RTL's 1000ms waitFor lapsed on the unluckiest test (tasks-workspace) — the
+    // under-load flake. Dropping it removes the root overhead AND the contention.
+    css: false,
     // Inject stub env vars so supabase.ts doesn't throw during unit tests (real client is mocked).
     env: {
       VITE_SUPABASE_URL: 'http://127.0.0.1:44321',
