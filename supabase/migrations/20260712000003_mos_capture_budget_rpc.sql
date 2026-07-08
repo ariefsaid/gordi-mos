@@ -152,7 +152,9 @@ comment on function mos.capture_budget(text, text, text, text, uuid, timestamptz
   'A5 fix: atomic SECURITY DEFINER RPC that inserts budget+lines in ONE transaction and RE-COMPUTES the COGS total server-side from the linked cost lines (link-never-copy). No client-trusted total. Fail-loud on missing cost line. Capability gate: can(''cogs.write'').';
 
 -- Revoke/grant: match the definer-revoke lint (other DEFINER RPCs pattern).
-revoke all on function mos.capture_budget(text, text, text, text, uuid, timestamptz, text, boolean, text, mos.budget_line_input[]) from public, anon, authenticated;
+-- Use `revoke execute` (not `revoke all`) so the definer-revoke CI lint's literal string match passes;
+-- for a function EXECUTE is the only grantable privilege, so this is functionally identical to `revoke all`.
+revoke execute on function mos.capture_budget(text, text, text, text, uuid, timestamptz, text, boolean, text, mos.budget_line_input[]) from public, anon, authenticated;
 grant  execute on function mos.capture_budget(text, text, text, text, uuid, timestamptz, text, boolean, text, mos.budget_line_input[]) to authenticated;
 
 -- DOWN:
