@@ -81,3 +81,41 @@ describe('AC-406: ObjectivesPage down-trace (FR-422)', () => {
     })
   })
 })
+
+describe('Catalog-Manage archetype conformance (Wave 2: W2-1, W2-2)', () => {
+  it('W2-1: the frame is full-bleed — no 1080 prose cap', async () => {
+    const { container } = renderPage()
+    await screen.findByText('Grow revenue')
+    const inner = container.querySelector('main > div') as HTMLElement
+    expect(inner.style.maxWidth).toBe('none')
+  })
+
+  it('W2-1: the content head renders the count pill and the inline Add form still renders', async () => {
+    const { container } = renderPage()
+    await screen.findByText('Grow revenue')
+    expect(container.querySelector('.content-header')).toBeTruthy()
+    const pill = container.querySelector('.ch-count')
+    expect(pill).toBeTruthy()
+    expect(pill!.textContent).toBe('2') // two active objectives in the fixture
+    // inline create bar still renders its Add submit
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+  })
+
+  it('W2-2: exactly ONE create affordance in the ready state — the inline Add form (head carries no action)', async () => {
+    const { container } = renderPage()
+    await screen.findByText('Grow revenue')
+    // head carries NO action slot → no duplicate create CTA (State-Kit Rule)
+    expect(container.querySelector('.ch-action')).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(1)
+  })
+
+  it('W2-2: in the empty state the create affordance is the SAME inline form, not a second CTA', async () => {
+    vi.mocked(listObjectivesAll).mockResolvedValue([])
+    vi.mocked(listTasks).mockResolvedValue([])
+    const { container } = renderPage()
+    await screen.findByText('No objectives yet')
+    // empty state owns no action of its own; the inline Add form is the sole create surface
+    expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(1)
+    expect(container.querySelector('.ch-action')).toBeNull()
+  })
+})

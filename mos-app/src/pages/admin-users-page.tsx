@@ -169,15 +169,13 @@ export function AdminUsersPage() {
 
   return (
     <PageFrame variant="data">
-      <div className="flex items-start justify-between mb-4">
-        <PageHead
-          title="People"
-          subtitle="Manage who can sign in and what they can do."
-        />
-        <Button variant="primary" onClick={() => setAddOpen(true)}>
-          + Add person
-        </Button>
-      </div>
+      <PageHead
+        variant="content"
+        title="People"
+        count={loadState === 'loaded' ? people.length : null}
+        meta={<span>Manage who can sign in and what they can do.</span>}
+        action={<Button variant="primary" onClick={() => setAddOpen(true)}>+ Add person</Button>}
+      />
 
       {/* Action error (inline, non-fatal) */}
       {actionError && (

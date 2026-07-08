@@ -146,7 +146,9 @@ export function CatalogManager({
   const archived = items.filter((i) => i.archived_at != null)
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
+      {/* Catalog-Manage archetype (State-Kit Rule): the inline Add form below IS the one
+          create affordance — the head carries NO `action` (no duplicate create CTA). */}
       <PageHead
         variant="content"
         title={title}

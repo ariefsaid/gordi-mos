@@ -88,3 +88,13 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
     expect(traces.some((t) => t?.includes('no parent objective (1)'))).toBe(true)
   })
 })
+
+describe('Catalog-Manage archetype conformance (Wave 2: W2-1)', () => {
+  it('W2-1: the typed-field surface shares the full-bleed data frame (no 1080 cap)', async () => {
+    vi.mocked(listTasks).mockResolvedValue([])
+    const { container } = renderPage()
+    await screen.findByText('Menu launch')
+    const inner = container.querySelector('main > div') as HTMLElement
+    expect(inner.style.maxWidth).toBe('none')
+  })
+})
