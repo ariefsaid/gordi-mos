@@ -38,14 +38,16 @@
   margin-left: auto;
 }
 
-/* Mobile: sticky filter rail (backdrop-blur, horizontally scrollable so the
-   3-option CutToggle never wraps). The toolbar keeps all 3 cut options on phone
-   (mockup-mobile drops Activity by mistake — design-plan gap G2). */
+/* Mobile: sticky filter rail BELOW the tab strip (not over it). The tab strip
+   sticks at top:0 (z-index 2, height 40px); this rail sticks at top:40px so both
+   stay visible. Horizontally scrollable so the 3-option CutToggle never wraps.
+   The toolbar keeps all 3 cut options on phone (mockup-mobile drops Activity by
+   mistake — design-plan gap G2). */
 @media (max-width: 767px) {
   .global-toolbar {
     position: sticky;
-    top: 0;
-    z-index: 3;
+    top: 40px; /* below the 40px tab strip */
+    z-index: 1; /* below the tab strip (z-index 2) */
     gap: 8px;
     padding: 8px 14px;
     overflow-x: auto;

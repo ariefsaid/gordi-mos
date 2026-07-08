@@ -183,7 +183,8 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     expect(screen.getByText(/trailing 7-day revenue/i)).toBeInTheDocument()
     expect(screen.getByText(/trailing 30-day revenue/i)).toBeInTheDocument()
     expect(screen.getByText(/latest reporting-day revenue/i)).toBeInTheDocument()
-    expect(screen.getByText(/avg check/i)).toBeInTheDocument()
+    // "Avg check" also appears as a table column header — scope to the KPI tile label.
+    expect(screen.getAllByText(/avg check/i).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/channel mix/i)).toBeInTheDocument()
   })
 

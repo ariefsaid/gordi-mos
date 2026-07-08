@@ -79,8 +79,11 @@ set -e
 if [ "$rc" -eq 0 ]; then
   notify_telegram "✅ reporting-snapshot succeeded (org ${REPORTING_ORG_ID:0:8}…) at $(date '+%H:%M WIB')"
 else
-  # Capture the last log lines for the failure message.
-  LOG_TAIL="$(tail -n 5 "${HOME}/gordi-esb-bak/sync/logs/reporting-snapshot.log" 2>/dev/null | tr '\n' ' ' | head -c 300)"
+  # Capture the last log lines for the failure message. SCRUB any DSN/password leaks
+  # (a psycopg traceback can echo the pooler DSN which embeds the writer password).
+  LOG_TAIL="$(tail -n 5 "${HOME}/gordi-esb-bak/sync/logs/reporting-snapshot.log" 2>/dev/null \
+    | sed -E 's#(postgresql://[^:]+:)[^@]+(@[^ ]+)#\1****\2#g; s#/password=[^ ]+#/password=****#g' \
+    | tr '\n' ' ' | head -c 300)"
   notify_telegram "❌ reporting-snapshot FAILED exit=${rc} at $(date '+%H:%M WIB'): ${LOG_TAIL}"
 fi
 

@@ -6,6 +6,7 @@
 // {kind:'custom', from, to}. Reuses the `seg` grammar (CutToggle's tablist shape).
 import type { KeyboardEvent } from 'react'
 import type { WindowSpec } from '@/lib/dashboard'
+import { isoDaysBefore } from '@/lib/trailing-window'
 import './window-selector.css'
 
 export interface WindowSelectorProps {
@@ -128,13 +129,7 @@ export function WindowSelector({
   )
 }
 
-// ── tiny ISO date helpers (no Date.now() for reporting math; bounds come from rows) ─
-function isoDaysBefore(dateIso: string, days: number): string {
-  const d = new Date(`${dateIso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
-}
-
+// ── tiny ISO date helper (no Date.now() for reporting math; bounds come from rows) ─
 function isoDaysFromToday(delta: number): string {
   // Only used as a fallback when bounds are null (no rows yet) — never for the
   // reporting-period anchor (that's bounds.latest from the rows, FR-005).

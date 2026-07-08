@@ -127,10 +127,21 @@ export type DqBadge = 'good' | 'partial' | 'unknown'
  * revenue backed by a BOM recipe on the window. ≥0.9 good, 0.5–0.9 partial, else
  * unknown (including all-null). */
 export function bomCoverageDq(rows: SalesMarginDailyRow[], start: string, end: string): DqBadge {
+  return bucketBomCoverage(bomCoveragePct(rows, start, end))
+}
+
+/** The average bom_coverage_pct over the window (0–1), or null when all rows are
+ * null/empty. Surfaced to the BOM-coverage tile so "how partial is partial?" is
+ * answerable — a bare category hides the decision-relevant number. */
+export function bomCoveragePct(rows: SalesMarginDailyRow[], start: string, end: string): number | null {
   const windowed = rowsInDateRange(rows, r => r.margin_date, start, end)
   const pcts = windowed.map(r => r.bom_coverage_pct).filter((p): p is number => p != null)
-  if (pcts.length === 0) return 'unknown'
-  const avg = pcts.reduce((s, p) => s + p, 0) / pcts.length
+  if (pcts.length === 0) return null
+  return pcts.reduce((s, p) => s + p, 0) / pcts.length
+}
+
+function bucketBomCoverage(avg: number | null): DqBadge {
+  if (avg == null) return 'unknown'
   if (avg >= 0.9) return 'good'
   if (avg >= 0.5) return 'partial'
   return 'unknown'
@@ -148,6 +159,9 @@ export interface GrossMarginKpiSet {
   basis: CogsBasis
   /** DQ badge from BOM coverage (AC-024). */
   dq: DqBadge
+  /** the average bom_coverage_pct over the window (0–1), or null. Surfaced so the
+   * BOM-coverage tile can show the number, not just the bucket. */
+  bomCoveragePct: number | null
   /** delta vs prior window; null when prior is null or marginAmount is null. */
   delta: DeltaDisplay | null
 }
@@ -169,7 +183,8 @@ export function computeGrossMarginKpis(
   const marginAmount = cogsAmount != null ? revenue - cogsAmount : null
   const marginPct = marginAmount != null && revenue > 0 ? marginAmount / revenue : null
 
-  const dq = bomCoverageDq(rows, start, end)
+  const coveragePct = bomCoveragePct(rows, start, end)
+  const dq = bucketBomCoverage(coveragePct)
 
   // Delta vs prior window.
   let delta: DeltaDisplay | null = null
@@ -190,7 +205,7 @@ export function computeGrossMarginKpis(
     delta = formatDelta({ current: marginAmount, prior: priorMargin })
   }
 
-  return { marginAmount, marginPct, cogsAmount, basis: 'interim-stock-movement', dq, delta }
+  return { marginAmount, marginPct, cogsAmount, basis: 'interim-stock-movement', dq, bomCoveragePct: coveragePct, delta }
 }
 
 // ── Cut aggregation (FR-012, AC-012) ─────────────────────────────────────────────

@@ -57,8 +57,13 @@ interface DashboardTableRow {
   cogsInterim: string
   grossMargin: string
   marginPct: string
+  // Raw numeric values for correct sorting (display cols hold formatted strings).
   marginPctRaw: number | null
   revenueRaw: number
+  sharePctRaw: number
+  avgCheckRaw: number
+  cogsInterimRaw: number | null
+  grossMarginRaw: number | null
 }
 
 export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summary' | 'detail' }) {
@@ -309,10 +314,9 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
             <KPITile
               label="Gross margin %"
               value={formatMarginPct(gmKpis?.marginPct ?? null)}
-              sub="30d / 7d"
               basis={{ label: basis }}
               dq={gmKpis?.dq}
-              help="Gross margin ÷ revenue. Basis = interim stock-movement."
+              help="Gross margin ÷ revenue over the active window. Basis = interim stock-movement."
             />
             <KPITile
               label="Gross margin amt"
@@ -329,12 +333,10 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
             />
             <KPITile
               label="BOM coverage"
-              value={gmKpis?.dq === 'good' ? 'Good' : gmKpis?.dq === 'partial' ? 'Partial' : '—'}
+              value={gmKpis?.bomCoveragePct != null ? formatMarginPct(gmKpis.bomCoveragePct) : '—'}
               dq={gmKpis?.dq}
-              sub="Share of COGS backed by a bill-of-materials basis."
-              help="Share of COGS backed by a bill-of-materials basis."
+              help="Share of COGS backed by a bill-of-materials basis over the window."
             />
-            <KPITile label="Opex" value="—" sub="GL feed pending · slice 2" />
           </div>
 
           <p className="dash-footnote">
@@ -374,6 +376,17 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           >
             <DailyRevenueChart series={chartSeries} />
           </ChartFrame>
+
+          {/* FR-018: condensed detail table reflecting the current filter (top 5 rows). */}
+          <DataTable
+            columns={detailColumns(cut)}
+            rows={sortedRows.slice(0, 5)}
+            sort={undefined}
+            onSortChange={undefined}
+            isDesktop={isDesktop}
+            caption={`Top ${Math.min(5, sortedRows.length)} by revenue — switch to Detail for the full table`}
+            emptyLabel="No rows for this cut."
+          />
         </div>
       ) : (
         <div className="dash-pane" role="tabpanel" aria-label="Detail">
@@ -386,6 +399,10 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
             caption="Revenue breakdown"
             emptyLabel="No rows for this cut."
           />
+          <p className="dash-footnote">
+            <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
+            stock-movement-derived, <b>not GL-certified</b>.
+          </p>
         </div>
       )}
     </PageFrame>
@@ -476,27 +493,34 @@ function toTableRows(cutRows: ReturnType<typeof aggregateByCut>): DashboardTable
     marginPct: formatMarginPct(r.marginPct),
     marginPctRaw: r.marginPct,
     revenueRaw: r.revenue,
+    sharePctRaw: r.sharePct,
+    avgCheckRaw: r.avgCheck,
+    cogsInterimRaw: r.cogsInterim,
+    grossMarginRaw: r.grossMargin,
   }))
 }
 
-// Pure sort — extracts the raw numeric where the display column holds a formatted
-// string. Sorts on the raw values (revenue/txns/margin) so ordering is correct.
+// Pure sort — sorts on raw numeric values (display cols hold formatted strings).
+// Every sortable column maps to its raw field; nulls sort last in both directions.
 function sortRows(rows: DashboardTableRow[], sort: DataTableSort): DashboardTableRow[] {
   const factor = sort.dir === 'asc' ? 1 : -1
-  const numericKeys: Array<keyof DashboardTableRow> = ['transactions', 'revenueRaw', 'marginPctRaw']
+  const rawField: Partial<Record<string, keyof DashboardTableRow>> = {
+    revenue: 'revenueRaw',
+    transactions: 'transactions',
+    sharePct: 'sharePctRaw',
+    avgCheck: 'avgCheckRaw',
+    cogsInterim: 'cogsInterimRaw',
+    grossMargin: 'grossMarginRaw',
+    marginPct: 'marginPctRaw',
+  }
+  const field = rawField[sort.key]
+  if (!field) return [...rows].sort((a, b) => String(a.dimension).localeCompare(String(b.dimension)) * factor)
   return [...rows].sort((a, b) => {
-    if (sort.key === 'revenue') return (a.revenueRaw - b.revenueRaw) * factor
-    if (sort.key === 'transactions') return (a.transactions - b.transactions) * factor
-    if (sort.key === 'marginPct') {
-      const av = a.marginPctRaw ?? -Infinity
-      const bv = b.marginPctRaw ?? -Infinity
-      return (av - bv) * factor
-    }
-    if (numericKeys.includes(sort.key as keyof DashboardTableRow)) {
-      const av = Number(a[sort.key as keyof DashboardTableRow])
-      const bv = Number(b[sort.key as keyof DashboardTableRow])
-      return (av - bv) * factor
-    }
-    return String(a.dimension).localeCompare(String(b.dimension)) * factor
+    const av = a[field] as number | null
+    const bv = b[field] as number | null
+    if (av == null && bv == null) return 0
+    if (av == null) return 1 // nulls last regardless of dir
+    if (bv == null) return -1
+    return (av - bv) * factor
   })
 }
