@@ -66,13 +66,13 @@ describe('AC-T01 / AC-410: phone viewport — one tab per live destination', () 
     expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate', 'Inbox'])
   })
 
-  it('AC-410: finance sees all five tabs including Plan; Plan links to /sales', () => {
+  it('AC-410: finance sees all five tabs including Plan; Plan links to /dashboard', () => {
     setAuthAs(['finance'])
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
     expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate', 'Plan', 'Inbox'])
-    expect(within(nav).getByRole('link', { name: /Plan/ })).toHaveAttribute('href', '/sales')
+    expect(within(nav).getByRole('link', { name: /Plan/ })).toHaveAttribute('href', '/dashboard')
   })
 
   it('every tab has an accessible name via aria-label (t(labelKey))', () => {

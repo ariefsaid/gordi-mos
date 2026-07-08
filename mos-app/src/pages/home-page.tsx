@@ -97,7 +97,7 @@ export function HomePage() {
           this row is simply absent (never a misleading zero). */}
       {canSeeFinance && (
         <div className="home-kpi-grid" role="group" aria-label="Sales KPIs">
-          <Link to="/sales" className="home-kpi-link">
+          <Link to="/dashboard" className="home-kpi-link">
             <KPITile
               label={t('home.kpi.revenue')}
               value={revenueState === 'ready' && revenueWindow ? formatIDRCompact(revenueWindow.current) : '—'}
@@ -109,7 +109,7 @@ export function HomePage() {
               state={revenueState === 'loading' ? 'loading' : 'ready'}
             />
           </Link>
-          <Link to="/sales" className="home-kpi-link">
+          <Link to="/dashboard" className="home-kpi-link">
             <KPITile
               label={t('home.kpi.margin')}
               value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}

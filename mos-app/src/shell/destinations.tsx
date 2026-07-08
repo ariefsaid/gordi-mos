@@ -65,12 +65,13 @@ export const DESTINATIONS: Destination[] = [
     id: 'plan',
     labelKey: 'dest.plan',
     Icon: PlanIcon,
-    // Plan = the reference/money-lens destination (ADR-0019 D2). Sales is its first content
-    // (finance/admin-gated); budget/COGS workbenches are a documented future link (not rendered).
-    // anyOf hides the whole destination for a role with no Plan children (no dead-end — FR-410).
+    // Plan = the reference/money-lens destination (ADR-0019 D2). Dashboard (the analytical
+    // KPI hub, OD-DASH-2 — replaces /sales) is its first content (finance/admin-gated);
+    // budget/COGS workbenches are a documented future link (not rendered). anyOf hides the
+    // whole destination for a role with no Plan children (no dead-end — FR-410).
     anyOf: ['finance', 'admin'],
     links: [
-      { path: '/sales', label: 'Sales', labelKey: 'nav.sales', Icon: SalesIcon },
+      { path: '/dashboard', label: 'Dashboard', labelKey: 'nav.dashboard', Icon: SalesIcon },
       ...(SHOW_PLAN_BUDGET ? [
         { path: '/plan/budget', label: 'Budget', labelKey: 'nav.planBudget' as const, Icon: BudgetIcon },
         { path: '/plan/pricing', label: 'Pricing pre-flight', labelKey: 'nav.planPricing' as const, Icon: PricingIcon },

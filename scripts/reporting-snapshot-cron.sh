@@ -57,10 +57,35 @@ print(
 PY
 }
 
+# Telegram success/failure alerting (AC-029). Mirrors the resource-watch.sh pattern:
+# reads TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID from env. Silent no-op if unset — the
+# snapshot must not fail because alerting isn't configured.
+notify_telegram() {
+  local message="$1"
+  if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+    return 0  # alerting not configured; skip silently
+  fi
+  curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -d chat_id="${TELEGRAM_CHAT_ID}" \
+    -d text="${message}" \
+    --max-time 10 >/dev/null 2>&1 || true  # never fail the snapshot on alert failure
+}
+
 set +e
 run_snapshot
 rc=$?
 set -e
+
+if [ "$rc" -eq 0 ]; then
+  notify_telegram "✅ reporting-snapshot succeeded (org ${REPORTING_ORG_ID:0:8}…) at $(date '+%H:%M WIB')"
+else
+  # Capture the last log lines for the failure message. SCRUB any DSN/password leaks
+  # (a psycopg traceback can echo the pooler DSN which embeds the writer password).
+  LOG_TAIL="$(tail -n 5 "${HOME}/gordi-esb-bak/sync/logs/reporting-snapshot.log" 2>/dev/null \
+    | sed -E 's#(postgresql://[^:]+:)[^@]+(@[^ ]+)#\1****\2#g; s#/password=[^ ]+#/password=****#g' \
+    | tr '\n' ' ' | head -c 300)"
+  notify_telegram "❌ reporting-snapshot FAILED exit=${rc} at $(date '+%H:%M WIB'): ${LOG_TAIL}"
+fi
 
 echo "--- reporting-snapshot END: $(date) exit=${rc} ---"
 exit "$rc"

@@ -312,8 +312,24 @@ _Avoid_: warehouse (implementation), "the stock" (say which location), transfer 
 The light **order → picked → packed → shipped** queue MOS owns for online orders, drawing down the
 Ecommerce stock location. The ecommerce *platform* still owns the storefront, pricing, and the order
 intake; MOS owns the **hand-fulfilment step** the team currently tracks in a sheet. Visibility of online
-sales (revenue/margin) is separate and already flows via the reporting read-models.
+sales (revenue/gross margin) is separate and already flows via the reporting read-models.
 _Avoid_: order management (too broad — the platform owns intake), shipping (that's one state)
+
+**COGS** (cost of goods sold):
+The cost of the goods sold in a period. **Not one number** — there are *bases*, and the basis is the
+whole point. Per the finance doctrine (`COGS-REPORT-WORKFLOW.md`), the **one actual COGS** is the
+**monthly GL account-5 reconciliation** (certified, after-the-fact). Everything else is an
+*estimate*: **BOM COGS** = recipe qty × ingredient `last_hpp` (a *budget*); **stock-movement COGS**
+(`sm_total`) = the interim consumption ledger mid-month (not-yet-reconciled). The dashboard always
+labels the basis; it never shows a bare "COGS" figure without one. (ADR-0022.)
+_Avoid_: "the cost", "cost of sales" (say which basis), bare "COGS" without a basis qualifier
+
+**Gross margin**:
+**Revenue − COGS.** Inherits COGS's basis problem: *interim* gross margin (revenue − stock-movement
+COGS, POS-only, mid-month, uncertified) is **not** *certified* gross margin (revenue − monthly GL
+COGS, all channels, finance-owned). The two can diverge meaningfully; the dashboard never lets them
+be confused — the basis is labelled, and certified margin is shown only when the GL read-model lands.
+_Avoid_: "margin" (bare — always say *gross* margin and name the basis), "profit" (that's net, after opex)
 
 **Green lot** (roastery Raw stock grain):
 The lot-level green-coffee receipt — **origin/variety/process + cost-per-kg + running balance** — modelled

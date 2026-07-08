@@ -49,14 +49,14 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
     expect(isLive(operate, [])).toBe(true)
   })
 
-  it('AC-402: Plan = [Sales] gated finance/admin; hidden (not live) for a member (no dead-end)', () => {
+  it('AC-402: Plan = [Dashboard] gated finance/admin; hidden (not live) for a member (no dead-end)', () => {
     const plan = DESTINATIONS.find((d) => d.id === 'plan')!
     expect(plan.anyOf).toEqual(['finance', 'admin'])
-    // Sales is always present; the ADR-0022 budget/pricing links are flag-gated (SHOW_PLAN_BUDGET).
+    // Dashboard is always present; the ADR-0022 budget/pricing links are flag-gated (SHOW_PLAN_BUDGET).
     expect(plan.links.map((l) => l.path)).toEqual(
       SHOW_PLAN_BUDGET
-        ? ['/sales', '/plan/budget', '/plan/pricing']
-        : ['/sales'],
+        ? ['/dashboard', '/plan/budget', '/plan/pricing']
+        : ['/dashboard'],
     )
     expect(isLive(plan, ['member'])).toBe(false)
     expect(isLive(plan, ['finance'])).toBe(true)
@@ -103,10 +103,10 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
 // destination via exact-or-prefix match on the destination's links (capability-gated links included —
 // so the Work tab stays active on /work/objectives and the breadcrumb reads "Work › Objectives").
 describe('destinationForPath — resolution (FR-S03 / FR-424)', () => {
-  it('AC-408: /work/objectives + /work/projects-processes resolve to Work; /sales to Plan', () => {
+  it('AC-408: /work/objectives + /work/projects-processes resolve to Work; /dashboard to Plan', () => {
     expect(destinationForPath('/work/objectives')?.id).toBe('work')
     expect(destinationForPath('/work/projects-processes')?.id).toBe('work')
-    expect(destinationForPath('/sales')?.id).toBe('plan')
+    expect(destinationForPath('/dashboard')?.id).toBe('plan')
   })
 
   it('AC-401: /ops resolves to Operate (moved out of Work)', () => {

@@ -24,7 +24,7 @@ import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
-import { SalesDashboardPage } from './pages/sales-dashboard-page'
+import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { NotFoundPage } from './pages/not-found-page'
@@ -129,12 +129,20 @@ export const routeConfig: RouteObject[] = [
             element: <RequireCapability capability="workline.manage" />,
             children: [{ path: 'work/projects-processes', element: <ProjectsProcessesPage /> }],
           },
-          // Sales dashboard (Issue 1, reporting read-model). FR-001/AC-001/002:
-          // finance/admin only; RequireAccessRole bounces non-permitted viewers to /.
-          // RLS on reporting.sales_daily_revenue is the real security boundary.
+          // Dashboard (the analytical KPI hub, Issue OD-DASH-2 — replaces /sales).
+          // FR-001/AC-001: /sales redirects to /dashboard for back-compat. FR-002/
+          // AC-002/003: finance/admin only; RequireAccessRole bounces others to /.
+          // RLS on the reporting read-models is the real security boundary.
+          // AC-017: /dashboard/detail is the parameterized detail sub-view (same page,
+          // detail tab default). The page reads ?tab= for persistence (AC-015).
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
-            children: [{ path: 'sales', element: <SalesDashboardPage /> }],
+            children: [
+              { path: 'dashboard', element: <DashboardPage /> },
+              { path: 'dashboard/detail', element: <DashboardPage defaultTab="detail" /> },
+              // Back-compat redirect: /sales → /dashboard (AC-001).
+              { path: 'sales', element: <Navigate to="/dashboard" replace /> },
+            ],
           },
           // ADR-0018 P1 — view-composition dev harness (zero-agent proof). DEV-only +
           // feature-flagged; redirects to / otherwise. Auth-gated by ProtectedRoute (reads/
