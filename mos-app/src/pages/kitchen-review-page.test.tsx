@@ -123,6 +123,16 @@ describe('KitchenReviewPage — states', () => {
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
   })
 
+  it('W4-4: empty state routes through EmptyState with exactly one action', async () => {
+    mockList.mockResolvedValue([])
+    render(<KitchenReviewPage />)
+    await screen.findByText(/nothing to review/i)
+
+    const emptyActions = document.querySelector('.empty-actions')
+    expect(emptyActions).not.toBeNull()
+    expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
+  })
+
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockList.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce([PROD_LOG])
     render(<KitchenReviewPage />)

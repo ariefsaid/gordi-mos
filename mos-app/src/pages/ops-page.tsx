@@ -326,12 +326,6 @@ export function OpsPage() {
     return entry.created_by === viewer.person.id || (viewer.isManager ?? false)
   }
 
-  // ── Entry count for subtitle ─────────────────────────────────────────────
-  const entryCount = entries.length
-  const countLabel = loadState === 'ready'
-    ? ` · ${entryCount} log entr${entryCount === 1 ? 'y' : 'ies'}`
-    : ''
-
   // ── Empty copy ────────────────────────────────────────────────────────────
   const hasActiveFilter = businessUnitId !== '' || eventType !== '' || includeArchived
   function emptyTitle() {
@@ -355,12 +349,14 @@ export function OpsPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
+        variant="content"
         title="Daily Log"
+        count={loadState === 'ready' ? entries.length : null}
         meta={
-          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 15 }}>
-            {wib.today}{countLabel}
+          <span className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 15 }}>
+            {wib.today}
           </span>
         }
       />
@@ -442,15 +438,18 @@ export function OpsPage() {
         ) : loadState === 'error' ? (
           <ErrorState message="Couldn't load the Daily Log" onRetry={load} />
         ) : entries.length === 0 ? (
+          // State-Kit Rule: exactly ONE next action per sparse state —
+          // clear filters (filtered-empty) XOR add entry (true empty).
           <EmptyState title={emptyTitle()} copy={emptyCopy()}>
-            {hasActiveFilter && (
+            {hasActiveFilter ? (
               <button type="button" className="btn btn-outline" onClick={clearFilters}>
                 Clear filters
               </button>
+            ) : (
+              <Link to="/ops/new" className="btn btn-primary" aria-label="Add log entry">
+                + Add log entry
+              </Link>
             )}
-            <Link to="/ops/new" className="btn btn-primary" aria-label="Add log entry">
-              + Add log entry
-            </Link>
           </EmptyState>
         ) : (
           <ul
@@ -474,8 +473,10 @@ export function OpsPage() {
         )}
       </section>
 
-      {/* Phone: sticky submit bar (44px full-width add target, FR-038) */}
-      {!isDesktop && (
+      {/* Phone: sticky submit bar (44px full-width add target, FR-038).
+          Suppressed when the feed is empty-ready — the EmptyState owns the single
+          create affordance then (W4-2: exactly one "Add" on phone, no A3 double-CTA). */}
+      {!isDesktop && !(loadState === 'ready' && entries.length === 0) && (
         <div className="ops-submit-bar">
           <Link
             to="/ops/new"

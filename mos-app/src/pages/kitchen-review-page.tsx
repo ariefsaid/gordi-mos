@@ -598,7 +598,15 @@ export function KitchenReviewPage() {
         <EmptyState
           title="Nothing to review"
           copy={`No submitted logs for ${logDate}.`}
-        />
+        >
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setRetryKey(k => k + 1)}
+          >
+            Refresh
+          </button>
+        </EmptyState>
       )}
 
       {load.kind === 'ready' && submittedCount > 0 && (

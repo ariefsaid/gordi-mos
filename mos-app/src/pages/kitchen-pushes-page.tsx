@@ -241,7 +241,15 @@ export function KitchenPushesPage() {
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <EmptyState title="No pushes yet" copy="The ESB outbox is empty." />
+        <EmptyState title="No pushes yet" copy="The ESB outbox is empty.">
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setRetryKey(k => k + 1)}
+          >
+            Refresh
+          </button>
+        </EmptyState>
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (

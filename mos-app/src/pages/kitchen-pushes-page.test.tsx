@@ -217,6 +217,16 @@ describe('KitchenPushesPage — states', () => {
     expect(await screen.findByText(/no pushes yet/i)).toBeInTheDocument()
   })
 
+  it('W4-4: empty state routes through EmptyState with exactly one action', async () => {
+    mockListPushes.mockResolvedValue([])
+    render(<KitchenPushesPage />)
+    await screen.findByText(/no pushes yet/i)
+
+    const emptyActions = document.querySelector('.empty-actions')
+    expect(emptyActions).not.toBeNull()
+    expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
+  })
+
   it('error: shows error message + retry button', async () => {
     mockListPushes.mockRejectedValue(new Error('DB error'))
     render(<KitchenPushesPage />)

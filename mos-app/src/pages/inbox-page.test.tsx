@@ -78,6 +78,17 @@ describe('InboxPage — shared state kit', () => {
     expect(screen.getByText(/caught up/i)).toBeInTheDocument()
   })
 
+  it('W4-3: empty state names the notification source with at most one action (no forced CTA)', () => {
+    const { container } = renderPage()
+
+    // names the source — notifications (mentions/approvals/assignments) need attention
+    expect(container.querySelector('.empty-state')).not.toBeNull()
+    expect(screen.getByText(/attention/i)).toBeInTheDocument()
+    // calm caught-up state: no forced CTA (≤1 action). Inbox routes to content.
+    const actions = container.querySelector('.empty-actions')
+    expect(actions === null || actions.querySelectorAll('button, a').length <= 1).toBe(true)
+  })
+
   it('populated: renders the notification list without the home surface wash', () => {
     mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
     const { container } = renderPage()
