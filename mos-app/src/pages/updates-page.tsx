@@ -64,39 +64,45 @@ export function UpdatesPage() {
       {/* Page head (§1.1) — h1 "Weekly Updates" */}
       <PageHead variant="content" title="Weekly Updates" meta={<span>{subtitle}</span>} />
 
-      {/* Write pane caption (§1.2, overline style) */}
-      <p
-        style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
-          textTransform: 'uppercase', color: 'var(--muted-foreground)', /* muted-foreground */
-          margin: '0 4px 8px',
-        }}
-        aria-hidden="true"
-      >
-        Write — my weekly update
-      </p>
-
-      {/* Write pane (PR-b) — always loads current week (C1 fix: not review weekStart) */}
-      {personId ? (
-        <WeeklyUpdateWritePane
-          personId={personId}
-          createdBy={createdBy}
-          weekStart={currentWeekStart}
-        />
-      ) : (
-        // Not yet authenticated — render an accessible waiting card
-        <section
-          aria-label="My weekly update"
-          className="bg-card border border-border rounded-lg shadow-rest"
-          style={{ padding: '16px 20px' }}
+      {/* Write-Review archetype (W3-1): the write + review stacks read as bounded
+          stacks (≤720 measure), not essay-width acreage. Two-stack structure (write
+          above, review below) is preserved; the 1080 prose PageFrame + content
+          PageHead stay uncapped. See docs/plans/2026-07-08-page-archetypes.md §3. */}
+      <div data-testid="write-measure" style={{ maxWidth: 720 }}>
+        {/* Write pane caption (§1.2, overline style) */}
+        <p
+          style={{
+            fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
+            textTransform: 'uppercase', color: 'var(--muted-foreground)', /* muted-foreground */
+            margin: '0 4px 8px',
+          }}
+          aria-hidden="true"
         >
-          <p style={{ fontSize: 16, color: 'var(--muted-foreground)' }}>Loading…</p>
-        </section>
-      )}
+          Write — my weekly update
+        </p>
+
+        {/* Write pane (PR-b) — always loads current week (C1 fix: not review weekStart) */}
+        {personId ? (
+          <WeeklyUpdateWritePane
+            personId={personId}
+            createdBy={createdBy}
+            weekStart={currentWeekStart}
+          />
+        ) : (
+          // Not yet authenticated — render an accessible waiting card
+          <section
+            aria-label="My weekly update"
+            className="bg-card border border-border rounded-lg shadow-rest"
+            style={{ padding: '16px 20px' }}
+          >
+            <p style={{ fontSize: 16, color: 'var(--muted-foreground)' }}>Loading…</p>
+          </section>
+        )}
+      </div>
 
       {/* Review pane (PR-c) — manager conditional (§3, FR-030) */}
       {isManager && (
-        <>
+        <div data-testid="review-measure" style={{ maxWidth: 720 }}>
           <p
             style={{
               fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
@@ -113,7 +119,7 @@ export function UpdatesPage() {
             onWeekChange={setReviewWeekStart}
             currentWeekStart={currentWeekStart}
           />
-        </>
+        </div>
       )}
     </PageFrame>
   )

@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useParams } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
+import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { addLogEntry, editLogEntry, getLogEntry } from '@/lib/db/ops-log'
@@ -140,9 +141,8 @@ export function OpsAddForm() {
   if (entryNotFound) {
     return (
       <PageFrame>
-        <div className="tc-page-head">
-          <h1 className="tc-page-title">Log entry not found</h1>
-        </div>
+        {/* W3-2: shared PageHead (Write-Review archetype) — replaces bespoke .tc-page-head */}
+        <PageHead variant="content" title="Log entry not found" />
         <div className="tc-card">
           <p className="tc-error-msg">
             The log entry you&apos;re trying to edit doesn&apos;t exist or you don&apos;t have access to it.
@@ -156,18 +156,17 @@ export function OpsAddForm() {
   if (editLoading || dirLoading) {
     return (
       <PageFrame>
-        <div className="tc-page-head">
-          <h1 className="tc-page-title">Loading…</h1>
-        </div>
+        {/* W3-2: shared PageHead (Write-Review archetype) — replaces bespoke .tc-page-head */}
+        <PageHead variant="content" title="Loading…" />
       </PageFrame>
     )
   }
 
   return (
     <PageFrame>
-      <div className="tc-page-head">
-        <h1 className="tc-page-title">{isEditMode ? 'Edit log entry' : 'Add log entry'}</h1>
-      </div>
+      {/* W3-2: shared PageHead (Write-Review archetype) — replaces bespoke .tc-page-head.
+          The bounded .tc-card form body below is the conformant Write-Review stack. */}
+      <PageHead variant="content" title={isEditMode ? 'Edit log entry' : 'Add log entry'} />
 
       <div className="tc-card">
         <form
@@ -324,6 +323,16 @@ export function OpsAddForm() {
           {/* Actions */}
           <div className="tc-actions">
             <Link to="/ops" className="btn btn-outline">Cancel</Link>
+            {/* W3-3: aria-live submitting feedback beside the submit button (A5
+                saved/pending pattern). Empty when idle; announces "Saving…" while
+                in-flight; the navigate to /ops on success is the success feedback. */}
+            <span
+              data-testid="submit-status"
+              aria-live="polite"
+              className="tc-submit-status"
+            >
+              {submitting ? 'Saving…' : ''}
+            </span>
             <button
               type="submit"
               className="btn btn-primary"
@@ -340,10 +349,9 @@ export function OpsAddForm() {
       <style>{`
         /* IA-2 (PR-2): the in-page breadcrumb was removed — the shell <Breadcrumb>
            (shell/Header.tsx) extends to the leaf (Daily Log › Add log entry). One
-           breadcrumb, one › separator. The .tc-breadcrumb* rules are gone. */
-
-        .tc-page-head { margin-bottom: 16px; }
-        .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
+           breadcrumb, one › separator. The .tc-breadcrumb* rules are gone.
+           W3-2: the bespoke .tc-page-head/.tc-page-title are gone too — the shared
+           <PageHead variant="content"> carries the <h1> now (Write-Review archetype). */
 
         .tc-card {
           max-width: 640px;
@@ -397,9 +405,11 @@ export function OpsAddForm() {
         }
 
         .tc-actions {
-          display: flex; justify-content: flex-end; gap: 8px;
+          display: flex; justify-content: flex-end; align-items: center; gap: 8px;
           padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;
         }
+        /* W3-3: non-blocking saved/pending label — muted, sits beside the submit button */
+        .tc-submit-status { font-size: 13px; color: var(--muted-foreground); }
         /* IXD-4 (PR-2): the create-form Cancel/Submit buttons use the shared
            .btn .btn-outline / .btn .btn-primary (ui/Button.css). The bespoke
            .tc-btn-cancel / .tc-btn-submit rules were removed. */

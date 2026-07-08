@@ -734,3 +734,35 @@ describe('UpdatesPage write pane — Reopen busy-guard (FIX-3)', () => {
     })
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W3-1: Write-Review archetype — bounded measure on the write + review stacks
+// (docs/plans/2026-07-08-page-archetypes.md §3 Wave 3)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('UpdatesPage — Write-Review archetype: bounded measure (W3-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+  })
+
+  it('write stack is bounded to a ≤720 measure — not essay-width acreage (W3-1)', async () => {
+    renderPage()
+    await waitFor(() => screen.getByLabelText(/my weekly update/i))
+    const measure = screen.getByTestId('write-measure')
+    const maxWidth = parseInt(measure.style.maxWidth, 10)
+    expect(Number.isFinite(maxWidth)).toBe(true)
+    expect(maxWidth).toBeGreaterThan(0)
+    expect(maxWidth).toBeLessThanOrEqual(720)
+  })
+
+  it('review stack is also bounded to a ≤720 measure for managers (W3-1)', async () => {
+    mockListTeamUpdates.mockResolvedValue([])
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    const measure = screen.getByTestId('review-measure')
+    const maxWidth = parseInt(measure.style.maxWidth, 10)
+    expect(Number.isFinite(maxWidth)).toBe(true)
+    expect(maxWidth).toBeGreaterThan(0)
+    expect(maxWidth).toBeLessThanOrEqual(720)
+  })
+})

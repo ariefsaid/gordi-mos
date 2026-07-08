@@ -285,3 +285,124 @@ describe('Edit mode: pre-fill with entry values', () => {
     })
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W3-2: shared PageHead on every ops-add-form branch (Write-Review archetype)
+// (docs/plans/2026-07-08-page-archetypes.md §3 Wave 3)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('W3-2: shared PageHead on every ops-add-form branch', () => {
+  const EDIT_ENTRY = {
+    id: 'e-001',
+    org_id: '10000000-0000-0000-0000-000000000001',
+    business_unit_id: BU_KITCHEN.id,
+    origin: 'manual' as const,
+    event_type: 'qc' as const,
+    title: 'Roast batch QC',
+    detail: null,
+    occurred_at: '2026-06-12T05:00:00Z',
+    needs_attention: false,
+    linked_task_id: null,
+    archived_at: null,
+    created_by: '40000000-0000-0000-0000-000000000001',
+    created_at: '2026-06-12T05:00:00Z',
+    updated_at: '2026-06-12T05:00:00Z',
+  }
+
+  async function renderEdit() {
+    mockUseAuth.mockReturnValue(VIEWER)
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/ops/e-001/edit']}>
+          <Routes>
+            <Route path="/ops" element={<div>Ops Page</div>} />
+            <Route path="/ops/:id/edit" element={<OpsAddForm />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      await Promise.resolve()
+    })
+  }
+
+  it('ready (add) branch renders the shared PageHead titled "Add log entry"', async () => {
+    await renderAddForm()
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toBeInTheDocument())
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelector('h1')?.textContent).toBe('Add log entry')
+  })
+
+  it('ready (edit) branch renders the shared PageHead titled "Edit log entry"', async () => {
+    mockGetLogEntry.mockResolvedValue(EDIT_ENTRY)
+    mockListTasks.mockResolvedValue([])
+    await renderEdit()
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toBeInTheDocument())
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelector('h1')?.textContent).toBe('Edit log entry')
+  })
+
+  it('not-found branch renders the shared PageHead titled "Log entry not found"', async () => {
+    mockGetLogEntry.mockRejectedValue(new Error('not found'))
+    await renderEdit()
+    await waitFor(() => {
+      expect(screen.getByTestId('page-head').querySelector('h1')?.textContent)
+        .toBe('Log entry not found')
+    })
+  })
+
+  it('loading branch renders the shared PageHead titled "Loading…"', async () => {
+    // Directory never resolves → dirLoading stays true → loading branch renders
+    mockGetBusinessUnits.mockReturnValue(new Promise(() => {}))
+    mockUseAuth.mockReturnValue(VIEWER)
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/ops/new']}>
+          <Routes>
+            <Route path="/ops" element={<div>Ops Page</div>} />
+            <Route path="/ops/new" element={<OpsAddForm />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('page-head').querySelector('h1')?.textContent).toBe('Loading…')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W3-3: form submitting feedback — aria-live "Saving…" + single submit CTA
+// (docs/plans/2026-07-08-page-archetypes.md §3 Wave 3)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('W3-3: form submitting feedback', () => {
+  it('announces "Saving…" via an aria-live polite region while submitting', async () => {
+    // Never resolves → component stays in the submitting state
+    mockAddLogEntry.mockReturnValue(new Promise(() => {}))
+    await renderAddForm()
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Test entry' } })
+
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('form'))
+      await Promise.resolve()
+    })
+
+    // The submitting live region announces Saving… (A5 saved/pending pattern)
+    const status = screen.getByTestId('submit-status')
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.textContent).toMatch(/saving/i)
+
+    // The single submit button is marked aria-busy while in-flight
+    const submitBtn = screen
+      .getAllByRole('button')
+      .find(b => b.getAttribute('type') === 'submit')!
+    expect(submitBtn.getAttribute('aria-busy')).toBe('true')
+  })
+
+  it('has exactly one submit button — no duplicate CTA', async () => {
+    await renderAddForm()
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toBeInTheDocument())
+    const submits = screen
+      .getAllByRole('button')
+      .filter(b => b.getAttribute('type') === 'submit')
+    expect(submits).toHaveLength(1)
+  })
+})
