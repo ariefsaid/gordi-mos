@@ -242,8 +242,11 @@ test(
   await expect(listbox).toBeVisible({ timeout: 5_000 })
   await listbox.getByRole('option', { name: 'Open' }).click()
 
-  // Drawer pill reflects the new status immediately.
-  await expect(drawer.getByText('Open')).toBeVisible({ timeout: 8_000 })
+  // Drawer pill reflects the new status immediately. Scoped to the status
+  // trigger button (not the drawer at large) — the activity/event log below
+  // also renders "Open" inside a "Status changed · In Progress → Open" entry,
+  // which would otherwise make this locator ambiguous (strict-mode violation).
+  await expect(statusBtn.getByText('Open')).toBeVisible({ timeout: 8_000 })
 
   // URL stays canonical (no navigation happened).
   expect(page.url()).toBe(taskUrl)
