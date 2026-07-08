@@ -9,7 +9,7 @@
 // States: loading skeleton (FR-022/AC-022), empty (FR-021/AC-021 — names the source),
 // error+retry (FR-023/AC-023 — non-secret), DQ (FR-024/AC-024), NULL-margin (error-table).
 // Reporting-day window anchors to latestReportingDate(rows), never Date.now() (FR-005).
-// Layout: GlobalToolbar (cut + window + freshness) → TabStrip (Summary/Detail) → pane.
+// Layout: GlobalToolbar (cut + window + freshness) → ViewTabs (Summary/Detail) → pane.
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -39,7 +39,7 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { ChartFrame } from '@/components/dashboard/chart-frame'
 import { DataTable, type DataTableSort } from '@/components/dashboard/data-table'
 import { GlobalToolbar } from '@/components/dashboard/global-toolbar'
-import { TabStrip } from '@/components/dashboard/tab-strip'
+import { ViewTabs } from '@/components/ui/view-tabs'
 import { WhatsComingStrip } from '@/components/dashboard/whats-coming-strip'
 import { DailyRevenueChart } from '@/components/sales/daily-revenue-chart'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
@@ -434,7 +434,8 @@ function DashboardChrome(props: DashboardChromeProps) {
         bounds={props.bounds}
         snapshotAsOf={props.snapshotAsOf}
       />
-      <TabStrip
+      <ViewTabs
+        ariaLabel="Dashboard view"
         tabs={[
           { id: 'summary', label: 'Summary' },
           { id: 'detail', label: 'Detail' },

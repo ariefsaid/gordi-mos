@@ -1,11 +1,16 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   TabStrip — the DESIGN.md view-tab strip grammar (OD-P3-6, design-plan §2.7).
-   inactive = muted-foreground; hover = foreground; active = brand-navy-text text +
-   a 2px brand-orange bottom border (the ONE orange sprinkle per screen — Orange-
-   Sprinkle Rule). Count pill = secondary bg + muted-foreground. Sticky under header.
+   ViewTabs — the ONE shared view-tab strip (DESIGN.md OD-P3-6, Wave-5 archetype
+   de-duplication). Reconciles the dashboard TabStrip + the tasks `.vtab` block into
+   a single grammar. inactive = muted-foreground; hover = foreground; active =
+   brand-navy-text text + a 2px brand-orange bottom border (the ONE orange sprinkle
+   per screen — Orange-Sprinkle Rule). `soon`/`disabled` = muted + not-allowed +
+   disabled + aria-disabled (out of the tab order). Count pill = secondary bg +
+   muted-foreground. The container is the canonical full-width sticky strip (the
+   dashboard placement); the records toolbar resets the strip chrome to an inline
+   placement (TasksWorkspace.css) — the TAB GRAMMAR stays unified either way.
    Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
-.tab-strip {
+.view-tabs {
   display: flex;
   align-items: stretch;
   gap: 2px;
@@ -18,7 +23,7 @@
   box-sizing: border-box;
 }
 
-.tab-strip-tab {
+.view-tabs__tab {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -34,19 +39,26 @@
   cursor: pointer;
   transition: color 120ms ease, border-color 120ms ease;
 }
-.tab-strip-tab:hover {
+.view-tabs__tab:hover {
   color: var(--foreground);
 }
 /* active = brand-navy-text text + brand-orange underline (the single orange mark) */
-.tab-strip-tab--active {
+.view-tabs__tab--active {
   color: var(--brand-navy-text);
   border-bottom-color: var(--brand-orange);
 }
+/* soon/disabled = muted, not-allowed, out of the tab order (DESIGN.md SOON stubs) */
+.view-tabs__tab--soon,
+.view-tabs__tab--soon:hover {
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 @media (prefers-reduced-motion: reduce) {
-  .tab-strip-tab { transition: none; }
+  .view-tabs__tab { transition: none; }
 }
 
-.tab-strip-count {
+.view-tabs__count {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted-foreground);
@@ -55,7 +67,7 @@
   padding: 1px 7px;
 }
 
-.tab-strip-trailing {
+.view-tabs__trailing {
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -67,15 +79,15 @@
 
 /* Mobile: 40px touch floor (design-plan §1.3). */
 @media (max-width: 767px) {
-  .tab-strip {
+  .view-tabs {
     padding: 0 14px;
   }
-  .tab-strip-tab {
+  .view-tabs__tab {
     height: 40px;
     padding: 0 12px;
     font-size: 13.5px;
   }
-  .tab-strip-trailing {
+  .view-tabs__trailing {
     display: none; /* no room on phone; the sticky filter rail carries the hint */
   }
 }

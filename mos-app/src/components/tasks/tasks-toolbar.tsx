@@ -14,6 +14,7 @@ import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import type { TasksGroupBy } from './use-tasks-view-pref'
 import { Chevron } from '@/shell/icons'
+import { ViewTabs, type ViewTab } from '@/components/ui/view-tabs'
 
 export type TasksToolbarSegment = 'mine' | 'raci' | 'all'
 
@@ -44,12 +45,14 @@ const SEGMENTS: { key: TasksToolbarSegment; label: string }[] = [
   { key: 'all', label: 'All' },
 ]
 
-// View-tabs (mockup `.vtab`): Table is the live view; Board + Calendar are
-// non-functional placeholders ("soon"), disabled exactly like the mockup.
-const VIEW_TABS: { key: string; label: string; soon?: boolean }[] = [
-  { key: 'table', label: 'Table' },
-  { key: 'board', label: 'Board', soon: true },
-  { key: 'calendar', label: 'Calendar', soon: true },
+// View-tabs (the shared ViewTabs primitive, OD-P3-6): Table is the live view;
+// Board + Calendar are non-functional placeholders ("soon"), disabled exactly
+// like the signed mockup. Only Table is live in this slice, so the view-switch is
+// a forward-compatible no-op until Board/Calendar ship.
+const VIEW_TABS: ViewTab[] = [
+  { id: 'table', label: 'Table' },
+  { id: 'board', label: 'Board', soon: true },
+  { id: 'calendar', label: 'Calendar', soon: true },
 ]
 
 const STATUS_VALUES: { value: TaskStatus | ''; label: string }[] = [
@@ -88,23 +91,13 @@ export function TasksToolbar({
 
   return (
     <div className="toolbar">
-      {/* View-tabs (mockup `.vtab`) — Table live; Board/Calendar disabled placeholders. */}
-      <div className="vtabs" role="tablist" aria-label="View">
-        {VIEW_TABS.map(({ key, label, soon }) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            className={`vtab${key === 'table' ? ' vtab-on' : ''}${soon ? ' vtab-soon' : ''}`}
-            aria-selected={key === 'table'}
-            aria-disabled={soon ? 'true' : undefined}
-            disabled={soon}
-            title={soon ? 'Coming soon' : undefined}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* View-tabs (shared ViewTabs primitive) — Table live; Board/Calendar "soon" placeholders. */}
+      <ViewTabs
+        ariaLabel="View"
+        active="table"
+        onChange={() => { /* view switch is a future slice; only Table is live today */ }}
+        tabs={VIEW_TABS}
+      />
 
       <span className="tb-spacer" />
 

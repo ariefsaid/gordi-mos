@@ -117,19 +117,18 @@
 }
 .tb-spacer { flex: 1 1 0; min-width: 8px; }
 
-/* View-tabs (mockup `.vtab`): Table active with the brand-orange underline; Board /
-   Calendar are disabled "soon" placeholders. */
-.vtabs { display: inline-flex; align-items: center; gap: 2px; }
-.vtab {
-  border: 0; background: transparent; font: inherit; font-size: 15px; font-weight: 600;
-  padding: 4px 8px; color: var(--muted-foreground); cursor: pointer; line-height: 1.4;
-  border-bottom: 2px solid transparent; border-radius: 0;
+/* View-tabs inside the toolbar: the shared ViewTabs primitive defaults to the
+   full-width sticky strip (the dashboard placement — view-tabs.css); here it sits
+   INLINE as the first toolbar item, so the strip chrome (padding/border/sticky/
+   background) is reset. The tab grammar (muted → brand-navy-text + the brand-orange
+   underline) is shared and untouched. */
+.toolbar .view-tabs {
+  padding: 0;
+  border-bottom: 0;
+  position: static;
+  background: transparent;
+  z-index: auto;
 }
-.vtab:hover:not(.vtab-soon) { color: var(--foreground); }
-/* Active view-tab — orange underline (brand sprinkle = the active-tab accent). */
-.vtab-on { color: var(--foreground); border-bottom-color: var(--brand-orange); }
-.vtab-soon { color: var(--muted-foreground); opacity: 0.55; cursor: not-allowed; }
-.vtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 
 /* Chip-style filter control (mockup `.chip`): bordered pill = label + current value
    + ▾; a transparent native <select> overlay preserves full filter capability + a11y. */
