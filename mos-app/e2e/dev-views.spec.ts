@@ -41,6 +41,10 @@ test('AC-UV-018: compose → save → reopen → render a user view, zero agent 
   await page.waitForURL(/\/dev\/views\/.+/)
 
   // ── 6. Assert GOAL: the reopened view renders end-to-end (compile→execute→hydrate) ──
+  // The `uv-panel-<primitive>` wrapper (here `uv-panel-DataTable`) is emitted ONLY in the
+  // renderer's READY branch — i.e. compile succeeded, the query executed without error, and the
+  // registered primitive hydrated. The old stub-era `uv-panel-row-count` testid was retired when
+  // the renderer was upgraded to hydrate the real dashboard primitive (b818f37); the ready-state
+  // wrapper is the end-to-end proof (a stronger one — real hydration, not a name+count stub).
   await expect(page.getByTestId('uv-panel-DataTable')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByTestId('uv-panel-row-count')).toBeVisible()
 })
