@@ -140,8 +140,11 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     await page.goto('kitchen/review')
     await page.waitForURL(/\/kitchen\/review$/, { timeout: 10_000 })
 
+    // The review queue was ported onto the shared DataTable (OD-W4): its <table> caption is now
+    // "Submitted kitchen logs awaiting review" (the bespoke "Production submitted logs" table
+    // was retired). Same goal — the submitted-logs queue rendered — just the caption moved.
     await expect(
-      page.getByRole('table', { name: /Production submitted logs/i }),
+      page.getByRole('table', { name: /Submitted kitchen logs awaiting review/i }),
     ).toBeVisible({ timeout: 15_000 })
 
     await expect(
