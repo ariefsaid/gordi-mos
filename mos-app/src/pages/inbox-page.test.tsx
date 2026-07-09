@@ -71,22 +71,26 @@ describe('InboxPage — shared state kit', () => {
     expect(refresh).toHaveBeenCalled()
   })
 
-  it('empty: renders the shared EmptyState caught-up copy', () => {
-    const { container } = renderPage()
+  it('empty: renders the shared quiet EmptyState caught-up copy', () => {
+    renderPage()
 
-    expect(container.querySelector('.empty-state')).not.toBeNull()
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
     expect(screen.getByText(/caught up/i)).toBeInTheDocument()
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
   })
 
-  it('W4-3: empty state names the notification source with at most one action (no forced CTA)', () => {
-    const { container } = renderPage()
+  it('W4-3: empty state names the notification source and keeps the quiet archetype actionless', () => {
+    renderPage()
 
-    // names the source — notifications (mentions/approvals/assignments) need attention
-    expect(container.querySelector('.empty-state')).not.toBeNull()
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
     expect(screen.getByText(/attention/i)).toBeInTheDocument()
-    // calm caught-up state: no forced CTA (≤1 action). Inbox routes to content.
-    const actions = container.querySelector('.empty-actions')
-    expect(actions === null || actions.querySelectorAll('button, a').length <= 1).toBe(true)
+    expect(emptyState.querySelector('.empty-actions')).toBeNull()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('populated: renders the notification list without the home surface wash', () => {
