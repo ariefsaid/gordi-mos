@@ -33,6 +33,7 @@ import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { PlanQtyCell } from '@/components/kitchen/plan-qty-cell'
 import { PlanQtyStepper } from '@/components/kitchen/plan-qty-stepper'
 import { groupByCategory } from '@/lib/kitchen-category'
@@ -103,6 +104,7 @@ function PlanEditor() {
   const [category, setCategory] = useState('All')
   // Derived plan KPIs (P-1) — pure view over `cells` for the current action.
   const kpiData = usePlanKpiStripData(cells, action)
+  const hasPlannedItems = cells.some(cell => cell.action_type === action && cell.qty_porsi > 0)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -249,7 +251,14 @@ function PlanEditor() {
 
       {/* Derived KPI strip (P-1) — only when populated (plan §4.4) */}
       {load.kind === 'ready' && items.length > 0 && (
-        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+        <>
+          <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+          <DataProvenanceNote
+            kind="live"
+            show={!hasPlannedItems}
+            note="Nothing planned yet"
+          />
+        </>
       )}
 
       <div className="kp-seg-wrap kp-block">

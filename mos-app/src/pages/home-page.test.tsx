@@ -188,11 +188,47 @@ describe('AC-H01: finance viewer sees revenue + margin tiles, each drilling to /
     expect(marginLink!.getAttribute('href')).toBe('/dashboard')
   })
 
+  it('shows snapshot provenance in fixed WIB time when finance data is populated', async () => {
+    await renderHome(financeViewer)
+    await waitFor(() => expect(mockListMargin).toHaveBeenCalled())
+
+    expect(screen.getByText(/as of/i)).toBeInTheDocument()
+    expect(screen.getByText('01 Jul 2026, 09:00 WIB')).toBeInTheDocument()
+  })
+
   it('AC-H07: margin tile shows the formatted margin value, a delta, and the "(interim)" label', async () => {
     await renderHome(financeViewer)
     await waitFor(() => expect(mockListMargin).toHaveBeenCalled())
     const marginTile = screen.getByRole('group', { name: /gross margin \(interim\)/i })
     expect(marginTile.textContent).toMatch(/Rp/)
+  })
+})
+
+describe('AC-H05: reporting fetch errors — finance tiles degrade, tasks/My-Week still render', () => {
+  it('does not crash and the tasks/My-Week tiles still render', async () => {
+    mockListRevenue.mockRejectedValue(new Error('reporting down'))
+    mockListMargin.mockRejectedValue(new Error('reporting down'))
+    await renderHome(financeViewer)
+
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    // No crash — the finance tiles degrade to a placeholder ("—"), never a stale/
+    // misleading ready value, and are no longer stuck in the loading (aria-busy) state.
+    const revenueTile = screen.getByRole('group', { name: /revenue/i })
+    expect(revenueTile.getAttribute('aria-busy')).toBeNull()
+    expect(revenueTile.textContent).toContain('—')
+
+    const marginTile = screen.getByRole('group', { name: /gross margin/i })
+    expect(marginTile.getAttribute('aria-busy')).toBeNull()
+    expect(marginTile.textContent).toContain('—')
+  })
+
+  it('explains finance blanks with the next sync time instead of a bare dash', async () => {
+    mockListRevenue.mockResolvedValue([])
+    mockListMargin.mockResolvedValue([])
+    await renderHome(financeViewer)
+
+    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
+    expect(screen.getByText('No snapshot yet · next sync 03:30 WIB')).toBeInTheDocument()
   })
 })
 

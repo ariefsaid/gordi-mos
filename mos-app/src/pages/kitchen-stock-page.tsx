@@ -21,6 +21,7 @@ import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { useT } from '@/i18n/use-t'
 import './kitchen-stock-page.css'
 
@@ -69,6 +70,7 @@ export function KitchenStockPage() {
   const [search, setSearch] = useState('')
   // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
   const kpiData = useStockKpiStripData(rows)
+  const hasLoggedStockData = rows.some(row => row.stok !== 0 || row.tersedia !== 0)
   const searchQuery = search.trim().toLowerCase()
   const visibleRows = rows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
@@ -117,7 +119,14 @@ export function KitchenStockPage() {
 
       {/* Derived KPI strip (P-1, OQ-5 default ON) — only when populated */}
       {load.kind === 'ready' && rows.length > 0 && (
-        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+        <>
+          <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+          <DataProvenanceNote
+            kind="live"
+            show={!hasLoggedStockData}
+            note="No entries logged yet today"
+          />
+        </>
       )}
 
       {load.kind === 'loading' && <LoadingState />}

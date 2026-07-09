@@ -3,6 +3,7 @@
 // figure carries one (page head + ChartFrame freshness slot). Token-only (DESIGN.md
 // §2.4): muted-foreground text, .tabular timestamp digits.
 import './freshness-label.css'
+import { formatWibDateTime } from '@/lib/wib-time'
 
 export interface FreshnessLabelProps {
   asOf: string | Date
@@ -11,18 +12,9 @@ export interface FreshnessLabelProps {
 }
 
 export function FreshnessLabel({ asOf, prefix = 'as of' }: FreshnessLabelProps) {
-  const date = asOf instanceof Date ? asOf : new Date(asOf)
-  const formatted = date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-
   return (
     <span className="freshness-label">
-      {prefix} <span className="tabular freshness-label-ts">{formatted}</span>
+      {prefix} <span className="tabular freshness-label-ts">{formatWibDateTime(asOf)}</span>
     </span>
   )
 }

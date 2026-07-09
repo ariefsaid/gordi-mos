@@ -17,7 +17,7 @@ import { useT } from '@/i18n/use-t'
 import { formatIDRCompact } from '@/lib/sales-dashboard'
 import { useCompanyFinanceKpis } from '@/lib/use-company-finance-kpis'
 import { KPITile } from '@/components/dashboard/kpi-tile'
-import { FreshnessLabel } from '@/components/dashboard/freshness-label'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 
 export type MoneyScope = { kind: 'company' } | { kind: 'bu'; buName: string }
 
@@ -104,7 +104,13 @@ function CompanyMoneyTiles({ canSeeFinance }: { canSeeFinance: boolean }) {
           />
         </Link>
       </div>
-      {snapshotAsOf && <FreshnessLabel asOf={snapshotAsOf} />}
+      {(snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
+        <DataProvenanceNote
+          kind="snapshot"
+          hasData={Boolean(revenueWindow || marginDisplay)}
+          asOf={snapshotAsOf}
+        />
+      )}
     </>
   )
 }

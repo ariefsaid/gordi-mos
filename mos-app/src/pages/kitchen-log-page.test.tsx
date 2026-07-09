@@ -794,6 +794,7 @@ describe('OD-K-5: KPI strip renders derived values from `lines`', () => {
     // 2 planned dishes (w1:20, w2:12), nothing staged → 0%
     expect(screen.getByText(/2 planned/i)).toBeInTheDocument()
     expect(screen.getByText(/0%/i)).toBeInTheDocument()
+    expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
   })
 
   it('desktop: the 4 tiles render plannedTotal/madeSoFar/%/itemsRemaining', async () => {
