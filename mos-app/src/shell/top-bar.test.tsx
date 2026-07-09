@@ -167,12 +167,13 @@ describe('AC-S02/S03: Brand column is fixed and breadcrumb track is min-w-0', ()
 
 // AC-S06: hamburger at <920px
 describe('AC-S06: Hamburger button at narrow viewports', () => {
-  it('AC-S06: hamburger appears at <920px and opens the drawer', () => {
+  it('AC-S06: hamburger appears at <920px, carries the shared phone icon tap-target class, and opens the drawer', () => {
     const onOpenDrawer = vi.fn()
     mockUseIsNarrow.mockReturnValue(true)
     renderTopBar('/tasks', onOpenDrawer)
     const hamburger = screen.getByRole('button', { name: 'Open navigation' })
     expect(hamburger).toBeInTheDocument()
+    expect(hamburger.className).toMatch(/tap-target-phone--icon/)
     fireEvent.click(hamburger)
     expect(onOpenDrawer).toHaveBeenCalledOnce()
   })
@@ -198,5 +199,13 @@ describe('A11y: Notification bell title', () => {
     renderTopBar()
     const bell = screen.getByRole('button', { name: 'Notifications' })
     expect(bell).toHaveAttribute('title', 'Notifications — coming soon')
+  })
+
+  it('narrow top-bar icon controls use the shared phone tap-target utility class', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    renderTopBar()
+    expect(screen.getByRole('button', { name: 'Search' }).className).toMatch(/tap-target-phone--icon/)
+    expect(screen.getByRole('button', { name: 'Notifications' }).className).toMatch(/tap-target-phone--icon/)
+    expect(screen.getByRole('button', { name: viewer.person.full_name }).className).toMatch(/tap-target-phone--icon/)
   })
 })

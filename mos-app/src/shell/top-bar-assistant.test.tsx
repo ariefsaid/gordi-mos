@@ -96,7 +96,9 @@ describe('TopBar assistant button (T28)', () => {
 
   it('AC-AP-001: renders on a narrow viewport too (deputy launcher is in the header on every viewport, no FAB)', () => {
     renderTopBar({ narrow: true })
-    expect(screen.getByRole('button', { name: 'Open deputy' })).toBeInTheDocument()
+    const btn = screen.getByRole('button', { name: 'Open deputy' })
+    expect(btn).toBeInTheDocument()
+    expect(btn.className).toMatch(/tap-target-phone--icon/)
   })
 
   it('AC-AP-005/AC-CF-003: does not render when SHOW_ASSISTANT=false', () => {

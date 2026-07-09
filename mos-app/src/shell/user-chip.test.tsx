@@ -81,6 +81,16 @@ describe('AC-005: UserChip and sign-out menu', () => {
     expect(name.getAttribute('title')).toBe('Dina Pratiwi')
   })
 
+  it('compact header variant carries the shared phone icon tap-target utility class', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    render(<UserChip compact />)
+    expect(screen.getByRole('button', { name: /dina pratiwi/i }).className).toMatch(/tap-target-phone--icon/)
+  })
+
   it('opens menu on Enter key and shows Sign out item', async () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',

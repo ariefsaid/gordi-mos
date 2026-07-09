@@ -44,6 +44,22 @@
   .window-selector-tab { transition: none; }
 }
 
+@media (max-width: 767.98px) {
+  .window-selector-seg,
+  .window-selector-range,
+  .window-selector-field,
+  .window-selector-tab,
+  .window-selector-field input[type='date'] {
+    min-height: 44px;
+  }
+
+  .window-selector-seg,
+  .window-selector-range,
+  .window-selector-tab {
+    height: auto;
+  }
+}
+
 /* Custom date-pair — input-bordered chip shell, two keyboard-operable native date
    inputs. Bounded by min/max set from the snapshot window (AC-014). */
 .window-selector-range {
