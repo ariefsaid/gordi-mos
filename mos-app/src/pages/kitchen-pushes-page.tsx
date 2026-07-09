@@ -241,7 +241,12 @@ export function KitchenPushesPage() {
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <EmptyState title="No pushes yet" copy="The ESB outbox is empty.">
+        <EmptyState
+          variant="awaiting"
+          title="No pushes yet"
+          copy="The ESB outbox is empty right now."
+          note="Pull again to check for new push activity."
+        >
           <button
             type="button"
             className="btn btn-outline"

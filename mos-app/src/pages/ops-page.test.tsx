@@ -399,15 +399,19 @@ describe('AC-066: feed empty/loading/error states', () => {
     expect(screen.getByLabelText(/type/i)).toBeInTheDocument()
   })
 
-  it('empty state: shows "No log entries yet today." with add CTA', async () => {
+  it('empty state: shows the shared next-step EmptyState with one add CTA', async () => {
     mockListLogEntries.mockResolvedValue([])
     await renderOps()
     await waitFor(() =>
       expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument(),
     )
-    // Multiple "add log entry" links may exist (toolbar + empty state); just ensure at least one
-    const addLinks = screen.getAllByRole('link', { name: /add log entry/i })
-    expect(addLinks.length).toBeGreaterThanOrEqual(1)
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(screen.getAllByRole('link', { name: /add log entry/i })).toHaveLength(1)
   })
 
   it('filtered empty state shows Clear filters and resets the query to unfiltered', async () => {
@@ -769,7 +773,9 @@ describe('W4-2: empty + filtered-empty via state-kit; no phone duplicate CTA', (
     await renderOps()
     await waitFor(() => expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument())
 
-    const emptyActions = document.querySelector('.empty-actions')
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
+    const emptyActions = emptyState.querySelector('.empty-actions')
     expect(emptyActions).not.toBeNull()
     const actions = emptyActions!.querySelectorAll('button, a')
     expect(actions).toHaveLength(1)
@@ -785,7 +791,9 @@ describe('W4-2: empty + filtered-empty via state-kit; no phone duplicate CTA', (
 
     await waitFor(() => expect(screen.getByText(/No Kitchen and Bar log entries match/i)).toBeInTheDocument())
 
-    const emptyActions = document.querySelector('.empty-actions')
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
+    const emptyActions = emptyState.querySelector('.empty-actions')
     expect(emptyActions).not.toBeNull()
     const actions = emptyActions!.querySelectorAll('button, a')
     expect(actions).toHaveLength(1)

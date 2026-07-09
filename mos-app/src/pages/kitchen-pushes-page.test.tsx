@@ -211,20 +211,29 @@ describe('KitchenPushesPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: shows "no pushes yet" when no rows', async () => {
+  it('empty: renders the shared awaiting EmptyState when no rows', async () => {
     mockListPushes.mockResolvedValue([])
     render(<KitchenPushesPage />)
     expect(await screen.findByText(/no pushes yet/i)).toBeInTheDocument()
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-note')).not.toBeNull()
   })
 
-  it('W4-4: empty state routes through EmptyState with exactly one action', async () => {
+  it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
     mockListPushes.mockResolvedValue([])
     render(<KitchenPushesPage />)
     await screen.findByText(/no pushes yet/i)
 
-    const emptyActions = document.querySelector('.empty-actions')
+    const emptyState = screen.getByTestId('empty-state')
+    const emptyActions = emptyState.querySelector('.empty-actions')
     expect(emptyActions).not.toBeNull()
     expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
   })
 
   it('error: shows error message + retry button', async () => {
