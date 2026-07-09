@@ -194,6 +194,35 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
+  it('no-data rows keep the Negative balances KPI neutral, not success-green', async () => {
+    setDesktop()
+    mockFetch.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0 },
+    ])
+    const { container } = render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const tile = screen.getByText(/negative balances/i).closest('.kks-tile') as HTMLElement
+    expect(tile).not.toBeNull()
+    expect(tile.textContent).toMatch(/no stock data yet/i)
+    expect(tile.querySelector('.pill--success')).toBeNull()
+    expect(tile.querySelector('.pill--neutral')).not.toBeNull()
+    expect(container.querySelector('.kks')).not.toBeNull()
+  })
+
+  it('explains all-zero stock as live-entered absence, not a broken feed', async () => {
+    setDesktop()
+    mockFetch.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0 },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
+  })
+
   it('renders a semantic table with the two cuts (stok + tersedia) per item', async () => {
     setDesktop()
     mockFetch.mockResolvedValue(STOCK_ROWS)

@@ -413,7 +413,7 @@ export function OpsPage() {
           </label>
 
           {/* Desktop: + Add log entry button */}
-          {isDesktop && (
+          {isDesktop && !(loadState === 'ready' && entries.length === 0) && (
             <Link
               to="/ops/new"
               className="btn btn-primary ops-toolbar-add"
@@ -440,7 +440,11 @@ export function OpsPage() {
         ) : entries.length === 0 ? (
           // State-Kit Rule: exactly ONE next action per sparse state —
           // clear filters (filtered-empty) XOR add entry (true empty).
-          <EmptyState title={emptyTitle()} copy={emptyCopy()}>
+          <EmptyState
+            variant="next-step"
+            title={emptyTitle()}
+            copy={emptyCopy()}
+          >
             {hasActiveFilter ? (
               <button type="button" className="btn btn-outline" onClick={clearFilters}>
                 Clear filters

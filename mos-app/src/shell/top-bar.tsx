@@ -126,7 +126,7 @@ function AssistantTopBarButton() {
       type="button"
       aria-label={t('assistant.open')}
       title={t('assistant.open')}
-      className="flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+      className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
       style={{ width: 32, height: 32 }}
       onClick={openPanel}
     >
@@ -147,7 +147,7 @@ function NotificationBell() {
       type="button"
       aria-label={label}
       title={label}
-      className="relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+      className="tap-target-phone tap-target-phone--icon relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
       style={{ width: 32, height: 32 }}
       onClick={() => navigate('/inbox')}
     >
@@ -201,7 +201,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
             type="button"
             aria-label="Open navigation"
             aria-expanded={drawerOpen}
-            className="flex items-center justify-center rounded-sm hover:bg-accent flex-none"
+            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent flex-none"
             style={{ width: 32, height: 32 }}
             onClick={onOpenDrawer}
           >
@@ -252,7 +252,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           <button
             type="button"
             aria-label="Search"
-            className="flex items-center justify-center rounded-sm border border-border bg-secondary text-muted-foreground hover:border-muted-foreground/50 flex-none"
+            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-border bg-secondary text-muted-foreground hover:border-muted-foreground/50 flex-none"
             style={{ width: 32, height: 32 }}
             onClick={onOpenSearch}
           >
@@ -293,7 +293,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
             aria-label="Notifications"
             title="Notifications — coming soon"
             disabled
-            className="flex items-center justify-center rounded-sm text-muted-foreground"
+            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm text-muted-foreground"
             style={{ width: 32, height: 32 }}
           >
             <BellIcon />

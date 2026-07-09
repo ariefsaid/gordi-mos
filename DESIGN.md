@@ -766,3 +766,27 @@ and the *body* between them — never the number or identity of the shell pieces
 **The State-Kit Rule.** Loading / empty / error / filtered-empty are first-class versions of every
 archetype, rendered through `state-kit` with page rhythm preserved and exactly one next action — never a
 white vacuum or a bare heading. *(A3, generalized across all three archetypes.)*
+
+## Empty States
+
+`EmptyState` (`ui/state-kit.tsx`) is the ONE empty-state frame: centered in the body, max 440px measure,
+44px tinted icon well, title + one-line body + optional muted note + exactly one action row. No route
+renders a bare heading/paragraph, a bespoke card, or multiple CTAs for the same empty.
+
+### Sanctioned empty-state archetypes
+
+- **`quiet`** — calm nothing-to-do. Use when the truthful next step is to wait, not to act. Icon + title +
+  one-line reason, **no CTA**. Example: `/inbox` caught up.
+- **`next-step`** — create-first or clear-the-state. Use when one direct operator action resolves the empty:
+  create the first row, or clear filters. Icon + title + explanation + **one** action. Example: `/ops`
+  true-empty / filtered-empty.
+- **`awaiting`** — queue/data pending. Use when the surface is expected to refill from new submissions or a
+  sync-fed source. Icon + title + body + muted retry/status line + **one** refresh action. Examples:
+  `/kitchen/review`, `/kitchen/pushes`.
+
+### Rule
+
+One route, one empty frame, one action maximum. Archetypes vary only the message and whether the single
+slot is absent (`quiet`) or populated (`next-step` / `awaiting`); spacing, type, icon treatment, and body
+measure stay shared. Reuse existing `state-kit` / button / spacing / type tokens only — no new empty-state
+colors, fonts, or chrome.

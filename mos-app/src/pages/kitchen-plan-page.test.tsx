@@ -256,6 +256,47 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
+  it('plan-status KPI shows human empty copy, never the literal token "empty"', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    mockPlans.mockResolvedValue([])
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('No plan created yet')).toBeInTheDocument()
+    expect(screen.queryByText(/^empty$/i)).toBeNull()
+  })
+
+  it('explains an empty plan as a live-entered absence', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    mockPlans.mockResolvedValue([])
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
+  })
+
   it('groups dishes by category (F2 categories render as group headers)', async () => {
     const { container } = render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')

@@ -117,20 +117,29 @@ describe('KitchenReviewPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: a GOOD empty ("nothing to review") when no Submitted logs', async () => {
+  it('empty: renders the shared awaiting EmptyState when no Submitted logs', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />)
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-note')).not.toBeNull()
   })
 
-  it('W4-4: empty state routes through EmptyState with exactly one action', async () => {
+  it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />)
     await screen.findByText(/nothing to review/i)
 
-    const emptyActions = document.querySelector('.empty-actions')
+    const emptyState = screen.getByTestId('empty-state')
+    const emptyActions = emptyState.querySelector('.empty-actions')
     expect(emptyActions).not.toBeNull()
     expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {

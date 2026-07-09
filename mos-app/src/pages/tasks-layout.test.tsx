@@ -246,6 +246,13 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
   })
 
+  it('with the create drawer open, the header "+ New task" is not a second active primary', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    renderAt('/tasks/new')
+    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+    expect(screen.queryByRole('link', { name: /\+ new task/i })).toBeNull()
+  })
+
   // RI-1 (C1): the expand toggle must collapse the table live — the .split grid
   // and the layout-driving `expanded` prop share ONE source of truth. Previously
   // useExpandPref was instantiated twice (read-only in TasksLayout, setter in

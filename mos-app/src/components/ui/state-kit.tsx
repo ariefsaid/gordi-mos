@@ -5,7 +5,7 @@
 // Used across the data panes (Tasks, Ops, weekly). The lightweight inline "Retry"
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Button } from './button'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
@@ -29,20 +29,61 @@ export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }
   )
 }
 
+export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting'
+
 export interface EmptyStateProps {
   title: ReactNode
   copy?: ReactNode
+  note?: ReactNode
+  variant?: EmptyStateVariant
+  icon?: ReactNode
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
 }
 
-export function EmptyState({ title, copy, children, className }: EmptyStateProps) {
+function defaultEmptyGlyph(variant: EmptyStateVariant) {
+  switch (variant) {
+    case 'next-step':
+      return '+'
+    case 'awaiting':
+      return '↻'
+    case 'quiet':
+    default:
+      return '✓'
+  }
+}
+
+export function EmptyState({
+  title,
+  copy,
+  note,
+  variant = 'quiet',
+  icon,
+  children,
+  className,
+}: EmptyStateProps) {
+  const titleId = useId()
+
   return (
-    <div className={`empty-state${className ? ` ${className}` : ''}`}>
-      <h3 className="empty-title">{title}</h3>
-      {copy && <p className="empty-copy">{copy}</p>}
-      {children && <div className="empty-actions">{children}</div>}
+    <div
+      role="region"
+      aria-labelledby={titleId}
+      data-testid="empty-state"
+      data-empty-variant={variant}
+      className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}
+    >
+      <div className="empty-state-frame">
+        <div className="empty-state-icon" aria-hidden="true">
+          <span className="empty-state-glyph">{icon ?? defaultEmptyGlyph(variant)}</span>
+        </div>
+        <div className="empty-state-body">
+          <h3 id={titleId} className="empty-title">{title}</h3>
+          {copy && <p className="empty-copy">{copy}</p>}
+          {note && <p className="empty-note">{note}</p>}
+        </div>
+        {children && <div className="empty-actions">{children}</div>}
+      </div>
     </div>
   )
 }

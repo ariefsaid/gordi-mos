@@ -34,7 +34,7 @@ export function computePlanKpiStripData(
   action: KitchenActionType,
 ): KitchenKpiStripData {
   const kpis = computePlanKpis(cells, action)
-  const status = kpis.plannedTotal > 0 ? 'ready' : 'empty'
+  const statusLabel = kpis.plannedTotal > 0 ? 'Ready' : 'No plan created yet'
 
   return {
     ariaLabel: 'Planning summary',
@@ -68,7 +68,7 @@ export function computePlanKpiStripData(
       },
       {
         label: 'Plan status',
-        value: status,
+        value: statusLabel,
         delta: kpis.plannedTotal > 0 ? 'targets set' : 'nothing planned',
         deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
         deltaDot: false,

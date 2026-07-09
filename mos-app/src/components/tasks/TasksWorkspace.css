@@ -22,7 +22,7 @@
 }
 .content-header .ch-icon { color: var(--muted-foreground); display: inline-flex; flex: none; }
 .content-header .ch-title {
-  font-weight: 600; font-size: 20px; letter-spacing: -0.01em; color: var(--foreground);
+  font-weight: 600; font-size: 24px; letter-spacing: -0.01em; color: var(--foreground);
   margin: 0; line-height: 1.2;
 }
 /* Count pill (mockup `.ch-count`) — small muted pill on the tertiary surface. */
@@ -428,6 +428,7 @@ tr:focus-within .row-menu { visibility: visible; }
   .content-header .ch-title {
     flex: 0 1 auto;
     min-width: 0;
+    font-size: 24px;
   }
 
   .content-header .ch-meta {

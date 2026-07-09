@@ -596,8 +596,10 @@ export function KitchenReviewPage() {
 
       {load.kind === 'ready' && submittedCount === 0 && (
         <EmptyState
+          variant="awaiting"
           title="Nothing to review"
           copy={`No submitted logs for ${logDate}.`}
+          note="Pull again to check for newly submitted kitchen logs."
         >
           <button
             type="button"
