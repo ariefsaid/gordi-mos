@@ -185,12 +185,12 @@ def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = No
 
 # --- reporting.sales_margin_daily (§7a AMENDMENT, ADR-0018 D6 prereq) ---------------------------
 #
-# v_daily_cogs_comparison is a diagnostic view with no revenue/channel/branch_name and covers POS
-# only (COGS has no channel dimension upstream). Per the finance doctrine (gordi-esb-bak
-# COGS-REPORT-WORKFLOW.md): the ONE actual COGS is the monthly GL reconciliation; BOM is a budget,
-# never an actual; mid-month stock-movement COGS is INTERIM/not-yet-reconciled. This snapshot joins
-# the POS slice of v_daily_revenue_unified with v_daily_cogs_comparison and computes only the
-# labeled interim margin — never a fake/certified figure.
+# fact_daily_cogs_interim is the bounded nightly-refreshed POS interim COGS fact in the warehouse
+# repo. Per the finance doctrine (gordi-esb-bak COGS-REPORT-WORKFLOW.md): the ONE actual COGS is
+# the monthly GL reconciliation; BOM is a budget, never an actual; mid-month stock-movement COGS
+# is INTERIM/not-yet-reconciled. This snapshot joins the POS slice of v_daily_revenue_unified with
+# fact_daily_cogs_interim and computes only the labeled interim margin — never a fake/certified
+# figure.
 
 
 def normalize_margin_row(
@@ -247,7 +247,7 @@ def build_margin_source_query() -> str:
              max(c.bom_total)             as cogs_budget_bom,
              max(c.bom_coverage_pct)      as bom_coverage_pct
       from public.v_daily_revenue_unified r
-      left join public.v_daily_cogs_comparison c
+      left join public.fact_daily_cogs_interim c
         on c.cogs_date = r.revenue_date
        and c.esb_code::text = r.esb_code::text
        and c.branch_code = coalesce(nullif(btrim(coalesce(r.branch_code,'')),''), r.esb_code::text)

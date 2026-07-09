@@ -41,7 +41,17 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
-    css: true,
+    // css:false — Vitest must NOT parse/inject the 51 imported stylesheets into every
+    // jsdom environment. That CSS injection is pure overhead here: this suite asserts on
+    // className strings (e.g. `.toolbar .chip`) and reads authored CSS rules straight off
+    // the file via readFileSync (cssRuleBody) — NOTHING reads jsdom *computed* styles in the
+    // hot path. The few getComputedStyle() usages (login-page, my-week, kitchen-log) all use
+    // inline styles or negative assertions that hold on jsdom defaults, verified green with
+    // css:false. Setting css:true made each per-file jsdom env re-parse 448K of CSS (~6s/env,
+    // ~1400s cumulative across workers), saturating the event loop under the default fork
+    // pool so RTL's 1000ms waitFor lapsed on the unluckiest test (tasks-workspace) — the
+    // under-load flake. Dropping it removes the root overhead AND the contention.
+    css: false,
     // Inject stub env vars so supabase.ts doesn't throw during unit tests (real client is mocked).
     env: {
       VITE_SUPABASE_URL: 'http://127.0.0.1:44321',
@@ -58,41 +68,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: [
-        'src/auth/**',
-        'src/lib/db/**',
-        'src/lib/supabase.ts',
-        'src/lib/week.ts',
-        'src/lib/dueStatus.ts',
-        'src/lib/raciMember.ts',
-        'src/pages/LoginPage.tsx',
-        'src/pages/RecoveryPage.tsx',
-        'src/pages/MyWeek.tsx',
-        'src/pages/TasksLayout.tsx',
-        'src/pages/UpdatesPage.tsx',
-        'src/pages/OpsPage.tsx',
-        'src/pages/OpsAddForm.tsx',
-        'src/pages/NotFoundPage.tsx',
-        // Home v1 (ADR-0019 D2/D3) — the index-route replacement for MyWeek + its
-        // pure KPI selectors.
-        'src/pages/home-page.tsx',
-        'src/lib/home-kpis.ts',
-        'src/i18n/**',
-        'src/shell/**',
-        // P2-2b: weekly update components
-        'src/components/weekly/**',
-        'src/components/tasks/**',
-        // Kitchen Module (S1..S5)
-        'src/pages/kitchen-*.tsx',
-        'src/components/kitchen/**',
-        // Dashboard kit primitives (Issue 1, ADR-0017 kit-birthing)
-        'src/components/dashboard/**',
-        // View-composition substrate (ADR-0018 P1 port)
-        'src/lib/viewspec/**',
-        'src/lib/db/user-views.ts',
-        'src/pages/dev-views-page.tsx',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        '**/*.test.{ts,tsx}',
+        'src/lib/database.types.ts',
+        'src/vite-env.d.ts',
+        'src/main.tsx',
+        'src/**/*.d.ts',
+        'src/**/*.css',
       ],
-      exclude: ['**/*.test.{ts,tsx}', 'src/lib/database.types.ts', 'src/vite-env.d.ts'],
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },
     },
   },

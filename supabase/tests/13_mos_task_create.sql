@@ -28,13 +28,17 @@ select is(
   'AC-010: inserted task org_id was stamped to the session org (not client-supplied)'
 );
 
--- AC-011: explicit foreign org_id (org B) -> WITH CHECK rejects (42501).
+-- AC-011: explicit foreign org_id (org B) is rejected. Since the same-org guard
+-- (mos._guard_task_refs, round-2 audit A1) runs BEFORE the RLS WITH CHECK, the spoof is caught there
+-- first: the org-A refs now disagree with the spoofed org B -> 23514. The RLS WITH CHECK (org_id =
+-- current_org_id()) still backs this as defense-in-depth, but is pre-empted by the guard's ref check.
+-- The goal-oracle (spoof is blocked) is unchanged from when this asserted 42501.
 select throws_ok($$
   insert into mos.tasks (org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
   values ('00000000-0000-0000-0000-0000000000b1','Spoof Task','00000000-0000-0000-0000-0000000000a2',
           '00000000-0000-0000-0000-0000000000a4','00000000-0000-0000-0000-0000000000a4',
           '00000000-0000-0000-0000-0000000000a4')
-$$, '42501', null, 'AC-011: client cannot stamp a foreign org_id (WITH CHECK blocks spoof)');
+$$, '23514', null, 'AC-011: client cannot stamp a foreign org_id (blocked by same-org guard pre-WITH-CHECK)');
 
 -- AC-012: bad status AND blank title both rejected by CHECK (23514).
 select throws_ok($$

@@ -814,7 +814,186 @@ inherits it all via the caller's JWT (no parallel agent permission model). Intra
 deferred until a real conflict shows. Full spine: `docs/adr/0020-capability-authorization.md`. Status:
 Accepted (owner, 2026-07-04, grill-with-docs).
 
+### OD-WS-1 — Work spine v1: objective→task cascade as an everyone-surface (spec Accepted, ADR-0019 D14 step 3)
+The first ADR-0019 Work-destination slice. Adds a **`/work/cascade`** view where **every** authenticated
+org member reads the objective→work_line→task ladder and their own line-of-sight ("Mine"); the existing
+admin `/objectives` + Projects & Processes pages become the **capability-gated manage mode** reached via an
+inline affordance (no second editor). Elevates the shipped Tasks DB-view cascade machinery (group-by-work_line,
+Workload caption, `useCascadeCatalogs`) — reuse, not rebuild. **READ stays org-wide** (already shipped; the
+"admin-only read" premise was verified false). **WRITE migrates from `has_access_role` to `shared.can()`** —
+this slice **introduces the minimal `shared.can()`** (function + `objective.manage`/`workline.manage` keys +
+seeded grants: admin→both, ops_lead→workline; `org` scope for v1) as ADR-0020's named first consumer; the
+admin-editable-roles UI is deferred. Follow-up queues / AR / pending-bills (D5/D14 step 4) explicitly OUT
+(gated on ESB spike + backup gate). Security-sensitive (`can()` + RLS) → gpt-5.4 cross-family + security-auditor
+review binding. Spec: `docs/specs/work-spine.spec.md`. Status: Accepted (owner, 2026-07-06).
+
 ---
+
+### Accepted (owner, 2026-07-06 grill) — merged from `docs/jtbd-refresh`
+From the E6 IA/JTBD grill-with-docs (2026-07-06). **Owner accepted all four 2026-07-06; ADR-0022/0023/0024
+flipped to Accepted, JTBD v0.3 accepted as the Lens-D oracle.**
+- **ADR-0022 — Plan destination / COGS-budget model** (extends ADR-0019 D7): Plan = budget-creation;
+  ingredient cost basis = ESB `last_hpp` (trend/variance alert deferred); **read-and-budget MVP**;
+  recipe-edit + ESB BOM write-back = one spike-gated v2; MOS is the pre-flight margin check, **never**
+  the price-setter (price lands in ecommerce). `docs/adr/0022-plan-destination-cogs-budget.md`.
+- **ADR-0023 — Multi-location inventory + internal replenishment** (new): stock is location-scoped
+  (Roastery/HQ-retail/Ecommerce, each its own pool); internal replenishment (roastery→retail/ecommerce,
+  GRI→GKID) is a first-class flow **≠ a B2B sale** (stays out of Follow-up); ecommerce fulfilment queue;
+  additive to the Kitchen spine. `docs/adr/0023-multi-location-inventory-internal-replenishment.md`.
+- **JTBD v0.3** (`docs/jtbd.md`) — the E6 Lens-D oracle (4 personas × 5 destinations), supersedes E1 v0.2.
+
+### Continued IA/product grill — session 2 (2026-07-06, owner-confirmed turn-by-turn)
+Extends the E6 grill above; each call confirmed by the owner in conversation (on `docs/jtbd-refresh`).
+Feeds ADR-0024 + the roastery/agent/Home specs when their D14 turn comes. Terms captured in `CONTEXT.md`.
+
+**Agent-capability** (`docs/specs/agent-capability-expansion.md`; OQ-7 answered — deputy = `claude-sonnet-5`, a strong tool-selector):
+- **Experience batch is next, before automations** — ship C2 safe-markdown + C3 typed-widget tables + C4
+  layered prompt (charter + tool-index + skills), *then* C1 automations (P3b). Reverses the doc's C1-first
+  default: the felt "raw chatbot" UI pain outranks automations.
+- **Adopt safe markdown** in the deputy transcript (react-markdown + remark-gfm, no raw HTML, url-scheme
+  allowlist, hostile-markdown gate test) — consciously **reverses FR-P2-AP-004 "respond in plain text"**;
+  compatible with the grounding NFR (grounding = sourcing, not formatting). PMO analog: ADR-0049.
+- **Deferred (seams reserved):** attachments (C5, largest build; roastery cupping-photos are roll-in #6),
+  credits/metering (C8, premature at ~15 interactive-only), conditional-approval (C7), live-context (C9),
+  eval-harness (C6, low leverage on a strong selector).
+
+**Roastery module** (`docs/specs/roastery-module.requirements.md §6` resolved):
+- **Green stock = lot grain (lightweight)**; **roasted COGS = MOS computes floor-truth** (green `last_hpp` ÷
+  actual yield%), reconciled vs ESB `Manufacturing In/Value` later. [CONTEXT: *Green lot*, *Yield costing*]
+- **MVP scope expanded**: green+roasted stock + yield roast-log **+ blends (multi-level BOM) + repack →
+  packed-FG + B2B sales-order entry**; **QC/cupping deferred v2** (owner pulled blends/repack/sales-order
+  in — only QC stays out).
+- **Sales-order → ESB push (create-and-authorize, kitchen-style)** — see **ADR-0024**. MOS pushes the SL
+  (`POST /sales/product-sales` then `/authorize`) via the module-agnostic `integrations.esb_push` outbox
+  (`source_module='roastery'`, additive, no schema change); ESB stays invoice-of-record (SI) + AR-of-record;
+  Follow-up only reads ESB invoice status. Gate: sales-order-create GOO spike (FR-084 sandbox IDs) before
+  build; GKID proof at flip.
+- **Product master**: **B2B Ops curates; ESB owns identity (`productDetailID`)**; MOS = reference-data
+  canonical + strict type axis (Raw/WIP/FG/Packaging/Consumable) + **alias table** (read-and-curate, no
+  runtime write-back). The alias table bridges the GB/RB/Blend name chaos so roastery ships without waiting
+  on a **one-time ESB product-master cleanup** (rename/restructure in ESB directly, at roll-in — a separate
+  remediation track). Finance/Procurement own the cost lines.
+- **Confirms:** labour = SGA, never per-batch COGS; ignore the sample-roaster PDF (equipment purchase).
+  **Roll-in timing holds** — roastery stays D14 step 6.
+
+**Home composition** (`docs/jtbd.md` §1/§2; [CONTEXT *Home*]):
+- **Stacked-union cockpit** — Home composes the **union of the roles a person holds** as one scrollable
+  surface, **widest-scope section first** (BU-head-who-is-lead → function cockpit with the My-Week panel
+  below; pure lead → My-Week only; member → "what needs me"). **Not a toggle, not a separate login.**
+  Deferred v2 only if the union gets too dense: separate workspaces or a toggle-with-layered-rails.
+- **Contributor Home = capture-first** (Activity fast-capture + @mentions/assigned steps; team plan shown
+  read-only as context) — **no rostering in MVP**. **Shift-scheduling deferred but NEAR-TERM** (manual today,
+  "sooner than later") — leave the seam for a "your shift today" slot; backlogged.
+
+**Whole-company reach — Marketing & HR** (tests the E6 all-6-BUs claim): Marketing/HR are project/knowledge
+functions with **no Operate module** — they live in the **universal cross-cutting planes** (**Work**
+tasks/RACI/cascade/updates/follow-ups · **Home** their cockpit + owned budgets, e.g. Marketing's promo
+budgets · **Plan** budgets/pricing they consume · **Inbox**). For their varied, not-yet-modelled needs:
+**tasks-first now, plus the composable Notion/Airtable-style UI as the escape hatch** — **already ADR'd**,
+not new: user-composed **user views** + the **promotion** path (user view → coded Module) per **ADR-0017**,
+rendered on the two vendored primitives **`doc-editor` (Notion-like blocks) + `data-grid` (Airtable-like
+grid)** per **ADR-0019 D6**. A dedicated Marketing/HR module (content calendar; a recruitment/onboarding
+queue — the latter *would* be an Operate queue Activity) lands only when a user view **demonstrates the
+demand** (promotion), never speculatively. So the whole-company claim holds via **Work+Home+Plan+Inbox being
+universal + the composable-UI escape hatch**, not via everyone getting a module on day one.
+
+**AR bridge / Follow-up reconciliation** (D14 step 4; underpins the Home money-position strip; [CONTEXT *Follow-up*]):
+- **MOS owns per-invoice reconciliation — it REPLACES Finance's per-invoice recon gsheet** (dual-run →
+  cutover). MOS = invoice-grain settlement system-of-record; ESB's aggregate AR-reduction journal = a
+  **secondary cross-check** (Σ MOS-confirmed per counterparty/period ties to ESB's drop; drift → a Finance
+  exception). **No ESB write-back** — reconciliation replaces it (spike returned LIKELY-NOT).
+- **settled = operationally settled + evidence; confirmed = Finance reconciled to bank/ESB** (two states).
+- **Manual per-invoice evidence attach; bank-feed deferred.** Required field on partial/settle: **cash-in
+  date** (money-landed date) — the bank-statement match key a bank feed would later auto-populate.
+
+**Notifications / Inbox channel** (ADR-0019 D4/D9): **PWA push only for MVP**; add a **re-push trigger**
+(re-nudge untriaged/unread after an interval — single push insufficient; near-term). External-channel
+follow-up = **Telegram or in-app group chat** over WhatsApp (WA too tedious to integrate for the payoff);
+channel-adapter seam takes either. D4 stays hard: external channel = doorbell only, conversation on the entity.
+
+**Catalog placement** (owner feedback 2026-07-06 — confirms ADR-0019 line 44; origin OD-C-1/C-2, the
+cascade came in pre-IA as "two nav items under Workspace"): the objective→task catalog belongs **in Work
+as the manage-mode of the everyone-cascade**, **traced up and down**. Refinement over the held Work-spine
+spec (FR-310–313 link out to the existing *flat* catalog pages, which persist as standalone `/objectives` +
+`/projects-processes` routes): (a) **retire the standalone nav** — the catalog is reachable **only** from
+the Work cascade (direct visits redirect into it), so it's genuinely "in the Work folder," not a separate
+destination; (b) each manage page **shows the node's up/down trace context** (an objective → its child
+work_lines + task count; a project/process → its parent objective) so managing is traceable both ways —
+**reuse the existing pages + add the trace context, don't rebuild as an inline tree** (YAGNI). Lands with
+the Work-spine merge (D14 step 3); update `docs/specs/work-spine.spec.md` FR-310–313 on that branch.
+
+**Certified metrics** (anchor A7; *Director-defaulted from recommendation — flag to change*): **Finance
+certifies** financial-statement figures + the second-class figures feeding them; **migration-seeded registry,
+no runtime certification UI in MVP** (same discipline as `can()`); **uncertified/stale renders a fail-loud
+badge** and Plan pricing pre-flight warns/blocks against it.
+
+## OD-DASH — Dashboard analysis surface: `/sales` → `/dashboard` (LOCKED 2026-07-07, grill-with-docs session; spec `docs/specs/dashboard.spec.md`)
+
+### OD-DASH-1 — Metabase deferred (third time); MOS-native dashboards, revisit only on the D4 guardrail
+
+Metabase was proposed a third time (2026-07-07) as "easier than building drill-down in MOS." **Deferred
+again, on the owner's own two constraints:** (i) no additional box/VPS to host it; (ii) no separate login.
+Both are precisely the costs ADR-0010 D4 + the `reporting`-copied-into-Supabase design were built to avoid.
+The owner's actual need ("drill-down that normal dashboards should have") is covered by work that is
+**specced but not yet built** — the drill-down query-spec DSL (ADR-0017 §4b, OD-AN-2) + the next
+read-models — not by a tool that would give a worse drill-down, bypass RLS, and add a box + login. **D4
+guardrail holds:** revisit a BI tool only if, *after* the DSL + read-models ship, MOS dashboards drift
+toward a generic charting/pivot playground — that drift is itself the signal. Decision is **reversible**:
+if the shipped dashboard is still unusable for drill-down, the Metabase-revisit ADR gets written honestly.
+
+### OD-DASH-2 — Route: `/sales` → `/dashboard` (rename + broaden); Home stays a light landing
+
+The analytical KPI hub is **`/dashboard`**, not Home. `/sales` is renamed and broadened: it covered only
+revenue, the name lied about scope. `/dashboard` covers all warehouse-backed KPIs (revenue + interim gross
+margin/COGS first slice) and grows sections as warehouse facts arrive (opex, material usage, labor, roastery
+yield). **Home (route `/`) stays a light role-aware landing** — its finance tiles link to `/dashboard`
+instead of `/sales`. This **clarifies, not reverses, ADR-0019** ("Home = KPI hub"): Home is the role-aware
+entry; `/dashboard` is the analytical hub + drill-down surface. The StackedUnionHome scaffold
+(`SHOW_HOME_STACKED`) is left untouched — not finished, not deleted; a future slice may pick it up. Recorded
+as a clarification (lightweight, not a new ADR).
+
+### OD-DASH-3 — First slice = the data spine + drill-down on warehouse-backed KPIs (one slice)
+
+One slice, not two: **(a) staging verify/fix** (verify post-`a3a2015` margin rows landed; merge `a3a2015`
+to main/staging; wire Telegram snapshot alerting; correct stale `AGENTS.md`/`CLAUDE.md`
+"migration not yet written" lines) + **(b) local data unblock** (run the *existing* `reporting_snapshot.py`
+locally against `localhost:5432/gordi_esb` → local Supabase `:44322`, via a `scripts/reporting-snapshot-local.sh`
+wrapper — no dump, no FastAPI, no domain, no new box; the snapshot job is the only writer in prod *and*
+locally) + **(c) `/dashboard` rebuild** (Variant B Tabs, signed-off mockup). The spine is small and the
+dashboards are only as trustworthy as the data feeding them, so they ship together.
+
+### OD-DASH-4 — Drill-down = A (filter-in-place) + B (navigate-to-detail); deputy/analyst handoff (C) deferred
+
+First-slice drill-down is two patterns: **A — filter-in-place** (clicking a KPI tile or changing the
+cut/window re-filters chart + table on the same screen) and **B — navigate-to-detail** (a "full detail"
+affordance opens `/dashboard/detail?window=…&branch=…` with the complete daily breakdown). **C — the
+deputy↔analyst-agent handoff** (ADR-0017 D3, natural-language drill with raw-OLAP escalation) is **deferred**
+to a follow-up: it's the differentiating long-term play but depends on the ADR-0018 port Issue 3 wiring,
+a separate larger build. A+B already cover "what normal dashboards should have."
+
+### OD-DASH-5 — KPIs: revenue-led, gross margin/COGS secondary (basis-labelled); not-yet-backed = honest stubs
+
+First-slice KPIs (only these are warehouse-backed): **Revenue row** (trailing 7d +WoW, trailing 30d +MoM,
+latest reporting-day, avg check, channel mix as a string "POS 77% · B2B 23%") leads. **Gross margin row**
+(interim gross margin %, interim gross margin amount, interim COGS amount, BOM-coverage DQ badge) is
+secondary and **basis-labelled "interim — stock-movement"** on every figure — never bare "margin" or bare
+"COGS" (see CONTEXT.md canon). **Not-yet-backed KPIs** (opex, material usage/portion, labor %, roastery
+yield) render as **one "What's coming" strip** (not four stub tiles) — gap-visibility as a feature, not
+debt. Cuts: Branch (default) + Channel + Activity. Time-window: 30d default, presets [7d/30d/60d] + a
+custom date picker **bounded to the 60-day snapshot window** (can't pick dates the warehouse doesn't
+have); WoW on 7d, MoM on 30d, custom = same-length prior window auto. **No save/share/save-as-default**
+(that's BI-tool territory — the D4 slope).
+
+### OD-DASH-6 — Layout: Variant B (Tabs), signed-off mockup gate (Phase-0)
+
+Owner picked **Variant B (Tabs)** from three design-architect mockups (`docs/design-mockups/dashboard-{A,B,C}-*.html`).
+Summary tab = KPI tiles + chart (filter-in-place); Detail tab = full table. **One global Cut/Window
+toolbar above the tabs** (filters apply to both — no per-tab duplication). Active tab persists in URL
+(`?tab=summary|detail`). The Detail tab *is* the parameterized `/dashboard/detail` route (B's
+navigate-to-detail), so it's shareable without per-KPI route sprawl. Both desktop and mobile are
+first-class. Mockup open questions resolved: channel mix = string; stubs = one strip; ratify two semantic
+token reuses in `DESIGN.md` (`--basis-chip` role for COGS-basis labels, DQ-as-warning/success); `?tab=`
+persistence + global toolbar. Gate passed 2026-07-07.
 
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
 </content>

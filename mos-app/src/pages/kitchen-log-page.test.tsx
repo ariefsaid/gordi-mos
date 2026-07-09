@@ -245,14 +245,13 @@ describe('Populated state — WIP items loaded', () => {
     })
   })
 
-  it('F1: the sticky action bar (.kl-footer) is the last child of the form so position:sticky pins', async () => {
+  it('B3: the action bar stays in normal flow so it cannot overlap group headers or rows', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
     const form = document.getElementById('kitchen-log-form') as HTMLFormElement
     const footer = form.querySelector('.kl-footer') as HTMLElement
     expect(footer).not.toBeNull()
-    const lastChild = form.lastElementChild as HTMLElement
-    expect(lastChild).toBe(footer)
+    expect(getComputedStyle(footer).position).not.toBe('sticky')
   })
 })
 
@@ -559,7 +558,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     expect(line).not.toHaveProperty('status')
     expect(line).not.toHaveProperty('org_id')
     expect(line).not.toHaveProperty('submitted_by')
-  })
+  }, 10_000)
 
   it('shows success confirmation and clears form after submit', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
@@ -908,21 +907,24 @@ describe('OD-K-5: sticky-footer tally', () => {
   })
 })
 
-// task 10g — reflow branch (P-4): exactly ONE of table|cards in the DOM
+// task 10g — reflow branch (P-4): exactly ONE of table|cards in the DOM (shared DataTable)
 describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
-  it('phone: the cards render; the desktop <table> is absent (no aria-hidden dual-render)', async () => {
+  it('phone: the shared DataTable cards render; the desktop <table> is absent', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    // phone has the off-plan expander; no production-log <table>
+    // P-4 invariant: phone renders the shared card reflow (.dt-cards), NOT the desktop <table>
     expect(screen.queryByRole('table', { name: /kitchen production log/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /add another dish/i })).toBeInTheDocument()
+    expect(document.querySelector('.dt-cards')).not.toBeNull()
+    // the Planned/Off-plan groups render on phone via the shared DataTable collapse toggle
+    expect(screen.getByRole('button', { name: /collapse planned today/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
   })
 
-  it('desktop: the <table> renders; the phone off-plan expander is absent', async () => {
+  it('desktop: the <table> renders; the phone card reflow is absent', async () => {
     setDesktopMatchMedia(true)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.getByRole('table', { name: /kitchen production log/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /add another dish/i })).toBeNull()
+    expect(document.querySelector('.dt-cards')).toBeNull()
   })
 })

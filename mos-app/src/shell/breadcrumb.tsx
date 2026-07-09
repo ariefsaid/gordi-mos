@@ -23,45 +23,68 @@ export function Breadcrumb() {
   const dynamicTitle = useBreadcrumbTitle()
   const t = useT()
   const destination = destinationForPath(pathname)
-  const section = sectionForPath(pathname)
+
+  // Resolve the leaf Section: prefer the destination's own matching link (so the Work manage
+  // routes /work/objectives + /work/projects-processes, the Plan /sales link, and the Operate
+  // /ops link all resolve with their labelKey — FR-424), then fall back to the flat section
+  // registry for routes owned by no destination (Admin). '/' matches exactly; others prefix.
+  const destLink = destination?.links.find((l) =>
+    l.path === '/' ? pathname === '/' : pathname === l.path || pathname.startsWith(l.path + '/'),
+  ) ?? null
+  const section = destLink ?? sectionForPath(pathname)
 
   // No section → nothing to show (unknown/404 path)
   if (!section) return null
 
-  // FR-S03 (spec home-v1): a route owned by a destination (Home/Work/Operate) reads its
-  // destination label as the SECTION crumb. For Work/Operate the route's own section
-  // label is promoted to the leaf (e.g. "Work › Tasks", "Operate › Log") — or the
-  // explicit/dynamic leaf ("New task", a resolved task title) when one applies. Home has
-  // nothing to promote to a leaf — it renders bare ("Home", no "Home › Home"). A route
-  // owned by no destination (Admin, cascade catalog, Sales) keeps its own section label,
-  // unaffected by the regroup.
+  // FR-S03 (spec home-v1) + FR-424: a route owned by a destination (Home/Work/Operate/Plan/Inbox)
+  // reads its destination label as the SECTION crumb. For non-Home destinations the route's own
+  // label is promoted to the leaf (e.g. "Work › Tasks", "Operate › Log", "Work › Objectives",
+  // "Plan › Sales", "Operate › Daily Log") — or the explicit/dynamic leaf ("New task", a resolved
+  // task title) when one applies. Home renders bare ("Home", no "Home › Home"). Labels resolve
+  // through the i18n catalog when a labelKey is present (FR-440).
   const promotesDestinationLabel = !!destination && destination.id !== 'home'
   const explicitLeaf = explicitLeafForPath(pathname, dynamicTitle)
-  const leaf = explicitLeaf ?? (promotesDestinationLabel ? section.label : null)
-  const sectionLabel = destination ? t(destination.labelKey) : section.label
+  const sectionLabel = destination ? t(destination.labelKey) : (section.labelKey ? t(section.labelKey) : section.label)
+  const promotedLeaf = promotesDestinationLabel ? (section.labelKey ? t(section.labelKey) : section.label) : null
+  // Collapse a self-crumb: a single-link destination whose promoted leaf equals its own
+  // destination label would read "Inbox › Inbox" (UI-coherence audit C3) — render bare instead,
+  // mirroring how Home renders "Home" not "Home › Home".
+  const leafLabel = explicitLeaf ?? (promotedLeaf && promotedLeaf !== sectionLabel ? promotedLeaf : null)
+  const crumbLabels =
+    destination?.id === 'operate' && section.path.startsWith('/kitchen/')
+      ? [sectionLabel, t('nav.kitchen'), leafLabel ?? (section.labelKey ? t(section.labelKey) : section.label)]
+      : pathname.startsWith('/admin/')
+        ? ['Admin', section.labelKey ? t(section.labelKey) : section.label]
+        : leafLabel
+          ? [sectionLabel, leafLabel]
+          : [sectionLabel]
 
   return (
     <span style={{ fontSize: 15 }}>
-      {leaf ? (
-        // Sub-page: section is muted intermediate, leaf is the bold current
-        <>
-          <span className="text-muted-foreground">{sectionLabel}</span>
-          <span className="mx-[7px]" aria-hidden="true">›</span>
-          <b
-            className="truncate text-foreground font-semibold"
-            title={leaf}
-          >
-            {leaf}
-          </b>
-        </>
-      ) : (
+      {crumbLabels.length === 1 ? (
         // Section is the current page — bold, truncated
         <b
           className="truncate text-foreground font-semibold"
-          title={sectionLabel}
+          title={crumbLabels[0]}
         >
-          {sectionLabel}
+          {crumbLabels[0]}
         </b>
+      ) : (
+        // Sub-page: intermediate crumbs are muted, final crumb is the bold current.
+        <>
+          {crumbLabels.slice(0, -1).map((label) => (
+            <span key={label}>
+              <span className="text-muted-foreground">{label}</span>
+              <span className="mx-[7px]" aria-hidden="true">›</span>
+            </span>
+          ))}
+          <b
+            className="truncate text-foreground font-semibold"
+            title={crumbLabels[crumbLabels.length - 1]}
+          >
+            {crumbLabels[crumbLabels.length - 1]}
+          </b>
+        </>
       )}
     </span>
   )

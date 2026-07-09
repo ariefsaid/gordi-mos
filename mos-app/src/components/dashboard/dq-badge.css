@@ -1,0 +1,53 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   DQBadge — the data-quality badge (design-plan §2.10, FR-024/AC-024).
+   --dq-* semantic mapping to existing status families (no new hue):
+     partial  → warning / warning-foreground (amber tint + brown text)
+     good     → success / success-foreground (green)
+     unknown  → secondary / muted-foreground (neutral)
+   A badge-status variant; height 20px, rounded.full, 6px dot, label type.
+   ════════════════════════════════════════════════════════════════════════════ */
+.dq-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px; /* rounded.full */
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  width: fit-content;
+}
+.dq-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: none;
+}
+
+/* --dq-partial = warning family */
+.dq-badge--partial {
+  background: color-mix(in srgb, var(--warning) 18%, transparent); /* --dq-partial-bg */
+  color: var(--warning-foreground);                                 /* --dq-partial-text */
+}
+.dq-badge--partial .dot {
+  background: var(--warning);                                       /* --dq-partial-dot */
+}
+
+/* --dq-good = success family */
+.dq-badge--good {
+  background: color-mix(in srgb, var(--success) 14%, transparent);  /* --dq-good-bg */
+  color: var(--success-foreground);                                  /* --dq-good-text */
+}
+.dq-badge--good .dot {
+  background: var(--success);                                        /* --dq-good-dot */
+}
+
+/* --dq-unknown = neutral family */
+.dq-badge--unknown {
+  background: var(--secondary);          /* --dq-unknown-bg */
+  color: var(--muted-foreground);        /* --dq-unknown-text */
+}
+.dq-badge--unknown .dot {
+  background: var(--muted-foreground);
+}

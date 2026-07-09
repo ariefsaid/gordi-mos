@@ -13,6 +13,7 @@ import { TimingChip } from './timing-chip'
 import { CardHead } from '@/components/ui/card-head'
 import { ErrorState } from '@/components/ui/state-kit'
 import { Pill } from '@/components/ui/pill'
+import { useT } from '@/i18n/use-t'
 
 // ── Local item shape (draft lines before persist) ────────────────────────────
 interface DraftLine {
@@ -172,6 +173,7 @@ interface WeeklyUpdateWritePaneProps {
 }
 
 export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: WeeklyUpdateWritePaneProps) {
+  const t = useT()
   // C1 fix: derive the week label from the weekStart prop (not new Date()), so the pill
   // always reflects the week whose data is loaded — never desyncs from the prop.
   const wib = weekLabel(new Date(weekStart + 'T00:00:00+07:00'))
@@ -509,7 +511,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
           id={summaryId}
           value={summary}
           onChange={e => setSummary(e.target.value)}
-          placeholder="Ringkasan minggu ini…"
+          placeholder={t('weekly.summaryPlaceholder')}
           rows={4}
           style={{
             width: '100%', display: 'block',

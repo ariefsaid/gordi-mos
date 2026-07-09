@@ -2,6 +2,7 @@
 // Review pane (PR-c, AC-040..046), My Week strip (AC-050..051)
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -107,11 +108,13 @@ const LATE_SUBMITTED_UPDATE: MyUpdate = {
 // ── Render helper ─────────────────────────────────────────────────────────────
 function renderPage(auth: AuthState = authedState) {
   return render(
-    <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/updates']}>
-        <UpdatesPage />
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <I18nProvider>
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={['/updates']}>
+          <UpdatesPage />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </I18nProvider>,
   )
 }
 
@@ -729,5 +732,37 @@ describe('UpdatesPage write pane — Reopen busy-guard (FIX-3)', () => {
       const isDisabled = btn.hasAttribute('disabled') || btn.getAttribute('aria-disabled') === 'true'
       expect(isDisabled).toBe(true)
     })
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W3-1: Write-Review archetype — bounded measure on the write + review stacks
+// (docs/plans/2026-07-08-page-archetypes.md §3 Wave 3)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('UpdatesPage — Write-Review archetype: bounded measure (W3-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMyUpdate.mockResolvedValue(null)
+  })
+
+  it('write stack is bounded to a ≤720 measure — not essay-width acreage (W3-1)', async () => {
+    renderPage()
+    await waitFor(() => screen.getByLabelText(/my weekly update/i))
+    const measure = screen.getByTestId('write-measure')
+    const maxWidth = parseInt(measure.style.maxWidth, 10)
+    expect(Number.isFinite(maxWidth)).toBe(true)
+    expect(maxWidth).toBeGreaterThan(0)
+    expect(maxWidth).toBeLessThanOrEqual(720)
+  })
+
+  it('review stack is also bounded to a ≤720 measure for managers (W3-1)', async () => {
+    mockListTeamUpdates.mockResolvedValue([])
+    renderPage(managerState)
+    await waitFor(() => screen.getByLabelText(/team updates/i))
+    const measure = screen.getByTestId('review-measure')
+    const maxWidth = parseInt(measure.style.maxWidth, 10)
+    expect(Number.isFinite(maxWidth)).toBe(true)
+    expect(maxWidth).toBeGreaterThan(0)
+    expect(maxWidth).toBeLessThanOrEqual(720)
   })
 })

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
 import { ErrorState, EmptyState, SkeletonRows } from '@/components/ui/state-kit'
+import { Select } from '@/components/ui/select'
 import type { TagColor } from '@/components/ui/tag'
 
 // A managed catalog row: id + name + soft-archive flag, plus an optional display
@@ -23,6 +24,13 @@ export interface CatalogTypeField {
   options: { value: string; label: string }[]
 }
 
+// Up/down trace context (nav-five-destinations FR-422): a one-line read computed by the owning
+// page over existing cascade data (no schema change), rendered under each active row. The page
+// supplies a `traceFor(item)` resolver; the manager just renders what it returns (or nothing).
+export interface CatalogTrace {
+  line: string
+}
+
 export interface CatalogManagerProps {
   title: string
   subtitle: string
@@ -35,12 +43,14 @@ export interface CatalogManagerProps {
   rename: (id: string, name: string) => Promise<void>
   setArchived: (id: string, archived: boolean) => Promise<void>
   typeField?: CatalogTypeField
+  /** Optional up/down trace resolver (FR-422). Returns undefined to render no trace for an item. */
+  traceFor?: (item: CatalogItem) => CatalogTrace | undefined
 }
 
 type LoadState = 'loading' | 'loaded' | 'error'
 
 export function CatalogManager({
-  title, subtitle, noun, nounPlural, load, create, rename, setArchived, typeField,
+  title, subtitle, noun, nounPlural, load, create, rename, setArchived, typeField, traceFor,
 }: CatalogManagerProps) {
   const plural = nounPlural ?? `${noun}s`
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -136,8 +146,15 @@ export function CatalogManager({
   const archived = items.filter((i) => i.archived_at != null)
 
   return (
-    <PageFrame>
-      <PageHead title={title} subtitle={subtitle} />
+    <PageFrame variant="data">
+      {/* Catalog-Manage archetype (State-Kit Rule): the inline Add form below IS the one
+          create affordance — the head carries NO `action` (no duplicate create CTA). */}
+      <PageHead
+        variant="content"
+        title={title}
+        count={loadState === 'loaded' ? active.length : null}
+        meta={<span>{subtitle}</span>}
+      />
 
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 
@@ -161,23 +178,16 @@ export function CatalogManager({
             <label htmlFor={typeInputId} className="mb-1 block text-sm text-muted-foreground">
               {typeField.label}
             </label>
-            <select
+            <Select
               id={typeInputId}
               value={newType}
               onChange={(e) => setNewType(e.target.value)}
               disabled={adding}
-              className="h-8 border px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-              style={{
-                borderColor: 'var(--input)',
-                background: 'var(--card)',
-                color: 'var(--foreground)',
-                borderRadius: 'var(--radius-sm)', // control radius token — match the kit input/button beside it
-              }}
             >
               {typeField.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
         <Button type="submit" variant="primary" disabled={adding} aria-busy={adding}>
@@ -229,6 +239,11 @@ export function CatalogManager({
                       <Button variant="ghost" onClick={() => startEdit(item)} aria-label={`Rename ${item.name}`}>Rename</Button>
                       <Button variant="ghost" onClick={() => void handleArchive(item, true)}
                         disabled={savingId === item.id} aria-label={`Archive ${item.name}`}>Archive</Button>
+                      {traceFor?.(item) && (
+                        <span className="basis-full text-xs text-muted-foreground" data-testid="catalog-trace">
+                          {traceFor(item)!.line}
+                        </span>
+                      )}
                     </>
                   )}
                 </li>

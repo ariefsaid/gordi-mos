@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, isLive } from './destinations'
-import { ADMIN_SECTIONS, CATALOG_SECTIONS } from './sections'
+import { ADMIN_SECTIONS } from './sections'
 import type { Section } from './sections'
 import { SettingsIcon } from './icons'
 import { LocaleToggle } from './locale-toggle'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { can } from '@/lib/capabilities'
 
 type RailNavProps = {
   onNavigate?: () => void
@@ -15,6 +16,7 @@ type RailNavProps = {
 const KITCHEN_ELEVATED_ROLES = ['ops_lead', 'admin'] as const
 
 function NavItem({ section, onNavigate }: { section: Section; onNavigate?: () => void }) {
+  const t = useT()
   return (
     <NavLink
       key={section.path}
@@ -38,7 +40,7 @@ function NavItem({ section, onNavigate }: { section: Section; onNavigate?: () =>
           <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
             <section.Icon />
           </span>
-          <span className={isActive ? 'text-foreground' : undefined}>{section.label}</span>
+          <span className={isActive ? 'text-foreground' : undefined}>{section.labelKey ? t(section.labelKey) : section.label}</span>
         </>
       )}
     </NavLink>
@@ -72,6 +74,34 @@ function NavGroup({
   )
 }
 
+function NavSubgroup({
+  label,
+  sections,
+  onNavigate,
+}: {
+  label: string
+  sections: Section[]
+  onNavigate?: () => void
+}) {
+  if (sections.length === 0) return null
+
+  return (
+    <>
+      <div
+        className="px-2 pb-1 pt-2 font-medium text-muted-foreground"
+        style={{ fontSize: 12 }}
+      >
+        {label}
+      </div>
+      <div className="flex flex-col gap-[2px] pl-3">
+        {sections.map((section) => (
+          <NavItem key={section.path} section={section} onNavigate={onNavigate} />
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function RailNav({ onNavigate }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
@@ -86,13 +116,9 @@ export function RailNav({ onNavigate }: RailNavProps) {
 
   // DESTINATIONS (plan §1.5/§4.2) is the single source of truth for both the rail
   // and the phone bottom-tab bar. Only live destinations (>=1 link, gate satisfied)
-  // render as a rail group — Plan/Inbox are not live today (AC-D01).
+  // render as a rail group. Capability-gated links (FR-424: the Work catalog manage routes)
+  // render only for a viewer who holds the named capability — see the filter below.
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
-
-  // Cascade catalog (OD-C-2): each item shows only when the viewer holds a role that may write it.
-  const visibleCatalogSections = CATALOG_SECTIONS.filter((s) =>
-    s.anyOf.some((r) => accessRoles.includes(r)),
-  )
 
   return (
     <>
@@ -100,25 +126,30 @@ export function RailNav({ onNavigate }: RailNavProps) {
           brand lockup, ⌘K search trigger, and user chip (ADR-0013 D1). */}
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         {liveDestinations.map((d) => {
+          // FR-424: a capability-gated link (Work's Objectives / Projects & Processes manage
+          // routes) shows only for a viewer who holds the named capability; ungated links always show.
+          let sections = d.links.filter((s) => !s.capability || can(accessRoles, s.capability))
           // Operate (Kitchen): Log/Plan/Stock for everyone; Review/Pushes gated.
-          const sections =
-            d.id === 'operate'
-              ? d.links.filter((s) => {
-                  if (s.label === 'Review' || s.label === 'Pushes') return hasElevatedKitchenAccess
-                  return true
-                })
-              : d.links
+          if (d.id === 'operate') {
+            sections = sections.filter((s) => {
+              if (s.label === 'Review' || s.label === 'Pushes') return hasElevatedKitchenAccess
+              return true
+            })
+          }
+          if (d.id === 'operate') {
+            const kitchenSections = sections.filter((s) => s.path.startsWith('/kitchen/'))
+            const nonKitchenSections = sections.filter((s) => !s.path.startsWith('/kitchen/'))
+            return (
+              <div key={d.id}>
+                <NavGroup label={t(d.labelKey)} sections={nonKitchenSections} onNavigate={onNavigate} />
+                <NavSubgroup label={t('nav.kitchen')} sections={kitchenSections} onNavigate={onNavigate} />
+              </div>
+            )
+          }
           return (
             <NavGroup key={d.id} label={t(d.labelKey)} sections={sections} onNavigate={onNavigate} />
           )
         })}
-
-        {/* Cascade catalog (OD-C-2) — role-gated, sits below the destination groups
-            until it migrates under Work (ADR-0019 D2's "admin catalog becomes its
-            manage mode") — out of scope for this slice. */}
-        {visibleCatalogSections.length > 0 && (
-          <NavGroup label="Catalog" sections={visibleCatalogSections} onNavigate={onNavigate} />
-        )}
 
         {/* Admin group — rendered only for admin viewers (AC-070: absent from DOM for non-admins). */}
         {isAdmin && <NavGroup label="Admin" sections={ADMIN_SECTIONS} onNavigate={onNavigate} />}

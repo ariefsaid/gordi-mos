@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gordi MOS — /dashboard · Variant B “Tabs” (Summary / Detail) — Phase-0 mockup</title>
+<style>
+  /* ============================================================
+     /DASHBOARD — VARIANT B “Tabs”
+     SAME route, two tabs: Summary (tiles + chart, filter-in-place)
+     and Detail (full daily-breakdown table with all filters). No
+     scroll between them; a tab switch. Cut toggle + window selector
+     live above the tabs so they govern BOTH panes. Cleaner on mobile:
+     the detail tab is a focused card/table list, the summary tab is
+     the cockpit — the phone never stacks both.
+
+     IDENTITY: adopted PMO “Quiet Control Surface” — DESIGN.md is
+     authority (OD-DIR-8). Token VALUES inlined; NAME in the comment.
+     Same component vocabulary as A: KPITile / ChartFrame / CutToggle
+     (seg) / DataTable / FreshnessLabel. COGS/GM always basis-labelled
+     (interim·stock-movement); bare “margin” forbidden.
+
+     B vs A axis = the drill model. A = everything on one screen
+     (scroll). B = Summary/Detail tabs (switch, no scroll). B is the
+     mobile-friendliest of the three: each tab is a single focused
+     surface on the phone.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;     /* typography.body.fontFamily */
+    font-size: 14px; line-height: 1.45; color: hsl(240 10% 3.9%);                  /* foreground */
+    background: hsl(240 4.8% 95.9% / 0.35);                                        /* secondary/35% main area */
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }     /* Tabular-Numbers Rule */
+  .disp { font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif; } /* typography.display */
+  *:focus-visible { outline: 2px solid hsl(221.2 83.2% 53.3%); outline-offset: 2px; } /* ring — global focus */
+  a { color: inherit; text-decoration: none; }
+
+  /* scaffold */
+  .screenlabel { max-width: 1280px; margin: 40px auto 12px; padding: 0 12px; display: flex; align-items: baseline; gap: 12px; }
+  .screenlabel .n { width: 22px; height: 22px; border-radius: 999px; background: hsl(221.2 83.2% 53.3%); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; } /* primary / full */
+  .screenlabel h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; } /* subheading */
+  .screenlabel p { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .frame { max-width: 1280px; margin: 0 auto; padding: 0 12px; }
+  .device { border: 1px solid hsl(240 5.9% 90%); border-radius: 12px; overflow: hidden; background: hsl(0 0% 100%); } /* border / rounded.lg / card */
+
+  /* APP SHELL — identical to A (same rail/header vocabulary; comparison is the body) */
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 760px; }    /* --rail-w 224px */
+  .rail { background: hsl(0 0% 100%); border-right: 1px solid hsl(240 5.9% 90%); display: flex; flex-direction: column; } /* card / border */
+  .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid hsl(240 5.9% 90%); } /* --header-h / spacing.base / border */
+  .brand .logo { width: 28px; height: 28px; border-radius: 8px; background: hsl(218 46% 22%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 13px; position: relative; } /* brand-navy / primary-foreground / rounded.sm; Structural-Navy Rule */
+  .brand .logo::after { content:""; position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:999px; background: hsl(18 80% 48%); border:2px solid hsl(0 0% 100%); } /* brand-orange sprinkle; Orange-Sprinkle Rule */
+  .brand .name { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; } /* display */
+  .navgrp { padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .nav-item { height: 36px; border-radius: 8px; display: flex; align-items: center; gap: 11px; padding: 0 12px; font-size: 13.5px; font-weight: 500; color: hsl(240 10% 3.9%); } /* nav-item 36px / rounded.sm / foreground */
+  .nav-item:hover { background: hsl(240 4.8% 95.9%); } /* accent */
+  .nav-item.active { background: hsl(221.2 83.2% 53.3% / 0.10); color: hsl(221.2 83.2% 53.3%); font-weight: 600; } /* primary/10% + primary */
+  .nav-item .ico { width: 17px; height: 17px; flex: none; }
+  .rail-foot { margin-top: auto; border-top: 1px solid hsl(240 5.9% 90%); padding: 12px; } /* border */
+
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .header { height: 56px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 12px; padding: 0 20px; } /* --header-h / background / border */
+  .crumb { font-size: 13px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .crumb b { color: hsl(240 10% 3.9%); font-weight: 600; }
+  .crumb .sep { margin: 0 7px; }
+  .spacer { flex: 1; }
+  .cmdk { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; font-size: 13px; color: hsl(240 4% 40%); } /* input / rounded.sm / muted-foreground */
+  .cmdk .kbd { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; border: 1px solid hsl(240 5.9% 90%); border-radius: 4px; padding: 1px 5px; color: hsl(240 4% 40%); } /* mono / rounded.xs / border */
+  .iconbtn { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: hsl(240 4% 40%); cursor: pointer; position: relative; } /* ghost / rounded.sm / muted-foreground — Deputy-Launcher + bell, No-FAB Rule */
+  .iconbtn:hover { background: hsl(240 4.8% 95.9%); color: hsl(240 10% 3.9%); } /* accent */
+  .iconbtn .dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 999px; background: hsl(0 84.2% 60.2%); } /* destructive notification dot */
+  .userchip { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(135deg, hsl(218 46% 22%), hsl(221.2 83.2% 53.3%)); color: hsl(0 0% 98%); display: grid; place-items: center; font-size: 11px; font-weight: 700; } /* brand-navy→primary avatar gradient */
+  .userchip .u-name { font-size: 13px; font-weight: 600; line-height: 1.1; }
+  .userchip .u-role { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+
+  /* ============================================================
+     DASHBOARD BODY — Variant B: control bar → TABS → pane
+     ============================================================ */
+  .page { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .page-head { display: flex; align-items: flex-start; gap: 16px; padding: 22px 24px 6px; flex-wrap: wrap; }
+  .page-title { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; } /* page-title */
+  .page-head .freshness { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); white-space: nowrap; } /* FreshnessLabel: muted-foreground */
+
+  /* control bar — window + custom date + cut (governs BOTH tabs) */
+  .ctrlbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 24px 10px; }
+  .seg { display: inline-flex; height: 32px; padding: 3px; background: hsl(240 4.8% 95.9%); border-radius: 8px; } /* secondary / rounded.sm */
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 0 12px; border-radius: 6px; color: hsl(240 5.9% 10%); cursor: pointer; white-space: nowrap; min-width: 44px; } /* 44px touch floor */
+  .seg button.on { background: hsl(0 0% 100%); font-weight: 600; color: hsl(240 10% 3.9%); box-shadow: 0 1px 2px hsl(240 6% 10% / 0.12); } /* background pill + pressed lift */
+  .control { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 28px; border: 1px solid hsl(240 5.9% 90%); background: hsl(0 0% 100%); border-radius: 8px; font-size: 13px; color: hsl(240 10% 3.9%); cursor: pointer; position: relative; } /* input / background / rounded.sm */
+  .control .lbl { color: hsl(240 4% 40%); } /* muted-foreground */
+  .control .chev { color: hsl(240 4% 40%); font-size: 10px; } /* muted-foreground — Select native shell */
+  .control.cal::before { content:""; position:absolute; left:9px; top:8px; width:16px; height:16px; border:1.5px solid hsl(240 4% 40%); border-radius:3px; }
+
+  /* TAB STRIP — Summary / Detail. Design.md view-tab strip grammar (OD-P3-6):
+     active = brand-navy-text + 2px brand-orange bottom border (the one orange
+     sprinkle). role=tablist/tab, roving tabindex. Sticky under the header. */
+  .tabstrip { display: flex; align-items: stretch; gap: 2px; padding: 0 24px; border-bottom: 1px solid hsl(240 5.9% 90%); position: sticky; top: 0; background: hsl(0 0% 100%); z-index: 2; } /* border / background — sticky */
+  .tab { height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; color: hsl(240 4% 40%); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; } /* muted-foreground */
+  .tab:hover { color: hsl(240 10% 3.9%); } /* foreground */
+  .tab.on { color: hsl(218 42% 26%); border-bottom-color: hsl(18 80% 48%); } /* brand-navy-text + brand-orange underline — Orange-Sprinkle Rule (one mark) */
+  .tab .cnt { font-size: 11px; font-weight: 600; color: hsl(240 4% 40%); background: hsl(240 4.8% 95.9%); border-radius: 999px; padding: 1px 7px; } /* secondary / muted-foreground — count pill */
+  .tabstrip .end { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .tabstrip .end .livefilter { font-size: 11.5px; color: hsl(240 4% 40%); display: inline-flex; align-items: center; gap: 6px; } /* muted-foreground — shows the cut/window both tabs inherit */
+  .tabstrip .end .livefilter b { color: hsl(240 10% 3.9%); font-weight: 600; }
+
+  .pane { padding: 16px 24px 24px; }
+
+  /* ── SUMMARY PANE (tiles + chart) — same KPITile grammar as A ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .kpi-grid.gm { grid-template-columns: repeat(5, 1fr); margin-top: 12px; }
+  .kpi-tile { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 10px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); min-width: 0; cursor: pointer; } /* card / border / rounded.md / shadows.rest — KPITile */
+  .kpi-tile:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); } /* state lift */
+  .kpi-tile.sel { border-color: hsl(221.2 83.2% 53.3%); box-shadow: 0 0 0 1px hsl(221.2 83.2% 53.3%), 0 2px 10px hsl(240 6% 10% / 0.06); } /* primary ring + state lift */
+  .kpi-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .kpi-label .help { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 999px; border: 1px solid hsl(240 5.9% 90%); color: hsl(240 4% 40%); font-size: 10px; cursor: help; } /* border / muted-foreground */
+  .kpi-value { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 23px; font-weight: 600; color: hsl(240 10% 3.9%); line-height: 1.1; white-space: nowrap; } /* page-title scale 23px/600 */
+  .kpi-value.sm { font-size: 17px; }
+  .kpi-sub { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .delta { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; width: fit-content; } /* badge-status / rounded.full */
+  .delta .dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+  .delta.up { background: hsl(142 71% 45% / 0.14); color: hsl(142 64% 30%); } .delta.up .dot { background: hsl(142 71% 45%); } /* success / --status-won-text */
+  .delta.down { background: hsl(0 84% 60% / 0.12); color: hsl(0 72% 45%); } .delta.down .dot { background: hsl(0 84.2% 60.2%); } /* destructive / --status-lost-text */
+  .basis { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; background: hsl(240 4.8% 95.9%); color: hsl(240 4% 40%); font-size: 11px; font-weight: 600; width: fit-content; } /* badge-status / muted-foreground */
+  .dq { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; width: fit-content; }
+  .dq .dot { width: 6px; height: 6px; border-radius: 999px; }
+  .dq.partial { background: hsl(43 96% 56% / 0.18); color: hsl(22 78% 26%); } .dq.partial .dot { background: hsl(43 96% 56%); } /* warning / warning-foreground */
+  .kpi-tile.stub .stub-label { font-size: 12.5px; color: hsl(240 4% 40%); display: flex; align-items: center; gap: 6px; } /* muted-foreground */
+  .kpi-tile.stub .stub-label .ph { width: 16px; height: 16px; border: 1.5px dashed hsl(240 5.9% 90%); border-radius: 4px; } /* input / rounded.xs */
+  .kpi-tile.stub .stub-val { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 14px; font-weight: 600; color: hsl(240 4% 40%); } /* muted-foreground */
+  .kpi-tile.stub .stub-note { font-size: 11px; color: hsl(240 4% 40%); } /* muted-foreground */
+  .footnote { padding: 10px 0 4px; font-size: 11.5px; color: hsl(240 4% 40%); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; } /* muted-foreground */
+  .footnote a { color: hsl(221.2 83.2% 53.3%); text-decoration: underline; } /* primary link */
+
+  /* chart (summary pane) */
+  .chart { margin-top: 14px; padding: 20px; background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 12px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); } /* card / border / rounded.lg / shadows.rest */
+  .chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .chart-title { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 20px; font-weight: 600; color: hsl(240 10% 3.9%); } /* heading */
+  .chart-fresh { font-size: 12px; font-weight: 600; color: hsl(240 4% 40%); } /* FreshnessLabel */
+  .chart-body { margin-top: 12px; }
+  .chart svg { width: 100%; height: 180px; display: block; }
+  .chart .axis { stroke: hsl(240 5.9% 90%); } .chart .grid { stroke: hsl(240 5.9% 90% / 0.7); stroke-dasharray: 2 3; }
+  .chart .lbl-x, .chart .lbl-y { font-size: 10px; fill: hsl(240 4% 40%); }
+  .chart .bar-pos { fill: hsl(221.2 83.2% 53.3%); } .chart .bar-b2b { fill: hsl(262 83% 58%); } /* primary / violet */
+  .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: hsl(240 4% 40%); }
+  .legend .it { display: inline-flex; align-items: center; gap: 6px; } .legend .sw { width: 9px; height: 9px; border-radius: 2px; }
+
+  /* ── DETAIL PANE (full table) — the escape hatch ──
+     The DAILY breakdown (every revenue_date × branch × channel row), with
+     its own toolbar (search + column sort + export-free). This is the
+     parameterized /dashboard/detail?window=…&branch=… content, reached via
+     tab switch here (same route) in Variant B. */
+  .detail-wrap { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 12px 12px 8px 8px; overflow: hidden; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); } /* card / border / shadows.rest */
+  .detail-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid hsl(240 5.9% 90%); flex-wrap: wrap; } /* toolbar seamed */
+  .detail-head .htitle { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 16px; font-weight: 600; }
+  .detail-head .hcount { font-size: 12.5px; color: hsl(240 4% 40%); }
+  .detail-head .search-mini { margin-left: auto; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid hsl(240 5.9% 90%); border-radius: 8px; color: hsl(240 4% 40%); font-size: 13px; min-width: 200px; } /* input / muted-foreground */
+  .detail-head .search-mini input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: hsl(240 10% 3.9%); width: 100%; }
+  table.dt { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  col.c-date { width: 12%; } col.c-dim { width: 21%; } col.c-ch { width: 12%; } col.c-rev { width: 18%; } col.c-tx { width: 11%; } col.c-avg { width: 14%; } col.c-asof { width: 12%; }
+  .dt thead th { text-align: left; height: 38px; padding: 0 14px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); border-bottom: 1px solid hsl(240 5.9% 90%); white-space: nowrap; background: hsl(0 0% 100%); position: sticky; top: 38px; } /* overline / muted-foreground */
+  .dt thead th.r { text-align: right; }
+  .dt thead th.sorted { color: hsl(240 10% 3.9%); }
+  .dt thead th .saff { color: hsl(221.2 83.2% 53.3%); font-size: 10px; margin-left: 4px; } /* primary */
+  .dt tbody td { height: 54px; padding: 0 14px; border-bottom: 1px solid hsl(240 5.9% 90% / 0.7); vertical-align: middle; } /* 54px / border/70% */
+  .dt tbody tr:hover td { background: hsl(240 4.8% 95.9% / 0.6); } /* accent/60% */
+  .dt tbody tr.daybreak td { background: hsl(240 4.8% 95.9% / 0.4); } /* secondary/40% — day subtotal separator */
+  .date-cell { font-size: 13px; font-weight: 600; } .date-cell .wd { font-size: 11px; color: hsl(240 4% 40%); font-weight: 500; } /* muted-foreground */
+  .dim-name { font-size: 13.5px; font-weight: 600; } .dim-code { font-size: 11.5px; color: hsl(240 4% 40%); font-family: "SF Mono", ui-monospace, Menlo, monospace; } /* muted-foreground / mono */
+  .ch-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; } .ch-tag .sw { width: 9px; height: 9px; border-radius: 2px; } .ch-tag.pos .sw { background: hsl(221.2 83.2% 53.3%); } .ch-tag.b2b .sw { background: hsl(262 83% 58%); }
+  .num { text-align: right; }
+  .dt tfoot td { background: hsl(240 4.8% 95.9% / 0.4); border-top: 1.5px solid hsl(240 5.9% 90%); padding: 0 14px; height: 44px; font-weight: 600; font-size: 13px; } /* totals row */
+
+  /* state notes */
+  .notes { max-width: 1280px; margin: 16px auto 40px; padding: 0 12px; }
+  .note { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 10px; padding: 14px 16px; font-size: 12.5px; color: hsl(240 4% 40%); line-height: 1.6; }
+  .note b { color: hsl(240 10% 3.9%); font-weight: 600; }
+
+  /* ============================================================
+     MOBILE (~390px) — B's killer feature: ONE focused surface per tab.
+     Summary tab = tiles (2-up) + compact chart. Detail tab = card list
+     of the daily breakdown. No long stacked scroll. Filter rail sticky.
+     ============================================================ */
+  .phones { display: flex; gap: 28px; flex-wrap: wrap; max-width: 1280px; margin: 0 auto; padding: 0 12px; }
+  .phone { width: 390px; border: 1px solid hsl(240 5.9% 90%); border-radius: 28px; overflow: hidden; background: hsl(0 0% 100%); flex: none; }
+  .ph-cap { font-size: 12px; color: hsl(240 4% 40%); margin: 0 0 8px 4px; } /* muted-foreground */
+  .ph-topbar { height: 52px; background: hsl(0 0% 100%); border-bottom: 1px solid hsl(240 5.9% 90%); display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+  .ph-topbar .ham { color: hsl(240 4% 40%); display: grid; place-items: center; width: 32px; height: 32px; }
+  .ph-topbar .brand-m .logo { width: 24px; height: 24px; border-radius: 6px; background: hsl(218 46% 22%); color: hsl(0 0% 98%); display: grid; place-items: center; font-weight: 700; font-size: 11px; }
+  .ph-body { padding: 0; background: hsl(240 4.8% 95.9% / 0.35); min-height: 700px; }
+  .ph-phead { padding: 16px 14px 8px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .ph-phead .t { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .ph-phead .fr { font-size: 11px; font-weight: 600; color: hsl(240 4% 40%); width: 100%; }
+  /* mobile tab strip — same grammar, sticky */
+  .ph-tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid hsl(240 5.9% 90%); position: sticky; top: 0; background: hsl(0 0% 100%); z-index: 3; }
+  .ph-tabs .tab { height: 40px; padding: 0 12px; font-size: 13.5px; } /* 40px touch floor */
+  /* mobile filter rail (below tabs) */
+  .ph-filter { background: hsl(240 4.8% 95.9% / 0.92); backdrop-filter: blur(8px); padding: 8px 14px; display: flex; gap: 8px; overflow-x: auto; border-bottom: 1px solid hsl(240 5.9% 90%); } /* secondary/35% + blur / border */
+  .ph-filter .seg { flex: none; } .ph-filter .seg button { padding: 0 10px; font-size: 12.5px; min-width: 40px; }
+  .ph-filter .control { flex: none; padding-left: 26px; } .ph-filter .control.cal::before { left: 8px; top: 7px; width: 14px; height: 14px; }
+  /* mobile KPI grids */
+  .ph-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 14px; }
+  .ph-kpis .kpi-tile { padding: 12px; border-radius: 10px; }
+  .ph-kpis .kpi-value { font-size: 18px; } .ph-kpis .kpi-value.sm { font-size: 14px; }
+  .ph-kpis .kpi-label { font-size: 11.5px; }
+  .ph-section-lbl { padding: 14px 14px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); }
+  .ph-stubs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 14px 8px; }
+  .ph-stubs .kpi-tile.stub { padding: 11px; } .ph-stubs .kpi-tile.stub .stub-val { font-size: 12.5px; }
+  .ph-chart { margin: 6px 14px 0; padding: 14px; background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 10px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); }
+  .ph-chart .chart-title { font-size: 15px; }
+  .ph-chart svg { height: 110px; }
+  /* mobile detail cards (Detail tab) */
+  .ph-dcards { padding: 10px 14px; }
+  .ph-dcards .daygroup { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(240 4% 40%); padding: 12px 0 6px; } /* overline / muted-foreground */
+  .ph-dcard { background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); }
+  .ph-dcard .ct { font-size: 13.5px; font-weight: 600; } .ph-dcard .ccode { font-size: 11px; color: hsl(240 4% 40%); font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+  .ph-dcard .cmeta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 8px; }
+  .ph-dcard .cmeta .r { display: flex; flex-direction: column; } .ph-dcard .cmeta .r .lbl { font-size: 10.5px; color: hsl(240 4% 40%); } .ph-dcard .cmeta .r .vv { font-size: 13px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- COMPARE BANNER -->
+<div style="background: hsl(218 46% 22%); color: hsl(0 0% 98%); padding: 10px 24px; font-size: 12.5px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
+  <span style="background: hsl(18 80% 48%); color:#fff; font-weight:700; padding:1px 8px; border-radius:999px; font-size:11px; letter-spacing:.04em;">VARIANT B</span>
+  <b style="font-weight:700;">“Tabs”</b>
+  <span>Summary / Detail tabs on the same route. Cut + window govern both panes; tab switch, no scroll. The mobile-friendliest: one focused surface per tab.</span>
+  <a style="margin-left:auto; color:hsl(0 0% 88%); text-decoration:underline; font-size:12px;" href="dashboard-A-split.html">→ Variant A (Split)</a>
+  <a style="color:hsl(0 0% 88%); text-decoration:underline; font-size:12px;" href="dashboard-C-masterdetail.html">→ Variant C (Master/detail)</a>
+</div>
+
+<!-- ============================================================
+     SCREEN 1 — DESKTOP: Summary tab (tiles + chart)
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">1</span>
+  <div>
+    <h2 class="disp">Desktop — Summary tab (tiles + chart)</h2>
+    <p>Cut: Branch · Window 30d (govern both tabs). The 7-day tile is the selected filter-in-place driver; the chart reflects it. “Detail” tab carries the full daily breakdown.</p>
+  </div>
+</div>
+<div class="frame"><div class="device">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="logo">G</span><span class="name">Gordi MOS</span></div>
+      <nav class="navgrp" aria-label="Primary">
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>Home</a>
+        <a class="nav-item active" href="#" aria-current="page"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 5-6"/></svg>Dashboard</a>
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6"/></svg>Tasks</a>
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Weekly Updates</a>
+        <a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>Daily Log</a>
+      </nav>
+      <div class="rail-foot"><a class="nav-item" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-3-5.8"/></svg>Settings</a></div>
+    </aside>
+
+    <div class="main">
+      <header class="header">
+        <span class="crumb">Gordi MOS<span class="sep">›</span><b>Dashboard</b></span>
+        <span class="spacer"></span>
+        <span class="cmdk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search<span class="kbd">⌘K</span></span>
+        <button class="iconbtn" aria-label="Open deputy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></button>
+        <button class="iconbtn" aria-label="Notifications"><span class="dot"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+        <div class="userchip"><span class="avatar">AR</span><div><div class="u-name">Arief</div><div class="u-role">Director</div></div></div>
+      </header>
+
+      <div class="page">
+        <div class="page-head">
+          <h1 class="page-title disp">Dashboard</h1>
+          <span class="freshness">as of <span class="tnum">2 Jul 2026, 03:14</span> · latest reporting day <span class="tnum">Wed 1 Jul</span></span>
+        </div>
+
+        <!-- CONTROL BAR — governs BOTH tabs -->
+        <div class="ctrlbar">
+          <div class="seg" role="tablist" aria-label="Time window">
+            <button role="tab" aria-selected="false">7d</button>
+            <button role="tab" class="on" aria-selected="true">30d</button>
+            <button role="tab" aria-selected="false">60d</button>
+          </div>
+          <button class="control cal"><span class="lbl">Range</span><span class="tnum">2 Jun – 1 Jul</span><span class="chev">▾</span></button>
+          <span style="width:1px; height:24px; background:hsl(240 5.9% 90%);"></span>
+          <span style="font-size:11.5px; color:hsl(240 4% 40%); font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Cut</span>
+          <div class="seg" role="tablist" aria-label="Cut dimension">
+            <button role="tab" class="on" aria-selected="true">Branch</button>
+            <button role="tab" aria-selected="false">Channel</button>
+            <button role="tab" aria-selected="false">Activity</button>
+          </div>
+        </div>
+
+        <!-- TAB STRIP — Summary (active) / Detail -->
+        <div class="tabstrip" role="tablist" aria-label="Dashboard view">
+          <button class="tab on" role="tab" aria-selected="true" tabindex="0">Summary</button>
+          <button class="tab" role="tab" aria-selected="false" tabindex="-1">Detail <span class="cnt tnum">86</span></button>
+          <span class="end">
+            <span class="livefilter">Applies to both tabs · <b>Branch</b> · <b>30d</b></span>
+          </span>
+        </div>
+
+        <!-- SUMMARY PANE -->
+        <div class="pane" role="tabpanel" aria-label="Summary">
+          <div class="kpi-grid">
+            <div class="kpi-tile sel" role="group" aria-label="Trailing 7-day revenue" aria-current="true">
+              <span class="kpi-label">Trailing 7-day revenue<span class="help" title="Sum of clean revenue over the 7 days ending on the latest reporting day. WoW = prior 7-day window.">?</span></span>
+              <span class="kpi-value tnum">Rp 98,3 jt</span>
+              <span class="delta up"><span class="dot"></span>+7,2% vs WoW</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="Trailing 30-day revenue">
+              <span class="kpi-label">Trailing 30-day revenue<span class="help" title="Sum over 30 days ending on the latest reporting day. MoM = prior 30-day window.">?</span></span>
+              <span class="kpi-value tnum">Rp 412,5 jt</span>
+              <span class="delta up"><span class="dot"></span>+6,5% vs MoM</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="Latest reporting-day revenue">
+              <span class="kpi-label">Latest reporting-day revenue<span class="help" title="Revenue on the single latest reporting day (Wed 1 Jul 2026).">?</span></span>
+              <span class="kpi-value tnum">Rp 14,8 jt</span>
+              <span class="kpi-sub">Wed 1 Jul 2026 · 1 248 txns</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="Average check">
+              <span class="kpi-label">Avg check<span class="help" title="Trailing-30d revenue ÷ transactions.">?</span></span>
+              <span class="kpi-value tnum">Rp 59,4 rb</span>
+              <span class="kpi-sub">revenue ÷ transactions · 30d</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="Channel mix">
+              <span class="kpi-label">Channel mix<span class="help" title="Share of trailing-7d revenue by channel.">?</span></span>
+              <span class="kpi-value tnum">POS 77% · B2B 23%</span>
+              <span class="kpi-sub">trailing 7d</span>
+            </div>
+          </div>
+
+          <div class="kpi-grid gm">
+            <div class="kpi-tile" role="group" aria-label="Interim gross margin percent">
+              <span class="kpi-label">Gross margin %<span class="help" title="Gross margin ÷ revenue. Basis = interim stock-movement.">?</span></span>
+              <span class="kpi-value tnum">62,4% <span style="font-size:13px; color:hsl(240 4% 40%); font-weight:500;">/ 61,8%</span></span>
+              <span class="kpi-sub">30d / 7d</span>
+              <span class="basis">interim · stock-movement</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="Interim gross margin amount">
+              <span class="kpi-label">Gross margin amt<span class="help" title="Revenue − interim COGS, 30d.">?</span></span>
+              <span class="kpi-value tnum">Rp 257,4 jt</span>
+              <span class="basis">interim · stock-movement</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="Interim COGS amount">
+              <span class="kpi-label">Interim COGS<span class="help" title="Cost of goods sold, stock-movement-derived, not GL-certified.">?</span></span>
+              <span class="kpi-value tnum">Rp 155,1 jt</span>
+              <span class="basis">interim · stock-movement</span>
+            </div>
+            <div class="kpi-tile" role="group" aria-label="BOM coverage data quality">
+              <span class="kpi-label">BOM coverage<span class="help" title="Share of COGS backed by a bill-of-materials basis.">?</span></span>
+              <span class="kpi-value tnum">68%</span>
+              <span class="dq partial"><span class="dot"></span>Partial — DQ</span>
+              <span class="kpi-sub">BOM basis covers 68% of stock moves</span>
+            </div>
+            <div class="kpi-tile stub" role="group" aria-label="Opex — needs warehouse data">
+              <span class="stub-label"><span class="ph"></span>Opex</span>
+              <span class="stub-val">Needs warehouse data</span>
+              <span class="stub-note">GL feed pending · slice 2</span>
+            </div>
+          </div>
+
+          <div class="kpi-grid gm" style="grid-template-columns: repeat(3, 1fr); margin-top: 0;">
+            <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Material usage / waste</span><span class="stub-val">Needs warehouse data</span><span class="stub-note">Portion + variance</span></div>
+            <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Labor cost %</span><span class="stub-val">Needs warehouse data</span><span class="stub-note">Payroll feed pending</span></div>
+            <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Roastery yield / cost per kg</span><span class="stub-val">Needs warehouse data</span><span class="stub-note">Production-log feed</span></div>
+          </div>
+
+          <div class="footnote">
+            <span><b style="color:hsl(240 10% 3.9%);">Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is stock-movement-derived, <b style="color:hsl(240 10% 3.9%);">not GL-certified</b>.</span>
+            <a href="#">How margins are calculated →</a>
+          </div>
+
+          <section class="chart" role="region" aria-label="Daily revenue chart">
+            <div class="chart-head">
+              <h3 class="chart-title disp">Daily revenue — last 30 days</h3>
+              <span class="chart-fresh">as of <span class="tnum">2 Jul 2026, 03:14</span></span>
+            </div>
+            <div class="chart-body">
+              <svg viewBox="0 0 640 180" preserveAspectRatio="none" aria-hidden="true">
+                <line class="grid" x1="28" y1="20" x2="640" y2="20"/><text class="lbl-y" x="0" y="24">8 jt</text>
+                <line class="grid" x1="28" y1="60" x2="640" y2="60"/><text class="lbl-y" x="0" y="64">6 jt</text>
+                <line class="grid" x1="28" y1="100" x2="640" y2="100"/><text class="lbl-y" x="0" y="104">4 jt</text>
+                <line class="grid" x1="28" y1="140" x2="640" y2="140"/><text class="lbl-y" x="0" y="144">2 jt</text>
+                <line class="axis" x1="28" y1="160" x2="640" y2="160"/>
+                <g>
+                  <g><rect class="bar-pos" x="32" y="78" width="14" height="82"/><rect class="bar-b2b" x="32" y="58" width="14" height="20"/></g>
+                  <g><rect class="bar-pos" x="50" y="84" width="14" height="76"/><rect class="bar-b2b" x="50" y="66" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="68" y="72" width="14" height="88"/><rect class="bar-b2b" x="68" y="52" width="14" height="20"/></g>
+                  <g><rect class="bar-pos" x="86" y="50" width="14" height="110"/><rect class="bar-b2b" x="86" y="34" width="14" height="16"/></g>
+                  <g><rect class="bar-pos" x="104" y="42" width="14" height="118"/><rect class="bar-b2b" x="104" y="28" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="122" y="46" width="14" height="114"/><rect class="bar-b2b" x="122" y="32" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="140" y="74" width="14" height="86"/><rect class="bar-b2b" x="140" y="56" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="158" y="80" width="14" height="80"/><rect class="bar-b2b" x="158" y="62" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="176" y="68" width="14" height="92"/><rect class="bar-b2b" x="176" y="50" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="194" y="44" width="14" height="116"/><rect class="bar-b2b" x="194" y="30" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="212" y="38" width="14" height="122"/><rect class="bar-b2b" x="212" y="24" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="230" y="40" width="14" height="120"/><rect class="bar-b2b" x="230" y="26" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="248" y="70" width="14" height="90"/><rect class="bar-b2b" x="248" y="52" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="266" y="76" width="14" height="84"/><rect class="bar-b2b" x="266" y="58" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="284" y="64" width="14" height="96"/><rect class="bar-b2b" x="284" y="46" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="302" y="42" width="14" height="118"/><rect class="bar-b2b" x="302" y="28" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="320" y="36" width="14" height="124"/><rect class="bar-b2b" x="320" y="22" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="338" y="38" width="14" height="122"/><rect class="bar-b2b" x="338" y="24" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="356" y="66" width="14" height="94"/><rect class="bar-b2b" x="356" y="48" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="374" y="72" width="14" height="88"/><rect class="bar-b2b" x="374" y="54" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="392" y="60" width="14" height="100"/><rect class="bar-b2b" x="392" y="42" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="410" y="40" width="14" height="120"/><rect class="bar-b2b" x="410" y="26" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="428" y="34" width="14" height="126"/><rect class="bar-b2b" x="428" y="20" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="446" y="36" width="14" height="124"/><rect class="bar-b2b" x="446" y="22" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="464" y="62" width="14" height="98"/><rect class="bar-b2b" x="464" y="44" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="482" y="68" width="14" height="92"/><rect class="bar-b2b" x="482" y="50" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="500" y="56" width="14" height="104"/><rect class="bar-b2b" x="500" y="38" width="14" height="18"/></g>
+                  <g><rect class="bar-pos" x="518" y="38" width="14" height="122"/><rect class="bar-b2b" x="518" y="24" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="536" y="32" width="14" height="128"/><rect class="bar-b2b" x="536" y="18" width="14" height="14"/></g>
+                  <g><rect class="bar-pos" x="554" y="30" width="14" height="130"/><rect class="bar-b2b" x="554" y="16" width="14" height="14"/></g>
+                </g>
+                <text class="lbl-x" x="36" y="174">2 Jun</text>
+                <text class="lbl-x" x="300" y="174">16 Jun</text>
+                <text class="lbl-x" x="540" y="174">1 Jul</text>
+              </svg>
+              <div class="legend">
+                <span class="it"><span class="sw" style="background:hsl(221.2 83.2% 53.3%);"></span>POS</span>
+                <span class="it"><span class="sw" style="background:hsl(262 83% 58%);"></span>B2B</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ============================================================
+     SCREEN 2 — DESKTOP: Detail tab (full daily breakdown table)
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">2</span>
+  <div>
+    <h2 class="disp">Desktop — Detail tab (full daily breakdown)</h2>
+    <p>The escape hatch: every revenue_date × branch × channel row for the window, sortable + searchable. Same Cut/Branch/30d from the control bar above the tabs (inherited, not re-picked).</p>
+  </div>
+</div>
+<div class="frame"><div class="device">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="logo">G</span><span class="name">Gordi MOS</span></div>
+      <nav class="navgrp" aria-label="Primary">
+        <a class="nav-item" href="#">Home</a>
+        <a class="nav-item active" href="#" aria-current="page">Dashboard</a>
+        <a class="nav-item" href="#">Tasks</a>
+        <a class="nav-item" href="#">Weekly Updates</a>
+        <a class="nav-item" href="#">Daily Log</a>
+      </nav>
+      <div class="rail-foot"><a class="nav-item" href="#">Settings</a></div>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <span class="crumb">Gordi MOS<span class="sep">›</span><b>Dashboard</b></span>
+        <span class="spacer"></span>
+        <span class="cmdk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search<span class="kbd">⌘K</span></span>
+        <button class="iconbtn" aria-label="Open deputy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></button>
+        <button class="iconbtn" aria-label="Notifications"><span class="dot"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg></button>
+        <div class="userchip"><span class="avatar">AR</span><div><div class="u-name">Arief</div><div class="u-role">Director</div></div></div>
+      </header>
+      <div class="page">
+        <div class="page-head">
+          <h1 class="page-title disp">Dashboard</h1>
+          <span class="freshness">as of <span class="tnum">2 Jul 2026, 03:14</span> · latest reporting day <span class="tnum">Wed 1 Jul</span></span>
+        </div>
+        <div class="ctrlbar">
+          <div class="seg" role="tablist" aria-label="Time window"><button role="tab">7d</button><button role="tab" class="on">30d</button><button role="tab">60d</button></div>
+          <button class="control cal"><span class="lbl">Range</span><span class="tnum">2 Jun – 1 Jul</span><span class="chev">▾</span></button>
+          <span style="width:1px; height:24px; background:hsl(240 5.9% 90%);"></span>
+          <span style="font-size:11.5px; color:hsl(240 4% 40%); font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Cut</span>
+          <div class="seg" role="tablist" aria-label="Cut dimension"><button role="tab" class="on">Branch</button><button role="tab">Channel</button><button role="tab">Activity</button></div>
+        </div>
+        <!-- TAB STRIP — Detail active -->
+        <div class="tabstrip" role="tablist" aria-label="Dashboard view">
+          <button class="tab" role="tab" aria-selected="false" tabindex="-1">Summary</button>
+          <button class="tab on" role="tab" aria-selected="true" tabindex="0">Detail <span class="cnt tnum">86 rows</span></button>
+          <span class="end"><span class="livefilter">Inherited · <b>Branch</b> · <b>30d</b></span></span>
+        </div>
+
+        <div class="pane" role="tabpanel" aria-label="Detail">
+          <div class="detail-wrap">
+            <div class="detail-head">
+              <span class="htitle disp">Daily revenue breakdown</span>
+              <span class="hcount tnum">86 rows · 2 Jun – 1 Jul 2026 · Cut: Branch</span>
+              <span class="search-mini">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="search" placeholder="Filter rows…" aria-label="Filter detail rows">
+              </span>
+            </div>
+            <table class="dt">
+              <colgroup><col class="c-date"><col class="c-dim"><col class="c-ch"><col class="c-rev"><col class="c-tx"><col class="c-avg"><col class="c-asof"></colgroup>
+              <thead><tr>
+                <th>Date</th><th>Branch</th><th>Channel</th>
+                <th class="r sorted">Revenue<span class="saff">▾</span></th>
+                <th class="r">Txns</th><th class="r">Avg/txn</th><th class="r">As of</th>
+              </tr></thead>
+              <tbody>
+                <tr><td class="date-cell tnum">1 Jul <span class="wd">Wed</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag pos"><span class="sw"></span>POS</span></td><td class="num tnum">Rp 9,8 jt</td><td class="num tnum">612</td><td class="num tnum">Rp 16,0 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr><td class="date-cell tnum">1 Jul <span class="wd">Wed</span></td><td><div class="dim-name">Gordi Roastery Indonesia</div><div class="dim-code">GRI</div></td><td><span class="ch-tag b2b"><span class="sw"></span>B2B</span></td><td class="num tnum">Rp 3,4 jt</td><td class="num tnum">6</td><td class="num tnum">Rp 566,7 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr><td class="date-cell tnum">1 Jul <span class="wd">Wed</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag b2b"><span class="sw"></span>B2B</span></td><td class="num tnum">Rp 1,6 jt</td><td class="num tnum">8</td><td class="num tnum">Rp 200,0 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr class="daybreak"><td class="date-cell tnum">30 Jun <span class="wd">Tue</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag pos"><span class="sw"></span>POS</span></td><td class="num tnum">Rp 9,2 jt</td><td class="num tnum">598</td><td class="num tnum">Rp 15,4 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr><td class="date-cell tnum">30 Jun <span class="wd">Tue</span></td><td><div class="dim-name">Gordi Roastery Indonesia</div><div class="dim-code">GRI</div></td><td><span class="ch-tag b2b"><span class="sw"></span>B2B</span></td><td class="num tnum">Rp 2,8 jt</td><td class="num tnum">5</td><td class="num tnum">Rp 560,0 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr class="daybreak"><td class="date-cell tnum">29 Jun <span class="wd">Mon</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag pos"><span class="sw"></span>POS</span></td><td class="num tnum">Rp 8,4 jt</td><td class="num tnum">544</td><td class="num tnum">Rp 15,4 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr><td class="date-cell tnum">29 Jun <span class="wd">Mon</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag b2b"><span class="sw"></span>B2B</span></td><td class="num tnum">Rp 1,4 jt</td><td class="num tnum">7</td><td class="num tnum">Rp 200,0 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr class="daybreak"><td class="date-cell tnum">28 Jun <span class="wd">Sun</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag pos"><span class="sw"></span>POS</span></td><td class="num tnum">Rp 10,6 jt</td><td class="num tnum">688</td><td class="num tnum">Rp 15,4 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr><td class="date-cell tnum">28 Jun <span class="wd">Sun</span></td><td><div class="dim-name">Gordi HQ Sample Bar</div><div class="dim-code">GHQB</div></td><td><span class="ch-tag pos"><span class="sw"></span>POS</span></td><td class="num tnum">Rp 0,4 jt</td><td class="num tnum">31</td><td class="num tnum">Rp 12,9 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr class="daybreak"><td class="date-cell tnum">27 Jun <span class="wd">Sat</span></td><td><div class="dim-name">Gordi Kafe Indonesia</div><div class="dim-code">GKID</div></td><td><span class="ch-tag pos"><span class="sw"></span>POS</span></td><td class="num tnum">Rp 11,2 jt</td><td class="num tnum">724</td><td class="num tnum">Rp 15,5 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+                <tr><td class="date-cell tnum">27 Jun <span class="wd">Sat</span></td><td><div class="dim-name">Gordi Roastery Indonesia</div><div class="dim-code">GRI</div></td><td><span class="ch-tag b2b"><span class="sw"></span>B2B</span></td><td class="num tnum">Rp 3,1 jt</td><td class="num tnum">5</td><td class="num tnum">Rp 620,0 rb</td><td class="num tnum">2 Jul 03:14</td></tr>
+              </tbody>
+              <tfoot><tr>
+                <td>Total · 86 rows</td><td>—</td><td>—</td>
+                <td class="num tnum">Rp 412,5 jt</td><td class="num tnum">5 848</td><td class="num tnum">Rp 70,5 rb</td><td>—</td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ============================================================
+     SCREEN 3 — MOBILE: Summary tab + Detail tab (the two phone surfaces)
+     ============================================================ -->
+<div class="screenlabel">
+  <span class="n">3</span>
+  <div>
+    <h2 class="disp">Mobile (~390px) — Summary tab &amp; Detail tab (two focused surfaces)</h2>
+    <p>B’s strength on mobile: each tab is ONE focused surface — no long stacked scroll. Cut/window sticky above both; the tab you’re on is the whole screen.</p>
+  </div>
+</div>
+<div class="phones">
+  <!-- SUMMARY on mobile -->
+  <div>
+    <p class="ph-cap">Summary tab (mobile)</p>
+    <div class="phone">
+      <div class="ph-topbar">
+        <span class="ham"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></span>
+        <span class="brand-m"><span class="logo">G</span></span>
+        <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:15px; font-weight:600;">Dashboard</span>
+        <span class="spacer"></span>
+        <span style="color:hsl(240 4% 40%); display:grid; place-items:center; width:32px; height:32px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg></span>
+      </div>
+      <div class="ph-body">
+        <div class="ph-phead">
+          <span class="t disp">Dashboard</span>
+          <span class="fr">as of <span class="tnum">2 Jul, 03:14</span> · latest <span class="tnum">Wed 1 Jul</span></span>
+        </div>
+        <div class="ph-tabs" role="tablist">
+          <button class="tab on" role="tab" aria-selected="true">Summary</button>
+          <button class="tab" role="tab" aria-selected="false">Detail <span class="cnt tnum">86</span></button>
+        </div>
+        <div class="ph-filter">
+          <div class="seg"><button>7d</button><button class="on">30d</button><button>60d</button></div>
+          <button class="control cal"><span class="tnum" style="font-size:12px;">2 Jun–1 Jul</span><span class="chev">▾</span></button>
+          <div class="seg"><button class="on">Branch</button><button>Channel</button></div>
+        </div>
+        <div class="ph-section-lbl">Revenue</div>
+        <div class="ph-kpis">
+          <div class="kpi-tile sel"><span class="kpi-label">7-day revenue</span><span class="kpi-value tnum">Rp 98,3 jt</span><span class="delta up"><span class="dot"></span>+7,2% WoW</span></div>
+          <div class="kpi-tile"><span class="kpi-label">30-day revenue</span><span class="kpi-value tnum">Rp 412,5 jt</span><span class="delta up"><span class="dot"></span>+6,5% MoM</span></div>
+          <div class="kpi-tile"><span class="kpi-label">Latest day</span><span class="kpi-value tnum">Rp 14,8 jt</span><span class="kpi-sub">Wed 1 Jul · 1 248 tx</span></div>
+          <div class="kpi-tile"><span class="kpi-label">Avg check</span><span class="kpi-value tnum">Rp 59,4 rb</span><span class="kpi-sub">POS 77% · B2B 23%</span></div>
+        </div>
+        <div class="ph-section-lbl">Gross margin <span style="text-transform:none; letter-spacing:0; font-weight:500; color:hsl(240 4% 40%);">· interim</span></div>
+        <div class="ph-kpis">
+          <div class="kpi-tile"><span class="kpi-label">GM %</span><span class="kpi-value tnum">62,4%</span><span class="basis">interim·stock-move</span></div>
+          <div class="kpi-tile"><span class="kpi-label">GM amount</span><span class="kpi-value tnum">Rp 257,4 jt</span><span class="basis">interim·stock-move</span></div>
+          <div class="kpi-tile"><span class="kpi-label">Interim COGS</span><span class="kpi-value tnum">Rp 155,1 jt</span><span class="basis">not GL-certified</span></div>
+          <div class="kpi-tile"><span class="kpi-label">BOM coverage</span><span class="kpi-value tnum">68%</span><span class="dq partial"><span class="dot"></span>Partial</span></div>
+        </div>
+        <div class="ph-section-lbl">Coming — needs warehouse data</div>
+        <div class="ph-stubs">
+          <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Opex</span><span class="stub-val">Pending</span></div>
+          <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Material usage</span><span class="stub-val">Pending</span></div>
+          <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Labor %</span><span class="stub-val">Pending</span></div>
+          <div class="kpi-tile stub"><span class="stub-label"><span class="ph"></span>Roastery yield</span><span class="stub-val">Pending</span></div>
+        </div>
+        <div class="ph-chart">
+          <div class="chart-head"><h3 class="chart-title disp">Daily revenue · 30d</h3></div>
+          <svg viewBox="0 0 640 180" preserveAspectRatio="none" aria-hidden="true">
+            <line class="axis" x1="0" y1="160" x2="640" y2="160"/>
+            <g>
+              <g><rect class="bar-pos" x="8" y="80" width="16" height="80"/><rect class="bar-b2b" x="8" y="60" width="16" height="20"/></g>
+              <g><rect class="bar-pos" x="30" y="86" width="16" height="74"/><rect class="bar-b2b" x="30" y="70" width="16" height="16"/></g>
+              <g><rect class="bar-pos" x="52" y="72" width="16" height="88"/><rect class="bar-b2b" x="52" y="54" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="74" y="48" width="16" height="112"/><rect class="bar-b2b" x="74" y="34" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="96" y="40" width="16" height="120"/><rect class="bar-b2b" x="96" y="28" width="16" height="12"/></g>
+              <g><rect class="bar-pos" x="118" y="46" width="16" height="114"/><rect class="bar-b2b" x="118" y="32" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="140" y="74" width="16" height="86"/><rect class="bar-b2b" x="140" y="58" width="16" height="16"/></g>
+              <g><rect class="bar-pos" x="162" y="82" width="16" height="78"/><rect class="bar-b2b" x="162" y="66" width="16" height="16"/></g>
+              <g><rect class="bar-pos" x="184" y="66" width="16" height="94"/><rect class="bar-b2b" x="184" y="48" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="206" y="42" width="16" height="118"/><rect class="bar-b2b" x="206" y="28" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="228" y="36" width="16" height="124"/><rect class="bar-b2b" x="228" y="22" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="250" y="40" width="16" height="120"/><rect class="bar-b2b" x="250" y="26" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="272" y="70" width="16" height="90"/><rect class="bar-b2b" x="272" y="52" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="294" y="78" width="16" height="82"/><rect class="bar-b2b" x="294" y="60" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="316" y="62" width="16" height="98"/><rect class="bar-b2b" x="316" y="44" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="338" y="40" width="16" height="120"/><rect class="bar-b2b" x="338" y="26" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="360" y="34" width="16" height="126"/><rect class="bar-b2b" x="360" y="20" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="382" y="38" width="16" height="122"/><rect class="bar-b2b" x="382" y="24" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="404" y="64" width="16" height="96"/><rect class="bar-b2b" x="404" y="46" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="426" y="72" width="16" height="88"/><rect class="bar-b2b" x="426" y="54" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="448" y="58" width="16" height="102"/><rect class="bar-b2b" x="448" y="40" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="470" y="38" width="16" height="122"/><rect class="bar-b2b" x="470" y="24" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="492" y="32" width="16" height="128"/><rect class="bar-b2b" x="492" y="18" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="514" y="36" width="16" height="124"/><rect class="bar-b2b" x="514" y="22" width="16" height="14"/></g>
+              <g><rect class="bar-pos" x="536" y="60" width="16" height="100"/><rect class="bar-b2b" x="536" y="42" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="558" y="68" width="16" height="92"/><rect class="bar-b2b" x="558" y="50" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="580" y="54" width="16" height="106"/><rect class="bar-b2b" x="580" y="36" width="16" height="18"/></g>
+              <g><rect class="bar-pos" x="602" y="36" width="16" height="124"/><rect class="bar-b2b" x="602" y="22" width="16" height="14"/></g>
+            </g>
+          </svg>
+          <div class="legend"><span class="it"><span class="sw" style="background:hsl(221.2 83.2% 53.3%);"></span>POS</span><span class="it"><span class="sw" style="background:hsl(262 83% 58%);"></span>B2B</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL on mobile -->
+  <div>
+    <p class="ph-cap">Detail tab (mobile) — daily breakdown as cards</p>
+    <div class="phone">
+      <div class="ph-topbar">
+        <span class="ham"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></span>
+        <span class="brand-m"><span class="logo">G</span></span>
+        <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:15px; font-weight:600;">Dashboard</span>
+      </div>
+      <div class="ph-body">
+        <div class="ph-phead"><span class="t disp">Dashboard</span><span class="fr">detail · 86 rows</span></div>
+        <div class="ph-tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="false">Summary</button>
+          <button class="tab on" role="tab" aria-selected="true">Detail <span class="cnt tnum">86</span></button>
+        </div>
+        <div class="ph-filter">
+          <div class="seg"><button>7d</button><button class="on">30d</button><button>60d</button></div>
+          <div class="seg"><button class="on">Branch</button><button>Channel</button></div>
+        </div>
+        <div class="ph-dcards">
+          <div class="daygroup">Wed 1 Jul · latest</div>
+          <div class="ph-dcard">
+            <div class="ct">Gordi Kafe Indonesia <span class="ccode">· GKID</span></div>
+            <div style="margin-top:3px;"><span class="ch-tag pos"><span class="sw"></span>POS</span></div>
+            <div class="cmeta">
+              <div class="r"><span class="lbl">Revenue</span><span class="vv tnum">Rp 9,8 jt</span></div>
+              <div class="r"><span class="lbl">Txns</span><span class="vv tnum">612</span></div>
+              <div class="r"><span class="lbl">Avg/txn</span><span class="vv tnum">Rp 16,0 rb</span></div>
+            </div>
+          </div>
+          <div class="ph-dcard">
+            <div class="ct">Gordi Roastery Indonesia <span class="ccode">· GRI</span></div>
+            <div style="margin-top:3px;"><span class="ch-tag b2b"><span class="sw"></span>B2B</span></div>
+            <div class="cmeta">
+              <div class="r"><span class="lbl">Revenue</span><span class="vv tnum">Rp 3,4 jt</span></div>
+              <div class="r"><span class="lbl">Txns</span><span class="vv tnum">6</span></div>
+              <div class="r"><span class="lbl">Avg/txn</span><span class="vv tnum">Rp 566,7 rb</span></div>
+            </div>
+          </div>
+          <div class="daygroup">Tue 30 Jun</div>
+          <div class="ph-dcard">
+            <div class="ct">Gordi Kafe Indonesia <span class="ccode">· GKID</span></div>
+            <div style="margin-top:3px;"><span class="ch-tag pos"><span class="sw"></span>POS</span></div>
+            <div class="cmeta">
+              <div class="r"><span class="lbl">Revenue</span><span class="vv tnum">Rp 9,2 jt</span></div>
+              <div class="r"><span class="lbl">Txns</span><span class="vv tnum">598</span></div>
+            </div>
+          </div>
+          <div class="ph-dcard">
+            <div class="ct">Gordi Roastery Indonesia <span class="ccode">· GRI</span></div>
+            <div style="margin-top:3px;"><span class="ch-tag b2b"><span class="sw"></span>B2B</span></div>
+            <div class="cmeta">
+              <div class="r"><span class="lbl">Revenue</span><span class="vv tnum">Rp 2,8 jt</span></div>
+              <div class="r"><span class="lbl">Txns</span><span class="vv tnum">5</span></div>
+            </div>
+          </div>
+          <div class="daygroup">Mon 29 Jun</div>
+          <div class="ph-dcard">
+            <div class="ct">Gordi Kafe Indonesia <span class="ccode">· GKID</span></div>
+            <div style="margin-top:3px;"><span class="ch-tag pos"><span class="sw"></span>POS</span></div>
+            <div class="cmeta">
+              <div class="r"><span class="lbl">Revenue</span><span class="vv tnum">Rp 8,4 jt</span></div>
+              <div class="r"><span class="lbl">Txns</span><span class="vv tnum">544</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- error+retry state mobile -->
+  <div>
+    <p class="ph-cap">State — error + retry (mobile)</p>
+    <div class="phone">
+      <div class="ph-topbar">
+        <span class="ham"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></span>
+        <span class="brand-m"><span class="logo">G</span></span>
+        <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:15px; font-weight:600;">Dashboard</span>
+      </div>
+      <div class="ph-body">
+        <div class="ph-phead"><span class="t disp">Dashboard</span><span class="fr">couldn’t load</span></div>
+        <div class="ph-tabs"><button class="tab on">Summary</button><button class="tab">Detail</button></div>
+        <div style="margin: 28px 14px; padding: 24px 18px; background: hsl(0 0% 100%); border: 1px solid hsl(240 5.9% 90%); border-radius: 10px; text-align: center;" role="alert">
+          <div style="width:40px; height:40px; border-radius:999px; background: hsl(0 84% 60% / 0.12); display:grid; place-items:center; margin: 0 auto 12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="hsl(0 72% 45%)" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+          <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:600; color:hsl(0 72% 45%);">Couldn’t load sales reporting</div>
+          <div style="font-size:13px; color:hsl(240 4% 40%); margin-top:6px; line-height:1.5;">The reporting read failed (non-secret). Your filters are kept.</div>
+          <button style="margin-top:14px; height:36px; padding:0 16px; border-radius:8px; border:1px solid hsl(240 5.9% 90%); background:hsl(0 0% 100%); font-size:13px; font-weight:600; color:hsl(240 10% 3.9%);">Try again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATE NOTES -->
+<div class="notes">
+  <div class="note">
+    <b>Loading</b> — Summary tab: skeleton KPI tiles + 160px chart skeleton; Detail tab: 6 skeleton rows (54px). <b>Empty</b> — both tabs render the <b>No sales snapshot data yet</b> state (no tiles, no table) with the source note; the tab strip still shows so the user sees structure. <b>Error+retry</b> — rendered on the third mobile frame: inline <code>role="alert"</code> + <b>Try again</b> outline button; filters are preserved across retry. <b>DQ/interim-basis</b> — rendered on every COGS/GM tile (basis chip + amber Partial DQ badge + footnote). <b>Custom date out of window</b> — the range control disables dates beyond the 60-day snapshot span. <b>Tab persistence</b> — the active tab is URL-encoded (<code>/dashboard?tab=detail</code>) so a shared/refreshed link returns to the same pane; the control-bar Cut/Window are query params both tabs read.
+  </div>
+</div>
+
+<!-- ============================================================
+     CLOSING COMMENT BLOCK
+     ============================================================ -->
+<!--
+================================================================================
+VARIANT B — “Tabs” (Summary / Detail on same route)   dashboard-B-tabs.html
+================================================================================
+
+DESIGN.md TOKENS USED (token NAME → where):
+  colors.background ............ header/card/chart/table/control fills
+  colors.foreground ............ primary text, tile values, sorted header, totals, tab-hover
+  colors.card .................. rail, tiles, chart, detail-wrap (white on secondary/35%)
+  colors.primary ............... active nav (10%), selected tile ring, sort affordance, POS bar,
+                                 link-in-context, focus ring
+  colors.secondary ............. seg track, basis chip, skeleton, daybreak row bg (40%), totals
+                                 bg (40%), tab count pill, mobile filter-rail bg+blur; /0.6 hover
+  colors.muted-foreground ...... labels, sub-values, basis text, footnote, chart axis, FreshnessLabel,
+                                 tab-inactive text, livefilter text, Select chevrons, overline
+  colors.accent ................ hover wash (nav/ghost/control/row), nothing at rest
+  colors.destructive ........... notification dot, delta-down, error icon + text
+  colors.warning (+-foreground) BOM Partial DQ badge
+  colors.success ............... delta-up chip tint, DQ good badge
+  colors.violet ................ B2B chart bar + legend dot (categorical)
+  colors.border / colors.input . all hairlines (rail/header/tiles/chart/table /0.7/controls/cards)
+  colors.ring .................. global :focus-visible
+  brand-navy ................... logo square, avatar gradient
+  brand-navy-text .............. active TAB text (the structural-navy use, view-tab grammar OD-P3-6)
+  brand-orange ................. logo dot + active TAB underline (the ONE orange sprinkle per screen)
+  typography.page-title ........ "Dashboard" h1, KPI values
+  typography.heading ........... chart title
+  typography.body / label / overline / mono .... body / labels / overline headers / mono branch codes
+  rounded.xs(4) sm(8) md(10) lg(12) full(999) .... help/ph / controls+seg+logo+cmdk / tiles+chart+
+        table+mobile-cards / chart+detail-wrap+device / delta+basis+dq+count+avatars
+  spacing 1–6 (4–24px) ......... padding/gaps
+  shadows.rest ................. KPI tiles, chart, detail-wrap, mobile cards
+  components: button-outline, nav-item, badge-status (delta/basis/dq), table-header-cell,
+              table-body-cell (54px), CutToggle/seg, KPITile, ChartFrame, FreshnessLabel,
+              DataTable (desktop + phone-card), view-tab strip (OD-P3-6 grammar)
+  Named rules honored: One-Blue, Tinted-Status, Single-Border, Soft-Elevation, No-Pure-Black-Shadow,
+    Tabular-Numbers, Mono-For-Identifiers, Structural-Navy (logo + active-tab text), Orange-Sprinkle
+    (logo dot + active-tab underline = the single orange mark), No-FAB, Restrained-Gradient (none used).
+
+PROPOSED NEW TOKENS (same two semantic reuses as A — consistent across variants):
+  1. --basis-chip role = secondary bg + muted-foreground (neutral badge-status variant for the
+     COGS/GM basis label). Reuses existing tokens; flag as a new SEMANTIC ROLE, not a new hue.
+  2. --dq-* semantics = warning/success families reused for data-quality (partial=warning, good=
+     success). No new hue; documenting the DQ semantic maps to existing status families.
+  NO new palette / font / radius / gradient.
+
+STATES / BREAKPOINTS / A11Y COVERED:
+  States: populated (rendered, both tabs), loading (skeleton tiles/chart/rows — noted), empty
+    ("No sales snapshot data yet" on both tabs — noted, mirrors built empty state), error+retry
+    (rendered on mobile frame 3: role=alert + Try again, filters preserved), DQ/interim-basis
+    (rendered: basis chip + Partial DQ badge + footnote), custom-date-out-of-window (disabled
+    beyond 60d — noted), tab-persistence via URL query (noted).
+  Breakpoints: desktop (≥1024, 5-up KPI, full daily table) + mobile (~390, 2-up tiles, daily
+    breakdown as grouped cards). Each tab is ONE focused phone surface.
+  A11y: WCAG-AA contrast; global focus ring; role=tablist/tab/tabpanel + aria-selected + ROVING
+    TABINDEX on the Summary/Detail strip AND both segs; aria-current on nav + selected tile;
+    chart aria-hidden with the Detail tab's table as the live a11y equivalent; 44px touch floors;
+    Mono-For-Identifiers on branch codes; day-subtotal rows use secondary/40% (not color alone).
+
+OPEN QUESTIONS FOR THE OWNER:
+  Q1. Tab default — load on Summary (shown) or remember last-used tab per user (URL ?tab=)?
+      Mockup loads Summary; recommends persistence via query param.
+  Q2. The Detail tab count pill ("86") — helpful affordance or noise? (Shown; cheap signal of
+      how many rows the detail holds before switching.)
+  Q3. Should the control-bar Cut/Window be DUPLICATED inside the Detail tab toolbar (so detail
+      feels self-contained), or stay single above the tabs (shown — one source of truth)? Mockup
+      keeps them single + shows an "Inherited · Branch · 30d" hint in the tab strip.
+  Q4. Confirm the two proposed semantic reuses (basis-chip role, DQ-as-warning/success) for DESIGN.md.
+
+WHY THIS LAYOUT (2 sentences):
+  Variant B isolates the two mental modes — “how are we doing” (Summary) and “show me the rows”
+  (Detail) — behind a tab switch with zero scroll between them, and because each tab is a single
+  focused surface it is the cleanest of the three on mobile (no long stacked cockpit+table). Its
+  cost is a click to reach the detail and a slight separation of the chart from the table that A
+  keeps adjacent, so cross-reading “this bar → that row” is one tab-swap rather than one glance.
+================================================================================
+-->
+</body>
+</html>

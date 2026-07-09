@@ -6,6 +6,21 @@ vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
+import { RequireCapability } from './auth/require-capability'
+
+// nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
+// but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
+// to false LOCALLY so the flag-gating coverage is preserved (BDD rule — the behavior is valid).
+vi.mock('./config/features', () => ({
+  SHOW_WEEKLY_UPDATES: true,
+  SHOW_DAILY_LOG: true,
+  SHOW_USER_VIEWS: false,
+  SHOW_ASSISTANT: true,
+  SHOW_INBOX: true,
+  SHOW_HOME_STACKED: false,
+  SHOW_FOLLOWUPS: false,
+  SHOW_PLAN_BUDGET: false,
+}))
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -95,20 +110,105 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS defa
   })
 })
 
-// FR-001/AC-001/002 (sales-dashboard.spec.md): /sales is wired behind
-// RequireAccessRole anyOf={['finance','admin']} — the guard itself is proven at
-// require-access-role.test.tsx; this asserts the ROUTE uses that gate with the
-// right role set (structural wiring, not a re-test of the guard's redirect logic).
-describe('router — sales dashboard route gate (FR-001)', () => {
-  it('AC-001/002: /sales sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
+// FR-421 (nav-five-destinations): the catalog manage routes are RELOCATED under /work/ as
+// Work's manage-mode, and the retired top-level paths redirect into the cascade. The manage pages
+// stay behind RequireCapability (bounces non-holders to /work/cascade); page components reused.
+describe('router — catalog manage-mode relocated under /work/ (FR-421)', () => {
+  it('AC-302/304: wires /work/cascade directly + /work/objectives + /work/projects-processes behind capability gates', () => {
     const protectedRoute = routeConfig.find(
       r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
     )!
     const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const salesGate = shell.children!.find(
+
+    expect(shell.children!.some((r) => r.path === 'work/cascade')).toBe(true)
+
+    const objectivesGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/objectives'),
+    )!
+    expect(objectivesGate.element).toEqual(<RequireCapability capability="objective.manage" />)
+
+    const workLinesGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/projects-processes'),
+    )!
+    expect(workLinesGate.element).toEqual(<RequireCapability capability="workline.manage" />)
+  })
+
+  it('AC-405: /objectives + /projects-processes are redirect routes to /work/cascade (replace)', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+
+    const objectivesRedirect = shell.children!.find((r) => r.path === 'objectives')!
+    expect(objectivesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+
+    const workLinesRedirect = shell.children!.find((r) => r.path === 'projects-processes')!
+    expect(workLinesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+  })
+})
+
+describe('router — dashboard route gate + redirect (OD-DASH-2, FR-001/002)', () => {
+  // Helper: find the AppShell route node.
+  function shellChildren() {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    return shell.children!
+  }
+
+  it('AC-002/003: /dashboard sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
+    const dashGate = shellChildren().find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
+    )!
+    expect(dashGate).toBeDefined()
+    expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+  })
+
+  it('AC-001: /sales redirects to /dashboard (back-compat)', () => {
+    const gate = shellChildren().find(
       r => Array.isArray(r.children) && r.children.some(c => c.path === 'sales'),
     )!
-    expect(salesGate).toBeDefined()
-    expect(salesGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    const salesRoute = gate.children!.find(r => r.path === 'sales')!
+    expect(salesRoute.element).toEqual(<Navigate to="/dashboard" replace />)
+  })
+
+  it('AC-017: /dashboard/detail is wired (parameterized detail sub-view)', () => {
+    const gate = shellChildren().find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
+    )!
+    const detailRoute = gate.children!.find(r => r.path === 'dashboard/detail')
+    expect(detailRoute).toBeDefined()
+  })
+})
+
+// ADR-0022 (Issue D) — Plan budget + pricing pre-flight routes are flag-gated (SHOW_PLAN_BUDGET
+// default false) AND finance/admin-gated. AC-PB-001 (flag-off redirect) + AC-PB-002 (role gate).
+describe('router — Plan budget + pricing routes (ADR-0022, SHOW_PLAN_BUDGET default false)', () => {
+  it('AC-PB-001: /plan/budget + /plan/pricing redirect to / while the flag is off', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const planGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    )!
+    expect(planGate).toBeDefined()
+    const budget = planGate.children!.find((r) => r.path === 'plan/budget')!
+    const pricing = planGate.children!.find((r) => r.path === 'plan/pricing')!
+    expect(budget.element).toEqual(<Navigate to="/" replace />)
+    expect(pricing.element).toEqual(<Navigate to="/" replace />)
+  })
+
+  it('AC-PB-002: the plan/budget + plan/pricing branch sits under RequireAccessRole anyOf={finance,admin}', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const planGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    )!
+    expect(planGate).toBeDefined()
+    expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
   })
 })

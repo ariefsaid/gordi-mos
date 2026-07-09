@@ -2,7 +2,7 @@
    Kitchen Log capture (OD-K-5 redesign) — full-bleed responsive capture surface.
    Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md (§8).
    PageFrame variant="data" (full-bleed, no cap). ONE branch in the DOM: the
-   useIsDesktop() branch (KitchenLogTable | KitchenLogCards) + ONE sticky footer.
+   useIsDesktop() branch (the shared <DataTable>) + ONE sticky footer.
    Token-only (DESIGN.md); spacing in px (sibling kitchen idiom). All `kl-*` classes
    owned here (C1 namespace guard — no other kitchen .css may define them).
    ════════════════════════════════════════════════════════════════════════════ */
@@ -63,6 +63,19 @@
 /* ── action_type seg wrapper (toolbar) ── */
 .kl-seg-wrap { margin-bottom: 16px; }
 
+/* ── Dish cell (name + category) in the shared DataTable ── */
+.kl-dish { display: inline-flex; flex-direction: column; min-width: 0; }
+.kl-dish-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.kl-dish-cat {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
 /* ── The capture form ── */
 .kl-form {
   width: 100%;
@@ -70,13 +83,9 @@
   box-sizing: border-box;
 }
 
-/* ── Sticky action footer: tally + Discard + Submit (ONE branch) ──
-   Flat utility surface (mock A) on desktop; pinned bar with the one bottom shadow
-   (mock B) on phone. position:sticky keeps it visible within the scroll container. */
+/* ── Action footer: tally + Discard + Submit (ONE branch) ──
+   Flat utility surface in normal flow so it cannot overlap grouped rows. */
 .kl-footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -144,14 +153,13 @@
 /* Fix #7: 44px touch floor on every interactive control on the small states. */
 .kl-touch { min-height: 44px; }
 
-/* ── Phone (<768px): stack the footer (tally above, actions below), safe-area + shadow ── */
+/* ── Phone (<768px): stack the footer (tally above, actions below), safe-area spacing ── */
 @media (max-width: 767px) {
   .kl-footer {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 -4px 16px color-mix(in srgb, var(--brand-navy) 5%, transparent);
   }
   .kl-tally { flex-direction: row; gap: 6px; }
   .kl-footer-actions { justify-content: stretch; }

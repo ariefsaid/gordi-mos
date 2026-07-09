@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useParams } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
+import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { addLogEntry, editLogEntry, getLogEntry } from '@/lib/db/ops-log'
@@ -16,6 +17,7 @@ import type { BusinessUnitOption } from '@/lib/db/directory'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { toWibInputValue, wibInputToUTCISO } from '@/lib/week'
+import { Select } from '@/components/ui/select'
 
 export function OpsAddForm() {
   const { id: entryId } = useParams<{ id: string }>()
@@ -139,9 +141,8 @@ export function OpsAddForm() {
   if (entryNotFound) {
     return (
       <PageFrame>
-        <div className="tc-page-head">
-          <h1 className="tc-page-title">Log entry not found</h1>
-        </div>
+        {/* W3-2: shared PageHead (Write-Review archetype) — replaces bespoke .tc-page-head */}
+        <PageHead variant="content" title="Log entry not found" />
         <div className="tc-card">
           <p className="tc-error-msg">
             The log entry you&apos;re trying to edit doesn&apos;t exist or you don&apos;t have access to it.
@@ -155,18 +156,17 @@ export function OpsAddForm() {
   if (editLoading || dirLoading) {
     return (
       <PageFrame>
-        <div className="tc-page-head">
-          <h1 className="tc-page-title">Loading…</h1>
-        </div>
+        {/* W3-2: shared PageHead (Write-Review archetype) — replaces bespoke .tc-page-head */}
+        <PageHead variant="content" title="Loading…" />
       </PageFrame>
     )
   }
 
   return (
     <PageFrame>
-      <div className="tc-page-head">
-        <h1 className="tc-page-title">{isEditMode ? 'Edit log entry' : 'Add log entry'}</h1>
-      </div>
+      {/* W3-2: shared PageHead (Write-Review archetype) — replaces bespoke .tc-page-head.
+          The bounded .tc-card form body below is the conformant Write-Review stack. */}
+      <PageHead variant="content" title={isEditMode ? 'Edit log entry' : 'Add log entry'} />
 
       <div className="tc-card">
         <form
@@ -186,9 +186,10 @@ export function OpsAddForm() {
             <label htmlFor="ops-bu" className="tc-label">
               Business unit <span aria-hidden="true" className="tc-required">*</span>
             </label>
-            <select
+            <Select
               id="ops-bu"
-              className={`tc-select${buError ? ' tc-input-error' : ''}`}
+              fullWidth
+              error={!!buError}
               value={businessUnitId}
               onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
               aria-required="true"
@@ -201,7 +202,7 @@ export function OpsAddForm() {
               {busDirectory.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
-            </select>
+            </Select>
             {buError && (
               <span id="ops-bu-err" role="alert" className="tc-field-error">{buError}</span>
             )}
@@ -210,9 +211,9 @@ export function OpsAddForm() {
           {/* Type */}
           <div className="tc-field">
             <label htmlFor="ops-type" className="tc-label">Type</label>
-            <select
+            <Select
               id="ops-type"
-              className="tc-select"
+              fullWidth
               value={eventType}
               onChange={e => setEventType(e.target.value as LogEventType)}
               disabled={submitting}
@@ -223,7 +224,7 @@ export function OpsAddForm() {
               <option value="qc">QC</option>
               <option value="follow_up">Follow-up</option>
               <option value="other">Other</option>
-            </select>
+            </Select>
           </div>
 
           {/* Title */}
@@ -304,9 +305,9 @@ export function OpsAddForm() {
           {/* Linked task (optional; FR-045) */}
           <div className="tc-field">
             <label htmlFor="ops-linked-task" className="tc-label">Linked task</label>
-            <select
+            <Select
               id="ops-linked-task"
-              className="tc-select"
+              fullWidth
               value={linkedTaskId}
               onChange={e => setLinkedTaskId(e.target.value)}
               disabled={submitting}
@@ -316,12 +317,22 @@ export function OpsAddForm() {
               {taskDirectory.map(task => (
                 <option key={task.id} value={task.id}>{task.title}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Actions */}
           <div className="tc-actions">
             <Link to="/ops" className="btn btn-outline">Cancel</Link>
+            {/* W3-3: aria-live submitting feedback beside the submit button (A5
+                saved/pending pattern). Empty when idle; announces "Saving…" while
+                in-flight; the navigate to /ops on success is the success feedback. */}
+            <span
+              data-testid="submit-status"
+              aria-live="polite"
+              className="tc-submit-status"
+            >
+              {submitting ? 'Saving…' : ''}
+            </span>
             <button
               type="submit"
               className="btn btn-primary"
@@ -338,10 +349,9 @@ export function OpsAddForm() {
       <style>{`
         /* IA-2 (PR-2): the in-page breadcrumb was removed — the shell <Breadcrumb>
            (shell/Header.tsx) extends to the leaf (Daily Log › Add log entry). One
-           breadcrumb, one › separator. The .tc-breadcrumb* rules are gone. */
-
-        .tc-page-head { margin-bottom: 16px; }
-        .tc-page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
+           breadcrumb, one › separator. The .tc-breadcrumb* rules are gone.
+           W3-2: the bespoke .tc-page-head/.tc-page-title are gone too — the shared
+           <PageHead variant="content"> carries the <h1> now (Write-Review archetype). */
 
         .tc-card {
           max-width: 640px;
@@ -368,18 +378,17 @@ export function OpsAddForm() {
         }
         .tc-required { color: var(--destructive); margin-left: 2px; }
 
-        .tc-input, .tc-select, .tc-textarea {
+        .tc-input, .tc-textarea {
           width: 100%; height: 36px; padding: 0 12px;
           border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
           background: var(--background); font: inherit; font-size: 14px;
           color: var(--foreground);
         }
-        .tc-input:focus-visible, .tc-select:focus-visible, .tc-textarea:focus-visible {
+        .tc-input:focus-visible, .tc-textarea:focus-visible {
           outline: 2px solid var(--ring); outline-offset: 2px;
         }
         .tc-input-error { border-color: var(--destructive); }
         .tc-textarea { height: auto; padding: 8px 12px; resize: vertical; }
-        .tc-select { cursor: pointer; }
         .tc-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
 
         /* VIS-2: error TEXT uses the AA-darkened --status-lost-text. The invalid field
@@ -396,9 +405,11 @@ export function OpsAddForm() {
         }
 
         .tc-actions {
-          display: flex; justify-content: flex-end; gap: 8px;
+          display: flex; justify-content: flex-end; align-items: center; gap: 8px;
           padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;
         }
+        /* W3-3: non-blocking saved/pending label — muted, sits beside the submit button */
+        .tc-submit-status { font-size: 13px; color: var(--muted-foreground); }
         /* IXD-4 (PR-2): the create-form Cancel/Submit buttons use the shared
            .btn .btn-outline / .btn .btn-primary (ui/Button.css). The bespoke
            .tc-btn-cancel / .tc-btn-submit rules were removed. */

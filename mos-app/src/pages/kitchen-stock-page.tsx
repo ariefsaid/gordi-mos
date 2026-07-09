@@ -18,9 +18,10 @@ import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
-import { KitchenStockTable } from '@/components/kitchen/kitchen-stock-table'
-import { KitchenStockCards } from '@/components/kitchen/kitchen-stock-cards'
+import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
+import { useT } from '@/i18n/use-t'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -36,8 +37,27 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
+function stockColumns(t: ReturnType<typeof useT>): DataTableColumn<KitchenStockRow>[] {
+  return [
+    {
+      key: 'wip_item_name',
+      header: t('kitchen.stock.col.dish'),
+      cardLabel: '',
+      render: row => (
+        <span className="ks-item">
+          <span>{row.wip_item_name}</span>
+          {row.category && <span className="ks-category">{row.category}</span>}
+        </span>
+      ),
+    },
+    { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
+    { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
+  ]
+}
+
 export function KitchenStockPage() {
   useDocumentTitle('Kitchen Stock — Gordi MOS')
+  const t = useT()
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
@@ -49,6 +69,10 @@ export function KitchenStockPage() {
   const [search, setSearch] = useState('')
   // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
   const kpiData = useStockKpiStripData(rows)
+  const searchQuery = search.trim().toLowerCase()
+  const visibleRows = rows.filter(row => (
+    !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
+  ))
 
   const fetchStock = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -113,20 +137,22 @@ export function KitchenStockPage() {
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        isDesktop ? (
-          <KitchenStockTable
-            rows={rows}
-            asOf={asOf}
+        <div className="ks-block">
+          <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
+            searchPlaceholder="Find a dish"
+            ariaLabel="Stock filters"
           />
-        ) : (
-          <KitchenStockCards
-            rows={rows}
-            search={search}
-            onSearchChange={setSearch}
+          <DataTable
+            columns={stockColumns(t)}
+            rows={visibleRows}
+            isDesktop={isDesktop}
+            state={visibleRows.length > 0 ? 'ready' : 'empty'}
+            emptyLabel="No items match your filter."
+            caption={`Kitchen stock — on-hand and available per dish for ${asOf}`}
           />
-        )
+        </div>
       )}
     </PageFrame>
   )

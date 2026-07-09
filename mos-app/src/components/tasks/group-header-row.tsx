@@ -20,6 +20,8 @@ type GroupHeaderRowProps = {
   onOverdueFilter: () => void
   /** Pre-fill descriptor surfaced for tests/e2e (e.g. "r=<personId>"). */
   prefill?: string
+  /** Read-only render for reuse outside the task editor surface. */
+  readOnly?: boolean
   /**
    * Work-line type tag (only when groupBy==='workline').
    * 'project' → blue tag "Project"; 'process' → gray tag "Daily / ongoing".
@@ -71,7 +73,7 @@ function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
  */
 export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
-  onToggle, onAddTask, onOverdueFilter, prefill, workLineType,
+  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly,
 }: GroupHeaderRowProps) {
   return (
     <tr className="grp">
@@ -94,24 +96,30 @@ export function GroupHeaderRow({
           )}
           <span className="gcount tabular-nums">{count}</span>
           {overdue > 0 && (
+            readOnly
+              ? <span>· {overdue} overdue</span>
+              : (
+                  <button
+                    type="button"
+                    className="gsub"
+                    aria-label={`Filter to ${overdue} overdue tasks`}
+                    onClick={onOverdueFilter}
+                  >
+                    · {overdue} overdue
+                  </button>
+                )
+          )}
+          {!readOnly && (
             <button
               type="button"
-              className="gsub"
-              aria-label={`Filter to ${overdue} overdue tasks`}
-              onClick={onOverdueFilter}
+              className="gadd"
+              aria-label={`Add task to ${label}`}
+              data-prefill={prefill}
+              onClick={onAddTask}
             >
-              · {overdue} overdue
+              + Add task
             </button>
           )}
-          <button
-            type="button"
-            className="gadd"
-            aria-label={`Add task to ${label}`}
-            data-prefill={prefill}
-            onClick={onAddTask}
-          >
-            + Add task
-          </button>
         </div>
       </td>
     </tr>

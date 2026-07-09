@@ -1,0 +1,50 @@
+// T32 — agent tool catalog firewall (FR-P2-WT-005 / FR-P3-NT-001 / FR-P3-AU-001, AC-WT-005). The
+// deputy exposes EXACTLY {query_entity, create_task, post_update, notify, ask_user} (+ compose_view
+// registered separately when enabled) and NO provisioning/SECURITY-DEFINER RPC. A static scan of the
+// action source asserts no privileged call site exists. (P3a added `notify` — a self-only inbox
+// write, confirm:false — and `ask_user` — a clarifying-question contract, not a write tool at all.)
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { BASE_ACTIONS } from './../../../../supabase/functions/agent-chat/actions'
+
+describe('agent tool catalog (T32, AC-WT-005 / FR-P3-NT-001 / FR-P3-AU-001)', () => {
+  it('BASE_ACTIONS exposes exactly [query_entity, create_task, post_update, notify, ask_user] — no provisioning tool', () => {
+    expect(BASE_ACTIONS.map((a) => a.name)).toEqual([
+      'query_entity',
+      'create_task',
+      'post_update',
+      'notify',
+      'ask_user',
+    ])
+  })
+
+  it('every BASE_ACTION carries the required AgentAction shape (name/description/inputSchema/run)', () => {
+    for (const a of BASE_ACTIONS) {
+      expect(typeof a.name).toBe('string')
+      expect(typeof a.description).toBe('string')
+      expect(a.inputSchema).toBeTypeOf('object')
+      expect(typeof a.run).toBe('function')
+    }
+  })
+
+  it('writes-to-others are confirm:true; the read/self-only-notify/ask_user are confirm:false', () => {
+    const byName = new Map(BASE_ACTIONS.map((a) => [a.name, a]))
+    expect(byName.get('query_entity')!.confirm).toBeFalsy()
+    expect(byName.get('create_task')!.confirm).toBe(true)
+    expect(byName.get('post_update')!.confirm).toBe(true)
+    // notify only writes the CALLER'S OWN inbox (RLS-pinned) — not a consequential external write.
+    expect(byName.get('notify')!.confirm).toBeFalsy()
+    // ask_user is a question/answer turn, not a write — never routed through the approval chip.
+    expect(byName.get('ask_user')!.confirm).toBeFalsy()
+  })
+
+  it('no action source invokes a SECURITY DEFINER / shared.admin_* / .rpc(...) privileged call site', () => {
+    // Static scan of the action module's own source (FR-P2-WT-005). The deputy's writes go through
+    // the caller-JWT client under RLS — never a privileged provisioning RPC.
+    const src = readFileSync(resolve(__dirname, '../../../../supabase/functions/agent-chat/actions.ts'), 'utf8')
+    expect(src, 'no SECURITY DEFINER RPC').not.toMatch(/SECURITY\s+DEFINER/i)
+    expect(src, 'no shared.admin_* RPC').not.toMatch(/shared\.admin_/i)
+    expect(src, 'no .rpc(...) call site').not.toMatch(/\.rpc\s*\(/)
+  })
+})

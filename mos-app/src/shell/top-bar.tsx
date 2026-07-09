@@ -2,6 +2,11 @@ import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
 import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
+import { SHOW_ASSISTANT, SHOW_INBOX } from '@/config/features'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { useT } from '@/i18n/use-t'
+import { useNavigate } from 'react-router-dom'
+import { useUnreadCount } from '@/hooks/useUnreadCount'
 
 type TopBarProps = {
   /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
@@ -68,6 +73,27 @@ function HamburgerIcon() {
   )
 }
 
+// Deputy spark icon — 16px, stroke-2, aria-hidden (T28 desktop top-bar button)
+function DeputyIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden="true"
+    >
+      <path d="M12 3v3" />
+      <path d="M12 18v3" />
+      <path d="M3 12h3" />
+      <path d="M18 12h3" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
 // Gordi logo mark — navy square + orange sprinkle dot (brand identity, ADR-0013 D1)
 function GordiLogoMark() {
   return (
@@ -84,6 +110,68 @@ function GordiLogoMark() {
         aria-hidden="true"
       />
     </div>
+  )
+}
+
+// The deputy launcher (T28) — a neutral header icon on EVERY viewport (desktop + phone), the one
+// launcher location app-wide (DESIGN.md Deputy-Launcher/No-FAB Rule, owner-agreed 2026-07-07;
+// supersedes ADR-0019 D11's orange FAB). Gates on SHOW_ASSISTANT; opens the slide-over via the
+// runtime context. Reads the context safely (null-runtime no-op default) so it never throws when
+// the flag is off and no provider is mounted.
+function AssistantTopBarButton() {
+  const t = useT()
+  const { openPanel } = useAgentRuntime()
+  return (
+    <button
+      type="button"
+      aria-label={t('assistant.open')}
+      title={t('assistant.open')}
+      className="flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+      style={{ width: 32, height: 32 }}
+      onClick={openPanel}
+    >
+      <DeputyIcon />
+    </button>
+  )
+}
+
+// The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Rendered only
+// when SHOW_INBOX, so the fetch never fires while the feature is hidden. Uses the dedicated
+// useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
+function NotificationBell() {
+  const navigate = useNavigate()
+  const { unreadCount } = useUnreadCount()
+  const label = unreadCount > 0 ? `Inbox, ${unreadCount} unread` : 'Inbox'
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className="relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+      style={{ width: 32, height: 32 }}
+      onClick={() => navigate('/inbox')}
+    >
+      <BellIcon />
+      {unreadCount > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full bg-primary text-primary-foreground"
+          style={{
+            top: 2,
+            right: 2,
+            minWidth: 15,
+            height: 15,
+            fontSize: 9,
+            lineHeight: '15px',
+            fontWeight: 600,
+            textAlign: 'center',
+            padding: '0 3px',
+          }}
+        >
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      ) : null}
+    </button>
   )
 }
 
@@ -191,17 +279,26 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           </button>
         )}
 
-        {/* Notification bell — icon-only stub, non-functional (AC-S07, ADR-0013 D1) */}
-        <button
-          type="button"
-          aria-label="Notifications"
-          title="Notifications — coming soon"
-          disabled
-          className="flex items-center justify-center rounded-sm text-muted-foreground"
-          style={{ width: 32, height: 32 }}
-        >
-          <BellIcon />
-        </button>
+        {/* Deputy launcher (T28) — neutral header icon on every viewport, next to the search
+            affordance (no floating orange FAB — DESIGN.md No-FAB Rule). Absent when SHOW_ASSISTANT=false. */}
+        {SHOW_ASSISTANT && <AssistantTopBarButton />}
+
+        {/* Notification bell — a live Inbox link + unread badge when SHOW_INBOX (T16); the
+            disabled "coming soon" stub otherwise (AC-S07, ADR-0013 D1). */}
+        {SHOW_INBOX ? (
+          <NotificationBell />
+        ) : (
+          <button
+            type="button"
+            aria-label="Notifications"
+            title="Notifications — coming soon"
+            disabled
+            className="flex items-center justify-center rounded-sm text-muted-foreground"
+            style={{ width: 32, height: 32 }}
+          >
+            <BellIcon />
+          </button>
+        )}
 
         {/* User chip — avatar-only at <920px (FR-020); name/role show on wider viewports (AC-S08) */}
         <UserChip variant="header" compact={isNarrow} />

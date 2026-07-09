@@ -37,11 +37,24 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 6. **One issue / one PR.** Pause at issue boundaries; owner approves spec sign-off + prod deploy /
    irreversible infra; Director approves merge-to-main within the signed spec.
 
+## Multi-agent dispatch — worktrees are the DEFAULT (owner-directed 2026-07-06)
+Dispatch every role/build agent in its **own git worktree** (`isolation: "worktree"` on the Agent tool,
+or the pi equivalent) so parallel agents never share one checkout. The shared-tree clobber that bit us on
+2026-07-06 (a Codex session moved our HEAD mid-merge) does not happen when each agent has its own tree.
+- **Never put `git checkout`/`checkout -b` in an agent's brief** — the harness already parks it on its own
+  `worktree-agent-<id>` branch; a `checkout` in the brief leaks to the MAIN tree's HEAD. Tell it to work in
+  place, commit to its branch, and report; the Director merges from `worktree-agent-<id>`.
+- **After merging an agent's work, clean up:** `bash scripts/worktree-cleanup.sh [target=dev] [--remote]`
+  removes merged worktrees + deletes merged local (and optionally remote) branches. Protected: main/dev/
+  staging/current. It only ever deletes MERGED branches — unmerged work is safe.
+- **After any worktree-agent dispatch,** confirm your own HEAD didn't wander:
+  `git branch --show-current` + `git rev-parse --short HEAD`. See [[mos-multiagent-git-gotchas]].
+
 ## Gotchas (will bite you)
 - **Stale local `main`:** `git worktree add … main` uses your *local* ref, which lags `origin/main` after
   you merge a PR. `git fetch` + rebase the worktree, or it'll miss/clobber recent merges.
-- **Multi-agent repo:** subagents only see the current tree; another agent may hold a branch
-  (`feat/admin-user-mgmt` does the kitchen data migration). Keep paths disjoint; use worktrees.
+- **Multi-agent repo:** subagents only see their own worktree; a separate session (even a non-Claude one
+  like Codex) may share the primary checkout. Keep agents in worktrees; verify HEAD after dispatch.
 - **Mocked unit tests miss DB reality:** a wrong column name / RPC signature passes mocked Vitest but 400s
   against real PostgREST (the `log_date` bug). Verify-live any DB-column/RPC change against a running stack.
 - **GOO ≠ `stg-erp`:** GOO Core API is `stg7.esb.co.id/core-stg`; `stg-erp.esb.co.id` is the ESB web UI.
@@ -56,8 +69,17 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 |---|---|
 | **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
 | **Where everything stands + outstanding** | `docs/platform-workstream-status.md` (canonical handoff) |
+| **Agent-native port (ADR-0018) — plans per train** | `docs/plans/2026-07-04-port-p1-substrate.md` · `docs/plans/2026-07-05-port-p2-panel-runtime.md` · `docs/plans/2026-07-06-port-p3-automations-inbox.md` |
+| **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` · `feat-port-p3a-replay-inbox.md` · `feat-p2.1-db-side-aggregate.md` · `release-staging-bu-remap.md` · `feat-work-spine.md` · **MVP-push (2026-07-07): `feat-ia-nav-work-spine.md` · `feat-ar-followup-bridge.md` · `feat-plan-v1.md` · `feat-home-stacked-union.md`** · **pre-F hardening A1–A6: `feat-harden-round2.md`** |
+| **MVP-readiness audits** | `docs/reviews/mvp-readiness-charter-audit-2026-07-06.md` (round 1, charter) · `mvp-readiness-audit-round2-2026-07-07.md` (round 2, gpt-5.5 ×3 — the pre-F hardening blocklist A1–A6, **now DONE**) |
+| **Design reviews (rendered)** | `docs/reviews/design-mvp-push-2026-07-07.md` (4-lens, render-verified) · **`ui-coherence-audit-2026-07-07.md` (whole-app coherence — the task #19 retrofit plan; verdict: application-gap, not ground-up)** |
+| **JTBD design oracle (Lens-D) — E6, refresh 2026-07-06** | `docs/jtbd.md` (**v0.3** — 4 personas × 5 destinations; supersedes E1 v0.2) |
+| **IA/product ADRs (Accepted 2026-07-06)** | `docs/adr/0022-plan-destination-cogs-budget.md` · `docs/adr/0023-multi-location-inventory-internal-replenishment.md` · `docs/adr/0024-roastery-esb-sales-order-push.md` · decisions.md "Continued grill session 2" block |
+| **Work-spine slice (D14 step 3, held on `feat/work-spine`)** | `docs/specs/work-spine.spec.md` · `docs/plans/2026-07-06-work-spine.md` · `docs/reviews/feat-work-spine.md` |
+| **Roastery Operate requirements (10 owner-decisions in §6)** | `docs/specs/roastery-module.requirements.md` |
+| **PMO→MOS agent-capability expansion (feeds next grill)** | `docs/specs/agent-capability-expansion.md` |
 | Full task list / backlog | `docs/backlog.md` |
-| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` |
+| Locked owner decisions (OD-*) + ADRs | `docs/decisions.md`, `docs/adr/` (0017–0021 = agent-native/IA/can()/i18n; **0022 Plan-COGS-budget · 0023 multi-location-inventory · 0024 roastery-ESB-sales-order-push = Accepted 2026-07-06**) |
 | Domain glossary | `CONTEXT.md` (repo root) |
 | Binding charter + per-layer Definition of Done | `docs/product-expectations.md` |
 | Director runbook / loop / UI cycle | `docs/director-playbook.md`, `docs/design-workflow.md` |
@@ -67,14 +89,23 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 | Delegation via pi CLI | `docs/pi-delegation.md` |
 | Staging env + gotchas | `docs/environments.md` |
 
-## Headline current state (2026-06-30)
+## Headline current state (2026-07-07 late)
+- **⚠️ READ the `## Current focus (2026-07-07 late)` block in `docs/platform-workstream-status.md` first** — full state + branch map + ▶ NEXT. Summary: `dev` includes the UI-coherence merge, closure regression guards, and post-merge IA cleanup. **Pre-F hardening A1–A6 DONE + merged** (`docs/reviews/feat-harden-round2.md`; pgTAP 570 · unit 2345 · cov 95.43%). **Nav catalog FR-424** (Objectives/Projects&Processes back as capability-gated Work rail entries). **MVP-push design review render-verified** (`design-mvp-push-2026-07-07.md`). **UI-coherence polish + deputy battery DONE + merged** (`docs/reviews/feat-ui-coherence.md`): Select retrofit, shared tables/state/header cleanup, no-FAB deputy launcher, phone MyTasks reflow, and Deputy **C2 safe markdown + C3 typed widgets**; closure guards and IA cleanup also landed. **F (task #16, owner-gated)** = promote + deploy + secrets + backup drill + prod security gate + A4 job-GUC org-scope.
+- *(Prior, 2026-07-07 — now history:)* MVP push shipped 5 slices A–E to `dev` dark behind flags; round-2 gpt-5.5 ×3 audit → SHIP-WITH-FIXES (blocklist A1–A6, now done).
+- *(Prior, 2026-07-06 EOD — now history:)* staging LIVE up-to-BU-remap; COGS root-cause fix deployed; ADR-0022/0023/0024 + JTBD v0.3 accepted + merged to dev; grill session-2 decisions in `docs/decisions.md`.
 - Kitchen Module + access roles + UI-revamp + Strategy→Execution cascade first slice **SHIPPED to main**.
-- **ESB outbox worker BUILT + SHIPPED** (extends `gordi-kitchen-app`; PRs #1/#2/#3 + gordi-mos #76/#77).
-  GOO transfer round-trip validated live; **deploy + the GKID flip remain owner-gated.**
-- **NEW (2026-06-30):** **ADR-0017 agent-native/user-composed UI ACCEPTED** (deputy/RLS dual-plane;
-  value-first build, Issue 1 = mobile-first ops dashboard births the kit; next = `feature-forge` spec) +
-  **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, self-sustaining; next = `reporting` migration +
-  snapshot for the sales dashboard). Both on the new **`dev`** branch. See status §Current focus +
-  `docs/reference/warehouse-online.md`; memory `agent-native-ui-program`.
-- **Mid-flight / not merged:** kitchen UI redesign `feat/kitchen-log-redesign` (awaiting owner visual
-  sign-off); kitchen data migration LOAD (Teable→`ops`); curated kitchen e2e.
+- Agent-native platform port P1/P2/**P3a/P2.1 all on `dev`** (green CI, PRs #88/#89 MERGED 2026-07-06). `main`/`staging` deliberately conservative at up-to-BU-remap (`669ee0a`).
+- CI-fix pass (task-detail async races, Home-v1 e2e `My Week`→Home route, Sales KPI locator scope,
+  recovery password-policy, coverage timing budgets) landed via `c96fb5a` + `4f67080`; full local battery
+  re-verified green (typecheck/eslint/2217 unit/449 pgTAP/22 e2e/build) + fresh GitHub `verify`+`db` green
+  before merge.
+- **Multi-agent hazard (hit + resolved 2026-07-06):** a parallel Codex session shared this working tree and
+  moved HEAD mid-work. Two agents on one checkout = clobber risk. Owner stopped Codex; Director took sole
+  ownership, adopted Codex's clean rebased stack (verified byte-identical code), merged, cleaned up stale
+  branches. If HEAD ever looks wrong, check `git branch --show-current` + reflog before acting.
+- **Delegation posture (owner-directed 2026-07-06):** orchestrate heavy build/fix via **pi** (GLM-4.7/GLM-5.2
+  builders, gpt-5.4 cross-family reviewers — `docs/pi-delegation.md`) to preserve Anthropic tokens;
+  Director retains verify + merge/git + final visual taste. (The #88/#89 close-out needed no code fix — it
+  was git orchestration + CI-watch, no pi spend.)
+- Remaining user-facing rollout work is owner-gated: staging db push, edge-function model secret/live
+  deputy verify, P3b generateLink hook check, VAPID keys, and ESB PIC settlement answer.

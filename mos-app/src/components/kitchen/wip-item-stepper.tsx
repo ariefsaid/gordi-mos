@@ -16,6 +16,9 @@ interface WipItemStepperProps {
   onQtyChange: (qty: number) => void
   onNotesChange: (note: string) => void
   disabled?: boolean
+  /** hide the visual name label when the host already shows it (e.g. the shared
+   *  DataTable Dish column). itemName is still used for the −/+/input aria-labels. */
+  hideName?: boolean
 }
 
 export function WipItemStepper({
@@ -25,6 +28,7 @@ export function WipItemStepper({
   onQtyChange,
   onNotesChange,
   disabled = false,
+  hideName = false,
 }: WipItemStepperProps) {
   const { qty_porsi, notes, plan_qty, stok, tersedia, error, capError, dirty } = line
   const showNote = error !== '' && dirty
@@ -40,7 +44,7 @@ export function WipItemStepper({
     <div className={`kls-card${invalid ? ' kls-invalid' : ''}`}>
       {/* Row: name + stepper */}
       <div className="kls-row">
-        <span className="kls-name">{itemName}</span>
+        {!hideName && <span className="kls-name">{itemName}</span>}
 
         <button
           type="button"

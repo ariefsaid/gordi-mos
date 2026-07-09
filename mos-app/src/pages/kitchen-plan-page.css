@@ -51,7 +51,24 @@
   border: 1px solid var(--border);
 }
 
-/* ── Pesanan read view lifted into KitchenPesananTable/Cards (OD-K-5 §5). ── */
+/* ── Dish / item sub-label inside the shared DataTable cells (replaces the
+   retired .kt-name / .kt-cat from kitchen-table.css — kept here so the plan +
+   pesanan DataTable renders carry the same name+category look). ── */
+.kp-dish {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0; /* allow the name to truncate rather than blow the cell width */
+}
+.kp-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.kp-cat {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
 
 /* ── States: loading / empty / error are the shared StateKit
    (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their

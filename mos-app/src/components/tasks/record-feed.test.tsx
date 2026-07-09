@@ -41,6 +41,7 @@ function renderFeed(props: Partial<Parameters<typeof RecordFeed>[0]> = {}) {
       task={task}
       checklist={checklist}
       events={events}
+      comments={[]}
       people={people}
       now={now}
       editable
@@ -51,6 +52,7 @@ function renderFeed(props: Partial<Parameters<typeof RecordFeed>[0]> = {}) {
       onToggleChecklist={noop}
       onReorderChecklist={noop}
       onDeleteChecklist={noop}
+      onPostComment={noop}
       {...props}
     />,
   )

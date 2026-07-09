@@ -1,74 +1,66 @@
-# Review battery — `dev` branch (agent-native program: reporting slice + Issue-1 sales dashboard)
+# Review battery — `dev` branch → `main` promotion (MVP-push + agent port + dashboard + archetype retrofit)
 
-**Scope:** `git diff main..dev` — ADR-0017 program foundation: the `reporting.sales_daily_revenue`
-migration + RLS + pgTAP, the warehouse→Supabase snapshot job, the reporting DAL, the 5 dashboard-kit
-primitives, the sales-dashboard page + route/guard, and the supporting docs.
-**Run:** 2026-07-02 (Director-orchestrated, per CLAUDE.md "review battery before merge" gate).
-**Overall verdict:** **FIX-THEN-SHIP.** No Critical/High. Security clear; spec + code-quality + design each
-have a small must-fix set (below). Not yet merge-ready — merge only after the ✳ must-fix items land green.
+**Scope:** `git diff main..dev` — **191 commits / ~453 files** since the last promotion (`main` @ `669ee0a`).
+This is the full **F rollout**: the five-destination IA nav + work spine (cascade/catalog), AR/follow-up
+bridge, Plan v1 (budget/COGS + certified metrics), Home v1 + polish, the agent-native port (P1 substrate /
+P2 panel+runtime / P3 replay+notifications+Inbox), the `/dashboard` analytical rebuild, the **B2 page-archetype
+retrofit** (W1–W5), plus the lint-gate fix, the tasks-workspace flake root-fix, and the post-retrofit design
+audit. Backing schema: **18 migrations** (agent persistence, notifications, comments, push subscriptions,
+aggregate-compiled, shared capabilities, cascade→can, follow-ups, plan/COGS read-models, certified-metrics,
+budgets, tasks-tenancy-guard, comments-entity-guard, reporting-writer-tighten, capture-budget RPC) with
+paired pgTAP suites (`supabase/tests/64–82`).
 
-## Lens verdicts
-| Lens | Reviewer | Verdict |
-|---|---|---|
-| Security (OWASP/STRIDE) | security-auditor (opus) | **CLEAR FOR MERGE** — no Crit/High; Medium/Low hardening only |
-| Code quality | code-quality-reviewer (opus) | **fix-then-ship** — "high-quality work"; 1 Important |
-| Spec conformance | spec-reviewer (opus) | **matches spec with gaps** — no Crit; 3 Important |
-| Design (4-lens) | Director render-verify (desktop+mobile+computed-font) | **fix-then-ship** — One-Blue holds, responsive OK; 1 Important (font regression) |
+**Run:** 2026-07-08 (Director-orchestrated). Coverage model for this consolidated promotion:
+- **Security** — a **fresh consolidated** OWASP/STRIDE audit of the whole `main..dev` auth/RLS/migration/RPC
+  surface was run for this gate (the prior ledger only covered the 2026-07-02 reporting slice). See
+  [security-audit-dev-main-2026-07-08.md](security-audit-dev-main-2026-07-08.md).
+- **Spec · Code-quality · Design** — each feature merged to `dev` behind its **own** review-battery ledger
+  (`docs/reviews/feat-*.md`: port-p1/p2/p3a, work-spine, ia-nav-work-spine, ar-followup-bridge, plan-v1,
+  home-v1-margin, home-stacked-union, cascade-catalog, kitchen-log-redesign, ui-coherence,
+  ui-coherence-followups, ui-polish-a, …), reinforced by two **MVP-readiness audits**
+  (`mvp-readiness-charter-audit-2026-07-06.md`, `mvp-readiness-audit-round2-2026-07-07.md`), the
+  **round-2 hardening** pass (`feat-harden-round2.md`), and the **post-retrofit all-routes design audit**
+  (`design-audit-post-retrofit-2026-07-08.md` — **0 P0**, retrofit fixes confirmed held; residuals triaged to
+  a debt/todo backlog). The B2 retrofit waves (W1–W5) + the lint/flake fixes were each Director-verified
+  (typecheck + lint + targeted + full-suite at every reconcile). This ledger **consolidates** that cumulative
+  coverage rather than re-running a fresh spec/CQ/design pass over all 191 commits; only the security lens was
+  freshly re-run end-to-end for this gate (it was the one whose prior verdict was scope-stale).
 
-### Machine-readable verdicts (parsed by `pre-merge-check.sh`)
-- spec: SHIP — matches spec; the 3 gaps (dead sort FR-009 · AC-id tagging · pgTAP collision) all RESOLVED + verified 2026-07-02.
-- code-quality: SHIP — "high-quality work"; the one Important (dead sortable table) RESOLVED (`a71da55`) + live-verified; follow-ups tracked.
-- design: SHIP — One-Blue holds, responsive OK; the `.tabular`→mono font regression RESOLVED (`a71da55`, Inter-tabular) + live-verified.
-- security: PASS — CLEAR for merge (no Crit/High); M1 snapshot-superuser + L3 password-length are before-prod, non-blocking.
+## Machine-readable verdicts (parsed by `pre-merge-check.sh`)
+- spec: SHIP — cumulative per-feature spec reviews + two MVP-readiness audits; no open Critical spec gap. Each
+  feature's ACs were verified at its owning layer (unit / pgTAP / e2e) as it merged to `dev`.
+- code-quality: SHIP — cumulative per-feature code-quality reviews + Director verification of the retrofit
+  waves; full Vitest suite green; typecheck 0; lint 0 (the `--max-warnings=0` gate is now genuinely enforced).
+- design: SHIP — the post-retrofit all-routes vision audit found **0 P0**; the headline retrofit fixes (DUE
+  bleeds, phone header reflow, `/ops` phone single-CTA, cascade-as-table, unified view-tabs) confirmed held;
+  the 41 residual findings are P1–P3, triaged to a backlog (Bucket A quick-wins + B systemic waves), not
+  merge blockers.
+- security: PASS — fresh consolidated OWASP/STRIDE audit: **no Critical, no High**. Every new business table
+  FORCES RLS with correct per-verb org-scoped policies AND a negative-path pgTAP test; the two tenancy guards
+  close the FK/immutability cross-org seams (tests 79/80 assert real 23514/42501 rejections); the DEFINER
+  RPCs (`transition_follow_up`, `create_notification`, `capture_budget`) cross-org-guard before write, pin
+  `search_path=''`, revoke public/anon EXECUTE; `aggregate_compiled` is INVOKER + injection-safe; no secrets
+  in the delta. **pgTAP: 82 files / 570 tests — all PASS.**
 
-## ✳ Must-fix before `dev`→`main`
-1. **Dead sortable table (FR-009)** — `revenue-columns.tsx` marks columns `sortable: true` and `DataTable`
-   renders sort-header buttons, but `sales-dashboard-page.tsx:176-182` passes **no `sort`/`onSortChange`**
-   → clicking sorts nothing; `aria-sort="none"` advertises an inert control (accessibility-visible).
-   **Flagged independently by BOTH code-quality and spec review.** Fix: wire page sort state (reorder
-   `tableRows`) or drop `sortable` until wired.
-2. **`.tabular` → SF Mono font regression (app-wide)** — `mos-app/src/index.css:214` points `.tabular` at
-   `--font-mono`; DESIGN.md OD-P3-9 (lines 293/295) mandates money = **Inter-tabular, never mono** (SF Mono
-   is IDs/codes/⌘K only). Inter was dropped (#55) so the fallback can't engage → all money renders in a
-   per-OS system monospace. Restore Inter Variable scoped to `.tabular` only; body/UI stays DM Sans;
-   re-verify digit alignment. (Also in `docs/backlog.md` §Doc & code debt.)
-3. **AC-id traceability (spec)** — (a) the 4 reporting **script-unit** ACs (AC-007/008/009/010) carry no
-   AC-id in their `test_reporting_snapshot.py` titles (`grep -r AC-007 scripts/` finds nothing — violates
-   the binding AC-id-in-title convention); (b) `supabase/tests/60_...rls.sql` **reuses** AC-007 (`:40`) and
-   AC-010 (`:81`) for DB assertions that in the spec name script-unit ACs → `grep` returns the wrong layer;
-   the pgTAP AC-010 actually proves spec AC-008. Tag the script tests; renumber the pgTAP collisions to the
-   correct spec IDs.
+## Verification evidence (this run, 2026-07-08)
+- `npx vitest run` (mos-app) — full unit/RTL suite green (re-run for this promotion).
+- `supabase test db` — **82 files / 570 pgTAP tests, Result: PASS** (all RLS + RPC + guard contracts).
+- `security-auditor` (opus, read-only, verified against SQL) — `security: PASS`.
+- `bash scripts/pre-merge-check.sh` — required lenses (spec/code-quality/design/security) all cleared.
 
-## Before prod (not merge-blocking)
-- **~~Sec-M1~~ — RESOLVED 2026-07-04.** Snapshot cron now connects as scoped `reporting_writer` (LOGIN,
-  no super/createdb/createrole; USAGE + SELECT/INSERT/UPDATE on the one table only) via migration
-  `20260704000001` (idempotent, applied to staging). Verified live: upsert OK under FORCE RLS,
-  `CREATE TABLE` denied, manual run `rows=190` exit 0. Cred = VPS `~/.reporting-writer-cred` 0600
-  (op SA can't write vault Gordi — migrate to op when writable; documented in warehouse-online.md).
-- **~~Sec-L3~~ — RESOLVED 2026-07-04.** `minimum_password_length = 8` + `lower_upper_letters_digits`
-  pushed to staging. Config-push URL-revert gotcha FIRED and was fixed (site_url restored to
-  `https://gordi-mos.pages.dev/mos/` + redirect list; third push confirmed "up to date"); gotcha now
-  documented in `config.toml` + `docs/environments.md`.
+## Tracked follow-ups (NOT promotion blockers)
+- **M1 (Medium)** — `mos.budgets` grants direct INSERT/UPDATE to `authenticated`, bypassing the
+  `capture_budget` RPC's COGS-recompute + same-org guard (no budgets guard trigger). Bounded blast radius
+  (cogs.write actor, own-org rows). **Close before B2B onboarding** — revoke direct writes → route through the
+  RPC, or add a guard trigger.
+- **L1** — `capture_budget` "uncertified cost line" fail-loud only detects *missing* lines (no `certified`
+  column) — semantic/doc gap.
+- **L2** — `reporting_writer` cross-org write residual (A4): land the `app.reporting_org` GUC scope before the
+  writer feed goes live on the shared DB; currently mitigated by write-only credential custody.
+- **Design backlog** — audit Bucket A (quick-wins: `.ch-title` 24px, dup-CTAs, kitchen no-data KPIs) + Bucket
+  B systemic waves (44px tap-targets, one empty-state system, data-provenance pattern) — post-promotion.
 
-## Follow-ups (tracked, non-blocking)
-- **CQ** — `reporting_snapshot.py:174` `executemany` = 1 round-trip/row; batch before the read-model widens
-  (ADR-0017 D3 growth path). `freshness-label.tsx:15` renders in the browser TZ not Asia/Jakarta (finance
-  "as of" can read confusingly cross-TZ). `channelMixLabel` independent rounding may not sum to 100.
-- **Sec-M2** — `pg_hba` `172.18.0.0/16 trust` → passwordless superuser to any *future* co-tenant container
-  on the docker bridge (documented open item; move `gordi` to `scram` + op password when the op SA can write).
-- **Sec-L1/L2** — Telegram bot token from `openclaw.json` not op; no pgTAP for the service-role *write* path.
-- **~~Test flake~~ — NON-ISSUE (verified 2026-07-02).** The reported `task-detail.test.tsx` failure was a
-  **Node-18-vs-22 artifact**, not a clock-drift flake: the fixture date is hardcoded + UTC-formatted
-  (deterministic). Suite is **1725/1725 green under Node 22**; `.nvmrc` now pins 22. Nothing to fix.
-- **Spec-minor** — AC-011 rests on the un-run e2e (Director owns the live-render layout proof); `DailyRevenueChart`
-  legend hardcodes POS/B2B (a 3rd channel renders unlabeled).
-
-## Sign-off
-- ✳ **All three must-fix RESOLVED + verified (2026-07-02):**
-  1. **Sort (FR-009)** — wired (`a71da55`: pure `sortRevenueRows` + page state + `<DataTable sort onSortChange>` + 7 tests). **Live-render-verified:** clicking "Avg rev/txn" reordered rows ascending + `aria-sort` toggled.
-  2. **`.tabular`→Inter font** — `a71da55` (Inter Variable scoped to numeric only). **Live-verified:** KPI money computes `"Inter Variable"` (loaded), no longer SF Mono; body/UI stays DM Sans.
-  3. **AC-id traceability** — script tests tagged AC-007/008/009/010; pgTAP collision resolved (`:81`→AC-008, `:40`→new AC-011); `grep -r AC-XXX` truthful; 333 pgTAP assertions pass.
-- Suite **1734 green** under Node 22; typecheck + lint clean.
-- Live-render (Director, 2026-07-02): populated, responsive (768px→cards, no h-scroll), B2B/Roastery end-to-end, sort works, Inter money — desktop+mobile screenshots at repo root.
-- **Remaining before merge:** `bash scripts/pre-merge-check.sh` exit 0.
-- Minor follow-up found during verify (non-blocking): the daily-revenue table's compact money renders DM Sans, not `.tabular` (pre-existing tabular-alignment nit).
+## Verdict
+**SHIP.** Security freshly gated (PASS, 0 Crit/High; pgTAP 570 green); spec/CQ/design carried by cumulative
+per-feature + MVP-readiness + post-retrofit review coverage (0 P0). M1/L1/L2 tracked. Staging deploy
+(migrations on the staging DB + CF Pages) is **deferred** to a separate deliberate step per owner decision.

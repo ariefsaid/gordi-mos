@@ -2,6 +2,7 @@ import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks
 import type { PersonOption } from '@/lib/db/directory'
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
+import { CommentThread, type TaskComment } from './CommentThread'
 
 // Feed tab vocabulary (ADR-0013 D3 right-feed). "Notes" maps to the existing
 // description pane — no new entity (Director resolution). Order: Activity first
@@ -19,6 +20,7 @@ export type RecordFeedProps = {
   task: TaskListRow
   checklist: ChecklistItemRow[]
   events: TaskEventRow[]
+  comments: TaskComment[]
   people: PersonOption[]
   now: Date
   editable: boolean
@@ -29,6 +31,7 @@ export type RecordFeedProps = {
   onToggleChecklist: (id: string, isDone: boolean) => void
   onReorderChecklist: (id: string, direction: 'up' | 'down') => void
   onDeleteChecklist: (id: string) => void
+  onPostComment: (body: string) => Promise<void> | void
 }
 
 // The right-hand record feed (ADR-0013 D3): a tab strip Activity / Checklist /
@@ -37,9 +40,10 @@ export type RecordFeedProps = {
 // tabindex + ArrowLeft/Right navigation. The feed NEVER carries a weekly-update
 // write/ack affordance (Lens-D guard A2 — this is a Task, not the upward-review pane).
 export function RecordFeed({
-  task, checklist, events, people, now, editable, viewerId,
+  task, checklist, events, comments, people, now, editable, viewerId,
   activeTab, onSelectTab,
   onAddChecklist, onToggleChecklist, onReorderChecklist, onDeleteChecklist,
+  onPostComment,
 }: RecordFeedProps) {
   const done = checklist.filter(i => i.is_done).length
 
@@ -89,7 +93,10 @@ export function RecordFeed({
         aria-labelledby={`rf-tab-${activeTab}`}
       >
         {activeTab === 'activity' && (
-          <ActivityCard events={events} people={people} now={now} />
+          <>
+            <ActivityCard events={events} people={people} now={now} />
+            <CommentThread comments={comments} people={people} canPost={editable} onPost={onPostComment} />
+          </>
         )}
         {activeTab === 'checklist' && (
           <ChecklistCard

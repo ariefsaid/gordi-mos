@@ -15,13 +15,15 @@ interface PlanQtyCellProps {
   qty: number
   /** per-cell save in flight */
   saving: boolean
+  /** transient (≈1.5s) just-committed signal — shows a ✓ Saved tick at this cell */
+  justSaved?: boolean
   /** offline */
   disabled: boolean
   /** commit (clamped ≥ 0) → upsertKitchenPlan at the page */
   onSave: (next: number) => void
 }
 
-export function PlanQtyCell({ itemName, qty, saving, disabled, onSave }: PlanQtyCellProps) {
+export function PlanQtyCell({ itemName, qty, saving, justSaved = false, disabled, onSave }: PlanQtyCellProps) {
   const [draft, setDraft] = useState<number>(qty)
   // Keep the draft in sync when the committed qty changes (e.g. after a confirmed save
   // or when the action_type changes the visible qty).
@@ -76,6 +78,11 @@ export function PlanQtyCell({ itemName, qty, saving, disabled, onSave }: PlanQty
         </button>
       </div>
       {saving && <span className="pqcell-saving" role="status" aria-live="polite">Saving…</span>}
+      {!saving && justSaved && (
+        <span className="pqcell-saved" role="status" aria-live="polite">
+          <span className="pqcell-saved-tick" aria-hidden="true">✓</span> Saved
+        </span>
+      )}
     </div>
   )
 }

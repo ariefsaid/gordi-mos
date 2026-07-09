@@ -10,6 +10,31 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
+> **2026-07-06 — P3a Inbox/replay train + P2.1 aggregate RPC are built, pushed, and still CI-gated.**
+> PR #88 (`feat/port-p3a-replay-inbox`) and PR #89 (`feat/p2.1-db-side-aggregate`, stacked on #88)
+> are open against `dev`, not merged. The full P3a review battery is recorded at
+> `docs/reviews/feat-port-p3a-replay-inbox.md`; P2.1 at `docs/reviews/feat-p2.1-db-side-aggregate.md`.
+> The first CI red was the missing `mos.create_notification` EXECUTE revoke; that fix was pushed.
+> GitHub then exposed additional verify/e2e reds. Current local CI-fix pass: non-blocking task comments
+> load in `TaskSurface`, stale async task loads are ignored, Home-v1 e2e assertions are aligned to the live
+> `Home` index route, Sales dashboard e2e KPI locators are scoped to `.sdp-kpi-grid`, and the recovery e2e
+> now rotates to a password satisfying `lower_upper_letters_digits` while weak-password errors stay on the
+> set-password form; full-coverage-only timeouts were stabilized without changing their behavioral oracles.
+> Local P3a-base gates are green (2213 Vitest coverage, 437 pgTAP, targeted Playwright 6 passed/1 skipped,
+> typecheck, lint, build). P2.1 adds the aggregate RPC pgTAP files and should rerun at 449 pgTAP after
+> re-stack. Treat GitHub CI as **not green** until this fix is pushed/re-stacked and GitHub checks rerun
+> green.
+> Canonical state: `docs/platform-workstream-status.md`; task detail:
+> `docs/plans/2026-07-06-port-p3-automations-inbox.md`.
+>
+> **2026-07-04 EOD — FOUR SLICES SHIPPED TO `dev` (full batteries in `docs/reviews/`); P2 in flight:**
+> Home v1 + margin read-model (§7a interim contract) · helper dedup · **port P1 substrate**
+> (viewspec + user_views + /dev/views harness, flags off) · **BU taxonomy remap** (6 team BUs,
+> stable codes). P2 deputy train building on `feat/port-p2-panel-runtime` (edge functions done +
+> deno-check clean; panel UI/harness/firewall via GLM). See
+> `docs/platform-workstream-status.md` §Current focus for the full state + owner-gated queue
+> (dev→main offer · staging db push ×3 · ESB PIC question).
+>
 > **2026-07-04 — IA NORTH-STAR + can() ACCEPTED (ADR-0019 / ADR-0020, OD-IA-1/2):** five destinations
 > (**Home / Work / Operate / Plan / Inbox**; activity is a dimension, never a nav root); taxonomy
 > **BU=team / Activity=workstream / Revenue stream=money lens** (old BU seed rows need re-mapping —
@@ -293,9 +318,46 @@ Post-ship design review found `/tasks` drifted from its signed mockup. Two commi
   `ConfirmDialog` · `PersonPicker` empty state.
 - P2-2b polish: shared `<TintPill>` · inline-style → co-located CSS · marker-picker up-flip.
 
+## ✅ Pre-F hardening — DONE (2026-07-07, `feat/harden-round2`; task #17)
+Source: `docs/reviews/mvp-readiness-audit-round2-2026-07-07.md`. Battery: `docs/reviews/feat-harden-round2.md`
+(pgTAP 570 · unit 2345 · coverage 95.43% · typecheck/lint green). A1 task-tenancy guard · A2 comments
+entity-guard · A3 error-boundary+telemetry · A5 atomic budget RPC + server-recompute (+ owning_bu_id guard)
+· A6 coverage globs + CI plan-budget flag — all merged. **A4 was reframed:** null/bogus org already blocked
+by `NOT NULL`+FK; the RLS exists-check was broken+redundant → reverted to documentation; the real fix
+(per-run org scoping) is an F item ↓.
+- **F (owner-gated) absorbs ops/infra:** ESB worker DEPLOY · edge rate-limit/quota · VAPID · prod auth config
+  (`enable_signup`/`confirmations`) · request-id tracing · admin audit trail ·
+  **A4 reporting_writer true org-scope:** snapshot job (`scripts/reporting_snapshot.py`) sets
+  `set_config('app.reporting_org', <org>, false)` at session start; each `reporting.*` write policy becomes
+  `with check (org_id = current_setting('app.reporting_org', true)::uuid)` — scopes the writer to one org
+  per run (deferred: changes + redeploys the Python job).
+
+## ▶ Pre-rollout UI polish (from the 2026-07-07 4-lens design review — gates flag-flip; task #19)
+Source: `docs/reviews/design-mvp-push-2026-07-07.md`. All on **dark** surfaces → don't block `dev`; gate the cohort flag-flip.
+- **[BLOCKER] B-1/C-1** Follow-up row drills `/work/follow-ups/:id` but no route exists → 404. Add read-only detail route or pull the link.
+- **[BLOCKER] D-2** Home AR + AP placeholder slots are dead-end (anchor A4). AR → `/work/follow-ups?filter=overdue`; AP → drill or explicit visibility-only.
+- Polish: follow-up pill per-state dot+tint (A-1) · Button-ify follow-up/cascade controls + `seg` for Mine/All (A-2,A-3) · `SkeletonRows` on follow-ups+cascade (B-2) · transition success toast (B-3) · budget token drift `--border`/600 overline (A-4,A-5) · cascade inline-px→grid grammar (A-6) · localize follow-up enum via `t()` (D-7) · **A-8 [render-found] OPERATE rail label collision — "Daily Log" vs "Log", and "Plan" (kitchen) vs Plan destination; disambiguate kitchen items**.
+- **[owner confirm] C-3** Plan gated finance/admin but jtbd assigns pricing pre-flight to Marketing/BU-head — confirm intended Plan visibility.
+- **Render debt:** authenticated states were NOT rendered (local Supabase port/seed mismatch) — Director owes a per-persona render taste-check before sign-off (owner judges look-vs-mockup).
+- Add 4 regression-invariant tests (settle-needs-evidence · no label-only Home slots · `/work/follow-ups/:id` resolves · BU-scope hides whole-co money) — see ledger.
+
+## Near-term follow-ups (from the 2026-07-06 IA/product grill — see `docs/decisions.md` "Continued grill session 2")
+- **Shift scheduling / rostering** — flagged NEAR-TERM by owner ("manual today, needed sooner than later").
+  Contributor Home is capture-first w/ no roster in MVP but leaves a "your shift today" seam; this fills it.
+- **Notification re-push trigger** — re-nudge untriaged/unread Inbox notifications after an interval (single
+  PWA push is insufficient). Near-term; cheaper than any external channel.
+- **External notification channel** — **Telegram or in-app group chat** (WhatsApp deprioritized — too tedious
+  to integrate). Channel-adapter seam (P3a) takes either; doorbell-only, conversation stays on the entity.
+- **Agent experience batch** (next agent work, before automations): **C2 safe-markdown + C3 typed-widget tables
+  are DONE on `dev`** via `feat/ui-coherence` (`docs/adr/0049-safe-markdown-rendering.md`,
+  `docs/adr/0045-typed-transcript-widgets.md`, ledger `docs/reviews/feat-ui-coherence.md`). Remaining:
+  C4 layered prompt, then C1 automations (P3b). See `docs/specs/agent-capability-expansion.md`.
+
 ## Deferred (post-MVP — see roadmap "Post-MVP")
 Objectives/outcomes · programs/processes · SWPs · RACI matrix UI · OKR cascade ·
-roastery app · ESB write-back visibility · shared UI package extraction.
+roastery app · ESB write-back visibility · shared UI package extraction ·
+agent attachments (C5) · agent credits/metering (C8) · roastery QC/cupping module ·
+bank-feed auto-matching (AR recon) · certified-metric admin UI · WhatsApp channel.
 
 ---
 

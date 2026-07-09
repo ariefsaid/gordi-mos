@@ -76,3 +76,84 @@ describe('de-reference firewall — AC-UV-019', () => {
     }
   })
 })
+
+// ── P2 extension (plan T31, D4) — walk the agent stack: supabase/functions/** + agent/**. The
+// firewall now ALSO guards (a) provider brand names + hardcoded model ids in CODE (comments that
+// document the neutral shape are fine, mirroring the service_role discipline above), and (b) the
+// sharper service_role rule for the edge functions: the ONLY sanctioned usage is `auth.getUser` in
+// the two index.ts files (FR-P2-DI-002). Brand names are base64-encoded here so this test file is
+// not itself a leak (the self-leak hazard the header above warns about).
+const REPO_ROOT = resolve(__dirname, '../../../../')
+const FUNCTIONS_DIR = resolve(REPO_ROOT, 'supabase/functions')
+const AGENT_DIR = resolve(__dirname, '../agent')
+
+const agentStackFiles = [...collectSourceFiles(FUNCTIONS_DIR), ...collectSourceFiles(AGENT_DIR)]
+
+// base64 of 'anthropic,openrouter,deepseek,claude,openai,gemini,mistral,llama' — decoded at runtime
+// so the test file carries no plaintext brand name (the self-leak hazard).
+const FORBIDDEN_BRANDS_B64 = 'YW50aHJvcGljLG9wZW5yb3V0ZXIsZGVlcHNlZWssY2xhdWRlLG9wZW5haSxnZW1pbmksbWlzdHJhbCxsbGFtYQ=='
+const FORBIDDEN_BRANDS = Buffer.from(FORBIDDEN_BRANDS_B64, 'base64').toString('utf8').split(',')
+
+// The two edge-function entry points are the ONLY files permitted to reference service_role in
+// executable code — and only to build the verifier client that calls auth.getUser (FR-P2-DI-002).
+const SERVICE_ROLE_EXEMPT = [
+  resolve(FUNCTIONS_DIR, 'agent-chat/index.ts'),
+  resolve(FUNCTIONS_DIR, 'compose-view/index.ts'),
+]
+
+describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-002)', () => {
+  it('walks a non-empty agent stack including BOTH edge-function index.ts entry points', () => {
+    expect(agentStackFiles.length).toBeGreaterThan(10)
+    for (const exempt of SERVICE_ROLE_EXEMPT) {
+      expect(agentStackFiles, `expected ${exempt} in the walked set`).toContain(exempt)
+    }
+  })
+
+  it('no provider brand name or model id appears in executable code (comments documenting neutrality are fine)', () => {
+    for (const f of agentStackFiles) {
+      const lines = readFileSync(f, 'utf8').split('\n')
+      for (const [i, line] of lines.entries()) {
+        if (isCommentLine(line)) continue
+        const lower = line.toLowerCase()
+        for (const brand of FORBIDDEN_BRANDS) {
+          expect(
+            lower.includes(brand),
+            `${f}:${i + 1} must not reference brand "${brand}" in code — "${line.trim()}"`,
+          ).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('no sibling-fixture UUID appears anywhere in the agent stack, comment or code', () => {
+    for (const f of agentStackFiles) {
+      const src = readFileSync(f, 'utf8')
+      for (const needle of FORBIDDEN_LITERALS) {
+        expect(src, `${f} must not contain "${needle}"`).not.toContain(needle)
+      }
+    }
+  })
+
+  it('service_role appears in executable code ONLY in the two index.ts entry points (the auth.getUser exemption)', () => {
+    for (const f of agentStackFiles) {
+      const exempt = SERVICE_ROLE_EXEMPT.includes(f)
+      const lines = readFileSync(f, 'utf8').split('\n')
+      for (const [i, line] of lines.entries()) {
+        if (isCommentLine(line)) continue
+        if (!/service_role/i.test(line)) continue
+        // A non-exempt file using service_role in code is a bypass-RLS leak (FR-P2-DI-001/002).
+        expect(
+          exempt,
+          `${f}:${i + 1} uses service_role in code but is not an exempt index.ts — "${line.trim()}"`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('each exempt index.ts actually calls auth.getUser (service_role is for JWT verify, never business data)', () => {
+    for (const f of SERVICE_ROLE_EXEMPT) {
+      const src = readFileSync(f, 'utf8')
+      expect(src, `${f} must call auth.getUser to justify its service_role use`).toContain('.auth.getUser(')
+    }
+  })
+})

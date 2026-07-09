@@ -3,11 +3,13 @@ name: integration
 on:
   push:
     branches: [main]
-  # On PRs the heavy full-stack job (boots Supabase + pgTAP + e2e, ~3–4 min) runs ONLY
-  # when something it actually validates changes — DB/migrations/RLS, the e2e journeys,
-  # or this workflow's deps. UI-only PRs run just `verify` (~1 min). Pushes to main always
-  # run it (no paths filter on push), so every merge is fully validated post-merge.
+  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify`; the heavy
+  # full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main smoke).
+  # On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
+  # migrations/RLS, the e2e journeys, or this workflow's deps. Pushes to main always run it
+  # (no paths filter on push), so every merge is fully validated post-merge.
   pull_request:
+    branches: [main]
     paths:
       - 'supabase/**'
       - 'mos-app/e2e/**'
@@ -111,6 +113,7 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:44321
           VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+          VITE_SHOW_PLAN_BUDGET: 'true'
         run: npx playwright test
 
       - name: Stop stack

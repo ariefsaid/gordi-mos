@@ -1,6 +1,6 @@
 // KPITile tests — design-plan §2.1 (general KPI tile primitive, never says "revenue").
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { KPITile } from './kpi-tile'
 
 describe('KPITile — ready state', () => {
@@ -87,5 +87,85 @@ describe('KPITile — never shows misleading 0/NaN', () => {
     render(<KPITile label="Trailing 7-day revenue" value="Rp 128,4jt" state="loading" />)
     expect(screen.queryByText('0')).toBeNull()
     expect(screen.queryByText('NaN')).toBeNull()
+  })
+})
+
+// ── EXTENSIONS (Track C1 — onClick/selected/basis/dq) ─────────────────────────────
+describe('KPITile — filter-in-place (onClick + selected, AC-016)', () => {
+  it('AC-016: renders a <button> when onClick is provided (filter-in-place)', () => {
+    render(<KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" onClick={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Trailing 7-day revenue' })).toBeInTheDocument()
+  })
+
+  it('AC-016: fires the onClick callback when the button is clicked', () => {
+    const onClick = vi.fn()
+    render(<KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" onClick={onClick} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Trailing 7-day revenue' }))
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('AC-016: the selected tile carries aria-current="true"', () => {
+    render(
+      <KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" onClick={vi.fn()} selected />,
+    )
+    expect(screen.getByRole('button', { name: 'Trailing 7-day revenue' })).toHaveAttribute(
+      'aria-current', 'true',
+    )
+  })
+
+  it('AC-016: a selected tile carries the selected class for the primary ring', () => {
+    const { container } = render(
+      <KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" onClick={vi.fn()} selected />,
+    )
+    expect(container.querySelector('.kpi-tile.kpi-tile--selected')).not.toBeNull()
+  })
+
+  it('back-compat: renders a <div> (NOT a button) when onClick is omitted', () => {
+    render(<KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" />)
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByRole('group', { name: 'Trailing 7-day revenue' })).toBeInTheDocument()
+  })
+})
+
+describe('KPITile — basis label + DQ badge slots (AC-008)', () => {
+  it('AC-008: renders the basis label text when provided', () => {
+    render(
+      <KPITile
+        label="Gross margin %"
+        value="62,4%"
+        basis={{ label: 'interim — stock-movement' }}
+      />,
+    )
+    expect(screen.getByText('interim — stock-movement')).toBeInTheDocument()
+  })
+
+  it('AC-008: renders a DQ badge when dq is provided', () => {
+    render(
+      <KPITile
+        label="Gross margin %"
+        value="62,4%"
+        dq="partial"
+      />,
+    )
+    expect(screen.getByText(/partial/i)).toBeInTheDocument()
+  })
+
+  it('AC-008: renders both basis + dq together (every GM/COGS tile)', () => {
+    render(
+      <KPITile
+        label="Interim COGS"
+        value="Rp 155,1 jt"
+        basis={{ label: 'interim — stock-movement' }}
+        dq="good"
+      />,
+    )
+    expect(screen.getByText('interim — stock-movement')).toBeInTheDocument()
+    expect(screen.getByText(/good/i)).toBeInTheDocument()
+  })
+
+  it('back-compat: renders neither basis nor dq when omitted (revenue tiles unchanged)', () => {
+    const { container } = render(<KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" />)
+    expect(container.querySelector('.kpi-tile-basis')).toBeNull()
+    expect(container.querySelector('.dq-badge')).toBeNull()
   })
 })

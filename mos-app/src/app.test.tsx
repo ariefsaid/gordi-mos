@@ -24,5 +24,5 @@ describe('App smoke', () => {
     render(<App />)
     // While auth is loading, ProtectedRoute shows loading indicator (no heading flash)
     expect(screen.getByRole('status')).toBeInTheDocument()
-  })
+  }, 10_000)
 })

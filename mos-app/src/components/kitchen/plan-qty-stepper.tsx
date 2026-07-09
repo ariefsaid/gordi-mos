@@ -13,13 +13,15 @@ interface PlanQtyStepperProps {
   qty: number
   /** per-cell save in flight */
   saving: boolean
+  /** transient (≈1.5s) just-committed signal — shows a ✓ Saved tick at this cell */
+  justSaved?: boolean
   /** offline */
   disabled: boolean
   /** commit (clamped ≥ 0) → upsertKitchenPlan at the page */
   onSave: (next: number) => void
 }
 
-export function PlanQtyStepper({ itemName, qty, saving, disabled, onSave }: PlanQtyStepperProps) {
+export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disabled, onSave }: PlanQtyStepperProps) {
   const [draft, setDraft] = useState<number>(qty)
   useEffect(() => { setDraft(qty) }, [qty])
 
@@ -70,6 +72,11 @@ export function PlanQtyStepper({ itemName, qty, saving, disabled, onSave }: Plan
         +
       </button>
       {saving && <span className="kps-saving" role="status" aria-live="polite">Saving…</span>}
+      {!saving && justSaved && (
+        <span className="kps-saved" role="status" aria-live="polite">
+          <span className="kps-saved-tick" aria-hidden="true">✓</span> Saved
+        </span>
+      )}
     </div>
   )
 }

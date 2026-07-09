@@ -1,0 +1,87 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   WhatsComingStrip — the honest "needs warehouse data" strip (design-plan §2.11,
+   FR-010/AC-010). Desktop: a 4-up (or 3-up + Opex in the GM row per the mockup)
+   grid of dashed-glyph stubs. Each stub = card + border + shadow-rest. Never a
+   faked number. Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.whats-coming {
+  margin-top: 12px;
+}
+
+.whats-coming-label {
+  display: block;
+  padding: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.whats-coming-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.whats-coming-stub {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-rest);
+  box-sizing: border-box;
+}
+
+.whats-coming-stub-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.whats-coming-ph {
+  width: 16px;
+  height: 16px;
+  border: 1.5px dashed var(--input);
+  border-radius: var(--radius-xs, 4px); /* rounded.xs */
+  flex: none;
+}
+
+.whats-coming-stub-name {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+
+.whats-coming-stub-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.whats-coming-stub-note {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* Tablet: 3-up until ≥1280px (design-plan §1.4). Phone: 2-up. */
+@media (max-width: 1279px) {
+  .whats-coming-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .whats-coming-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .whats-coming-stub {
+    padding: 11px;
+  }
+  .whats-coming-stub-val {
+    font-size: 12.5px;
+  }
+}
