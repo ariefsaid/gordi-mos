@@ -12,7 +12,13 @@
 }
 .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .btn:disabled,
-.btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  background-image: none;
+  filter: saturate(0.35);
+}
 
 /* Primary — the one action blue, sheen + faint brand shadow at rest (OD-P3-12) */
 .btn-primary {

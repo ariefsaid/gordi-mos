@@ -581,7 +581,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // + New task lives in the content-header (mockup `.ch-action`) only when the table
   // is populated — empty / no-results states own their own create CTA, so every
   // state has exactly one create link.
-  const showNewTask = !loading && !error && leafTasks.length > 0
+  const showNewTask = !drawerOpen && !loading && !error && leafTasks.length > 0
 
   return (
     <>

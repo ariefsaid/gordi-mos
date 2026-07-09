@@ -84,6 +84,13 @@ describe('RI1 — C1: Submit button backgroundColor', () => {
     expect(submitBtn.style.backgroundColor).toBeDefined()
     expect(submitBtn.style.backgroundColor).not.toBe('')
   })
+
+  it('disabled Submit uses the shared primary button classes and disabled semantics', async () => {
+    await renderPane()
+    const submitBtn = screen.getByRole('button', { name: /submit update/i })
+    expect(submitBtn).toHaveClass('btn', 'btn-primary')
+    expect(submitBtn).toHaveAttribute('aria-disabled', 'true')
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════

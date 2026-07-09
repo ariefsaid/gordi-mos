@@ -803,4 +803,14 @@ describe('W4-2: empty + filtered-empty via state-kit; no phone duplicate CTA', (
     expect(addLinks).toHaveLength(1)
     expect(document.querySelector('.ops-submit-bar')).toBeNull()
   })
+
+  it('desktop ready-empty renders exactly one "Add log entry" affordance (empty state owns the CTA)', async () => {
+    applyViewport(true)
+    mockListLogEntries.mockResolvedValue([])
+    const { container } = await renderOps()
+    await waitFor(() => expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument())
+
+    expect(screen.getAllByRole('link', { name: /add log entry/i })).toHaveLength(1)
+    expect(container.querySelector('.ops-toolbar-add')).toBeNull()
+  })
 })
