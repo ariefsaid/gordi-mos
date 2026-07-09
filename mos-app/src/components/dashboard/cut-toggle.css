@@ -42,3 +42,15 @@
 @media (prefers-reduced-motion: reduce) {
   .cut-toggle-tab { transition: none; }
 }
+
+@media (max-width: 767.98px) {
+  .cut-toggle,
+  .cut-toggle-tab {
+    min-height: 44px;
+  }
+
+  .cut-toggle,
+  .cut-toggle-tab {
+    height: auto;
+  }
+}
