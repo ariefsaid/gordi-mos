@@ -272,6 +272,8 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Orange-Sprinkle Rule (OD-P3-7).** `brand-orange` is a brand sprinkle used **sparingly** (≤2 marks per screen): the logo dot and the **active view-tab underline marker**. It is kept **OFF all status semantics** (it sits hue-wise between the red/amber status hues and would be misread as a warning) and **OFF all actions**. Never a status, never a link, never a button.
 
+**The Deputy-Launcher / No-FAB Rule (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange FAB).** MOS sanctions **no floating action button** paradigm — a floating orange "Open deputy" FAB doubly violated the Orange-Sprinkle Rule (orange-as-action) and collided with page content + the Kitchen submit bar on phone. The deputy launcher is instead a **neutral top-bar icon button on every viewport** (desktop *and* phone): 32px, the deputy spark glyph, `muted-foreground` → `foreground` on hover, sitting in the header right-cluster beside search/bell — identical chrome to the notification bell. One launcher location app-wide (one app, not "several apps"). No orange, no float.
+
 ## Typography
 
 **Display / Heading Font (OD-P3-9):** Plus Jakarta Sans (with `system-ui, -apple-system, "Segoe UI", sans-serif` fallback) — page titles, section/card headings, subheadings.
@@ -339,6 +341,12 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 ### Badges / Status Pills
 - **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
 - **Count badge** (nav rail / kanban): `secondary` bg + `muted-foreground` text, full radius; active nav item flips to `primary/15%` bg + `primary` text. Kanban column count adds a 1px border on `background`.
+- **Basis chip** (RATIFIED 2026-07-07, OD-DASH — the `/dashboard` KPI "interim/basis" label): a neutral explanatory chip that names the data basis under a number (e.g. "interim-stock-movement"). 20px tall, `rounded.full`, **no dot** (it is metadata, not status), `secondary` bg + `muted-foreground` text, 11px/600 label. It reuses the default/neutral badge pair verbatim — `--basis-chip` is **not a new token**; it is the *role name* for "neutral badge used as a basis label" (the same `secondary`/`muted-foreground` values as the count badge). Distinct from a status pill on two counts: (1) no dot, (2) neutral-only — a basis is never good/bad, it is a provenance note.
+- **Data-quality (DQ) badge** (RATIFIED 2026-07-07, OD-DASH — `/dashboard` BOM-coverage signal "good/partial/unknown"): a status pill **reusing the existing Tinted-Status hues — no new token**. The DQ state maps onto the established status families via the dot+text convention:
+  - `good` → `success` family (dot `success`, text `success-foreground` over a `success/14%` tint).
+  - `partial` → `warning` family (dot `warning`, text `warning-foreground` over a `warning/18%` tint). "Partial" is a *caveat*, not an error — `warning` (amber), never `destructive` (red).
+  - `unknown` → neutral (dot `muted-foreground/40%`, text `muted-foreground` over `secondary`). Reads as "no signal," not "bad."
+  - The label is always the literal "BOM coverage: \<state\>" so the dot is never the sole carrier (WCAG 1.4.1). Same 22px / full-radius / 12px-600 shell as a status pill.
 
 #### Status-pill text tokens (Wave-6 H3 — named source of truth in `index.css` `:root`)
 The darkened-AA text values for the four non-neutral pill variants are defined as named CSS custom properties. The `StatusPill` component applies them as `hsl(var(--token))` inline styles — the token IS the applied value.
@@ -362,6 +370,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Style:** `background` fill, 1px `input` border, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`), 32px tall, `0 10px` padding. Placeholder = `muted-foreground`. The search-mini and the header `cmdk` are the canonical field shells; inner `<input>` is borderless/transparent and inherits the font (DM Sans). No resting shadow on inputs (Soft-Elevation Rule — flat utility surface).
 - **Focus:** `:focus-visible` ring (`2px {colors.ring}`, 2px offset). The `cmdk` also shifts its border on hover (`muted-foreground/50%`).
 - **Checkbox:** 16px, 1.5px `input` border, **4px radius** (`{rounded.xs}` = `calc(var(--radius) - 8px)`); checked → `primary` fill + `primary` border + white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
+- **Select (RATIFIED 2026-07-07, `[NEW]` — closes the "11 raw `<select>`" divergence, UI-coherence audit D2/E3):** the one dropdown shell for a bounded choice. It **wraps a native `<select>`** — never a custom listbox — so keyboard, type-ahead, screen-reader semantics, and the phone-native picker come for free (ponytail: no JS menu to own). The native element is visually reset (`appearance: none`, no default arrow) and the shell supplies token chrome identical to a field: `background` fill, 1px `input` border, **8px control radius** (`{rounded.sm}`), **32px tall**, `0 28px 0 10px` padding (right room for the glyph), `foreground` value text, `:focus-visible` ring (`2px {colors.ring}`, 2px offset), flat at rest (utility surface — no shadow). A **14px chevron-down** glyph (`muted-foreground`, `aria-hidden`) sits absolutely at `right: 8px`, `pointer-events: none`. Placeholder/unset option = `muted-foreground`. Disabled = `secondary` bg + `muted-foreground` text + `not-allowed` cursor (this is also the ratification of the disabled-field styling proposed below, scoped to Select). Exposed via the native `<select>` — pass `aria-label` (or a visible `<label>`); no extra ARIA. Lives at `mos-app/src/components/ui/select.tsx`; **all bounded-choice dropdowns import it — no raw `<select>` in `src/pages` or `src/components`** (grep guard).
 - **Error (field validation — RATIFIED 2026-06-15, OD-P3-5):** the documented gap is now closed with two named tokens, both reusing existing palette values (no new hue):
   - `--field-error-border` = `destructive` — the field's 1px `input` border swaps to `destructive` while the field is invalid.
   - `--field-error-text` = `--status-lost-text` (`0 72% 45%`, the AA-darkened red) — for the helper/error line below the field. **Not** base `destructive`, which fails AA (~3.6:1) as small text on white; the darkened red clears AA (≥4.5:1), mirroring the Tinted-Status pattern (saturated hue for the marker/outline, darkened variant for the text).
@@ -606,3 +615,178 @@ change mechanically requires it (e.g. card frontmatter radius, KPI value weight 
 show. The contingency is documented (implementer note 7): if DM Sans `tnum` doesn't column-align, the
 build scopes **Inter-tabular for numeric table cells / KPI values only**, keeping the rest of the
 identity on DM Sans. The owner should be told which path the build took (recorded in the build PR).
+
+---
+
+## Page Archetypes (OD-DASH-adjacent, 2026-07-08)
+
+Three rendered teardowns (`docs/reviews/design-teardown-2026-07-07.md` root problem #1 + §B2;
+`docs/reviews/audit-probe-craft.md` finding #1) independently converged on the system's true seam:
+**MOS shares tokens but not a page grammar.** Every route picks a different layout religion — table
+workspace vs accordion tree vs essay form vs CRUD list vs kitchen console vs blank placeholder — so the
+app reads as "several products stitched together" beneath an otherwise coherent surface. The cure is a
+**page-archetype system**: three durable page archetypes, every route conforms to exactly one, so
+spacing, toolbars, page heads, and body structure repeat with intent.
+
+**Archetypes are compositions of EXISTING primitives — not new shell code and not new tokens.** Each is
+expressed purely in the slots the shell already owns: `PageFrame` (`shell/page-frame.tsx`, `variant:
+'data' | 'prose'`) + `PageHead` (`shell/page-head.tsx`, `variant: 'prose' | 'content'`) + the state-kit
+(`EmptyState`/`ErrorState`/`SkeletonRows`, `ui/state-kit.tsx`) + the signature body primitives
+(`DataTable`, `KPITile`, `ChartFrame`, `FreshnessLabel` under `components/dashboard`). Spacing and type
+are strictly existing tokens: the shared 24px left gutter (CONV), the 1080px prose cap, the workspace's
+self-imposed 1280px internal cap, and the `page-title`/`heading`/`overline`/`label` scale. This section
+adds **no** color, font, radius, shadow, or gradient token — it is a grammar, ratifying the B2 decision.
+
+### The three archetypes
+
+#### 1. Workspace — dense operator surface for scanning + acting on many records
+
+- **Intent.** A full-bleed surface where the operator scans many rows and acts on them: triage, filter,
+  group, sort, then drill in. Density and a functional tool rail are the point. **Shell contract.**
+  `PageFrame variant="data"` (full-bleed; the workspace caps itself at 1280 internally) + `PageHead
+  variant="content"` — the `.content-header` chrome: leading entity `icon` + `ch-title` + `ch-count` pill
+  (record total) + right-aligned `ch-action` (the ONE primary action, e.g. "+ New").
+- **Regions (top → bottom).** (1) page head — **required**. (2) optional **signal strip** — KPI tiles
+  (`KPITile`), a summary/caption line (`WorkloadCaption`-style), and/or a `FreshnessLabel` ("as of …").
+  (3) optional **tool rail** — view-tabs (`Table · Board · …`, the OD-P3-6 strip) + filter chips + a
+  `search-mini` + the group-by control + the Mine/RACI/All `seg`. (4) **dense body** — **required**: the
+  shared `DataTable` (groups + `hint` + `headerActions` supported), full-bleed, 50px rows in the DB-view
+  density. The signal strip and tool rail are omitted only when the surface genuinely has no signals/filters.
+- **Body component(s).** `DataTable` (the ONE table); `ChartFrame` when a chart is the body (e.g. an
+  analytical workspace — see `/dashboard`); `KPITile` + `FreshnessLabel` only as the signal strip.
+- **All states.** Loading → `SkeletonRows` (6 skeleton rows in the table body); the head + tool rail +
+  strip **always render** so the user sees structure. Empty → `EmptyState` with ONE clear next action
+  (create/refresh) — never a vacuum; the head `ch-action` is omitted so the create CTA is not duplicated
+  (exactly one create affordance per state). Error → `ErrorState` (`role="alert"`) with a Retry button,
+  filters preserved across retry. Filtered-empty → `EmptyState` naming the active filter + a
+  clear-filters action. Every sparse state routes through state-kit — page rhythm (gutter + head + rail)
+  is preserved, never collapsed to a bare heading.
+- **Responsive.** Desktop ≥1280: full 5/3-up signal strip, single-line tool rail, dense `<table>`.
+  Tablet 768–1279: strip drops to 3-up, tool rail wraps (`flex-wrap`). Phone ≤767: the `DataTable`
+  single-renders its card list (`useIsDesktop()`, 768px boundary); the tool rail becomes a sticky
+  horizontal-scroll filter rail; signal strip → 2-up; no signal-strip-over-table stacking.
+- **A11y.** `PageFrame` owns the single `<main>` landmark; `PageHead` carries the `<h1>`. Focus order is
+  DOM order: head → strip → tool rail → table. View-tabs + segs are `role="tablist"` with roving
+  tabindex; sortable headers are real `<button>`s with `aria-sort`; `DataTable` exposes `<caption>`/`aria-label`.
+- **Exemplars.** `/dashboard` (the reference instance — head + FreshnessLabel + KPI strip + global toolbar
+  + tab strip + DataTable/ChartFrame), `/tasks` (the de-facto reference), `/work/cascade`, `/ops` (Daily
+  Log feed), `/inbox`, `/kitchen/log`, `/kitchen/plan`, `/kitchen/stock`, `/kitchen/review`, `/kitchen/pushes`.
+
+#### 2. Write-Review — bounded surface for authoring or deciding on ONE thing
+
+- **Intent.** A quiet, bounded surface for writing or deciding on a single entity: a weekly update, a
+  log entry, a task, a plan capture. The measure is comfortable, not acreage; feedback is immediate.
+  **Shell contract.** `PageFrame variant="prose"` (the 1080px cap) + `PageHead` — `variant="content"` for
+  a single-record page, or a compact `variant="prose"` head when the entity context is better shown as a
+  subtitle/meta line. No signal strip, no tool rail — this is not a scan surface.
+- **Regions (top → bottom).** (1) page head — **required**. (2) optional **context strip** — a read-only
+  line naming the entity/period/status being acted on ("Week of 7–11 Jul · due Fri" / "Edit log entry ·
+  Kitchen"), carried in the head `meta`/`subtitle` or a slim strip directly under it. (3) **bounded
+  single-column form/review stack** — **required**, ~≤720px measure. (4) inline **saved/pending
+  feedback** + per-field errors (the A5 gap: autosave surfaces must show "saved / saving…").
+- **Body component(s).** A form/review stack of `TextInput`/`Select`/`Checkbox` fields (§5 Inputs) + the
+  in-card `CardHead` (`ui/card-head.tsx`) for any section headers inside the stack. No `DataTable`, no
+  KPI strip. The task detail drawer is a Write-Review surface mounted beside the `/tasks` workspace.
+- **All states.** Loading → a bounded skeleton card (not blank). Empty (nothing to review) → `EmptyState`
+  naming the entity + ONE next action. Error → `ErrorState` with Retry; field errors use `--field-error-border`
+  + `--field-error-text`. Submitting → the primary button shows `aria-busy` + a non-blocking saved/pending
+  label; submit failure keeps field values. No duplicate CTAs — the page has exactly one primary submit.
+- **Responsive.** Desktop ≥1280 + tablet: the 1080 cap keeps the measure bounded; the form stack stays a
+  single column. Phone ≤767: the stack stays single-column at full width; the context strip reflows to a
+  full-width meta row; NO duplicate primary CTA (the A3 phone gap).
+- **A11y.** Single `<main>` + `<h1>` from the shell; focus order head → context → first field. Every
+  field has a `<label>`/`aria-label`; errors carry `role="alert"` + `aria-describedby`; the live
+  "saved/pending" region is `aria-live="polite"`.
+- **Exemplars.** `/updates` (write + manager review — two bounded stacks, not one giant card), `/ops/new`,
+  `/ops/:id/edit`, `/tasks/new` and `/tasks/:id` (the detail drawer — Write-Review beside the workspace).
+
+#### 3. Catalog-Manage — reference-data CRUD (create + curate a list)
+
+- **Intent.** A calm CRUD surface for curating a short reference list — objectives, work-lines, people.
+  It is the manage-mode for nouns the rest of the app points at. **Shell contract.** `PageFrame
+  variant="data"` + `PageHead variant="content"` carrying a primary **"＋ New"** `ch-action`. Reference
+  lists are usually short, so the full-bleed `data` frame is used for head/body alignment with the other
+  workspaces, even though the list is not always dense.
+- **Regions (top → bottom).** (1) page head — **required**, with the ＋ New action. (2) optional **inline
+  create bar** — a slim name field + type `Select` + Add button directly under the head (the existing
+  `CatalogManager` Add form); the head action and the bar are two presentations of the same create —
+  pick one per surface, do not render both. (3) **dense list** — **required**: the shared `DataTable`, or a
+  grouped list (active / archived) with row-level edit affordances (Rename / Archive inline).
+- **Body component(s).** `DataTable` (flat or grouped), or the `CatalogManager` grouped list
+  (`components/catalog/catalog-manager.tsx`) which already composes PageFrame + content PageHead + inline
+  create + state-kit. The body is a list, never a form.
+- **All states.** Loading → `SkeletonRows`. Empty → `EmptyState` ("No objectives yet") with the create
+  affordance as its ONE action. Error → `ErrorState` with Retry. Inline rename failure shows a per-row
+  `--field-error-text` message; soft-archive is reversible (no destructive confirm needed). Exactly one
+  create affordance per surface (head ＋ New XOR inline bar).
+- **Responsive.** Desktop ≥1280: head + inline bar + list. Tablet: list as `<table>`. Phone ≤767: list as
+  the `DataTable` card list; the inline create bar stacks to a full-width column; row actions collapse to
+  a per-card menu.
+- **A11y.** Single `<main>` + `<h1>`; the create form has an accessible `<label>`; inline edit fields
+  announce via `aria-label`; an off-screen `aria-live="polite"` region announces add/rename/archive outcomes.
+- **Exemplars.** `/work/objectives`, `/work/projects-processes` (both via `CatalogManager`), `/admin/people`.
+
+### Cross-archetype invariants
+
+- **One shell per route.** Every route renders exactly **one** `PageFrame`, and that `PageFrame` owns the
+  single `<main>` landmark. No route stacks two frames or invents a parallel shell. (Existing invariant;
+  the archetype system makes it load-bearing.)
+- **One shared page head.** The ONE `PageHead` (`testid="page-head"`) is the head for every archetype —
+  the `content` variant chrome (`icon` + `ch-title` + `ch-count` + `ch-meta` + `ch-action`) for Workspace
+  and Catalog-Manage, the `prose` or `content` variant for Write-Review. No bespoke `.tc-page-head`,
+  `.kl-head`, or flex-wrap head is a page head.
+- **24px left gutter everywhere.** Content origin is identical across routes (the existing CONV in
+  `page-frame.tsx`); trailing whitespace sits on the RIGHT only, never centered. No centered-prose vs
+  left-data jump between routes.
+- **Empty / error / loading always via state-kit.** `EmptyState` / `ErrorState` / `SkeletonRows` carry
+  every sparse state, preserving page rhythm (gutter + head + rail still render). An `EmptyState` carries
+  exactly **one** next-action CTA; the head `ch-action` create button is omitted in empty state so the
+  create affordance is never duplicated (the A3 phone double-CTA fix, generalized).
+- **Spacing and type strictly from existing tokens.** Archetypes introduce **no** new color, font,
+  radius, shadow, or gradient token. The `page-title` (24px) / `heading` (20px) / `overline` (11px) /
+  `label` (12px) scale and the `spacing` scale (`xs 4` / `sm 8` / `md 12` / `base 16` / `lg 20` / `xl 24`)
+  govern all archetype rhythm. New tokens proposed by a consuming plan (e.g. the dashboard's pending
+  `--basis-chip` / `--dq-*` roles) are added under their own OD, never here.
+- **`surfaceWash` is home/digest-only.** The faint navy `--gradient-surface-wash` sits on the My Week /
+  digest surface alone (the Restrained-Gradient Rule, restated for archetypes). No Workspace, Write-Review,
+  or Catalog-Manage body carries it.
+
+### Named Rules
+
+**The Archetype Rule.** Every route declares exactly one of **{Workspace, Write-Review, Catalog-Manage}**
+— no bespoke page grammar. The shell contract (`PageFrame` variant + `PageHead` variant) and the body
+primitive (`DataTable` / form stack / catalog list) follow from the declared archetype. A route that
+mixes a workspace head with a prose form body, or a CRUD list with a kitchen console, is non-conformant.
+*(Teardown root problem #1 / §B2; ratifies the owner design decision.)*
+
+**The One-Shell Rule.** One `PageFrame` (owning `<main>`) + one shared `PageHead` (`<h1>`) per route;
+the page head is never re-invented per surface. Archetypes vary the *variants* of these two primitives
+and the *body* between them — never the number or identity of the shell pieces. (Generalizes IA-1 / RI-IA-1.)
+
+**The State-Kit Rule.** Loading / empty / error / filtered-empty are first-class versions of every
+archetype, rendered through `state-kit` with page rhythm preserved and exactly one next action — never a
+white vacuum or a bare heading. *(A3, generalized across all three archetypes.)*
+
+## Empty States
+
+`EmptyState` (`ui/state-kit.tsx`) is the ONE empty-state frame: centered in the body, max 440px measure,
+44px tinted icon well, title + one-line body + optional muted note + exactly one action row. No route
+renders a bare heading/paragraph, a bespoke card, or multiple CTAs for the same empty.
+
+### Sanctioned empty-state archetypes
+
+- **`quiet`** — calm nothing-to-do. Use when the truthful next step is to wait, not to act. Icon + title +
+  one-line reason, **no CTA**. Example: `/inbox` caught up.
+- **`next-step`** — create-first or clear-the-state. Use when one direct operator action resolves the empty:
+  create the first row, or clear filters. Icon + title + explanation + **one** action. Example: `/ops`
+  true-empty / filtered-empty.
+- **`awaiting`** — queue/data pending. Use when the surface is expected to refill from new submissions or a
+  sync-fed source. Icon + title + body + muted retry/status line + **one** refresh action. Examples:
+  `/kitchen/review`, `/kitchen/pushes`.
+
+### Rule
+
+One route, one empty frame, one action maximum. Archetypes vary only the message and whether the single
+slot is absent (`quiet`) or populated (`next-step` / `awaiting`); spacing, type, icon treatment, and body
+measure stay shared. Reuse existing `state-kit` / button / spacing / type tokens only — no new empty-state
+colors, fonts, or chrome.

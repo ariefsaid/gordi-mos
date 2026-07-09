@@ -9,7 +9,7 @@
 //   Read-only: NO retry/resend/mutation actions exist (dead-letter retry is DEFERRED)
 //   a11y: semantic table, tabular numbers on counts/dates, status as text not color-only
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -111,8 +111,28 @@ const PENDING_ROW: EsbPushRow = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  setViewport(true)
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockListPushes.mockResolvedValue([])
+})
+
+function setViewport(isDesktop: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: isDesktop && query === '(min-width: 768px)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
+afterEach(() => {
+  setViewport(false)
 })
 
 // ── Auth states ──────────────────────────────────────────────────────────────
@@ -191,10 +211,29 @@ describe('KitchenPushesPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: shows "no pushes yet" when no rows', async () => {
+  it('empty: renders the shared awaiting EmptyState when no rows', async () => {
     mockListPushes.mockResolvedValue([])
     render(<KitchenPushesPage />)
     expect(await screen.findByText(/no pushes yet/i)).toBeInTheDocument()
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+  })
+
+  it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
+    mockListPushes.mockResolvedValue([])
+    render(<KitchenPushesPage />)
+    await screen.findByText(/no pushes yet/i)
+
+    const emptyState = screen.getByTestId('empty-state')
+    const emptyActions = emptyState.querySelector('.empty-actions')
+    expect(emptyActions).not.toBeNull()
+    expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
   })
 
   it('error: shows error message + retry button', async () => {
@@ -217,7 +256,29 @@ describe('KitchenPushesPage — states', () => {
 // ── Populated state — columns and display ─────────────────────────────────────
 
 describe('KitchenPushesPage — populated (FR-074)', () => {
+  it('RI-IXD-6: desktop pushes uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
+    setViewport(true)
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    const { container } = render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-001')
+
+    expect(container.querySelector('.dt-table')).not.toBeNull()
+    expect(container.querySelector('.kpu-tablewrap, .kpu-table')).toBeNull()
+  })
+
+  it('RI-IXD-6: phone pushes uses the shared DataTable card branch, not a horizontal table', async () => {
+    setViewport(false)
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    const { container } = render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-001')
+
+    expect(container.querySelector('.dt-cards')).not.toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(container.querySelector('.kpu-tablewrap, .kpu-table')).toBeNull()
+  })
+
   it('renders a semantic table with the required column headers', async () => {
+    setViewport(true)
     mockListPushes.mockResolvedValue([POSTED_ROW])
     render(<KitchenPushesPage />)
     await screen.findByText('PR-20260621-001')

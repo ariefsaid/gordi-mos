@@ -1,8 +1,8 @@
 import type React from 'react'
 import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
-import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon } from './icons'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
+import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon, WorkLineIcon, SalesIcon, BudgetIcon, PricingIcon } from './icons'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
 
 /**
  * DESTINATIONS — the single source of truth for both chromes (plan §1.5).
@@ -28,39 +28,62 @@ export const DESTINATIONS: Destination[] = [
     id: 'home',
     labelKey: 'dest.home',
     Icon: HomeIcon,
-    links: [{ path: '/', label: 'Home', Icon: HomeIcon }],
+    links: [{ path: '/', label: 'Home', labelKey: 'nav.home', Icon: HomeIcon }],
     primaryPath: '/',
   },
   {
     id: 'work',
     labelKey: 'dest.work',
     Icon: TasksIcon,
-    // Work owns tasks + updates + the daily log (ADR-0019 D2); the flag-gated
-    // routes must reappear here when their flags flip on (they left SECTIONS-driven
-    // rendering when the rail moved to DESTINATIONS).
+    // Work owns Tasks + the Cascade everyone-view + Weekly Updates (ADR-0019 D2 / jtbd §2).
+    // Daily Log moved to Operate; Follow-up queues are a documented future link (not rendered).
+    // The two catalog manage routes (Objectives / Projects & Processes) render as capability-gated
+    // rail items (FR-424, owner decision 2026-07-07 superseding FR-420): a holder of
+    // objective.manage / workline.manage sees them; a non-holder does not. The cascade's Manage
+    // affordance stays too (belt + suspenders). RequireCapability is the real route gate.
     links: [
-      { path: '/tasks', label: 'Tasks', Icon: TasksIcon },
-      ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', Icon: UpdatesIcon }] : []),
-      ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', Icon: OpsIcon }] : []),
+      { path: '/tasks', label: 'Tasks', labelKey: 'nav.tasks', Icon: TasksIcon },
+      { path: '/work/cascade', label: 'Cascade', labelKey: 'cascade.link', Icon: ObjectiveIcon },
+      ...(SHOW_WEEKLY_UPDATES ? [{ path: '/updates', label: 'Weekly Updates', labelKey: 'nav.updates' as const, Icon: UpdatesIcon }] : []),
+      ...(SHOW_FOLLOWUPS ? [{ path: '/work/follow-ups', label: 'Follow-ups', labelKey: 'nav.followUps' as const, Icon: SalesIcon }] : []),
+      { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.objectives', Icon: ObjectiveIcon, capability: 'objective.manage' },
+      { path: '/work/projects-processes', label: 'Projects & Processes', labelKey: 'nav.projectsProcesses', Icon: WorkLineIcon, capability: 'workline.manage' },
     ],
   },
   {
     id: 'operate',
     labelKey: 'dest.operate',
     Icon: KitchenIcon,
-    links: KITCHEN_SECTIONS,
+    // Operate owns the Daily Log (moved here from Work — the cross-Activity chronological feed,
+    // most general, first) + the Kitchen module (ADR-0019 D2 / jtbd §2).
+    links: [
+      ...(SHOW_DAILY_LOG ? [{ path: '/ops', label: 'Daily Log', labelKey: 'nav.dailyLog' as const, Icon: OpsIcon }] : []),
+      ...KITCHEN_SECTIONS,
+    ],
   },
   {
     id: 'plan',
     labelKey: 'dest.plan',
     Icon: PlanIcon,
-    links: [],
+    // Plan = the reference/money-lens destination (ADR-0019 D2). Dashboard (the analytical
+    // KPI hub, OD-DASH-2 — replaces /sales) is its first content (finance/admin-gated);
+    // budget/COGS workbenches are a documented future link (not rendered). anyOf hides the
+    // whole destination for a role with no Plan children (no dead-end — FR-410).
+    anyOf: ['finance', 'admin'],
+    links: [
+      { path: '/dashboard', label: 'Dashboard', labelKey: 'nav.dashboard', Icon: SalesIcon },
+      ...(SHOW_PLAN_BUDGET ? [
+        { path: '/plan/budget', label: 'Budget', labelKey: 'nav.planBudget' as const, Icon: BudgetIcon },
+        { path: '/plan/pricing', label: 'Pricing pre-flight', labelKey: 'nav.planPricing' as const, Icon: PricingIcon },
+      ] : []),
+    ],
   },
   {
     id: 'inbox',
     labelKey: 'dest.inbox',
     Icon: InboxIcon,
-    links: [],
+    // Live only when the notifications feature is on (ADR-0019 D9 / ADR-0044). Hide-first.
+    links: SHOW_INBOX ? [{ path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon }] : [],
   },
 ]
 
@@ -76,9 +99,9 @@ export function isLive(d: Destination, accessRoles: string[]): boolean {
 /**
  * Returns the Destination that owns the given pathname (by matching one of its
  * links, exact-or-prefix — mirrors sectionForPath), or null if no destination
- * owns it (e.g. /admin/*, /sales, /objectives — regrouped elsewhere or drill-only).
- * Consumed by Breadcrumb to resolve the SECTION crumb to the destination label
- * (spec home-v1 FR-S03: "/tasks/123" reads "Work › Tasks").
+ * owns it (e.g. /admin/* — regrouped elsewhere). Consumed by Breadcrumb to resolve
+ * the SECTION crumb to the destination label (spec home-v1 FR-S03: "/tasks/123"
+ * reads "Work › Tasks"; "/work/objectives" reads "Work › Objectives" — FR-424).
  */
 export function destinationForPath(pathname: string): Destination | null {
   for (const d of DESTINATIONS) {

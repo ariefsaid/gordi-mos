@@ -33,12 +33,14 @@ export function computeStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStr
   let availableTotal = 0
   let inStockCount = 0
   let negativeCount = 0
+  let hasPopulatedStock = false
 
   for (const row of rows) {
     onHandTotal += row.stok
     availableTotal += row.tersedia
     if (row.stok > 0) inStockCount += 1
     if (row.stok < 0 || row.tersedia < 0) negativeCount += 1
+    if (row.stok !== 0 || row.tersedia !== 0) hasPopulatedStock = true
   }
 
   return {
@@ -66,8 +68,8 @@ export function computeStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStr
       {
         label: 'Negative balances',
         value: String(negativeCount),
-        delta: negativeCount > 0 ? 'needs review' : 'clear',
-        deltaTone: negativeCount > 0 ? 'destructive' : 'success',
+        delta: negativeCount > 0 ? 'needs review' : hasPopulatedStock ? 'clear' : 'no stock data yet',
+        deltaTone: negativeCount > 0 ? 'destructive' : hasPopulatedStock ? 'success' : 'neutral',
       },
       {
         label: 'Available total',

@@ -15,6 +15,7 @@ import { OwnerCell } from '@/components/tasks/owner-cell'
 import { formatDate, formatAge, otherRaciCount } from '@/components/tasks/task-formatters'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import './my-tasks-card.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -29,9 +30,12 @@ type FetchedData = {
   personMap: Map<string, string>
 }
 
+const desktopMiniColWidths = ['auto', '144px', '220px', '184px', '88px'] as const
+
 export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [data, setData] = useState<FetchedData | null>(null)
+  const isDesktop = useIsDesktop()
 
   const load = useCallback(() => {
     let cancelled = false
@@ -83,18 +87,16 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       />
 
       {/* ── Loading: skeleton rows, chrome stays visible (AC-W04) ────────── */}
-      {loadState === 'loading' && (
+      {loadState === 'loading' && (isDesktop ? (
         <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: '40%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '20%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '10%' }} />
+            {desktopMiniColWidths.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
           </colgroup>
           <SkeletonBody rows={3} />
         </table>
-      )}
+      ) : <MobileSkeleton />)}
 
       {/* ── Error: scoped inline block + Retry (rest of My Week unaffected) ─ */}
       {loadState === 'error' && (
@@ -112,17 +114,15 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       )}
 
       {/* ── Ready state ───────────────────────────────────────────────────── */}
-      {loadState === 'ready' && (
+      {loadState === 'ready' && (isDesktop ? (
         <table
           className="w-full border-collapse"
           style={{ tableLayout: 'fixed', fontSize: 15 }}
         >
           <colgroup>
-            <col style={{ width: '40%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '20%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '10%' }} />
+            {desktopMiniColWidths.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
           </colgroup>
           <thead>
             <tr>
@@ -156,7 +156,9 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
             )}
           </tbody>
         </table>
-      )}
+      ) : (
+        <MobileTaskList tasks={myTasks} now={now} personMap={data!.personMap} />
+      ))}
     </section>
   )
 }
@@ -206,13 +208,87 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
           others={others}
         />
       </td>
-      <td className={`mini-td mini-td-nowrap tabular-nums ${dueClass}`}>
+      <td className={`mini-td mini-td-nowrap mini-due-cell tabular-nums ${dueClass}`}>
         {dueText}
       </td>
       <td className="mini-td mini-meta">
         {formatAge(task.last_activity_at, now)}
       </td>
     </tr>
+  )
+}
+
+function MobileTaskList({ tasks, now, personMap }: { tasks: TaskListRow[]; now: Date; personMap: Map<string, string> }) {
+  if (tasks.length === 0) {
+    return (
+      <div className="mini-mobile-empty text-muted-foreground">
+        No tasks where you&apos;re R or A this week — you&apos;re clear.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mini-mobile-list">
+      {tasks.map(task => (
+        <MobileTaskCard key={task.id} task={task} now={now} personMap={personMap} />
+      ))}
+    </div>
+  )
+}
+
+function MobileTaskCard({ task, now, personMap }: MiniTaskRowProps) {
+  const ds = dueStatus(task.due_date, now)
+  const taskOverdue = isOverdue(task, now)
+  const dueClass = taskOverdue ? 'mini-due-overdue' : ds === 'soon' ? 'mini-due-soon' : ds === 'calm' ? 'mini-due-calm' : 'mini-due-none'
+  const dueText = task.due_date
+    ? (taskOverdue ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
+    : '—'
+  const ownerName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id
+  const others = buildOthers(task, task.responsible_person_id, personMap)
+  const otherN = otherRaciCount(task)
+
+  return (
+    <article className="mini-mobile-card">
+      <Link to={`/tasks/${task.id}`} className="mini-name-chip" title={task.title}>
+        {task.title}
+      </Link>
+      <div className="mini-mobile-grid">
+        <div className="mini-mobile-field">
+          <span className="mini-mobile-label">Status</span>
+          <StatusPill status={task.status} />
+        </div>
+        <div className="mini-mobile-field">
+          <span className="mini-mobile-label">Owner</span>
+          <OwnerCell fullName={ownerName} otherCount={otherN} others={others} />
+        </div>
+        <div className="mini-mobile-field">
+          <span className="mini-mobile-label">Due</span>
+          <span className={`mini-mobile-value tabular-nums ${dueClass}`}>{dueText}</span>
+        </div>
+        <div className="mini-mobile-field">
+          <span className="mini-mobile-label">Activity</span>
+          <span className="mini-mobile-value mini-meta">{formatAge(task.last_activity_at, now)}</span>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function MobileSkeleton() {
+  return (
+    <div className="mini-mobile-list" aria-hidden="true">
+      {Array.from({ length: 3 }, (_, index) => (
+        <div key={index} className="mini-mobile-card">
+          <span className="mini-skeleton-bar" style={{ width: '72%' }} />
+          <div className="mini-mobile-grid">
+            <span className="mini-skeleton-bar" style={{ width: 72 }} />
+            <span className="mini-skeleton-bar" style={{ width: 96 }} />
+            <span className="mini-skeleton-bar" style={{ width: 88 }} />
+            <span className="mini-skeleton-bar" style={{ width: 56 }} />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -276,12 +352,12 @@ function SkeletonBody({ rows }: { rows: number }) {
     <>
       <thead>
         <tr>
-          {[40, 16, 20, 14, 10].map((w, i) => (
+          {desktopMiniColWidths.map((width, i) => (
             <th
               key={i}
               scope="col"
               className="th-overline"
-              style={{ width: `${w}%` }}
+              style={{ width }}
             >
               {/* empty — overline chrome visible */}
             </th>

@@ -21,8 +21,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { ORPHAN, RECOVERY_VIEWER, ADMIN } from './fixtures/users'
-import { TASKS } from './fixtures/tasks'
+import { ORPHAN, RECOVERY_VIEWER, ADMIN, MEMBER } from './fixtures/users'
+import { TASKS, CASCADE } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -199,6 +199,33 @@ export default async function globalSetup() {
   )
   console.log(`[global-setup] created + linked ADMIN user → dedicated person ${ADMIN.personId} (admin role)`)
 
+  // ── 3c-bis. MEMBER (dedicated e2e person, member access, NO org role) — Issue E stacked-union ──
+  // A pure contributor (member access, no role-scope) whose stacked Home is capture-first only. Same
+  // dedicated-e2e pattern as ADMIN (never touches a dev persona).
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.people (id, org_id, full_name, email)
+     VALUES ('${MEMBER.personId}', '${ORG}', '${MEMBER.displayName}', '${MEMBER.email}')
+     ON CONFLICT (id) DO NOTHING;
+     INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
+     VALUES ('${ORG}', '${MEMBER.personId}', 'member')
+     ON CONFLICT (person_id, access_role) DO NOTHING`,
+  )
+  await deleteUserByEmail(adminClient, MEMBER.email)
+  const { data: memberData, error: memberErr } = await adminClient.auth.admin.createUser({
+    email: MEMBER.email,
+    password: MEMBER.password,
+    email_confirm: true,
+  })
+  if (memberErr) throw new Error(`[global-setup] createUser MEMBER failed: ${memberErr.message}`)
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `UPDATE shared.people SET user_id = '${memberData.user.id}' WHERE id = '${MEMBER.personId}'`,
+  )
+  console.log(`[global-setup] created + linked MEMBER user → dedicated person ${MEMBER.personId} (member, no role)`)
+
   // ── 3c. Clean slate for the AC-020 cascade-catalog journey (idempotent; postgres bypasses no-delete) ─
   await execSql(
     SUPABASE_URL,
@@ -250,4 +277,45 @@ export default async function globalSetup() {
     );
   `)
   console.log(`[global-setup] seeded VIEWER_ACCOUNTABLE task (id=${t.id})`)
+
+  // ── 7. Seed AC-305 cascade fixtures (Work-spine v1) — deterministic clean slate ───────────────
+  // objective + work_line + 3 tasks (linked / objective-unlinked / no-work-line) so the
+  // everyone-cascade e2e journey has line-of-sight to assert, with NO runtime /pg/query seeding in
+  // the spec (replaces the brittle per-run service-role seed). Seeded AFTER the step-6 mos.tasks
+  // wipe; objectives/work_lines upsert idempotently. VIEWER is R+A on all three tasks.
+  const c = CASCADE
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO mos.objectives (id, org_id, name)
+     VALUES ('${c.objective.id}', '${c.orgId}', '${c.objective.name}')
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+     INSERT INTO mos.work_lines (id, org_id, name, type)
+     VALUES ('${c.workLine.id}', '${c.orgId}', '${c.workLine.name}', '${c.workLine.type}')
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type;`,
+  )
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO mos.tasks (
+      id, org_id, title, business_unit_id, status,
+      responsible_person_id, accountable_person_id,
+      consulted_person_ids, informed_person_ids,
+      description, due_date, created_by, objective_id, work_line_id
+    ) VALUES
+      ('${c.tasks.linked.id}', '${c.orgId}', '${c.tasks.linked.title}', '${c.businessUnitId}', 'Open',
+        '${c.viewerPersonId}', '${c.viewerPersonId}', '{}', '{}', 'Seeded for AC-305 linked branch.', NULL, '${c.viewerPersonId}', '${c.tasks.linked.objectiveId}', '${c.tasks.linked.workLineId}'),
+      ('${c.tasks.unlinked.id}', '${c.orgId}', '${c.tasks.unlinked.title}', '${c.businessUnitId}', 'Open',
+        '${c.viewerPersonId}', '${c.viewerPersonId}', '{}', '{}', 'Seeded for AC-305 unlinked branch.', NULL, '${c.viewerPersonId}', NULL, '${c.tasks.unlinked.workLineId}'),
+      ('${c.tasks.noWorkLine.id}', '${c.orgId}', '${c.tasks.noWorkLine.title}', '${c.businessUnitId}', 'Open',
+        '${c.viewerPersonId}', '${c.viewerPersonId}', '{}', '{}', 'Seeded for AC-305 no-work-line branch.', NULL, '${c.viewerPersonId}', '${c.tasks.noWorkLine.objectiveId}', NULL)
+    ON CONFLICT (id) DO UPDATE
+    SET title = EXCLUDED.title,
+        objective_id = EXCLUDED.objective_id,
+        work_line_id = EXCLUDED.work_line_id,
+        responsible_person_id = EXCLUDED.responsible_person_id,
+        accountable_person_id = EXCLUDED.accountable_person_id;`,
+  )
+  console.log('[global-setup] seeded AC-305 cascade fixtures (objective + work_line + 3 tasks)')
 }

@@ -1,10 +1,14 @@
 // HomePage — the index route (/) replacement for MyWeek (ADR-0019 D2/D3, Task 4.4).
-// Slot composition: each slot = one read-model/DAL query + one existing kit primitive.
-// Finance KPI row (revenue + margin) is role-guarded — a member never issues the
-// reporting query, so the row is simply absent (RLS-empty handling, never a misleading
-// zero). Tasks (+ ops, flag-gated) row renders for everyone. MyWeekPanel renders below
-// (demoted from route, ADR-0019 D2 "component survives"). Every tile is a drill-target
+// Home v1 — the default composition behind SHOW_HOME_STACKED=false. Slot composition: each slot =
+// one read-model/DAL query + one existing kit primitive. Finance KPI row (revenue + margin) is
+// role-guarded — a member never issues the reporting query, so the row is simply absent (RLS-empty
+// handling, never a misleading zero). Tasks (+ ops, flag-gated) row renders for everyone. MyWeekPanel
+// renders below (demoted from route, ADR-0019 D2 "component survives"). Every tile is a drill-target
 // <Link> — KPITile itself stays presentation-only (never learns router or "revenue").
+//
+// When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
+// documented default (docs/specs/home-v1.spec.md). The revenue/margin fetch+derive lives in the shared
+// useCompanyFinanceKpis hook so the stacked money-position section renders the SAME tiles (reuse).
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
@@ -13,18 +17,15 @@ import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { SHOW_DAILY_LOG } from '@/config/features'
-import { listSalesDailyRevenue, latestSnapshotAsOf, latestReportingDate } from '@/lib/db/reporting'
-import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
-import { listSalesMarginDaily, latestMarginSnapshotAsOf, latestMarginReportingDate } from '@/lib/db/reporting-margin'
-import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import { trailingWindow, formatDelta, formatIDRCompact } from '@/lib/sales-dashboard'
-import { trailingMargin, formatMarginKpi, openTaskCount } from '@/lib/home-kpis'
+import { formatIDRCompact } from '@/lib/sales-dashboard'
+import { useCompanyFinanceKpis } from '@/lib/use-company-finance-kpis'
 import { listTasks } from '@/lib/db/tasks'
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
 import type { TodayOpsSummary } from '@/lib/db/ops-log'
 import { KPITile } from '@/components/dashboard/kpi-tile'
-import { FreshnessLabel } from '@/components/dashboard/freshness-label'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
+import { openTaskCount } from '@/lib/home-kpis'
 import './home-page.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
@@ -39,42 +40,8 @@ export function HomePage() {
   const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
 
   // ── Finance reporting fetch (role-guarded — a member never issues this query) ──
-  const [revenueRows, setRevenueRows] = useState<SalesDailyRevenueRow[]>([])
-  const [revenueState, setRevenueState] = useState<FetchState>('loading')
-  const [marginRows, setMarginRows] = useState<SalesMarginDailyRow[]>([])
-  const [marginState, setMarginState] = useState<FetchState>('loading')
-
-  useEffect(() => {
-    if (!canSeeFinance) return
-    let cancelled = false
-    setRevenueState('loading')
-    listSalesDailyRevenue({ sinceDays: 60 })
-      .then(rows => {
-        if (cancelled) return
-        setRevenueRows(rows)
-        setRevenueState('ready')
-      })
-      .catch(() => {
-        if (!cancelled) setRevenueState('error')
-      })
-    return () => { cancelled = true }
-  }, [canSeeFinance])
-
-  useEffect(() => {
-    if (!canSeeFinance) return
-    let cancelled = false
-    setMarginState('loading')
-    listSalesMarginDaily({ sinceDays: 60 })
-      .then(rows => {
-        if (cancelled) return
-        setMarginRows(rows)
-        setMarginState('ready')
-      })
-      .catch(() => {
-        if (!cancelled) setMarginState('error')
-      })
-    return () => { cancelled = true }
-  }, [canSeeFinance])
+  const fin = useCompanyFinanceKpis(canSeeFinance)
+  const { revenueWindow, revenueDelta, revenueState, marginDisplay, marginState, snapshotAsOf } = fin
 
   // ── Tasks count (everyone) ──────────────────────────────────────────────────
   const [taskCount, setTaskCount] = useState(0)
@@ -122,33 +89,6 @@ export function HomePage() {
     return cancel
   }, [loadOps])
 
-  // ── Derived KPI displays ─────────────────────────────────────────────────────
-  const revenueLatestDate = useMemo(() => latestReportingDate(revenueRows), [revenueRows])
-  const revenueWindow = useMemo(
-    () => (revenueLatestDate ? trailingWindow(revenueRows, revenueLatestDate, 7) : null),
-    [revenueRows, revenueLatestDate],
-  )
-  const revenueDelta = revenueWindow ? formatDelta(revenueWindow) : null
-
-  const marginLatestDate = useMemo(() => latestMarginReportingDate(marginRows), [marginRows])
-  const marginWindow = useMemo(
-    () => (marginLatestDate ? trailingMargin(marginRows, marginLatestDate, 7) : null),
-    [marginRows, marginLatestDate],
-  )
-  const marginLatestPct = useMemo(() => {
-    if (!marginLatestDate) return null
-    const latestRow = marginRows.find(r => r.margin_date === marginLatestDate)
-    return latestRow?.margin_interim_pct ?? null
-  }, [marginRows, marginLatestDate])
-  const marginDisplay = marginWindow ? formatMarginKpi(marginWindow, marginLatestPct) : null
-
-  const snapshotAsOf = useMemo(() => {
-    const revenueFresh = latestSnapshotAsOf(revenueRows)
-    const marginFresh = latestMarginSnapshotAsOf(marginRows)
-    if (revenueFresh && marginFresh) return revenueFresh > marginFresh ? revenueFresh : marginFresh
-    return revenueFresh ?? marginFresh
-  }, [revenueRows, marginRows])
-
   return (
     <PageFrame surfaceWash>
       <PageHead title={t('home.title')} subtitle={t('home.subtitle')} />
@@ -157,7 +97,7 @@ export function HomePage() {
           this row is simply absent (never a misleading zero). */}
       {canSeeFinance && (
         <div className="home-kpi-grid" role="group" aria-label="Sales KPIs">
-          <Link to="/sales" className="home-kpi-link">
+          <Link to="/dashboard" className="home-kpi-link">
             <KPITile
               label={t('home.kpi.revenue')}
               value={revenueState === 'ready' && revenueWindow ? formatIDRCompact(revenueWindow.current) : '—'}
@@ -169,7 +109,7 @@ export function HomePage() {
               state={revenueState === 'loading' ? 'loading' : 'ready'}
             />
           </Link>
-          <Link to="/sales" className="home-kpi-link">
+          <Link to="/dashboard" className="home-kpi-link">
             <KPITile
               label={t('home.kpi.margin')}
               value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}
@@ -205,7 +145,13 @@ export function HomePage() {
         )}
       </div>
 
-      {snapshotAsOf && <FreshnessLabel asOf={snapshotAsOf} />}
+      {canSeeFinance && (snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
+        <DataProvenanceNote
+          kind="snapshot"
+          hasData={Boolean(revenueWindow || marginDisplay)}
+          asOf={snapshotAsOf}
+        />
+      )}
 
       <MyWeekPanel />
     </PageFrame>

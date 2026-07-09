@@ -9,8 +9,14 @@
  * testid (RI-IA-1), and the content variant renders the count pill + inline action.
  */
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import { PageHead } from './page-head'
+
+function tasksWorkspaceCss() {
+  return readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+}
 
 describe('PageHead — shared header invariant (RI-IA-1)', () => {
   it('default (prose) renders the page-head testid + an h1 title', () => {
@@ -58,6 +64,11 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
     expect(container.querySelector('.content-header')).toBeTruthy()
     // entity icon slot is present (decorative, aria-hidden)
     expect(container.querySelector('.ch-icon')).toBeTruthy()
+  })
+
+  it('uses the shared 24px page-title scale for .ch-title', () => {
+    const css = tasksWorkspaceCss()
+    expect(css).toMatch(/\.content-header \.ch-title\s*\{[^}]*font-size:\s*24px/)
   })
 
   it('renders the meta slot (overdue/blocked subtotals) in the content variant', () => {

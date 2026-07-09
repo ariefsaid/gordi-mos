@@ -530,6 +530,15 @@ Assert `BASE_ACTIONS.map(a=>a.name)` equals `['query_entity','create_task','post
 Address the P1 truncation carry-in: a `mos.aggregate_compiled(compiled jsonb)` `SECURITY INVOKER` RPC that takes a `CompiledQuery`, builds a parameterized `SELECT <groupBy>, <agg>(<col>) ... WHERE <filters> GROUP BY <groupBy>`, and returns the reduced rows (uncapped by the 500 row limit). Wire `executor.ts`'s `executeCompiledQuery` to call it when `resolvedAggregate || resolvedGroupBy` is present (fall back to in-memory for non-aggregate). RLS: `SECURITY INVOKER` means base-table RLS still fires. **If cut for P2 scope:** move to a P2.1 follow-up; the in-memory reduction stays with its documented lower-bound caveat (P1 review item 6). Flag in Residual Risks.
 - ACs: (new) AC-P2-RT-006 (aggregate over full predicate, not capped). Verify: pgTAP `aggregate_compiled.test.sql` (sum over 10k rows == uncapped total) + Vitest executor test.
 
+**Status 2026-07-05: DONE on `feat/p2.1-db-side-aggregate` (stacks on PR #88).** Migration
+`supabase/migrations/20260707000001_mos_aggregate_compiled.sql` + pgTAP `71_mos_aggregate_compiled.sql`
+(12 tests: uncapped sum over 600 rows > 500 cap; groupBy; count; filter; whitelist rejections;
+injection-attempt guards; cross-org RLS isolation) + executor wiring (RPC happy path + in-memory
+fallback with `degraded:'aggregate-fallback'` signal). 449 pgTAP + 2214 vitest green. Review ledger
+`docs/reviews/feat-p2.1-db-side-aggregate.md`: spec PASS · code-quality FIX-THEN-SHIP → resolved ·
+security FIX-THEN-SHIP → resolved (**no SQL-injection vector found** — first dynamic-builder function
+in the repo). `SHOW_USER_VIEWS` un-gate condition MET.
+
 ---
 
 ## 4. AC → Task traceability

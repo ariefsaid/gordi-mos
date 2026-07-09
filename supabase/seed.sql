@@ -7,6 +7,22 @@ insert into shared.orgs (id, name, slug) values
   ('10000000-0000-0000-0000-000000000001', 'Gordi', 'gordi')
 on conflict (id) do nothing;
 
+-- Plan certified-metric registry rows for the dev Gordi org. The migration seeds any orgs that exist
+-- at migration-time; seed.sql creates Gordi after migrations on a fresh reset, so repeat the registry
+-- seed here (still seed/migration-owned, no runtime CRUD UI).
+insert into mos.certified_metrics (key, org_id, name, meaning, unit, grain, certified, certified_at) values
+  (
+    'cogs.budgeted', '10000000-0000-0000-0000-000000000001',
+    'Budgeted COGS', 'A menu item''s BOM (recipe qty x materials) costed at the linked ingredient cost lines (last_hpp) — the certified budgeted COGS pricing/budgeting consume (ADR-0022 D1).',
+    'IDR', 'menu item', true, now()
+  ),
+  (
+    'margin.gross_pct', '10000000-0000-0000-0000-000000000001',
+    'Gross margin %', 'Projected gross margin at a candidate price vs the linked certified budgeted COGS — (price - cogs) / price. Read-only pre-flight; MOS never sets the price (ADR-0022 D5).',
+    'percent', 'menu item x price', true, now()
+  )
+on conflict (org_id, key) do nothing;
+
 -- The 6 team business units (ADR-0019 D1 / OD-IA-1 — BU = team in the org chart). Superseded the
 -- earlier 5 operating-area rows (Cafe Ops – General / Kitchen and Bar / Roastery / Sales – CRM /
 -- Finance and People) — those are re-seeded below already retired (renamed + archived_at set) so a
@@ -126,3 +142,37 @@ insert into ops.kitchen_plans (org_id, log_date, wip_item_id, action_type, qty_p
   ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000002', 'Production', 30, '40000000-0000-0000-0000-000000000002'),
   ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000006', 'Production', 25, '40000000-0000-0000-0000-000000000002')
 on conflict (org_id, log_date, wip_item_id, action_type) do nothing;
+
+-- Plan destination COGS read-models (ADR-0022 D2/D6, ADR-0010) — representative dev rows so the
+-- Budget + Pricing surfaces are real + testable in the running app. The future warehouse->Supabase
+-- snapshot job UPSERTS these tables (drop-in: the DAL + components are unchanged). Finance/Procurement
+-- own the numbers; consumers LINK by esb code, never copy (anchor A5). One cost line (BUTTER-GK) is
+-- seeded STALE (as_of 90 days ago) to exercise the fail-loud freshness path in dev.
+
+-- Ingredient cost lines (basis = ESB last_hpp).
+insert into reporting.ingredient_cost_lines (org_id, ingredient_esb_code, name, unit_cost, unit, as_of, loaded_at) values
+  ('10000000-0000-0000-0000-000000000001', 'ING-MILK-FRESH',   'Fresh Milk',      18000.00, 'L',     now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-ESPRESSO-BEAN','Espresso Beans', 320000.00, 'kg',    now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-BUTTER-GK',    'Butter',         95000.00, 'kg',    now() - interval '90 days', now() - interval '90 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-FLOUR-AP',     'Flour AP',        14000.00, 'kg',    now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-SUGAR-WHITE',  'White Sugar',     16000.00, 'kg',    now() - interval '5 days',  now() - interval '5 days')
+on conflict (org_id, ingredient_esb_code) do update
+  set name = excluded.name, unit_cost = excluded.unit_cost, unit = excluded.unit,
+      as_of = excluded.as_of, loaded_at = excluded.loaded_at;
+
+-- BOM / recipe lines (ESB-owned, read-only in MOS — ADR-0022 D3). Two menu items:
+--   MENU-CAPPUC (Cappuccino): milk + espresso  — fresh basis, complete.
+--   MENU-CROISS (Butter Croissant): butter + flour + sugar — STALE basis (butter), complete-but-stale.
+--   MENU-MUFFIN (Blueberry Muffin): flour + sugar + (no milk line yet) — INCOMPLETE (missing cost line).
+insert into reporting.bom_lines (org_id, menu_item_esb_code, ingredient_esb_code, recipe_qty, qty_unit, as_of, loaded_at) values
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CAPPUC', 'ING-MILK-FRESH',    0.18, 'L',  now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CAPPUC', 'ING-ESPRESSO-BEAN', 0.018,'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CROISS', 'ING-BUTTER-GK',     0.04, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CROISS', 'ING-FLOUR-AP',      0.06, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CROISS', 'ING-SUGAR-WHITE',   0.01, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-MUFFIN', 'ING-FLOUR-AP',      0.08, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-MUFFIN', 'ING-SUGAR-WHITE',   0.03, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-MUFFIN', 'ING-MILK-FRESH-UNS',0.05, 'L',  now() - interval '5 days',  now() - interval '5 days')
+on conflict (org_id, menu_item_esb_code, ingredient_esb_code) do update
+  set recipe_qty = excluded.recipe_qty, qty_unit = excluded.qty_unit, as_of = excluded.as_of,
+      loaded_at = excluded.loaded_at;

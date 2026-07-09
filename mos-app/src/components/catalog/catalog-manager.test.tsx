@@ -131,7 +131,7 @@ describe('CatalogManager', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith('New Line', 'process'))
   })
 
-  it('the type select uses the control radius token, not an off-system class (design regression guard)', async () => {
+  it('the type select uses the shared Select shell, not an off-system class (design regression guard)', async () => {
     setup({
       noun: 'project / process',
       nounPlural: 'projects & processes',
@@ -139,7 +139,8 @@ describe('CatalogManager', () => {
     })
     await screen.findByText('No projects & processes yet')
     const typeSelect = screen.getByLabelText('Type')
-    expect(typeSelect.style.borderRadius).toBe('var(--radius-sm)')
+    expect(typeSelect.closest('.mk-select')).toBeTruthy()
+    expect(typeSelect.closest('.mk-select')?.querySelector('.mk-select__box')).toBeTruthy()
     expect(typeSelect.className).not.toMatch(/rounded-md/)
   })
 })

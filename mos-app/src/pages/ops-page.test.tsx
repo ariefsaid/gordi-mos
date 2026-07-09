@@ -399,15 +399,19 @@ describe('AC-066: feed empty/loading/error states', () => {
     expect(screen.getByLabelText(/type/i)).toBeInTheDocument()
   })
 
-  it('empty state: shows "No log entries yet today." with add CTA', async () => {
+  it('empty state: shows the shared next-step EmptyState with one add CTA', async () => {
     mockListLogEntries.mockResolvedValue([])
     await renderOps()
     await waitFor(() =>
       expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument(),
     )
-    // Multiple "add log entry" links may exist (toolbar + empty state); just ensure at least one
-    const addLinks = screen.getAllByRole('link', { name: /add log entry/i })
-    expect(addLinks.length).toBeGreaterThanOrEqual(1)
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(screen.getAllByRole('link', { name: /add log entry/i })).toHaveLength(1)
   })
 
   it('filtered empty state shows Clear filters and resets the query to unfiltered', async () => {
@@ -721,5 +725,100 @@ describe('Archive affordance (author-gated)', () => {
     await waitFor(() => {
       expect(mockArchiveLogEntry).toHaveBeenCalledWith(ENTRY_1.id)
     })
+  })
+})
+
+// ── W4-1: /ops shell lift to Workspace (content head + count pill, full-bleed) ──
+describe('W4-1: /ops shell lift to Workspace', () => {
+  it('renders the content-variant page head (.content-header) with a count pill', async () => {
+    await renderOps()
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+
+    const head = screen.getByTestId('page-head')
+    expect(head).toHaveClass('content-header')
+    // count pill reflects entries.length when ready (3 entries)
+    const countPill = head.querySelector('.ch-count')
+    expect(countPill).not.toBeNull()
+    expect(countPill!.textContent).toBe('3')
+  })
+
+  it('omits the count pill while loading (count is null)', () => {
+    mockListLogEntries.mockImplementation(() => new Promise(() => {}))
+    mockUseAuth.mockReturnValue(VIEWER)
+    render(
+      <MemoryRouter initialEntries={['/ops']}>
+        <Routes>
+          <Route path="/ops" element={<OpsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    const head = screen.getByTestId('page-head')
+    expect(head).toHaveClass('content-header')
+    expect(head.querySelector('.ch-count')).toBeNull()
+  })
+
+  it('content is full-bleed — no 1080px prose cap', async () => {
+    await renderOps()
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+    const main = document.querySelector('main')!
+    const contentDiv = main.firstElementChild as HTMLElement
+    expect(contentDiv.style.maxWidth).toBe('none')
+  })
+})
+
+// ── W4-2: empty + filtered-empty via state-kit (one CTA) + no phone double-CTA ──
+describe('W4-2: empty + filtered-empty via state-kit; no phone duplicate CTA', () => {
+  it('empty state routes through EmptyState with exactly one CTA (add entry)', async () => {
+    mockListLogEntries.mockResolvedValue([])
+    await renderOps()
+    await waitFor(() => expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument())
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
+    const emptyActions = emptyState.querySelector('.empty-actions')
+    expect(emptyActions).not.toBeNull()
+    const actions = emptyActions!.querySelectorAll('button, a')
+    expect(actions).toHaveLength(1)
+    expect(actions[0]).toHaveAccessibleName(/add log entry/i)
+  })
+
+  it('filtered-empty routes through EmptyState with exactly one CTA (clear filters)', async () => {
+    await renderOps()
+    await waitFor(() => expect(screen.getByText(ENTRY_1.title)).toBeInTheDocument())
+
+    mockListLogEntries.mockResolvedValue([])
+    fireEvent.change(screen.getByLabelText(/business unit/i), { target: { value: BU_KITCHEN.id } })
+
+    await waitFor(() => expect(screen.getByText(/No Kitchen and Bar log entries match/i)).toBeInTheDocument())
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
+    const emptyActions = emptyState.querySelector('.empty-actions')
+    expect(emptyActions).not.toBeNull()
+    const actions = emptyActions!.querySelectorAll('button, a')
+    expect(actions).toHaveLength(1)
+    expect(actions[0]).toHaveAccessibleName(/clear filters/i)
+  })
+
+  it('phone empty renders exactly one "Add" affordance (submit bar suppressed)', async () => {
+    applyViewport(false) // phone
+    mockListLogEntries.mockResolvedValue([])
+    await renderOps()
+    await waitFor(() => expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument())
+
+    // exactly one create affordance — the EmptyState CTA; the phone submit bar is hidden
+    const addLinks = screen.getAllByRole('link', { name: /add log entry/i })
+    expect(addLinks).toHaveLength(1)
+    expect(document.querySelector('.ops-submit-bar')).toBeNull()
+  })
+
+  it('desktop ready-empty renders exactly one "Add log entry" affordance (empty state owns the CTA)', async () => {
+    applyViewport(true)
+    mockListLogEntries.mockResolvedValue([])
+    const { container } = await renderOps()
+    await waitFor(() => expect(screen.getByText(/No log entries yet today/i)).toBeInTheDocument())
+
+    expect(screen.getAllByRole('link', { name: /add log entry/i })).toHaveLength(1)
+    expect(container.querySelector('.ops-toolbar-add')).toBeNull()
   })
 })

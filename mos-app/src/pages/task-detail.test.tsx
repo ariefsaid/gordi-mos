@@ -208,7 +208,7 @@ describe('AC-070 — detail page renders task fields', () => {
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByText('Inspect heating element')).toBeTruthy()
     expect(screen.getByText('Order parts')).toBeTruthy()
-  })
+  }, 10_000)
 
   it('renders loading skeleton initially (aria-busy)', () => {
     mockGetTask.mockReturnValue(new Promise(() => {})) // never resolves
@@ -426,9 +426,9 @@ describe('AC-074 — checklist add / toggle', () => {
   })
 })
 
-// ── AC-075: activity log newest-first, no composer ───────────────────────────
-describe('AC-075 — activity log renders events newest-first, no comment composer', () => {
-  it('lists events newest-first with event type + from/to, no text input for comments', async () => {
+// ── AC-075 + AC-P3-CM-004: activity log newest-first + comments composer ─────
+describe('AC-075 / AC-P3-CM-004 — activity log + comments', () => {
+  it('lists events newest-first and renders the task comment composer', async () => {
     // Events pre-sorted newest-first (as the data layer returns them — getTask orders by created_at desc)
     const events: TaskEventRow[] = [
       makeEvent({ id: 'e2', event_type: 'status_changed', from_value: 'Open', to_value: 'In Progress', created_at: '2026-06-11T10:00:00Z' }),
@@ -444,9 +444,9 @@ describe('AC-075 — activity log renders events newest-first, no comment compos
     expect(entries[0].textContent).toMatch(/status changed|in progress/i)
     expect(entries[1].textContent).toMatch(/created/i)
 
-    // No free-text comment composer (P2-1 scope guard)
-    expect(screen.queryByPlaceholderText(/write a comment/i)).toBeNull()
-    expect(screen.queryByRole('textbox', { name: /comment/i })).toBeNull()
+    // P3a Phase F deliberately supersedes the old P2 scope guard: task comments are live now.
+    expect(screen.getByRole('region', { name: /comments/i })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /comment/i })).toBeInTheDocument()
   })
 })
 

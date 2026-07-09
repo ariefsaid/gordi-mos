@@ -9,6 +9,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
+import { I18nProvider } from './i18n/I18nProvider'
 
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
@@ -61,7 +62,13 @@ const authedState: AuthState = {
 }
 
 function withAuth(node: React.ReactNode) {
-  return render(<AuthContext.Provider value={authedState}>{node}</AuthContext.Provider>)
+  // I18nProvider so pages whose subtrees call useT() (e.g. UpdatesPage → WeeklyUpdateWritePane)
+  // render without throwing outside a provider.
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider value={authedState}>{node}</AuthContext.Provider>
+    </I18nProvider>,
+  )
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -83,6 +90,11 @@ function listNonTestSource(dir: string, acc: string[] = []): string[] {
     ) acc.push(full)
   }
   return acc
+}
+
+/** Path relative to src/, using POSIX separators for stable snapshots. */
+function srcRel(path: string): string {
+  return path.slice(SRC.length + 1).replaceAll('\\', '/')
 }
 
 /** True if a retired bespoke head class is re-defined as a CSS rule or applied as a className. */
@@ -215,6 +227,39 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('[class*="page-title"]')).toBeNull()
   })
+})
+
+describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () => {
+  const targets = [
+    'pages/follow-ups-page.tsx',
+    'pages/sales-dashboard-page.tsx',
+    'pages/pricing-page.tsx',
+    'pages/budget-page.tsx',
+    'pages/updates-page.tsx',
+    'pages/inbox-page.tsx',
+    'components/catalog/catalog-manager.tsx',
+  ]
+
+  for (const file of targets) {
+    it(`${file} renders PageHead variant="content"`, () => {
+      expect(readSrc(file)).toMatch(/<PageHead[\s\S]{0,160}variant="content"/)
+    })
+  }
+})
+
+describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {
+  const pageFiles = [
+    'pages/sales-dashboard-page.tsx',
+    'pages/budget-page.tsx',
+    'pages/pricing-page.tsx',
+    'pages/inbox-page.tsx',
+  ]
+
+  for (const file of pageFiles) {
+    it(`${file} has no reporting.* table name in rendered page source`, () => {
+      expect(readSrc(file)).not.toMatch(/reporting\.[a-z0-9_]+/i)
+    })
+  }
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -365,4 +410,91 @@ describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, › separato
   it('the shell <Breadcrumb> renders the › separator (single breadcrumb system)', () => {
     expect(readSrc('shell/breadcrumb.tsx')).toMatch(/›/)
   })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-5: ONE Select shell — bounded-choice dropdowns use the shared
+// <Select> primitive. The only raw native selects left are the Tasks DB-view
+// chip overlays plus deferred task detail/create inline cases documented in
+// docs/reviews/feat-ui-coherence.md.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-5: no raw select outside documented Tasks exceptions', () => {
+  const allowedRawSelectFiles = new Set([
+    'components/tasks/tasks-toolbar.tsx',
+    'components/tasks/task-surface.tsx',
+    'components/tasks/record-details-panel.tsx',
+    'components/ui/select.tsx',
+  ])
+
+  it('pages/components bounded-choice dropdowns import the shared Select primitive', () => {
+    const roots = [resolve(SRC, 'pages'), resolve(SRC, 'components')]
+    const offenders: string[] = []
+
+    for (const root of roots) {
+      for (const file of listNonTestSource(root)) {
+        if (!file.endsWith('.tsx')) continue
+        const rel = srcRel(file)
+        if (allowedRawSelectFiles.has(rel)) continue
+        if (/<select\b/.test(readFileSync(file, 'utf8'))) offenders.push(rel)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-7: Orange is a brand sprinkle only. DESIGN.md permits brand-orange
+// for tokens, the logo dot, and the active DB-view tab underline. It must not
+// reappear as an action/link/status affordance.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-7: no brand-orange outside the logo, active view-tab underline, and token definitions', () => {
+  const allowedBrandOrangeFiles = new Set([
+    'index.css',
+    'shell/top-bar.tsx',
+    'components/tasks/TasksWorkspace.css',
+    'components/ui/view-tabs.css',
+    'components/ui/view-tabs.tsx',
+    'styles/tokens/theme-dark.css',
+    'styles/tokens/theme-light.css',
+  ])
+
+  it('non-test source keeps brand-orange off interactive/status surfaces', () => {
+    const offenders: string[] = []
+
+    for (const file of listNonTestSource(SRC)) {
+      const rel = srcRel(file)
+      if (allowedBrandOrangeFiles.has(rel)) continue
+      if (/\bbrand-orange\b|--brand-orange/.test(readFileSync(file, 'utf8'))) {
+        offenders.push(rel)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// RI-IXD-8: Retrofit list/table targets stay on the shared table + state kit.
+// These are the audit §F surfaces that were explicitly rebuilt away from
+// private list grammar in feat/ui-coherence.
+// ════════════════════════════════════════════════════════════════════════════
+describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit', () => {
+  const sharedTableTargets = [
+    'pages/follow-ups-page.tsx',
+    'pages/sales-dashboard-page.tsx',
+    'pages/kitchen-stock-page.tsx',
+    'pages/kitchen-pushes-page.tsx',
+    'pages/kitchen-plan-page.tsx',
+    'pages/kitchen-log-page.tsx',
+    'pages/kitchen-review-page.tsx',
+  ]
+
+  for (const file of sharedTableTargets) {
+    it(`${file} uses the shared DataTable and state-kit`, () => {
+      const body = readSrc(file)
+      expect(body).toMatch(/@\/components\/dashboard\/data-table/)
+      expect(body).toMatch(/@\/components\/ui\/state-kit/)
+    })
+  }
 })

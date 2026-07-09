@@ -152,10 +152,13 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
     fireEvent.blur(input)
+    // Wait for the GOAL — the error alert surfaces (load-robust: only the alert gates the poll, not the
+    // call-count, which under full-suite load could momentarily re-throw inside waitFor and flake).
     await waitFor(() => {
-      expect(mockUpsert).toHaveBeenCalledOnce()
       expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
-    })
+    }, { timeout: 5000 })
+    // Once the error alert is shown the save has fired exactly once — now a deterministic check.
+    expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
@@ -253,11 +256,56 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
+  it('plan-status KPI shows human empty copy, never the literal token "empty"', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    mockPlans.mockResolvedValue([])
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('No plan created yet')).toBeInTheDocument()
+    expect(screen.queryByText(/^empty$/i)).toBeNull()
+  })
+
+  it('explains an empty plan as a live-entered absence', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    mockPlans.mockResolvedValue([])
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
+  })
+
   it('groups dishes by category (F2 categories render as group headers)', async () => {
     const { container } = render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
-    // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards)
-    const labels = Array.from(container.querySelectorAll('.kgh-label')).map(el => el.textContent)
+    // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards).
+    // Selector note: grouping now renders via the shared DataTable. Phone cards emit the
+    // group label under .dt-cards-group-label (desktop would be .dt-group-label); this
+    // test runs the default phone matchMedia, so query the phone class — a mechanical
+    // selector update, the goal (category group label renders) is unchanged.
+    const labels = Array.from(container.querySelectorAll('.dt-cards-group-label')).map(el => el.textContent)
     expect(labels).toContain('Main')
   })
 

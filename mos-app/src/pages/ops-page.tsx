@@ -8,7 +8,6 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
-import { Chevron } from '@/shell/icons'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listLogEntries, archiveLogEntry, unarchiveLogEntry } from '@/lib/db/ops-log'
@@ -21,6 +20,7 @@ import type { TaskTitleRef } from '@/lib/db/tasks'
 import { StatusPill } from '@/components/tasks/status-pill'
 import { Pill } from '@/components/ui/pill'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
+import { Select } from '@/components/ui/select'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import { weekLabel } from '@/lib/week'
 
@@ -326,12 +326,6 @@ export function OpsPage() {
     return entry.created_by === viewer.person.id || (viewer.isManager ?? false)
   }
 
-  // ── Entry count for subtitle ─────────────────────────────────────────────
-  const entryCount = entries.length
-  const countLabel = loadState === 'ready'
-    ? ` · ${entryCount} log entr${entryCount === 1 ? 'y' : 'ies'}`
-    : ''
-
   // ── Empty copy ────────────────────────────────────────────────────────────
   const hasActiveFilter = businessUnitId !== '' || eventType !== '' || includeArchived
   function emptyTitle() {
@@ -355,12 +349,14 @@ export function OpsPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
+        variant="content"
         title="Daily Log"
+        count={loadState === 'ready' ? entries.length : null}
         meta={
-          <span data-testid="ops-count-line" className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 15 }}>
-            {wib.today}{countLabel}
+          <span className="tabular-nums" style={{ color: 'var(--muted-foreground)', fontSize: 15 }}>
+            {wib.today}
           </span>
         }
       />
@@ -371,34 +367,29 @@ export function OpsPage() {
         {/* Toolbar */}
         <div className="ops-toolbar" role="search">
           {/* Source (BU) filter */}
-          <label htmlFor="ops-source-filter" className="sr-only">Business unit</label>
-          <div className="control">
-            <span className="ctrl-lbl">Business unit</span>
-            <select
+          <div className="ops-toolbar-select">
+            <Select
               id="ops-source-filter"
+              label="Business unit"
               aria-label="Business unit"
               value={businessUnitId}
               onChange={e => setBusinessUnitId(e.target.value)}
-              className="ctrl-select"
             >
               <option value="">All sources</option>
               {busDirectory.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
-            </select>
-            <Chevron className="ctrl-chev" />
+            </Select>
           </div>
 
           {/* Type filter */}
-          <label htmlFor="ops-type-filter" className="sr-only">Type</label>
-          <div className="control">
-            <span className="ctrl-lbl">Type</span>
-            <select
+          <div className="ops-toolbar-select">
+            <Select
               id="ops-type-filter"
+              label="Type"
               aria-label="Type"
               value={eventType}
               onChange={e => setEventType(e.target.value as LogEventType | '')}
-              className="ctrl-select"
             >
               <option value="">All</option>
               <option value="production">Production</option>
@@ -406,8 +397,7 @@ export function OpsPage() {
               <option value="qc">QC</option>
               <option value="follow_up">Follow-up</option>
               <option value="other">Other</option>
-            </select>
-            <Chevron className="ctrl-chev" />
+            </Select>
           </div>
 
           {/* Show archived toggle */}
@@ -423,7 +413,7 @@ export function OpsPage() {
           </label>
 
           {/* Desktop: + Add log entry button */}
-          {isDesktop && (
+          {isDesktop && !(loadState === 'ready' && entries.length === 0) && (
             <Link
               to="/ops/new"
               className="btn btn-primary ops-toolbar-add"
@@ -448,15 +438,22 @@ export function OpsPage() {
         ) : loadState === 'error' ? (
           <ErrorState message="Couldn't load the Daily Log" onRetry={load} />
         ) : entries.length === 0 ? (
-          <EmptyState title={emptyTitle()} copy={emptyCopy()}>
-            {hasActiveFilter && (
+          // State-Kit Rule: exactly ONE next action per sparse state —
+          // clear filters (filtered-empty) XOR add entry (true empty).
+          <EmptyState
+            variant="next-step"
+            title={emptyTitle()}
+            copy={emptyCopy()}
+          >
+            {hasActiveFilter ? (
               <button type="button" className="btn btn-outline" onClick={clearFilters}>
                 Clear filters
               </button>
+            ) : (
+              <Link to="/ops/new" className="btn btn-primary" aria-label="Add log entry">
+                + Add log entry
+              </Link>
             )}
-            <Link to="/ops/new" className="btn btn-primary" aria-label="Add log entry">
-              + Add log entry
-            </Link>
           </EmptyState>
         ) : (
           <ul
@@ -480,8 +477,10 @@ export function OpsPage() {
         )}
       </section>
 
-      {/* Phone: sticky submit bar (44px full-width add target, FR-038) */}
-      {!isDesktop && (
+      {/* Phone: sticky submit bar (44px full-width add target, FR-038).
+          Suppressed when the feed is empty-ready — the EmptyState owns the single
+          create affordance then (W4-2: exactly one "Add" on phone, no A3 double-CTA). */}
+      {!isDesktop && !(loadState === 'ready' && entries.length === 0) && (
         <div className="ops-submit-bar">
           <Link
             to="/ops/new"
@@ -513,19 +512,11 @@ export function OpsPage() {
           flex-wrap: wrap; padding: 10px 12px;
           border-bottom: 1px solid var(--border);
         }
-        .control {
-          height: 32px; display: inline-flex; align-items: center; gap: 6px;
-          padding: 0 10px; border: 1px solid var(--input);
-          background: var(--background);
-          border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-          font-size: 13px; color: var(--foreground); cursor: pointer;
-          position: relative;
+        .ops-toolbar-select .mk-select {
+          flex-direction: row; align-items: center; gap: 6px;
         }
-        .ctrl-lbl { color: var(--muted-foreground); font-size: 13px; }
-        .ctrl-chev { color: var(--muted-foreground); font-size: 10px; pointer-events: none; }
-        .ctrl-select {
-          position: absolute; inset: 0; width: 100%; opacity: 0;
-          cursor: pointer; font-size: 13px;
+        .ops-toolbar-select .mk-select__label {
+          color: var(--muted-foreground); font-size: 13px;
         }
         .archived-toggle {
           display: inline-flex; align-items: center; gap: 6px;

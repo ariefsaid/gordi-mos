@@ -65,7 +65,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
         className={
           isRail
             ? 'flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer'
-            : 'flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer'
+            : `tap-target-phone${compact ? ' tap-target-phone--icon' : ''} flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer`
         }
         style={{ height: isRail ? 40 : 36 }}
         onClick={() => setOpen((v) => !v)}

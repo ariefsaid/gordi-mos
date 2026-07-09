@@ -13,6 +13,7 @@ import { TimingChip } from './timing-chip'
 import { CardHead } from '@/components/ui/card-head'
 import { ErrorState } from '@/components/ui/state-kit'
 import { Pill } from '@/components/ui/pill'
+import { useT } from '@/i18n/use-t'
 
 // ── Local item shape (draft lines before persist) ────────────────────────────
 interface DraftLine {
@@ -172,6 +173,7 @@ interface WeeklyUpdateWritePaneProps {
 }
 
 export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: WeeklyUpdateWritePaneProps) {
+  const t = useT()
   // C1 fix: derive the week label from the weekStart prop (not new Date()), so the pill
   // always reflects the week whose data is loaded — never desyncs from the prop.
   const wib = weekLabel(new Date(weekStart + 'T00:00:00+07:00'))
@@ -509,7 +511,7 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
           id={summaryId}
           value={summary}
           onChange={e => setSummary(e.target.value)}
-          placeholder="Ringkasan minggu ini…"
+          placeholder={t('weekly.summaryPlaceholder')}
           rows={4}
           style={{
             width: '100%', display: 'block',
@@ -578,15 +580,11 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
           {/* Save draft (§2.3) */}
           <button
             type="button"
+            className="btn btn-outline"
             onClick={handleSaveDraft}
             disabled={saving}
             aria-busy={saving ? 'true' : undefined}
             style={{
-              height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
-              border: '1px solid var(--border)',
-              background: 'var(--background)', cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
-              color: 'var(--foreground)',
               opacity: saving ? 0.5 : 1,
             }}
           >
@@ -599,17 +597,14 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
               token at opacity:0.5 (visual dim, not a separate color). */}
           <button
             type="button"
+            className="btn btn-primary"
             onClick={handleSubmit}
             disabled={saving}
             aria-disabled={submitDisabled || saving ? 'true' : 'false'}
             aria-busy={saving ? 'true' : undefined}
             style={{
-              height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: 0, /* 8px — control, OD-P3-10 */
               backgroundColor: 'var(--primary)', /* primary — always set, opacity dims when disabled */
-              color: 'var(--primary-foreground)', /* primary-foreground */
-              cursor: submitDisabled || saving ? 'not-allowed' : 'pointer',
               opacity: submitDisabled || saving ? 0.5 : 1,
-              fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
               boxShadow: submitDisabled || saving ? 'none' : '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
               pointerEvents: submitDisabled ? 'none' : undefined,
             }}

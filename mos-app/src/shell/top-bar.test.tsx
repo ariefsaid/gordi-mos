@@ -9,6 +9,21 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 
+// Flag-staleness cleanup (nav-five-destinations): dev (ae7cffa) ungated SHOW_INBOX to true, so the
+// bell is now a live Inbox link, not the disabled "coming soon" stub. The 4 bell-stub tests below
+// encode the flag-OFF behavior (still-valid — hide-first posture, ADR-0019 D9). Mock SHOW_INBOX=false
+// LOCALLY so the flag-gating coverage is preserved (BDD rule). The non-bell tests don't assert on
+// the bell, so the blanket file-level mock is safe for them.
+vi.mock('../config/features', () => ({
+  SHOW_WEEKLY_UPDATES: true,
+  SHOW_DAILY_LOG: true,
+  SHOW_USER_VIEWS: true,
+  SHOW_ASSISTANT: true,
+  SHOW_INBOX: false,
+  SHOW_FOLLOWUPS: false,
+  SHOW_PLAN_BUDGET: false,
+}))
+
 const mockUseAuth = vi.mocked(useAuth)
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
 
@@ -152,12 +167,13 @@ describe('AC-S02/S03: Brand column is fixed and breadcrumb track is min-w-0', ()
 
 // AC-S06: hamburger at <920px
 describe('AC-S06: Hamburger button at narrow viewports', () => {
-  it('AC-S06: hamburger appears at <920px and opens the drawer', () => {
+  it('AC-S06: hamburger appears at <920px, carries the shared phone icon tap-target class, and opens the drawer', () => {
     const onOpenDrawer = vi.fn()
     mockUseIsNarrow.mockReturnValue(true)
     renderTopBar('/tasks', onOpenDrawer)
     const hamburger = screen.getByRole('button', { name: 'Open navigation' })
     expect(hamburger).toBeInTheDocument()
+    expect(hamburger.className).toMatch(/tap-target-phone--icon/)
     fireEvent.click(hamburger)
     expect(onOpenDrawer).toHaveBeenCalledOnce()
   })
@@ -183,5 +199,13 @@ describe('A11y: Notification bell title', () => {
     renderTopBar()
     const bell = screen.getByRole('button', { name: 'Notifications' })
     expect(bell).toHaveAttribute('title', 'Notifications — coming soon')
+  })
+
+  it('narrow top-bar icon controls use the shared phone tap-target utility class', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    renderTopBar()
+    expect(screen.getByRole('button', { name: 'Search' }).className).toMatch(/tap-target-phone--icon/)
+    expect(screen.getByRole('button', { name: 'Notifications' }).className).toMatch(/tap-target-phone--icon/)
+    expect(screen.getByRole('button', { name: viewer.person.full_name }).className).toMatch(/tap-target-phone--icon/)
   })
 })

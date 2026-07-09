@@ -1,10 +1,15 @@
-// ProjectsProcessesPage — Projects & Processes catalog (OD-C-2, route
-// /projects-processes behind RequireAccessRole anyOf={['ops_lead','admin']}).
-// The physical table is mos.work_lines (ADR-0015); the UI term is Project/Process.
-import { CatalogManager } from '@/components/catalog/catalog-manager'
+// ProjectsProcessesPage — Projects & Processes catalog, now Work's manage-mode (route
+// /work/projects-processes behind RequireCapability workline.manage). The physical table is
+// mos.work_lines (ADR-0015); the UI term is Project/Process. Thin wrapper over CatalogManager +
+// an up-trace read (FR-422): each work_line shows its parent objective(s) + task count, inferred
+// from task linkage (work_lines has no objective_id column) over listTasks + listObjectivesAll.
+import { useEffect, useState } from 'react'
+import { CatalogManager, type CatalogItem, type CatalogTrace } from '@/components/catalog/catalog-manager'
 import {
   listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
 } from '@/lib/db/work-lines'
+import { listObjectivesAll } from '@/lib/db/objectives'
+import { listTasks } from '@/lib/db/tasks'
 
 import type { TagColor } from '@/components/ui/tag'
 
@@ -19,7 +24,50 @@ const TYPE_COLOR: Record<'project' | 'process', TagColor> = {
   process: 'sand',
 }
 
+/**
+ * Up-trace resolver (FR-422). work_lines has no objective_id column, so the parent objective(s) are
+ * inferred from task linkage: for each work_line, the set of objectives its non-archived tasks
+ * point to, each with its task count. Loads listTasks + listObjectivesAll once; best-effort.
+ */
+function useWorkLineUpTrace(): (item: CatalogItem) => CatalogTrace | undefined {
+  const [map, setMap] = useState<Map<string, CatalogTrace>>(new Map())
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([listTasks({}), listObjectivesAll()])
+      .then(([tasks, objectives]) => {
+        if (cancelled) return
+        const objName = new Map(objectives.map((o) => [o.id, o.name]))
+        // workLineId → (objectiveId | '' → task count). '' buckets tasks that have a work_line
+        // but no parent objective (FR-422 edge case: don't drop them — surface the count).
+        const NO_OBJ = ''
+        const byWorkLine = new Map<string, Map<string, number>>()
+        for (const task of tasks) {
+          if (!task.work_line_id) continue
+          const key = task.objective_id ?? NO_OBJ
+          const inner = byWorkLine.get(task.work_line_id) ?? new Map<string, number>()
+          inner.set(key, (inner.get(key) ?? 0) + 1)
+          byWorkLine.set(task.work_line_id, inner)
+        }
+        const next = new Map<string, CatalogTrace>()
+        for (const [workLineId, objCounts] of byWorkLine) {
+          const segments = [...objCounts.entries()]
+            .filter(([objId]) => objId !== NO_OBJ && objName.has(objId))
+            .map(([objId, n]) => `${objName.get(objId)} (${n})`)
+          const orphan = objCounts.get(NO_OBJ) ?? 0
+          if (orphan > 0) segments.push(`no parent objective (${orphan})`)
+          if (segments.length === 0) continue
+          next.set(workLineId, { line: `Under: ${segments.join(', ')}` })
+        }
+        setMap(next)
+      })
+      .catch(() => { /* trace is best-effort — leave empty */ })
+    return () => { cancelled = true }
+  }, [])
+  return (item: CatalogItem) => map.get(item.id)
+}
+
 export function ProjectsProcessesPage() {
+  const traceFor = useWorkLineUpTrace()
   return (
     <CatalogManager
       title="Projects & Processes"
@@ -38,6 +86,7 @@ export function ProjectsProcessesPage() {
       create={(name, type) => createWorkLine(name, (type as 'project' | 'process'))}
       rename={renameWorkLine}
       setArchived={setWorkLineArchived}
+      traceFor={traceFor}
       typeField={{
         label: 'Type',
         options: [

@@ -4,6 +4,7 @@
 // RI3 — I2: ProgressMarkerPicker trigger touch target ≥44px on mobile.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { WeeklyUpdateWritePane } from './weekly-update-write-pane'
 import { ProgressMarkerPicker } from './progress-marker'
 
@@ -24,11 +25,13 @@ vi.mock('../../lib/week', () => ({
 // ── Helper: resolve to 'ready' + force re-render synchronously ──────────────
 async function renderPane() {
   const utils = render(
-    <WeeklyUpdateWritePane
-      personId="person-1"
-      createdBy="person-1"
-      weekStart="2026-06-09"
-    />,
+    <I18nProvider>
+      <WeeklyUpdateWritePane
+        personId="person-1"
+        createdBy="person-1"
+        weekStart="2026-06-09"
+      />
+    </I18nProvider>,
   )
   // Wait for the async load() to settle (empty state = no DB record)
   await screen.findByText('Submit update')
@@ -80,6 +83,13 @@ describe('RI1 — C1: Submit button backgroundColor', () => {
     // In either state, backgroundColor must be defined (never undefined)
     expect(submitBtn.style.backgroundColor).toBeDefined()
     expect(submitBtn.style.backgroundColor).not.toBe('')
+  })
+
+  it('disabled Submit uses the shared primary button classes and disabled semantics', async () => {
+    await renderPane()
+    const submitBtn = screen.getByRole('button', { name: /submit update/i })
+    expect(submitBtn).toHaveClass('btn', 'btn-primary')
+    expect(submitBtn).toHaveAttribute('aria-disabled', 'true')
   })
 })
 
@@ -150,7 +160,9 @@ describe('RI2 — I1: Editable line text input full-width reflow on mobile', () 
 describe('RI3 — I2: ProgressMarkerPicker trigger touch target ≥44px on mobile', () => {
   it('picker trigger button has minHeight ≥44px (RI3)', () => {
     const { container } = render(
-      <ProgressMarkerPicker progress="in_progress" onSelect={vi.fn()} />,
+      <I18nProvider>
+        <ProgressMarkerPicker progress="in_progress" onSelect={vi.fn()} />
+      </I18nProvider>,
     )
     const btn = container.querySelector('.pm-trigger') as HTMLElement
     expect(btn).toBeTruthy()
@@ -174,7 +186,9 @@ describe('RI3 — I2: ProgressMarkerPicker trigger touch target ≥44px on mobil
 
   it('picker trigger has padding that expands tap area to ≥44px (RI3 — alternative)', () => {
     const { container } = render(
-      <ProgressMarkerPicker progress="in_progress" onSelect={vi.fn()} />,
+      <I18nProvider>
+        <ProgressMarkerPicker progress="in_progress" onSelect={vi.fn()} />
+      </I18nProvider>,
     )
     const btn = container.querySelector('.pm-trigger') as HTMLElement
     // Either minHeight inline OR wrapper with min-height that catches tap area

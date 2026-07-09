@@ -117,10 +117,29 @@ describe('KitchenReviewPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: a GOOD empty ("nothing to review") when no Submitted logs', async () => {
+  it('empty: renders the shared awaiting EmptyState when no Submitted logs', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />)
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
+
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-title')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
+    expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+  })
+
+  it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
+    mockList.mockResolvedValue([])
+    render(<KitchenReviewPage />)
+    await screen.findByText(/nothing to review/i)
+
+    const emptyState = screen.getByTestId('empty-state')
+    const emptyActions = emptyState.querySelector('.empty-actions')
+    expect(emptyActions).not.toBeNull()
+    expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
@@ -134,14 +153,53 @@ describe('KitchenReviewPage — states', () => {
 
 describe('KitchenReviewPage — queue (FR-040)', () => {
   it('lists ONLY Submitted logs grouped by action_type', async () => {
+    // force the DESKTOP table branch so the DataTable group-header rows + the
+    // review columns render (jsdom matchMedia defaults to phone/cards)
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({
+      matches: true,
+      media: '(min-width: 768px)',
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList)
+    try {
+      mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
+      mockPlan.mockResolvedValue({ w1: { Production: 12 }, w2: { 'Transfer to Radiant': 40 } })
+      render(<KitchenReviewPage />)
+      expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
+      expect(screen.getByText('Cold Brew')).toBeInTheDocument()
+      // one DataTable group per action_type, in ACTION_ORDER (Production before Transfer)
+      const groupLabels = document.querySelectorAll('.dt-group-label')
+      expect(groupLabels).toHaveLength(2)
+      expect(groupLabels[0].textContent).toBe('Production')
+      expect(groupLabels[1].textContent).toBe('Transfer to Radiant')
+      // the shared review queue columns render (folded from the retired review-table test)
+      const ths = Array.from(document.querySelectorAll('thead th'))
+      expect(ths.map(th => th.textContent)).toEqual([
+        'Item', 'Plan vs logged', 'Submitter', 'Time', 'Note', 'Decision',
+      ])
+      // rows land under their owning group, in source order (Nasi Goreng under
+      // Production, above the Transfer to Radiant header)
+      const trs = Array.from(document.querySelector('tbody')!.querySelectorAll('tr'))
+      const prodHeaderIdx = trs.findIndex(tr => tr.textContent?.includes('Production'))
+      const xferHeaderIdx = trs.findIndex(tr => tr.textContent?.includes('Transfer to Radiant'))
+      const nasiIdx = trs.findIndex(tr => tr.textContent?.includes('Nasi Goreng'))
+      expect(nasiIdx).toBeGreaterThan(prodHeaderIdx)
+      expect(nasiIdx).toBeLessThan(xferHeaderIdx)
+    } finally {
+      matchMediaSpy.mockRestore()
+    }
+  })
+
+  it('shows the production-first gate message on a blocked Transfer group (FR-042)', async () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
-    mockPlan.mockResolvedValue({ w1: { Production: 12 }, w2: { 'Transfer to Radiant': 40 } })
+    mockPlan.mockResolvedValue({})
     render(<KitchenReviewPage />)
-    expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
-    expect(screen.getByText('Cold Brew')).toBeInTheDocument()
-    // group sections per action_type (each is a labelled region)
-    expect(screen.getByRole('region', { name: 'Production' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Transfer to Radiant' })).toBeInTheDocument()
+    await screen.findByText('Cold Brew')
+    expect(screen.getByText(/blocked until production approved/i)).toBeInTheDocument()
   })
 })
 
@@ -170,6 +228,21 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // re-fetched the queue (now empty)
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   })
+  it('AC-040: off-plan approve reveals a required note + blocks until filled', async () => {
+    // folded from the retired kitchen-review-row suite (the page now owns the row)
+    mockList.mockResolvedValue([PROD_LOG]) // qty 8
+    mockPlan.mockResolvedValue({ w1: { Production: 12 } }) // plan 12 → off-plan
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
+    render(<KitchenReviewPage />)
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // first click reveals the note gate, does NOT approve
+    expect(mockApprove).not.toHaveBeenCalled()
+    const note = screen.getByRole('textbox', { name: /approve note for nasi goreng/i })
+    fireEvent.change(note, { target: { value: 'short on stock' } })
+    fireEvent.click(screen.getByRole('button', { name: /confirm approve/i }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
+  })
 })
 
 describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
@@ -194,9 +267,11 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
     mockPlan.mockResolvedValue({})
     render(<KitchenReviewPage />)
     await screen.findByText('Cold Brew')
-    // the Transfer row's Approve is disabled
+    // the Transfer row's Approve is disabled …
     const xferApprove = screen.getByRole('button', { name: /approve cold brew/i })
     expect(xferApprove).toBeDisabled()
+    // … and carries the gate reason as its title (AC-042, folded from the retired row suite)
+    expect(xferApprove).toHaveAttribute('title', 'Finish Production approvals first.')
     // but the Production row's Approve is live
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).not.toBeDisabled()
     // and the Transfer Reject stays live

@@ -5,6 +5,14 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 
+// The TopBar NotificationBell (live now that SHOW_INBOX=true) fires useUnreadCount → countUnread.
+// Mock it so the bell's async read resolves cleanly instead of racing the test teardown
+// (flag-staleness fallout from the SHOW_INBOX ungate — same root cause as the bell-stub tests).
+vi.mock('@/lib/db/notifications', () => ({
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue([]),
+}))
+
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 

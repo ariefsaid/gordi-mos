@@ -74,10 +74,10 @@ describe('AC-004: Breadcrumb per route (brand-crumb dropped per AC-S04)', () => 
   })
 })
 
-// FR-S03 (spec home-v1): every /kitchen/* route reads "Operate › <own label>".
-describe('FR-S03: Kitchen routes read "Operate › <Log|Plan|Stock|Review|Pushes>"', () => {
+// FR-S03 + UI-coherence C2/C3: every /kitchen/* route reads "Operate › Kitchen › <own label>".
+describe('FR-S03/RI-IA-KITCHEN: Kitchen routes read "Operate › Kitchen › <Log|Plan|Stock|Review|Pushes>"', () => {
   const kitchenCases = [
-    { path: '/kitchen/log', leaf: 'Log' },
+    { path: '/kitchen/log', leaf: 'Kitchen Log' },
     { path: '/kitchen/plan', leaf: 'Plan' },
     { path: '/kitchen/stock', leaf: 'Stock' },
     { path: '/kitchen/review', leaf: 'Review' },
@@ -85,24 +85,53 @@ describe('FR-S03: Kitchen routes read "Operate › <Log|Plan|Stock|Review|Pushes
   ]
 
   kitchenCases.forEach(({ path, leaf }) => {
-    it(`renders "Operate › ${leaf}" at "${path}"`, () => {
+    it(`renders "Operate › Kitchen › ${leaf}" at "${path}"`, () => {
       const { container } = renderBreadcrumb(path)
       expect(screen.getByText('Operate')).toBeInTheDocument()
+      expect(screen.getByText('Kitchen')).toBeInTheDocument()
+      const leafEl = screen.getByText(leaf)
+      expect(leafEl.tagName.toLowerCase()).toBe('b')
+      const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+        .filter((el) => el.textContent === '›')
+      expect(separators).toHaveLength(2)
+    })
+  })
+})
+
+// FR-424 (nav-five-destinations): the relocated Work manage routes + the Plan Dashboard link + the
+// Operate Daily Log all resolve through their owning destination — "Work › Objectives",
+// "Work › Projects & Processes", "Plan › Dashboard", "Operate › Daily Log".
+describe('AC-408: breadcrumb resolves manage/Plan/Operate routes through their destination (FR-424)', () => {
+  const cases = [
+    { path: '/work/objectives', section: 'Work', leaf: 'Objectives' },
+    { path: '/work/projects-processes', section: 'Work', leaf: 'Projects & Processes' },
+    { path: '/dashboard', section: 'Plan', leaf: 'Dashboard' },
+    { path: '/ops', section: 'Operate', leaf: 'Daily Log' },
+  ]
+
+  for (const { path, section, leaf } of cases) {
+    it(`renders "${section} › ${leaf}" at "${path}"`, () => {
+      const { container } = renderBreadcrumb(path)
+      expect(screen.getByText(section)).toBeInTheDocument()
       const leafEl = screen.getByText(leaf)
       expect(leafEl.tagName.toLowerCase()).toBe('b')
       const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
         .filter((el) => el.textContent === '›')
       expect(separators).toHaveLength(1)
     })
-  })
+  }
 })
 
-// Routes NOT owned by a destination (Admin, cascade catalog, Sales — drill-only or
-// role-gated manage surfaces) keep resolving via sectionForPath's own label, unaffected.
+// Routes NOT owned by a destination (Admin, cascade catalog, manage surfaces — drill-only or
+// role-gated) keep resolving via sectionForPath's own label, unaffected.
 describe('Routes outside DESTINATIONS resolve via their own section label (unaffected)', () => {
-  it('renders "People" (bold, no destination prefix) at /admin/people', () => {
-    renderBreadcrumb('/admin/people')
+  it('renders "Admin › People" at /admin/people', () => {
+    const { container } = renderBreadcrumb('/admin/people')
+    expect(screen.getByText('Admin')).toBeInTheDocument()
     expect(screen.getByText('People').tagName.toLowerCase()).toBe('b')
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '›')
+    expect(separators).toHaveLength(1)
   })
 })
 

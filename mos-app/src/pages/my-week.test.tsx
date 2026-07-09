@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/use-auth'
 // strip/team-module LOGIC is still exercised here under the SHOWN condition — force both
 // flags on so these AC tests keep proving that behavior. The HIDDEN behavior (strips absent,
 // trimmed subtitle) is covered separately in MyWeek.hidden.test.tsx.
-vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG: true }))
+vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG: true, SHOW_FOLLOWUPS: false }))
 
 // Mock weeklyUpdates data layer for strip wiring (AC-050, AC-051) + team module (RI-CROSS)
 vi.mock('../lib/db/weekly-updates', () => ({
@@ -128,8 +128,24 @@ const managerViewerWithRoles = {
   signOut: vi.fn(),
 }
 
+function stubMatchMedia(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('min-width') ? matches : !matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  stubMatchMedia(true)
   // Default: no update for this week (keeps existing tests stable)
   mockGetMyUpdate.mockResolvedValue(null)
   // Default team mocks: empty roster + empty updates

@@ -196,3 +196,42 @@ describe('AdminUsersPage (AC-060)', () => {
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
   })
 })
+
+describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => {
+  it('W2-3: renders the shared content PageHead chrome with the meta copy', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+    const head = screen.getByTestId('page-head')
+    expect(head.className).toContain('content-header')
+    // the bespoke subtitle now rides in the head meta slot
+    expect(screen.getByText('Manage who can sign in and what they can do.')).toBeInTheDocument()
+  })
+
+  it('W2-3: the + Add-person button sits in the head action slot (.ch-action)', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    const { container } = renderPage()
+    await screen.findByText('Budi Santoso')
+    const actionSlot = container.querySelector('.ch-action') as HTMLElement | null
+    expect(actionSlot).toBeTruthy()
+    expect(within(actionSlot!).getByRole('button', { name: /add person/i })).toBeInTheDocument()
+    // exactly one Add-person control in the loaded (non-empty) state — no duplicate
+    expect(screen.getAllByRole('button', { name: /add person/i })).toHaveLength(1)
+  })
+
+  it('W2-3: the count pill reflects people.length when loaded', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    const { container } = renderPage()
+    await screen.findByText('Budi Santoso')
+    const pill = container.querySelector('.ch-count')
+    expect(pill).toBeTruthy()
+    expect(pill!.textContent).toBe(String(PEOPLE_ALL_STATES.length))
+  })
+
+  it('W2-3: the count pill is omitted while loading', () => {
+    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+    expect(container.querySelector('.ch-count')).toBeNull()
+    expect(screen.getByTestId('page-head')).toBeInTheDocument()
+  })
+})

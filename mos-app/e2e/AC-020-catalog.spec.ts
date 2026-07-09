@@ -16,8 +16,8 @@ const RENAMED = 'E2E Renamed Objective'
 test('AC-020: admin adds → renames → archives an objective; archived leaves the task picker', async ({ page }) => {
   await loginAs(page, ADMIN.email, ADMIN.password)
 
-  // ── Open the admin-only Objectives catalog ─────────────────────────────────
-  await page.goto('objectives')
+  // ── Open the admin-only Objectives catalog (Work manage-mode, relocated under /work/) ───
+  await page.goto('work/objectives')
   await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
   // ── Add ────────────────────────────────────────────────────────────────────

@@ -121,6 +121,13 @@ begin
     where title = 'Update espresso recipe cards' and org_id = v_org;
   update mos.tasks set work_line_id = wl_ig,    objective_id = obj_ops
     where title = 'Dial in new Brazil single-origin' and org_id = v_org;
+  -- Work spine v1 e2e fixtures:
+  --  • objective NULL + work_line set -> explicit Unlinked branch
+  update mos.tasks set work_line_id = wl_ig, objective_id = null
+    where title = 'Replace grinder burrs (Cafe 2)' and org_id = v_org;
+  --  • objective set + work_line NULL -> explicit No Project/Process subgroup
+  update mos.tasks set work_line_id = null, objective_id = obj_ops
+    where title = 'Plan barista latte-art workshop' and org_id = v_org;
 
-  raise notice 'seed.dev-tasks: inserted cascade lookups (2 objectives, 3 work_lines, 4 task links)';
+  raise notice 'seed.dev-tasks: inserted cascade lookups (2 objectives, 3 work_lines, 4 task links + work spine branch fixtures)';
 end $$;

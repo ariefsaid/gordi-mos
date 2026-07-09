@@ -1,7 +1,8 @@
 // KitchenLogPage — /mos/kitchen/log — Log capture screen (OD-K-5 redesign).
 // Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md.
-// ONE responsive screen: desktop dense <table> + KPI strip (≥768px) ↔ phone
-// floor-fast cards (<768px), chosen via useIsDesktop() — ONE branch in the DOM (P-4).
+// ONE responsive screen built on the shared <DataTable> (desktop dense <table> +
+// KPI strip (≥768px) ↔ phone floor-fast cards (<768px)), chosen via useIsDesktop()
+// — ONE branch in the DOM (P-4).
 //
 // PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
 //  - Data hooks unchanged (listActiveWipItems / fetchPlanMap / fetchStockMap /
@@ -44,8 +45,12 @@ import {
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
-import { KitchenLogTable } from '@/components/kitchen/kitchen-log-table'
-import { KitchenLogCards } from '@/components/kitchen/kitchen-log-cards'
+import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
+import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
+import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
+import { Pill } from '@/components/ui/pill'
+import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, SkeletonRows } from '@/components/ui/state-kit'
 import './kitchen-log-page.css'
 
@@ -116,10 +121,10 @@ export function KitchenLogPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
 
-  // NEW presentational state (P-3): client-side search + category + group collapse.
+  // NEW presentational state (P-3): client-side search + category. Group collapse
+  // is INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
 
   // Derived KPIs (P-1) — pure useMemo over `lines`; no fetch/RPC/persistence.
   const kpis = useKitchenKpis(lines)
@@ -214,15 +219,6 @@ export function KitchenLogPage() {
     setLines(buildLines(wipItems, planMap, stockMap, actionType))
     setSearch('')
     setCategory('All')
-  }
-
-  function handleToggleGroup(key: string) {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -369,6 +365,85 @@ export function KitchenLogPage() {
     l => needsVarianceNote(l, actionType) && !l.notes.trim(),
   )
 
+  // ── Shared DataTable wiring (P-4: ONE branch in the DOM) ───────────────────
+  // Client-side search + category filter (parity with the prior desktop toolbar),
+  // then the Planned/Off-plan split fed to the DataTable `groups` prop. Group
+  // collapse is INTERNAL to the DataTable (no page-level state). Token-only.
+  const q = search.trim().toLowerCase()
+  const matchSearch = (it: WipItemOption) => !q || it.name.toLowerCase().includes(q)
+  const matchCat = (it: WipItemOption) => category === 'All' || (it.category ?? '') === category
+  const visibleItems = wipItems.filter(it => matchSearch(it) && matchCat(it))
+  const plannedLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) > 0)
+  const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
+  const categories = [
+    'All',
+    ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean))).sort(),
+  ]
+
+  const columns: DataTableColumn<WipItemOption>[] = [
+    {
+      key: 'dish',
+      header: 'Dish',
+      cardLabel: '',
+      render: item => (
+        <span className="kl-dish">
+          <span className="kl-dish-name">{item.name}</span>
+          {item.category && <span className="kl-dish-cat">{item.category}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      header: 'Plan',
+      numeric: true,
+      render: item => {
+        const plan = lines[item.id]?.plan_qty ?? 0
+        return plan > 0 ? plan : '—'
+      },
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      numeric: true,
+      render: item => lines[item.id]?.stok ?? 0,
+    },
+    {
+      key: 'made',
+      header: 'Made today',
+      // The reused WipItemStepper (SAME props/handlers as the prior phone card):
+      // name + stepper + plan/stok/tersedia meta + cap cue + variance-note gate.
+      render: item => (
+        <WipItemStepper
+          itemName={item.name}
+          line={lines[item.id]}
+          actionType={actionType}
+          onQtyChange={qty => handleQtyChange(item.id, qty)}
+          onNotesChange={note => handleNotesChange(item.id, note)}
+          disabled={isSubmitting}
+          hideName
+        />
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: item => {
+        const line = lines[item.id]
+        const status = kitchenStatus({
+          made: line.qty_porsi,
+          plan: line.plan_qty,
+          isOffPlan: line.plan_qty <= 0,
+        })
+        return <Pill tone={status.tone} dot={status.dot ?? true}>{status.label}</Pill>
+      },
+    },
+  ]
+
+  const groups: DataTableGroup<WipItemOption>[] = [
+    { key: 'planned', label: 'Planned today', count: plannedLines.length, rows: plannedLines },
+    { key: 'offplan', label: 'Off-plan', hint: 'log as produced', count: offPlanLines.length, rows: offPlanLines },
+  ]
+
   return (
     <PageFrame variant="data">
       <div className="kl-page">
@@ -382,6 +457,11 @@ export function KitchenLogPage() {
 
         {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}
         <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
+        <DataProvenanceNote
+          kind="live"
+          show={kpis.madeSoFar === 0}
+          note="No entries logged yet today"
+        />
 
         {/* Toolbar: action_type segmented control (shared desktop/phone) */}
         <div className="kl-seg-wrap kl-block">
@@ -411,33 +491,27 @@ export function KitchenLogPage() {
           aria-label="Kitchen log capture"
           className="kl-form"
         >
-          {/* Reflow (P-4): ONE branch in the DOM — desktop <table> OR phone cards */}
-          {isDesktop ? (
-            <KitchenLogTable
-              items={wipItems}
-              lines={lines}
-              search={search}
-              category={category}
-              collapsedGroups={collapsedGroups}
-              onQtyChange={handleQtyChange}
-              onNotesChange={handleNotesChange}
-              onToggleGroup={handleToggleGroup}
-              onSearchChange={setSearch}
-              onCategoryChange={setCategory}
-              disabled={isSubmitting}
-            />
-          ) : (
-            <KitchenLogCards
-              items={wipItems}
-              lines={lines}
-              actionType={actionType}
-              search={search}
-              onQtyChange={handleQtyChange}
-              onNotesChange={handleNotesChange}
-              onSearchChange={setSearch}
-              disabled={isSubmitting}
-            />
-          )}
+          {/* Reflow (P-4): ONE branch in the DOM — the shared DataTable
+              (desktop <table> ↔ phone cards) with the Planned/Off-plan group
+              split + the Off-plan "log as produced" hint. */}
+          <KitchenToolbar
+            search={search}
+            onSearchChange={setSearch}
+            categories={categories}
+            category={category}
+            onCategoryChange={setCategory}
+            searchPlaceholder="Find a dish"
+            ariaLabel="Kitchen log filters"
+          />
+          <DataTable
+            columns={columns}
+            rows={visibleItems}
+            groups={groups}
+            isDesktop={isDesktop}
+            state={visibleItems.length > 0 ? 'ready' : 'empty'}
+            emptyLabel="No dishes match your filter."
+            caption="Kitchen production log — enter made-today quantity per dish"
+          />
 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit */}
           <div className="kl-footer">

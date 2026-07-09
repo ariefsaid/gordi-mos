@@ -20,9 +20,11 @@ import { Link } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { Tag } from '@/components/ui/tag'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
 import './kitchen-pushes-page.css'
@@ -86,11 +88,79 @@ function formatDate(iso: string | null): string {
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
+const pushColumns: DataTableColumn<EsbPushRow>[] = [
+  {
+    key: 'source_ref',
+    header: 'Batch',
+    cardLabel: '',
+    render: row => <span className="mono">{row.source_ref}</span>,
+  },
+  {
+    key: 'endpoint',
+    header: 'Endpoint',
+    render: row => <span className="kpu-cell-muted">{row.endpoint}</span>,
+  },
+  {
+    key: 'target_env',
+    header: 'Target',
+    render: row => {
+      const cfg = envConfig(row.target_env)
+      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+    },
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: row => {
+      const cfg = statusConfig(row.status)
+      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+    },
+  },
+  { key: 'retry_count', header: 'Retries', numeric: true },
+  {
+    key: 'last_error',
+    header: 'Error',
+    render: row => {
+      const isDeadLetter = row.status === 'dead_letter'
+      const showError = row.status === 'failed' || isDeadLetter
+      if (!showError || !row.last_error) return <span className="kpu-dash">—</span>
+      return (
+        <>
+          <span className="kpu-cell-muted">{row.last_error}</span>
+          {isDeadLetter && (
+            <span className="kpu-escalate-hint" aria-label="Manual intervention required">
+              Escalate to platform
+            </span>
+          )}
+        </>
+      )
+    },
+  },
+  {
+    key: 'esb_doc_num',
+    header: 'ESB Doc',
+    render: row => row.esb_doc_num
+      ? <span className="mono">{row.esb_doc_num}</span>
+      : <span className="kpu-dash">—</span>,
+  },
+  {
+    key: 'created_at',
+    header: 'Created',
+    render: row => <span className="kpu-time tabular">{formatDate(row.created_at)}</span>,
+  },
+  {
+    key: 'posted_at',
+    header: 'Posted',
+    render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
+  },
+]
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function KitchenPushesPage() {
   useDocumentTitle('Kitchen Pushes — Gordi MOS')
   const auth = useAuth()
+  const isDesktop = useIsDesktop()
 
   // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -154,7 +224,7 @@ export function KitchenPushesPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame variant="data">
       <PageHead
         variant="content"
         title="Kitchen · Pushes"
@@ -171,104 +241,32 @@ export function KitchenPushesPage() {
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
-        <EmptyState title="No pushes yet" copy="The ESB outbox is empty." />
+        <EmptyState
+          variant="awaiting"
+          title="No pushes yet"
+          copy="The ESB outbox is empty right now."
+          note="Pull again to check for new push activity."
+        >
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setRetryKey(k => k + 1)}
+          >
+            Refresh
+          </button>
+        </EmptyState>
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        <div className="kpu-block kpu-tablewrap">
-          <table className="kpu-table">
-            <caption className="sr-only">Kitchen ESB push outbox</caption>
-            <thead>
-              <tr>
-                <th scope="col">Batch</th>
-                <th scope="col">Endpoint</th>
-                <th scope="col">Target</th>
-                <th scope="col">Status</th>
-                <th scope="col">Retries</th>
-                <th scope="col">Error</th>
-                <th scope="col">ESB Doc</th>
-                <th scope="col">Created</th>
-                <th scope="col">Posted</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => (
-                <PushRow key={row.id} row={row} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={pushColumns}
+          rows={rows}
+          isDesktop={isDesktop}
+          rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
+          caption="Kitchen ESB push outbox"
+        />
       )}
     </PageFrame>
-  )
-}
-
-// ── Push row ─────────────────────────────────────────────────────────────────
-
-function PushRow({ row }: { row: EsbPushRow }) {
-  const isDeadLetter = row.status === 'dead_letter'
-  const showError = row.status === 'failed' || row.status === 'dead_letter'
-  const sCfg = statusConfig(row.status)
-  const eCfg = envConfig(row.target_env)
-
-  return (
-    <tr className={isDeadLetter ? 'kpu-row-dead-letter' : undefined}>
-      {/* Batch ID (batch_id / source_ref) — mono, as per Mono-For-IDs rule */}
-      <td>
-        <span className="mono">{row.source_ref}</span>
-      </td>
-
-      {/* Endpoint */}
-      <td className="kpu-cell-muted">{row.endpoint}</td>
-
-      {/* target_env — shown prominently (dry_run vs real target) */}
-      <td>
-        <Tag color={eCfg.color} weight="medium">
-          {eCfg.label}
-        </Tag>
-      </td>
-
-      {/* Status — Tinted-Status pattern (text label, not color-alone) */}
-      <td>
-        <Tag color={sCfg.color} weight="medium">
-          {sCfg.label}
-        </Tag>
-      </td>
-
-      {/* retry_count — tabular digits */}
-      <td className="tabular">{row.retry_count}</td>
-
-      {/* last_error — shown for failed/dead_letter; escalate hint on dead_letter */}
-      <td>
-        {showError && row.last_error ? (
-          <>
-            <span className="kpu-cell-muted">{row.last_error}</span>
-            {isDeadLetter && (
-              <span className="kpu-escalate-hint" aria-label="Manual intervention required">
-                Escalate to platform
-              </span>
-            )}
-          </>
-        ) : (
-          <span className="kpu-dash">—</span>
-        )}
-      </td>
-
-      {/* esb_doc_num — mono when present, dash otherwise */}
-      <td>
-        {row.esb_doc_num ? (
-          <span className="mono">{row.esb_doc_num}</span>
-        ) : (
-          <span className="kpu-dash">—</span>
-        )}
-      </td>
-
-      {/* created_at — WIB-formatted, tabular */}
-      <td className="kpu-time tabular">{formatDate(row.created_at)}</td>
-
-      {/* posted_at — WIB-formatted, tabular; only present on posted rows */}
-      <td className="kpu-time tabular">{formatTime(row.posted_at)}</td>
-    </tr>
   )
 }
 

@@ -1,15 +1,24 @@
 // View-Composition Compiler. Adapted from the sibling internal project's ADR-0037. The untrusted-output
 // validation boundary (sibling ADR-0039 decision 3): every spec — hand- or agent-composed — crosses
 // compileCompositionSpec before it can render or save.
+// Explicit `.ts` extensions on every relative import (Deno-strict compat, P1-debt fix):
+// `deno check` (the edge-function pre-deploy gate, T1/AC-CF-*) requires extension-ful relative
+// specifiers — Node's extensionless resolution never worked in Deno without `--sloppy-imports`.
+// Vite/Vitest resolve `.ts`-suffixed relative imports identically to extensionless ones, so this
+// is a zero-behavior-change addition for the existing (Node/Vitest) consumers.
 import {
   ENTITY_WHITELIST, VALID_FILTER_OPS, VALID_TOKENS, NUMERIC_AGGREGATE_FNS, ValidationError,
   MAX_PANELS_PER_VIEW, MAX_IN_FILTER_LIST_LENGTH,
-} from './types'
+} from './types.ts'
 import type {
-  QuerySpec, CompilerContext, CompiledQuery, CompositionSpec, CompiledPanel,
+  QuerySpec, CompilerContext, CompiledQuery, CompositionSpec, CompiledPanel, PanelSpec,
   FilterClause, ResolvedFilter, ResolvedAggregate, ResolvedTimeRange, TokenValue,
-} from './types'
-import { validatePrimitive } from './registry'
+} from './types.ts'
+// Imports the PURE registry-manifest (not registry.ts, which pulls in React component types
+// via `@/components/dashboard/kpi-tile` — compiler.ts is called from Deno edge functions via
+// compileCompositionSpec, T8/FR-P2-CV-002, so its import graph must stay React/CSS-free too;
+// Director build-note, 2026-07-04, pre-ADR-0018-P2-T7).
+import { validatePrimitiveInManifest } from './registry-manifest.ts'
 
 function startOfMonth(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`
@@ -159,15 +168,15 @@ export function compileCompositionSpec(spec: CompositionSpec, ctx: CompilerConte
     throw new ValidationError('UNSUPPORTED_VERSION', `spec has ${spec.panels.length} panels (max ${MAX_PANELS_PER_VIEW})`)
   }
 
-  return spec.panels.map((panel): CompiledPanel => {
-    if (!validatePrimitive(panel.primitive)) throw new ValidationError('UNKNOWN_PRIMITIVE', panel.id)
+  return spec.panels.map((panel: PanelSpec): CompiledPanel => {
+    if (!validatePrimitiveInManifest(panel.primitive)) throw new ValidationError('UNKNOWN_PRIMITIVE', panel.id)
     if (!Array.isArray(panel.querySpec?.select)) {
       throw new ValidationError('INVALID_SPEC_SHAPE', `panel ${panel.id}: querySpec.select must be an array`)
     }
     let compiledQuery: CompiledQuery
     try {
       compiledQuery = compileQuerySpec(panel.querySpec, ctx)
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof ValidationError) {
         throw new ValidationError(err.code, err.detail != null ? `${err.detail} (panel: ${panel.id})` : `panel: ${panel.id}`)
       }

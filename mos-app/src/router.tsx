@@ -1,15 +1,20 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS } from './config/features'
+import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
+import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
+import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
+import { CascadePage } from './pages/cascade-page'
+import { FollowUpsPage } from './pages/follow-ups-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
+import { InboxPage } from './pages/inbox-page'
 import { OpsAddForm } from './pages/ops-add-form'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
@@ -19,12 +24,15 @@ import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
-import { SalesDashboardPage } from './pages/sales-dashboard-page'
+import { DashboardPage } from './pages/dashboard-page'
+import { BudgetPage } from './pages/budget-page'
+import { PricingPage } from './pages/pricing-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { UiGallery } from './pages/ui-gallery'
 import { DevViewsPage } from './pages/dev-views-page'
+import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 
 // Route layout:
 // / (RedirectIfAuthed gate) — unauthenticated users can access these
@@ -54,6 +62,7 @@ export const routeConfig: RouteObject[] = [
     : []),
   {
     element: <RedirectIfAuthed />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/recovery', element: <RecoveryPage /> },
@@ -61,11 +70,18 @@ export const routeConfig: RouteObject[] = [
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <HomePage /> },
+          { index: true, element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage /> },
+          // Issue E — DEV-only preview of the stacked-union Home, reachable regardless of the
+          // SHOW_HOME_STACKED flag so e2e + visual verification is deterministic. Production `/`
+          // still branches on the flag (above). Stripped from the production build via DEV.
+          ...(import.meta.env.DEV
+            ? [{ path: '__home-stacked', element: <StackedUnionHome /> }]
+            : []),
           {
             path: 'tasks',
             element: <TasksLayout />,
@@ -74,10 +90,14 @@ export const routeConfig: RouteObject[] = [
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
+          { path: 'work/cascade', element: <CascadePage /> },
+          { path: 'work/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
+          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
           // Flag-hidden for the first rollout (config/features.ts): the routes stay mounted
           // but redirect to My Week so a stale deep-link can't reach a hidden section.
           { path: 'updates', element: SHOW_WEEKLY_UPDATES ? <UpdatesPage /> : <Navigate to="/" replace /> },
           { path: 'ops', element: SHOW_DAILY_LOG ? <OpsPage /> : <Navigate to="/" replace /> },
+          { path: 'inbox', element: SHOW_INBOX ? <InboxPage /> : <Navigate to="/" replace /> },
           { path: 'ops/new', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           { path: 'ops/:id/edit', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
           // Kitchen Module (S1 — Log capture; S2 — Plan editor (ops_lead/admin) +
@@ -95,22 +115,34 @@ export const routeConfig: RouteObject[] = [
             element: <AdminRoute />,
             children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
           },
-          // Cascade catalog (OD-C-2). RequireAccessRole bounces non-permitted viewers
-          // to /; RLS is the real gate. Objectives → admin; Projects & Processes → ops_lead/admin.
+          // Cascade catalog = Work's manage-mode (nav-five-destinations FR-421). The retired
+          // top-level paths redirect into the cascade (decisions.md: "direct visits redirect into
+          // it"); the manage pages are relocated under /work/ behind RequireCapability (which
+          // bounces non-holders to /work/cascade). Page components are reused unchanged (NFR-404).
+          { path: 'objectives', element: <Navigate to="/work/cascade" replace /> },
+          { path: 'projects-processes', element: <Navigate to="/work/cascade" replace /> },
           {
-            element: <RequireAccessRole anyOf={['admin']} />,
-            children: [{ path: 'objectives', element: <ObjectivesPage /> }],
+            element: <RequireCapability capability="objective.manage" />,
+            children: [{ path: 'work/objectives', element: <ObjectivesPage /> }],
           },
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
-            children: [{ path: 'projects-processes', element: <ProjectsProcessesPage /> }],
+            element: <RequireCapability capability="workline.manage" />,
+            children: [{ path: 'work/projects-processes', element: <ProjectsProcessesPage /> }],
           },
-          // Sales dashboard (Issue 1, reporting read-model). FR-001/AC-001/002:
-          // finance/admin only; RequireAccessRole bounces non-permitted viewers to /.
-          // RLS on reporting.sales_daily_revenue is the real security boundary.
+          // Dashboard (the analytical KPI hub, Issue OD-DASH-2 — replaces /sales).
+          // FR-001/AC-001: /sales redirects to /dashboard for back-compat. FR-002/
+          // AC-002/003: finance/admin only; RequireAccessRole bounces others to /.
+          // RLS on the reporting read-models is the real security boundary.
+          // AC-017: /dashboard/detail is the parameterized detail sub-view (same page,
+          // detail tab default). The page reads ?tab= for persistence (AC-015).
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
-            children: [{ path: 'sales', element: <SalesDashboardPage /> }],
+            children: [
+              { path: 'dashboard', element: <DashboardPage /> },
+              { path: 'dashboard/detail', element: <DashboardPage defaultTab="detail" /> },
+              // Back-compat redirect: /sales → /dashboard (AC-001).
+              { path: 'sales', element: <Navigate to="/dashboard" replace /> },
+            ],
           },
           // ADR-0018 P1 — view-composition dev harness (zero-agent proof). DEV-only +
           // feature-flagged; redirects to / otherwise. Auth-gated by ProtectedRoute (reads/
@@ -122,6 +154,16 @@ export const routeConfig: RouteObject[] = [
           {
             path: 'dev/views/:viewId',
             element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+          },
+          // ADR-0022 (Issue D) — Plan budget/COGS capture + pricing pre-flight (finance/admin).
+          // Hide-first (SHOW_PLAN_BUDGET, default false): redirect to / when off; the unit/pgTAP layers
+          // prove correctness regardless. RLS on the reporting/mos tables is the real security boundary.
+          {
+            element: <RequireAccessRole anyOf={['finance', 'admin']} />,
+            children: [
+              { path: 'plan/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace /> },
+              { path: 'plan/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace /> },
+            ],
           },
           { path: '*', element: <NotFoundPage /> },
         ],

@@ -1,0 +1,105 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   WindowSelector — the window control (design-plan §2.6, FR-013/014).
+   Reuses the `seg` grammar (secondary track, white on-pill + lift) for the
+   [7d|30d|60d|Custom] presets. The custom date-pair is two native <input type=date>
+   in an input-bordered chip shell, bounded to the snapshot window. Token-only.
+   ════════════════════════════════════════════════════════════════════════════ */
+.window-selector-seg {
+  display: inline-flex;
+  gap: 4px;
+  height: 32px;
+  padding: 3px;
+  background: var(--secondary);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.window-selector-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px; /* phone tap target floor */
+  height: 100%;
+  padding: 0 12px;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+.window-selector-tab:hover:not([aria-selected='true']) {
+  color: var(--foreground);
+}
+.window-selector-tab[aria-selected='true'] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .window-selector-tab { transition: none; }
+}
+
+@media (max-width: 767.98px) {
+  .window-selector-seg,
+  .window-selector-range,
+  .window-selector-field,
+  .window-selector-tab,
+  .window-selector-field input[type='date'] {
+    min-height: 44px;
+  }
+
+  .window-selector-seg,
+  .window-selector-range,
+  .window-selector-tab {
+    height: auto;
+  }
+}
+
+/* Custom date-pair — input-bordered chip shell, two keyboard-operable native date
+   inputs. Bounded by min/max set from the snapshot window (AC-014). */
+.window-selector-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--input);
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.window-selector-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.window-selector-field-label {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.window-selector-field input[type='date'] {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums; /* Tabular-Numbers Rule on dates */
+  padding: 2px 0;
+  cursor: pointer;
+}
+.window-selector-field input[type='date']:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.window-selector-field input[type='date']:disabled {
+  background: var(--secondary);
+  cursor: not-allowed;
+}

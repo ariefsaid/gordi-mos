@@ -56,3 +56,17 @@
   font-size: 12px;
   color: var(--muted-foreground);
 }
+
+/* inline "✓ Saved" tick — transient (≈1.5s) confirmation that THIS cell committed.
+   Muted label, success-colored check (A5). */
+.kps-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.kps-saved-tick {
+  color: var(--success);
+  font-weight: 600;
+}

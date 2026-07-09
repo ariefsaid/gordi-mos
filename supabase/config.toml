@@ -402,6 +402,11 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+[functions.agent-chat]
+verify_jwt = false   # handler verifies JWT to return a typed 401 + stream a typed terminal status
+[functions.compose-view]
+verify_jwt = false   # handler verifies JWT to return a typed 401/400/422
+
 [analytics]
 enabled = true
 # Ported +1000 from default (54327) to coexist with the running pmo-portal local stack.

@@ -1,5 +1,5 @@
 import './TaskSurface.css'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
@@ -12,6 +12,7 @@ import type { TaskDetail as TaskDetailData, CreateTaskInput } from '@/lib/db/tas
 import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
+import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import type { ObjectiveRow } from '@/lib/db/objectives'
@@ -106,10 +107,12 @@ function ViewSurface({
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
+  const [comments, setComments] = useState<CommentRow[]>([])
 
   // Optimistic local state
   const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
   const [localChecklist, setLocalChecklist] = useState<ChecklistItemRow[]>([])
+  const loadSeq = useRef(0)
 
   // AC-111: off-screen live region announcing optimistic-save / rollback outcomes.
   const [liveMessage, setLiveMessage] = useState('')
@@ -124,6 +127,8 @@ function ViewSurface({
 
   const load = useCallback(() => {
     if (!taskId) return
+    const seq = ++loadSeq.current
+    const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     setNotFound(false)
     Promise.all([
@@ -131,6 +136,7 @@ function ViewSurface({
       getBusinessUnits(),
       getPeople(),
     ]).then(([taskData, bus, people]) => {
+      if (!isCurrent()) return
       setData(taskData)
       setLocalTask(taskData.task)
       setLocalChecklist(taskData.checklist)
@@ -138,15 +144,26 @@ function ViewSurface({
       setPeopleDirectory(people)
       setLoading(false)
     }).catch(() => {
+      if (!isCurrent()) return
       setNotFound(true)
       setLoading(false)
     })
+    // Non-blocking comments load — a slow comments API must not keep task detail on skeleton.
+    setComments([])
+    listComments({ entityType: 'task', entityId: taskId }).then((loadedComments) => {
+      if (isCurrent()) setComments(loadedComments)
+    }).catch(() => {})
     // Non-blocking catalog loads — a slow catalog must never block the form.
-    listObjectives().then(setObjectivesDir).catch(() => {})
-    listWorkLines().then(setWorkLinesDir).catch(() => {})
+    listObjectives().then((rows) => {
+      if (isCurrent()) setObjectivesDir(rows)
+    }).catch(() => {})
+    listWorkLines().then((rows) => {
+      if (isCurrent()) setWorkLinesDir(rows)
+    }).catch(() => {})
   }, [taskId])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => () => { loadSeq.current += 1 }, [])
 
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {
@@ -201,6 +218,13 @@ function ViewSurface({
       const refreshed = await getTask(id)
       setData(refreshed)
     } catch { /* non-critical — stale events are acceptable */ }
+  }
+
+  async function handlePostComment(body: string) {
+    if (!localTask) return
+    await postComment({ entityType: 'task', entityId: localTask.id, body })
+    const loadedComments = await listComments({ entityType: 'task', entityId: localTask.id }).catch(() => comments)
+    setComments(loadedComments)
   }
 
   // ── RACI C/I change ──────────────────────────────────────────────────────
@@ -424,6 +448,7 @@ function ViewSurface({
             task={task}
             checklist={localChecklist}
             events={events}
+            comments={comments}
             people={peopleDirectory}
             now={now}
             editable={editable}
@@ -434,6 +459,7 @@ function ViewSurface({
             onToggleChecklist={handleToggle}
             onReorderChecklist={handleReorder}
             onDeleteChecklist={handleDeleteChecklist}
+            onPostComment={handlePostComment}
           />
         </div>
 
@@ -558,6 +584,7 @@ function ViewSurface({
             task={task}
             checklist={localChecklist}
             events={events}
+            comments={comments}
             people={peopleDirectory}
             now={now}
             editable={editable}
@@ -568,6 +595,7 @@ function ViewSurface({
             onToggleChecklist={handleToggle}
             onReorderChecklist={handleReorder}
             onDeleteChecklist={handleDeleteChecklist}
+            onPostComment={handlePostComment}
           />
         </div>
       </div>

@@ -49,6 +49,7 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: e2eEnv.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:55321',
       VITE_SUPABASE_ANON_KEY: e2eEnv.VITE_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? '',
+      VITE_SHOW_PLAN_BUDGET: e2eEnv.VITE_SHOW_PLAN_BUDGET ?? process.env.VITE_SHOW_PLAN_BUDGET ?? 'false',
     },
   },
 })
