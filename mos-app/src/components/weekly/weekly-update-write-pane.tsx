@@ -580,15 +580,11 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
           {/* Save draft (§2.3) */}
           <button
             type="button"
+            className="btn btn-outline"
             onClick={handleSaveDraft}
             disabled={saving}
             aria-busy={saving ? 'true' : undefined}
             style={{
-              height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', /* 8px — control, OD-P3-10 */
-              border: '1px solid var(--border)',
-              background: 'var(--background)', cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
-              color: 'var(--foreground)',
               opacity: saving ? 0.5 : 1,
             }}
           >
@@ -601,17 +597,14 @@ export function WeeklyUpdateWritePane({ personId, createdBy, weekStart }: Weekly
               token at opacity:0.5 (visual dim, not a separate color). */}
           <button
             type="button"
+            className="btn btn-primary"
             onClick={handleSubmit}
             disabled={saving}
             aria-disabled={submitDisabled || saving ? 'true' : 'false'}
             aria-busy={saving ? 'true' : undefined}
             style={{
-              height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: 0, /* 8px — control, OD-P3-10 */
               backgroundColor: 'var(--primary)', /* primary — always set, opacity dims when disabled */
-              color: 'var(--primary-foreground)', /* primary-foreground */
-              cursor: submitDisabled || saving ? 'not-allowed' : 'pointer',
               opacity: submitDisabled || saving ? 0.5 : 1,
-              fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
               boxShadow: submitDisabled || saving ? 'none' : '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
               pointerEvents: submitDisabled ? 'none' : undefined,
             }}

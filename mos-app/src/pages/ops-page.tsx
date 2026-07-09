@@ -413,7 +413,7 @@ export function OpsPage() {
           </label>
 
           {/* Desktop: + Add log entry button */}
-          {isDesktop && (
+          {isDesktop && !(loadState === 'ready' && entries.length === 0) && (
             <Link
               to="/ops/new"
               className="btn btn-primary ops-toolbar-add"
