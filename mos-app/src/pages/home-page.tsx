@@ -23,8 +23,8 @@ import { listTasks } from '@/lib/db/tasks'
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
 import type { TodayOpsSummary } from '@/lib/db/ops-log'
 import { KPITile } from '@/components/dashboard/kpi-tile'
-import { FreshnessLabel } from '@/components/dashboard/freshness-label'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { openTaskCount } from '@/lib/home-kpis'
 import './home-page.css'
 
@@ -145,7 +145,13 @@ export function HomePage() {
         )}
       </div>
 
-      {snapshotAsOf && <FreshnessLabel asOf={snapshotAsOf} />}
+      {canSeeFinance && (snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
+        <DataProvenanceNote
+          kind="snapshot"
+          hasData={Boolean(revenueWindow || marginDisplay)}
+          asOf={snapshotAsOf}
+        />
+      )}
 
       <MyWeekPanel />
     </PageFrame>

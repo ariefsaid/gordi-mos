@@ -46,6 +46,7 @@ import { useKitchenKpis } from '@/lib/kitchen-kpis'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { Pill } from '@/components/ui/pill'
@@ -456,6 +457,11 @@ export function KitchenLogPage() {
 
         {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}
         <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
+        <DataProvenanceNote
+          kind="live"
+          show={kpis.madeSoFar === 0}
+          note="No entries logged yet today"
+        />
 
         {/* Toolbar: action_type segmented control (shared desktop/phone) */}
         <div className="kl-seg-wrap kl-block">
