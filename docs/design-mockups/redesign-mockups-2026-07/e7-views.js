@@ -27,7 +27,7 @@ const lifecyclePill = (lifecycle) => `<span class="pill ${lifecycle==='settled'?
 export function computeAttention(person) {
   const today = '2026-07-11';
   const isOverdue = (t) => t.due && t.due <= today;
-  
+
   const myTasks = Object.values(records).filter(r=>
     r.type==='task' && r.picId===person.id && r.status!=='Done' && !r.archivedAt
   );
@@ -41,7 +41,7 @@ export function computeAttention(person) {
   myTasks.filter(t=>t.status==='Blocked').forEach(t=>items.push({sort:1, sourceId:t.id, record:t}));
   myTasks.filter(t=>isOverdue(t)).forEach(t=>items.push({sort:2, sourceId:t.id, record:t}));
   mySignals.slice(0,3).forEach(i=>items.push({sort:3, sourceId:i.sourceId, record:records[i.sourceId]}));
-  
+
   items.sort((a,b)=>a.sort-b.sort);
   return items;
 }
@@ -597,7 +597,7 @@ export function renderRoastery(person){
    ════════════════════════════════════════════════════════════════════════════ */
 export function renderAdmin(person, section='org'){
   if (!can(person,'admin.view')) return deniedSurface('Admin', person, 'admin.view');
-  return `${head('Admin Settings', `Manage Teams, people, roles, and individual access`, 
+  return `${head('Admin Settings', `Manage Teams, people, roles, and individual access`,
     `<button class="chip ${section==='org'?'active':''}" data-admin-section="org" data-journey="J22">Organization</button><button class="chip ${section==='access'?'active':''}" data-admin-section="access" data-journey="J23">People & access</button>`, 'J22')}
   <div class="stack">${section==='org'?renderOrgSection():renderAccessSection(person)}</div>`;
 }
