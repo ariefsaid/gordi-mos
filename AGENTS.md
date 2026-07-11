@@ -32,9 +32,8 @@ Ships at `https://ops.gordi.id/mos`. **Usability and speed beat model completene
 ## Operating model: Owner → Director → role agents
 The **owner** (Arief) talks to the **Director** (the main session). The Director runs an
 **issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**. Routine worktree commits, branch pushes, and opening/updating a PR to
-`dev` do not require an approval pause; pause for owner approval at strategic issue boundaries and
-before merge or deploy. Per-issue loop:
+Build **one issue at a time**. Routine worktree commits and opening/updating PR metadata do not require
+an approval pause. Always obtain owner approval before every push, merge, or deploy. Per-issue loop:
 
 1. **Intake** — Director clarifies the issue with the owner. For architecturally-significant issues
    (schema, auth, cross-cutting), run a `grill-with-docs` session: grill the approach against
@@ -46,8 +45,9 @@ before merge or deploy. Per-issue loop:
 5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (3-lens) for UI.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
-8. **Ship** — `release-engineer` (worktree branch → checkpoint commits → push → PR targeting `dev`).
-   Director merges only after the applicable approval gate.
+8. **Ship** — `release-engineer` (worktree branch → checkpoint commits → owner-approved push → PR
+   targeting `dev`). Opening or updating the PR needs no further approval after the branch exists
+   remotely. Director merges only after the applicable approval gate.
 
 **Phase 0 exception (mockup-first):** before redesign implementation, `design-architect` produces one
 decision-complete interactive HTML prototype in `docs/design-mockups/` to the adopted `DESIGN.md`
@@ -89,10 +89,11 @@ provider is unavailable — the loop is substrate-agnostic.
   the `codex/` prefix unless the issue already has an established branch name.
 - Commit after each coherent plan task or red-green-refactor checkpoint. Keep commits small, tested,
   and reviewable; do not hold the entire issue as one final uncommitted change.
-- After the issue gates pass, push the branch and open or update its PR with base `dev` as the routine
-  completion path. Commit, push, and PR creation do not need separate owner approval.
-- Never merge or deploy without the applicable owner/Director checkpoint. Keep the worktree available
-  for review and follow-up until the PR is merged or explicitly abandoned.
+- After the issue gates pass, request owner approval before pushing the branch. Once the approved push
+  succeeds, open or update its PR with base `dev` without requesting another approval. PR description,
+  labels, reviewers, and other metadata may be updated autonomously.
+- Never push, merge, or deploy without the applicable owner/Director checkpoint. Keep the worktree
+  available for review and follow-up until the PR is merged or explicitly abandoned.
 - Do not move unrelated dirty-checkout changes into an issue worktree or commit them with the issue.
 
 ## Agent roster (`.claude/agents/`) and models
