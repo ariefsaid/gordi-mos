@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gordi MOS — Home</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="base.css">
+  <style>
+    /* ═══ WARMER IDENTITY (verbatim from BUILD-SPEC) ═══ */
+    :root {
+      --background:      hsl(40 30% 99%);
+      --surface:         hsl(40 30% 99%);
+      --surface-2:       hsl(38 22% 97%);
+      --surface-3:       hsl(38 20% 95%);
+      --surface-4:       hsl(38 18% 92%);
+      --surface-sunken:  hsl(38 25% 96.5%);
+      --text:            hsl(30 8% 12%);
+      --text-2:          hsl(30 6% 35%);
+      --text-3:          hsl(30 5% 50%);
+      --text-light:      hsl(30 5% 64%);
+      --border:          hsl(38 18% 90%);
+      --border-strong:   hsl(38 18% 82%);
+      --brand-navy:      hsl(210 40% 24%);
+      --brand-navy-2:    hsl(210 36% 30%);
+      --primary:         hsl(225 75% 55%);
+      --primary-hover:   hsl(225 75% 50%);
+      --primary-active:  hsl(225 75% 45%);
+      --primary-subtle:  hsl(225 75% 55% / 0.10);
+      --primary-tint:    hsl(225 75% 55% / 0.14);
+      --shadow-rest:     0 1px 2px hsl(210 40% 24% / 0.05), 0 1px 3px hsl(210 40% 24% / 0.04);
+      --shadow-lift:     0 2px 8px hsl(210 40% 24% / 0.07), 0 1px 2px hsl(210 40% 24% / 0.05);
+      --shadow-pop:      0 4px 16px hsl(210 40% 24% / 0.10), 0 1px 3px hsl(210 40% 24% / 0.06);
+      --shadow-drawer:   0 8px 32px hsl(210 40% 24% / 0.16), 0 2px 6px hsl(210 40% 24% / 0.08);
+      --sheen-primary:   linear-gradient(180deg, hsl(225 75% 58%) 0%, hsl(225 75% 52%) 100%);
+    }
+
+    /* ═══ Home-only layout helpers ═══ */
+    .demo-banner { background: linear-gradient(90deg, hsl(210 40% 24%), hsl(225 50% 30%)); }
+    .app.live { background: var(--background); }
+
+    /* role switch (4-button) */
+    .role-switch { display: inline-flex; padding: 3px; background: var(--surface-3); border-radius: var(--radius-control); gap: 2px; }
+    .role-switch button { height: 34px; padding: 0 16px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); background: transparent; border: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .role-switch button.active { background: var(--background); color: var(--brand-navy); box-shadow: var(--shadow-rest); }
+    .role-switch button .rs-avatar { width: 20px; height: 20px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; font-family: var(--font-display); }
+
+    /* page layout */
+    .home-stack { display: flex; flex-direction: column; gap: var(--s-xl); max-width: var(--content-max); }
+
+    .section-title { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--brand-navy); display: flex; align-items: center; gap: 8px; margin-bottom: var(--s-md); }
+    .section-title .ico { color: var(--text-3); }
+    .money-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-md); }
+    .money-pos { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .bar { height: 8px; background: var(--surface-3); border-radius: var(--radius-pill); overflow: hidden; }
+    .bar > span { display:block; height:100%; border-radius: var(--radius-pill); }
+    .bar > span.good { background: hsl(142 55% 42%); }
+    .bar > span.warn { background: hsl(38 92% 50%); }
+    .bar > span.bad  { background: hsl(0 72% 48%); }
+    .bar > span.run  { background: var(--primary); }
+
+    /* attention strip — "what needs me" */
+    .attn-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-md); }
+    .attn-card { display: flex; align-items: flex-start; gap: var(--s-md); padding: var(--s-base) var(--s-lg); border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-rest); }
+    .attn-card.blocked { border-left-color: var(--blocked); }
+    .attn-card.missing { border-left-color: var(--blocked); }
+    .attn-card .ac-ico { width: 36px; height: 36px; border-radius: var(--radius-control); background: var(--warning-tint); color: var(--warning-text); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .attn-card.blocked .ac-ico { background: var(--blocked-tint); color: var(--blocked-text); }
+    .attn-card .ac-body { flex: 1; min-width: 0; }
+    .attn-card .ac-title { font-weight: 700; font-size: 14.5px; color: var(--brand-navy); }
+    .attn-card .ac-sub { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+    .attn-card .ac-link { font-size: 12px; font-weight: 600; color: var(--primary); margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; }
+
+    .filing-strip { display:flex; align-items:center; gap: var(--s-md); padding: var(--s-md) var(--s-lg); border-top: 1px solid var(--border); }
+    .drift-row { display: grid; grid-template-columns: 1fr 130px 110px 100px; gap: var(--s-md); align-items: center; padding: var(--s-md) var(--s-lg); border-bottom: 1px solid var(--border); cursor: pointer; }
+    .drift-row:last-child { border-bottom: none; }
+    .drift-row:hover { background: var(--surface-2); }
+
+    /* floor capture-first hero */
+    .capture-hero { border: 2px dashed var(--primary); background: var(--primary-subtle); border-radius: var(--radius); padding: var(--s-xl); display:flex; align-items:center; gap: var(--s-lg); cursor: pointer; }
+    .capture-hero:hover { background: hsl(225 75% 55% / 0.14); }
+    .capture-hero .big-plus { width: 56px; height: 56px; border-radius: var(--radius-control); background: var(--primary); color: #fff; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .capture-hero h2 { font-size: 20px; color: var(--brand-navy); }
+    .capture-hero p { color: var(--text-2); font-size: 14px; }
+
+    /* shift card (floor) */
+    .shift-card { display: flex; align-items: center; gap: var(--s-lg); padding: var(--s-lg) var(--s-xl); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-rest); }
+    .shift-card .sc-ico { width: 48px; height: 48px; border-radius: var(--radius-control); background: var(--primary-subtle); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .shift-card .sc-body { flex: 1; min-width: 0; }
+    .shift-card .sc-station { font-weight: 700; font-size: 16px; color: var(--brand-navy); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .shift-card .sc-meta { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+    .shift-card .sc-checks { text-align: center; }
+    .shift-card .sc-checks .n { font-family: var(--font-tabular); font-size: 24px; font-weight: 700; color: var(--brand-navy); }
+    .shift-card .sc-checks .l { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* obj row reuse */
+    .obj-row { display: grid; grid-template-columns: 1fr 120px 90px; gap: var(--s-md); padding: var(--s-md) var(--s-lg); border-bottom: 1px solid var(--border); align-items: center; }
+    .obj-row:last-child { border-bottom: none; }
+
+    /* widget add bar (composer) */
+    .widget-add-bar { display: flex; align-items: center; gap: var(--s-sm); padding: var(--s-md); border: 1.5px dashed var(--border); border-radius: var(--radius); color: var(--text-3); background: var(--surface-sunken); }
+
+    /* persona menu positioning anchor */
+    .persona-anchor { position: relative; }
+
+    /* touch-friendly inline switch on mobile */
+    @media (max-width: 880px) {
+      .attn-strip { grid-template-columns: 1fr; }
+      .shift-card { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body class="hifi">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DEMO BANNER
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="demo-banner">
+  <b>GORDI MOS · HOME</b> <span class="sep">|</span>
+  warmer · <i>interactive</i>
+  <span class="sep">|</span> <span class="pill">destinations: <a href="work.html" style="color:inherit">Work</a> · <a href="roastery.html" style="color:inherit">Roastery</a> · <a href="kitchen.html" style="color:inherit">Kitchen</a> · <a href="money.html" style="color:inherit">Money</a></span>
+  <span class="sep">|</span> <span class="pill">switch user ↑ top-right</span>
+  <span class="sep">|</span> <a href="index.html" style="color:inherit;text-decoration:underline">← overview</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PERSISTENT APP SHELL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="app live">
+
+  <!-- ── TOPBAR ──────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:99px;background:var(--brand-orange)"></span>
+      Gordi <span class="lockup-sub" style="color:var(--text-3);font-weight:500;font-size:13px;margin-left:4px">MOS</span>
+    </div>
+    <button class="search-trigger desktop-only" data-modal-trigger="command">
+      <span data-i="search"></span> Search or jump to… <span class="kbd">⌘K</span>
+    </button>
+    <div class="topbar-spacer"></div>
+    <button class="icon-btn desktop-only" title="Ask deputy" data-drawer-trigger="deputy"><span data-i="sparkles"></span></button>
+    <div class="fontsize-pick desktop-only" title="Text size">
+      <button class="s" data-fontsize-pick="s">A</button>
+      <button class="m active" data-fontsize-pick="m">A</button>
+      <button class="l" data-fontsize-pick="l">A</button>
+      <button class="xl" data-fontsize-pick="xl">A</button>
+    </div>
+    <button class="icon-btn" title="Inbox" data-drawer-trigger="inbox"><span data-i="bell"></span><span class="badge-dot"></span></button>
+
+    <!-- USER CHIP = persona picker trigger -->
+    <div class="persona-anchor">
+      <div class="user-chip" data-user-pick-trigger>
+        <span class="avatar md" data-user-avatar>AS</span>
+        <div class="meta desktop-only">
+          <b data-user-name>Arief</b>
+          <span data-user-title>Owner-director</span>
+        </div>
+        <svg class="caret desktop-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── RAIL (D1 — Destinations + BU-grouped Modules) ───────────────────── -->
+  <aside class="rail">
+    <div class="rail-section">
+      <div class="rail-label overline">Destinations</div>
+      <div class="nav-item active" data-go="home"><span data-i="orient"></span> Home</div>
+      <a class="nav-item" href="work.html"><span data-i="work"></span> Work <span class="count">23</span></a>
+      <a class="nav-item" href="money.html" data-sees="money"><span data-i="money"></span> Money</a>
+      <div class="nav-item" data-drawer-trigger="inbox"><span data-i="inbox"></span> Inbox <span class="count hot" style="color:hsl(0 72% 45%)">3</span></div>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-label overline">Retail Ops</div>
+      <a class="nav-sub" href="kitchen.html">Kitchen</a>
+      <a class="nav-sub" href="kitchen.html">Bar</a>
+      <a class="nav-sub" href="kitchen.html">Ecommerce</a>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-label overline">B2B Ops</div>
+      <a class="nav-sub" href="roastery.html">Roastery</a>
+    </div>
+
+    <div style="flex:1"></div>
+    <div class="rail-section" data-sees="manage">
+      <div class="nav-item" data-sees="manage"><span data-i="people"></span> People</div>
+    </div>
+    <div class="rail-section">
+      <div class="nav-item"><span data-i="settings"></span> Settings</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN (Home screen — role-aware cockpit) ─────────────────────────── -->
+  <main class="main">
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         HOME — role-aware cockpit (4 personas)
+         ════════════════════════════════════════════════════════════════════ -->
+    <section class="screen active" data-screen="home">
+      <div class="content" style="background:var(--surface-sunken)">
+
+        <!-- shared head: greeting + role switch + freshness -->
+        <div class="page-head">
+          <div class="row between wrap" style="gap:var(--s-md);align-items:flex-start">
+            <div>
+              <h1><span data-greeting>Afternoon, Arief</span></h1>
+              <p class="subtitle">Thursday 9 July · Asia/Jakarta · your daily cockpit</p>
+              <div class="meta-row">
+                <span class="fresh">Live · synced 12 min ago</span>
+                <span class="fresh next">next money sync 03:30 WIB</span>
+              </div>
+            </div>
+            <!-- 4-button role switch (data-role-switch) -->
+            <div class="role-switch">
+              <button class="active" data-role-switch="owner"><span class="rs-avatar" style="background:var(--brand-navy)">AS</span> Owner</button>
+              <button data-role-switch="buhead"><span class="rs-avatar" style="background:hsl(221 70% 45%)">RA</span> BU-head</button>
+              <button data-role-switch="lead"><span class="rs-avatar" style="background:hsl(142 55% 40%)">SP</span> Lead</button>
+              <button data-role-switch="floor"><span class="rs-avatar" style="background:hsl(18 70% 48%)">YU</span> Floor</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-stack">
+
+          <!-- ═══════ OWNER (Arief) ═══════ -->
+          <div data-role-pane="owner">
+            <!-- widget composer bar -->
+            <div class="widget-add-bar">
+              <span class="overline" style="margin:0">Compose your Home</span>
+              <span class="widget-chip"><span data-i="plus"></span> KPI card</span>
+              <span class="widget-chip"><span data-i="plus"></span> List</span>
+              <span class="widget-chip"><span data-i="plus"></span> Attention strip</span>
+              <span class="widget-chip"><span data-i="plus"></span> Follow-up queue</span>
+              <span class="muted-2" style="font-size:12px;margin-left:auto">drag widgets to reorder</span>
+            </div>
+
+            <!-- WHAT NEEDS ME — attention strip (3 cards, each drills cross-destination) -->
+            <div>
+              <div class="section-title"><span data-i="flag" style="color:hsl(28 80% 48%)"></span> What needs me</div>
+              <div class="attn-strip">
+                <a class="attn-card" href="work.html#work-followups">
+                  <span class="ac-ico"><span data-i="money"></span></span>
+                  <div class="ac-body">
+                    <div class="ac-title">AR overdue · Rp 142M</div>
+                    <div class="ac-sub">5 invoices · oldest 38d (PT Sumber Makmur)</div>
+                    <span class="ac-link">→ Work · Follow-ups <span data-i="arrowRight"></span></span>
+                  </div>
+                </a>
+                <a class="attn-card blocked" href="work.html#work-tasks">
+                  <span class="ac-ico"><span data-i="flag"></span></span>
+                  <div class="ac-body">
+                    <div class="ac-title">1 task blocked</div>
+                    <div class="ac-sub">TASK-241 Sign GKID lease · 2d overdue</div>
+                    <span class="ac-link">→ Work · Tasks <span data-i="arrowRight"></span></span>
+                  </div>
+                </a>
+                <a class="attn-card missing" href="work.html#work-weekly">
+                  <span class="ac-ico"><span data-i="listChecks"></span></span>
+                  <div class="ac-body">
+                    <div class="ac-title">1 weekly report missing</div>
+                    <div class="ac-sub">Budi · Café · w28 not started</div>
+                    <span class="ac-link">→ Work · Weekly <span data-i="arrowRight"></span></span>
+                  </div>
+                </a>
+              </div>
+            </div>
+
+            <!-- MONEY SUMMARY — KPI tiles drilling to money.html -->
+            <div>
+              <div class="section-title"><span data-i="money"></span> Money this month</div>
+              <div class="money-strip">
+                <a class="kpi" href="money.html"><span class="label">Revenue (MTD)</span><span class="value tabular">Rp 1.84B</span><span class="delta up" data-i="trendUp">+6.2% vs Jun</span><span class="foot">→ Money</span></a>
+                <a class="kpi" href="money.html"><span class="label">Gross margin</span><span class="value tabular">61.4%</span><span class="delta down" data-i="trendDown">−2.1pp · interim</span><span class="foot">→ Money</span></a>
+                <a class="kpi" href="money.html"><span class="label">AR overdue</span><span class="value tabular" style="color:hsl(28 80% 38%)">Rp 142M</span><span class="delta flat">5 invoices · oldest 38d</span><span class="foot">→ Money</span></a>
+                <a class="kpi" href="money.html"><span class="label">Net cash</span><span class="value tabular">Rp 612M</span><span class="delta flat">AP Rp 298M</span><span class="foot">→ Money</span></a>
+              </div>
+            </div>
+
+            <!-- OBJECTIVES PROGRESS widget (span-6) + WEEKLY FILING widget (span-3) -->
+            <div class="widget-grid">
+              <div class="widget span-6">
+                <div class="card">
+                  <div class="card-head"><span data-i="target" style="color:var(--text-3)"></span><h3>Objectives · cascade</h3><div class="actions"><a class="link" href="work.html">Open Work →</a></div></div>
+                  <div class="obj-row" data-drawer-trigger="inspect">
+                    <div><div style="font-weight:600;color:var(--brand-navy);font-size:15px">Open HQ retail — 2nd location</div><div class="muted-2" style="font-size:13px;margin-top:2px">Rina · Retail Ops · <span class="tag">Transform</span></div></div>
+                    <div class="bar"><span class="warn" style="width:42%"></span></div>
+                    <div class="tabular" style="font-size:13px;color:hsl(28 80% 38%);font-weight:600;text-align:right">42% · behind</div>
+                  </div>
+                  <div class="obj-row" data-drawer-trigger="inspect">
+                    <div><div style="font-weight:600;color:var(--brand-navy);font-size:15px">Lift B2B roasted margin to 38%</div><div class="muted-2" style="font-size:13px;margin-top:2px">Dimas · B2B Ops · <span class="tag">Optimize</span></div></div>
+                    <div class="bar"><span class="run" style="width:68%"></span></div>
+                    <div class="tabular" style="font-size:13px;color:var(--text-2);font-weight:600;text-align:right">68% · on track</div>
+                  </div>
+                  <div class="obj-row" data-drawer-trigger="inspect">
+                    <div><div style="font-weight:600;color:var(--brand-navy);font-size:15px">Ecommerce order → ship &lt; 4h</div><div class="muted-2" style="font-size:13px;margin-top:2px">Sari · Retail Ops · <span class="tag">Run</span></div></div>
+                    <div class="bar"><span class="good" style="width:91%"></span></div>
+                    <div class="tabular" style="font-size:13px;color:hsl(142 64% 30%);font-weight:600;text-align:right">91% · ahead</div>
+                  </div>
+                </div>
+              </div>
+              <div class="widget span-3">
+                <div class="card">
+                  <div class="card-head"><span data-i="listChecks" style="color:var(--text-3)"></span><h3>Weekly filing · w28</h3></div>
+                  <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Rina</div><div class="muted-2" style="font-size:12px">Retail Ops · Mon</div></div><div></div><span class="pill done dot" style="justify-self:end">filed</span></div>
+                  <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Dimas</div><div class="muted-2" style="font-size:12px">B2B Ops · 09:14</div></div><div></div><span class="pill done dot" style="justify-self:end">filed</span></div>
+                  <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Sari</div><div class="muted-2" style="font-size:12px">Ecommerce · draft</div></div><div></div><span class="pill warning dot" style="justify-self:end">draft</span></div>
+                  <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Budi</div><div class="muted-2" style="font-size:12px">Café · not started</div></div><div></div><span class="pill blocked dot" style="justify-self:end">missing</span></div>
+                  <div class="filing-strip">
+                    <div class="avatar-stack">
+                      <span class="avatar sm" style="background:hsl(142 64% 38% / 0.15);color:hsl(142 64% 30%)">R</span>
+                      <span class="avatar sm" style="background:hsl(142 64% 38% / 0.15);color:hsl(142 64% 30%)">D</span>
+                      <span class="avatar sm" style="background:hsl(38 92% 50% / 0.18);color:hsl(28 80% 38%)">S</span>
+                      <span class="avatar sm" style="background:hsl(0 72% 45% / 0.12);color:hsl(0 72% 40%)">B</span>
+                    </div>
+                    <span class="muted-2" style="font-size:12px">2 filed · 1 draft · 1 missing</span>
+                    <a class="link" style="margin-left:auto;font-size:12px" href="work.html#work-weekly">Review →</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══════ BU-HEAD (Rina: Retail Ops) ═══════ -->
+          <div data-role-pane="buhead" hidden>
+            <div class="widget-add-bar">
+              <span class="overline" style="margin:0">Compose your Home</span>
+              <span class="widget-chip"><span data-i="plus"></span> KPI card</span>
+              <span class="widget-chip"><span data-i="plus"></span> BU slice</span>
+              <span class="widget-chip"><span data-i="plus"></span> Lead updates</span>
+              <span class="muted-2" style="font-size:12px;margin-left:auto">drag widgets to reorder</span>
+            </div>
+            <div>
+              <div class="section-title"><span data-i="money"></span> Retail Ops · this month</div>
+              <div class="money-strip">
+                <a class="kpi" href="money.html"><span class="label">Revenue (your BU)</span><span class="value tabular">Rp 1.55B</span><span class="delta up" data-i="trendUp">+5.1%</span><span class="foot">café + ecommerce</span></a>
+                <a class="kpi" href="money.html"><span class="label">Gross margin</span><span class="value tabular">63.8%</span><span class="delta flat">on track</span><span class="foot">→ Money</span></a>
+                <a class="kpi" href="work.html#work-tasks"><span class="label">Your R/A tasks</span><span class="value tabular">7</span><span class="delta flat">1 blocked</span><span class="foot">→ Work</span></a>
+                <a class="kpi" href="kitchen.html"><span class="label">Kitchen plan today</span><span class="value tabular">92%</span><span class="delta flat">captured</span><span class="foot">→ Kitchen</span></a>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span data-i="people" style="color:var(--text-3)"></span><h3>Your leads</h3><div class="actions"><a class="link" href="work.html#work-weekly">Review updates →</a></div></div>
+              <div class="obj-row" data-drawer-trigger="inspect"><div><div style="font-weight:600;font-size:15px">Sari · Ecommerce</div><div class="muted-2" style="font-size:13px">pick-pack · 4 direct reports</div></div><div></div><span class="pill warning dot" style="justify-self:end">draft</span></div>
+              <div class="obj-row" data-drawer-trigger="inspect"><div><div style="font-weight:600;font-size:15px">Budi · Café floor</div><div class="muted-2" style="font-size:13px">kitchen + bar · 6 reports</div></div><div></div><span class="pill blocked dot" style="justify-self:end">missing</span></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span data-i="plan" style="color:var(--text-3)"></span><h3>Kitchen plan today</h3><div class="actions"><a class="link" href="kitchen.html">Open Kitchen →</a></div></div>
+              <div style="padding:var(--s-lg)">
+                <div class="row between mb-sm"><div style="font-weight:600;font-size:14px">Plan captured</div><div class="tabular" style="font-weight:700;color:var(--brand-navy)">92%</div></div>
+                <div class="bar mb-md"><span class="run" style="width:92%"></span></div>
+                <div class="muted-2" style="font-size:13px">6 of 7 stations reported. Bar cold-brew batch pending.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══════ LEAD (Sari: Ecommerce) ═══════ -->
+          <div data-role-pane="lead" hidden>
+            <div class="widget-add-bar">
+              <span class="overline" style="margin:0">Compose your Home</span>
+              <span class="widget-chip"><span data-i="plus"></span> My tasks</span>
+              <span class="widget-chip"><span data-i="plus"></span> Team filing</span>
+              <span class="muted-2" style="font-size:12px;margin-left:auto">drag widgets to reorder</span>
+            </div>
+            <div>
+              <div class="section-title"><span data-i="flag" style="color:hsl(28 80% 48%)"></span> Drifting · your R/A tasks</div>
+              <div class="card">
+                <div class="drift-row" data-task><div><div style="font-weight:600;font-size:15px">Ecommerce SLA dashboard</div><div class="muted-2" style="font-size:13px">due in 5d · Owner: you</div></div><span class="avatar sm" style="background:hsl(142 55% 40%);color:#fff">SP</span><span class="pill progress dot">In progress</span><span class="tabular" style="text-align:right;font-size:13px;color:var(--text-2)">5d</span></div>
+                <div class="drift-row" data-task><div><div style="font-weight:600;font-size:15px">Pick-pack Q3 capacity plan</div><div class="muted-2" style="font-size:13px">due in 8d · Owner: you</div></div><span class="avatar sm" style="background:hsl(142 55% 40%);color:#fff">SP</span><span class="pill open dot">Open</span><span class="tabular" style="text-align:right;font-size:13px;color:var(--text-2)">8d</span></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span data-i="listChecks" style="color:var(--text-3)"></span><h3>Team filing</h3></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:14px">You · Ecommerce</div><div class="muted-2" style="font-size:12px">w28 · 2 lines</div></div><div></div><span class="pill warning dot" style="justify-self:end">draft</span></div>
+              <div class="filing-strip"><span class="muted-2" style="font-size:12px">Due Fri 17:00</span><a class="link" style="margin-left:auto;font-size:12px" href="work.html#work-weekly">Open weekly →</a></div>
+            </div>
+            <div class="card card-pad">
+              <div class="section-title" style="margin:0 0 var(--s-sm)"><span data-i="listChecks"></span> Write your weekly update</div>
+              <p class="muted-2" style="font-size:13px;margin-bottom:var(--s-md)">Due Fri 17:00 · draft saved 11:32</p>
+              <a class="btn btn-primary btn-lg" href="work.html#work-weekly">Continue update →</a>
+            </div>
+          </div>
+
+          <!-- ═══════ FLOOR (Yusuf: Roastery) ═══════ -->
+          <div data-role-pane="floor" hidden>
+            <!-- shift card -->
+            <a class="shift-card" href="roastery.html">
+              <span class="sc-ico"><span data-i="clock"></span></span>
+              <div class="sc-body">
+                <div class="sc-station">Your shift today <span class="tag">Roastery</span></div>
+                <div class="sc-meta">07:00–15:00 WIB · B2B Ops · Dimas (lead)</div>
+              </div>
+              <div class="sc-checks">
+                <div class="n">6</div>
+                <div class="l">checks due</div>
+              </div>
+            </a>
+
+            <!-- capture-first hero -->
+            <div class="capture-hero" data-modal-trigger="capture">
+              <span class="big-plus"><span data-i="plus"></span></span>
+              <div>
+                <h2>Log a roast</h2>
+                <p>Green in → roasted out · yield% auto · under a minute</p>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><span data-i="clock" style="color:var(--text-3)"></span><h3>Your next step</h3></div>
+              <div style="padding:var(--s-lg)">
+                <div style="font-weight:600;font-size:16px;color:var(--brand-navy)">Roast 12kg Toraja Sopa</div>
+                <div class="muted-2" style="font-size:13px;margin-top:2px">planned today · medium profile · batch TS-078</div>
+                <button class="btn btn-outline btn-lg mt-md" data-modal-trigger="capture">Start &amp; log this roast</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><span data-i="coffee" style="color:var(--text-3)"></span><h3>Today's roasts</h3><div class="actions"><a class="link" href="roastery.html">Open Roastery →</a></div></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Aceh Gayo · 10kg</div><div class="muted-2" style="font-size:12px">06:42 · yield 81% · approved</div></div><span class="pill done dot">Done</span></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Sumatra Mandheling · 8kg</div><div class="muted-2" style="font-size:12px">07:15 · in progress</div></div><span class="pill progress dot">Roasting</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── MOBILE TABBAR ───────────────────────────────────────────────────── -->
+  <nav class="mobile-tabbar">
+    <a href="home.html" class="active"><span data-i="orient"></span>Home</a>
+    <a href="work.html"><span data-i="work"></span>Work</a>
+    <a href="roastery.html"><span data-i="coffee"></span>Roastery</a>
+    <a href="money.html" data-sees="money"><span data-i="money"></span>Money</a>
+  </nav>
+
+  <!-- ── CAPTURE FAB (desktop + mobile) ──────────────────────────────────── -->
+  <button class="capture-fab" data-modal-trigger="capture"><span class="plus" data-i="plus"></span> Capture</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     OVERLAYS — modals, drawers (outside shell)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<!-- CAPTURE modal (floor fast log) -->
+<div class="modal" data-modal="capture">
+  <div class="modal-head"><span data-i="plus" style="color:var(--primary)"></span><div><h2>Capture · log entry</h2><div class="sub">One short pass · you're back to work in under a minute</div></div><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <form data-form="capture">
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>Activity</label><select class="select" name="activity"><option>Roastery</option><option>Kitchen</option><option>Bar</option><option>Ecommerce</option></select></div>
+        <div class="field"><label>Type</label><select class="select" name="type"><option>production</option><option>receiving</option><option>qc</option><option>follow-up</option><option>other</option></select></div>
+        <div class="field span-2"><label>What happened</label><textarea class="input" name="what" placeholder="e.g. Roasted 12kg Toraja Sopa, medium profile, yield 81%"></textarea><div class="hint">Past-tense fact · no owner, no status.</div></div>
+        <div class="field"><label>Occurred at</label><input class="input" type="datetime-local" name="at"></div>
+        <div class="field"><label>Business unit</label><select class="select" name="bu"><option>B2B Ops</option><option>Retail Ops</option></select></div>
+        <div class="field span-2">
+          <div class="label-row"><label>Needs attention</label><span class="switch" onclick="this.classList.toggle('on')"></span></div>
+          <div class="hint">Flags for your lead to see in the feed.</div>
+        </div>
+        <div class="field span-2"><label>Linked task (optional)</label><select class="select" name="task"><option>— none —</option><option>TASK-241 Sign GKID lease</option><option>TASK-238 Resolve ESB webhook</option></select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="submit" class="btn btn-primary"><span data-i="check"></span> Save entry</button></div>
+  </form>
+</div>
+
+<!-- COMMAND ⌘K modal (D3b — nav + Ask deputy first-class row) -->
+<div class="modal" data-modal="command">
+  <div class="cmdk">
+    <div class="cmdk-search">
+      <span class="ico" data-i="search"></span>
+      <input type="text" placeholder="Search, jump, or ask the deputy…" autofocus>
+      <span class="kbd-hint">esc</span>
+    </div>
+    <div class="cmdk-results">
+      <div class="cmdk-group">
+        <div class="cmdk-group-label">Ask deputy</div>
+        <div class="cmdk-item" data-drawer-trigger="deputy">
+          <span class="ci-icon ai"><span data-i="sparkles"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Ask deputy</div>
+            <div class="ci-desc">Grounded answers · composes into your workspace</div>
+          </div>
+          <div class="ci-shortcut"><span class="kbd">@</span></div>
+        </div>
+      </div>
+      <div class="cmdk-group">
+        <div class="cmdk-group-label">Navigate</div>
+        <div class="cmdk-item" data-go="home">
+          <span class="ci-icon"><span data-i="orient"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Home</div>
+            <div class="ci-desc">Your daily cockpit</div>
+          </div>
+        </div>
+        <a class="cmdk-item" href="work.html">
+          <span class="ci-icon"><span data-i="work"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Work</div>
+            <div class="ci-desc">23 tasks · 5 follow-ups</div>
+          </div>
+        </a>
+        <a class="cmdk-item" href="roastery.html">
+          <span class="ci-icon"><span data-i="coffee"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Roastery</div>
+            <div class="ci-desc">Today's roast log</div>
+          </div>
+        </a>
+        <a class="cmdk-item" href="kitchen.html">
+          <span class="ci-icon"><span data-i="layers"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Kitchen</div>
+            <div class="ci-desc">Retail · Kitchen+Bar ops</div>
+          </div>
+        </a>
+        <a class="cmdk-item" href="money.html">
+          <span class="ci-icon"><span data-i="money"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Money</div>
+            <div class="ci-desc">Revenue · margin · AR/AP</div>
+          </div>
+        </a>
+        <a class="cmdk-item" href="work.html">
+          <span class="ci-icon"><span data-i="listChecks"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Standards</div>
+            <div class="ci-desc">Quality-loop library</div>
+          </div>
+        </a>
+      </div>
+      <div class="cmdk-group">
+        <div class="cmdk-group-label">Actions</div>
+        <div class="cmdk-item" data-modal-trigger="capture">
+          <span class="ci-icon action"><span data-i="plus"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Capture a log entry</div>
+            <div class="ci-desc">Floor fast-capture</div>
+          </div>
+        </div>
+        <div class="cmdk-item" data-drawer-trigger="deputy">
+          <span class="ci-icon ai"><span data-i="sparkles"></span></span>
+          <div class="ci-body">
+            <div class="ci-title">Ask deputy</div>
+            <div class="ci-desc">Grounded answers · composes into your workspace</div>
+          </div>
+          <div class="ci-shortcut"><span class="kbd">@</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cmdk-footer">
+      <span class="cf-hint"><span class="kbd">↑↓</span> navigate</span>
+      <span class="cf-hint"><span class="kbd">↵</span> select</span>
+      <span class="cf-hint"><span class="kbd">esc</span> close</span>
+      <span class="cf-brand">Gordi MOS</span>
+    </div>
+  </div>
+</div>
+
+<!-- DEPUTY panel (D4 — docked right, fixture grounded conversation) -->
+<aside class="drawer" data-drawer="deputy">
+  <div class="drawer-head"><span data-i="sparkles" style="color:var(--primary)"></span><h2>Deputy</h2><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <div class="drawer-body">
+    <!-- D4 — context tag (grounded: knows what the user is viewing) -->
+    <div class="deputy-ctx">viewing: <span class="ctx-tag">Home</span> · Arief · Owner</div>
+
+    <!-- fixture: a real grounded exchange -->
+    <div class="deputy-msg user">
+      <div class="deputy-bubble">what needs my attention?</div>
+    </div>
+    <div class="deputy-msg agent">
+      <div class="deputy-bubble">
+        Rp 142M AR overdue across 5 invoices, oldest 38d (PT Sumber Makmur). 1 task blocked — <b>Sign GKID lease</b> (TASK-241, 2d overdue, owner Rina).
+        <div class="drill-link" data-drawer-trigger="deputy"><span data-i="arrowRight"></span> <a href="work.html#work-followups">drill to Follow-ups</a></div>
+        <!-- D5c — compose-artifact: deputy offers to drop a widget into the workspace -->
+        <div class="compose-artifact">
+          <div class="ca-title">AR aging · 5 invoices</div>
+          <div class="muted-2" style="font-size:11px;margin-top:2px">grouped by state · Rp 142M · refreshes hourly</div>
+          <div class="ca-actions">
+            <button class="btn btn-primary" style="height:30px;font-size:12px;padding:0 12px" id="deputyInsertBtn">Insert into Home</button>
+            <button class="btn btn-ghost" style="height:30px;font-size:12px;padding:0 10px">Dismiss</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D5b — take me there: deputy can navigate -->
+    <div class="deputy-suggest">
+      <span class="ds-chip">What's my AR overdue?</span>
+      <span class="ds-chip">Who hasn't filed?</span>
+      <span class="ds-chip">Summarize my week</span>
+      <span class="ds-chip">Take me to blocked tasks</span>
+    </div>
+  </div>
+  <!-- deputy-composer (with @ ask affordance — D5a) -->
+  <div class="deputy-composer">
+    <div style="position:relative;flex:1">
+      <textarea placeholder="Ask the deputy… type @ to reach it inline"></textarea>
+    </div>
+    <button class="btn btn-primary" style="height:38px" onclick="window.Mos &amp;&amp; window.Mos.toast('Deputy is a fixture in this mockup')">Send</button>
+  </div>
+</aside>
+
+<!-- INSPECT slide-over (D3a — record click → right pane; "Open" escalates to full page) -->
+<aside class="drawer inspect" data-drawer="inspect">
+  <div class="inspect-head">
+    <span class="mono muted-2">OBJ-1</span>
+    <h2>Open HQ retail — 2nd location</h2>
+    <div class="grow"></div>
+    <button class="icon-btn" data-close>✕</button>
+  </div>
+  <div class="inspect-body">
+    <div class="row gap-sm wrap mb-lg">
+      <span class="pill warning dot">behind</span>
+      <span class="tag">Transform</span>
+      <span class="tag">2026 · Q3</span>
+    </div>
+    <div class="inspect-props">
+      <div class="ip-key">Progress</div>
+      <div><span class="inline-cell"><span class="ic-val">42%</span></span></div>
+      <div class="ip-key">Accountable</div>
+      <div><span class="inline-cell"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span><span class="ic-val" style="margin-left:6px">Arief</span></span></div>
+      <div class="ip-key">Responsible</div>
+      <div><span class="inline-cell"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span><span class="ic-val" style="margin-left:6px">Rina</span></span></div>
+      <div class="ip-key">Business unit</div>
+      <div><span class="inline-cell"><span class="ic-val">Retail Ops</span></span></div>
+      <div class="ip-key">Target</div>
+      <div><span class="inline-cell"><span class="ic-val">Q3 2026</span></span></div>
+    </div>
+    <div class="muted-2" style="font-size:13px;line-height:1.55">Quick field edits happen inline above. Escalate to the full page for the objective → project → task cascade.</div>
+  </div>
+  <!-- D3a — escalation: open the full page (cross-destination) -->
+  <a class="inspect-open" href="work.html"><span data-i="arrowRight"></span> Open full page → Work</a>
+</aside>
+
+<!-- INBOX drawer -->
+<aside class="drawer" data-drawer="inbox">
+  <div class="drawer-head"><span data-i="inbox" style="color:var(--text-3)"></span><h2>Inbox</h2><span class="count">3</span><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <div class="drawer-body" style="padding:0">
+    <a style="padding:var(--s-md) var(--s-lg);border-bottom:1px solid var(--border);display:block" href="work.html#work-tasks"><div class="row gap-sm"><span class="status-dot blocked"></span><div><div style="font-weight:600;font-size:14px">TASK-241 blocked</div><div class="muted-2" style="font-size:12px">Rina added a blocker · 11:32</div></div></div></a>
+    <a style="padding:var(--s-md) var(--s-lg);border-bottom:1px solid var(--border);display:block" href="work.html#work-followups"><div class="row gap-sm"><span class="status-dot" style="background:hsl(38 92% 50%)"></span><div><div style="font-weight:600;font-size:14px">AR overdue · PT Sumber Makmur</div><div class="muted-2" style="font-size:12px">38 days · Rp 38M</div></div></div></a>
+    <a style="padding:var(--s-md) var(--s-lg);border-bottom:1px solid var(--border);display:block" href="work.html#work-weekly"><div class="row gap-sm"><span class="status-dot" style="background:hsl(142 64% 38%)"></span><div><div style="font-weight:600;font-size:14px">Dimas filed weekly update</div><div class="muted-2" style="font-size:12px">w28 · 09:14</div></div></div></a>
+    <div style="padding:var(--s-md) var(--s-lg);color:var(--text-3);font-size:13px">Inbox is a router — open the entity to act.</div>
+  </div>
+</aside>
+
+<!-- toast -->
+<div class="toast" data-toast></div>
+
+<!-- PERSONA MENU (all 5 personas · outside .app for correct overlay) -->
+<div class="persona-menu" id="personaMenu">
+  <div class="persona-menu-head">
+    <div class="ttl">View the app as</div>
+    <div class="sub">Impersonation for review — each user sees their real scope.</div>
+  </div>
+  <div class="persona-pick active" data-user-pick="arief">
+    <span class="avatar md" style="background:var(--brand-navy);color:#fff">AS</span>
+    <div class="pmeta"><div class="pname">Arief</div><div class="ptitle">Owner-director · whole company</div><div class="prole">Owner</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="rina">
+    <span class="avatar md" style="background:hsl(221 70% 45%);color:#fff">RA</span>
+    <div class="pmeta"><div class="pname">Rina</div><div class="ptitle">Retail Ops head · café + ecommerce</div><div class="prole">BU-head</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="dimas">
+    <span class="avatar md" style="background:hsl(262 55% 50%);color:#fff">DS</span>
+    <div class="pmeta"><div class="pname">Dimas</div><div class="ptitle">B2B Ops head · roastery</div><div class="prole">BU-head</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="sari">
+    <span class="avatar md" style="background:hsl(142 55% 40%);color:#fff">SP</span>
+    <div class="pmeta"><div class="pname">Sari</div><div class="ptitle">Ecommerce lead · pick-pack team</div><div class="prole">Lead</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="yusuf">
+    <span class="avatar md" style="background:hsl(18 70% 48%);color:#fff">YU</span>
+    <div class="pmeta"><div class="pname">Yusuf</div><div class="ptitle">Roastery operator · floor</div><div class="prole">Floor</div></div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="app.js"></script>
+<script src="editor.js"></script>
+<script>
+/* ═══ HOME-SPECIFIC PATCHES ═══
+   app.js + editor.js are shared + proven. These two patches adapt their generic
+   behavior to Home without touching the foundation files:
+     (1) HOME-ROLE: app.js's setRole only looks at the legacy screen ids.
+         Generalize it so the "home" screen's [data-role-pane] + [data-role-switch]
+         also swap. Re-implements setRole to work for ANY screen id.
+     (2) DEPUTY-INSERT (D5c): "Insert into Home" drops an AR-aging widget into the
+         active owner pane, demonstrating the agent composing into the workspace.
+     (3) INLINE-CELL (D3c): click-to-edit display→edit→commit on Escape/click-out.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var Mos = window.Mos;
+  if (!Mos) return;
+
+  /* (1) HOME-ROLE — generalize setRole to swap panes on the active screen */
+  Mos.role = function (role) {
+    Mos.role = Mos.role || "owner"; // keep Mos.role if already set elsewhere
+  };
+  function setRole(role) {
+    var screen = document.querySelector(".screen.active") || document.querySelector('.screen[data-screen="home"]');
+    if (!screen) return;
+    Array.prototype.forEach.call(
+      screen.querySelectorAll("[data-role-switch]"),
+      function (b) { b.classList.toggle("active", b.getAttribute("data-role-switch") === role); }
+    );
+    Array.prototype.forEach.call(
+      screen.querySelectorAll("[data-role-pane]"),
+      function (p) {
+        var r = p.getAttribute("data-role-pane");
+        p.hidden = !(r === role || r === "all");
+      }
+    );
+  }
+  Mos.role = setRole;
+  // re-run role reveal whenever the screen changes (so nav back to Home re-shows)
+  document.addEventListener("mos:screen", function () { setRole(Mos.role === "setRole" ? "owner" : (Mos._lastRole || "owner")); });
+
+  /* (2) DEPUTY-INSERT — drop a composed AR-aging widget into the active owner pane */
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("#deputyInsertBtn");
+    if (!btn) return;
+    e.preventDefault();
+    var pane = document.querySelector('[data-role-pane="owner"]');
+    if (!pane) { Mos.toast && Mos.toast("Switch to Owner to insert"); return; }
+    if (pane.querySelector("#deputyComposedWidget")) { Mos.toast && Mos.toast("Already in your Home"); return; }
+    var grid = pane.querySelector(".widget-grid");
+    var host = grid || pane;
+    var widget = document.createElement("div");
+    widget.id = "deputyComposedWidget";
+    widget.className = grid ? "widget span-3" : "card";
+    widget.innerHTML =
+      '<div class="card">' +
+        '<div class="card-head"><span data-i="money" style="color:var(--text-3)"></span><h3>AR aging · by state</h3>' +
+          '<div class="actions"><span class="pill" style="background:var(--primary-subtle);color:var(--primary)">composed</span></div></div>' +
+        '<div style="padding:var(--s-lg)">' +
+          '<div class="row between mb-sm"><div style="font-weight:600;font-size:14px">Overdue</div><div class="tabular" style="font-weight:700;color:hsl(28 80% 38%)">Rp 38M</div></div>' +
+          '<div class="bar mb-md"><span class="warn" style="width:27%"></span></div>' +
+          '<div class="row between mb-sm"><div style="font-weight:600;font-size:14px">Promised</div><div class="tabular" style="font-weight:700;color:var(--brand-navy)">Rp 24M</div></div>' +
+          '<div class="bar mb-md"><span class="run" style="width:17%"></span></div>' +
+          '<div class="row between mb-sm"><div style="font-weight:600;font-size:14px">Partial · open</div><div class="tabular" style="font-weight:700;color:var(--brand-navy)">Rp 80M</div></div>' +
+          '<div class="bar"><span style="width:56%;background:var(--text-light)"></span></div>' +
+          '<div class="muted-2 mt-md" style="font-size:12px">Rp 142M across 5 invoices · refreshes hourly</div>' +
+        '</div>' +
+      '</div>';
+    host.appendChild(widget);
+    // mount icons in the new widget
+    if (window.MOS_ICONS) {
+      Array.prototype.forEach.call(widget.querySelectorAll("[data-i]"), function (el) {
+        var key = el.getAttribute("data-i");
+        if (window.MOS_ICONS[key]) el.innerHTML = window.MOS_ICONS[key];
+      });
+    }
+    Mos.toast && Mos.toast("✓ AR aging widget added to Home");
+  });
+
+  /* (3) INLINE-CELL — click display→edit, commit on Enter/Tab, revert on Escape, blur commits */
+  function commitCell(cell) {
+    var input = cell.querySelector("input, select");
+    var val = cell.querySelector(".ic-val");
+    if (!input || !val) { cell.classList.remove("editing"); return; }
+    val.textContent = input.value;
+    cell.classList.remove("editing");
+  }
+  document.addEventListener("click", function (e) {
+    var cell = e.target.closest(".inline-cell");
+    if (!cell) return;
+    if (cell.classList.contains("editing")) return; // already editing, let it be
+    e.preventDefault();
+    e.stopPropagation();
+    cell.classList.add("editing");
+    var input = cell.querySelector("input, select");
+    if (!input) {
+      // create a text input if none present
+      input = document.createElement("input");
+      input.type = "text";
+      var val = cell.querySelector(".ic-val");
+      if (val) input.value = val.textContent.replace("%", "");
+      var editHolder = cell.querySelector(".ic-edit") || document.createElement("span");
+      editHolder.className = "ic-edit";
+      editHolder.appendChild(input);
+      cell.appendChild(editHolder);
+    }
+    setTimeout(function () { try { input.focus(); input.select && input.select(); } catch (err) {} }, 10);
+  }, true); // capture so it runs before app.js drawer/nav delegation
+  document.addEventListener("keydown", function (e) {
+    var cell = e.target.closest && e.target.closest(".inline-cell.editing");
+    if (!cell) return;
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); commitCell(cell); }
+    if (e.key === "Escape") { cell.classList.remove("editing"); }
+  });
+  document.addEventListener("click", function (e) {
+    var open = document.querySelector(".inline-cell.editing");
+    if (!open) return;
+    if (e.target.closest(".inline-cell") === open) return;
+    commitCell(open);
+  });
+})();
+</script>
+</body>
+</html>

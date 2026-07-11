@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gordi MOS — Prototype (Warmer · hi-fi)</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="base.css">
+  <style>
+    /* ═══ WARMER IDENTITY (adopted) + bigger type via .hifi on <body> ═══ */
+    :root {
+      --background:      hsl(40 30% 99%);
+      --surface:         hsl(40 30% 99%);
+      --surface-2:       hsl(38 22% 97%);
+      --surface-3:       hsl(38 20% 95%);
+      --surface-4:       hsl(38 18% 92%);
+      --surface-sunken:  hsl(38 25% 96.5%);
+      --text:            hsl(30 8% 12%);
+      --text-2:          hsl(30 6% 35%);
+      --text-3:          hsl(30 5% 50%);
+      --text-light:      hsl(30 5% 64%);
+      --border:          hsl(38 18% 90%);
+      --border-strong:   hsl(38 18% 82%);
+      --brand-navy:      hsl(210 40% 24%);
+      --brand-navy-2:    hsl(210 36% 30%);
+      --primary:         hsl(225 75% 55%);
+      --primary-hover:   hsl(225 75% 50%);
+      --primary-active:  hsl(225 75% 45%);
+      --primary-subtle:  hsl(225 75% 55% / 0.10);
+      --primary-tint:    hsl(225 75% 55% / 0.14);
+      --shadow-rest:     0 1px 2px hsl(210 40% 24% / 0.05), 0 1px 3px hsl(210 40% 24% / 0.04);
+      --shadow-lift:     0 2px 8px hsl(210 40% 24% / 0.07), 0 1px 2px hsl(210 40% 24% / 0.05);
+      --shadow-pop:      0 4px 16px hsl(210 40% 24% / 0.10), 0 1px 3px hsl(210 40% 24% / 0.06);
+      --shadow-drawer:   0 8px 32px hsl(210 40% 24% / 0.16), 0 2px 6px hsl(210 40% 24% / 0.08);
+      --sheen-primary:   linear-gradient(180deg, hsl(225 75% 58%) 0%, hsl(225 75% 52%) 100%);
+    }
+
+    /* demo banner */
+    .demo-banner { background: linear-gradient(90deg, hsl(210 40% 24%), hsl(225 50% 30%)); }
+
+    /* canvas removed — this is the live app, not a showcase */
+    .app.live { background: var(--background); }
+
+    /* orient layout helpers */
+    .orient-stack { display: flex; flex-direction: column; gap: var(--s-lg); max-width: 1080px; }
+    .section-title { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--brand-navy); display: flex; align-items: center; gap: 8px; margin-bottom: var(--s-md); }
+    .section-title .ico { color: var(--text-3); }
+    .money-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-md); }
+    .money-pos { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .obj-row { display: grid; grid-template-columns: 1fr 120px 90px; gap: var(--s-md); padding: var(--s-md) var(--s-lg); border-bottom: 1px solid var(--border); align-items: center; }
+    .obj-row:last-child { border-bottom: none; }
+    .bar { height: 8px; background: var(--surface-3); border-radius: var(--radius-pill); overflow: hidden; }
+    .bar > span { display:block; height:100%; border-radius: var(--radius-pill); }
+    .bar > span.good { background: hsl(142 55% 42%); }
+    .bar > span.warn { background: hsl(38 92% 50%); }
+    .bar > span.bad  { background: hsl(0 72% 48%); }
+    .bar > span.run  { background: var(--primary); }
+    .filing-strip { display:flex; align-items:center; gap: var(--s-md); padding: var(--s-md) var(--s-lg); border-top: 1px solid var(--border); }
+    .drift-row { display: grid; grid-template-columns: 1fr 130px 110px 100px; gap: var(--s-md); align-items: center; padding: var(--s-md) var(--s-lg); border-bottom: 1px solid var(--border); cursor: pointer; }
+    .drift-row:last-child { border-bottom: none; }
+    .drift-row:hover { background: var(--surface-2); }
+
+    /* task table title cell */
+    table.data td.title-cell .sub { font-weight: 400; color: var(--text-3); font-size: 12px; margin-top: 2px; }
+
+    /* persona menu positioning anchor */
+    .persona-anchor { position: relative; }
+
+    /* weekly write pane */
+    .write-pane { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--s-lg); }
+    @media (max-width: 880px) { .write-pane { grid-template-columns: 1fr; } }
+    .update-line { display: flex; align-items: flex-start; gap: var(--s-md); padding: var(--s-md); border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: var(--s-sm); background: var(--surface); }
+    .marker { width: 26px; height: 26px; border-radius: var(--radius-pill); display:inline-flex; align-items:center;justify-content:center; flex-shrink:0; font-size: 13px; }
+    .marker.done { background: hsl(142 64% 38% / 0.15); color: hsl(142 64% 30%); }
+    .marker.progress { background: var(--primary-subtle); color: var(--primary); }
+    .marker.blocked { background: hsl(0 72% 45% / 0.12); color: hsl(0 72% 40%); }
+
+    /* followup lifecycle */
+    .lifecycle { display:flex; align-items:center; gap: 3px; }
+    .lc-step { height: 8px; flex:1; border-radius: 99px; background: var(--surface-4); min-width: 24px; }
+    .lc-step.done { background: var(--primary); }
+    .lc-step.cur { background: var(--primary); opacity: .45; }
+
+    /* ops log feed */
+    .log-feed { display:flex; flex-direction: column; }
+    .log-row { display:grid; grid-template-columns: 70px 1fr 110px 120px; gap: var(--s-md); padding: var(--s-md) var(--s-lg); border-bottom: 1px solid var(--border); align-items: center; }
+    .log-row:last-child { border-bottom: none; }
+
+    /* capture-first floor */
+    .capture-hero { border: 2px dashed var(--primary); background: var(--primary-subtle); border-radius: var(--radius); padding: var(--s-xl); display:flex; align-items:center; gap: var(--s-lg); cursor: pointer; }
+    .capture-hero:hover { background: hsl(225 75% 55% / 0.14); }
+    .capture-hero .big-plus { width: 56px; height: 56px; border-radius: var(--radius-control); background: var(--primary); color: #fff; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .capture-hero h2 { font-size: 20px; color: var(--brand-navy); }
+    .capture-hero p { color: var(--text-2); font-size: 14px; }
+
+    /* module nav (ops) */
+    .mod-nav { display:flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--s-lg); }
+
+    /* hide the static phone-frame showcases in the live app — we use real responsive instead */
+    .phone-frame { display: none; }
+  </style>
+</head>
+<body class="hifi">
+
+<div class="demo-banner">
+  <b>PARADIGM α · FLAT</b> <span class="sep">|</span>
+  Linear/issue-centric · warmer · <i>interactive</i>
+  <span class="sep">|</span> <span class="pill">compare: <a href="b-board.html" style="color:inherit">β board</a> · <a href="g-pages.html" style="color:inherit">γ pages</a></span>
+  <span class="sep">|</span> <span class="pill">switch user ↑ top-right</span>
+  <span class="sep">|</span> <a href="index.html" style="color:inherit;text-decoration:underline">← overview</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PERSISTENT APP SHELL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="app live">
+
+  <!-- ── TOPBAR ──────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:99px;background:var(--brand-orange)"></span>
+      Gordi <span class="lockup-sub" style="color:var(--text-3);font-weight:500;font-size:13px;margin-left:4px">MOS</span>
+    </div>
+    <button class="search-trigger desktop-only" data-modal-trigger="command">
+      <span data-i="search"></span> Search or jump to… <span class="kbd">⌘K</span>
+    </button>
+    <div class="topbar-spacer"></div>
+    <button class="icon-btn desktop-only" title="Deputy" data-i="sparkles"></button>
+    <div class="fontsize-pick desktop-only" title="Text size">
+      <button class="s" data-fontsize-pick="s">A</button>
+      <button class="m active" data-fontsize-pick="m">A</button>
+      <button class="l" data-fontsize-pick="l">A</button>
+      <button class="xl" data-fontsize-pick="xl">A</button>
+    </div>
+    <button class="icon-btn" title="Inbox" data-drawer-trigger="inbox"><span data-i="bell"></span><span class="badge-dot"></span></button>
+
+    <!-- USER CHIP = persona picker trigger -->
+    <div class="persona-anchor">
+      <div class="user-chip" data-user-pick-trigger>
+        <span class="avatar md" data-user-avatar>AS</span>
+        <div class="meta desktop-only">
+          <b data-user-name>Arief</b>
+          <span data-user-title>Owner-director</span>
+        </div>
+        <svg class="caret desktop-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── RAIL (desktop nav) ──────────────────────────────────────────────── -->
+  <aside class="rail">
+    <div class="rail-section">
+      <div class="nav-item active" data-go="orient"><span data-i="orient"></span> Orient</div>
+    </div>
+    <div class="rail-section">
+      <div class="nav-item" data-go="work-tasks"><span data-i="work"></span> Work <span class="count">23</span></div>
+      <div style="margin-top:4px">
+        <div class="nav-sub" data-go="work-tasks">Tasks</div>
+        <div class="nav-sub" data-go="work-objectives">Objectives</div>
+        <div class="nav-sub" data-go="work-followups">Follow-ups <span class="count hot" style="color:hsl(0 72% 45%)">5</span></div>
+        <div class="nav-sub" data-go="work-weekly">Weekly update</div>
+      </div>
+    </div>
+    <div class="rail-section">
+      <div class="nav-item" data-go="ops-log"><span data-i="coffee"></span> Roastery <span class="tag" style="margin-left:auto">Activity</span></div>
+      <div class="nav-item" data-go="ops-log"><span data-i="layers"></span> Kitchen <span class="tag" style="margin-left:auto">Activity</span></div>
+    </div>
+    <!-- money + admin: gated by persona (sees=money / sees=manage) -->
+    <div class="rail-section" data-sees="money">
+      <div class="nav-item" data-go="money"><span data-i="money"></span> Money</div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="rail-section" data-sees="manage">
+      <div class="nav-item" data-go="people"><span data-i="people"></span> People</div>
+    </div>
+    <div class="rail-section">
+      <div class="nav-item" data-go="settings"><span data-i="settings"></span> Settings</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN (screens swap here) ────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         ORIENT — role-aware cockpit
+         ════════════════════════════════════════════════════════════════════ -->
+    <section class="screen active" data-screen="orient">
+      <div class="content narrow" style="background:var(--surface-sunken)">
+
+        <!-- shared head -->
+        <div data-role-pane="all" class="page-head">
+          <h1><span data-greeting>Afternoon, Arief</span></h1>
+          <p class="subtitle">Tuesday 8 July · Asia/Jakarta</p>
+          <div class="meta-row">
+            <span class="fresh">Live · synced 12 min ago</span>
+            <span class="fresh next">next money sync 03:30 WIB</span>
+          </div>
+        </div>
+
+        <div class="orient-stack">
+          <!-- ═══════ OWNER-DIRECTOR ═══════ -->
+          <div data-role-pane="owner">
+            <div class="widget-add-bar">
+              <span class="overline" style="margin:0">Compose your Orient</span>
+              <span class="widget-chip"><span data-i="plus"></span> KPI card</span>
+              <span class="widget-chip"><span data-i="plus"></span> List</span>
+              <span class="widget-chip"><span data-i="plus"></span> Chart</span>
+              <span class="widget-chip"><span data-i="plus"></span> Follow-up strip</span>
+              <span class="muted-2" style="font-size:12px;margin-left:auto">drag widgets to reorder</span>
+            </div>
+            <div>
+              <div class="section-title"><span data-i="money"></span> Money this month</div>
+              <div class="money-strip">
+                <a class="kpi" data-go="money"><span class="label">Revenue (MTD)</span><span class="value tabular">Rp 1.84B</span><span class="delta up" data-i="trendUp">+6.2% vs Jun</span><span class="foot">→ Money</span></a>
+                <a class="kpi" data-go="money"><span class="label">Gross margin</span><span class="value tabular">61.4%</span><span class="delta down" data-i="trendDown">−2.1pp · interim</span><span class="foot">→ Money</span></a>
+                <a class="kpi" data-go="work-followups"><span class="label">AR overdue</span><span class="value tabular" style="color:hsl(28 80% 38%)">Rp 142M</span><span class="delta flat">5 invoices · oldest 38d</span><span class="foot">→ Follow-ups</span></a>
+                <a class="kpi" data-go="money"><span class="label">Net cash</span><span class="value tabular">Rp 612M</span><span class="delta flat">AP Rp 298M</span><span class="foot">→ Money</span></a>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><span data-i="money" style="color:var(--text-3)"></span><h3>Money position</h3><span class="fresh stale" style="margin-left:8px">AP as of 7 Jul</span><div class="actions"><a class="link" data-go="money">Open Money →</a></div></div>
+              <div class="money-pos">
+                <div style="padding:var(--s-lg);border-right:1px solid var(--border)">
+                  <div class="label" style="margin-bottom:4px">AR (worked queue)</div>
+                  <div class="tabular" style="font-size:22px;font-weight:700;color:var(--brand-navy)">Rp 142M</div>
+                  <div class="row gap-sm mt-sm wrap"><span class="pill warning dot">2 overdue</span><span class="pill dot">1 promised</span><span class="pill dot">2 partial</span></div>
+                  <a class="link mt-sm" style="font-size:13px;display:inline-block" data-go="work-followups">→ Work · Follow-ups</a>
+                </div>
+                <div style="padding:var(--s-lg);border-right:1px solid var(--border)">
+                  <div class="label" style="margin-bottom:4px">AP (owed)</div>
+                  <div class="tabular" style="font-size:22px;font-weight:700;color:var(--brand-navy)">Rp 298M</div>
+                  <div class="muted-2 mt-sm" style="font-size:13px">14 vendors · 3 due this week</div>
+                  <a class="link mt-sm" style="font-size:13px;display:inline-block" data-go="money">→ Money</a>
+                </div>
+                <div style="padding:var(--s-lg);border-right:1px solid var(--border)">
+                  <div class="label" style="margin-bottom:4px">Unbilled</div>
+                  <div class="tabular" style="font-size:22px;font-weight:700;color:var(--brand-navy)">Rp 41M</div>
+                  <div class="muted-2 mt-sm" style="font-size:13px">9 orders · awaiting invoice</div>
+                </div>
+                <div style="padding:var(--s-lg)">
+                  <div class="label" style="margin-bottom:4px">Unearned</div>
+                  <div class="tabular" style="font-size:22px;font-weight:700;color:var(--brand-navy)">Rp 88M</div>
+                  <div class="muted-2 mt-sm" style="font-size:13px">voucher · prepaid beans</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="section-title"><span data-i="target"></span> Objectives · cascade progress</div>
+              <div class="card">
+                <div class="obj-row" data-drawer-trigger="objective">
+                  <div><div style="font-weight:600;color:var(--brand-navy);font-size:15px">Open HQ retail — 2nd location</div><div class="muted-2" style="font-size:13px;margin-top:2px">Rina · Retail Ops · <span class="tag">Transform</span></div></div>
+                  <div class="bar"><span class="warn" style="width:42%"></span></div>
+                  <div class="tabular" style="font-size:13px;color:hsl(28 80% 38%);font-weight:600;text-align:right">42% · behind</div>
+                </div>
+                <div class="obj-row" data-drawer-trigger="objective">
+                  <div><div style="font-weight:600;color:var(--brand-navy);font-size:15px">Lift B2B roasted margin to 38%</div><div class="muted-2" style="font-size:13px;margin-top:2px">Dimas · B2B Ops · <span class="tag">Optimize</span></div></div>
+                  <div class="bar"><span class="run" style="width:68%"></span></div>
+                  <div class="tabular" style="font-size:13px;color:var(--text-2);font-weight:600;text-align:right">68% · on track</div>
+                </div>
+                <div class="obj-row" data-drawer-trigger="objective">
+                  <div><div style="font-weight:600;color:var(--brand-navy);font-size:15px">Ecommerce order → ship &lt; 4h</div><div class="muted-2" style="font-size:13px;margin-top:2px">Sari · Retail Ops · <span class="tag">Run</span></div></div>
+                  <div class="bar"><span class="good" style="width:91%"></span></div>
+                  <div class="tabular" style="font-size:13px;color:hsl(142 64% 30%);font-weight:600;text-align:right">91% · ahead</div>
+                </div>
+                <div class="filing-strip">
+                  <span class="overline">Updates · w28</span>
+                  <div class="avatar-stack">
+                    <span class="avatar sm" style="background:hsl(142 64% 38% / 0.15);color:hsl(142 64% 30%)">R</span>
+                    <span class="avatar sm" style="background:hsl(142 64% 38% / 0.15);color:hsl(142 64% 30%)">D</span>
+                    <span class="avatar sm" style="background:hsl(38 92% 50% / 0.18);color:hsl(28 80% 38%)">S</span>
+                    <span class="avatar sm" style="background:hsl(0 72% 45% / 0.12);color:hsl(0 72% 40%)">B</span>
+                    <span class="avatar sm more">+3</span>
+                  </div>
+                  <span class="muted-2" style="font-size:13px">2 filed · 1 draft · 1 missing</span>
+                  <a class="link" style="margin-left:auto;font-size:13px" data-go="work-weekly">Review team updates →</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══════ BU-HEAD (Rina: Retail Ops) ═══════ -->
+          <div data-role-pane="buhead" hidden>
+            <div>
+              <div class="section-title"><span data-i="money"></span> Retail Ops · this month</div>
+              <div class="money-strip">
+                <a class="kpi" data-go="money"><span class="label">Revenue (your BU)</span><span class="value tabular">Rp 1.55B</span><span class="delta up" data-i="trendUp">+5.1%</span><span class="foot">café + ecommerce</span></a>
+                <a class="kpi" data-go="money"><span class="label">Gross margin</span><span class="value tabular">63.8%</span><span class="delta flat">on track</span><span class="foot">→ Money</span></a>
+                <a class="kpi" data-go="work-tasks"><span class="label">Your R/A tasks</span><span class="value tabular">7</span><span class="delta flat">1 blocked</span><span class="foot">→ Work</span></a>
+                <a class="kpi" data-go="ops-log"><span class="label">Kitchen plan today</span><span class="value tabular">92%</span><span class="delta flat">captured</span><span class="foot">→ Operate</span></a>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span data-i="people" style="color:var(--text-3)"></span><h3>Your leads</h3><div class="actions"><a class="link" data-go="work-weekly">Review updates →</a></div></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:15px">Sari · Ecommerce</div><div class="muted-2" style="font-size:13px">pick-pack · 4 direct reports</div></div><div></div><span class="pill warning dot" style="justify-self:end">draft</span></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:15px">Budi · Café floor</div><div class="muted-2" style="font-size:13px">kitchen + bar · 6 reports</div></div><div></div><span class="pill blocked dot" style="justify-self:end">missing</span></div>
+            </div>
+          </div>
+
+          <!-- ═══════ LEAD (Sari: Ecommerce) ═══════ -->
+          <div data-role-pane="lead" hidden>
+            <div>
+              <div class="section-title"><span data-i="flag" style="color:hsl(28 80% 48%)"></span> Drifting · your R/A tasks</div>
+              <div class="card">
+                <div class="drift-row" data-task><div><div style="font-weight:600;font-size:15px">Ecommerce SLA dashboard</div><div class="muted-2" style="font-size:13px">due in 5d · R: you</div></div><span class="avatar sm" style="background:hsl(142 55% 40%);color:#fff">SP</span><span class="pill progress dot">In progress</span><span class="tabular" style="text-align:right;font-size:13px;color:var(--text-2)">5d</span></div>
+                <div class="drift-row" data-task><div><div style="font-weight:600;font-size:15px">Pick-pack Q3 capacity plan</div><div class="muted-2" style="font-size:13px">due in 8d · R: you</div></div><span class="avatar sm" style="background:hsl(142 55% 40%);color:#fff">SP</span><span class="pill open dot">Open</span><span class="tabular" style="text-align:right;font-size:13px;color:var(--text-2)">8d</span></div>
+              </div>
+            </div>
+            <div class="card card-pad">
+              <div class="section-title" style="margin:0 0 var(--s-sm)"><span data-i="listChecks"></span> Write your weekly update</div>
+              <p class="muted-2" style="font-size:13px;margin-bottom:var(--s-md)">Due Fri 17:00 · draft saved 11:32</p>
+              <button class="btn btn-primary btn-lg" data-go="work-weekly">Continue update →</button>
+            </div>
+          </div>
+
+          <!-- ═══════ FLOOR (Yusuf: Roastery) ═══════ -->
+          <div data-role-pane="floor" hidden>
+            <div class="capture-hero" data-modal-trigger="capture">
+              <span class="big-plus"><span data-i="plus"></span></span>
+              <div>
+                <h2>Log a roast</h2>
+                <p>Green in → roasted out · yield% auto · under a minute</p>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span data-i="clock" style="color:var(--text-3)"></span><h3>Your next step</h3></div>
+              <div style="padding:var(--s-lg)">
+                <div style="font-weight:600;font-size:16px;color:var(--brand-navy)">Roast 12kg Toraja Sopa</div>
+                <div class="muted-2" style="font-size:13px;margin-top:2px">planned today · medium profile · batch TS-078</div>
+                <button class="btn btn-outline btn-lg mt-md" data-modal-trigger="capture">Start &amp; log this roast</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span data-i="coffee" style="color:var(--text-3)"></span><h3>Today's roasts</h3></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Aceh Gayo · 10kg</div><div class="muted-2" style="font-size:12px">06:42 · yield 81% · approved</div></div><span class="pill done dot">Done</span></div>
+              <div class="obj-row"><div><div style="font-weight:600;font-size:14px">Sumatra Mandheling · 8kg</div><div class="muted-2" style="font-size:12px">07:15 · in progress</div></div><span class="pill progress dot">Roasting</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         WORK · TASKS
+         ════════════════════════════════════════════════════════════════════ -->
+    <section class="screen" data-screen="work-tasks">
+      <div class="content" style="background:var(--background)">
+        <div class="viewtabs" data-tabs>
+          <button class="viewtab active" data-tab data-go="work-tasks">Tasks <span class="c">23</span></button>
+          <button class="viewtab" data-tab data-go="work-objectives">Objectives <span class="c">7</span></button>
+          <button class="viewtab" data-tab data-go="work-followups">Follow-ups <span class="c" style="color:hsl(0 72% 45%)">5</span></button>
+          <button class="viewtab" data-tab data-go="work-weekly">Weekly update</button>
+        </div>
+        <div class="row between" style="padding:var(--s-md) 0;flex-wrap:wrap;gap:var(--s-md)">
+          <div class="saved-views">
+            <span class="saved-view active"><span class="star">★</span> All tasks</span>
+            <span class="saved-view">My PIC</span>
+            <span class="saved-view">Overdue</span>
+            <span class="saved-view">Transform only</span>
+            <button class="widget-chip">+ save view</button>
+          </div>
+          <div class="row gap-sm">
+            <div class="seg" data-tabs>
+              <button class="active" data-tab>By status</button>
+              <button data-tab>By PIC</button>
+              <button data-tab>By project</button>
+            </div>
+            <button class="btn btn-primary" data-modal-trigger="create-task"><span data-i="plus"></span> New task</button>
+          </div>
+        </div>
+        <div class="filterbar mb-md">
+          <button class="btn btn-outline" data-chip><span data-i="filter"></span> Mine · PIC</button>
+          <div class="chip" data-chip>Not Done <span class="x">✕</span></div>
+          <div class="chip" data-chip>Retail Ops <span class="x">✕</span></div>
+          <button class="btn btn-ghost" style="font-size:13px">+ filter</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th style="width:28px"></th><th>Task</th><th style="width:160px">PIC</th><th style="width:130px">Status</th><th style="width:110px">Due</th><th style="width:110px">Supervisor</th></tr></thead>
+            <tbody>
+              <tr class="group-row"><td colspan="6"><span class="status-dot blocked"></span> Blocked · 2</td></tr>
+              <tr data-task><td><span class="status-dot blocked"></span></td><td class="title-cell" data-l="Task">Sign GKID lease addendum<div class="sub">GKID lease &amp; buildout · Transform</div></td><td data-l="PIC"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina A.</div></td><td data-l="Status"><span class="pill blocked dot">Blocked</span></td><td data-l="Due" style="color:hsl(28 80% 38%);font-weight:600">2d overdue</td><td data-l="Supervisor"><div class="row gap-sm"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></td></tr>
+              <tr data-task><td><span class="status-dot blocked"></span></td><td class="title-cell" data-l="Task">Resolve ESB webhook retries (roastery push)<div class="sub">Roastery yield · Run · prod-incident #482</div></td><td data-l="PIC"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas S.</div></td><td data-l="Status"><span class="pill blocked dot">Blocked</span></td><td data-l="Due" class="muted-2">3d</td><td data-l="Supervisor"><div class="row gap-sm"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></td></tr>
+              <tr class="group-row"><td colspan="6"><span class="status-dot progress"></span> In Progress · 9</td></tr>
+              <tr data-task><td><span class="status-dot progress"></span></td><td class="title-cell" data-l="Task">Finalize new menu COGS — link BOM, not copy<div class="sub">Menu &amp; supplier readiness · Optimize</div></td><td data-l="PIC"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina A.</div></td><td data-l="Status"><span class="pill progress dot">In progress</span></td><td data-l="Due">2d</td><td data-l="Supervisor"><div class="row gap-sm"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></td></tr>
+              <tr data-task><td><span class="status-dot progress"></span></td><td class="title-cell" data-l="Task">B2B SL — authorize roasted PO #2241 in ESB<div class="sub">Roastery yield · Run · awaiting auth</div></td><td data-l="PIC"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas S.</div></td><td data-l="Status"><span class="pill progress dot">In progress</span></td><td data-l="Due">4d</td><td data-l="Supervisor"><div class="row gap-sm"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></td></tr>
+              <tr data-task><td><span class="status-dot progress"></span></td><td class="title-cell" data-l="Task">Ecommerce pick-pack SLA dashboard<div class="sub">Pick-pack SLA · Run · 91% &lt;4h</div></td><td data-l="PIC"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(142 55% 40%);color:#fff">SP</span>Sari P.</div></td><td data-l="Status"><span class="pill progress dot">In progress</span></td><td data-l="Due">5d</td><td data-l="Supervisor"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina</div></td></tr>
+              <tr class="group-row"><td colspan="6"><span class="status-dot open"></span> Open · 12</td></tr>
+              <tr data-task><td><span class="status-dot open"></span></td><td class="title-cell" data-l="Task">Q3 marketing plan — promo margin pre-flight<div class="sub">Marketing · Optimize · links pricing check</div></td><td data-l="PIC"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(200 65% 45%);color:#fff">BW</span>Budi W.</div></td><td data-l="Status"><span class="pill open dot">Open</span></td><td data-l="Due">9d</td><td data-l="Supervisor"><div class="row gap-sm"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- placeholder screens filled next -->
+    <section class="screen" data-screen="work-objectives">
+      <div class="content" style="background:var(--background)">
+        <div class="viewtabs" data-tabs>
+          <button class="viewtab" data-tab data-go="work-tasks">Tasks <span class="c">23</span></button>
+          <button class="viewtab active" data-tab data-go="work-objectives">Objectives <span class="c">7</span></button>
+          <button class="viewtab" data-tab data-go="work-followups">Follow-ups <span class="c" style="color:hsl(0 72% 45%)">5</span></button>
+          <button class="viewtab" data-tab data-go="work-weekly">Weekly update</button>
+        </div>
+        <div class="page-head">
+          <h1>Objectives</h1>
+          <p class="subtitle">The objective → project → task cascade. Drill down for line-of-sight; drill up for context.</p>
+        </div>
+
+        <!-- Objective 1: Transform -->
+        <div class="card mb-lg">
+          <div style="padding:var(--s-lg);border-bottom:1px solid var(--border)">
+            <div class="row between wrap" style="gap:var(--s-md)">
+              <div>
+                <div class="row gap-sm wrap mb-sm"><span class="tag" style="background:hsl(8 78% 50% / 0.12);color:hsl(8 78% 42%);border-color:hsl(8 78% 50% / 0.2)">Transform</span><span class="tag">2026</span></div>
+                <h2 style="font-size:18px">Open HQ retail — 2nd location</h2>
+                <div class="muted-2" style="font-size:13px;margin-top:3px">A: <b>Arief</b> · R: <b>Rina</b> · Retail Ops · target Q3 2026</div>
+              </div>
+              <div style="text-align:right">
+                <div class="tabular" style="font-size:24px;font-weight:700;color:hsl(28 80% 38%)">42%</div>
+                <div class="muted-2" style="font-size:12px">behind plan</div>
+              </div>
+            </div>
+            <div class="bar mt-md"><span class="warn" style="width:42%"></span></div>
+          </div>
+          <!-- projects under this objective -->
+          <div style="padding:var(--s-md) var(--s-lg)">
+            <div class="overline" style="margin-bottom:var(--s-sm)">Projects · 2 · RACI lives here</div>
+            <div class="obj-row" data-task style="border-bottom:1px solid var(--border);padding:var(--s-sm) 0"><div><div style="font-weight:600;font-size:14px;color:var(--brand-navy)">GKID lease &amp; buildout</div><div class="muted-2" style="font-size:12px">R: Rina · A: Arief · C: Dimas · I: Sari · 4 tasks · 1 blocked</div></div><div class="bar"><span class="warn" style="width:55%"></span></div><span class="pill warning dot" style="justify-self:end">at risk</span></div>
+            <div class="obj-row" data-task style="padding:var(--s-sm) 0"><div><div style="font-weight:600;font-size:14px;color:var(--brand-navy)">Menu &amp; supplier readiness</div><div class="muted-2" style="font-size:12px">R: Sari · A: Rina · C: Budi · 3 tasks</div></div><div class="bar"><span class="run" style="width:70%"></span></div><span class="pill progress dot" style="justify-self:end">on track</span></div>
+          </div>
+        </div>
+
+        <!-- Objective 2: Optimize -->
+        <div class="card mb-lg">
+          <div style="padding:var(--s-lg);border-bottom:1px solid var(--border)">
+            <div class="row between wrap" style="gap:var(--s-md)">
+              <div>
+                <div class="row gap-sm wrap mb-sm"><span class="tag" style="background:hsl(262 55% 52% / 0.12);color:hsl(262 55% 42%);border-color:hsl(262 55% 52% / 0.2)">Optimize</span><span class="tag">2026</span></div>
+                <h2 style="font-size:18px">Lift B2B roasted margin to 38%</h2>
+                <div class="muted-2" style="font-size:13px;margin-top:3px">A: <b>Arief</b> · R: <b>Dimas</b> · B2B Ops · margin 34.2% → 38%</div>
+              </div>
+              <div style="text-align:right"><div class="tabular" style="font-size:24px;font-weight:700;color:var(--primary)">68%</div><div class="muted-2" style="font-size:12px">on track</div></div>
+            </div>
+            <div class="bar mt-md"><span class="run" style="width:68%"></span></div>
+          </div>
+          <div style="padding:var(--s-md) var(--s-lg)">
+            <div class="overline" style="margin-bottom:var(--s-sm)">Processes · 1 · RACI lives here</div>
+            <div class="obj-row" data-task style="padding:var(--s-sm) 0"><div><div style="font-weight:600;font-size:14px;color:var(--brand-navy)">Roastery yield optimization</div><div class="muted-2" style="font-size:12px">R: Yusuf · A: Dimas · C: Arief · 5 tasks · yield 78% → 82%</div></div><div class="bar"><span class="run" style="width:72%"></span></div><span class="pill progress dot" style="justify-self:end">on track</span></div>
+          </div>
+        </div>
+
+        <!-- Objective 3: Run -->
+        <div class="card">
+          <div style="padding:var(--s-lg);border-bottom:1px solid var(--border)">
+            <div class="row between wrap" style="gap:var(--s-md)">
+              <div>
+                <div class="row gap-sm wrap mb-sm"><span class="tag" style="background:hsl(200 65% 45% / 0.12);color:hsl(200 65% 38%);border-color:hsl(200 65% 45% / 0.2)">Run</span><span class="tag">ongoing</span></div>
+                <h2 style="font-size:18px">Ecommerce order → ship &lt; 4h</h2>
+                <div class="muted-2" style="font-size:13px;margin-top:3px">A: <b>Rina</b> · R: <b>Sari</b> · Retail Ops · SLA 91% this week</div>
+              </div>
+              <div style="text-align:right"><div class="tabular" style="font-size:24px;font-weight:700;color:hsl(142 64% 30%)">91%</div><div class="muted-2" style="font-size:12px">ahead</div></div>
+            </div>
+            <div class="bar mt-md"><span class="good" style="width:91%"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="work-followups">
+      <div class="content" style="background:var(--background)">
+        <div class="viewtabs" data-tabs>
+          <button class="viewtab" data-tab data-go="work-tasks">Tasks <span class="c">23</span></button>
+          <button class="viewtab" data-tab data-go="work-objectives">Objectives <span class="c">7</span></button>
+          <button class="viewtab active" data-tab data-go="work-followups">Follow-ups <span class="c" style="color:hsl(0 72% 45%)">5</span></button>
+          <button class="viewtab" data-tab data-go="work-weekly">Weekly update</button>
+        </div>
+        <div class="page-head">
+          <h1>Follow-ups</h1>
+          <p class="subtitle">Outstanding commitments, worked through their settlement lifecycle. <b>Settled requires evidence.</b></p>
+        </div>
+        <div class="row between mb-lg wrap" style="gap:var(--s-md)">
+          <div class="seg" data-tabs>
+            <button class="active" data-tab>All lanes</button>
+            <button data-tab>B2B AR</button>
+            <button data-tab>Retail pending</button>
+          </div>
+          <div class="row gap-sm">
+            <span class="pill warning dot">2 overdue</span>
+            <span class="pill dot">1 promised</span>
+            <span class="pill dot">2 partial</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Counterparty</th><th class="num">Amount</th><th class="num">Running balance</th><th>State</th><th>Aging</th><th>Chaser</th></tr></thead>
+            <tbody>
+              <tr data-drawer-trigger="followup"><td class="title-cell" data-l="Counterparty">PT Sumber Makmur<div class="sub mono">INV-AR-2241 · B2B AR</div></td><td class="num" data-l="Amount">Rp 38M</td><td class="num" data-l="Balance">Rp 38M</td><td data-l="State"><span class="pill warning dot">overdue</span></td><td data-l="Aging" style="color:hsl(28 80% 38%);font-weight:600">38d</td><td data-l="Chaser"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas</div></td></tr>
+              <tr data-drawer-trigger="followup"><td class="title-cell" data-l="Counterparty">Tunas Abadi<div class="sub mono">INV-AR-2238 · B2B AR</div></td><td class="num" data-l="Amount">Rp 24M</td><td class="num" data-l="Balance">Rp 24M</td><td data-l="State"><span class="pill dot" style="background:var(--primary-subtle);color:var(--primary)">promised</span></td><td data-l="Aging">14d</td><td data-l="Chaser"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas</div></td></tr>
+              <tr data-drawer-trigger="followup"><td class="title-cell" data-l="Counterparty">PT Karya Nusantara<div class="sub mono">INV-AR-2255 · B2B AR</div></td><td class="num" data-l="Amount">Rp 45M</td><td class="num" data-l="Balance">Rp 12M</td><td data-l="State"><span class="pill dot" style="background:hsl(38 92% 50% / 0.18);color:hsl(28 80% 38%)">partial</span></td><td data-l="Aging">22d</td><td data-l="Chaser"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas</div></td></tr>
+              <tr data-drawer-trigger="followup"><td class="title-cell" data-l="Counterparty">CV Mitra Sejati<div class="sub mono">BILL-RT-1192 · Retail pending</div></td><td class="num" data-l="Amount">Rp 18M</td><td class="num" data-l="Balance">Rp 18M</td><td data-l="State"><span class="pill open dot">chased</span></td><td data-l="Aging">6d</td><td data-l="Chaser"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina</div></td></tr>
+              <tr data-drawer-trigger="followup"><td class="title-cell" data-l="Counterparty">Kopi Setia<div class="sub mono">BILL-RT-1188 · Retail pending</div></td><td class="num" data-l="Amount">Rp 17M</td><td class="num" data-l="Balance">Rp 17M</td><td data-l="State"><span class="pill dot" style="background:var(--surface-3);color:var(--text-2)">open</span></td><td data-l="Aging">2d</td><td data-l="Chaser"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina</div></td></tr>
+              <tr data-task style="opacity:.65"><td class="title-cell" data-l="Counterparty">Rumah Kopi Senja<div class="sub mono">INV-AR-2201 · settled 5 Jul</div></td><td class="num" data-l="Amount">Rp 22M</td><td class="num" data-l="Balance">Rp 0</td><td data-l="State"><span class="pill done dot">settled</span></td><td data-l="Aging"><span class="tag" style="font-size:10px">evidence ✓</span></td><td data-l="Chaser"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="work-weekly">
+      <div class="content" style="background:var(--background)">
+        <div class="viewtabs" data-tabs>
+          <button class="viewtab" data-tab data-go="work-tasks">Tasks <span class="c">23</span></button>
+          <button class="viewtab" data-tab data-go="work-objectives">Objectives <span class="c">7</span></button>
+          <button class="viewtab" data-tab data-go="work-followups">Follow-ups <span class="c" style="color:hsl(0 72% 45%)">5</span></button>
+          <button class="viewtab active" data-tab data-go="work-weekly">Weekly update</button>
+        </div>
+        <div class="page-head">
+          <h1>Weekly update · w28</h1>
+          <p class="subtitle">Mon 7 – Sun 13 Jul · <span style="color:hsl(28 80% 38%);font-weight:600">due Fri 17:00</span></p>
+        </div>
+        <div class="write-pane">
+          <div>
+            <div class="card">
+              <div class="card-head"><h3>Your update</h3><div class="actions"><span class="fresh">draft · saved 11:32</span></div></div>
+              <div style="padding:var(--s-lg)">
+                <form data-form="weekly-write">
+                  <div class="field mb-lg"><label>Week summary</label><textarea class="input" name="summary" style="min-height:90px" placeholder="One or two lines on how the week went…">Pushed GKID lease forward but blocked on COGS proof; ecommerce SLA held at 91%.</textarea></div>
+                  <div class="label" style="margin-bottom:var(--s-sm)">Update lines · progress-marked</div>
+                  <div class="update-line"><span class="marker done"><span data-i="check"></span></span><div class="grow"><div style="font-weight:600;font-size:14px">Done</div><div class="muted-2" style="font-size:13px;margin-top:2px">Ecommerce SLA dashboard shipped to 91% &lt;4h.</div></div></div>
+                  <div class="update-line"><span class="marker progress">◐</span><div class="grow"><div style="font-weight:600;font-size:14px">In progress</div><div class="muted-2" style="font-size:13px;margin-top:2px">Menu COGS — 4 of 6 ingredients linked (not copied).</div></div></div>
+                  <div class="update-line"><span class="marker blocked">!</span><div class="grow"><div style="font-weight:600;font-size:14px">Blocked</div><div class="muted-2" style="font-size:13px;margin-top:2px">GKID lease — landlord wants updated COGS proof before countersign.</div></div></div>
+                  <button type="button" class="btn btn-outline" style="width:100%;margin:var(--s-md) 0"><span data-i="plus"></span> Add a line</button>
+                  <button type="submit" class="btn btn-primary btn-lg" style="width:100%"><span data-i="check"></span> Submit update</button>
+                  <div class="hint" style="text-align:center;margin-top:var(--s-sm)">Submit locks it read-only for your manager. Reopen to revise.</div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="card-head"><span data-i="people" style="color:var(--text-3)"></span><h3>Team · w28</h3><div class="actions"><span class="muted-2" style="font-size:12px">2 filed · 1 draft · 1 missing</span></div></div>
+              <div class="obj-row" data-drawer-trigger="review"><div><div style="font-weight:600;font-size:14px">Dimas · B2B Ops</div><div class="muted-2" style="font-size:12px">submitted 09:14 · 3 lines</div></div><span class="pill done dot" style="justify-self:end">filed</span></div>
+              <div class="obj-row" data-drawer-trigger="review"><div><div style="font-weight:600;font-size:14px">Rina · Retail Ops</div><div class="muted-2" style="font-size:12px">submitted Mon · 4 lines</div></div><span class="pill done dot" style="justify-self:end">filed</span></div>
+              <div class="obj-row" data-drawer-trigger="review"><div><div style="font-weight:600;font-size:14px">Sari · Ecommerce</div><div class="muted-2" style="font-size:12px">draft · 2 lines</div></div><span class="pill warning dot" style="justify-self:end">draft</span></div>
+              <div class="obj-row" data-drawer-trigger="review"><div><div style="font-weight:600;font-size:14px">Budi · Café</div><div class="muted-2" style="font-size:12px">not started</div></div><span class="pill blocked dot" style="justify-self:end">missing</span></div>
+              <div style="padding:var(--s-md) var(--s-lg);color:var(--text-3);font-size:12px;border-top:1px solid var(--border)">Review is read-only — nudge off-app. Updates are upward-only.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="ops-log">
+      <div class="content" style="background:var(--background)">
+        <div class="page-head">
+          <div class="row between wrap" style="gap:var(--s-md)">
+            <div>
+              <h1>Roastery</h1>
+              <p class="subtitle">B2B Ops · Activity module · WIP-spine</p>
+            </div>
+            <div class="seg" data-tabs>
+              <button class="active" data-tab>Roastery</button>
+              <button data-tab>Kitchen</button>
+            </div>
+          </div>
+        </div>
+        <!-- local module nav -->
+        <div class="mod-nav viewtabs" data-tabs>
+          <button class="viewtab active" data-tab>Log</button>
+          <button class="viewtab" data-tab>Plan</button>
+          <button class="viewtab" data-tab>Stock</button>
+          <button class="viewtab" data-tab>Review <span class="tag" style="margin-left:6px;font-size:9px">ops_lead</span></button>
+        </div>
+
+        <!-- capture bar -->
+        <div class="capture-hero mb-lg" data-modal-trigger="capture" style="padding:var(--s-md) var(--s-lg)">
+          <span class="big-plus" style="width:44px;height:44px"><span data-i="plus"></span></span>
+          <div class="grow"><div style="font-weight:700;font-size:16px;color:var(--brand-navy)">New roast log</div><div class="muted-2" style="font-size:13px">green in → roasted out · yield% auto</div></div>
+          <span class="btn btn-primary">Capture</span>
+        </div>
+
+        <!-- today's KPI strip -->
+        <div class="kpi-row mb-lg">
+          <div class="kpi"><span class="label">Roasts today</span><span class="value tabular">4</span><span class="foot">2 approved · 1 submitted · 1 in progress</span></div>
+          <div class="kpi"><span class="label">Avg yield</span><span class="value tabular">82%</span><span class="delta up" data-i="trendUp">+1pp vs target 81%</span></div>
+          <div class="kpi"><span class="label">Green drawn</span><span class="value tabular">36 kg</span><span class="foot">across 4 lots</span></div>
+          <div class="kpi"><span class="label">Roasted out</span><span class="value tabular">29.5 kg</span><span class="foot">shrink 18%</span></div>
+        </div>
+
+        <!-- log feed -->
+        <div class="card">
+          <div class="card-head"><span data-i="clock" style="color:var(--text-3)"></span><h3>Today's roast log</h3><div class="actions"><span class="fresh">live</span></div></div>
+          <div class="log-feed">
+            <div class="log-row"><div class="mono" style="color:var(--text-light)">06:42</div><div><div style="font-weight:600;font-size:14px">Aceh Gayo · 10kg · medium</div><div class="muted-2" style="font-size:12px">green 10kg → roasted 8.1kg · operator Yusuf</div></div><div><span class="tabular" style="font-size:16px;font-weight:700;color:var(--brand-navy)">81%</span><div class="muted-2" style="font-size:10px">yield</div></div><span class="pill done dot">approved</span></div>
+            <div class="log-row"><div class="mono" style="color:var(--text-light)">07:15</div><div><div style="font-weight:600;font-size:14px">Sumatra Mandheling · 8kg · dark</div><div class="muted-2" style="font-size:12px">roasting now · profile 4 · batch SM-067</div></div><div><span class="tabular" style="font-size:16px;font-weight:700;color:var(--text-light)">—</span><div class="muted-2" style="font-size:10px">in progress</div></div><span class="pill progress dot">roasting</span></div>
+            <div class="log-row" style="background:hsl(38 92% 50% / 0.06)"><div class="mono" style="color:var(--text-light)">08:30</div><div><div style="font-weight:600;font-size:14px">Java Preanger · 6kg · medium</div><div class="muted-2" style="font-size:12px">green 6kg → roasted 4.9kg · awaiting review</div></div><div><span class="tabular" style="font-size:16px;font-weight:700;color:var(--brand-navy)">82%</span><div class="muted-2" style="font-size:10px">yield</div></div><span class="pill warning dot">submitted</span></div>
+            <div class="log-row"><div class="mono" style="color:var(--text-light)">05:50</div><div><div style="font-weight:600;font-size:14px">House Blend · 12kg · dark</div><div class="muted-2" style="font-size:12px">green 12kg → roasted 9.8kg · batch HB-044</div></div><div><span class="tabular" style="font-size:16px;font-weight:700;color:var(--brand-navy)">82%</span><div class="muted-2" style="font-size:10px">yield</div></div><span class="pill done dot">approved</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="money" data-sees="money-screen">
+      <div class="content narrow" style="background:var(--surface-sunken)">
+        <div class="page-head">
+          <div class="row between wrap" style="gap:var(--s-md)">
+            <div><h1>Money</h1><p class="subtitle">Whole-company · July 2026</p></div>
+            <div class="seg" data-tabs><button class="active" data-tab>MTD</button><button data-tab>QTD</button><button data-tab>YTD</button></div>
+          </div>
+          <div class="meta-row"><span class="fresh">Revenue live · 12 min ago</span><span class="fresh stale">AP as of 7 Jul</span><span class="fresh next">next sync 03:30 WIB</span></div>
+        </div>
+
+        <!-- KPI row -->
+        <div class="section-title"><span data-i="money"></span> Performance</div>
+        <div class="money-strip mb-lg">
+          <div class="kpi"><span class="label">Revenue (MTD)</span><span class="value tabular">Rp 1.84B</span><span class="delta up" data-i="trendUp">+6.2% vs Jun</span><span class="foot">Cafe Ops · Ecommerce · B2B</span></div>
+          <div class="kpi"><span class="label">Gross margin</span><span class="value tabular">61.4%</span><span class="delta down" data-i="trendDown">−2.1pp</span><span class="foot"><span class="tag" style="font-size:10px">basis: interim</span></span></div>
+          <div class="kpi"><span class="label">AR overdue</span><span class="value tabular" style="color:hsl(28 80% 38%)">Rp 142M</span><span class="delta flat">5 invoices · oldest 38d</span><span class="foot"><a class="link" data-go="work-followups">→ Follow-ups</a></span></div>
+          <div class="kpi"><span class="label">AP owed</span><span class="value tabular">Rp 298M</span><span class="delta flat">14 vendors</span><span class="foot">3 due this week</span></div>
+        </div>
+
+        <!-- revenue by stream -->
+        <div class="section-title"><span data-i="trendUp"></span> Revenue by stream</div>
+        <div class="card mb-lg">
+          <div style="padding:var(--s-lg)">
+            <div class="row between mb-sm"><div style="font-weight:600;font-size:14px">Cafe Ops</div><div class="tabular" style="font-weight:700">Rp 1.04B <span class="muted-2" style="font-weight:400;font-size:12px">· 56%</span></div></div>
+            <div class="bar mb-md"><span style="width:56%;background:hsl(200 65% 45%)"></span></div>
+            <div class="row between mb-sm"><div style="font-weight:600;font-size:14px">Ecommerce</div><div class="tabular" style="font-weight:700">Rp 512M <span class="muted-2" style="font-weight:400;font-size:12px">· 28%</span></div></div>
+            <div class="bar mb-md"><span style="width:28%;background:hsl(142 55% 40%)"></span></div>
+            <div class="row between mb-sm"><div style="font-weight:600;font-size:14px">B2B</div><div class="tabular" style="font-weight:700">Rp 288M <span class="muted-2" style="font-weight:400;font-size:12px">· 16%</span></div></div>
+            <div class="bar"><span style="width:16%;background:hsl(262 55% 52%)"></span></div>
+          </div>
+        </div>
+
+        <!-- money position -->
+        <div class="section-title"><span data-i="money"></span> Money position</div>
+        <div class="card mb-lg">
+          <div class="money-pos">
+            <div style="padding:var(--s-lg);border-right:1px solid var(--border)"><div class="label" style="margin-bottom:4px">AR (worked)</div><div class="tabular" style="font-size:20px;font-weight:700;color:var(--brand-navy)">Rp 142M</div><div class="row gap-sm mt-sm wrap"><span class="pill warning dot">2 overdue</span><span class="pill dot">1 promised</span></div><a class="link mt-sm" style="font-size:12px;display:inline-block" data-go="work-followups">→ Follow-ups</a></div>
+            <div style="padding:var(--s-lg);border-right:1px solid var(--border)"><div class="label" style="margin-bottom:4px">AP (owed)</div><div class="tabular" style="font-size:20px;font-weight:700;color:var(--brand-navy)">Rp 298M</div><div class="muted-2 mt-sm" style="font-size:12px">14 vendors · 3 due this week</div></div>
+            <div style="padding:var(--s-lg);border-right:1px solid var(--border)"><div class="label" style="margin-bottom:4px">Unbilled</div><div class="tabular" style="font-size:20px;font-weight:700;color:var(--brand-navy)">Rp 41M</div><div class="muted-2 mt-sm" style="font-size:12px">9 orders · awaiting invoice</div></div>
+            <div style="padding:var(--s-lg)"><div class="label" style="margin-bottom:4px">Unearned</div><div class="tabular" style="font-size:20px;font-weight:700;color:var(--brand-navy)">Rp 88M</div><div class="muted-2 mt-sm" style="font-size:12px">voucher · prepaid beans</div></div>
+          </div>
+        </div>
+
+        <!-- pricing pre-flight CTA -->
+        <div class="card card-pad" style="display:flex;align-items:center;gap:var(--s-md)">
+          <span data-i="flag" style="color:hsl(28 80% 48%);flex-shrink:0"></span>
+          <div class="grow"><div style="font-weight:600;font-size:14px">Pricing pre-flight</div><div class="muted-2" style="font-size:13px">Check a promo or price against the certified COGS — never a stale copy.</div></div>
+          <button class="btn btn-outline">Run a check</button>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="people">
+      <div class="content" style="background:var(--background)">
+        <div class="page-head">
+          <div class="row between wrap" style="gap:var(--s-md)">
+            <div><h1>People</h1><p class="subtitle">Directory · roles · access</p></div>
+            <button class="btn btn-primary"><span data-i="plus"></span> Add person</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Person</th><th>Role</th><th>Business unit</th><th>Access</th><th>Manager</th></tr></thead>
+            <tbody>
+              <tr><td class="title-cell" data-l="Person"><div class="row gap-sm"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></td><td data-l="Role">Owner-director</td><td data-l="BU">Whole company</td><td data-l="Access"><span class="pill">admin</span></td><td data-l="Manager">—</td></tr>
+              <tr><td class="title-cell" data-l="Person"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina</div></td><td data-l="Role">Retail Ops head</td><td data-l="BU">Retail Ops</td><td data-l="Access"><span class="pill">ops_lead</span></td><td data-l="Manager">Arief</td></tr>
+              <tr><td class="title-cell" data-l="Person"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(262 55% 50%);color:#fff">DS</span>Dimas</div></td><td data-l="Role">B2B Ops head</td><td data-l="BU">B2B Ops</td><td data-l="Access"><span class="pill">ops_lead</span></td><td data-l="Manager">Arief</td></tr>
+              <tr><td class="title-cell" data-l="Person"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(142 55% 40%);color:#fff">SP</span>Sari</div></td><td data-l="Role">Ecommerce lead</td><td data-l="BU">Retail Ops</td><td data-l="Access"><span class="pill">member</span></td><td data-l="Manager">Rina</td></tr>
+              <tr><td class="title-cell" data-l="Person"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(200 65% 45%);color:#fff">BW</span>Budi</div></td><td data-l="Role">Café lead</td><td data-l="BU">Retail Ops</td><td data-l="Access"><span class="pill">member</span></td><td data-l="Manager">Rina</td></tr>
+              <tr><td class="title-cell" data-l="Person"><div class="row gap-sm"><span class="avatar sm" style="background:hsl(18 70% 48%);color:#fff">YU</span>Yusuf</div></td><td data-l="Role">Roastery operator</td><td data-l="BU">B2B Ops</td><td data-l="Access"><span class="pill">member</span></td><td data-l="Manager">Dimas</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="settings">
+      <div class="content narrow" style="background:var(--surface-sunken)">
+        <div class="page-head"><h1>Settings</h1><p class="subtitle">Preferences · this is a mockup surface.</p></div>
+        <div class="card card-pad mb-lg">
+          <div class="field mb-lg"><label>Language</label><div class="seg" data-tabs><button class="active" data-tab>English</button><button data-tab>Bahasa Indonesia</button></div></div>
+          <div class="field mb-lg">
+            <label>Text size</label>
+            <div class="fontsize-pick">
+              <button class="s" data-fontsize-pick="s">A · small</button>
+              <button class="m active" data-fontsize-pick="m">A · medium</button>
+              <button class="l" data-fontsize-pick="l">A · large</button>
+              <button class="xl" data-fontsize-pick="xl">A · XL</button>
+            </div>
+            <div class="hint">Persists per device. Tables and controls scale with this.</div>
+          </div>
+          <div class="field mb-lg"><label>Theme</label><div class="seg" data-tabs><button class="active" data-tab>Light (Warmer)</button><button data-tab>Quiet Control Surface</button></div></div>
+          <div class="label-row"><label>Compact table density</label><span class="switch" onclick="this.classList.toggle('on')"></span></div>
+        </div>
+        <div class="card card-pad">
+          <div class="muted-2" style="font-size:13px;line-height:1.6">This prototype demonstrates the chosen design direction (Warmer identity, bigger type, 3-destination spine, user impersonation). Real settings ship with the app.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── MOBILE TABBAR (real responsive, hidden on desktop) ──────────────── -->
+  <nav class="mobile-tabbar">
+    <a data-go="orient" class="active"><span data-i="orient"></span>Orient</a>
+    <a data-go="work-tasks"><span data-i="work"></span>Work</a>
+    <a data-go="ops-log"><span data-i="coffee"></span>Operate</a>
+    <a data-go="money" data-sees="money"><span data-i="money"></span>Money</a>
+  </nav>
+
+  <!-- ── CAPTURE FAB (desktop + mobile) ──────────────────────────────────── -->
+  <button class="capture-fab" data-modal-trigger="capture"><span class="plus" data-i="plus"></span> Capture</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     OVERLAYS — modals, drawers, sheets (outside shell)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<!-- CAPTURE modal -->
+<div class="modal" data-modal="capture">
+  <div class="modal-head"><span data-i="plus" style="color:var(--primary)"></span><div><h2>Capture · log entry</h2><div class="sub">One short pass · you're back to work in under a minute</div></div><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <form data-form="capture">
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>Activity</label><select class="select" name="activity"><option>Roastery</option><option>Kitchen</option><option>Bar</option><option>Ecommerce</option></select></div>
+        <div class="field"><label>Type</label><select class="select" name="type"><option>production</option><option>receiving</option><option>qc</option><option>follow-up</option><option>other</option></select></div>
+        <div class="field span-2"><label>What happened</label><textarea class="input" name="what" placeholder="e.g. Roasted 12kg Toraja Sopa, medium profile, yield 81%"></textarea><div class="hint">Past-tense fact · no owner, no status.</div></div>
+        <div class="field"><label>Occurred at</label><input class="input" type="datetime-local" name="at"></div>
+        <div class="field"><label>Business unit</label><select class="select" name="bu"><option>B2B Ops</option><option>Retail Ops</option></select></div>
+        <div class="field span-2">
+          <div class="label-row"><label>Needs attention</label><span class="switch" onclick="this.classList.toggle('on')"></span></div>
+          <div class="hint">Flags for your lead to see in the feed.</div>
+        </div>
+        <div class="field span-2"><label>Linked task (optional)</label><select class="select" name="task"><option>— none —</option><option>TASK-241 Sign GKID lease</option><option>TASK-238 Resolve ESB webhook</option></select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="submit" class="btn btn-primary"><span data-i="check"></span> Save entry</button></div>
+  </form>
+</div>
+
+<!-- CREATE-TASK modal -->
+<div class="modal lg" data-modal="create-task">
+  <div class="modal-head"><span data-i="work" style="color:var(--primary)"></span><h2>New task</h2><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <form data-form="create-task">
+    <div class="modal-body">
+      <div class="field" style="margin-bottom:var(--s-md)"><label>Task title</label><input class="input" name="title" placeholder="What needs to get done?"></div>
+      <div class="field" style="margin-bottom:var(--s-md)"><label>Description</label><textarea class="input" name="desc" placeholder="Context, acceptance, links…"></textarea></div>
+      <div class="form-grid">
+        <div class="field"><label>PIC (person in charge)</label><select class="select" name="pic"><option>Rina A.</option><option>Dimas S.</option><option>Sari P.</option><option>Budi W.</option><option>Yusuf</option></select></div>
+        <div class="field"><label>Supervisor</label><select class="select" name="sup"><option>Arief</option><option>Rina A.</option><option>Dimas S.</option></select></div>
+        <div class="field"><label>Business unit</label><select class="select" name="bu"><option>Retail Ops</option><option>B2B Ops</option><option>Marketing</option><option>Finance</option></select></div>
+        <div class="field"><label>Status</label><select class="select" name="status"><option>Open</option><option>In Progress</option><option>Blocked</option></select></div>
+        <div class="field"><label>Due date</label><input class="input" type="date" name="due"></div>
+        <div class="field"><label>Lane</label><select class="select" name="lane"><option>Run</option><option>Optimize</option><option>Transform</option></select></div>
+        <div class="field"><label>Project / Process (optional)</label><select class="select" name="proj"><option>— none —</option><option>GKID lease &amp; buildout</option><option>Menu &amp; supplier readiness</option><option>Roastery yield optimization</option><option>Pick-pack SLA</option></select></div>
+        <div class="field"><label>Objective (optional)</label><select class="select" name="obj"><option>— none —</option><option>Open HQ retail 2nd loc</option><option>B2B margin to 38%</option><option>Ecommerce ship &lt;4h</option></select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="submit" class="btn btn-primary"><span data-i="check"></span> Create task</button></div>
+  </form>
+</div>
+
+<!-- COMMAND ⌘K modal -->
+<div class="modal" data-modal="command">
+  <div class="modal-head"><span data-i="search" style="color:var(--text-3)"></span><input class="input" style="border:none;background:transparent;height:auto;font-size:16px" placeholder="Search or jump to…" autofocus></div>
+  <div class="modal-body" style="padding:var(--s-sm) 0">
+    <div class="overline" style="padding:0 var(--s-lg);margin-bottom:var(--s-sm)">Navigate</div>
+    <div class="persona-pick" data-go="orient"><span data-i="orient" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Orient</div><div class="ptitle">What needs me today</div></div></div>
+    <div class="persona-pick" data-go="work-tasks"><span data-i="work" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Work · Tasks</div><div class="ptitle">23 tasks</div></div></div>
+    <div class="persona-pick" data-go="work-objectives"><span data-i="target" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Work · Objectives</div><div class="ptitle">7 objectives · cascade</div></div></div>
+    <div class="persona-pick" data-go="work-followups"><span data-i="flag" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Work · Follow-ups</div><div class="ptitle">5 outstanding</div></div></div>
+    <div class="persona-pick" data-go="work-weekly"><span data-i="listChecks" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Work · Weekly update</div><div class="ptitle">write + review · w28</div></div></div>
+    <div class="persona-pick" data-go="ops-log"><span data-i="coffee" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Operate · Roastery</div><div class="ptitle">Today's log</div></div></div>
+    <div class="persona-pick" data-go="money" data-sees="money"><span data-i="money" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Money</div><div class="ptitle">Revenue · margin · AR/AP</div></div></div>
+    <div class="persona-pick" data-go="people"><span data-i="people" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">People</div><div class="ptitle">directory · roles</div></div></div>
+    <div class="persona-pick" data-go="settings"><span data-i="settings" style="color:var(--text-3)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Settings</div><div class="ptitle">preferences</div></div></div>
+    <div class="overline" style="padding:0 var(--s-lg);margin:var(--s-sm) 0">Actions</div>
+    <div class="persona-pick" data-modal-trigger="capture"><span data-i="plus" style="color:var(--primary)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Capture a log entry</div><div class="ptitle">Floor fast-capture</div></div></div>
+    <div class="persona-pick" data-modal-trigger="create-task"><span data-i="plus" style="color:var(--primary)"></span><div class="pmeta"><div class="pname" style="font-size:14px">Create a task</div><div class="ptitle">New owned work</div></div></div>
+  </div>
+</div>
+
+<!-- TASK drawer -->
+<aside class="drawer" data-drawer="task">
+  <div class="drawer-head"><span class="mono muted-2">TASK-241</span><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <div class="drawer-body">
+    <h2 style="font-size:20px;line-height:1.3;margin-bottom:var(--s-sm)">Sign GKID lease addendum</h2>
+    <div class="row gap-sm wrap mb-lg">
+      <span class="pill blocked dot">Blocked</span><span class="tag">GKID lease &amp; buildout</span><span class="tag">Transform</span>
+    </div>
+    <div class="card card-pad mb-lg">
+      <div class="row between" style="padding-bottom:var(--s-md);border-bottom:1px solid var(--border)">
+        <div><div class="label" style="margin-bottom:4px">Status</div><span class="pill blocked dot">Blocked</span></div>
+        <div style="text-align:right"><div class="label" style="margin-bottom:4px">Due</div><div style="color:hsl(28 80% 38%);font-weight:600" class="tabular">2d overdue</div></div>
+      </div>
+      <div class="owner-pair" style="padding-top:var(--s-md)">
+        <div class="owner-cell"><div class="lbl">PIC</div><div class="who"><span class="avatar sm" style="background:hsl(221 70% 45%);color:#fff">RA</span>Rina A.</div></div>
+        <div class="owner-cell"><div class="lbl">Supervisor</div><div class="who"><span class="avatar sm" style="background:var(--brand-navy);color:#fff">AS</span>Arief</div></div>
+      </div>
+      <div style="margin-top:var(--s-md);padding-top:var(--s-md);border-top:1px solid var(--border)">
+        <div class="label" style="margin-bottom:6px;color:hsl(0 72% 45%);font-weight:700">⛔ Blocker</div>
+        <div style="font-size:14px;color:var(--text-2)">Landlord wants updated COGS proof before countersign.</div>
+      </div>
+    </div>
+    <div class="card card-pad mb-lg" style="background:var(--surface-2)">
+      <div class="label" style="margin-bottom:6px">Part of project</div>
+      <div class="row between">
+        <div><div style="font-weight:600;font-size:14px;color:var(--brand-navy)">GKID lease &amp; buildout</div><div class="muted-2" style="font-size:12px">RACI lives here · A: Arief · R: Rina · C: Dimas · I: Sari</div></div>
+        <a class="link" style="font-size:12px" data-go="work-objectives">open project →</a>
+      </div>
+    </div>
+    <div class="label" style="margin-bottom:var(--s-sm)">Checklist · 1 of 3</div>
+    <div class="card mb-lg">
+      <div style="padding:var(--s-md) var(--s-lg)"><div class="row gap-sm"><span class="status-dot done"></span><span style="text-decoration:line-through;color:var(--text-3);font-size:14px">Get countersign requirements</span></div></div>
+      <div style="padding:var(--s-md) var(--s-lg);border-top:1px solid var(--border)"><div class="row gap-sm"><span style="width:16px;height:16px;border:2px solid var(--border-strong);border-radius:4px"></span><span style="font-weight:600;font-size:14px">Prepare COGS proof from linked budget</span></div></div>
+      <div style="padding:var(--s-md) var(--s-lg);border-top:1px solid var(--border)"><div class="row gap-sm"><span style="width:16px;height:16px;border:2px solid var(--border-strong);border-radius:4px"></span><span style="font-size:14px">Schedule signing slot</span></div></div>
+    </div>
+    <div class="label" style="margin-bottom:var(--s-sm)">Activity</div>
+    <div style="font-size:13.5px;color:var(--text-2);line-height:1.8">
+      <div><span class="mono" style="color:var(--text-light)">11:32</span> &nbsp;<b>Rina</b> → status Blocked</div>
+      <div><span class="mono" style="color:var(--text-light)">10:08</span> &nbsp;<b>Rina</b> added a blocker note</div>
+      <div><span class="mono" style="color:var(--text-light)">Mon</span> &nbsp;&nbsp;<b>Arief</b> created · R: Rina · A: Arief</div>
+    </div>
+  </div>
+</aside>
+
+<!-- REVIEW drawer (read-only weekly update) -->
+<aside class="drawer" data-drawer="review">
+  <div class="drawer-head"><span data-i="inbox" style="color:var(--text-3)"></span><h2>Dimas · weekly update w28</h2><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <div class="drawer-body">
+    <div class="row gap-sm wrap mb-lg"><span class="pill done dot">submitted</span><span class="muted-2" style="font-size:13px">09:14 · 3 lines</span></div>
+    <div class="card card-pad mb-lg"><div class="label" style="margin-bottom:6px">Summary</div><div style="font-size:14px;line-height:1.55">Roastery yield held at 82%; ESB webhook retries blocking 2 pushes — escalated to Dimas. Green stock for Toraja running low.</div></div>
+    <div class="label" style="margin-bottom:var(--s-sm)">Lines</div>
+    <div class="update-line"><span class="marker done"><span data-i="check"></span></span><div class="grow"><div style="font-weight:600;font-size:14px">Done</div><div class="muted-2" style="font-size:13px;margin-top:2px">Yield optimization hit 82% avg across 4 roasts.</div></div></div>
+    <div class="update-line"><span class="marker blocked">!</span><div class="grow"><div style="font-weight:600;font-size:14px">Blocked</div><div class="muted-2" style="font-size:13px;margin-top:2px">ESB webhook retries — 2 roastery pushes stuck (incident #482).</div></div></div>
+    <div class="update-line"><span class="marker progress">◐</span><div class="grow"><div style="font-weight:600;font-size:14px">In progress</div><div class="muted-2" style="font-size:13px;margin-top:2px">Toraja Sopa green stock at 8kg — replenishment order drafted.</div></div></div>
+    <div style="margin-top:var(--s-lg);padding:var(--s-md);background:var(--surface-2);border-radius:var(--radius-control);font-size:12.5px;color:var(--text-3)">Read-only · v1 review has no ack/comment. Nudge off-app.</div>
+  </div>
+</aside>
+
+<!-- FOLLOW-UP drawer (lifecycle stepper + advance) -->
+<aside class="drawer" data-drawer="followup">
+  <div class="drawer-head"><span data-i="flag" style="color:hsl(28 80% 48%)"></span><h2>Follow-up</h2><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <div class="drawer-body">
+    <div class="mono muted-2" style="margin-bottom:var(--s-sm)">INV-AR-2241 · B2B AR</div>
+    <h2 style="font-size:19px;margin-bottom:var(--s-xs)">PT Sumber Makmur</h2>
+    <div class="row gap-sm wrap mb-lg">
+      <span class="pill warning dot">overdue</span><span class="tag">B2B Sales lane</span><span class="tag">chased by Dimas</span>
+    </div>
+
+    <!-- lifecycle stepper -->
+    <div class="card card-pad mb-lg">
+      <div class="label" style="margin-bottom:var(--s-sm)">Settlement lifecycle</div>
+      <div class="lifecycle mb-md">
+        <div class="lc-step done" title="open"></div>
+        <div class="lc-step done" title="chased"></div>
+        <div class="lc-step cur" title="overdue"></div>
+        <div class="lc-step" title="promised"></div>
+        <div class="lc-step" title="partial"></div>
+        <div class="lc-step" title="settled"></div>
+      </div>
+      <div class="row between muted-2" style="font-size:11px;text-transform:uppercase;letter-spacing:0.04em"><span>open</span><span style="font-weight:700;color:hsl(28 80% 38%)">overdue</span><span>promised</span><span>partial</span><span>settled</span></div>
+    </div>
+
+    <!-- the facts -->
+    <div class="card card-pad mb-lg">
+      <div class="row between" style="padding-bottom:var(--s-md);border-bottom:1px solid var(--border)"><div class="label">Invoice amount</div><div class="tabular" style="font-size:18px;font-weight:700;color:var(--brand-navy)">Rp 38M</div></div>
+      <div class="row between" style="padding:var(--s-md) 0;border-bottom:1px solid var(--border)"><div class="label">Running balance</div><div class="tabular" style="font-weight:600">Rp 38M</div></div>
+      <div class="row between" style="padding-top:var(--s-md)"><div class="label">Aging</div><div style="color:hsl(28 80% 38%);font-weight:600">38 days · overdue</div></div>
+    </div>
+
+    <!-- advance form -->
+    <div class="label" style="margin-bottom:var(--s-sm)">Advance state</div>
+    <form data-form="followup">
+      <div class="field mb-md"><label>Next action</label><select class="select" name="action"><option>Log a chase — contact when + who</option><option>Log a promise — set promise-to-pay date</option><option>Log a partial payment</option><option>Settle (requires evidence)</option></select></div>
+      <div class="field mb-md"><label>Notes</label><textarea class="input" name="notes" placeholder="e.g. Called Pak Joko, promised transfer by 15 Jul"></textarea></div>
+      <div class="field mb-md"><label>Evidence (required to settle)</label><input class="input" type="file" name="evidence" disabled><div class="hint">Transfer proof / receipt · unlocks when "Settle" selected.</div></div>
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%"><span data-i="arrowRight"></span> Advance follow-up</button>
+    </form>
+  </div>
+</aside>
+
+<!-- INBOX drawer -->
+  <div class="drawer-head"><span data-i="inbox" style="color:var(--text-3)"></span><h2>Inbox</h2><span class="count">3</span><div class="grow"></div><button class="icon-btn" data-close>✕</button></div>
+  <div class="drawer-body" style="padding:0">
+    <div style="padding:var(--s-md) var(--s-lg);border-bottom:1px solid var(--border);cursor:pointer" data-go="work-tasks"><div class="row gap-sm"><span class="status-dot blocked"></span><div><div style="font-weight:600;font-size:14px">TASK-241 blocked</div><div class="muted-2" style="font-size:12px">Rina added a blocker · 11:32</div></div></div></div>
+    <div style="padding:var(--s-md) var(--s-lg);border-bottom:1px solid var(--border);cursor:pointer" data-go="work-followups"><div class="row gap-sm"><span class="status-dot" style="background:hsl(38 92% 50%)"></span><div><div style="font-weight:600;font-size:14px">AR overdue · PT Sumber Makmur</div><div class="muted-2" style="font-size:12px">38 days · Rp 38M</div></div></div></div>
+    <div style="padding:var(--s-md) var(--s-lg);border-bottom:1px solid var(--border);cursor:pointer" data-go="work-weekly"><div class="row gap-sm"><span class="status-dot" style="background:hsl(142 64% 38%)"></span><div><div style="font-weight:600;font-size:14px">Dimas filed weekly update</div><div class="muted-2" style="font-size:12px">w28 · 09:14</div></div></div></div>
+    <div style="padding:var(--s-md) var(--s-lg);color:var(--text-3);font-size:13px">Inbox is a router — open the entity to act.</div>
+  </div>
+</aside>
+
+<!-- toast -->
+<div class="toast" data-toast></div>
+
+<!-- PERSONA MENU (direct child of body, outside .app, so it overlays correctly) -->
+<div class="persona-menu" id="personaMenu">
+  <div class="persona-menu-head">
+    <div class="ttl">View the app as</div>
+    <div class="sub">Impersonation for review — each user sees their real scope.</div>
+  </div>
+  <div class="persona-pick active" data-user-pick="arief">
+    <span class="avatar md" style="background:var(--brand-navy);color:#fff">AS</span>
+    <div class="pmeta"><div class="pname">Arief</div><div class="ptitle">Owner-director · whole company</div><div class="prole">Owner</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="rina">
+    <span class="avatar md" style="background:hsl(221 70% 45%);color:#fff">RA</span>
+    <div class="pmeta"><div class="pname">Rina</div><div class="ptitle">Retail Ops head · café + ecommerce</div><div class="prole">BU-head</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="dimas">
+    <span class="avatar md" style="background:hsl(262 55% 50%);color:#fff">DS</span>
+    <div class="pmeta"><div class="pname">Dimas</div><div class="ptitle">B2B Ops head · roastery</div><div class="prole">BU-head</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="sari">
+    <span class="avatar md" style="background:hsl(142 55% 40%);color:#fff">SP</span>
+    <div class="pmeta"><div class="pname">Sari</div><div class="ptitle">Ecommerce lead · pick-pack team</div><div class="prole">Lead</div></div>
+  </div>
+  <div class="persona-pick" data-user-pick="yusuf">
+    <span class="avatar md" style="background:hsl(18 70% 48%);color:#fff">YU</span>
+    <div class="pmeta"><div class="pname">Yusuf</div><div class="ptitle">Roastery operator · floor</div><div class="prole">Floor</div></div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

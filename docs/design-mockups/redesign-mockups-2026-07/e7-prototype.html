@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Gordi MOS — E7 canonical prototype</title>
+  <meta name="description" content="E7 canonical prototype: one app for Home · Work · Money · Inbox plus Café, Ecommerce, Roastery modules. Candidate awaiting owner Phase-0 approval." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23213850'/><circle cx='20' cy='12' r='4' fill='%23f26b38'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="e7-prototype.css" />
+  <!-- icons.js sets window.MOS_ICONS (inline SVG, currentColor) -->
+  <script src="icons.js"></script>
+</head>
+<body class="e7-body" data-effective-person="p_ayu">
+
+  <!-- ──────────────────────────────────────────────────────────────────────
+       Owner / developer notes (hidden from the rendered app; surfaced by the
+       coverage dialog). This prototype is static + in-memory: no backend,
+       auth, RLS, migrations, network, reset, or deploy.
+       ────────────────────────────────────────────────────────────────────── -->
+  <template id="e7-notes">
+    <p><b>E7 canonical prototype</b> — static fixtures only. Representative people,
+    Teams, Sites, figures, and dates are fixtures, not approved production seed truth.</p>
+    <ul>
+      <li>Primary destinations: Home · Work · Money (capability-gated) · Inbox.</li>
+      <li>Modules grouped by owning BU: Retail Ops → Café, Ecommerce; B2B Ops → Roastery.</li>
+      <li>Utilities (capability-gated): Admin Settings, Personal Profile.</li>
+      <li>One router, one record renderer registry, one stack-navigated panel, one capability registry, one Action Launcher.</li>
+      <li>Director assumptions (reversible): Budget is canonical in Money and linked elsewhere; Admin Settings is a gated utility, not a fifth primary destination.</li>
+    </ul>
+  </template>
+
+  <div id="e7-app" class="e7-app" data-view="home">
+    <header class="e7-topbar">
+      <button class="e7-iconbtn e7-menu-btn" data-mobile-menu aria-haspopup="menu" aria-label="Open menu" aria-expanded="false">
+        <span class="e7-ham"></span>
+      </button>
+      <a class="e7-brand" href="#/home" aria-label="Gordi MOS Home">
+        <span class="e7-brand-square" aria-hidden="true">
+          <span class="e7-brand-dot"></span>
+        </span>
+        <span class="e7-brand-lockup">Gordi <span class="e7-brand-mos">MOS</span></span>
+      </a>
+      <div id="e7-context-label" class="e7-context-label" aria-live="polite"></div>
+      <div class="e7-topbar-spacer"></div>
+      <button class="e7-cmdk" data-command-trigger aria-label="Search and commands">
+        <span data-i="search"></span><span class="e7-cmdk-text">Search…</span><span class="e7-kbd">⌘K</span>
+      </button>
+      <button class="e7-iconbtn" data-inbox-trigger aria-label="Inbox" title="Inbox">
+        <span data-i="inbox"></span><span class="e7-dot" data-inbox-count hidden>0</span>
+      </button>
+      <button class="e7-iconbtn" data-deputy-trigger aria-label="Ask Deputy" title="Ask Deputy">
+        <span data-i="sparkles"></span>
+      </button>
+      <button class="e7-create" data-action-launcher>
+        <span data-i="plus"></span><span class="e7-create-text">Create</span>
+      </button>
+      <button class="e7-persona" data-person-switch aria-label="Switch person: Ayu" aria-haspopup="menu" aria-expanded="false">
+        <span class="e7-avatar" data-person-avatar aria-hidden="true">A</span>
+        <span class="e7-persona-text"><span data-person-name>Ayu</span><span class="e7-persona-role" data-person-role>HQ Operations</span></span>
+      </button>
+    </header>
+
+    <aside class="e7-rail" aria-label="Primary navigation">
+      <nav id="e7-primary-nav" class="e7-rail-group" aria-label="Destinations"></nav>
+      <div id="e7-module-nav" class="e7-rail-modules"></div>
+      <nav id="e7-utility-nav" class="e7-rail-group e7-rail-utility" aria-label="Utilities"></nav>
+    </aside>
+
+    <main id="e7-main" class="e7-main" tabindex="-1"></main>
+
+    <nav class="e7-mobile-nav" aria-label="Mobile navigation">
+      <a href="#/home" data-nav="home"><span data-i="orient"></span><span>Home</span></a>
+      <a href="#/work" data-nav="work"><span data-i="work"></span><span>Work</span></a>
+      <a href="#/inbox" data-nav="inbox"><span data-i="inbox"></span><span>Inbox</span></a>
+      <button data-mobile-menu aria-haspopup="menu" aria-label="More destinations and modules"><span>More</span></button>
+    </nav>
+
+    <button class="e7-fab" data-action-launcher aria-label="Create">
+      <span data-i="plus"></span>
+    </button>
+  </div>
+
+  <!-- Shared right-panel host: Inbox quick triage, Deputy, and the single
+       stack-navigated record inspector. Never nested physical drawers. -->
+  <aside id="e7-panel-host" class="e7-panel-host" aria-live="polite" aria-hidden="true"></aside>
+  <div id="e7-scrim" class="e7-scrim" hidden></div>
+
+  <!-- Modal host: Action Launcher, command palette, confirmations, mobile menu. -->
+  <div id="e7-modal-host" class="e7-modal-host"></div>
+
+  <!-- Coverage / developer dialog host (hidden from the natural UI). -->
+  <div id="e7-coverage-host" hidden></div>
+
+  <div id="e7-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <noscript>
+    <div class="e7-noscript">
+      <h1>Gordi MOS — E7 prototype</h1>
+      <p>This prototype is an interactive ES-module application and requires JavaScript.
+         Static source, fixtures, and a coverage verifier ship alongside it; nothing is deployed.</p>
+    </div>
+  </noscript>
+
+  <script type="module" src="e7-app.js"></script>
+</body>
+</html>
