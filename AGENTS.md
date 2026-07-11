@@ -1,11 +1,25 @@
 # Gordi MOS — project instructions
 
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
-First slice: **task ownership + lightweight RACI + weekly updates + daily ops updates** for managers
-and selected ops users. Ships at `https://ops.gordi.id/mos`. Long-term aspiration (NOT first slice):
-Strategy → Objective → Outcome → Program/Process → Output → Task. Full product context:
-`docs/project-brief.md`. Phasing: `docs/roadmap.md`. **Usability and speed beat model completeness
-and Notion fidelity.**
+Ships at `https://ops.gordi.id/mos`. **Usability and speed beat model completeness and Notion fidelity.**
+
+> **Redesign is the current direction (2026-07-09/10).** A full IA/IxD/UI redesign was locked by the
+> owner — orient through **`docs/redesign-decision-index.md`**, then **ADR-0025**
+> (`docs/adr/0025-ia-modules-in-rail-redesign-direction.md`) and
+> **`docs/decisions.md` OD-REDESIGN-1..55**. Current product model/vocabulary is **`CONTEXT.md`**
+> (PIC + Supervisor Task ownership; Signal replacing Weekly Update/Daily Log; one record workspace;
+> modules-in-rail: Home · Work · Money · Inbox + Café/Ecommerce/Roastery). Canonical Phase-0 next step
+> = **update the redesign working set into one decision-complete prototype**
+> (`docs/design-mockups/redesign-mockups-2026-07/`)
+> to `docs/jtbd.md` v0.4 + its `PROTOTYPE-BRIEF.md` → owner approval → SDD → plan → TDD build →
+> review → BDD acceptance.
+>
+> The earlier **"first slice: task ownership + lightweight RACI + weekly updates + daily ops
+> updates"** framing (below and in `docs/project-brief.md`) is **pre-redesign history** — Task RACI,
+> Weekly Updates, and Daily Log are superseded; the app has never been used and a clean data baseline
+> is authorized in direction only (no reset/deploy is authorized by this note). **Everything else in
+> this file — the operating model, the per-issue loop, quality gates, checkpoints — is unchanged and
+> still binding.**
 
 ## Repo layout
 - `mos-app/` — the app (React 19 + Vite + TypeScript; scaffolded in Phase 1, NOT before). Run npm/vite here.
@@ -18,8 +32,9 @@ and Notion fidelity.**
 ## Operating model: Owner → Director → role agents
 The **owner** (Arief) talks to the **Director** (the main session). The Director runs an
 **issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**; pause for owner approval at issue boundaries and before any
-push / merge / deploy. Per-issue loop:
+Build **one issue at a time**. Routine worktree commits, branch pushes, and opening/updating a PR to
+`dev` do not require an approval pause; pause for owner approval at strategic issue boundaries and
+before merge or deploy. Per-issue loop:
 
 1. **Intake** — Director clarifies the issue with the owner. For architecturally-significant issues
    (schema, auth, cross-cutting), run a `grill-with-docs` session: grill the approach against
@@ -31,17 +46,21 @@ push / merge / deploy. Per-issue loop:
 5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (3-lens) for UI.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
-8. **Ship** — `release-engineer` (branch → commit → push → PR). Director merges.
+8. **Ship** — `release-engineer` (worktree branch → checkpoint commits → push → PR targeting `dev`).
+   Director merges only after the applicable approval gate.
 
-**Phase 0 exception (mockup-first):** before any app code, `design-architect` produces static HTML
-mockups in `docs/design-mockups/` (IA proposals + first-slice key screens) to the adopted `DESIGN.md`
-tokens. The owner's mockup pick is a **gate**: no scaffold, spec, or UI build until signed off.
+**Phase 0 exception (mockup-first):** before redesign implementation, `design-architect` produces one
+decision-complete interactive HTML prototype in `docs/design-mockups/` to the adopted `DESIGN.md`
+tokens. Earlier variants remain evidence only. The owner's prototype approval is a **gate**: no redesign
+spec or implementation proceeds until signed off. The existing app is legacy evidence, not authorization
+to skip this gate.
 
 ## Director posture (main session)
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
 ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
 prioritize simplicity. Build a production-grade MVP — minimal enough for a ~15-person rollout,
-architected so the larger MOS (objectives, programs, SWPs, RACI matrix) can grow into it without a rewrite.
+architected so the larger MOS (Objectives, Projects, Processes/Runs, Standards, Signals, Tasks, and
+role-scoped authorization) can grow without another IA rewrite.
 Detailed runbook: `docs/director-playbook.md`. UI/UX cycle: `docs/design-workflow.md`.
 Binding charter + per-layer Definition of Done: `docs/product-expectations.md`.
 
@@ -58,11 +77,23 @@ provider is unavailable — the loop is substrate-agnostic.
 - **Checkpoints:** the **owner** approves spec sign-off, Phase-0 mockup picks, and production deploy /
   irreversible infra; the **Director** approves merge-to-main within the signed spec and escalates
   anything strategic or out-of-spec.
-- **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
+- **PRs:** one per issue, targeting `dev`. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; **RLS on every business table**; `org_id` + app/workspace
   seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
-  source of truth; 3-lens design review before merging UI changes.
+  source of truth; four-lens design review before merging UI changes.
+
+## Git workflow (owner default)
+- Start every mutable issue in an isolated Git worktree on a named feature branch based on current
+  `dev`; never implement directly in the primary `main` or `dev` checkout. Codex-created branches use
+  the `codex/` prefix unless the issue already has an established branch name.
+- Commit after each coherent plan task or red-green-refactor checkpoint. Keep commits small, tested,
+  and reviewable; do not hold the entire issue as one final uncommitted change.
+- After the issue gates pass, push the branch and open or update its PR with base `dev` as the routine
+  completion path. Commit, push, and PR creation do not need separate owner approval.
+- Never merge or deploy without the applicable owner/Director checkpoint. Keep the worktree available
+  for review and follow-up until the PR is merged or explicitly abandoned.
+- Do not move unrelated dirty-checkout changes into an issue worktree or commit them with the issue.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
@@ -81,7 +112,7 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | Code review | superpowers spec + quality reviewers |
 | Design-system stewardship (`DESIGN.md`) + Phase-0 mockups | design-architect (impeccable, design-consultation) |
 | UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
-| Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
+| Four-lens UI review (Visual · IxD · IA · Product/JTBD) | design-reviewer (design-review, impeccable, taste) |
 | Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
 
 superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
