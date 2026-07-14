@@ -31,6 +31,7 @@
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
   --status-lost-text:   color(display-p3 0.2796 0.1396 0.0158); /* hsl(0 72% 45%)   */
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
+  --warning-foreground: color(display-p3 0.28 0.22 0.08);        /* hsl(28 80% 34%) — E7 deep brown */
 }
 
 .dark {
@@ -42,6 +43,7 @@
   --status-won-text:    color(display-p3 0.55 0.78 0.55);     /* green text on dark */
   --status-lost-text:   color(display-p3 0.92 0.60 0.60);     /* red text on dark */
   --status-violet-text: color(display-p3 0.70 0.62 1.0);      /* violet text on dark */
+  --warning-foreground: color(display-p3 0.85 0.75 0.45);     /* E7 dark mode: light amber-brown — AA on bright warning tint */
 }
 
 /* ── Layout geometry (raw px — layout dims, not colors; identical in both themes). */
@@ -64,8 +66,8 @@
      + brand-navy. The gradient is a SHEEN, not a new hue (One-Blue Rule preserved). */
   --gradient-primary-sheen: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--accent) 100%, white 3%) 0%,
-    var(--accent) 100%
+    hsl(225 75% 58%) 0%,
+    hsl(225 75% 52%) 100%
   );
   --gradient-surface-wash: linear-gradient(
     180deg,
@@ -75,9 +77,9 @@
 
   /* Scrim + popover shadow tokens — promote the raw literals the codemod replaces
      (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source. */
-  --scrim:           color-mix(in srgb, var(--ds-font-color-primary) 45%, transparent);
-  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent);
-  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+  --scrim:           color-mix(in srgb, var(--brand-navy) 32%, transparent);
+  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--brand-navy) 10%, transparent);
+  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--brand-navy) 16%, transparent);
 
   /* Faint brand-tinted lift on the primary action at rest (OD-P3-12) — the single
      source for the value .btn-primary inlines. Named so surfaces (e.g. the kitchen
@@ -88,8 +90,8 @@
      Previously referenced as --shadow-overlay but was undefined; defined here so
      overlays render with correct floating depth instead of flat. */
   --shadow-overlay:
-    0 10px 30px hsl(240 10% 8% / 0.16),
-    0 2px 6px hsl(240 10% 8% / 0.08);
+    0 10px 30px hsl(210 40% 24% / 0.16),
+    0 2px 6px hsl(210 40% 24% / 0.08);
 }
 
 /* ── Tailwind v4 theme mapping (ADR-0009 D3). Every --color-* utility resolves to
@@ -114,7 +116,7 @@
   --color-destructive:           var(--ds-color-red);
   --color-destructive-foreground:var(--ds-font-color-inverted);
   --color-warning:               var(--ds-color-amber);
-  --color-warning-foreground:    var(--status-lost-text);   /* AA-darkened amber text (kept token) */
+  --color-warning-foreground:    var(--warning-foreground);   /* AA-darkened amber text (E7 deep brown) */
   --color-success:               var(--ds-color-green);
   --color-success-foreground:    var(--ds-font-color-inverted);
   --color-border:                var(--border-medium);      /* Single-Border Rule: border == input */
@@ -177,14 +179,13 @@
   --destructive:           var(--ds-color-red);
   --destructive-foreground:var(--ds-font-color-inverted);
   --warning:               var(--ds-color-amber);
-  --warning-foreground:    var(--status-lost-text);
+  --warning-foreground:    color(display-p3 0.28 0.22 0.08); /* E7 deep brown — NOT --status-lost-text (that's the red bug, D-5) */
   --success:               var(--ds-color-green);
   --success-foreground:    var(--ds-font-color-inverted);
-  /* Controls/fields get a VISIBLE hairline (#d6d6d6); dividers/cards stay quiet
-     (#ebebeb). Splits the former Single-Border Rule for legibility — controls
-     are clearly bordered. Flagged for DESIGN.md ratification. */
+  /* Controls/fields get a VISIBLE hairline; dividers/cards stay quiet.
+     Single-Border Rule restored: border == input == --border-medium. */
   --border:                var(--border-medium);
-  --input:                 var(--border-strong);
+  --input:                 var(--border-medium);
   --ring:                  var(--ds-color-blue);
   --violet:                var(--ds-color-violet);
 }

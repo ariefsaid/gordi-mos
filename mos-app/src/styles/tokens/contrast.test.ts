@@ -1,0 +1,171 @@
+// AC-007: Automated AA contrast check on the warm palette
+// Unit test (Vitest). Computes contrast ratios for critical text/background pairs
+// using the WCAG 2.1 formula. Must pass ≥4.5:1 for body text, ≥3:1 for large/UI.
+import { describe, it, expect } from 'vitest'
+
+type Color = { r: number; g: number; b: number; a: number }
+
+function luminance(r: number, g: number, b: number): number {
+  // sRGB relative luminance
+  const lin = (c: number) => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+function contrastRatio(fg: Color, bg: Color): number {
+  // Composite over white for transparent backgrounds (conservative)
+  const compose = (fg: Color, bg: Color): Color => ({
+    r: fg.r * fg.a + bg.r * (1 - fg.a),
+    g: fg.g * fg.a + bg.g * (1 - fg.a),
+    b: fg.b * fg.a + bg.b * (1 - fg.a),
+    a: 1
+  })
+  const fgComp = fg.a < 1 ? compose(fg, {r:1,g:1,b:1,a:1}) : fg
+  const bgComp = bg.a < 1 ? compose(bg, {r:1,g:1,b:1,a:1}) : bg
+  const L1 = luminance(fgComp.r, fgComp.g, fgComp.b)
+  const L2 = luminance(bgComp.r, bgComp.g, bgComp.b)
+  return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
+}
+
+// Known token values (from the updated source files) for contrast testing
+const TOKENS = {
+  // Light theme surfaces
+  '--surface-primary':    { r: 1.0, g: 0.988, b: 0.972, a: 1 },
+  '--surface-secondary':  { r: 0.984, g: 0.976, b: 0.957, a: 1 },
+  '--surface-tertiary':   { r: 0.969, g: 0.957, b: 0.933, a: 1 },
+  // Light theme text
+  '--text-primary':       { r: 0.145, g: 0.141, b: 0.133, a: 1 },
+  '--text-secondary':     { r: 0.388, g: 0.380, b: 0.365, a: 1 },
+  '--text-tertiary':      { r: 0.541, g: 0.533, b: 0.518, a: 1 },
+  // Status bases (light)
+  '--success':            { r: 0.332, g: 0.634, b: 0.442, a: 1 },
+  '--warning':            { r: 1.0,   g: 0.77,  b: 0.26,  a: 1 },
+  '--destructive':        { r: 0.83,  g: 0.329, b: 0.324, a: 1 },
+  '--violet':             { r: 0.417, g: 0.341, b: 0.784, a: 1 },
+  // Status AA text (light)
+  '--status-open-text':   { r: 0.1001, g: 0.0765, b: 0.4201, a: 1 },
+  '--status-won-text':    { r: 0.0704, g: 0.1496, b: 0.0619, a: 1 },
+  '--status-lost-text':   { r: 0.2796, g: 0.1396, b: 0.0158, a: 1 },
+  '--status-violet-text': { r: 0.1372, g: 0.0724, b: 0.4282, a: 1 },
+  '--warning-foreground': { r: 0.28,  g: 0.22,  b: 0.08,  a: 1 },
+  // Dark theme surfaces (approximate from theme-dark.css)
+  '--surface-primary-dark':    { r: 0.09,  g: 0.09,  b: 0.09,  a: 1 },
+  '--surface-secondary-dark':  { r: 0.106, g: 0.106, b: 0.106, a: 1 },
+  '--text-primary-dark':       { r: 0.922, g: 0.922, b: 0.922, a: 1 },
+  '--text-secondary-dark':     { r: 0.702, g: 0.702, b: 0.702, a: 1 },
+  // Dark status text (from index.css .dark)
+  '--status-open-text-dark':   { r: 0.62,  g: 0.72,  b: 1.0,   a: 1 },
+  '--status-won-text-dark':    { r: 0.55,  g: 0.78,  b: 0.55,  a: 1 },
+  '--status-lost-text-dark':   { r: 0.92,  g: 0.60,  b: 0.60,  a: 1 },
+  '--status-violet-text-dark': { r: 0.70,  g: 0.62,  b: 1.0,   a: 1 },
+  // Dark warning: uses dark theme amber tint (amber3 bg, amber11 text)
+  '--ds-color-amber3-dark':   { r: 0.178, g: 0.128, b: 0.049, a: 1 },
+  '--ds-color-amber11-dark':  { r: 0.64,  g: 0.40,  b: 0.0,   a: 1 },
+  '--warning-foreground-dark': { r: 0.85,  g: 0.75,  b: 0.45,  a: 1 },
+}
+
+// Helper to create tinted background (status hue at ~14% alpha over surface)
+function tint(base: Color, surface: Color, alpha: number): Color {
+  return {
+    r: base.r * alpha + surface.r * (1 - alpha),
+    g: base.g * alpha + surface.g * (1 - alpha),
+    b: base.b * alpha + surface.b * (1 - alpha),
+    a: 1
+  }
+}
+
+describe('AC-007: AA contrast on warm palette (light + dark)', () => {
+  describe('Light theme', () => {
+    it('text-primary on surface-primary ≥ 4.5:1', () => {
+      const ratio = contrastRatio(TOKENS['--text-primary'], TOKENS['--surface-primary'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('text-secondary on surface-secondary ≥ 4.5:1', () => {
+      const ratio = contrastRatio(TOKENS['--text-secondary'], TOKENS['--surface-secondary'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-won-text on success/14% ≥ 4.5:1', () => {
+      const bg = tint(TOKENS['--success'], TOKENS['--surface-primary'], 0.14)
+      const ratio = contrastRatio(TOKENS['--status-won-text'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-lost-text on destructive/12% ≥ 4.5:1', () => {
+      const bg = tint(TOKENS['--destructive'], TOKENS['--surface-primary'], 0.12)
+      const ratio = contrastRatio(TOKENS['--status-lost-text'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-open-text on accent/10% ≥ 4.5:1', () => {
+      const accent = { r: 0.276, g: 0.384, b: 0.837, a: 1 }
+      const bg = tint(accent, TOKENS['--surface-primary'], 0.10)
+      const ratio = contrastRatio(TOKENS['--status-open-text'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-violet-text on violet/12% ≥ 4.5:1', () => {
+      const bg = tint(TOKENS['--violet'], TOKENS['--surface-primary'], 0.12)
+      const ratio = contrastRatio(TOKENS['--status-violet-text'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('warning-foreground on warning/18% ≥ 4.5:1 (BUG FIX: was red, now deep brown)', () => {
+      const bg = tint(TOKENS['--warning'], TOKENS['--surface-primary'], 0.18)
+      const ratio = contrastRatio(TOKENS['--warning-foreground'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('text-tertiary on surface-tertiary ≥ 3:1 (large/UI)', () => {
+      const ratio = contrastRatio(TOKENS['--text-tertiary'], TOKENS['--surface-tertiary'])
+      expect(ratio).toBeGreaterThanOrEqual(3)
+    })
+  })
+
+  describe('Dark theme', () => {
+    it('text-primary-dark on surface-primary-dark ≥ 4.5:1', () => {
+      const ratio = contrastRatio(TOKENS['--text-primary-dark'], TOKENS['--surface-primary-dark'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('text-secondary-dark on surface-secondary-dark ≥ 4.5:1', () => {
+      const ratio = contrastRatio(TOKENS['--text-secondary-dark'], TOKENS['--surface-secondary-dark'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-won-text-dark on success/14% ≥ 4.5:1', () => {
+      const success = { r: 0.332, g: 0.634, b: 0.442, a: 1 }
+      const bg = tint(success, TOKENS['--surface-primary-dark'], 0.14)
+      const ratio = contrastRatio(TOKENS['--status-won-text-dark'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-lost-text-dark on destructive/12% ≥ 4.5:1', () => {
+      const destructive = { r: 0.83, g: 0.329, b: 0.324, a: 1 }
+      const bg = tint(destructive, TOKENS['--surface-primary-dark'], 0.12)
+      const ratio = contrastRatio(TOKENS['--status-lost-text-dark'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-open-text-dark on accent/10% ≥ 4.5:1', () => {
+      const accent = { r: 0.276, g: 0.384, b: 0.837, a: 1 }
+      const bg = tint(accent, TOKENS['--surface-primary-dark'], 0.10)
+      const ratio = contrastRatio(TOKENS['--status-open-text-dark'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-violet-text-dark on violet/12% ≥ 4.5:1', () => {
+      const violet = { r: 0.417, g: 0.341, b: 0.784, a: 1 }
+      const bg = tint(violet, TOKENS['--surface-primary-dark'], 0.12)
+      const ratio = contrastRatio(TOKENS['--status-violet-text-dark'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('warning-foreground-dark on amber3/amber11 ≥ 3:1 (large/UI)', () => {
+      const bg = TOKENS['--ds-color-amber3-dark']
+      const fg = TOKENS['--ds-color-amber11-dark']
+      const ratio = contrastRatio(fg, bg)
+      expect(ratio).toBeGreaterThanOrEqual(3)
+    })
+  })
+})

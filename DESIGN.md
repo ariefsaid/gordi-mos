@@ -5,33 +5,33 @@ description: The owner-approved "Quiet Control Surface" — calm, dense, data-fi
 colors:
   # --- Surfaces / action (oklch = linter-parseable wide-gamut form; runtime is color(display-p3 …)) ---
   primary: "oklch(0.546 0.2153 262.8719)"        # The One Blue — action/ring
-  background: "oklch(1 0 89.8756)"                # pure white canvas (light theme)
-  foreground: "oklch(0.1405 0.0044 285.8238)"     # near-black primary text
-  card: "oklch(1 0 89.8756)"                      # elevated surface (== background in light)
-  card-foreground: "oklch(0.1405 0.0044 285.8238)"
-  popover: "oklch(1 0 89.8756)"
-  popover-foreground: "oklch(0.1405 0.0044 285.8238)"
+  background: "oklch(0.994 0.002 85.0)"           # warm white canvas (light theme)
+  foreground: "oklch(0.145 0.004 30.0)"           # warm near-black primary text
+  card: "oklch(0.994 0.002 85.0)"                 # elevated surface (== background in light)
+  card-foreground: "oklch(0.145 0.004 30.0)"
+  popover: "oklch(0.994 0.002 85.0)"
+  popover-foreground: "oklch(0.145 0.004 30.0)"
   primary-foreground: "oklch(0.9848 0 89.8756)"   # near-white on solid blue
   # --- Quiet UI ---
-  secondary: "oklch(0.9676 0.0013 286.3752)"      # light cool grey — quiet fills
-  secondary-foreground: "oklch(0.2103 0.0059 285.8835)"
-  muted: "oklch(0.9676 0.0013 286.3752)"          # == secondary (shadcn convention)
-  muted-foreground: "oklch(0.4987 0.0128 285.925)" # darkened ~40% L so muted text clears AA on secondary fills
-  accent: "oklch(0.9676 0.0013 286.3752)"         # shadcn "accent" = quiet hover wash (NOT the blue)
-  accent-foreground: "oklch(0.2103 0.0059 285.8835)"
+  secondary: "oklch(0.976 0.002 38.0)"            # warm subtle panels
+  secondary-foreground: "oklch(0.210 0.006 30.0)"
+  muted: "oklch(0.976 0.002 38.0)"                # == secondary (shadcn convention)
+  muted-foreground: "oklch(0.388 0.012 30.0)"     # darkened ~40% L so muted text clears AA on secondary fills
+  accent: "oklch(0.976 0.002 38.0)"               # shadcn "accent" = quiet hover wash (NOT the blue)
+  accent-foreground: "oklch(0.210 0.006 30.0)"
   # --- Status / semantic ---
   destructive: "oklch(0.6368 0.2078 25.3259)"     # errors, destructive button, "lost"
   destructive-foreground: "oklch(0.9848 0 89.8756)"
   warning: "oklch(0.8334 0.1641 83.8666)"         # amber — aging/overdue caution
-  warning-foreground: "oklch(0.4096 0.1037 46.3142)" # deep brown — AA on amber tints
+  warning-foreground: "oklch(0.28 0.10 28.0)"    # deep brown — AA on amber tints
   success: "oklch(0.7205 0.192 149.4926)"         # green — "won"/positive
   success-foreground: "oklch(0.9848 0 89.8756)"
   # --- Lines / fields / focus ---
-  border: "oklch(0.9197 0.004 286.32)"            # Single-Border Rule: border == input
-  input: "oklch(0.9197 0.004 286.32)"
-  ring: "oklch(0.546 0.2153 262.8719)"            # focus ring == The One Blue
+  border: "oklch(0.922 0.004 38.0)"              # Single-Border Rule: border == input
+  input: "oklch(0.922 0.004 38.0)"
+  ring: "oklch(0.546 0.2153 262.8719)"           # focus ring == The One Blue
   # --- Categorical accent (non-interactive) ---
-  violet: "oklch(0.5424 0.2454 293.016)"          # KPI/timeline only — never action
+  violet: "oklch(0.5424 0.2454 293.016)"         # KPI/timeline only — never action
   # --- Gordi brand (OD-P3-7 — first owner-approved divergence) ---
   brand-navy: "oklch(0.3154 0.0639 260.7289)"     # structural weight; NOT an action color
   brand-navy-text: "oklch(0.3527 0.0672 260.7809)" # AA text/label on white (≥7:1)
@@ -266,7 +266,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only. *Note: Task status chips use an 8px dot (bumped from 6px for WCAG 1.4.1 visibility) + always-present text label (never dot-only) so status stays perceivable when grouping ≠ Status — see §5 Badges.*
 
-**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead.
+**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead. *(Restored in Step-1 styling pass OD-P3-13 — previously split for control visibility.)*
 
 **The Structural-Navy Rule (OD-P3-7).** `brand-navy` carries *structural* weight the lone action-blue must not: the logo square + dot, the active nav indicator (inset-shadow rail marker), the group-by control, the drawer's active-tab underline, the avatar gradient (`navy → primary`), and the navy tint behind the OD-P3-12 gradients. It is **never** an action color (no buttons, no links) and **never** a status. The One-Blue Rule is preserved — `primary` blue remains the *only* interactive/action color.
 
@@ -601,6 +601,7 @@ not identity; everything in "KEEP UNCHANGED" below is untouched.
 | **OD-P3-10** | `--radius` **0.5rem → 0.75rem (12px)** for cards/containers/overlays. **Controls stay tight at 8px** (`calc(var(--radius) - 4px)`) — taste guard against bubbly 32px controls. `rounded` scale recomputed (xs 4 / sm 8 / md 10 / lg 12 / full 999). | `--radius`; `rounded.*`; `card`/`kanban-card`/`input`/button/nav radii in components frontmatter; §5 per-component radius notes; `@theme inline` radius scale (note 3) |
 | **OD-P3-11** | **Soft-Elevation Rule** amends the former Flat-By-Default Rule: ONE subtle resting shadow now permitted on cards/KPI/kanban (co-equal with the border), shadow-soup still banned. New `shadows.rest` token (faintly navy-tinted near-black, ≤0.06 total alpha). | new `shadows.rest`; `card`/`kanban-card` `shadow`; §4 rule rewrite; §6 Don'ts; implementer note 5 |
 | **OD-P3-12** | **Restrained-Gradient Rule**: two navy-tinted gradients only — an optional primary-button sheen (same blue) and a faint home/digest surface wash. NEVER purple, never on status, AA verified across range. | new `gradients.primary-sheen` + `gradients.surface-wash`; §4b new section; One-Blue / Structural-Navy rules; §6 Do/Don't; implementer note 6 |
+| **OD-P3-13** | **Step-1 redesign styling pass**: warm neutrals, brighter action blue, navy-tinted shadows, AA status text — token values aligned to E7 reference. Restored Single-Border Rule (field border == divider). Fixed `--warning-foreground` bug (was red, now deep brown). | `--ds-background-*`, `--ds-font-color-*`, `--ds-border-color-*`, `--ds-color-blue*`, `--ds-color-green/red/amber/violet`, `--brand-navy`, `--brand-orange`, `--status-*-text`, `--warning-foreground`, `--shadow-overlay`, `--scrim`, `--shadow-popover`, `--shadow-drawer`, `--gradient-primary-sheen`, `--gradient-surface-wash`, `--radius-lg` |
 
 **KEEP UNCHANGED (owner: "keep the rest").** The One Blue Rule (blue stays the only action color;
 accent hue is NOT changing to the demo's indigo-violet), the near-monochrome palette, the

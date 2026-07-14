@@ -29,12 +29,14 @@
   --border-light: var(--ds-border-color-light);
   --border-accent: var(--ds-border-color-blue);
   --border-danger: var(--ds-border-color-danger);
+  --input: var(--border-medium);
 
   /* ---- Accent (indigo) ---- */
   --accent: var(--ds-color-blue);          /* primary brand action */
   --accent-hover: var(--ds-color-blue10);
-  --accent-active: var(--ds-color-blue12);
-  --accent-subtle: var(--ds-accent-tertiary);
+  --accent-active: var(--ds-color-blue11);
+  --accent-subtle: color(display-p3 0.276 0.384 0.837 / 0.10);
+  --accent-tint: color(display-p3 0.276 0.384 0.837 / 0.14);
 
   /* ---- Radii ---- */
   --radius-xs: var(--ds-border-radius-xs);   /* 2px */
