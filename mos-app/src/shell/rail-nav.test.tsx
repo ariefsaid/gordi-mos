@@ -22,7 +22,7 @@ function setAuthAs(accessRoles: string[] = []) {
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: null, name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
+      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles,
     },
@@ -98,10 +98,10 @@ describe('AC-011: Rail structure — Workspace · Modules · Utility (admin)', (
     expect(workLink).toBeInTheDocument()
   })
 
-  it('AC-013: profile footer row shows avatar + role and links to /profile', () => {
+  it('AC-013: profile footer row shows the exact site+role shape and links to /profile', () => {
     setAuthAs(['admin'])
     renderRailNav('/work/tasks')
-    const profileLink = screen.getByRole('link', { name: /Personal Profile|Cahya/ })
+    const profileLink = screen.getByRole('link', { name: /^Café Barista$/i })
     expect(profileLink).toHaveAttribute('href', '/profile')
   })
 

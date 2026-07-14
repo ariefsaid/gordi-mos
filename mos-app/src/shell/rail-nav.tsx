@@ -18,6 +18,16 @@ function getInitials(fullName: string): string {
   return (first + second).toUpperCase()
 }
 
+function resolveViewerSite(roleName: string | undefined, accessRoles: readonly string[]): string {
+  const role = roleName?.toLowerCase() ?? ''
+  if (role.includes('barista') || role.includes('cafe')) return 'Café'
+  if (role.includes('roast')) return 'Roastery'
+  if (role.includes('ecom')) return 'Ecommerce'
+  if (role.includes('finance')) return 'Finance'
+  if (accessRoles.includes('admin')) return 'Admin'
+  return 'Team'
+}
+
 const itemBase = (isActive: boolean) =>
   [
     'flex items-center gap-[10px] rounded-sm px-2 no-underline text-sm',
@@ -102,6 +112,8 @@ export function RailNav({ onNavigate }: RailNavProps) {
   const fullName = viewer?.person.full_name ?? ''
   const initials = getInitials(fullName)
   const roleLabel = viewer?.roles[0]?.name
+  const siteLabel = resolveViewerSite(roleLabel, accessRoles)
+  const footerIdentity = roleLabel ? `${siteLabel} ${roleLabel}` : siteLabel
 
   return (
     <>
@@ -165,7 +177,7 @@ export function RailNav({ onNavigate }: RailNavProps) {
         ))}
       </nav>
 
-      {/* Profile footer row — avatar + name/role + chevron, links to /profile (AC-013).
+      {/* Profile footer row — avatar + {Site} {role} + chevron, links to /profile (AC-013).
           Always present for a signed-in viewer (gated only by authentication). */}
       {viewer && (
         <div className="px-2 pb-1">
@@ -188,14 +200,9 @@ export function RailNav({ onNavigate }: RailNavProps) {
               {initials}
             </span>
             <span className="flex-1 min-w-0 text-left">
-              <span className="block truncate font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }} title={fullName}>
-                {fullName}
+              <span className="block truncate font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }} title={footerIdentity}>
+                {footerIdentity}
               </span>
-              {roleLabel && (
-                <span className="block truncate text-muted-foreground" style={{ fontSize: 11 }}>
-                  {roleLabel}
-                </span>
-              )}
             </span>
             <Chevron className="rotate-[-90deg] text-muted-foreground" />
           </NavLink>
