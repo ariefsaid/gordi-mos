@@ -26,6 +26,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 const BASE_PROPS: MobileGroupedCardsProps = {
+  recordSearch: '',
   groups: [
     {
       key: 'Open',
@@ -143,5 +144,20 @@ describe('MobileGroupedCards', () => {
     renderCards()
     const cards = document.querySelectorAll('[data-testid="task-card"]')
     expect(cards.length).toBe(2)
+  })
+
+  it('task-card open link preserves ?view=overdue', () => {
+    renderCards({
+      recordSearch: '?view=overdue',
+      groups: [{
+        key: '__flat__',
+        label: 'Tasks',
+        rows: [makeTask({ id: 'task-9', title: 'Overdue card task' })],
+        overdue: 0,
+        prefillParam: '',
+      }],
+    })
+    const cardLink = screen.getByRole('link', { name: /overdue card task/i })
+    expect(cardLink.getAttribute('href')).toBe('/work/tasks/task-9?view=overdue')
   })
 })

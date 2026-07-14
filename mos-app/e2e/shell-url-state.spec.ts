@@ -1,6 +1,17 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+
+async function createOverdueTask(page: Page, title: string) {
+  await page.goto('work/tasks?view=mine')
+  await page.getByRole('link', { name: /new task/i }).first().click()
+  await expect(page).toHaveURL(/\/work\/tasks\/new\?view=mine$/)
+  const form = page.getByRole('form', { name: /create task form/i })
+  await form.getByLabel('Title').fill(title)
+  await form.getByLabel('Due date').fill('2020-01-01')
+  await form.getByRole('button', { name: /create task/i }).click()
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=mine$/, { timeout: 15_000 })
+}
 
 test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, cancel, and create', async ({ page, context }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
@@ -26,14 +37,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=mine$/, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: mineTitle })).toBeVisible()
 
-  await page.goto('work/tasks?view=mine')
-  await page.getByRole('link', { name: /new task/i }).first().click()
-  await expect(page).toHaveURL(/\/work\/tasks\/new\?view=mine$/)
-  const overdueForm = page.getByRole('form', { name: /create task form/i })
-  await overdueForm.getByLabel('Title').fill(overdueTitle)
-  await overdueForm.getByLabel('Due date').fill('2020-01-01')
-  await overdueForm.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=mine$/, { timeout: 15_000 })
+  await createOverdueTask(page, overdueTitle)
 
   await page.goto('work/tasks?view=mine')
   await page.getByRole('link', { name: /new task/i }).first().click()
@@ -70,4 +74,60 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await expect(secondPage).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
   await expect(secondPage.getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(secondPage.getByRole('heading', { name: overdueTitle })).toBeVisible({ timeout: 15_000 })
+})
+
+test('AC-307: task-name link keeps ?view=overdue across open and refresh', async ({ page }) => {
+  await loginAs(page, VIEWER.email, VIEWER.password)
+  const title = `URL name-link ${Date.now()}`
+  await createOverdueTask(page, title)
+
+  await page.goto('work/tasks?view=overdue')
+  await expect(page.getByRole('link', { name: title })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('link', { name: title }).click()
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: title })).toBeVisible()
+
+  await page.reload()
+  await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+  await expect(page.getByRole('heading', { name: title })).toBeVisible()
+})
+
+test('AC-307: row-menu Open keeps ?view=overdue across open and refresh', async ({ page }) => {
+  await loginAs(page, VIEWER.email, VIEWER.password)
+  const title = `URL row-menu ${Date.now()}`
+  await createOverdueTask(page, title)
+
+  await page.goto('work/tasks?view=overdue')
+  const row = page.locator('tr.task-row', { hasText: title }).first()
+  await expect(row).toBeVisible({ timeout: 15_000 })
+  await row.hover()
+  await row.getByRole('button', { name: /row actions/i }).click()
+  await page.getByRole('menuitem', { name: /open/i }).click()
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: title })).toBeVisible()
+
+  await page.reload()
+  await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+  await expect(page.getByRole('heading', { name: title })).toBeVisible()
+})
+
+test.describe('AC-307 mobile', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('mobile card open keeps ?view=overdue across open and refresh', async ({ page }) => {
+    await loginAs(page, VIEWER.email, VIEWER.password)
+    const title = `URL mobile-card ${Date.now()}`
+    await createOverdueTask(page, title)
+
+    await page.goto('work/tasks?view=overdue')
+    const cardLink = page.getByRole('link', { name: new RegExp(title) }).first()
+    await expect(cardLink).toBeVisible({ timeout: 15_000 })
+    await cardLink.click()
+    await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
+    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+
+    await page.reload()
+    await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+  })
 })

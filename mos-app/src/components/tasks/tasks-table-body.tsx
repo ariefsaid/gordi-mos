@@ -94,6 +94,7 @@ export type TasksTableBodyProps = {
 
   // ── Mobile grouped cards ──────────────────────────────────────────────────
   groups: RenderGroup[]
+  recordSearch: string
   now: Date
   buMap: Map<string, string>
   personMap: Map<string, string>
@@ -118,7 +119,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     sortCol, onSort, ariaSort, sortIndicator,
     allChecked, someChecked, onToggleSelectAll,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
-    groups, now, buMap, personMap, isCollapsed, toggleCollapsed,
+    groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly, buildOthers,
     workLineMap, objectiveMap, workloadSummary, createHref,
   } = props
@@ -173,6 +174,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     return (
       <MobileGroupedCards
         groups={groups}
+        recordSearch={recordSearch}
         now={now}
         buMap={buMap}
         personMap={personMap}

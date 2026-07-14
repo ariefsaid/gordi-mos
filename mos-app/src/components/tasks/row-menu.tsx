@@ -13,9 +13,10 @@ import { Link } from 'react-router-dom'
 
 export type RowMenuProps = {
   taskId: string
+  recordSearch?: string
 }
 
-export function RowMenu({ taskId }: RowMenuProps) {
+export function RowMenu({ taskId, recordSearch = '' }: RowMenuProps) {
   const [open, setOpen] = useState(false)
   return (
     <span className="row-menu-wrap">
@@ -33,7 +34,7 @@ export function RowMenu({ taskId }: RowMenuProps) {
       </button>
       {open && (
         <span role="menu" className="row-menu-pop" aria-label={`Row actions for task ${taskId}`}>
-          <Link to={`/work/tasks/${taskId}`} role="menuitem" className="row-menu-item" onClick={(e) => { e.stopPropagation(); setOpen(false) }}>
+          <Link to={{ pathname: `/work/tasks/${taskId}`, search: recordSearch }} role="menuitem" className="row-menu-item" onClick={(e) => { e.stopPropagation(); setOpen(false) }}>
             Open
           </Link>
         </span>

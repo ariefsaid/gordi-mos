@@ -43,6 +43,7 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   onCheck: () => {},
   workLineName: '',
   objectiveName: '',
+  recordSearch: '',
   ...overrides,
 })
 
@@ -55,11 +56,11 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
 }
 
 describe('TaskRow — AC-T03 name cell is a Chip-link to /tasks/:id', () => {
-  it('AC-T03: name is a real <a> whose href ends /tasks/:id and carries title', () => {
-    renderRow()
+  it('AC-T03: name link preserves ?view= on open-in-new-tab-safe hrefs', () => {
+    renderRow({ recordSearch: '?view=overdue' })
     const link = screen.getByRole('link', { name: /Finalise Q3 roastery output forecast/i })
     expect(link.tagName).toBe('A')
-    expect(link.getAttribute('href')).toBe('/work/tasks/task-7')
+    expect(link.getAttribute('href')).toBe('/work/tasks/task-7?view=overdue')
     // truncate + title (no-bleed: identity string ellipsizes + carries title)
     expect(link.getAttribute('title')).toBe('Finalise Q3 roastery output forecast')
   })
@@ -71,9 +72,9 @@ describe('TaskRow — AC-T03 name cell is a Chip-link to /tasks/:id', () => {
 
   it('AC-T03: name link is a real href anchor (middle-click / open-in-new-tab)', () => {
     const onOpen = vi.fn()
-    renderRow({ onOpen })
+    renderRow({ onOpen, recordSearch: '?view=overdue' })
     const link = screen.getByRole('link', { name: /Finalise Q3/i })
-    expect(link.getAttribute('href')).toBe('/work/tasks/task-7')
+    expect(link.getAttribute('href')).toBe('/work/tasks/task-7?view=overdue')
     expect(document.querySelector('tr.task-row')).toBeTruthy()
   })
 

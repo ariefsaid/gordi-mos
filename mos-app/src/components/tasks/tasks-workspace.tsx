@@ -557,6 +557,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         onCheck={() => toggleSelected(task.id)}
         workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
         objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+        recordSearch={currentSearch}
       />
     )
   }
@@ -704,6 +705,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             renderRow={renderRow}
             renderGroupHeader={renderGroupHeader}
             groups={groups}
+            recordSearch={currentSearch}
             now={now}
             buMap={buMap}
             personMap={personMap}

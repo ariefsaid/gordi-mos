@@ -8,10 +8,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { RowMenu } from './row-menu'
 
-function renderMenu(taskId = 'task-7') {
+function renderMenu(taskId = 'task-7', recordSearch = '') {
   return render(
     <MemoryRouter>
-      <RowMenu taskId={taskId} />
+      <RowMenu taskId={taskId} recordSearch={recordSearch} />
     </MemoryRouter>,
   )
 }
@@ -38,12 +38,12 @@ describe('RowMenu — AC-T02 reveal + actions', () => {
     expect(css).toContain('tr:focus-within .row-menu')
   })
 
-  it('opens a menu with an "Open" item linking to /tasks/:id', () => {
-    renderMenu('task-7')
+  it('opens a menu with an "Open" item linking to /tasks/:id?view=overdue', () => {
+    renderMenu('task-7', '?view=overdue')
     // initially no Open link
     expect(screen.queryByRole('menuitem', { name: /open/i })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /row actions/i }))
     const openItem = screen.getByRole('menuitem', { name: /open/i })
-    expect(openItem.getAttribute('href')).toBe('/work/tasks/task-7')
+    expect(openItem.getAttribute('href')).toBe('/work/tasks/task-7?view=overdue')
   })
 })

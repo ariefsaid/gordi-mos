@@ -42,12 +42,14 @@ export type TaskRowProps = {
   workLineName: string
   /** Resolved objective name (from the objectiveMap). Empty string → "—" rendered. */
   objectiveName: string
+  /** Active location.search to preserve the saved view on every record-open path. */
+  recordSearch?: string
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
   buName, ownerName, others, onOpen, checked, onCheck,
-  workLineName, objectiveName,
+  workLineName, objectiveName, recordSearch = '',
 }: TaskRowProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
@@ -60,6 +62,7 @@ export function TaskRow({
       : formatDate(task.due_date))
     : '—'
   const isArchived = task.archived_at != null
+  const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
 
   return (
     <tr
@@ -79,7 +82,7 @@ export function TaskRow({
       </td>
       <td className="td-main">
         <Link
-          to={`/work/tasks/${task.id}`}
+          to={recordTo}
           className="task-row-link name-chip"
           title={task.title}
           tabIndex={0}
@@ -113,7 +116,7 @@ export function TaskRow({
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
       {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
       <td className="td-cell td-menu">
-        <RowMenu taskId={task.id} />
+        <RowMenu taskId={task.id} recordSearch={recordSearch} />
       </td>
     </tr>
   )

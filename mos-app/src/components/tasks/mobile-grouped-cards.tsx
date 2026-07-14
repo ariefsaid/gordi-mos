@@ -42,6 +42,8 @@ function MobileWorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
 
 export type MobileGroupedCardsProps = {
   groups: MobileRenderGroup[]
+  /** Active location.search to preserve the saved view on every record-open path. */
+  recordSearch?: string
   now: Date
   buMap: Map<string, string>
   personMap: Map<string, string>
@@ -65,9 +67,10 @@ type TaskCardProps = {
   others: OwnerCellRaciMember[]
   workLineName: string
   objectiveName: string
+  recordSearch?: string
 }
 
-function TaskCard({ task, now, buName, rName, others, workLineName, objectiveName }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, others, workLineName, objectiveName, recordSearch = '' }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
@@ -81,7 +84,7 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
 
   return (
     <article data-testid="task-card" className="task-card">
-      <Link to={`/work/tasks/${task.id}`} className="task-card-link">
+      <Link to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }} className="task-card-link">
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">Archived</span>}
           <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
@@ -129,7 +132,7 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
  * CSS: uses the existing .mgc-* classes from TasksWorkspace.css.
  */
 export function MobileGroupedCards({
-  groups, now, buMap, personMap,
+  groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly, buildOthers,
   workLineMap, objectiveMap,
 }: MobileGroupedCardsProps) {
@@ -149,6 +152,7 @@ export function MobileGroupedCards({
               others={buildOthers(task)}
               workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
               objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+              recordSearch={recordSearch}
             />
           </div>
         ))}
@@ -206,6 +210,7 @@ export function MobileGroupedCards({
                 others={buildOthers(task)}
                 workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
                 objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+                recordSearch={recordSearch}
               />
             </div>
           ))}
