@@ -7,7 +7,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
-import { SHOW_ASSISTANT, SHOW_INBOX } from '../src/config/features'
+import { SHOW_ASSISTANT } from '../src/config/features'
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -21,7 +21,6 @@ async function unreadCount(page: Page): Promise<number> {
 
 test.beforeEach(() => {
   test.skip(!SHOW_ASSISTANT, 'Assistant is flag-hidden (config/features.ts SHOW_ASSISTANT)')
-  test.skip(!SHOW_INBOX, 'Inbox is flag-hidden (config/features.ts SHOW_INBOX)')
   test.skip(
     process.env.MOS_P3A_LIVE_E2E !== '1',
     'P3a Inbox replay e2e is live-model gated; set MOS_P3A_LIVE_E2E=1 after model secrets are configured',

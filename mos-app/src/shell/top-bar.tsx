@@ -135,9 +135,9 @@ function AssistantTopBarButton() {
   )
 }
 
-// The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Rendered only
-// when SHOW_INBOX, so the fetch never fires while the feature is hidden. Uses the dedicated
-// useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
+// The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Inbox is
+// always live (Step 2, D-1). Uses the dedicated useUnreadCount hook (CQ#2) so the badge is backed
+// by the unread-only index, not the full list.
 function NotificationBell() {
   const navigate = useNavigate()
   const { unreadCount } = useUnreadCount()
