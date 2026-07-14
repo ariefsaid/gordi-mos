@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
 import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
-import { SHOW_ASSISTANT, SHOW_INBOX } from '@/config/features'
+import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { useNavigate } from 'react-router-dom'
@@ -279,26 +279,12 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           </button>
         )}
 
-        {/* Deputy launcher (T28) — neutral header icon on every viewport, next to the search
-            affordance (no floating orange FAB — DESIGN.md No-FAB Rule). Absent when SHOW_ASSISTANT=false. */}
-        {SHOW_ASSISTANT && <AssistantTopBarButton />}
+        {/* Inbox bell — always live (SHOW_INBOX retired, D-1). A live Inbox link + unread badge. */}
+        <NotificationBell />
 
-        {/* Notification bell — a live Inbox link + unread badge when SHOW_INBOX (T16); the
-            disabled "coming soon" stub otherwise (AC-S07, ADR-0013 D1). */}
-        {SHOW_INBOX ? (
-          <NotificationBell />
-        ) : (
-          <button
-            type="button"
-            aria-label="Notifications"
-            title="Notifications — coming soon"
-            disabled
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm text-muted-foreground"
-            style={{ width: 32, height: 32 }}
-          >
-            <BellIcon />
-          </button>
-        )}
+        {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).
+            Absent when SHOW_ASSISTANT=false. */}
+        {SHOW_ASSISTANT && <AssistantTopBarButton />}
 
         {/* User chip — avatar-only at <920px (FR-020); name/role show on wider viewports (AC-S08) */}
         <UserChip variant="header" compact={isNarrow} />
