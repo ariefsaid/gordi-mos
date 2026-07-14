@@ -186,6 +186,9 @@ contact Arief"); no auto-created directory rows (consistent with closing audit M
 
 ## OD-P2-OPS — Ops Log (daily ops, P2-3) — LOCKED 2026-06-12, schema-confirmed with owner
 
+> **SUPERSEDED 2026-07-10 by OD-REDESIGN-33 / ADR-0025 D20.** Retained as shipped implementation
+> history; Signal replaces this entity/feed in the clean redesign baseline.
+
 Feature P2-3, the `ops.log_entries` entity (generic typed log, manual entry; kitchen/roastery mirror
 deferred to P2-4). Anchored to mock-daily-ops-feed.html, OD-P0-8 (My Week ops strip), OD-P1-3 (read),
 WALL-4 (generic, low-stakes until an external writer exists).
@@ -223,6 +226,10 @@ created_by stamped server-side); edit/archive gated to author-or-manager; cross-
 
 ## OD-P2-WU — Weekly updates (LOCKED 2026-06-11, grill-with-docs session #3)
 
+> **SUPERSEDED 2026-07-10 by OD-REDESIGN-33 / ADR-0025 D20.** Retained as implementation history only;
+> the clean redesign baseline removes mandatory Weekly Updates in favor of generated summaries over
+> real work and Signals.
+
 Feature P2-2, the `mos.weekly_updates` entity. Anchored to mock-weekly-update.html, OD-P0-1
 (per-person), OD-P0-9 (person-keyed change from Notion project-keyed), OD-P1-3 (upward-only read) /
 OD-P1-4 (Mon–Sun WIB week) / OD-P1-7 (union manager chain).
@@ -256,6 +263,11 @@ strip). Email/push **reminders are deferred** to a later notification issue — 
 ---
 
 ## OD-P2 — Tasks + lightweight RACI (LOCKED 2026-06-11, grill-with-docs session #2)
+
+> **Partially superseded by OD-REDESIGN-3 (2026-07-10).** The shipped database/RLS still uses legacy
+> responsible/accountable columns, so the historical storage and permission decisions below remain
+> evidence until a reversible compatibility migration is planned. Future product language, specs, and
+> APIs use canonical **PIC + Supervisor**; Tasks have no C/I; RACI is reserved for Objective/Project/Process.
 
 Feature: P2-1, the core `mos.tasks` entity. Anchored to the IA-8 task-list + task-detail mockups,
 OD-DIR-5 (RACI as fields), OD-P0-8/9, OD-P1-3 (read posture) / OD-P1-7 (union manager chain).
@@ -666,10 +678,10 @@ and daily recurring work both tie to the goals they serve and a person's effort 
   "Project" shape is superseded.
 - **Six-level model is canonical vocabulary** (`CONTEXT.md` § Cascade); **build 3 tables now** (Objective ·
   Initiative · Task); Strategy/Outcome/Output stay additive concepts.
-- **Topology rule:** Task→Initiative is direct and permanent; deferred layers (esp. Output) hang
-  off-the-side, never inserted-between → no rebuild later. A/R ownership designed into every cascade
-  layer (RACI-on-task stops being the headline).
-- **Daily Log is NOT folded in** — it stays the factual feed; load reads from Process/Program ownership.
+- **Topology rule (amended):** a Task may link directly to Project/Process; deferred layers (especially
+  Output) hang off-the-side, never inserted-between. Ad-hoc Tasks may remain unparented; generated Run
+  Tasks require their source. A/R ownership remains on the higher cascade layers.
+- **Signal is not folded into the cascade** — it stays the factual layer; required action links a Task.
 - **Measure v1 = structural load** (Programs/Processes a person is A/R on, by lane); weekly-Output and/or
   duration deferred.
 Full rationale + the "why 6 not 3" + the additive-vs-rebuild design: **ADR-0014**. Open: entity name
@@ -802,17 +814,17 @@ the AR bridge**. Sequencing: Home v1 + margin read-model → port (ESB spike par
 the live management-week validation) → AR bridge → Plan/reference data → activity roll-ins. Full spine:
 `docs/adr/0019-ia-north-star.md`. Status: Accepted (owner, 2026-07-04, grill-with-docs).
 
-### OD-IA-2 — Capability authorization: `can()` + admin-editable roles (ADR-0020, Accepted)
+### OD-IA-2 — Capability authorization: `can()` + role defaults + individual overrides (ADR-0020, amended 2026-07-10)
 RLS policies stop naming roles and call **`shared.can(capability)`**; **capabilities are a code-owned
-vocabulary** (new keys ship with features); **roles become rows** the admin creates/edits and toggles
-capabilities on per role (the four ADR-0011 roles = seeded, renameable, not deletable); **every grant is
-scoped `own_bu` or `org`**, own-BU derived from the org chart (person → position → BU) + an owning-BU
-column on contended records — the org chart becomes load-bearing for authorization, deliberately.
-Guardrails: admin capabilities immutable, last-admin protected, all toggles audit-logged. Migration is
-opportunistic: new modules use `can()` from day one, existing RLS migrates when touched. The deputy
-inherits it all via the caller's JWT (no parallel agent permission model). Intra-BU activity-level scoping
-deferred until a real conflict shows. Full spine: `docs/adr/0020-capability-authorization.md`. Status:
-Accepted (owner, 2026-07-04, grill-with-docs).
+vocabulary** (new keys ship with features); editable access-role rows supply default grants and admins
+may set sparse individual allow/deny overrides. The per-person admin matrix shows effective Inherited,
+Allowed, or Denied state and Reset to role default; it does not copy every role grant onto each person.
+For a given action/resource, applicable grants resolve explicit deny → explicit allow → union of role
+grants → default deny. Grants/overrides carry a meaningful scope (self, own BU, selected BUs, or org).
+Record governance remains a second gate and needs a distinct override capability to bypass. Guardrails:
+protected admin capabilities, last-admin protection, and complete audit history. Migration remains
+opportunistic and the deputy inherits effective access through the caller's JWT. Full spine:
+`docs/adr/0020-capability-authorization.md`. Status: Accepted, amended by owner 2026-07-10.
 
 ### OD-WS-1 — Work spine v1: objective→task cascade as an everyone-surface (spec Accepted, ADR-0019 D14 step 3)
 The first ADR-0019 Work-destination slice. Adds a **`/work/cascade`** view where **every** authenticated
@@ -995,5 +1007,653 @@ first-class. Mockup open questions resolved: channel mix = string; stubs = one s
 token reuses in `DESIGN.md` (`--basis-chip` role for COGS-basis labels, DQ-as-warning/success); `?tab=`
 persistence + global toolbar. Gate passed 2026-07-07.
 
+## OD-REDESIGN — Full redesign direction + IxD grammar (LOCKED 2026-07-09, grill-with-docs session)
+
+The current MOS app (ADR-0019) has never been used. A 2026-07 design teardown found its root problem:
+it behaves like "several apps." The owner directed a **full redesign from the job**, treating the current
+app, routes, DESIGN.md, prior mockups, and ADRs as *evidence, not authority* ("no ADR is sacred"). This
+section records the direction decisions; the binding ADR is **ADR-0025**; the vocabulary is in
+**`CONTEXT.md`** (Standard, Shift, PIC/Supervisor Task ownership, amended Process); the IxD target reference is
+**`docs/reference/twenty-ixd-patterns.md`**. One-page map of all 55 (theme groups, OD↔ADR-0025
+cross-refs, supersession chains): **`docs/redesign-decision-index.md`**.
+
+### OD-REDESIGN-1 — IA: modules as nav roots, grouped by BU (supersedes ADR-0019 D2)
+
+The rail is a **two-zone structure**: Destinations (Home · Work · Money [role-gated] · Inbox) then
+**Modules grouped by Business Unit** (Retail Ops → Café / Ecommerce; B2B Ops → Roastery). A Module is
+earned by one coherent operational workflow, not by every team, Activity, or station: Kitchen and Bar
+share the **Café** operating workflow and therefore one Module, while Ecommerce and
+Roastery remain distinct. Reverses ADR-0019 D2's "activity is a dimension, never a nav root" — for a
+30-person F&B company the floor's daily workspace stays one click away, not hidden inside an abstract
+"Operate" destination. BU grouping prevents the original failure mode (Kitchen's 5 loose links), and
+the workflow-coherence test prevents one mini-app per station. First destination is **Home** (not
+"Orient" — owner: "easier to understand"). Owner refinement 2026-07-10. See **ADR-0025 D1**.
+
+### OD-REDESIGN-2 — One consolidated prototype (α IA + γ editor + β multiview + Standards/Shifts)
+
+Consolidates three earlier mockup paradigms into one canonical prototype: **α's flat IA rail** +
+**γ's Notion-like direct editing through a typed structured canvas** on every detail surface
+(Objective/Project/Process/Task/Standard) +
+**β's multi-view database** (Table/Kanban/Timeline) on Projects and Tasks-in-Project + the **Standards
+quality-loop** + **Shifts** roster. The α/β/γ files retire as history. See **ADR-0025 D2**.
+
+### OD-REDESIGN-3 — Task = PIC + Supervisor; RACI only on Objective/Project/Process (amended 2026-07-10)
+
+Task ownership canonically uses **PIC + Supervisor**, not R/A aliases: PIC is the one person expected to
+perform and close the Task; Supervisor is the one person who monitors, unblocks, and verifies it. Dense
+surfaces say **PIC** and **Supervisor**; forms/details expand PIC to **Person in charge (PIC)** with helper
+text. Always spell out Supervisor — **SPV** is a job-title abbreviation, not the Task relationship.
+RACI is reserved for Objective, Project, and Process governance; Tasks have no C/I. The existing database
+may retain responsible/accountable columns behind a compatibility mapping until a reversible migration is
+planned, but future product language, specs, and APIs use PIC/Supervisor. Supersedes OD-P2's Task-level
+RACI terminology and the 2026-07-09 Owner/Supervisor alias decision. Recorded in **`CONTEXT.md`**.
+
+### OD-REDESIGN-4 — Standard is a first-class object; SOP is a sanctioned synonym
+
+A **Standard** is the versioned execution specification a Process (and optionally a Project) runs to.
+Owner refinement 2026-07-10 broadens it beyond numeric F&B controls: a Standard has typed steps of
+**instruction/reference · confirmation · measured control · required form field · required
+evidence/sign-off**. Checkable steps produce **Checks** → pass/fail → failed Check raises an
+**Exception** → correction Task → evidence → audit trail. The Process owns recurrence and generated
+work; the Standard defines how that work is performed correctly and proved. This supports espresso,
+stock opname, monthly closing, onboarding, and procurement without introducing separate SOP/runbook
+objects per department. "SOP" is a sanctioned synonym; never call the Process itself an SOP. Library
+view in Work; canonical home remains the owning Process/Project page. Typed-step storage and versioning
+require a dedicated ADR during engineering planning. Recorded in **`CONTEXT.md`**.
+
+### OD-REDESIGN-5 — Shift is a roster unit; Café Areas share the pattern within one Team (amended by OD-REDESIGN-53)
+
+A **Shift** = person + station/area + time window. OD-REDESIGN-53 later makes every Shift Team-scoped:
+within a branch Team, one Café roster may span Kitchen + Bar Areas; HQ and Radiant do not share a Shift,
+and Roastery carries its own. Drives check assignment (a
+person's station's Standards → their checks today), records the on-shift context around an Exception,
+and feeds Home's "your shift today." Correction-Task PIC/Supervisor follows the Process's generation
+rules rather than silently redefining Task ownership from the roster. Week-view/swaps/recurring-builders
+deferred. Recorded in **`CONTEXT.md`** (Shift entry).
+
+### OD-REDESIGN-6 — IxD grammar target: Twenty CRM (one slide-over, one inline-cell, views-as-data)
+
+The redesign's neatness/customisability target is the **Twenty CRM** interaction grammar, studied from
+their codebase (`docs/reference/twenty-ixd-patterns.md`): (1) default open = right slide-over, escalate
+to full page on "Open"; (2) the command palette IS the side panel (⌘K); (3) one inline-cell edit
+primitive reused across table/board/page with a uniform commit contract (type/select → Enter/Tab/
+click-outside commits, Escape cancels the uncommitted value—an intentional MOS divergence from Twenty) —
+this is the rule that kills the scattered popovers/drawers/modals;
+(4) tables/boards/calendars are views over the same records (a View = saved {filters, sorts, layout,
+visible fields}); (5) create = new record + immediate inline title edit (no per-object modal);
+(6) objects/fields/views/nav are metadata-driven and customizable. MOS adapts the *grammar*; the
+*objects* differ (management-OS, not CRM). See **ADR-0025 D3** + **`docs/reference/twenty-ixd-patterns.md`**.
+
+### OD-REDESIGN-7 — One record, one canonical page, many views (amended 2026-07-10)
+
+A first-class record reached from Work, a Module, a parent record, Inbox, Home, search, or the deputy is
+the **same object opening the same canonical renderer** (Lens-C invariant). Tasks list and a Project's
+Task list are views of one Task collection; Work and Module Standard libraries are differently filtered
+views of one Standard collection. Relationship sources show navigational pills or compact linked-record
+lists, never embedded duplicate editors. Table/Kanban/Timeline are view renderers over the collection,
+not alternate records. See **ADR-0025 D2/D3a**.
+
+### OD-REDESIGN-8 — Work = one record workspace with collections and saved views (amended 2026-07-10)
+
+Work is not a second dashboard and not a bundle of mini-apps. One compact collection switcher groups
+**Execution** (Tasks, Process Runs), **Work systems** (Projects, Processes, Standards), **Direction**
+(Objectives), and **Cadence/queues** (Signals, Follow-ups). Every collection follows the same
+index grammar—filters, sorts, groupings, saved views, inline edit, inspector, full structured-canvas
+page—with Table/Kanban/Timeline where applicable. Specialized queues may vary columns/actions but remain
+views of canonical records. Work remembers the user's last view; a new user starts at **My Tasks**.
+There is no Work widget composer: personal/deputy widgets belong on Home. Supersedes the July 9
+Tasks-plus-manager-widgets version of this decision. See **ADR-0025 D9**.
+
+### OD-REDESIGN-9 — The deputy is a first-class redesign surface; PMO is the floor to exceed
+
+The deputy is **not a deferred port feature** — it is the headline interaction paradigm ("agent-native,
+user-composed UI"; the owner: "it needs to be front-most since this should be an agent-native app"). The
+redesign mockup builds it as a **real mocked surface**: a docked right panel (topbar sparkles opens it)
+showing a grounded conversation tracing to real data, with the ability to compose a widget and drop it
+into Home/Work. The PMO port (ADR-0018) wires the backend; the mockup proves the UX. PMO's deputy (the
+battery) is well-engineered but only a side-panel UX — context-*aware*, not context-*acting*. Full gap
+analysis: **`docs/reference/pmo-deputy-gaps.md`**. The redesign closes six gaps (ADR-0025 D5):
+(1) inline `@` reach into any text surface; (2) the agent can navigate the user (`navigate` tool);
+(3) composed UI drops into the workspace, not the panel transcript; (4) the agent is a first-class ⌘K
+action, not a zero-results fallback; (5) write actions bind to the live in-context entity; (6)
+per-surface agent threads scoped to the record/view. See **ADR-0025 D4 + D5**.
+
+### OD-REDESIGN-10 — Interaction grammar: six binding IxD rules (Twenty-adapted)
+
+The scattered popovers/drawers/modals of the current mockups converge to a **consistent grammar**
+(ADR-0025 D3), adapted from the Twenty CRM (`docs/reference/twenty-ixd-patterns.md`):
+(D3a) record click → right slide-over, "Open" escalates to full page; (D3b) ⌘K stays a fast popup for
+nav/search/act, the deputy + inspector share the docked panel, ⌘K routes into it; (D3c) one inline-cell
+edit primitive with a uniform commit contract (Enter/Tab/click-outside persists; Escape discards the
+uncommitted edit and restores the saved value) across
+table/board/page; (D3d) table/kanban/timeline are saved Views over the same records ({filters, sorts,
+layout, fields}); (D3e) create = new record + immediate inline title edit (no per-object modal);
+(D3f) views + widget composer + nav pinning are user-customizable (full data-model builder deferred).
+See **ADR-0025 D3**.
+
+### OD-REDESIGN-11 — Process definition and Process Run occurrence are distinct (owner 2026-07-10)
+
+A **Process** is the permanent definition of recurring work and is never completed. Each scheduled or
+manually started occurrence creates a first-class **Process Run** (for example, *July 2026 Monthly Close*
+or *Retail Stock Opname · 31 July*) that owns the generated Tasks, required checks/forms/evidence,
+progress, completion, and history for that occurrence. This gives Finance, HR, Marketing, Procurement,
+Retail, Ecommerce, and Roastery one shared recurring-work runtime in **Work** without creating one Module
+per department. A Process Run is an execution object, **not** a Project and not another cascade layer.
+Rejected: generating detached dated Tasks with no run-level completion/history; generating a temporary
+Project for every recurrence. The schema relationship and scheduling/idempotency contract require a
+dedicated ADR during engineering planning.
+
+### OD-REDESIGN-12 — Generated work uses the ownership-boundary rule (owner 2026-07-10)
+
+When a Process Run is created, a generated step becomes a **Task** only when it needs an independent
+R/A assignment, due date, status, blocker/dependency lifecycle, or reporting identity. A smaller step
+that inherits all of those from its parent is a **Checklist item**. Structured values are captured as
+form fields; assertions against a Standard are **Checks**; files/photos/sign-offs are evidence. Example:
+*Reconcile Bank BCA* is a Task; *download statement* is a Checklist item; *closing balance* is a form
+field; *difference = Rp0* is a Check; the reconciliation report is evidence. The author decides this
+structure when defining the Process and linked Standard; the product must make that judgment explicit
+and preview the resulting Process Run rather than converting every step into a Task automatically.
+
+### OD-REDESIGN-13 — One guided Process designer; typed contracts are the human/deputy safety boundary (owner 2026-07-10)
+
+Managers author recurring workflows through one progressive-disclosure **Process designer**: purpose,
+owner/RACI, BU/Activity, trigger or cadence, generated Task definitions and dependencies, Checklist items,
+typed Standard Steps (instructions, confirmations, measurements, input fields, evidence, sign-off),
+exception rules, and a preview of the next Process Run. This is one authoring experience over separate
+typed domain objects, not a freeform Notion document and not several disconnected admin editors.
+
+Every core object (Project, Process, Task, Standard, and later Process Run) has a fixed typed Object
+Contract with required and optional fields plus valid nested object types. Humans and the deputy use the
+same contract. The deputy may draft a workflow from natural language or an uploaded SOP, but it cannot bypass
+required fields, invent arbitrary shapes, or publish directly: validate → preview generated structure →
+explicit manager confirmation → versioned publish. This is the ruthless abstraction that preserves a
+Notion-like authoring experience while keeping agent generation fast, deterministic, and safe.
+
+### OD-REDESIGN-14 — Task Supervisor inherits parent A by default, with an explicit override (owner 2026-07-10)
+
+A Task under a Project or Process defaults its **Supervisor** from that parent's Accountable person. A
+Process's generated Task definition may override Supervisor when a legitimate cross-functional ownership
+boundary requires a different person; the normal path does not ask the author to repeat the inherited value. The designer
+shows **Inherited from <parent>** or **Override** explicitly so a deputy cannot silently change oversight.
+A Process Run snapshots the Process RACI and resolves each generated Task's PIC/Supervisor when it starts,
+preserving historical ownership if the Process definition changes later. Correction Tasks follow the
+same rule:
+parent A by default, with an explicit Standard/generated-Task override when, for example, the on-shift
+Supervisor must own the correction. Supersedes the stricter no-override recommendation considered during
+the grill. **Amended by OD-REDESIGN-41:** an ad-hoc Task without a parent resolves Supervisor through
+the PIC's BU-matching direct manager, ambiguity requires a choice, and a top-level PIC may self-supervise.
+
+### OD-REDESIGN-15 — Initial Modules stay at three; support teams use the universal Work runtime (owner 2026-07-10)
+
+The initial Module set is **Café (Kitchen + Bar Areas) · Ecommerce · Roastery**. The compact rail label
+is **Café** and the expanded page title is **Café Operations**; "Retail" remains the owning BU context
+and is not reused as the Module label because that BU also contains Ecommerce.
+Finance, HR, Marketing, Procurement, and other support teams do not receive department shells merely
+because they own Processes or Standards: they operate recurring work through Process definitions,
+Process Runs, generated Tasks/Checklists, typed Standards/forms/evidence, and role-filtered views in
+**Work**, with role-specific signals in Home and specialized Money/People surfaces where applicable.
+A future workflow earns a Module only when it has specialized records and high-frequency interactions
+that the universal Work runtime cannot express naturally—for example, a complete requisition → PO →
+receiving → discrepancy lifecycle. The rail is a workflow map, never an org chart.
+
+### OD-REDESIGN-16 — Notion-like means a typed structured canvas, not freeform data (owner 2026-07-10)
+
+Every Project, Process, Task, and Standard opens as an immediately editable **structured canvas** with
+no separate view/edit mode. Required typed properties are pinned and cannot be deleted; optional sections
+and contract-valid nested objects can be added, hidden, and reordered; freeform text regions support
+normal document blocks and mentions. The `/` menu only offers objects valid under the current contract
+(for example, a generated Task definition, Checklist item, measured Check, input field, evidence requirement, or
+sign-off inside a Process designer). The Object Contract and saved definition determine the initial
+composition. Autosave must expose pending, saved, validation-error, and retry states. Humans and the
+deputy manipulate the exact same typed
+structure. This adopts Notion's immediacy and composability while rejecting arbitrary schemas, hidden
+inference, removable governance, and unstructured source-of-truth data.
+
+### OD-REDESIGN-17 — Home = required attention brief + authorized personal/deputy canvas (owner 2026-07-10)
+
+Home's system-generated layer answers **"What needs my attention today?"**. It surfaces actionable,
+role-scoped exceptions only: blocked Tasks, overdue/due Process Runs, failed Checks and Exceptions,
+mentioned/actionable Signals, sign-off requests, and financial exceptions. Floor users also receive today's
+Shift/Tasks/Checks; managers receive team and Process exceptions. Home does not duplicate Money's period
+controls, KPI grids, trends, or detailed analysis. Every signal drills to its one canonical record.
+
+Each user also receives a personal **structured canvas** that they or the deputy can compose from
+contract-valid widgets. Composition is authorization-preserving: queries and actions execute with the
+viewer's JWT/RLS/capabilities, never a deputy service-role shortcut, and cannot reveal inaccessible data
+through summaries. Deputy proposals require preview + explicit acceptance before persistence. The
+system brief is mandatory and cannot be removed; whether a user may place their personal canvas before
+or after it is the next explicit preference decision rather than an accidental layout behavior.
+
+### OD-REDESIGN-18 — Home region order is a user profile preference (owner 2026-07-10)
+
+Personal Profile stores **Home order = Attention first | Personal canvas first**. Attention first is the
+default for every role and new user. The required system brief cannot be removed; if the personal canvas
+comes first, the Home header preserves a visible **Needs attention · N** summary and jump target so the
+user does not lose awareness. The preference persists per user and the responsive layout adapts the two
+regions without changing their chosen order. Only the user may change this top-level order: the deputy
+can propose and arrange widgets inside the personal canvas but cannot move the system brief.
+
+### OD-REDESIGN-19 — One stack-navigated Record Panel; no nested physical drawers (owner 2026-07-10)
+
+Normal selection of a record or relationship pill opens its canonical record in one right-hand Record
+Panel. Selecting a related record inside the panel pushes it onto the same internal stack; the product
+never layers a second drawer. Panel Back and Browser Back pop one level and restore scroll/focus; Close
+`×` closes the whole stack and returns to the underlying source page; "Open full page" escalates the
+current record. Direct URL, refresh, new-tab, and copied links render the canonical full page because
+every pill retains a real canonical `href`. Re-selecting an existing stack record pops to it; a fourth
+panel level escalates to full page. The page and panel share one renderer with different presentation
+modes. Sources use pills/linked lists instead of embedded record editors. References: Fluent Drawer
+single-overlay and 2–3-step guidance; React Router background-location convention; Twenty panel stack.
+
+### OD-REDESIGN-20 — One canonical Inbox, presented as full page or quick panel (owner 2026-07-10)
+
+Inbox remains a router to originating records, not a second place to perform their work. Rail/bottom-nav
+Inbox opens the full canonical collection for sustained triage; the top-bar badge opens the same
+collection in quick-panel mode. Inbox, Deputy, and record inspection share one right-panel host and one
+navigation stack, never competing drawers: selecting an Inbox item pushes its canonical record, Back
+returns to Inbox, and Close returns to the underlying page. Read/handled state is shared. On phone Inbox
+opens as a full page, not an overlay. This is dual presentation of one collection, not two inboxes.
+
+### OD-REDESIGN-21 — Contextual primary actions replace the global Capture FAB (owner 2026-07-10)
+
+There is no app-wide action ambiguously named **Capture**. Universal top-bar `+ Create` and ⌘K expose
+every typed object the viewer is authorized to create. Each surface names its actual primary job: Work
+creates the current collection's object; Process offers **Start run**; Standard offers **Run check**;
+Café offers **Log production**; Roastery offers **Log roast**; Ecommerce uses its own fulfillment verb;
+Money and Inbox show no unrelated floating action. On phone, a Module may use a thumb-reachable FAB or
+sticky action only for its one high-frequency local capture flow. Typed object creation stays inline;
+focused operational submissions may use a sheet/form. This supersedes the July 9 global Capture FAB
+probe and requires the eventual `DESIGN.md` amendment to distinguish sanctioned local mobile FABs from
+the rejected global FAB. **Amended by OD-REDESIGN-46:** a universal mobile `+` Action Launcher is allowed
+because it opens prescribed actions and executes no ambiguous default.
+
+### OD-REDESIGN-22 — Inline edit uses conventional save/cancel semantics (owner 2026-07-10)
+
+One inline-edit primitive governs table, board, panel, and structured-canvas fields. **Enter** validates,
+saves, and closes; **Tab/Shift+Tab** validates, saves, and moves; click-outside validates and saves;
+**Escape discards the current uncommitted value and restores the last saved value**. Validation failure
+keeps the field open with an inline error. Multiline Enter inserts a line and Cmd/Ctrl+Enter saves.
+Autosave shows pending/saved/error/retry, with Undo after successful saves where practical. This is an
+intentional MOS divergence from Twenty's Escape-persists behavior and supersedes every inconsistent
+prototype implementation or label saying otherwise.
+
+### OD-REDESIGN-23 — Core navigation is fixed; users customize saved-view pins only (owner 2026-07-10)
+
+Home, Work, authorized Money, Inbox, BU groupings, and authorized Modules are organization-owned and
+stable: users and deputies cannot rename, hide, or reorder them. Users may pin saved Work views beneath
+their owning destination or Module, reorder/unpin those personal pins, and receive deputy proposals that
+persist only after explicit acceptance. Examples include My overdue Tasks, this month's Finance runs,
+Retail Exceptions, and Standards needing review. Phone bottom navigation contains core destinations only;
+pins remain inside the owning destination menu. This preserves a learn-once company IA while providing
+fast personal retrieval, and replaces ADR-0025 D3f's broader "nav is customizable" wording.
+
+### OD-REDESIGN-24 — First deputy slice is front-most with reversible direct Task writes (amended 2026-07-10)
+
+The deputy ships visibly through the top bar, ⌘K, inline `@`, authorized current-surface context,
+grounded sources, navigation, and per-surface threads. It may propose Home widgets and Work saved
+views/pins and persist typed Objective, Project, Process, and Standard drafts. It may directly
+create/edit Tasks, add Task comments/activity updates, and change Task status when authorized. It acts
+with the viewer's JWT/RLS/capabilities. Publishing/activation, Standard adoption, Run start/completion,
+Check submission, approvals, and financial actions require explicit human confirmation. Every write
+uses the same authorized, idempotent, audited domain command as the human UI. See ADR-0025 D11/D19.
+
+### OD-REDESIGN-25 — Persistent Draft is limited; other deputy suggestions are ephemeral Proposals (owner 2026-07-10)
+
+Objectives, Projects, Process definitions, and Standards have a persistent Draft before activation or
+publication. Tasks have no Draft:
+an authorized deputy writes the real Task directly. Home widgets, Work saved views, and pins persist only
+after an accepted Proposal preview. Process Runs, Checks, Exceptions, and factual execution records are
+never Drafts or Proposals; they exist only through the authorized operational action. See ADR-0025 D12.
+
+### OD-REDESIGN-26 — Personal UI compositions are separate JSONB tenant rows, not a blob on Person (owner 2026-07-10)
+
+Reuse and extend `mos.user_views` for personal Home canvases and Work saved views. A row carries
+normalized owner/org/kind/context/name/scope/lifecycle metadata and a versioned, schema-validated JSONB
+composition spec. The spec stores registered widgets, layout, presentation, and authorized query specs;
+it never stores result rows or executable code, and it renders under the current viewer's JWT/RLS.
+`shared.people` stays a login-optional directory record. Stable cross-device scalar settings such as
+Home order use explicit columns in an RLS-protected `mos.user_preferences` row; per-viewer placement of
+shared views uses separate pin rows. Device-only ergonomic state may remain local. See ADR-0025 D13 and
+ADR-0017 D5–D6.
+
+### OD-REDESIGN-27 — Definition publishing combines `can()` scope with record RACI (owner 2026-07-10)
+
+Replace the old hard-coded `ops_lead`/admin assumption for operational definitions. `can()` determines
+whether a person may author or publish within the relevant business-unit scope; record RACI determines
+authority over that particular definition. Process R may create/edit its Draft and Process A publishes.
+Standards have no RACI: scoped `standard.publish` governs their publication, and each consuming
+Process/Project A governs adoption of a published Standard version. Admin has a
+visible, audit-logged emergency override. The deputy inherits the human's effective access but cannot
+publish in its first production slice. The UI says Edit draft, Send for approval, and Publish rather
+than exposing the permission machinery. See ADR-0025 D14. The owner's further direction is an admin
+effective-permission matrix with role-based defaults plus sparse individual configuration; precedence
+and guardrails are fixed by OD-REDESIGN-28 and amended ADR-0020.
+
+### OD-REDESIGN-28 — Role defaults plus sparse individual allow/deny overrides (owner 2026-07-10)
+
+The admin settings UI presents an effective person-by-capability matrix backed by editable RBAC defaults
+and sparse individual exceptions. A cell is Inherited, Allowed, or Denied and can Reset to role default.
+Applicable permissions resolve explicit deny → explicit allow → union of role grants → default deny,
+with self/own-BU/selected-BU/org scope where the capability supports it. Protected administration
+invariants and last-admin safety cannot be overridden; every change is audited. Record-specific rules
+remain a second gate and require a separate explicit override capability to bypass. This deliberately
+amends ADR-0020's former "no per-person grants" clause without storing a copied matrix per employee.
+
+### OD-REDESIGN-29 — System Object Contracts replace Template; user-authored Blueprint is evidence-gated (owner 2026-07-10)
+
+The owner's earlier “template” means a system-wide, code-owned **Object Contract** defining each object
+type's required/optional fields and relationships, validation, valid nested objects, and permitted canvas
+blocks. It is not a business record or admin-editable schema. A Standard must have BU, name, version,
+and Standard Steps, but a governing parent and measurements/units are optional. Remove Template as a
+current first-class object. Reuse is **Duplicate as Draft**. A user-authored, versioned **Blueprint** is
+deferred without tables or UI until multiple independent definitions are repeatedly copied and manually
+synchronized across BUs; only that evidence justifies propagation, adoption, and upgrade machinery. See
+ADR-0025 D16 and `CONTEXT.md`.
+
+### OD-REDESIGN-30 — Standard is a canonical BU asset; adoption belongs to each consuming definition (owner 2026-07-10)
+
+A Standard is versioned, scoped to an owning BU, may link to zero or many Processes/Projects, and has no
+RACI. Scoped `standard.publish` controls publication. A consuming Process/Project A independently
+controls whether and which published version its definition adopts. Links are version-aware; publishing
+a Standard never silently mutates active operations. Pure reference material without executable
+instruction/check/input/evidence/sign-off semantics is not a Standard. Approval, effective-date, and
+notification behavior is fixed by OD-REDESIGN-31. See ADR-0025 D17–D18.
+
+### OD-REDESIGN-31 — Standard upgrade = publish, notify each consumer, approve diff, adopt with effective date (owner 2026-07-10)
+
+Publishing creates an immutable Standard version and never changes consumers directly. Each linked
+Process/Project gets a deduplicated actionable Inbox item for its A and R showing the diff and current vs
+proposed pin. Its A approves a new definition revision and effective date; R is notified, C may be engaged
+during review, and I receives the adopted-change notice. New links visibly default to the latest published
+version and require confirmation. Future unmaterialized Runs starting on/after the date use the adopted
+version; started/completed/materialized Runs keep their snapshots. Adoption is audited and affected
+future assignees are notified once assignments exist. Doorbell channels may link to Inbox, but approval
+stays on the canonical record. Each consumer decides independently. See ADR-0025 D18.
+
+### OD-REDESIGN-32 — Deputy writes Tasks directly; reversal is archive/restore or audited compensation, never deletion (owner 2026-07-10)
+
+The deputy may persist Drafts for Objective, Project, Process, and Standard definitions and directly
+create/edit Tasks, add Task comments/activity updates, and change Task status within its inherited
+authorization. Consequential transitions require explicit human confirmation. Human UI, deputy, and
+future external-agent writes use one capability-gated, idempotent, optimistic-concurrency-aware domain
+command layer. Reverse create with Archive/Restore, edits with Revert, status with compensating Undo, and
+comments with Retract plus an audit tombstone. Never hard-delete as “undo”; downstream effects and
+notifications require their own correction event. See ADR-0025 D11/D12/D19.
+
+### OD-REDESIGN-33 — Signal supersedes Weekly Update and Daily Log; clean data redesign is authorized (owner 2026-07-10)
+
+Remove mandatory Weekly Update filing and replace the lightweight operations-only Daily Log/
+`ops.log_entries` with one organization-wide, authorization-scoped Signal model. Signals are real-time,
+attributable factual notes with occurrence/context/category/severity/mentions/links; deputy dictation
+writes under the human's identity. They have no PIC/Supervisor/due/status: mentions create Inbox nudges,
+required action becomes a linked Task, and failed Checks remain Exceptions. Specialized operational
+records remain canonical and may emit linked summary Signals. Weekly/team summaries are generated from
+Tasks, Projects, Process Runs, Signals, and domain events. Because the app has never been used, redesign
+may replace legacy business schemas with a cleaner baseline rather than preserve Weekly Update/Daily Log
+compatibility; actual environment resets and deploys remain owner-gated. See ADR-0025 D20.
+
+### OD-REDESIGN-34 — Replace legacy migrations with a clean domain-ordered baseline (owner 2026-07-10)
+
+Because MOS has never had production users, the redesign does not carry forward unused schema/API
+compatibility. The engineering plan must replace the long legacy migration chain with a small ordered
+baseline across `shared`, `mos`, `ops`, `integrations`, and `reporting`, grouped by coherent domains rather
+than one mega-file. Remove retired Weekly Update/Daily Log storage, Task RACI compatibility, obsolete
+enums/functions/policies, and other superseded seams. Rebuild app contracts, RLS, tests, and seeds against
+the new baseline. Preserve external ESB/reporting boundaries only where they still serve the adopted
+model, and revalidate the reporting snapshot job. Local/staging reset requires backup + verification;
+staging reset and every deploy remain explicit owner gates. The eng-planner must author a dedicated data-
+baseline ADR and rollback/reset plan before implementation; this grill decision is its accepted input.
+
+### OD-REDESIGN-35 — Future MCP is a per-person adapter, never a parallel backend or authority model (owner 2026-07-10)
+
+Build the clean baseline around one protocol-neutral query/domain-command/audit boundary used by UI,
+deputy, and later remote MCP. Each MCP connection authenticates a human with resource-bound OAuth and
+maps to `shared.people`; no direct database access, `service_role`, shared identity, or token passthrough.
+Existing `can()` + record governance + RLS decide every call. Low-risk reversible Task/Signal writes may
+execute; definitions become Drafts; consequential transitions create a MOS approval request. Audit human
+actor, client/source agent, command, idempotency, result, and reversal. Admin trusts clients/providers;
+each person connects/consents. Coarse MCP consent scopes do not replace fine-grained capabilities. MCP
+transport is deferred, but its reusable seam is baseline work. Eng-planner must author a dedicated ADR
+against the current MCP/OAuth spec before build. See ADR-0025 D21.
+
+### OD-REDESIGN-36 — Signal read reach flows upward through information layers; mentions grant exceptions (owner 2026-07-10)
+
+A Signal is readable by its owning Team, BU-scoped Roles over that Team's parent BU, viewers in a
+configured higher BU Signal visibility layer, and explicitly mentioned people/Teams/BUs; sibling Teams
+otherwise cannot read it. The information-layer order is
+admin-configured and separate from org `reports_to`, with an initial example Operations < Marketing/
+support < Finance/control < Management. RLS evaluates same Team → parent-BU scope → sufficient higher
+layer → explicit person/Team/BU grant → authorized override → deny. Individual `can()` overrides apply. Read
+reach does not notify everyone: mentions/action events, not visibility, drive Inbox. Confidential
+narrowing is deliberately rejected by OD-REDESIGN-37; `@BU` delivery remains a subsequent decision.
+See ADR-0025 D22–D23 and `CONTEXT.md`.
+
+### OD-REDESIGN-37 — Signal stays operational; confidential matters use a separate future workflow (owner 2026-07-10)
+
+Do not add a Restricted Signal mode. The Signal model is intentionally suitable for predictable upward
+operational visibility. Confidential HR/legal/medical/whistleblowing or similarly sensitive content is
+rejected from Signal capture and routed to Gordi's approved private channel until a separately specified
+confidential case/reporting Object Contract exists. That future capability needs independent RLS,
+retention, disclosure, audit, and escalation—not a boolean on Signal. UI/deputy detection is only a
+pre-save warning; command/MCP logs must not echo rejected sensitive payloads. See ADR-0025 D23.
+
+### OD-REDESIGN-38 — Person/Team/BU mentions explicitly grant and fan out (amended 2026-07-10)
+
+A Signal mention is both access grant and intentional Inbox nudge. `@Person` targets one; `@Team` every
+current Team member; `@BU` every current person across child Teams plus BU-scoped Roles. Deduplicate and
+preview Team/BU recipient count; BU requires `signal.mention_bu`. Visibility alone never notifies. Future
+members gain read but no retro-notification; each recipient has personal read/handled state. Mentions do
+not create ownership—action requires Task PIC/Supervisor. See ADR-0025 D24/D37.
+
+### OD-REDESIGN-39 — Signal is factual context; create/link separate Tasks through a many-to-many relation (owner 2026-07-10)
+
+Never promote/convert a Signal or give it a resolved status. From Signal, **Create follow-up Task** pushes
+the canonical Task composer in the same panel stack with Signal context prefilled; save returns to the
+Signal with the Task under Linked work. **Link existing Task** prevents duplicates. One Signal may link
+many Tasks and one corrective/prevention Task may link many Signals. Signal may display derived open/done
+counts but owns no work lifecycle, and Task completion/archive never removes historical Signals. See
+ADR-0025 D25 and `CONTEXT.md`.
+
+### OD-REDESIGN-40 — Tasks may be ad hoc; Project/Process is an optional direct classification (owner 2026-07-10)
+
+Every Task requires Team, PIC, Supervisor, and Status, but not a Project/Process. BU/Site derive from
+Team. Tasks created inside a
+Project/Process inherit it and Process-Run-generated Tasks require their generating Process/Run; other
+Tasks may remain parentless or be linked later through an audited edit. UI derives **Ad hoc** for
+unparented Tasks and provides a saved view/volume signal—never a new Status or fake Miscellaneous parent.
+Deputy may suggest classification but cannot attach one silently. This amends ADR-0014's “direct and
+permanent” wording: an existing link is direct and never routes through Output; it is not mandatory. See
+ADR-0025 D26.
+
+### OD-REDESIGN-41 — Ad-hoc Supervisor defaults through PIC's relevant manager; ambiguity never guesses (owner 2026-07-10)
+
+Resolve Supervisor in order: explicit choice → generated-Task definition override → parent A → PIC's
+direct manager for the Role matching Task BU → PIC when no manager exists. Multiple remaining manager
+paths require human selection. Same-person PIC/Supervisor is valid. UI exposes the source and audits
+changes. Signal mentions never imply ownership; deputy uses only explicit user ownership or asks before
+commit. See ADR-0025 D27 and `CONTEXT.md`.
+
+### OD-REDESIGN-42 — Signal category is optional post-capture enrichment over stable families (owner 2026-07-10)
+
+Signal post requires only content, owning Team, occurrence time, and author/source. Category is optional:
+stable system families (Supply/vendor, Equipment/facility, Inventory/availability, Quality, Customer,
+People, Process, Other) support cross-team comparison; admin-managed BU subcategories provide local
+detail. No initial free-form tags. Deputy suggests with confidence; low-confidence stays Uncategorised in
+a saved review view, never blocks capture. Rename/merge/archive preserves historical mapping. Category is
+not root cause, visibility, urgency, or Status. See ADR-0025 D28 and `CONTEXT.md`.
+
+### OD-REDESIGN-43 — Signal attention = FYI / Needs attention / Urgent, never Status (owner 2026-07-10)
+
+FYI is default; Needs attention and Urgent affect ordering, treatment, Home, and delivery to mentioned
+recipients/subscribers. Attention never changes visibility or creates lifecycle, ownership, SLA, due
+date, resolution, or Task. Higher levels merely suggest Create follow-up Task. Deputy may use explicit
+wording; inferred Urgent requires confirmation. Urgent may invoke configured PWA/doorbell delivery but
+not all readers. Changes are audited. See ADR-0025 D29 and `CONTEXT.md`.
+
+### OD-REDESIGN-44 — Signals are intentional; routine records/events never auto-mirror into the feed (owner 2026-07-10)
+
+Allow Signal creation only by explicit human/deputy post, deliberate Share as Signal from a canonical
+record, or a published Process/Standard rule configured for a meaningful condition with previewed
+audience/category/attention/source. Non-human Signals link their source/rule. Task/Run/module changes,
+production logs, approvals, inventory movements, and audit events remain domain events; failed Checks
+remain Exceptions. Generated summaries read those sources directly. Rule emissions require idempotency,
+rate, and deduplication controls. This retires the Daily Log automatic-mirror pattern. See ADR-0025 D30.
+
+### OD-REDESIGN-45 — Signal corrections create revisions; wrong provenance retracts and reposts (owner 2026-07-10)
+
+Author/deputy may correct body, occurred-at, category, and attention only through immutable visible
+revisions. Owning Team/source cannot change after post; use reasoned Retract + repost. Mention additions
+grant/notify; removal revokes only its explicit grant, retracts the notification, and warns prior viewing
+cannot be undone. Material body/attention edits notify mentioned recipients; category cleanup does not.
+Rule-emitted body/source is immutable. Retraction removes default feed/analytics presence but preserves an
+audit tombstone. No hard delete. See ADR-0025 D31 and `CONTEXT.md`.
+
+### OD-REDESIGN-46 — Mobile FAB + desktop `+ Create` share one prescribed Action Launcher (owner 2026-07-10)
+
+Use one command registry through a persistent phone `+` FAB and desktop/tablet top-bar `+ Create`.
+Opening it shows stable Share Signal, Ask Deputy/dictate, Create Task, and More actions plus at most one
+context action such as Start Run/Run Check/Log production/Log roast. Actions are capability-filtered,
+context-prefilled, and never algorithmically reordered; More opens the full authorized object palette.
+⌘K/keyboard/deputy invoke the same commands. The FAB is not navigation and does not execute an ambiguous
+default, so core-only bottom navigation and the rejection of global Capture both remain intact. See
+ADR-0025 D32.
+
+### OD-REDESIGN-47 — Signal comments clarify; acknowledgement says seen; neither creates lifecycle (owner 2026-07-10)
+
+Add entity comments plus optional per-person Acknowledge. Acknowledge is visible “seen,” separate from
+private Inbox read/handled, and never means owner/completed/approved/promised; Signal remains statusless.
+Comments may mention people/BUs under the normal access/fan-out rules. Notify author, explicit mentions,
+and explicit Followers; a BU mention does not subscribe all members to every reply. If discussion creates
+a commitment, offer Create/Link Task. Free unrelated chat remains outside MOS. See ADR-0025 D33.
+
+### OD-REDESIGN-48 — Replace weekly filing with live sourced period views and optional Automation delivery (owner 2026-07-10)
+
+Home/Work expose Today, This week, and Last week over authorized Tasks, Project progress, Process Runs,
+Exceptions, Signals, and domain events. Deputy summaries are grounded and link canonical sources.
+Managers may save/request them and optionally schedule Inbox/PWA-doorbell delivery with an as-of time.
+No Weekly Brief object, employee filing, Draft/Submitted state, missing reminder, or review roster is
+created. Context absent from structured records is captured as Signal when it happens. See ADR-0025 D34.
+
+### OD-REDESIGN-49 — Signal author is independent from its owning Team (owner 2026-07-10)
+
+Author records who reported; owning Team records where the observation applies and drives default layered
+visibility. They may differ. Cross-Team post requires scoped capability; author retains read/correction
+rights. One primary Team is required and other affected Teams/BUs are mentioned. Preview destination,
+attention, and fan-out before cross-Team posting. Management may therefore post an FYI into Gordi HQ
+Operations without making it management-only. See ADR-0025 D35–D36.
+
+### OD-REDESIGN-50 — Team is below BU; Signal belongs to Team and derives BU/Site (owner 2026-07-10)
+
+Correct the old “BU = team” conflation. BU is the functional/accountability parent; Team is the concrete
+operating group under one BU; Site is an optional physical branch reference. Roles have BU and optional
+Team scope; no Team means BU-wide. People join Teams through explicit effective-dated memberships and a
+Team-scoped Role requires matching membership. Signal requires one owning
+Team and derives BU/Site. Visibility walks Team → parent-BU-scoped Roles → configured higher BU layers;
+sibling Teams such as HQ Operations and Radiant Operations do not see each other by default. Site and
+Stock location remain distinct. See ADR-0025 D36 and `CONTEXT.md`.
+
+### OD-REDESIGN-51 — `@Team` is branch-level nudge; `@BU` is capability-gated cross-Team fan-out (owner 2026-07-10)
+
+Use `@Team` to grant/notify one concrete group and `@BU` to span all current people in its child Teams
+plus BU-scoped Roles. BU fan-out requires `signal.mention_bu`; both preview and deduplicate recipients.
+Owning Team alone never notifies. Future members gain read but no retroactive notification. No `@Site`
+initially. This makes `Owning Team: HQ Operations + @HQ Operations` HQ-only, while `@Retail Ops`
+deliberately includes Radiant. See ADR-0025 D37.
+
+### OD-REDESIGN-52 — Admin configures org structure and each Person's separate Team/Role/access assignments (owner 2026-07-10)
+
+Admin Settings—not SQL—creates/renames/archives/orders BUs, Sites, Teams, Signal visibility layers, org
+Roles, and reporting lines. Per Person it assigns one primary plus optional additional effective-dated
+Team memberships, org Roles, access-role defaults, and individual capability overrides. Team membership,
+org Role, and Access role are separate concerns; BU derives from Team, while BU-scoped Roles express
+BU-wide responsibility and Team-scoped Roles require membership. Transfers end/start membership history;
+referenced structure archives; every change is audited and last-admin protections remain. See ADR-0025
+D38 and ADR-0020.
+
+### OD-REDESIGN-53 — Governance definitions are BU-scoped; execution records are Team-scoped (owner 2026-07-10)
+
+Objectives, Projects, Processes, and Standards belong to a BU. Signals, Tasks, Process Runs, Shifts,
+Checks, and Exceptions require one Team and derive BU/Site. Projects may list participating Teams, but
+each Task has one executing Team; cross-Team work splits into Team Tasks under the shared Project. A
+Person with scoped `process.adopt` acts for a Team to adopt BU Processes with local cadence/assignment
+defaults; each Run belongs to one Team and generated
+Tasks inherit it. Standards remain BU-canonical and Team/Process adoption pins their versions. The same
+model covers central single-Team BUs. See ADR-0025 D39 and `CONTEXT.md`.
+
+### OD-REDESIGN-54 — Process adoption is explicit and independently versioned per Team (actor amended by OD-REDESIGN-55; owner 2026-07-10)
+
+Process A publishes an immutable BU version; each adopting Team gets a diff notification. Scoped
+`process.adopt` reviews changed steps/Standards/cadence/generated Tasks/assignment defaults, confirms
+local config, and chooses effective date. Publication never auto-upgrades Teams. Existing/materialized
+Runs retain snapshots; future unmaterialized Runs use the new adoption. New Teams confirm latest version.
+Adoption may pause/resume but cannot rewrite/fork the BU Process; structural changes return to Process
+R/A. Notify Process R/A and Team operators; do not add Team RACI. See ADR-0025 D40.
+
+### OD-REDESIGN-55 — Team is scope; scoped Role-derived `can()` determines what each Person may do (owner 2026-07-10)
+
+Correct shorthand that implied a Team acts. People act through `can()` inherited from admin-configured
+org-Role → Access-role defaults plus individual overrides, scoped to own Team, selected Teams, BU,
+selected BUs, or org. Team membership, org Role, and Access role remain separate; Admin People & access
+shows all inherited sources. Illustrative profiles: frontline roles execute assigned work and Signals;
+branch Supervisor manages one Team; cross-branch manager operates selected Teams; Process publication
+still needs A + capability. **Director assumption:** adoption edits only parameters/optional branches the
+published Process declares Team-configurable; structural variation requires a Process revision. See
+ADR-0025 D41 and amended ADR-0020 D3/D11.
+
 ## OPEN OD items live in `docs/backlog.md` → THE WALL.
 </content>
+
+## Buildout decisions (owner, 2026-07-13/14 — E7 convergence sprint close-out)
+
+### OD-REDESIGN-56 — Mockup phase closed; iteration moves into mos-app (owner 2026-07-14)
+
+All further redesign iteration happens in `mos-app` per `docs/plans/2026-07-14-redesign-buildout.md`
+— no more mockup rounds. The E7 prototypes (e7 shell + convergence flows) are **NOT dismissed**:
+they remain **standing reference implementations** (owner, 2026-07-14: "some have things right —
+unless I specifically said it's wrong, it stands"). **Presumption of correctness:** anything a
+mockup answered that the owner/contract/ODs did not explicitly override is the answer — builders
+PORT it, never re-invent it. The per-mockup inventory of what is authoritative vs what was
+explicitly overridden is `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md`
+(binding read-first for UI steps). Rationale for closing the mockup phase: every mockup round
+re-did whole surfaces, so the right answers got convoluted; in the app, fixes compound and Rule 11
+makes re-implementation a review-blocking defect. The Experience Contract
+(`docs/experience-contract.md`) is **binding** on the app build; its Rules 1–11 are blocking
+acceptance checks in every review.
+
+### OD-REDESIGN-57 — Owner frame directives (sketch, 2026-07-14)
+
+(i) Header = logo + current-location breadcrumb (left) · ⌘K search field + Inbox + Deputy (right);
+universal actions (Ask Deputy · Share Signal · Create Task) live in the ⌘K palette, not as header
+buttons. (ii) Work's children are the four object collections **Signals · Tasks · Projects &
+Processes · Objectives** (supersedes the My work · Team work · Library convention after the owner
+saw it rendered); My/Team/Overdue become saved-view chips inside Tasks. (iii) **Events** joins the
+rail as a destination root — this amends OD-REDESIGN-1 / ADR-0025 D1 (rail = Home · Work · Events ·
+Money[gated] · Inbox + BU-grouped Modules). Modules remain in the rail (Director default; owner may
+override before buildout step 2 merges).
+
+### OD-REDESIGN-58 — Process occurrences surface as Tasks; job-function assignment (owner 2026-07-13)
+
+A Process/Project definition holds its checklist items + cadence. Each occurrence spawns **Tasks**
+(single-operator checklists = one Task with checks inside, per OD-REDESIGN-12); occurrence identity
+is a grouping caption; per-occurrence roll-up is a derived read-model; a **thin occurrence record**
+survives behind the scenes to own completion/history/version snapshot (D6/D18/D40). "Process Run"
+appears nowhere in the UI. Generated Task definitions bind the **PIC to a job function** (Role +
+Team scope) resolved to its current holder at spawn; ambiguity requires human choice (OD-41);
+turnover changes the holder mapping, never the Process. Schema ADR lands in buildout step 6
+(per the OD-REDESIGN-11 deferral).
+
+### OD-REDESIGN-59 — Signal home (Q1, provisionally approved 2026-07-14)
+
+The ambient Signal feed lives on **Home below the non-removable attention brief** (amends D8's
+two-region Home); Work surfaces Signals as **archive/search** (`/work/signals`); **no** top-level
+Updates destination; the composer is reachable everywhere via the ⌘K palette / FAB. Composer is
+capture-minimal per OD-REDESIGN-42/43 (content + owning Team + occurrence time + author; category
+post-capture; attention defaults FYI; `@` fuzzy = Person/Team/BU with type badges; Site is a
+location pill, never a mention target — D37). Final ratification at the buildout step-4 walkthrough.
+
+### OD-REDESIGN-60 — Component-reuse rule (owner-directed lesson, 2026-07-14)
+
+No agent may re-implement a surface or component that already exists in `mos-app`; extend or
+re-home it. Canonical implementations: the Tasks DB-view (ADR-0007/0008), the record-panel host,
+and everything under `mos-app/src/components/`. Re-implementation is a review-blocking defect
+(Experience Contract Rule 11).

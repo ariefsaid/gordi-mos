@@ -1,6 +1,8 @@
-# STATUS — where Gordi MOS stands (for the next session / post-compaction)
+# STATUS — historical pre-redesign status
 
-> ⚠️ **STALE (2026-06-16). For current state read `docs/platform-workstream-status.md`** —
+> ⚠️ **STALE (2026-06-16).** Current product direction is indexed in
+> `docs/redesign-decision-index.md`; current next work is recorded at the top of `docs/backlog.md`.
+> Read `docs/platform-workstream-status.md` only for legacy implementation and infrastructure facts —
 > that is now the canonical handoff doc. It covers: kitchen Module (SHIPPED 2026-06-21), access-role
 > layer (SHIPPED), UI-revamp (SHIPPED PRs #29..#56), the **active OD-K-5 kitchen UI redesign on branch
 > `feat/kitchen-log-redesign`** (built + verified, awaiting owner sign-off → merge), and all outstanding items.

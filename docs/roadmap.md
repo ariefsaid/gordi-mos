@@ -1,12 +1,25 @@
 # Gordi MOS — Roadmap (living doc; created 2026-06-10)
 
-Phasing to MVP, optimized for speed-to-daily-use. Source of product truth: `docs/project-brief.md`
-(era-bound E1) — **the requirement bar has evolved since; read `docs/requirements-evolution.md`
-(era timeline E1→E6) before trusting any phase's original scope.** One issue at a time per the
+> **Redesign is the current direction (2026-07-09/10).** The IA-phasing notes below (the 2026-07-04
+> "five fixed destinations Home / Work / Operate / Plan / Inbox" sequencing, and the pre-redesign
+> slice ordering) are **partially superseded by ADR-0025**
+> (`docs/adr/0025-ia-modules-in-rail-redesign-direction.md`) + **`docs/decisions.md` OD-REDESIGN-1..55**.
+> Current model: rail = **Destinations (Home · Work · Money · Inbox) + BU-grouped Modules (Café ·
+> Ecommerce · Roastery)**; no separate Dashboard/Operate/Plan/Reference destination; Weekly Update/
+> Daily Log replaced by live period views + Signal; Task ownership = PIC + Supervisor. Canonical
+> next step = **owner review of `docs/jtbd.md` v0.4 + the E7 prototype brief, then update the redesign
+> working set into one decision-complete prototype** (`docs/design-mockups/redesign-mockups-2026-07/`)
+> → **owner prototype approval → SDD → plan → TDD build → review →
+> BDD acceptance**. The phase structure and owner gates below remain the working cadence; the
+> *destination/scope* vocabulary has moved on.
+
+Phasing to MVP, optimized for speed-to-daily-use. Current product truth is indexed by
+`docs/redesign-decision-index.md`; `docs/project-brief.md` is era-bound E1 history. Read
+`docs/requirements-evolution.md` (E1→E7) before trusting any phase's original scope. One issue at a time per the
 Director loop (`docs/director-playbook.md`). Each phase ends at an **owner gate**.
 
-## Phase 0 — Frontend mockups (DONE)
-Goal: lock the IA and the look of the first slice on paper before any code. Static HTML only
+## Phase 0 — Frontend mockups (E6 done; E7 redesign gate active)
+Goal: lock the redesigned IA and interaction model in one interactive prototype before redesign specs. Static HTML only
 (`docs/design-mockups/`), to the adopted `DESIGN.md` tokens. Full procedure:
 `docs/design-workflow.md` §1.
 - **0.1** IA proposals (2–3 competing shells for `/mos`) — resolves the brief's open IA question.

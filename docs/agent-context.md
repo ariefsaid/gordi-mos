@@ -3,6 +3,21 @@
 Fast cold-start for a fresh agent (esp. post-compaction). This is the human/process layer; the
 authoritative product/decision docs are linked at the bottom. Keep this file updated as things change.
 
+> **Product/IA direction below is superseded (2026-07-09/10) by ADR-0025 + `docs/decisions.md`
+> OD-REDESIGN-1..55** (era **E7**, `docs/requirements-evolution.md`) — a full redesign, not a
+> continuation of the "Current state" / "Headline current state" workstream dated 2026-07-07 below.
+> Quick map: `docs/redesign-decision-index.md`. Owner prefs, hard rules, multi-agent/git gotchas, and
+> the delegation posture below are **not** superseded and remain binding.
+>
+> **UPDATE 2026-07-14 — mockup phase CLOSED (OD-REDESIGN-56).** The canonical next product step is the
+> **buildout in `mos-app`** per `docs/plans/2026-07-14-redesign-buildout.md` (10 owner-approved steps;
+> step 1 = styling pass). Binding on every step: `docs/experience-contract.md` Rules 1–11 (incl. Rule 11
+> component reuse — never re-implement an existing surface) + OD-REDESIGN-56..60. The E7/convergence
+> mockups are **standing references with a presumption of correctness** — port what they answered
+> unless it's on the explicit override list; ownership map:
+> `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md` (binding read-first for UI
+> steps; live at :8766 e7 · :8134 convergence in the `gordi-mos-e7-prototype` working copy).
+
 ## Who the owner is (Arief) & how he works
 - **Concise reporting** — sacrifice grammar for concision; lead with the answer, not the journey.
 - **"Make it work", pragmatic, one-step infra** — prefers the shortest correct path; dislikes
@@ -68,12 +83,13 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 | Need | Doc |
 |---|---|
 | **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
-| **Where everything stands + outstanding** | `docs/platform-workstream-status.md` (canonical handoff) |
+| **Current redesign direction + next work** | `docs/redesign-decision-index.md` + top of `docs/backlog.md` |
+| **Legacy implementation + infrastructure status** | `docs/platform-workstream-status.md` |
 | **Agent-native port (ADR-0018) — plans per train** | `docs/plans/2026-07-04-port-p1-substrate.md` · `docs/plans/2026-07-05-port-p2-panel-runtime.md` · `docs/plans/2026-07-06-port-p3-automations-inbox.md` |
 | **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` · `feat-port-p3a-replay-inbox.md` · `feat-p2.1-db-side-aggregate.md` · `release-staging-bu-remap.md` · `feat-work-spine.md` · **MVP-push (2026-07-07): `feat-ia-nav-work-spine.md` · `feat-ar-followup-bridge.md` · `feat-plan-v1.md` · `feat-home-stacked-union.md`** · **pre-F hardening A1–A6: `feat-harden-round2.md`** |
 | **MVP-readiness audits** | `docs/reviews/mvp-readiness-charter-audit-2026-07-06.md` (round 1, charter) · `mvp-readiness-audit-round2-2026-07-07.md` (round 2, gpt-5.5 ×3 — the pre-F hardening blocklist A1–A6, **now DONE**) |
 | **Design reviews (rendered)** | `docs/reviews/design-mvp-push-2026-07-07.md` (4-lens, render-verified) · **`ui-coherence-audit-2026-07-07.md` (whole-app coherence — the task #19 retrofit plan; verdict: application-gap, not ground-up)** |
-| **JTBD design oracle (Lens-D) — E6, refresh 2026-07-06** | `docs/jtbd.md` (**v0.3** — 4 personas × 5 destinations; supersedes E1 v0.2) |
+| **Current JTBD design oracle (Lens-D) — E7, pending written-form owner review** | `docs/jtbd.md` (**v0.4** — 9 job families · 23 journeys · 6 scenario threads) |
 | **IA/product ADRs (Accepted 2026-07-06)** | `docs/adr/0022-plan-destination-cogs-budget.md` · `docs/adr/0023-multi-location-inventory-internal-replenishment.md` · `docs/adr/0024-roastery-esb-sales-order-push.md` · decisions.md "Continued grill session 2" block |
 | **Work-spine slice (D14 step 3, held on `feat/work-spine`)** | `docs/specs/work-spine.spec.md` · `docs/plans/2026-07-06-work-spine.md` · `docs/reviews/feat-work-spine.md` |
 | **Roastery Operate requirements (10 owner-decisions in §6)** | `docs/specs/roastery-module.requirements.md` |

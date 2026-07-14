@@ -1,9 +1,12 @@
 # Gordi MOS Project Brief
 
 > **⚠ Era-bound (E1, 2026-06-10) — kept as history.** The requirement has evolved several times since
-> this brief; the "first slice" scope below is **no longer the bar**. Current bar: E6 "viable, not
-> minimum — the whole-company OS" (ADR-0019/0020). Read `docs/requirements-evolution.md` for the
-> timeline before treating anything here as current.
+> this brief; the "first slice" scope below is **no longer the bar**. Current direction (2026-07-09/10):
+> the **full redesign** locked in **ADR-0025** + **`docs/decisions.md` OD-REDESIGN-1..55** +
+> **`CONTEXT.md`** (modules-in-rail: Home · Work · Money · Inbox + Café/Ecommerce/Roastery; PIC +
+> Supervisor; Signal). ADR-0019/0020 (the E6 "viable, not minimum" bar) are **partially superseded**
+> by ADR-0025. Read `docs/requirements-evolution.md` for the era timeline, and treat nothing in this
+> brief as current scope.
 
 ## Status
 

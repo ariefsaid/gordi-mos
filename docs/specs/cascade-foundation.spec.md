@@ -4,6 +4,14 @@
 - Source decisions: **ADR-0014** (cascade foundation, additive topology), **OD-C-1** (`docs/decisions.md`)
 - Vocabulary: `CONTEXT.md` § Cascade · § Ownership
 
+> **Redesign pointer (2026-07-10).** This spec is the **shipped v1 cascade slice** (lookups + task
+> fields). Under the locked redesign (**ADR-0025**, esp. D9/D26), **Work** is one record-workspace
+> whose collections include Tasks, Process Runs, Projects, Processes, Standards, Objectives, Signals,
+> and Follow-ups; the standalone **"Workload view" page** framed below is superseded in *direction* by
+> the Work collection + saved-view grammar, and Task ownership reads **PIC + Supervisor** (not R/A).
+> The data shape here is implementation history for the already-shipped tables; new work follows the
+> redesign direction, not this spec's UI framing.
+
 > **Naming + scope reconciliation (read first) — LOCKED, see ADR-0015.** Names are now final:
 > where the body says *Initiative* / `mos.initiatives` / `program_process_id`, read the **Project/Process
 > pair** → table **`mos.work_lines`** (`type ∈ {project, process}`), lookup **`mos.objectives`**, bridge
@@ -59,8 +67,9 @@ nesting Objectives (the `parent_objective_id` column exists but is unused).
   (`program`|`process`, **NOT NULL**) · `lane` (`run`|`optimize`|`transform`, **NOT NULL**) ·
   `business_unit_id` · `accountable_person_id` · `responsible_person_id` · `objective_id?` (nullable
   FK → objectives) · `archived_at?` · timestamps.
-- **`mos.tasks`**: + `program_process_id?` uuid nullable FK → `mos.initiatives(id)`. **Permanent parent
-  link** (ADR-0014 topology rule); a Task never routes through an Output.
+- **`mos.tasks`**: + `program_process_id?` uuid nullable FK → `mos.initiatives(id)`. Optional direct
+  classification link (ADR-0014 as amended by ADR-0025 D26); an ad-hoc Task is valid without it and a
+  linked Task never routes through an Output.
 
 All three carry the `org_id` seam; A/R person refs must resolve to a Person in the **same org**
 (same-org guard, mirroring `mos.tasks` / `ops._guard_log_entry`).

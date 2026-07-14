@@ -41,13 +41,37 @@ federated OLAP warehouse (reporting read-models, snapshot-fed; never merged OLTP
 (2026-07-04) then re-scoped *how* the agent machinery arrives: **ported from the sibling PMO project**,
 not grown (ADR-0017 §4a Issues 2–3 superseded).
 
-### E6 — Viable, not minimum: the whole-company OS (2026-07-04 · ADR-0019/0020, OD-IA-1/2) ← CURRENT
+### E6 — Viable, not minimum: the whole-company OS (2026-07-04 · ADR-0019/0020, OD-IA-1/2)
 Owner reset the bar explicitly: *"minimum viable" kept failing on "viable" — capture existing ops,
 not just a minimum*. MOS = **the operating system for all ~30 people** in a company running on forked
 gsheets. Locked: five destinations (Home/Work/Operate/Plan/Inbox), BU(team)/Activity/Revenue-stream
 taxonomy, MOS owns settlement grain (B2B AR + retail pending bills), reference data (ESB feeds / MOS
 owns), sheet-retirement playbook, phone-first + bottom tabs, bilingual en/id, `can()` capability
 authorization with admin-editable roles. **E1's "first slice" language is historical from here.**
+**Substantially amended by E7:** BU=team taxonomy, the five-destination rail, Home cockpit, and
+Plan/Operate guidance no longer hold. Canonical-record, cascade, Inbox-router, agent-panel, financial
+truth, and authorization principles survive only where ADR-0025/OD-REDESIGN do not amend them.
+
+### E7 — Full redesign: modules-in-rail, one record workspace, Signals (2026-07-09/10 · ADR-0025, OD-REDESIGN-1..55) ← CURRENT
+A full IA/IxD/UI reset: the never-used app behaved like "several apps," so the owner treated the
+existing app/routes/`DESIGN.md`/mockups/ADRs as *evidence, not authority*. Locked direction: rail =
+**Destinations (Home · Work · Money · Inbox) + BU-grouped Modules (Café · Ecommerce · Roastery)** —
+no separate Dashboard/Operate/Plan/Reference/Cascade destination (reverses E6's five-destination rail,
+ADR-0019 D2). **Home** = a required role-aware attention brief + an authorized personal canvas (not a
+KPI cockpit). **Work** = one record workspace with collections + saved views (Tasks, Process Runs,
+Projects, Processes, Standards, Objectives, Signals, Follow-ups). **Signal** replaces both mandatory
+Weekly Update and the ops-only Daily Log with one org-wide factual layer (no PIC/Supervisor/status;
+links many-to-many to Tasks). **Task ownership = PIC + Supervisor**; **RACI is reserved for
+Objective/Project/Process**. **Person acts through `can()`** inherited from configurable Access roles
++ individual Allow/Deny overrides; **Team is execution scope, never an actor**. BU (functional) /
+Team (concrete group) / Site (physical place) are distinct; governance definitions are BU-scoped,
+execution records Team-scoped. System **Object Contracts** (not user Templates) drive creation;
+**Blueprint** is deferred. **Process** (versioned definition) vs **Process Run** (occurrence) and a
+versioned **Standard** quality-loop are first-class. One **Action Launcher** (phone FAB + desktop
+`+ Create`) over a stable command registry. Canonical Phase-0 next step = **update the working mockups
+into one decision-complete prototype** (`docs/design-mockups/redesign-mockups-2026-07/`) → **owner approval → SDD →
+plan → TDD build → review → BDD acceptance**. Clean data baseline authorized in **direction only**
+(OD-REDESIGN-34); no reset/deploy is authorized by the direction itself. Vocabulary: `CONTEXT.md`.
 
 ## What never changed (constant across all eras)
 Usability + speed beat model completeness · `org_id` + RLS on every business table · owner gates on

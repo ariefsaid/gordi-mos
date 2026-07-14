@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gordi MOS redesign option B - Work-led OS</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="redesign.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-main">
+        <p class="kicker">Option B - work-led</p>
+        <h1>The app opens on Work. Objectives and tasks become the main spine, while money and ops feed exceptions into it.</h1>
+        <p class="lead">This is the critical alternative if the true job is management cadence, not monitoring. There is no Dashboard and no Home. The first screen is a queue of commitments, risks, owners, and objective context.</p>
+      </div>
+      <aside class="hero-side">
+        <h2>What this kills</h2>
+        <ul class="kill-list">
+          <li><span class="term">Now</span><span>Demoted to a saved Work view named Needs attention.</span></li>
+          <li><span class="term">Cascade</span><span>Replaced by Objective detail and Task roll-up context.</span></li>
+          <li><span class="term">Dashboard</span><span>Only appears as Money summaries embedded in work exceptions.</span></li>
+          <li><span class="kept">Kept</span><span>Weekly updates, follow-ups, task ownership, objectives, and RACI, but with simpler placement.</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="device" data-mock-app data-default-route="work">
+      <div class="mock-shell">
+        <aside class="rail">
+          <div class="brand"><span class="brand-mark">G</span><span class="brand-name">Gordi MOS</span></div>
+          <nav class="nav" aria-label="Primary">
+            <div class="nav-label">Primary</div>
+            <a class="active" href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Commitments and owner attention">Work <small>27</small></a>
+            <a href="#money" data-route-link="money" data-route-name="Money" data-route-subtitle="Financial exceptions that create work">Money <small>6</small></a>
+            <a href="#ops" data-route-link="ops" data-route-name="Ops" data-route-subtitle="Activity capture and review">Ops</a>
+            <a href="#inbox" data-route-link="inbox" data-route-name="Inbox" data-route-subtitle="Notification router">Inbox <small>3</small></a>
+            <div class="nav-label">Setup</div>
+            <a href="#setup" data-route-link="setup" data-route-name="Setup" data-route-subtitle="People and permissions">People</a>
+            <a href="#setup">Permissions</a>
+          </nav>
+          <div class="rail-footer">
+            <p class="name-sub">No Home. No Dashboard. Start from work that needs ownership.</p>
+          </div>
+        </aside>
+
+        <section class="workspace">
+          <header class="topbar">
+            <span class="breadcrumb"><strong data-route-title>Work</strong> <span data-route-subtitle>/ Needs attention</span></span>
+            <div class="search">Search tasks, objectives, follow-ups <span class="kbd">Cmd K</span></div>
+            <span class="avatar">AS</span>
+          </header>
+          <nav class="mobile-tabs" aria-label="Mobile primary">
+            <a class="active" href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Commitments and owner attention">Work</a>
+            <a href="#money" data-route-link="money" data-route-name="Money" data-route-subtitle="Financial exceptions that create work">Money</a>
+            <a href="#ops" data-route-link="ops" data-route-name="Ops" data-route-subtitle="Activity capture and review">Ops</a>
+            <a href="#inbox" data-route-link="inbox" data-route-name="Inbox" data-route-subtitle="Notification router">Inbox</a>
+            <a href="#setup" data-route-link="setup" data-route-name="Setup" data-route-subtitle="People and permissions">Setup</a>
+          </nav>
+
+          <div class="mock-main">
+            <section class="route-page" data-route="work">
+            <div class="page-title-row">
+              <div>
+                <h1>Work</h1>
+                <p>One place for commitments: objectives, tasks, follow-ups, updates. The list is not a dashboard, but it carries the numbers needed to act.</p>
+              </div>
+              <div class="title-actions">
+                <a class="button" href="#objective-new">New objective</a>
+                <a class="button primary" href="#task-new">New task</a>
+              </div>
+            </div>
+            <div class="subnav">
+              <a class="active" href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Commitments and owner attention">Attention</a>
+              <a href="#objective" data-route-link="objective" data-route-name="Objective" data-route-subtitle="Downward structure in context">Objectives</a>
+              <a href="#task" data-route-link="task" data-route-name="Task" data-route-subtitle="Upward context from one commitment">Tasks</a>
+              <a href="#work-checks" data-route-link="work-checks" data-route-name="Checks" data-route-subtitle="Recurring standard checks">Checks</a>
+              <a href="#work-findings" data-route-link="work-findings" data-route-name="Findings" data-route-subtitle="Failed checks requiring work">Findings</a>
+              <button type="button" data-drawer-link="weekly-update">Weekly update</button>
+            </div>
+
+            <div class="status-strip">
+              <article class="signal">
+                <div class="label">Needs attention</div>
+                <div class="value">27</div>
+                <div class="help">Across tasks, follow-ups, updates.</div>
+              </article>
+              <article class="signal">
+                <div class="label">Objectives at risk</div>
+                <div class="value">4</div>
+                <div class="help">Drill into objective rows.</div>
+              </article>
+              <article class="signal">
+                <div class="label">Money follow-ups</div>
+                <div class="value">Rp 96.2m</div>
+                <div class="help">Shown because they require work.</div>
+              </article>
+              <article class="signal">
+                <div class="label">Missing weekly updates</div>
+                <div class="value">2</div>
+                <div class="help">Team cadence issue.</div>
+              </article>
+            </div>
+
+            <div class="split-record">
+              <section class="table-wrap">
+                <div class="toolbar">
+                  <div class="seg" aria-label="Work views">
+                    <button class="active">Needs attention</button>
+                    <button>Objectives</button>
+                    <button>Tasks</button>
+                    <button>Follow-ups</button>
+                    <button>Updates</button>
+                  </div>
+                  <span class="field">Owner: any</span>
+                  <span class="field">Group: objective</span>
+                </div>
+                <table>
+                  <thead>
+                    <tr><th>Work item</th><th>Objective context</th><th>Owner</th><th>Status</th><th>Next action</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="name-main">Recover B2B AR above 30 days</div><div class="name-sub">Follow-up queue, 12 invoices</div></td>
+                      <td><div class="name-main">Cash discipline</div><div class="name-sub">Finance objective</div></td>
+                      <td>B2B Sales</td>
+                      <td><span class="badge red"><span class="dot"></span>Overdue</span></td>
+	                      <td><a class="button" href="#money">Open follow-up</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="name-main">Approve Q3 roastery capacity plan</div><div class="name-sub">Task, blocked by margin data</div></td>
+                      <td><div class="name-main">B2B growth</div><div class="name-sub">Owner: B2B Ops</div></td>
+                      <td>Arief</td>
+                      <td><span class="badge amber"><span class="dot"></span>Blocked</span></td>
+	                      <td><a class="button" href="#task">Open task</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="name-main">Dewi has not filed weekly update</div><div class="name-sub">Manager cadence</div></td>
+                      <td><div class="name-main">Retail reliability</div><div class="name-sub">Team update signal</div></td>
+                      <td>Dewi W.</td>
+                      <td><span class="badge amber"><span class="dot"></span>Not started</span></td>
+	                      <td><a class="button" href="#weekly-update">Open update</a></td>
+                    </tr>
+                    <tr>
+                      <td><div class="name-main">Kitchen stock variance: sambal matah</div><div class="name-sub">Ops exception became a task</div></td>
+                      <td><div class="name-main">Retail reliability</div><div class="name-sub">Activity: Kitchen</div></td>
+                      <td>Riri</td>
+                      <td><span class="badge blue"><span class="dot"></span>In progress</span></td>
+	                      <td><a class="button" href="#ops">Open ops record</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <aside class="record-detail">
+                <div class="block">
+                  <h2>Selected objective</h2>
+                  <p class="name-sub">Objective detail replaces the Cascade page. It shows the downward tree only when the user asks for the objective.</p>
+                </div>
+                <div class="block">
+                  <dl>
+                    <dt>Objective</dt><dd>Retail reliability</dd>
+                    <dt>Owner</dt><dd>Retail Ops</dd>
+                    <dt>Health</dt><dd><span class="badge amber">At risk</span></dd>
+                    <dt>Roll-up</dt><dd>3 projects, 18 tasks, 4 ops exceptions</dd>
+                  </dl>
+                </div>
+                <div class="block">
+                  <h3>Downward drill</h3>
+                  <table>
+                    <tbody>
+                      <tr><td><div class="name-main">Kitchen production accuracy</div><div class="name-sub">7 tasks, 2 blocked</div></td></tr>
+                      <tr><td><div class="name-main">Bar stock discipline</div><div class="name-sub">4 tasks, 1 ops exception</div></td></tr>
+                      <tr><td><div class="name-main">Weekly team cadence</div><div class="name-sub">2 missing updates</div></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="block">
+                  <a class="button primary" href="#objective" data-route-link="objective" data-route-name="Objective" data-route-subtitle="Downward cascade from objective">Open objective</a>
+                </div>
+              </aside>
+            </div>
+            </section>
+
+            <section class="route-page hidden" data-route="objective" data-route-parent="work" data-route-name="Objective" data-route-subtitle="Downward structure in context">
+              <div class="page-title-row"><div><h1>Objective: Retail reliability</h1><p>The objective page replaces the standalone Cascade route. It exposes the downward structure only in context.</p></div><div class="title-actions"><a class="button" href="#work">Back to Work</a><a class="button primary" href="#task">Create task under objective</a></div></div>
+              <div class="status-strip"><article class="signal"><div class="label">Health</div><div class="value">At risk</div><div class="help">2 blocked tasks, 1 ops exception.</div></article><article class="signal"><div class="label">Owner</div><div class="value">Retail Ops</div><div class="help">Accountable BU.</div></article><article class="signal"><div class="label">Progress</div><div class="value">63%</div><div class="help">Based on child work.</div></article><article class="signal"><div class="label">Updates</div><div class="value">6/8</div><div class="help">Filed this week.</div></article></div>
+              <div class="kanban"><section class="lane"><h3>Objective <span class="badge amber">At risk</span></h3><article class="work-card"><strong>Retail reliability</strong><p class="name-sub">Reduce missing stock, late prep, and incomplete updates.</p></article></section><section class="lane"><h3>Projects</h3><article class="work-card">Kitchen production accuracy <span class="badge red">Blocked</span></article><article class="work-card">Bar stock discipline <span class="badge amber">Needs review</span></article></section><section class="lane"><h3>Tasks</h3><article class="work-card">Fix sambal matah negative stock</article><article class="work-card">Approve Q3 prep checklist</article></section><section class="lane"><h3>Signals</h3><article class="work-card">14 kitchen logs waiting</article><article class="work-card">2 updates missing</article></section></div>
+            </section>
+
+            <section class="route-page hidden" data-route="task" data-route-parent="work" data-route-name="Task" data-route-subtitle="Upward context from one commitment">
+              <div class="page-title-row"><div><h1>Task: Approve Q3 roastery capacity plan</h1><p>Task detail shows upward context. The user should not need to visit Cascade to understand why this task matters.</p></div><div class="title-actions"><a class="button" href="#work">Back to queue</a><a class="button primary" href="#task">Change status</a></div></div>
+              <div class="split-record"><section class="panel"><div class="panel-head"><h2>Decision first</h2><span class="right badge amber">Blocked</span></div><div class="panel-body"><dl class="record-detail"><dt>Status</dt><dd>Blocked by interim margin basis</dd><dt>Responsible</dt><dd>B2B Ops</dd><dt>Accountable</dt><dd>Arief</dd><dt>Due</dt><dd>Today</dd><dt>Next step</dt><dd>Open Money cost basis and certify margin source</dd></dl></div></section><aside class="record-detail"><div class="block"><h2>Rolls up to</h2><p>B2B growth / Roastery capacity</p></div><div class="block"><h3>Related records</h3><table><tbody><tr><td>Roastery gross margin</td><td><a class="button" href="#money">Open</a></td></tr><tr><td>Q3 roast schedule</td><td><a class="button" href="#ops">Open</a></td></tr></tbody></table></div></aside></div>
+            </section>
+
+            <section class="route-page hidden" data-route="work-checks" data-route-parent="work" data-route-name="Checks" data-route-subtitle="Recurring standard checks">
+              <div class="page-title-row"><div><h1>Checks</h1><p>In the work-led IA, recurring SOP checks are treated as commitments that can become tasks.</p></div><div class="title-actions"><a class="button primary" href="#check-run">Run check</a></div></div>
+              <div class="subnav"><a href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Commitments and owner attention">Attention</a><a href="#objective" data-route-link="objective" data-route-name="Objective" data-route-subtitle="Downward structure in context">Objectives</a><a href="#task" data-route-link="task" data-route-name="Task" data-route-subtitle="Upward context from one commitment">Tasks</a><a class="active" href="#work-checks" data-route-link="work-checks" data-route-name="Checks" data-route-subtitle="Recurring standard checks">Checks</a><a href="#work-findings" data-route-link="work-findings" data-route-name="Findings" data-route-subtitle="Failed checks requiring work">Findings</a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Due checks</strong><span class="field">Grouped by accountable person</span></div><table><thead><tr><th>Check</th><th>Standard</th><th>A/R</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>Opening food-safety checklist</td><td>Kitchen opening SOP v4</td><td>Retail Ops / Riri</td><td><span class="badge amber">Due now</span></td><td><a class="button" href="#check-run">Run</a></td></tr><tr><td>Chiller temperature check</td><td>Cold storage standard v2</td><td>Kitchen lead / Ibnu</td><td><span class="badge red">Overdue</span></td><td><a class="button" href="#task-new">Create task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="work-findings" data-route-parent="work" data-route-name="Findings" data-route-subtitle="Failed checks requiring work">
+              <div class="page-title-row"><div><h1>Findings</h1><p>Failed standards checks are managed like work: assigned, due, corrected, reviewed.</p></div><div class="title-actions"><a class="button primary" href="#task-new">Create corrective task</a></div></div>
+              <div class="subnav"><a href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Commitments and owner attention">Attention</a><a href="#objective" data-route-link="objective" data-route-name="Objective" data-route-subtitle="Downward structure in context">Objectives</a><a href="#task" data-route-link="task" data-route-name="Task" data-route-subtitle="Upward context from one commitment">Tasks</a><a href="#work-checks" data-route-link="work-checks" data-route-name="Checks" data-route-subtitle="Recurring standard checks">Checks</a><a class="active" href="#work-findings" data-route-link="work-findings" data-route-name="Findings" data-route-subtitle="Failed checks requiring work">Findings</a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Open findings</strong><span class="field">Source: SOP checks</span></div><table><thead><tr><th>Finding</th><th>Source standard</th><th>Owner</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>Chiller B at 7.2C</td><td>Cold storage standard v2</td><td>Kitchen lead</td><td><span class="badge red">Correction needed</span></td><td><a class="button" href="#task-new">Assign</a></td></tr><tr><td>FIFO label missing prep date</td><td>Kitchen opening SOP v4</td><td>Riri</td><td><span class="badge amber">Corrected on floor</span></td><td><a class="button" href="#ops-standards">Audit</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="money">
+              <div class="page-title-row"><div><h1>Money</h1><p>In this IA, Money is not a dashboard destination. It is the source of financial exceptions that create work.</p></div><div class="title-actions"><a class="button primary" href="#followup-new">Create follow-up</a></div></div>
+              <div class="subnav"><a class="active" href="#money" data-route-link="money" data-route-name="Money" data-route-subtitle="Financial exceptions that create work">Exceptions</a><button type="button" data-drawer-link="followup-new">New follow-up</button></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Financial exceptions</strong><span class="field">AR</span><span class="field">Margin</span><span class="field">Costs</span></div><table><thead><tr><th>Exception</th><th>Linked work</th><th>Status</th><th class="num-cell">Value</th></tr></thead><tbody><tr><td>B2B AR over 30 days</td><td>Recover B2B AR above 30 days</td><td><span class="badge red">Overdue</span></td><td class="num-cell">Rp 96.2m</td></tr><tr><td>Roastery GM below target</td><td>Approve Q3 capacity plan</td><td><span class="badge amber">Blocked</span></td><td class="num-cell">26.4%</td></tr><tr><td>Cost records stale</td><td>Certify July COGS</td><td><span class="badge amber">Needs Finance</span></td><td class="num-cell">7 records</td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ops">
+              <div class="page-title-row"><div><h1>Ops</h1><p>Operations appear as signals and source records. Exceptions can become work items without making every floor page part of Work.</p></div><div class="title-actions"><a class="button primary" href="#ops-kitchen">Open Kitchen capture</a></div></div>
+              <div class="module-nav"><a href="#ops-kitchen" data-route-link="ops-kitchen" data-route-name="Kitchen" data-route-subtitle="Kitchen activity source record"><strong>Kitchen</strong><span>Plan, log, review, stock</span></a><a href="#ops-standards" data-route-link="ops-standards" data-route-name="Standards" data-route-subtitle="SOP source records"><strong>Standards</strong><span>SOPs and control points</span></a><a href="#ops-bar" data-route-link="ops-bar" data-route-name="Bar" data-route-subtitle="Bar activity source record"><strong>Bar</strong><span>Future activity</span></a><a href="#ops-roastery" data-route-link="ops-roastery" data-route-name="Roastery" data-route-subtitle="Yield and roast-log source"><strong>Roastery</strong><span>Roast log and stock</span></a><a href="#ops-ecommerce" data-route-link="ops-ecommerce" data-route-name="Ecommerce" data-route-subtitle="Pick-pack-ship source"><strong>Ecommerce</strong><span>Pick, pack, ship</span></a><a href="#ops-daily" data-route-link="ops-daily" data-route-name="Daily log" data-route-subtitle="Cross-activity source feed"><strong>Daily log</strong><span>Cross-activity feed</span></a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Ops records requiring management</strong></div><table><tbody><tr><td>Kitchen stock variance</td><td><span class="badge red">Promote to task</span></td><td><a class="button" href="#task-new">Create work</a></td></tr><tr><td>14 kitchen logs pending</td><td><span class="badge amber">Lead review</span></td><td><a class="button" href="#ops-kitchen">Review</a></td></tr><tr><td>Roastery yield missing evidence</td><td><span class="badge amber">Capture gap</span></td><td><a class="button" href="#ops-roastery">Open record</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="inbox">
+              <div class="page-title-row"><div><h1>Inbox</h1><p>Inbox routes back into Work. It is not a parallel task system.</p></div><div class="title-actions"><a class="button" href="#inbox">Mark all read</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Unread</strong></div><table><tbody><tr><td>Riri mentioned you on a kitchen variance</td><td><a class="button" href="#ops">Open source</a></td></tr><tr><td>Payment evidence ready for approval</td><td><a class="button" href="#money">Open exception</a></td></tr><tr><td>Task assigned: Q3 roast schedule</td><td><a class="button" href="#task">Open task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="setup">
+              <div class="page-title-row"><div><h1>Setup</h1><p>People and permissions are setup. They are kept out of normal work navigation.</p></div><div class="title-actions"><a class="button primary" href="#invite-person">Invite person</a></div></div>
+              <div class="subnav"><a class="active" href="#setup" data-route-link="setup" data-route-name="Setup" data-route-subtitle="People and permissions">People and capabilities</a><button type="button" data-drawer-link="invite-person">Invite person</button></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Capabilities</strong><span class="field">Admin only</span></div><table><tbody><tr><td>objective.manage</td><td>Admin</td></tr><tr><td>money.view</td><td>Finance, Admin</td></tr><tr><td>ops.approve</td><td>Ops lead, Admin</td></tr></tbody></table></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="objective-new" data-route-parent="work" data-route-name="New objective" data-route-subtitle="Work-led objective creation">
+              <div class="page-title-row"><div><h1>New objective</h1><p>Work-led IA creates objectives from the work queue without sending users to a separate planning app.</p></div><div class="title-actions"><a class="button" href="#work">Back to Work</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Objective form</h2></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="b-objective-name">Name</label><input id="b-objective-name" value="Retail reliability"></div><div class="form-field"><label for="b-objective-owner">Owner</label><select id="b-objective-owner"><option>Retail Ops</option><option>B2B Ops</option></select></div><div class="form-field"><label for="b-objective-health">Starting health</label><select id="b-objective-health"><option>On track</option><option>At risk</option></select></div><div class="form-field full-span"><label for="b-objective-note">Outcome</label><textarea id="b-objective-note">Reduce missing stock and overdue weekly updates.</textarea></div><div class="form-actions"><a class="button" href="#work">Cancel</a><a class="button primary" href="#objective">Create objective</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="task-new" data-route-parent="work" data-route-name="New task" data-route-subtitle="Create owned work">
+              <div class="page-title-row"><div><h1>New task</h1><p>Tasks inherit context from the source record where possible.</p></div><div class="title-actions"><a class="button" href="#work">Back to queue</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Task form</h2><span class="right badge blue">RACI-light</span></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="b-task-title">Title</label><input id="b-task-title" value="Fix sambal matah negative stock"></div><div class="form-field"><label for="b-task-responsible">Responsible</label><select id="b-task-responsible"><option>Riri Permata</option><option>B2B Ops</option></select></div><div class="form-field"><label for="b-task-accountable">Accountable</label><select id="b-task-accountable"><option>Arief</option><option>Retail Ops lead</option></select></div><div class="form-field"><label for="b-task-source">Source</label><select id="b-task-source"><option>Kitchen stock variance</option><option>Money exception</option></select></div><div class="form-field full-span"><label for="b-task-next">Next action</label><textarea id="b-task-next">Confirm opening stock and attach evidence before approving transfer logs.</textarea></div><div class="form-actions"><a class="button" href="#work">Cancel</a><a class="button primary" href="#task">Create task</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="followup-new" data-route-parent="money" data-route-name="New follow-up" data-route-subtitle="Turn a financial exception into work">
+              <div class="page-title-row"><div><h1>Create money follow-up</h1><p>Financial exceptions become owned work instead of living as dashboard observations.</p></div><div class="title-actions"><a class="button" href="#money">Back to Money</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Follow-up form</h2></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="b-follow-title">Follow-up</label><input id="b-follow-title" value="Recover B2B AR above 30 days"></div><div class="form-field"><label for="b-follow-owner">Owner</label><select id="b-follow-owner"><option>B2B Sales</option><option>Finance</option></select></div><div class="form-field"><label for="b-follow-due">Due</label><input id="b-follow-due" value="2026-07-08"></div><div class="form-field full-span"><label for="b-follow-source">Source record</label><input id="b-follow-source" value="B2B AR over 30 days - Rp 96.2m"></div><div class="form-actions"><a class="button" href="#money">Cancel</a><a class="button primary" href="#work">Create follow-up</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="weekly-update" data-route-parent="work" data-route-name="Weekly update" data-route-subtitle="Manager cadence detail">
+              <div class="page-title-row"><div><h1>Dewi weekly update</h1><p>Work-led IA treats missing updates as owned commitments.</p></div><div class="title-actions"><a class="button" href="#work">Back to Work</a><a class="button primary" href="#task-new">Create task</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Update draft</h2><span class="right badge amber">Not filed</span></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="b-update-summary">Summary</label><textarea id="b-update-summary">Bar stock discipline improved, but kitchen prep handoff still needs a repeatable closing count.</textarea></div><div class="form-field full-span"><label for="b-update-blockers">Blockers</label><textarea id="b-update-blockers">Need Retail Ops decision on negative stock handling.</textarea></div><div class="form-actions"><a class="button" href="#work">Nudge owner</a><a class="button primary" href="#work">Mark reviewed</a></div></div></div></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ops-kitchen" data-route-parent="ops" data-route-name="Kitchen" data-route-subtitle="Kitchen activity source record">
+              <div class="page-title-row"><div><h1>Kitchen activity</h1><p>Work-led view opens ops only as a source record or work generator.</p></div><div class="title-actions"><a class="button primary" href="#task-new">Create task from exception</a></div></div>
+              <div class="dashboard-grid"><section class="panel"><div class="panel-head"><h2>Capture shortcut</h2><span class="right badge blue">Staff mode</span></div><div class="panel-body"><div class="form-grid"><div class="form-field"><label for="b-kitchen-item">Item</label><select id="b-kitchen-item"><option>Sambal matah</option><option>Nasi daun jeruk</option></select></div><div class="form-field"><label for="b-kitchen-qty">Quantity</label><input id="b-kitchen-qty" value="10 portions"></div><div class="form-actions"><a class="button" href="#ops">Cancel</a><a class="button primary" href="#ops-kitchen">Submit log</a></div></div></div></section><aside class="record-detail"><div class="block"><h2>Current signal</h2><p>Sambal matah will go negative if the submitted transfer is approved.</p></div><a class="button primary" href="#task-new">Promote to task</a></aside></div>
+            </section>
+
+            <section class="route-page hidden" data-route="ops-standards" data-route-parent="ops" data-route-name="Standards" data-route-subtitle="SOP source records">
+              <div class="page-title-row"><div><h1>Standards source records</h1><p>In this IA, standards are source records that generate Work checks and findings, not the primary floor surface.</p></div><div class="title-actions"><a class="button primary" href="#standard-edit">Review standard</a></div></div>
+              <div class="module-nav"><a href="#ops-kitchen" data-route-link="ops-kitchen" data-route-name="Kitchen" data-route-subtitle="Kitchen activity source record"><strong>Kitchen</strong><span>Activity source</span></a><a href="#ops-standards" class="active" data-route-link="ops-standards" data-route-name="Standards" data-route-subtitle="SOP source records"><strong>Standards</strong><span>SOP source records</span></a><a href="#ops-daily" data-route-link="ops-daily" data-route-name="Daily log" data-route-subtitle="Cross-activity source feed"><strong>Daily log</strong><span>Traceability feed</span></a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Kitchen standards</strong><span class="field">Versioned</span></div><table><thead><tr><th>Standard</th><th>Control points</th><th>Evidence</th><th>Review</th><th>Action</th></tr></thead><tbody><tr><td>Kitchen opening SOP v4</td><td>12</td><td>Photo + readings</td><td><span class="badge amber">Due</span></td><td><a class="button" href="#standard-edit">Edit</a></td></tr><tr><td>Cold storage standard v2</td><td>4</td><td>Temperature reading</td><td><span class="badge green">Current</span></td><td><a class="button" href="#work-checks">Open checks</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ops-bar" data-route-parent="ops" data-route-name="Bar" data-route-subtitle="Bar activity placeholder with real controls">
+              <div class="page-title-row"><div><h1>Bar activity</h1><p>Future activity modules follow the same local pattern: plan, capture, review, stock.</p></div><div class="title-actions"><a class="button primary" href="#task-new">Create setup task</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Bar signals</strong></div><table><tbody><tr><td>Closing count missing</td><td><span class="badge amber">Needs setup</span></td><td><a class="button" href="#task-new">Create task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ops-roastery" data-route-parent="ops" data-route-name="Roastery" data-route-subtitle="Yield and roast-log source">
+              <div class="page-title-row"><div><h1>Roastery activity</h1><p>Roastery records link directly to margin and capacity work.</p></div><div class="title-actions"><a class="button primary" href="#task">Open capacity task</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Yield records</strong><span class="field">This week</span></div><table><thead><tr><th>Batch</th><th>Yield</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>Q3 house blend test</td><td>85.8%</td><td><span class="badge amber">Evidence missing</span></td><td><a class="button" href="#task-new">Create task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ops-ecommerce" data-route-parent="ops" data-route-name="Ecommerce" data-route-subtitle="Pick-pack-ship source">
+              <div class="page-title-row"><div><h1>Ecommerce activity</h1><p>Ecommerce is modeled as an activity source, not as another global navigation branch.</p></div><div class="title-actions"><a class="button primary" href="#task-new">Create fulfillment task</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Fulfillment signals</strong></div><table><tbody><tr><td>Delayed subscription batch</td><td><span class="badge amber">2 orders</span></td><td><a class="button" href="#task-new">Create task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ops-daily" data-route-parent="ops" data-route-name="Daily log" data-route-subtitle="Cross-activity source feed">
+              <div class="page-title-row"><div><h1>Daily ops log</h1><p>Cross-activity feed exists for traceability. Work still lives in Work.</p></div><div class="title-actions"><a class="button" href="#ops">Back to Ops</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Today</strong><span class="field">All activities</span></div><table><tbody><tr><td>Kitchen submitted 14 logs</td><td><a class="button" href="#ops-kitchen">Open</a></td></tr><tr><td>Roastery yield evidence missing</td><td><a class="button" href="#ops-roastery">Open</a></td></tr><tr><td>Ecommerce delayed subscription batch</td><td><a class="button" href="#ops-ecommerce">Open</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="invite-person" data-route-parent="setup" data-route-name="Invite person" data-route-subtitle="Setup access">
+              <div class="page-title-row"><div><h1>Invite person</h1><p>Setup stays out of daily work, but the form itself remains plain-language.</p></div><div class="title-actions"><a class="button" href="#setup">Back to Setup</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Invite form</h2></div><div class="panel-body"><div class="form-grid"><div class="form-field"><label for="b-invite-name">Name</label><input id="b-invite-name" value="Maya Putri"></div><div class="form-field"><label for="b-invite-email">Email</label><input id="b-invite-email" value="maya@gordi.id"></div><div class="form-field"><label for="b-invite-role">Role</label><select id="b-invite-role"><option>Manager</option><option>Ops lead</option><option>Finance</option></select></div><div class="form-field"><label for="b-invite-area">Access</label><select id="b-invite-area"><option>Work + Ops</option><option>Money</option><option>Setup admin</option></select></div><div class="form-actions"><a class="button" href="#setup">Cancel</a><a class="button primary" href="#setup">Send invite</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="check-run" data-route-parent="work-checks" data-route-name="Run check" data-route-subtitle="Complete a standard control run">
+              <div class="page-title-row"><div><h1>Run SOP check</h1><p>Work-led checks still capture structured evidence and deviations.</p></div><div class="title-actions"><a class="button" href="#work-checks" data-drawer-close>Close</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Opening food-safety checklist</h2></div><div class="panel-body"><div class="form-grid"><div class="form-field"><label for="b-check-temp">Chiller temp</label><input id="b-check-temp" value="4.8 C"></div><div class="form-field"><label for="b-check-photo">Photo</label><input id="b-check-photo" value="opening-line.jpg"></div><div class="form-field full-span"><label for="b-check-note">Finding note</label><textarea id="b-check-note">FIFO label missing prep date on garnish tray.</textarea></div><div class="form-actions"><a class="button" href="#work-checks" data-drawer-close>Save draft</a><a class="button primary" href="#work-findings" data-drawer-close>Submit</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="standard-edit" data-route-parent="ops-standards" data-route-name="Edit standard" data-route-subtitle="Review source SOP">
+              <div class="page-title-row"><div><h1>Edit standard</h1><p>The concise source record controls generated checks and evidence requirements.</p></div><div class="title-actions"><a class="button" href="#ops-standards" data-drawer-close>Close</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Kitchen opening SOP v4</h2></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="b-standard-purpose">Purpose</label><input id="b-standard-purpose" value="Safe and consistent kitchen opening."></div><div class="form-field"><label for="b-standard-frequency">Frequency</label><select id="b-standard-frequency"><option>Every opening shift</option><option>Daily</option></select></div><div class="form-field"><label for="b-standard-owner">Accountable</label><select id="b-standard-owner"><option>Retail Ops</option><option>Kitchen lead</option></select></div><div class="form-field full-span"><label for="b-standard-controls">Controls</label><textarea id="b-standard-controls">Cold storage in range; sanitation complete; FIFO labels present.</textarea></div><div class="form-actions"><a class="button" href="#ops-standards" data-drawer-close>Save draft</a><a class="button primary" href="#ops-standards" data-drawer-close>Publish</a></div></div></div></section>
+            </section>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="decision-grid">
+        <article class="note-card">
+          <h3>Best-practice argument</h3>
+          <p>Work-management tools often center owned work rather than analytics. This reduces landing-page complexity and turns every metric into a task, follow-up, or objective signal.</p>
+        </article>
+        <article class="note-card">
+          <h3>Critical risk</h3>
+          <p>If MOS also needs to be the owner's fast operating cockpit, this option can feel too queue-heavy and too manager-centric. It may bury pure monitoring jobs.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script src="redesign.js"></script>
+</body>
+</html>

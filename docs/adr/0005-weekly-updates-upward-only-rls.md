@@ -1,6 +1,6 @@
 # ADR-0005 — Weekly-updates upward-only RLS + submit-lock mechanisms
 
-- Status: Accepted (2026-06-12, P2-2 planning)
+- Status: **Superseded 2026-07-10 by ADR-0025 D20 / OD-REDESIGN-33**
 - Deciders: Owner (Arief) + Director
 - Related: OD-P1-3 (fixed read posture — weekly updates upward-only), OD-P1-7 (union manager chain),
   OD-P2-10/11/12/13/14 (weekly-update model + lifecycle + read-only review), ADR-0001 (org seam +

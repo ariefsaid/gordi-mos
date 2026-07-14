@@ -1,4 +1,8 @@
-# Spec — Weekly updates (P2-2)
+# Spec — Weekly updates (P2-2) — SUPERSEDED
+
+> **Superseded 2026-07-10 by OD-REDESIGN-33 / ADR-0025 D20.** This specifies the shipped legacy feature
+> only. Do not carry Weekly Updates into the redesign or clean schema baseline; generated summaries over
+> real work and Signals replace mandatory filing.
 
 - Feature: the `mos.weekly_updates` entity end-to-end — schema + RLS (**upward-only read**) + data
   layer + the **write surface** (my weekly update: summary + update lines with progress marker; Save

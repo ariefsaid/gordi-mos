@@ -2,11 +2,23 @@
 
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
-bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
+bar itself moved (era timeline E1→E7): `docs/requirements-evolution.md`.
 
-> **NEXT SESSION: read `docs/platform-workstream-status.md` first** — that is the current
-> handoff. It covers: Kitchen Module (SHIPPED 2026-06-21), access-role layer (SHIPPED),
-> UI-revamp (SHIPPED PRs #29/#34/#35..#52..#66), and all outstanding items.
+> **2026-07-09/10 — REDESIGN IS THE CURRENT DIRECTION.** The in-flight workstream tracked in the
+> dated banners below (agent port, dashboard, sales read-models, UI-revamp) is **pre-redesign**.
+> The owner approved a full redesign: authority is **ADR-0025**
+> (`docs/adr/0025-ia-modules-in-rail-redesign-direction.md`) + **`docs/decisions.md` OD-REDESIGN-1..55**
+> + **`CONTEXT.md`** (PIC + Supervisor; Signal; one record workspace; modules-in-rail). Canonical next
+> step = **owner review of `docs/jtbd.md` v0.4 + `PROTOTYPE-BRIEF.md`, then update the stale redesign
+> working set into one decision-complete prototype** (`docs/design-mockups/redesign-mockups-2026-07/`)
+> → **owner prototype approval**
+> **→ SDD → plan → TDD build → review → BDD acceptance**. A clean data baseline is authorized in
+> direction (OD-REDESIGN-34) but **no reset/deploy is authorized**; the three redesign-derived
+> deferrals already live at the bottom of this file (Blueprint, clean baseline, MCP). Read the
+> banners below as history of what shipped, not as the live plan.
+
+> **NEXT SESSION:** read `docs/redesign-decision-index.md` first for product direction, then
+> `docs/platform-workstream-status.md` only for legacy implementation and infrastructure facts.
 > `docs/ui-revamp-status.md` is the older pre-kitchen UI-revamp handoff (2026-06-19 state);
 > `docs/STATUS.md` is the older pre-2026-06-19 MVP status — both kept for history.
 >
@@ -333,6 +345,9 @@ by `NOT NULL`+FK; the RLS exists-check was broken+redundant → reverted to docu
   per run (deferred: changes + redeploys the Python job).
 
 ## ▶ Pre-rollout UI polish (from the 2026-07-07 4-lens design review — gates flag-flip; task #19)
+> **Pre-redesign (E6) — moot under the full redesign** (top banner; ADR-0025). Do not action these
+> against the old app; the redesign build supersedes the flag-flip gate. Kept as review history.
+
 Source: `docs/reviews/design-mvp-push-2026-07-07.md`. All on **dark** surfaces → don't block `dev`; gate the cohort flag-flip.
 - **[BLOCKER] B-1/C-1** Follow-up row drills `/work/follow-ups/:id` but no route exists → 404. Add read-only detail route or pull the link.
 - **[BLOCKER] D-2** Home AR + AP placeholder slots are dead-end (anchor A4). AR → `/work/follow-ups?filter=overdue`; AP → drill or explicit visibility-only.
@@ -359,6 +374,19 @@ roastery app · ESB write-back visibility · shared UI package extraction ·
 agent attachments (C5) · agent credits/metering (C8) · roastery QC/cupping module ·
 bank-feed auto-matching (AR recon) · certified-metric admin UI · WhatsApp channel.
 
+- **Evidence-gated Blueprint hypothesis (OD-REDESIGN-29):** do not build a generic Template/Blueprint
+  table or UI. Use code-owned Object Contracts plus Duplicate as Draft. Reconsider only when multiple
+  independent Process/Standard definitions are repeatedly copied and manually synchronized across BUs;
+  then grill version propagation, adoption, permissions, and explicit upgrades as a separate issue.
+- **Clean data baseline (OD-REDESIGN-34, owner-gated):** eng-planner authors the dedicated architecture
+  ADR + environment reset/rollback plan after the redesign Object Contracts are signed. Squash legacy
+  business migrations into a small domain-ordered baseline; rebuild seeds/tests; revalidate ESB/reporting
+  contracts and the snapshot job. No local/staging reset or deploy occurs merely from the grill decision.
+- **Remote MCP transport (OD-REDESIGN-35, deferred):** baseline provides the protocol-neutral authorized,
+  idempotent, audited domain-command/query seam. Before exposing MCP, eng-planner authors a dedicated
+  current-spec OAuth/client-trust/threat-model ADR; prove per-person identity, audience validation,
+  revocation, no token passthrough/service-role access, consequential-action approval, and full audit.
+
 ---
 
 ## Gotcha / workflow notes
@@ -384,3 +412,5 @@ GOO (Core API `stg7.esb.co.id/core-stg`; `stg-erp.esb.co.id` was the web UI — 
 TEST DATA ONLY. Never push real GKID product/BOM IDs to GOO. Real-data validation = single-WIP proof-push
 on GKID at the owner-gated switch (OD-K-3/K-4). NB: `/assembly-actual` isn't validatable on GOO (standard-
 costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
+
+- **Brand coherence: app vs Document System** (surfaced 2026-07-14, owner: leave for now) — the MOS app (Plus Jakarta + action-blue, E7-derived) and the client-facing Gordi Document System v2 (Arkhip + Lato, navy `#1B3A6B` + ember `#EE6C3D` + pine, built on Gordi's 2018 brand guideline) read as two different brands. Not de-reference (Gordi's own brand). Options if revisited: selective navy/ember alignment (small) or full 2018-brand re-skin (replaces E7, reshapes redesign). Doc system: `~/Library/CloudStorage/GoogleDrive-arief@gordi.id/My Drive/Consultation/Sami - Vila Mule/Gordi Document System/`.

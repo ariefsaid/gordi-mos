@@ -7,6 +7,18 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "mos-app",
       "port": 5173
+    },
+    {
+      "name": "convergence-flows",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/ariefsaid/Coding/gordi-mos-e7-prototype/docs/design-mockups/redesign-mockups-2026-07/convergence-flows/serve-flows.py"],
+      "port": 8134
+    },
+    {
+      "name": "e7-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/ariefsaid/Coding/gordi-mos-e7-prototype/docs/design-mockups/redesign-mockups-2026-07/serve-e7.py"],
+      "port": 8766
     }
   ]
 }

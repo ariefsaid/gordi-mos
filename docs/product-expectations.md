@@ -5,6 +5,11 @@ This document is **binding on the Director and all role agents**. Part A is the 
 cross-cutting policy (quality gates, checkpoints, design & data rules). `CLAUDE.md` carries the
 enforced summary; this file is the full source of truth.
 
+> **E7 redesign amendment (2026-07-09/10):** the owner's approved redesign intentionally changes
+> product behavior, IA, and data contracts (ADR-0025; OD-REDESIGN-1..55). The Part-A instruction
+> “Do not change functionality” applies to tasks explicitly scoped as code-quality-only upgrades; it
+> does not override a signed redesign spec. The Phase-0 prototype remains the gate before those specs.
+
 ---
 
 ## Part A — Product charter (verbatim)

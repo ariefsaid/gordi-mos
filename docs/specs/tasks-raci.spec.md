@@ -1,5 +1,13 @@
 # Spec — Tasks + lightweight RACI (P2-1)
 
+> **Redesign direction (2026-07-10) supersedes the Task-level RACI framing.** Canonical Task
+> ownership is now **PIC + Supervisor** (OD-REDESIGN-3 / ADR-0025 D6 / `CONTEXT.md`); RACI is reserved
+> for **Objective, Project, and Process** only and Tasks have no C/I. This spec encodes the **shipped
+> legacy storage** (`responsible_person_id` / `accountable_person_id` columns). The owner-authorized
+> clean baseline must not preserve Task RACI as a product compatibility contract; the exact migration
+> and rollback belong to its dedicated ADR/plan. Read this as implementation history;
+> do not carry Task RACI into new specs, APIs, or UI copy.
+
 - Feature: `mos.tasks` entity end-to-end — schema + RLS + data layer + Tasks list page + Task detail
   page + create/edit/archive flows + RACI fields + checklist items + auto change-events.
 - Status: Shipped (P2-1 #5–#7, on `main`). UI surface recomposed by ADR-0007/0008 — see `docs/specs/tasks-dbview.spec.md`.

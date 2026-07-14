@@ -1,4 +1,9 @@
-# Spec — Ops Log (daily ops feed) (P2-3)
+# Spec — Ops Log (daily ops feed) (P2-3) — SUPERSEDED
+
+> **Superseded 2026-07-10 by OD-REDESIGN-33 / ADR-0025 D20.** This specifies the shipped legacy feature
+> only. The clean redesign replaces `ops.log_entries`/Daily Log with the shared Signal model;
+> specialized Module records remain canonical and may be deliberately shared as Signals by a person,
+> or emitted only by an explicit published anomaly rule.
 
 > **Naming note (post-authoring):** the user-facing surface was **renamed "Ops Log" → "Daily Log"**
 > (owner, 2026-06-12, OD-P2-15). This spec keeps "Ops Log" as the point-in-time name; in the shipped app

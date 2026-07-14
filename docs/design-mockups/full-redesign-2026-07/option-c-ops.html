@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gordi MOS redesign option C - Ops-first OS</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="redesign.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-main">
+        <p class="kicker">Option C - ops-first</p>
+        <h1>The app is built around the floor. Management views are generated from captured activity.</h1>
+        <p class="lead">This option is best if the main risk is adoption by operational staff. The first-class destination is Floor, not Kitchen. Kitchen, Bar, Roastery, and Ecommerce are activity workspaces inside it.</p>
+      </div>
+      <aside class="hero-side">
+        <h2>What this kills</h2>
+        <ul class="kill-list">
+          <li><span class="term">Operate</span><span>Renamed to Floor because it is clearer for staff.</span></li>
+          <li><span class="term">Kitchen links</span><span>Local activity navigation replaces five primary nav items.</span></li>
+          <li><span class="term">Dashboard-first</span><span>Capture and review are more important than viewing charts.</span></li>
+          <li><span class="kept">Kept</span><span>Management visibility, but it is downstream of clean capture.</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="device" data-mock-app data-default-route="floor">
+      <div class="mock-shell">
+        <aside class="rail">
+          <div class="brand"><span class="brand-mark">G</span><span class="brand-name">Gordi MOS</span></div>
+          <nav class="nav" aria-label="Primary">
+            <div class="nav-label">Primary</div>
+            <a href="#today" data-route-link="today" data-route-name="Today" data-route-subtitle="Staff and lead start screen">Today</a>
+            <a class="active" href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Floor <small>5</small></a>
+            <a href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Management work generated from operations">Work</a>
+            <a href="#money" data-route-link="money" data-route-name="Money" data-route-subtitle="Finance view of ops impact">Money</a>
+            <a href="#inbox" data-route-link="inbox" data-route-name="Inbox" data-route-subtitle="Triage router">Inbox</a>
+            <div class="nav-label">Activity</div>
+            <a class="active" href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Kitchen</a>
+            <a href="#bar" data-route-link="bar" data-route-name="Bar" data-route-subtitle="Bar activity workspace">Bar</a>
+            <a href="#roastery" data-route-link="roastery" data-route-name="Roastery" data-route-subtitle="Roastery activity workspace">Roastery</a>
+            <a href="#ecommerce" data-route-link="ecommerce" data-route-name="Ecommerce" data-route-subtitle="Ecommerce activity workspace">Ecommerce</a>
+          </nav>
+          <div class="rail-footer">
+            <p class="name-sub">Activity links are local to Floor, not global app destinations.</p>
+          </div>
+        </aside>
+
+        <section class="workspace">
+          <header class="topbar">
+            <span class="breadcrumb"><strong data-route-title>Floor</strong> <span data-route-subtitle>/ Kitchen</span></span>
+            <div class="search">Search products, logs, stock <span class="kbd">Cmd K</span></div>
+            <span class="avatar">RI</span>
+          </header>
+          <nav class="mobile-tabs" aria-label="Mobile primary">
+            <a href="#today" data-route-link="today" data-route-name="Today" data-route-subtitle="Staff and lead start screen">Today</a>
+            <a class="active" href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Floor</a>
+            <a href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Management work generated from operations">Work</a>
+            <a href="#money" data-route-link="money" data-route-name="Money" data-route-subtitle="Finance view of ops impact">Money</a>
+            <a href="#inbox" data-route-link="inbox" data-route-name="Inbox" data-route-subtitle="Triage router">Inbox</a>
+          </nav>
+
+          <div class="mock-main">
+            <section class="route-page" data-route="floor">
+            <div class="page-title-row">
+              <div>
+                <h1>Kitchen floor</h1>
+                <p>Local activity workspace. The top of the page answers: what should we do now, what has been captured, and what needs lead review?</p>
+              </div>
+              <div class="title-actions">
+                <a class="button" href="#stock" data-route-link="stock" data-route-name="Kitchen stock" data-route-subtitle="Location-scoped balances and exceptions">View stock</a>
+                <a class="button primary" href="#floor-log">Log production</a>
+              </div>
+            </div>
+            <nav class="module-nav" aria-label="Floor activity">
+              <button type="button" data-drawer-link="floor-log"><strong>Capture</strong><span>Log production, transfer, or waste</span></button>
+              <a href="#checks" data-route-link="checks" data-route-name="Checks" data-route-subtitle="Shift SOP checks"><strong>Checks</strong><span>Opening, closing, hygiene, QC</span></a>
+              <a href="#standards" data-route-link="standards" data-route-name="Standards" data-route-subtitle="Concise SOPs and limits"><strong>Standards</strong><span>What good looks like</span></a>
+              <a href="#findings" data-route-link="findings" data-route-name="Findings" data-route-subtitle="Failed checks and corrections"><strong>Findings</strong><span>Fix, evidence, review</span></a>
+              <a href="#review" data-route-link="review" data-route-name="Kitchen review" data-route-subtitle="Lead approval before stock and ESB posting"><strong>Review</strong><span>Approve submitted logs</span></a>
+              <a href="#stock" data-route-link="stock" data-route-name="Kitchen stock" data-route-subtitle="Location-scoped balances and exceptions"><strong>Stock</strong><span>Balances and exceptions</span></a>
+              <a href="#bar" data-route-link="bar" data-route-name="Bar" data-route-subtitle="Bar activity workspace"><strong>Bar</strong><span>Activity workspace</span></a>
+              <a href="#roastery" data-route-link="roastery" data-route-name="Roastery" data-route-subtitle="Roastery activity workspace"><strong>Roastery</strong><span>Yield and roast logs</span></a>
+              <a href="#ecommerce" data-route-link="ecommerce" data-route-name="Ecommerce" data-route-subtitle="Ecommerce activity workspace"><strong>Ecommerce</strong><span>Pick, pack, ship</span></a>
+            </nav>
+
+            <div class="status-strip">
+              <article class="signal">
+                <div class="label">Planned today</div>
+                <div class="value">32</div>
+                <div class="help">Items with plan quantity.</div>
+              </article>
+              <article class="signal">
+                <div class="label">Logged</div>
+                <div class="value">18</div>
+                <div class="help">Submitted by staff.</div>
+              </article>
+              <article class="signal">
+                <div class="label">Needs lead review</div>
+                <div class="value">14</div>
+                <div class="help">Approval posts stock and ESB.</div>
+              </article>
+              <article class="signal">
+                <div class="label">Stock exceptions</div>
+                <div class="value">3</div>
+                <div class="help">Negative or stale balances.</div>
+              </article>
+            </div>
+
+            <div class="dashboard-grid">
+              <section class="panel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Fast capture</h2>
+                    <p>Phone-first pattern shown inline. Capture comes before review tables.</p>
+                  </div>
+                  <span class="badge blue">Staff mode</span>
+                </div>
+                <div class="panel-body">
+                  <div class="dashboard-grid equal">
+                    <div class="phone-preview">
+                      <div class="phone-top"><span class="brand-mark">G</span><span class="title">Kitchen log</span><span class="avatar">RI</span></div>
+                      <div class="phone-body">
+                        <article class="phone-card">
+                          <h3>Choose action</h3>
+                          <div class="seg" aria-label="Action type">
+                            <button class="active">Produce</button>
+                            <button>Transfer</button>
+                            <button>Waste</button>
+                          </div>
+                        </article>
+                        <article class="phone-card">
+                          <h3>Nasi daun jeruk</h3>
+                          <p class="name-sub">Plan: 24 portions. Logged: 18. Last update 09:12.</p>
+                          <div class="big-stepper"><button class="step-btn">-</button><div class="qty"><strong>18</strong><span class="name-sub">portions</span></div><button class="step-btn">+</button></div>
+                        </article>
+                        <article class="phone-card">
+                          <h3>Sambal matah</h3>
+                          <p class="name-sub">Plan: 16 portions. Stock risk after approval.</p>
+                          <div class="big-stepper"><button class="step-btn">-</button><div class="qty"><strong>10</strong><span class="name-sub">portions</span></div><button class="step-btn">+</button></div>
+                        </article>
+                        <a class="button primary" style="width:100%; min-height:48px" href="#review">Submit 2 logs</a>
+                      </div>
+                      <nav class="phone-bottom" aria-label="Mobile tabs"><a href="#today">Today</a><a class="active" href="#floor">Floor</a><a href="#work">Work</a><a href="#money">Money</a><a href="#inbox">Inbox</a></nav>
+                    </div>
+                    <div class="stack">
+                      <article class="note-card">
+                        <h3>Local module nav</h3>
+                        <p>Inside Kitchen: Capture, Plan, Review, Stock, Pushes. These are not global destinations.</p>
+                      </article>
+                      <article class="note-card">
+                        <h3>Operational wording</h3>
+                        <p>Labels match floor jobs: log production, review submitted logs, check stock. No generic "Operate" label for staff.</p>
+                      </article>
+                      <article class="note-card">
+                        <h3>Source of management data</h3>
+                        <p>Now and Work get signals from approved logs. The management cockpit is only as good as capture quality.</p>
+                      </article>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <aside class="stack">
+                <section class="panel">
+                  <div class="panel-head"><h2>Lead review</h2><span class="right badge amber">14 pending</span></div>
+                  <div class="panel-body">
+                    <table>
+                      <thead><tr><th>Batch</th><th>Logged by</th><th>Status</th></tr></thead>
+                      <tbody>
+                        <tr><td><div class="name-main">Morning production</div><div class="name-sub">8 items, 132 portions</div></td><td>Riri</td><td><span class="badge amber">Review</span></td></tr>
+                        <tr><td><div class="name-main">Off-plan transfer</div><div class="name-sub">Sambal matah to GKID</div></td><td>Ibnu</td><td><span class="badge blue">Check</span></td></tr>
+                        <tr><td><div class="name-main">Stock correction note</div><div class="name-sub">Negative stock preserved</div></td><td>Ansori</td><td><span class="badge red">Needs note</span></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="panel">
+                  <div class="panel-head"><h2>Stock exceptions</h2><span class="right badge red">3</span></div>
+                  <div class="panel-body">
+                    <table>
+                      <tbody>
+                        <tr><td><div class="name-main">Sambal matah</div><div class="name-sub">-18 portions after submitted logs</div></td></tr>
+                        <tr><td><div class="name-main">Ayam suwir</div><div class="name-sub">No opening balance for today</div></td></tr>
+                        <tr><td><div class="name-main">Nasi daun jeruk</div><div class="name-sub">Last approved stock yesterday 18:12</div></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </aside>
+            </div>
+            </section>
+
+            <section class="route-page hidden" data-route="today">
+              <div class="page-title-row"><div><h1>Today</h1><p>Ops-first Today is not a dashboard. It shows a staff member or lead what to do on the floor right now.</p></div><div class="title-actions"><a class="button primary" href="#floor">Start floor work</a></div></div>
+              <div class="status-strip"><article class="signal"><div class="label">My next step</div><div class="value">Log kitchen</div><div class="help">Production started 09:12.</div></article><article class="signal"><div class="label">Need review</div><div class="value">14</div><div class="help">Lead-only.</div></article><article class="signal"><div class="label">Stock risk</div><div class="value">3</div><div class="help">Location-scoped.</div></article><article class="signal"><div class="label">Inbox</div><div class="value">2</div><div class="help">Mentions and approvals.</div></article></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Shift work</strong><span class="field">Activity: Kitchen</span></div><table><tbody><tr><td><div class="name-main">Log planned production</div><div class="name-sub">12 items ready for capture</div></td><td><a class="button" href="#floor">Open</a></td></tr><tr><td><div class="name-main">Review stock exception</div><div class="name-sub">Sambal matah negative after logs</div></td><td><a class="button" href="#stock">Open</a></td></tr><tr><td><div class="name-main">Read lead note</div><div class="name-sub">Transfer to GKID needs attention</div></td><td><a class="button" href="#inbox">Open</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="review" data-route-parent="floor" data-route-name="Kitchen review" data-route-subtitle="Lead approval before stock and ESB posting">
+              <div class="page-title-row"><div><h1>Kitchen review</h1><p>Review is a local activity page. It posts stock and ESB only after lead approval.</p></div><div class="title-actions"><a class="button" href="#floor">Back to capture</a><a class="button primary" href="#approval-confirm">Approve selected</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Submitted logs</strong><span class="field">Status: submitted</span><span class="field">Action: produce</span></div><table><thead><tr><th>Log</th><th>Staff</th><th>Qty</th><th>Stock effect</th><th>Action</th></tr></thead><tbody><tr><td>Nasi daun jeruk</td><td>Riri</td><td>18 portions</td><td><span class="badge green">OK</span></td><td><a class="button" href="#approval-confirm">Approve</a></td></tr><tr><td>Sambal matah</td><td>Ibnu</td><td>10 portions</td><td><span class="badge red">Negative</span></td><td><a class="button" href="#review-note">Ask note</a></td></tr><tr><td>Off-plan transfer</td><td>Ansori</td><td>6 portions</td><td><span class="badge amber">Check</span></td><td><a class="button" href="#review-detail">Review</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="checks" data-route-parent="floor" data-route-name="Checks" data-route-subtitle="Shift SOP checks">
+              <div class="page-title-row"><div><h1>Shift checks</h1><p>Floor-first standards show up as the next required check, not as a document library.</p></div><div class="title-actions"><a class="button primary" href="#check-run">Run check</a></div></div>
+              <div class="subnav"><a href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Floor</a><a class="active" href="#checks" data-route-link="checks" data-route-name="Checks" data-route-subtitle="Shift SOP checks">Checks</a><a href="#standards" data-route-link="standards" data-route-name="Standards" data-route-subtitle="Concise SOPs and limits">Standards</a><a href="#findings" data-route-link="findings" data-route-name="Findings" data-route-subtitle="Failed checks and corrections">Findings</a><a href="#evidence" data-route-link="evidence" data-route-name="Evidence" data-route-subtitle="Proof attached to checks">Evidence</a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Kitchen checks</strong><span class="field">AM shift</span></div><table><thead><tr><th>Check</th><th>Evidence</th><th>Responsible</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>Opening food-safety checklist</td><td>Photo + readings</td><td>Riri</td><td><span class="badge amber">Due now</span></td><td><a class="button" href="#check-run">Start</a></td></tr><tr><td>Chiller temperature check</td><td>Temperature value</td><td>Ibnu</td><td><span class="badge red">Overdue</span></td><td><a class="button" href="#check-run">Run</a></td></tr><tr><td>Label and FIFO check</td><td>Photo if failed</td><td>Kitchen staff</td><td><span class="badge green">Passed</span></td><td><a class="button" href="#findings">View finding</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="standards" data-route-parent="floor" data-route-name="Standards" data-route-subtitle="Concise SOPs and limits">
+              <div class="page-title-row"><div><h1>Kitchen standards</h1><p>Concise SOPs live beside the floor work they control. Staff see the current version and the critical limit.</p></div><div class="title-actions"><a class="button primary" href="#standard-edit">Review standard</a></div></div>
+              <div class="subnav"><a href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Floor</a><a href="#checks" data-route-link="checks" data-route-name="Checks" data-route-subtitle="Shift SOP checks">Checks</a><a class="active" href="#standards" data-route-link="standards" data-route-name="Standards" data-route-subtitle="Concise SOPs and limits">Standards</a><a href="#findings" data-route-link="findings" data-route-name="Findings" data-route-subtitle="Failed checks and corrections">Findings</a><a href="#evidence" data-route-link="evidence" data-route-name="Evidence" data-route-subtitle="Proof attached to checks">Evidence</a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Active standards</strong><span class="field">Kitchen</span></div><table><thead><tr><th>Standard</th><th>Critical limit</th><th>Evidence</th><th>Review</th><th>Action</th></tr></thead><tbody><tr><td>Cold storage standard v2</td><td>0-5C</td><td>Temperature reading</td><td><span class="badge green">Current</span></td><td><a class="button" href="#checks">Run check</a></td></tr><tr><td>Kitchen opening SOP v4</td><td>Allergen tools separated</td><td>Photo + sign-off</td><td><span class="badge amber">Due 21 Jul</span></td><td><a class="button" href="#standard-edit">Review</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="findings" data-route-parent="floor" data-route-name="Findings" data-route-subtitle="Failed checks and corrections">
+              <div class="page-title-row"><div><h1>Findings</h1><p>Failed checks are visible on the floor and can be corrected immediately or promoted to Work.</p></div><div class="title-actions"><a class="button primary" href="#work-task-new">Create corrective task</a></div></div>
+              <div class="subnav"><a href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Floor</a><a href="#checks" data-route-link="checks" data-route-name="Checks" data-route-subtitle="Shift SOP checks">Checks</a><a href="#standards" data-route-link="standards" data-route-name="Standards" data-route-subtitle="Concise SOPs and limits">Standards</a><a class="active" href="#findings" data-route-link="findings" data-route-name="Findings" data-route-subtitle="Failed checks and corrections">Findings</a><a href="#evidence" data-route-link="evidence" data-route-name="Evidence" data-route-subtitle="Proof attached to checks">Evidence</a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Open findings</strong><span class="field">Needs evidence</span></div><table><thead><tr><th>Finding</th><th>Standard</th><th>Severity</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>Chiller B at 7.2C</td><td>Cold storage standard v2</td><td><span class="badge red">Critical</span></td><td>Correction needed</td><td><a class="button" href="#work-task-new">Create task</a></td></tr><tr><td>FIFO label missing prep date</td><td>Kitchen opening SOP v4</td><td><span class="badge amber">Minor</span></td><td>Corrected on floor</td><td><a class="button" href="#evidence">Audit</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="evidence" data-route-parent="floor" data-route-name="Evidence" data-route-subtitle="Proof attached to checks">
+              <div class="page-title-row"><div><h1>Evidence</h1><p>Photos, readings, and signatures stay attached to the check run and standard version.</p></div><div class="title-actions"><a class="button" href="#findings">Back to findings</a></div></div>
+              <div class="subnav"><a href="#floor" data-route-link="floor" data-route-name="Floor" data-route-subtitle="Kitchen activity workspace">Floor</a><a href="#checks" data-route-link="checks" data-route-name="Checks" data-route-subtitle="Shift SOP checks">Checks</a><a href="#standards" data-route-link="standards" data-route-name="Standards" data-route-subtitle="Concise SOPs and limits">Standards</a><a href="#findings" data-route-link="findings" data-route-name="Findings" data-route-subtitle="Failed checks and corrections">Findings</a><a class="active" href="#evidence" data-route-link="evidence" data-route-name="Evidence" data-route-subtitle="Proof attached to checks">Evidence</a></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Evidence log</strong><span class="field">Kitchen</span></div><table><thead><tr><th>Evidence</th><th>Check</th><th>Captured by</th><th>Result</th></tr></thead><tbody><tr><td>Chiller B 7.2C reading</td><td>Cold storage AM</td><td>Ibnu</td><td><span class="badge red">Failed</span></td></tr><tr><td>FIFO relabel photo</td><td>Opening checklist</td><td>Riri</td><td><span class="badge green">Corrected</span></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="stock" data-route-parent="floor" data-route-name="Kitchen stock" data-route-subtitle="Location-scoped balances and exceptions">
+              <div class="page-title-row"><div><h1>Kitchen stock</h1><p>Stock is location-scoped and operational. Negative stock is preserved as a signal, not hidden.</p></div><div class="title-actions"><a class="button primary" href="#work-task-new">Create task from exception</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Balances</strong><span class="field">Location: Kitchen</span><span class="field">As of approved logs</span></div><table><thead><tr><th>Item</th><th>Opening</th><th>Produced</th><th>Transferred</th><th class="num-cell">Balance</th><th>Action</th></tr></thead><tbody><tr><td>Sambal matah</td><td>0</td><td>10</td><td>28</td><td class="num-cell">-18</td><td><a class="button" href="#work-task-new">Create task</a></td></tr><tr><td>Nasi daun jeruk</td><td>12</td><td>18</td><td>8</td><td class="num-cell">22</td><td><a class="button" href="#floor-log">Log more</a></td></tr><tr><td>Ayam suwir</td><td>Missing</td><td>0</td><td>0</td><td class="num-cell">Unknown</td><td><a class="button" href="#stock-count">Request count</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="work">
+              <div class="page-title-row"><div><h1>Work from floor signals</h1><p>Ops-first does not ignore management. It creates work from verified floor facts.</p></div><div class="title-actions"><a class="button primary" href="#work-task-new">New task</a></div></div>
+              <div class="subnav"><a class="active" href="#work" data-route-link="work" data-route-name="Work" data-route-subtitle="Management work generated from operations">Task board</a><button type="button" data-drawer-link="work-task-new">New task</button></div>
+              <div class="kanban"><section class="lane"><h3>New</h3><article class="work-card">Investigate sambal matah negative stock</article></section><section class="lane"><h3>Doing</h3><article class="work-card">Approve Q3 bar prep checklist</article></section><section class="lane"><h3>Waiting</h3><article class="work-card">Roastery yield evidence</article></section><section class="lane"><h3>Done</h3><article class="work-card">Kitchen opening balance reset</article></section></div>
+            </section>
+
+            <section class="route-page hidden" data-route="money">
+              <div class="page-title-row"><div><h1>Money impact</h1><p>Money is downstream in this IA. It shows financial impact of captured operations and settlement work.</p></div><div class="title-actions"><a class="button primary" href="#ar-queue">Open AR queue</a></div></div>
+              <div class="subnav"><a class="active" href="#money" data-route-link="money" data-route-name="Money" data-route-subtitle="Finance view of ops impact">Impact</a><a href="#ar-queue" data-route-link="ar-queue" data-route-name="AR queue" data-route-subtitle="Money work generated from operations">AR queue</a></div>
+              <div class="money-grid"><article class="signal"><div class="label">Cafe Ops revenue</div><div class="value">Rp 287.1m</div><div class="help">POS snapshot.</div></article><article class="signal"><div class="label">Kitchen variance risk</div><div class="value">3 items</div><div class="help">Could affect COGS.</div></article><article class="signal"><div class="label">B2B AR</div><div class="value">Rp 96.2m</div><div class="help">Requires chase.</div></article><article class="signal"><div class="label">Pricing checks</div><div class="value">2</div><div class="help">Await Finance.</div></article></div>
+            </section>
+
+            <section class="route-page hidden" data-route="inbox">
+              <div class="page-title-row"><div><h1>Inbox</h1><p>Inbox routes floor questions back to the source activity record.</p></div><div class="title-actions"><a class="button" href="#inbox-cleared">Mark read</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Unread</strong></div><table><tbody><tr><td>Ibnu asked for review on off-plan transfer</td><td><a class="button" href="#review">Open review</a></td></tr><tr><td>Sambal matah task assigned</td><td><a class="button" href="#work">Open task</a></td></tr><tr><td>AR payment evidence attached</td><td><a class="button" href="#money">Open money</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="floor-log" data-route-parent="floor" data-route-name="Log production" data-route-subtitle="Fast staff capture">
+              <div class="page-title-row"><div><h1>Log production</h1><p>Touch-friendly capture form for the floor. It asks only for item, action, quantity, and exception note.</p></div><div class="title-actions"><a class="button" href="#floor">Back to Floor</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Kitchen log</h2><span class="right badge blue">Staff mode</span></div><div class="panel-body"><div class="form-grid"><div class="form-field"><label for="c-log-action">Action</label><select id="c-log-action"><option>Produce</option><option>Transfer</option><option>Waste</option></select></div><div class="form-field"><label for="c-log-item">Item</label><select id="c-log-item"><option>Nasi daun jeruk</option><option>Sambal matah</option></select></div><div class="form-field"><label for="c-log-qty">Quantity</label><input id="c-log-qty" value="18 portions"></div><div class="form-field"><label for="c-log-dest">Destination</label><select id="c-log-dest"><option>Kitchen stock</option><option>GKID</option></select></div><div class="form-field full-span"><label for="c-log-note">Exception note</label><textarea id="c-log-note">Stock may go negative after transfer.</textarea></div><div class="form-actions"><a class="button" href="#floor">Cancel</a><a class="button primary" href="#review">Submit for review</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="approval-confirm" data-route-parent="review" data-route-name="Approve logs" data-route-subtitle="Confirm stock and ESB effects">
+              <div class="page-title-row"><div><h1>Approve submitted logs</h1><p>Approval shows the effect before posting. This is the guardrail that keeps floor capture simple.</p></div><div class="title-actions"><a class="button" href="#review">Back to Review</a><a class="button primary" href="#stock">Post approval</a></div></div>
+              <div class="split-record"><section class="table-wrap"><div class="toolbar"><strong>Approval batch</strong><span class="field">2 selected</span></div><table><thead><tr><th>Log</th><th>Effect</th><th>Status</th></tr></thead><tbody><tr><td>Nasi daun jeruk +18</td><td>Stock +18 portions</td><td><span class="badge green">OK</span></td></tr><tr><td>Sambal matah +10</td><td>Would remain negative after transfer</td><td><span class="badge red">Needs note</span></td></tr></tbody></table></section><aside class="record-detail"><div class="block"><h2>Posting result</h2><p>Stock movement is created after approval. ESB push enters the queue automatically.</p></div><a class="button primary" href="#stock">Post and view stock</a></aside></div>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="review-note" data-route-parent="review" data-route-name="Ask for note" data-route-subtitle="Resolve exception before approval">
+              <div class="page-title-row"><div><h1>Ask for note</h1><p>Lead asks for clarification without rejecting the entire batch.</p></div><div class="title-actions"><a class="button" href="#review">Back to Review</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Sambal matah exception</h2><span class="right badge red">Negative stock</span></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="c-note-message">Message to staff</label><textarea id="c-note-message">Please confirm whether the 28 portion transfer includes yesterday's closing stock.</textarea></div><div class="form-field"><label for="c-note-owner">Send to</label><select id="c-note-owner"><option>Ibnu Prakoso</option><option>Riri Permata</option></select></div><div class="form-field"><label for="c-note-due">Needed by</label><input id="c-note-due" value="Today 12:00"></div><div class="form-actions"><a class="button" href="#review">Cancel</a><a class="button primary" href="#inbox">Send question</a></div></div></div></section>
+            </section>
+
+            <section class="route-page hidden" data-route="review-detail" data-route-parent="floor" data-route-name="Review detail" data-route-subtitle="Inspect one submitted log">
+              <div class="page-title-row"><div><h1>Off-plan transfer review</h1><p>Detailed view for a non-standard log before approval.</p></div><div class="title-actions"><a class="button" href="#review">Back to Review</a><a class="button primary" href="#approval-confirm">Approve</a></div></div>
+              <div class="split-record"><section class="record-detail"><div class="block"><h2>Transfer</h2><dl><dt>Item</dt><dd>Sambal matah</dd><dt>Qty</dt><dd>6 portions</dd><dt>From</dt><dd>Kitchen</dd><dt>To</dt><dd>GKID</dd><dt>Submitted by</dt><dd>Ansori</dd></dl></div></section><aside class="record-detail"><div class="block"><h2>Attention</h2><p>Transfer is off-plan and should be attached to the stock exception if approved.</p></div><a class="button primary" href="#work-task-new">Create follow-up task</a></aside></div>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="stock-count" data-route-parent="stock" data-route-name="Request count" data-route-subtitle="Resolve missing opening balance">
+              <div class="page-title-row"><div><h1>Request stock count</h1><p>Missing stock data becomes a specific floor request, not a vague dashboard warning.</p></div><div class="title-actions"><a class="button" href="#stock">Back to Stock</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Ayam suwir opening balance</h2><span class="right badge amber">Missing</span></div><div class="panel-body"><div class="form-grid"><div class="form-field"><label for="c-count-owner">Assign to</label><select id="c-count-owner"><option>Riri Permata</option><option>Ibnu Prakoso</option></select></div><div class="form-field"><label for="c-count-due">Due</label><input id="c-count-due" value="Today 11:30"></div><div class="form-field full-span"><label for="c-count-note">Instruction</label><textarea id="c-count-note">Count opening stock before approving further transfer logs.</textarea></div><div class="form-actions"><a class="button" href="#stock">Cancel</a><a class="button primary" href="#work">Create count request</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="work-task-new" data-route-parent="work" data-route-name="New task" data-route-subtitle="Create management work from floor signal">
+              <div class="page-title-row"><div><h1>New task from floor signal</h1><p>Ops-first still turns verified exceptions into owned management work.</p></div><div class="title-actions"><a class="button" href="#stock">Back to Stock</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Task details</h2><span class="right badge red">Stock exception</span></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="c-task-title">Title</label><input id="c-task-title" value="Investigate sambal matah negative stock"></div><div class="form-field"><label for="c-task-responsible">Responsible</label><select id="c-task-responsible"><option>Riri Permata</option><option>Retail Ops</option></select></div><div class="form-field"><label for="c-task-due">Due</label><input id="c-task-due" value="Today"></div><div class="form-field full-span"><label for="c-task-source">Source</label><input id="c-task-source" value="Kitchen stock / Sambal matah / -18 portions"></div><div class="form-actions"><a class="button" href="#stock">Cancel</a><a class="button primary" href="#work">Create task</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="check-run" data-route-parent="checks" data-route-name="Run check" data-route-subtitle="Capture evidence against a standard">
+              <div class="page-title-row"><div><h1>Run chiller check</h1><p>The floor user completes a concise check with the required evidence.</p></div><div class="title-actions"><a class="button" href="#checks" data-drawer-close>Close</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Cold storage standard v2</h2><span class="right badge red">Critical limit 0-5C</span></div><div class="panel-body"><div class="form-grid"><div class="form-field"><label for="c-check-reading">Temperature</label><input id="c-check-reading" value="7.2 C"></div><div class="form-field"><label for="c-check-photo">Evidence photo</label><input id="c-check-photo" value="chiller-b-reading.jpg"></div><div class="form-field full-span"><label for="c-check-correction">Immediate correction</label><textarea id="c-check-correction">Moved ready-to-eat garnish to Chiller A and notified lead.</textarea></div><div class="form-actions"><a class="button" href="#checks" data-drawer-close>Save draft</a><a class="button primary" href="#findings" data-drawer-close>Submit finding</a></div></div></div></section>
+            </section>
+
+            <section class="action-drawer hidden" data-drawer="standard-edit" data-route-parent="standards" data-route-name="Review standard" data-route-subtitle="Maintain current SOP version">
+              <div class="page-title-row"><div><h1>Review kitchen standard</h1><p>Standard maintenance is owner-only; floor users see the current version and critical limits.</p></div><div class="title-actions"><a class="button" href="#standards" data-drawer-close>Close</a></div></div>
+              <section class="panel"><div class="panel-head"><h2>Kitchen opening SOP v4</h2><span class="right badge amber">Review due</span></div><div class="panel-body"><div class="form-grid"><div class="form-field full-span"><label for="c-standard-purpose">Purpose</label><input id="c-standard-purpose" value="Open kitchen safely and consistently before service."></div><div class="form-field"><label for="c-standard-frequency">Frequency</label><select id="c-standard-frequency"><option>Every opening shift</option><option>Daily</option></select></div><div class="form-field"><label for="c-standard-evidence">Evidence</label><select id="c-standard-evidence"><option>Photo + reading</option><option>Signature only</option></select></div><div class="form-field full-span"><label for="c-standard-controls">Critical controls</label><textarea id="c-standard-controls">Cold storage within range; sanitation completed; labels include prep date; allergen tools separated.</textarea></div><div class="form-actions"><a class="button" href="#standards" data-drawer-close>Save draft</a><a class="button primary" href="#standards" data-drawer-close>Publish update</a></div></div></div></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ar-queue" data-route-parent="money" data-route-name="AR queue" data-route-subtitle="Money work generated from operations">
+              <div class="page-title-row"><div><h1>AR queue</h1><p>Money remains downstream in Option C, but financial work still gets proper workflow screens.</p></div><div class="title-actions"><a class="button" href="#money">Back to Money</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Overdue AR</strong><span class="field">B2B</span></div><table><thead><tr><th>Invoice</th><th>Customer</th><th class="num-cell">Amount</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>GRI-2407-018</td><td>B2B account</td><td class="num-cell">Rp 42.8m</td><td><span class="badge amber">Promised</span></td><td><a class="button" href="#work-task-new">Create chase task</a></td></tr><tr><td>GRI-2406-044</td><td>B2B account</td><td class="num-cell">Rp 53.4m</td><td><span class="badge red">Overdue</span></td><td><a class="button" href="#work-task-new">Create chase task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="bar" data-route-parent="floor" data-route-name="Bar" data-route-subtitle="Bar activity workspace">
+              <div class="page-title-row"><div><h1>Bar floor</h1><p>Same activity pattern as Kitchen: plan, capture, review, stock. Shown as a real destination, not a dead activity link.</p></div><div class="title-actions"><a class="button primary" href="#floor-log">Log bar stock</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Bar signals</strong></div><table><tbody><tr><td>Closing count missing</td><td><span class="badge amber">Needs count</span></td><td><a class="button" href="#stock-count">Request count</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="roastery" data-route-parent="floor" data-route-name="Roastery" data-route-subtitle="Roastery activity workspace">
+              <div class="page-title-row"><div><h1>Roastery floor</h1><p>Roast logs produce yield and margin signals without becoming a separate top-level app.</p></div><div class="title-actions"><a class="button primary" href="#work-task-new">Create yield task</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Roast signals</strong></div><table><tbody><tr><td>House blend yield evidence missing</td><td><span class="badge amber">Capture gap</span></td><td><a class="button" href="#work-task-new">Create task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="ecommerce" data-route-parent="floor" data-route-name="Ecommerce" data-route-subtitle="Ecommerce activity workspace">
+              <div class="page-title-row"><div><h1>Ecommerce floor</h1><p>Ecommerce work uses the same activity model: capture, exception, task.</p></div><div class="title-actions"><a class="button primary" href="#work-task-new">Create fulfillment task</a></div></div>
+              <section class="table-wrap"><div class="toolbar"><strong>Fulfillment signals</strong></div><table><tbody><tr><td>Subscription batch delayed</td><td><span class="badge amber">2 orders</span></td><td><a class="button" href="#work-task-new">Create task</a></td></tr></tbody></table></section>
+            </section>
+
+            <section class="route-page hidden" data-route="inbox-cleared" data-route-parent="inbox" data-route-name="Inbox cleared" data-route-subtitle="No unread floor questions">
+              <div class="page-title-row"><div><h1>Inbox cleared</h1><p>Inbox stays a router. Once items are read, the work remains attached to source records.</p></div><div class="title-actions"><a class="button primary" href="#floor">Back to Floor</a></div></div>
+              <div class="route-callout"><strong>No unread items.</strong><span>Open questions are now visible in Kitchen review, Work, or Money.</span></div>
+            </section>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="decision-grid">
+        <article class="note-card">
+          <h3>Best-practice argument</h3>
+          <p>Operational apps work when the capture path is obvious and touch-friendly. This option reduces contributor confusion and makes manager visibility a result of normal work.</p>
+        </article>
+        <article class="note-card">
+          <h3>Critical risk</h3>
+          <p>This may overfit the first ops module. It is strongest only if Kitchen, Bar, Roastery, and Ecommerce are the adoption center of MOS.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script src="redesign.js"></script>
+</body>
+</html>

@@ -1,9 +1,18 @@
 # Platform workstream — status & handoff (updated 2026-07-07)
 
+> **Superseded for product/IA direction (2026-07-09/10) by ADR-0025 + `docs/decisions.md`
+> OD-REDESIGN-1..55 (era E7, `docs/requirements-evolution.md`).** The "design teardown + B2
+> archetype" workstream below (E6, pre-redesign) is history — the owner ordered a full redesign
+> instead of continuing the archetype retrofit. Infra/platform facts below (ESB, warehouse, hardening,
+> deploy topology) are **not** superseded and remain current. Canonical next product step is to update
+> the redesign working set into one decision-complete prototype
+> (`docs/design-mockups/redesign-mockups-2026-07/`) → owner approval → SDD → plan → build, per
+> `docs/backlog.md`'s top banner.
+
 > **Fast onboarding for a fresh agent:** read `docs/agent-context.md` (owner prefs · gotchas · current
 > state · pointers) first, then this file. ESB/GOO specifics: `docs/reference/esb-goo-integration.md`;
 > ESB warehouse online (box/op/cron/observability): `docs/reference/warehouse-online.md`. How the
-> requirement bar evolved (era timeline E1→E6 — later era wins): `docs/requirements-evolution.md`.
+> requirement bar evolved (era timeline E1→E7 — later era wins): `docs/requirements-evolution.md`.
 
 Durable handoff for the **platform-foundation** workstream (turning MOS into the shared platform:
 OLTP MOS app + OLAP ESB warehouse + ops Modules). Source of truth for decisions: `docs/decisions.md`

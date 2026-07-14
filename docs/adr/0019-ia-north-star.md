@@ -1,6 +1,12 @@
 # ADR-0019 — IA north-star: five destinations, taxonomy, and the surfaces every stream lands on
 
-- Status: **Accepted** (owner-approved 2026-07-04 — grill-with-docs session, decision-by-decision)
+- Status: **Accepted as E6 history; substantially amended/superseded by ADR-0025 and
+  OD-REDESIGN-1..55 (2026-07-09/10).** In particular: D1's `BU = team` taxonomy is replaced by
+  BU ≠ Site ≠ Team (D36/D39/D41); D2's five-destination rail is reversed by D1; D3's Home cockpit is
+  replaced by the attention brief + personal canvas (D8); and Plan/Operate/Reference destination
+  guidance no longer applies. Canonical-record, Inbox-router, work-item communication, and financial
+  truth principles survive only where the later decisions do not amend them. Start at
+  `docs/redesign-decision-index.md`, not this ADR, for current product direction.
 - Deciders: Owner (Arief) + Director
 - Related: ADR-0017 (agent-composed UI — user views, kit, deputy; Home v2 rides on it) ·
   ADR-0018 (agent-stack port — delivers Inbox machinery ADR-0044-analog, user_views, automations) ·
