@@ -329,3 +329,209 @@ export function SettingsIcon() {
     </svg>
   )
 }
+
+// ── Redesign Step 2 (T3) — new rail/icon marks. Each is the Work *parent* or a
+// destination/Module mark that had no counterpart today; all stroke-2, 18px,
+// aria-hidden (NFR-002 convention). Reuse existing marks where a destination
+// already had one (HomeIcon/TasksIcon/InboxIcon/ObjectiveIcon/WorkLineIcon).
+
+// WorkIcon — briefcase, the Work *parent* (distinct from the Tasks child checkmark).
+export function WorkIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+// EventsIcon — calendar, the Events destination root (OD-57).
+export function EventsIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 3v4M16 3v4" />
+    </svg>
+  )
+}
+
+// SignalsIcon — spark, the Work/Signals child (Rule 1 job).
+export function SignalsIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+    </svg>
+  )
+}
+
+// MoneyIcon — a banknote, the Money destination (finance/admin gated).
+export function MoneyIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="6" width="18" height="12" rx="2" />
+      <path d="M3 10h18M15 14h2" />
+    </svg>
+  )
+}
+
+// CafeIcon — a cup, the Café Module (Kitchen re-homed under Café, OD-15).
+export function CafeIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
+      <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" />
+      <path d="M6 1v3M10 1v3M14 1v3" />
+    </svg>
+  )
+}
+
+// EcommerceIcon — a shopping bag, the Ecommerce Module.
+export function EcommerceIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <path d="M3 6h18M16 10a4 4 0 0 1-8 0" />
+    </svg>
+  )
+}
+
+// RoasteryIcon — a roast/bean flame, the Roastery Module.
+export function RoasteryIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 14.5A3.5 3.5 0 0 0 12 11a3.5 3.5 0 0 0 3.5 3.5 4.5 4.5 0 1 1-7 0z" />
+      <path d="M12 2v3M5 5l2 2M19 5l-2 2M3 11h2M19 11h2" />
+    </svg>
+  )
+}
+
+// ProfileIcon — a person, the Personal Profile utility entry.
+export function ProfileIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  )
+}
+
+// ShieldIcon — a shield, the Admin Settings utility entry (gated admin).
+export function ShieldIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3l8 3v6c0 4.5-3 7.5-8 9-5-1.5-8-4.5-8-9V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  )
+}
+
+// MoreIcon — horizontal dots, the phone bottom-nav "More" affordance.
+export function MoreIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </svg>
+  )
+}
