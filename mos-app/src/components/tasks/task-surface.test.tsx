@@ -502,7 +502,7 @@ describe('TaskSurface — saved-view URL preservation', () => {
     renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
     const responsible = await screen.findByLabelText(/^responsible \(r\)/i)
     expect((responsible as HTMLSelectElement).value).toBe('other-id')
-    fireEvent.click(screen.getByRole('link', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })
 

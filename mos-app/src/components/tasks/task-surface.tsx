@@ -738,6 +738,8 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   // The chrome bar renders in BOTH widths — drawer uses .dw-bar, full width uses the
   // .record-chrome strip above the card (mirrors ViewSurface) so the collapse control
   // is never lost when expanded promotes the surface to full width.
+  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchString })
+
   const expandBtn = (
     <button
       type="button"
@@ -764,7 +766,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
       className="dw-iconbtn"
       aria-label="Close (Esc)"
       title="Close (Esc)"
-      onClick={() => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: collectionSearchString }))}
+      onClick={closeToCollection}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M18 6 6 18M6 6l12 12" />
@@ -969,11 +971,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
 
         {/* Actions */}
         <div className="tc-actions">
-          {onClose ? (
-            <button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button>
-          ) : (
-            <Link to={{ pathname: '/work/tasks', search: collectionSearchString }} className="btn btn-outline">Cancel</Link>
-          )}
+          <button type="button" className="btn btn-outline" onClick={closeToCollection}>Cancel</button>
           <button
             type="submit"
             className="btn btn-primary"
