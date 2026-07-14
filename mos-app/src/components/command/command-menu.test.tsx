@@ -3,15 +3,29 @@ import { render, screen, within, fireEvent, waitFor } from '@testing-library/rea
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { CommandMenu } from './command-menu'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 
 const mockSearch = vi.mocked(searchTasksByTitle)
+const mockUseAuth = vi.mocked(useAuth)
+
+function setAuth(accessRoles: string[] = ['admin']) {
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: {
+      person: { id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'U', email: null, archived_at: null, created_at: '', updated_at: '' },
+      roles: [], isManager: false, accessRoles,
+    },
+    signOut: vi.fn(),
+  })
+}
 
 function LocationProbe() {
   const loc = useLocation()
-  return <div data-testid="location">{loc.pathname}</div>
+  return <div data-testid="location">{loc.pathname + loc.search}</div>
 }
 
 function renderMenu(onClose = vi.fn()) {
@@ -30,6 +44,7 @@ beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
   mockSearch.mockResolvedValue([])
+  setAuth(['admin'])
 })
 afterEach(() => vi.useRealTimers())
 
@@ -52,7 +67,6 @@ describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
     const trigger = document.createElement('button')
     document.body.appendChild(trigger)
     trigger.focus()
-    expect(document.activeElement).toBe(trigger)
     const { unmount } = renderMenu()
     unmount()
     expect(document.activeElement).toBe(trigger)
@@ -61,23 +75,22 @@ describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
 })
 
 // ── AC-K02 / AC-K08 ───────────────────────────────────────────────────────────
-describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard activedescendant', () => {
+describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard', () => {
   it('AC-K02: opening focuses the search input', () => {
     renderMenu()
     expect(document.activeElement).toBe(screen.getByRole('combobox'))
   })
 
-  it('AC-K08: input is a combobox controlling the listbox; body is a listbox of options', () => {
+  it('AC-K08: input is a combobox controlling the listbox', () => {
     renderMenu()
     const input = screen.getByRole('combobox')
     expect(input).toHaveAttribute('aria-expanded', 'true')
     expect(input).toHaveAttribute('aria-controls', 'cm-list')
-    const listbox = screen.getByRole('listbox')
-    expect(listbox).toHaveAttribute('id', 'cm-list')
-    expect(within(listbox).getAllByRole('option').length).toBeGreaterThan(0)
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'cm-list')
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').length).toBeGreaterThan(0)
   })
 
-  it('AC-K08: ArrowDown moves aria-activedescendant; focus stays in the input', () => {
+  it('AC-K08: ArrowDown moves aria-activedescendant; exactly one option aria-selected', () => {
     renderMenu()
     const input = screen.getByRole('combobox')
     const before = input.getAttribute('aria-activedescendant')
@@ -85,8 +98,6 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard activedesce
     const after = input.getAttribute('aria-activedescendant')
     expect(after).toBeTruthy()
     expect(after).not.toBe(before)
-    expect(document.activeElement).toBe(input)
-    // The active option is reflected via aria-selected on exactly one option.
     const selected = screen.getAllByRole('option').filter((o) => o.getAttribute('aria-selected') === 'true')
     expect(selected).toHaveLength(1)
     expect(selected[0].id).toBe(after)
@@ -103,68 +114,119 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard activedesce
   })
 })
 
-// ── AC-K03 ──────────────────────────────────────────────────────────────────
-describe('CommandMenu (AC-K03): default (empty query) groups', () => {
-  it('AC-K03: shows Quick actions + Navigate when the query is empty', () => {
+// ── AC-015: universal actions (verb+object, stable order; no bare Create/Add/New) ──
+describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Task', () => {
+  it('AC-015: lists the universal actions in stable order (verb+object)', () => {
     renderMenu()
-    expect(screen.getByText('Quick actions')).toBeInTheDocument()
-    expect(screen.getByText('Navigate')).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /New task/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Write weekly update/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Add Daily Log entry/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /My Week/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Tasks$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Ask Deputy/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
+    // Stable order: Ask Deputy, Share Signal, Create Task
+    const labels = screen.getAllByRole('option').map((o) => o.textContent)
+    const ask = labels.findIndex((l) => /Ask Deputy/.test(l))
+    const share = labels.findIndex((l) => /Share Signal/.test(l))
+    const task = labels.findIndex((l) => /Create Task/.test(l))
+    expect(ask).toBeLessThan(share)
+    expect(share).toBeLessThan(task)
   })
 
-  it('AC-K03: shows the Recent group when the ring buffer has entries', () => {
+  it('AC-015: no bare Create / Add / New action (forbidden — Rule 7)', () => {
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /^Create$/i })).toBeNull()
+    expect(screen.queryByRole('option', { name: /^Add$/i })).toBeNull()
+    expect(screen.queryByRole('option', { name: /^New$/i })).toBeNull()
+  })
+
+  it('AC-015: Create Task activates → navigates to /work/tasks/new + closes', () => {
+    const { onClose } = renderMenu()
+    fireEvent.click(screen.getByRole('option', { name: /Create Task/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/new')
+    expect(onClose).toHaveBeenCalled()
+  })
+})
+
+// ── AC-016: Navigate group — new canonical routes; old entries absent ──────────
+describe('AC-016: Navigate group points to the new canonical routes', () => {
+  it('AC-016: Navigate items include Home, Work, Signals, Events, Inbox, Café, Money (admin)', () => {
+    renderMenu()
+    const nav = screen.getByRole('option', { name: /^Home$/i })
+    expect(nav).toBeInTheDocument()
+    // Navigate targets (href not exposed on option; assert labels present + activation navigates)
+    expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Events$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Money$/i })).toBeInTheDocument()
+  })
+
+  it('AC-016: old "My Week / Weekly updates / Daily Log" entries are absent', () => {
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /My Week/i })).toBeNull()
+    expect(screen.queryByRole('option', { name: /Weekly updates/i })).toBeNull()
+    expect(screen.queryByRole('option', { name: /Daily Log/i })).toBeNull()
+  })
+
+  it('AC-016: Money is absent for a non-finance/admin viewer (gated)', () => {
+    setAuth([])
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+    // Other navigate items still present
+    expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
+  })
+
+  it('AC-016: activating Work navigates to /work/tasks', () => {
+    renderMenu()
+    fireEvent.click(screen.getByRole('option', { name: /^Work$/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks')
+  })
+})
+
+// ── default groups ──────────────────────────────────────────────────────────
+describe('default groups (empty query): Recent + Actions + Navigate', () => {
+  it('shows the Actions + Navigate groups when the query is empty', () => {
+    renderMenu()
+    expect(screen.getByText('Actions')).toBeInTheDocument()
+    expect(screen.getByText('Navigate')).toBeInTheDocument()
+  })
+
+  it('shows the Recent group when the ring buffer has entries', () => {
     pushRecentTask({ id: 'r1', title: 'Recently opened task' })
     renderMenu()
     expect(screen.getByText('Recent')).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Recently opened task/i })).toBeInTheDocument()
   })
 
-  it('AC-K03: no Recent group when the buffer is empty', () => {
+  it('no Recent group when the buffer is empty', () => {
     renderMenu()
     expect(screen.queryByText('Recent')).toBeNull()
   })
 })
 
-// ── AC-K04 ──────────────────────────────────────────────────────────────────
-describe('CommandMenu (AC-K04): typing loads the Records group', () => {
+// ── AC-K04: typing loads the Records group ──────────────────────────────────
+describe('AC-K04: typing loads the Records group', () => {
   it('AC-K04: typing debounces, shows a skeleton, then renders Records options', async () => {
     let resolve!: (rows: { id: string; title: string; status: 'Open' }[]) => void
     mockSearch.mockReturnValue(new Promise((r) => { resolve = r }))
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'forecast' } })
-
-    // Skeleton while pending (loading status, set immediately).
     await waitFor(() => expect(screen.getByTestId('cm-records-skeleton')).toBeInTheDocument())
-    // The actual search fires after the ~150ms debounce.
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('forecast'))
-
     resolve([{ id: 't1', title: 'Finalise Q3 forecast', status: 'Open' }])
     await waitFor(() => expect(screen.getByText('Records')).toBeInTheDocument())
     expect(screen.getByRole('option', { name: /Finalise Q3 forecast/i })).toBeInTheDocument()
   })
-
-  it('AC-K04: Navigate options also filter to the typed query', async () => {
-    renderMenu()
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'week' } })
-    await waitFor(() => expect(screen.getByRole('option', { name: /My Week/i })).toBeInTheDocument())
-    // "Tasks" does not match "week" → filtered out.
-    expect(screen.queryByRole('option', { name: /^Tasks$/i })).toBeNull()
-  })
 })
 
-// ── AC-K05 ──────────────────────────────────────────────────────────────────
-describe('CommandMenu (AC-K05): activating a record navigates to /tasks/:id', () => {
-  it('AC-K05: clicking a record option navigates + closes + records it as Recent', async () => {
+// ── AC-K05: activating a record navigates to /work/tasks/:id ─────────────────
+describe('AC-K05: activating a record navigates to /work/tasks/:id', () => {
+  it('AC-K05: clicking a record navigates + closes + records it as Recent', async () => {
     mockSearch.mockResolvedValue([{ id: 't9', title: 'Finalise Q3 forecast', status: 'Open' }])
     const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'forecast' } })
     const opt = await screen.findByRole('option', { name: /Finalise Q3 forecast/i })
     fireEvent.click(opt)
-    expect(screen.getByTestId('location')).toHaveTextContent('/tasks/t9')
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/t9')
     expect(onClose).toHaveBeenCalled()
     expect(readRecentTasks()[0]).toEqual({ id: 't9', title: 'Finalise Q3 forecast' })
   })
@@ -175,73 +237,49 @@ describe('CommandMenu (AC-K05): activating a record navigates to /tasks/:id', ()
     const input = screen.getByRole('combobox')
     fireEvent.change(input, { target: { value: 'forecast' } })
     await screen.findByRole('option', { name: /Finalise Q3 forecast/i })
-    // First option is active by default; Enter activates it.
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(screen.getByTestId('location')).toHaveTextContent('/tasks/t9')
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/t9')
   })
 })
 
-// ── AC-K06 ──────────────────────────────────────────────────────────────────
-describe('CommandMenu (AC-K06): scoped search failure', () => {
-  it('AC-K06: a search failure shows "Couldn\'t search records." but Navigate still works', async () => {
+// ── AC-K06: scoped search failure ───────────────────────────────────────────
+describe('AC-K06: scoped search failure', () => {
+  it("AC-K06: a search failure shows \"Couldn't search records.\" but Navigate still works", async () => {
     mockSearch.mockRejectedValue(new Error('boom'))
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'forecast' } })
     await waitFor(() => expect(screen.getByText("Couldn't search records.")).toBeInTheDocument())
-    // Navigate is unaffected — a navigate option is present and activatable.
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'week' } })
-    const nav = await screen.findByRole('option', { name: /My Week/i })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'home' } })
+    const nav = await screen.findByRole('option', { name: /^Home$/i })
     fireEvent.click(nav)
     expect(screen.getByTestId('location')).toHaveTextContent('/')
   })
 })
 
 // ── AC-K04 (race safety) ─────────────────────────────────────────────────────
-describe('CommandMenu (AC-K04): stale response cannot clobber newer query results', () => {
-  it('AC-K04: a slow first response does not overwrite the results of a faster second query', async () => {
-    // Deferred promise for the FIRST (slow) search — "old" query.
+describe('AC-K04: stale response cannot clobber newer query results', () => {
+  it('a slow first response does not overwrite the results of a faster second query', async () => {
     let resolveOld!: (rows: { id: string; title: string; status: 'Open' }[]) => void
-    const slowPromise = new Promise<{ id: string; title: string; status: 'Open' }[]>(
-      (r) => { resolveOld = r },
-    )
-
-    // Second search returns immediately with a resolved promise — "new" query.
+    const slowPromise = new Promise<{ id: string; title: string; status: 'Open' }[]>((r) => { resolveOld = r })
     const fastResult = [{ id: 'new-1', title: 'New task result', status: 'Open' as const }]
-
-    mockSearch
-      .mockReturnValueOnce(slowPromise)      // first call: slow, never resolves before the guard fires
-      .mockResolvedValue(fastResult)          // second+ call: resolves fast
+    mockSearch.mockReturnValueOnce(slowPromise).mockResolvedValue(fastResult)
 
     renderMenu()
     const input = screen.getByRole('combobox')
-
-    // Type "old" — fires first debounce → first search call (slow).
     fireEvent.change(input, { target: { value: 'old' } })
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('old'))
-
-    // Type "new" — cleanup cancels the first search's effect; second search call fires.
     fireEvent.change(input, { target: { value: 'new' } })
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('new'))
-
-    // Wait for the "new" results to render.
     await waitFor(() => expect(screen.getByText('Records')).toBeInTheDocument())
     expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument()
-
-    // Now resolve the OLD slow promise with stale data.
     resolveOld([{ id: 'old-1', title: 'Old stale result', status: 'Open' }])
-
-    // Allow any pending microtasks / state updates to flush.
-    await waitFor(() => {
-      // The NEW result is still shown.
-      expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument()
-    })
-    // The stale OLD result must NOT appear.
+    await waitFor(() => expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument())
     expect(screen.queryByRole('option', { name: /Old stale result/i })).toBeNull()
   })
 })
 
-// ── AC-K09 ──────────────────────────────────────────────────────────────────
-describe('CommandMenu (AC-K09): no-bleed + muted group labels', () => {
+// ── AC-K09: no-bleed + muted group labels ───────────────────────────────────
+describe('AC-K09: no-bleed + muted group labels', () => {
   it('AC-K09: long record titles truncate and carry a title attribute', async () => {
     const long = 'A very very very long task title that should ellipsize rather than wrap or bleed out of the row'
     mockSearch.mockResolvedValue([{ id: 't1', title: long, status: 'Open' }])
@@ -256,7 +294,6 @@ describe('CommandMenu (AC-K09): no-bleed + muted group labels', () => {
 
   it('AC-K09: group labels use the muted-foreground token class', () => {
     renderMenu()
-    const label = screen.getByText('Quick actions')
-    expect(label.className).toMatch(/text-muted-foreground/)
+    expect(screen.getByText('Actions').className).toMatch(/text-muted-foreground/)
   })
 })

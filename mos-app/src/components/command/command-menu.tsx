@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
+import { useAuth } from '@/auth/use-auth'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 import './command-menu.css'
 
@@ -9,14 +11,20 @@ export type CommandMenuProps = {
   onClose: () => void
 }
 
-// A flat, activatable item. Records carry the task ref so activation can record Recent.
+// A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
+// 'navigate' (goes to `to`), 'record' (a Task row → pushRecent + navigate canonical).
+// `run` extends the existing activate() so universal actions (Ask Deputy / Share
+// Signal) that are not pure navigations can dispatch (D-PLN-7). `gated` hides an
+// item (Money navigate) when the viewer is unauthorized.
 type CommandItem = {
   id: string
   label: string
   glyph: string
-  action: boolean
-  to: string
+  kind: 'action' | 'navigate' | 'record'
+  to?: string
+  run?: () => void
   meta?: string
+  gated?: boolean
   record?: { id: string; title: string }
 }
 
@@ -28,33 +36,22 @@ type RecordsState =
   | { status: 'ready'; rows: { id: string; title: string }[] }
   | { status: 'error' }
 
-const QUICK_ACTIONS: CommandItem[] = [
-  { id: 'qa-new-task', label: 'New task', glyph: '＋', action: true, to: '/tasks/new', meta: '⌘N' },
-  { id: 'qa-weekly', label: 'Write weekly update', glyph: '✎', action: true, to: '/updates' },
-  { id: 'qa-log', label: 'Add Daily Log entry', glyph: '▤', action: true, to: '/ops/new' },
-]
-
-const NAVIGATE: CommandItem[] = [
-  { id: 'nav-my-week', label: 'My Week', glyph: '◫', action: false, to: '/' },
-  { id: 'nav-tasks', label: 'Tasks', glyph: '☰', action: false, to: '/tasks' },
-  { id: 'nav-updates', label: 'Weekly updates', glyph: '✎', action: false, to: '/updates' },
-  { id: 'nav-log', label: 'Daily Log', glyph: '▤', action: false, to: '/ops' },
-]
-
+// Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
+// Ask Deputy opens the AssistantPanel; Share Signal dispatches to the composer-opening
+// target (navigate Home — full composer lands Step 4); Create Task navigates /work/tasks/new.
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
 }
 
-// ⌘K command palette (ADR-0013 D4). One overlay, every routine MOS job a keystroke away:
-// jump to a record, run a quick action, or navigate. Default = Recent + Quick actions +
-// Navigate; typing filters Navigate/Actions and async-loads matching Records.
-// a11y: role=dialog + aria-modal + focus trap + Esc (returns focus to the trigger).
-// The input is a combobox; the body is a listbox; the active option is tracked via
-// aria-activedescendant while focus STAYS in the input (↑↓/Home/End move, ↵ activates).
+// ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
+// presentation); contents = universal actions + Navigate + Recent + async record
+// search. a11y: role=dialog + aria-modal + focus trap + Esc (returns focus).
 export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
+  const auth = useAuth()
+  const { openPanel } = useAgentRuntime()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [records, setRecords] = useState<RecordsState>({ status: 'idle' })
@@ -63,8 +60,39 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
   const inputRef = useRef<HTMLInputElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
 
+  const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const moneyAuthorized = accessRoles.includes('finance') || accessRoles.includes('admin')
+
   const trimmed = query.trim()
   const isSearching = trimmed.length > 0
+
+  // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
+  const universalActions = useMemo<CommandItem[]>(
+    () => [
+      { id: 'a-deputy', label: 'Ask Deputy', glyph: '✦', kind: 'action', run: () => openPanel() },
+      { id: 'a-signal', label: 'Share Signal', glyph: '➤', kind: 'action', run: () => navigate('/') },
+      { id: 'a-task', label: 'Create Task', glyph: '＋', kind: 'action', to: '/work/tasks/new' },
+    ],
+    [navigate, openPanel],
+  )
+
+  const navigateItems = useMemo<CommandItem[]>(
+    () => [
+      { id: 'n-home', label: 'Home', glyph: '⌂', kind: 'navigate', to: '/' },
+      { id: 'n-work', label: 'Work', glyph: '▦', kind: 'navigate', to: '/work/tasks' },
+      { id: 'n-signals', label: 'Signals', glyph: '✦', kind: 'navigate', to: '/work/signals' },
+      { id: 'n-events', label: 'Events', glyph: '▤', kind: 'navigate', to: '/events' },
+      { id: 'n-money', label: 'Money', glyph: '$', kind: 'navigate', to: '/money', gated: true },
+      { id: 'n-inbox', label: 'Inbox', glyph: '📥', kind: 'navigate', to: '/inbox' },
+      { id: 'n-cafe', label: 'Café', glyph: '☕', kind: 'navigate', to: '/cafe' },
+    ],
+    [],
+  )
+
+  const visibleNavigate = useMemo(
+    () => navigateItems.filter((i) => !i.gated || moneyAuthorized),
+    [navigateItems, moneyAuthorized],
+  )
 
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
   useEffect(() => {
@@ -85,32 +113,31 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
     const out: ItemGroup[] = []
     if (!isSearching) {
       const recent = readRecentTasks().map<CommandItem>((r) => ({
-        id: `recent-${r.id}`, label: r.title, glyph: '⊞', action: false,
-        to: `/tasks/${r.id}`, record: { id: r.id, title: r.title },
+        id: `recent-${r.id}`, label: r.title, glyph: '⊞', kind: 'record',
+        to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
       if (recent.length) out.push({ key: 'recent', label: 'Recent', items: recent })
-      out.push({ key: 'actions', label: 'Quick actions', items: QUICK_ACTIONS })
-      out.push({ key: 'navigate', label: 'Navigate', items: NAVIGATE })
+      out.push({ key: 'actions', label: 'Actions', items: universalActions })
+      out.push({ key: 'navigate', label: 'Navigate', items: visibleNavigate })
       return out
     }
-    const actions = QUICK_ACTIONS.filter((i) => matches(i.label, trimmed))
+    const actions = universalActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
     const recordItems = recordRows.map<CommandItem>((r) => ({
-      id: `record-${r.id}`, label: r.title, glyph: '⊞', action: false,
-      to: `/tasks/${r.id}`, record: { id: r.id, title: r.title },
+      id: `record-${r.id}`, label: r.title, glyph: '⊞', kind: 'record',
+      to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
     }))
     if (records.status === 'ready' && recordItems.length) {
       out.push({ key: 'records', label: 'Records', items: recordItems })
     }
-    const nav = NAVIGATE.filter((i) => matches(i.label, trimmed))
+    const nav = visibleNavigate.filter((i) => matches(i.label, trimmed))
     if (nav.length) out.push({ key: 'navigate', label: 'Navigate', items: nav })
-    if (actions.length) out.push({ key: 'actions', label: 'Quick actions', items: actions })
+    if (actions.length) out.push({ key: 'actions', label: 'Actions', items: actions })
     return out
-  }, [isSearching, trimmed, records])
+  }, [isSearching, trimmed, records, universalActions, visibleNavigate])
 
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
 
-  // Keep the active index in range whenever the item set changes.
   useEffect(() => { setActive(0) }, [trimmed])
   useEffect(() => {
     if (active > flatItems.length - 1) setActive(flatItems.length ? flatItems.length - 1 : 0)
@@ -124,7 +151,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
     return () => { invokerRef.current?.focus?.() }
   }, [open])
 
-  // ── Focus trap (Tab cycles within the panel) ─────────────────────────────────
+  // ── Focus trap ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
     const panel = panelRef.current
@@ -148,7 +175,8 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
   function activate(item: CommandItem | undefined) {
     if (!item) return
     if (item.record) pushRecentTask(item.record)
-    navigate(item.to)
+    if (item.run) item.run()
+    else if (item.to) navigate(item.to)
     onClose()
   }
 
@@ -220,7 +248,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
                       id={item.id}
                       role="option"
                       aria-selected={isActive}
-                      className={`cm-item${item.action ? ' action' : ''}${isActive ? ' active' : ''}`}
+                      className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
                       onClick={() => activate(item)}
                       onMouseMove={() => {
                         const idx = flatItems.findIndex((f) => f.id === item.id)
