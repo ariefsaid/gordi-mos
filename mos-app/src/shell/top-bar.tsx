@@ -190,6 +190,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
 
   return (
     <header
+      data-anatomy="header"
       className="bg-background border-b border-border flex items-stretch flex-none"
       style={{ height: 'var(--header-h)', gridArea: 'topbar' }}
     >

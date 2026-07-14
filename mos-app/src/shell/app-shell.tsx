@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Rail } from './rail'
 import { TopBar } from './top-bar'
+import { ContextRow } from './context-row'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
 import { useIsNarrow } from './use-is-narrow'
@@ -58,7 +59,12 @@ function ShellContent() {
           className="flex min-w-0 flex-col min-h-0"
           style={{ gridArea: 'main' }}
         >
-          <Outlet />
+          {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}
+          <ContextRow />
+          {/* Region 3 — content (the page <Outlet>; the page's own PageHead H1 lives here). */}
+          <div data-anatomy="content" className="min-w-0 flex-1 min-h-0">
+            <Outlet />
+          </div>
         </div>
 
         {/* BottomTabBar — grid-area: tabbar, phone-first primary nav (ADR-0019 D8, plan §4.4) */}

@@ -152,6 +152,36 @@ describe('AC-015: Shell landmarks', () => {
   })
 })
 
+// AC-020: one page anatomy — header · context-row · content; no fifth region / second drawer host.
+describe('AC-020: AppShell anatomy — four regions, no fifth region / second drawer', () => {
+  it('AC-020: shell owns exactly three data-anatomy regions — header, context-row, content', () => {
+    const { container } = renderShell()
+    const regions = container.querySelectorAll('[data-anatomy]')
+    const ids = Array.from(regions).map((r) => r.getAttribute('data-anatomy'))
+    expect(ids.sort()).toEqual(['content', 'context-row', 'header'])
+  })
+
+  it('AC-020: ContextRow is mounted above the content Outlet (region 2 before region 3)', () => {
+    const { container } = renderShell()
+    const ctx = container.querySelector('[data-anatomy="context-row"]')
+    const content = container.querySelector('[data-anatomy="content"]')
+    expect(ctx).not.toBeNull()
+    expect(content).not.toBeNull()
+    // context-row precedes content in DOM order
+    expect(
+      Boolean(ctx!.compareDocumentPosition(content!) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true)
+  })
+
+  it('AC-020: no second drawer host / extra role=region added by the shell (only the context-row region)', () => {
+    const { container } = renderShell()
+    // The shell's only role=region is the context row (region 2). No competing drawer host.
+    const regions = container.querySelectorAll('[role="region"]')
+    expect(regions).toHaveLength(1)
+    expect(regions[0]).toHaveAttribute('data-anatomy', 'context-row')
+  })
+})
+
 // AC-K02: the command menu mounts at the shell level and opens via the trigger + ⌘K hotkey
 describe('AC-K02: AppShell mounts the command menu', () => {
   it('AC-K02: the menu is closed by default (no dialog named "Command menu")', () => {
