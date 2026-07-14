@@ -195,7 +195,7 @@ describe('AC-081 — create form validation', () => {
         accountablePersonId: VIEWER_ID,
         createdBy: VIEWER_ID,
       }))
-      expect(mockNavigate).toHaveBeenCalledWith('/tasks/new-task-id')
+      expect(mockNavigate).toHaveBeenCalledWith('/work/tasks/new-task-id')
     })
   })
 })

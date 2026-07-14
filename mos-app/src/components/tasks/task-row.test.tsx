@@ -1,6 +1,6 @@
 // TaskRow — PR-2 AC-T03/T04/T05/T06. Extracted from TasksWorkspace.renderRow;
 // adds the hover-revealed leading checkbox (RowCheckbox) + trailing ⋯ menu
-// (RowMenu). The name cell is a real <a href="/tasks/:id"> Chip-link; status is
+// (RowMenu). The name cell is a real <a href="/work/tasks/:id"> Chip-link; status is
 // a soft StatusPill that never wraps; body rows are 50px (OD-P3-6).
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -59,7 +59,7 @@ describe('TaskRow — AC-T03 name cell is a Chip-link to /tasks/:id', () => {
     renderRow()
     const link = screen.getByRole('link', { name: /Finalise Q3 roastery output forecast/i })
     expect(link.tagName).toBe('A')
-    expect(link.getAttribute('href')).toBe('/tasks/task-7')
+    expect(link.getAttribute('href')).toBe('/work/tasks/task-7')
     // truncate + title (no-bleed: identity string ellipsizes + carries title)
     expect(link.getAttribute('title')).toBe('Finalise Q3 roastery output forecast')
   })
@@ -73,7 +73,7 @@ describe('TaskRow — AC-T03 name cell is a Chip-link to /tasks/:id', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen })
     const link = screen.getByRole('link', { name: /Finalise Q3/i })
-    expect(link.getAttribute('href')).toBe('/tasks/task-7')
+    expect(link.getAttribute('href')).toBe('/work/tasks/task-7')
     expect(document.querySelector('tr.task-row')).toBeTruthy()
   })
 

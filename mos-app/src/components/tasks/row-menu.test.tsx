@@ -44,6 +44,6 @@ describe('RowMenu — AC-T02 reveal + actions', () => {
     expect(screen.queryByRole('menuitem', { name: /open/i })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /row actions/i }))
     const openItem = screen.getByRole('menuitem', { name: /open/i })
-    expect(openItem.getAttribute('href')).toBe('/tasks/task-7')
+    expect(openItem.getAttribute('href')).toBe('/work/tasks/task-7')
   })
 })

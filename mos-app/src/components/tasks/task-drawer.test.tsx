@@ -92,9 +92,9 @@ function renderAt(path: string, mode: 'view' | 'create' = 'view') {
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/tasks" element={<div data-testid="list-here">Tasks list</div>} />
-          <Route path="/tasks/new" element={<TaskDrawer mode="create" />} />
-          <Route path="/tasks/:taskId" element={<TaskDrawer mode={mode} />} />
+          <Route path="/work/tasks" element={<div data-testid="list-here">Tasks list</div>} />
+          <Route path="/work/tasks/new" element={<TaskDrawer mode="create" />} />
+          <Route path="/work/tasks/:taskId" element={<TaskDrawer mode={mode} />} />
         </Routes>
       </MemoryRouter>
     </AuthContext.Provider>,
@@ -104,13 +104,13 @@ function renderAt(path: string, mode: 'view' | 'create' = 'view') {
 describe('TaskDrawer (AC-101, AC-102)', () => {
   it('AC-101/102: reads :taskId and renders TaskSurface inside an aside labelled "Task detail"', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     const aside = await screen.findByRole('complementary', { name: /task detail/i })
     await waitFor(() => expect(aside).toHaveTextContent('Fix the coffee machine'))
   })
 
   it('create mode renders an aside labelled "New task"', async () => {
-    renderAt('/tasks/new', 'create')
+    renderAt('/work/tasks/new', 'create')
     expect(await screen.findByRole('complementary', { name: /new task/i })).toBeInTheDocument()
   })
 
@@ -118,7 +118,7 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     localStorage.setItem('mos.tasks.expandDefault', 'true')
     __resetExpandPrefForTests() // sync the shared snapshot to the freshly-set storage
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     // ADR-0013 D3 / AC-R06: expanded@split promotes to the two-column record page.
     await waitFor(() => expect(document.querySelector('.record-2col')).toBeTruthy())
     expect(document.querySelector('.drawer.expanded')).toBeTruthy() // the host aside still collapses the table column
@@ -126,7 +126,7 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
 
   it('AC-104: toggling expand persists the preference and flips the surface width', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
     expect(document.querySelector('.record-2col')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
@@ -143,7 +143,7 @@ describe('TaskDrawer — expanded@split mounts the two-column record page (ADR-0
   it('AC-R06: un-expanded @≥1100px renders the COMPACT stacked drawer (not the two-column grid)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
     // Compact drawer: the .dw-surface stacked anatomy, NOT the two-column grid.
     expect(document.querySelector('.dw-surface')).toBeTruthy()
@@ -155,7 +155,7 @@ describe('TaskDrawer — expanded@split mounts the two-column record page (ADR-0
   it('AC-R06: toggling expand @≥1100px MOUNTS the two-column record page (.record-2col, side-by-side details + feed)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
     // RED against the pre-fix code: expand only widened the compact drawer.
     fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
@@ -186,7 +186,7 @@ describe('TaskDrawer — expanded@split mounts the two-column record page (ADR-0
     __resetExpandPrefForTests()
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
     expect(document.querySelector('.record-2col')).toBeNull()
     expect(document.querySelector('.dw-surface')).toBeTruthy()
@@ -197,7 +197,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   it('AC-110: ≥1100px split renders a non-modal aside (no role=dialog, no aria-modal, no scrim)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     const aside = await screen.findByRole('complementary', { name: /task detail/i })
     expect(aside.getAttribute('role')).toBeNull()         // it IS an <aside>, not a dialog
     expect(aside.getAttribute('aria-modal')).toBeNull()
@@ -207,7 +207,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   it('AC-110: <1100px renders role=dialog + aria-modal + a scrim', async () => {
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     const dialog = await screen.findByRole('dialog', { name: /task detail/i })
     expect(dialog.getAttribute('aria-modal')).toBe('true')
     expect(document.querySelector('.drawer-scrim')).toBeTruthy()
@@ -216,7 +216,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   it('AC-110: in the modal regime, clicking the scrim closes the drawer (→ /tasks)', async () => {
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByRole('dialog', { name: /task detail/i })
     fireEvent.click(document.querySelector('.drawer-scrim')!)
     await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
@@ -225,7 +225,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   it('AC-110: in the modal regime, Esc closes the drawer', async () => {
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     const dialog = await screen.findByRole('dialog', { name: /task detail/i })
     fireEvent.keyDown(dialog, { key: 'Escape' })
     await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
@@ -234,7 +234,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   it('AC-110 (overlay band 920–1100): renders the modal as a right-side sheet (drawer-sheet, not full-screen)', async () => {
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByRole('dialog', { name: /task detail/i })
     expect(document.querySelector('.drawer-modal.drawer-sheet')).toBeTruthy()
     expect(document.querySelector('.drawer-modal.drawer-fullscreen')).toBeNull()
@@ -243,7 +243,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   it('AC-110 (mobile <768): renders the modal full-screen', async () => {
     stubWidths({ split: false, band: false, desktop: false })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/tasks/task-abc')
+    renderAt('/work/tasks/task-abc')
     await screen.findByRole('dialog', { name: /task detail/i })
     expect(document.querySelector('.drawer-modal.drawer-fullscreen')).toBeTruthy()
     expect(document.querySelector('.drawer-modal.drawer-sheet')).toBeNull()

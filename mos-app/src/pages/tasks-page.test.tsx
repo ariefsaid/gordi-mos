@@ -100,7 +100,7 @@ function renderPage(auth: AuthState = authedState) {
   _capturedLocation = null
   return render(
     <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/tasks']}>
+      <MemoryRouter initialEntries={['/work/tasks']}>
         <TasksWorkspace />
         <LocationCapture />
       </MemoryRouter>
@@ -517,7 +517,7 @@ describe('a11y — aria roles and labels', () => {
     renderPage()
     await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
     const link = screen.getByRole('link', { name: /\+ new task/i })
-    expect(link.getAttribute('href')).toContain('/tasks/new')
+    expect(link.getAttribute('href')).toContain('/work/tasks/new')
   })
 })
 
@@ -537,7 +537,7 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
 
     await waitFor(() => {
       // Router location should update to /tasks/task-nav-1 in-SPA
-      expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-1')
+      expect(_capturedLocation?.pathname).toBe('/work/tasks/task-nav-1')
     })
 
     // window.location.href must NOT contain the hardcoded /mos/ basename
@@ -559,7 +559,7 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
     fireEvent.click(cardLink)
 
     await waitFor(() => {
-      expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-2')
+      expect(_capturedLocation?.pathname).toBe('/work/tasks/task-nav-2')
     })
   })
 })

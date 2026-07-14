@@ -68,6 +68,7 @@ export function TasksIdRedirect() {
   return <Navigate to={{ pathname: `/work/tasks/${taskId}`, search }} replace />
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- exported for route-table tests
 export const routeConfig: RouteObject[] = [
   // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell.
   ...(import.meta.env.DEV
@@ -195,4 +196,5 @@ export const routeConfig: RouteObject[] = [
   },
 ]
 
+// eslint-disable-next-line react-refresh/only-export-components -- app router singleton
 export const router = createBrowserRouter(routeConfig, { basename: '/mos' })

@@ -127,7 +127,7 @@ function renderAt(path: string) {
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/tasks" element={<TasksLayout />}>
+          <Route path="/work/tasks" element={<TasksLayout />}>
             <Route path="new" element={<TaskDrawer mode="create" />} />
             <Route path=":taskId" element={<TaskDrawer mode="view" />} />
           </Route>
@@ -140,7 +140,7 @@ function renderAt(path: string) {
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-121: TasksLayout renders inside a full-bleed (variant=data) PageFrame — no 1080px maxWidth cap', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Triage me'))
     const main = document.querySelector('main') as HTMLElement
     const inner = main.querySelector('main > div') as HTMLElement
@@ -149,7 +149,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('AC-120: the Tasks <main> landmark is present and the breadcrumb/nav survive full-bleed', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Triage me'))
     // <main> landmark still present (full-bleed does not remove it)
     expect(document.querySelector('main')).toBeTruthy()
@@ -159,7 +159,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('AC-100: at /tasks the table renders and no drawer is present (nodrawer)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Triage me'))
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
     expect(document.querySelector('.split.nodrawer')).toBeTruthy()
@@ -168,7 +168,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-101: at /tasks/:id the table STAYS mounted and the drawer renders beside it', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Triage me' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Triage me' }), checklist: [], events: [] })
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     // table still present
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
@@ -178,7 +178,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-101: the open task row carries aria-current and the selected style', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' }), makeTask({ id: 'task-2', title: 'Other' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
     const selectedRow = document.querySelector('tr.task-row.row-selected')
     expect(selectedRow).toBeTruthy()
@@ -192,7 +192,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Open one', status: 'Open' }), checklist: [], events: [] })
       .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Open one', status: 'Blocked' }), checklist: [], events: [] })
     mockUpdateTaskStatus.mockResolvedValue()
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
     // table row shows the Open status tag initially (soft Tag, .mk-tag)
     const row = () => document.querySelector('tr.task-row.row-selected')
@@ -211,7 +211,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-113: with the drawer open the Activity column is dropped; Task + Status remain; aria-sort intact', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
     expect(screen.queryByRole('columnheader', { name: /activity/i })).toBeNull()
     expect(screen.getByRole('columnheader', { name: /^task/i })).toBeInTheDocument()
@@ -222,7 +222,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('AC-113: at /tasks (no drawer) the Activity column is present (not condensed)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Open one'))
     expect(screen.getByRole('columnheader', { name: /activity/i })).toBeInTheDocument()
   })
@@ -233,7 +233,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     stubWidths({ split: false, desktop: true }) // <1100px but ≥768 → overlay/modal regime
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     expect(screen.getByRole('columnheader', { name: /activity/i })).toBeInTheDocument()
     expect(document.querySelector('.assembly.condensed')).toBeNull()
@@ -241,14 +241,14 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
-    renderAt('/tasks/new')
+    renderAt('/work/tasks/new')
     await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
     expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
   })
 
   it('with the create drawer open, the header "+ New task" is not a second active primary', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
-    renderAt('/tasks/new')
+    renderAt('/work/tasks/new')
     await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
     expect(screen.queryByRole('link', { name: /\+ new task/i })).toBeNull()
   })
@@ -261,7 +261,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('RI-1: toggling expand in the drawer collapses the .split grid to one column live (no reload)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     // Split view (not expanded): grid is two-column, table assembly visible
     const split = document.querySelector('.split')
@@ -294,7 +294,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       .mockResolvedValue([makeTask({ id: 'task-new', title: 'Freshly created' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-new', title: 'Freshly created' }), checklist: [], events: [] })
     mockCreateTask.mockResolvedValue('task-new')
-    renderAt('/tasks/new')
+    renderAt('/work/tasks/new')
     await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
     // Initially the table is empty. UI-fidelity rework: the count lives in the
     // content-header count pill (.ch-count) — read it there (was "N tasks" text).
@@ -326,7 +326,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       makeTask({ id: 'task-1', title: 'First row' }),
       makeTask({ id: 'task-2', title: 'Second row' }),
     ])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('First row'))
     fireEvent.keyDown(window, { key: 'j' })
     await waitFor(() => expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy())
@@ -344,7 +344,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('AC-109: n navigates to the create drawer', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('First row'))
     fireEvent.keyDown(window, { key: 'n' })
     await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
@@ -353,7 +353,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-109: Esc closes the open drawer (back to /tasks, table full width)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'First row' }), checklist: [], events: [] })
-    renderAt('/tasks/task-1')
+    renderAt('/work/tasks/task-1')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(document.querySelector('.split.nodrawer')).toBeTruthy())
@@ -361,7 +361,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
   it('AC-109: typing "n" in the search field does NOT open create (hotkeys suppressed in fields)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => screen.getByText('First row'))
     const search = screen.getByLabelText('Search tasks')
     search.focus()
@@ -389,7 +389,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     const rows = Array.from({ length: 60 }, (_, i) =>
       makeTask({ id: `task-${i}`, title: `Task number ${i}` }))
     mockListTasks.mockResolvedValue(rows)
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     const bodyRows = document.querySelectorAll('tbody tr.task-row')
     // Windowed: far fewer than 60 rows are actually mounted.
@@ -402,7 +402,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     const rows = Array.from({ length: 60 }, (_, i) =>
       makeTask({ id: `task-${i}`, title: `Task number ${i}` }))
     mockListTasks.mockResolvedValue(rows)
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     // aria-sort intact on the Due header (default sort)
     expect(screen.getByRole('columnheader', { name: /due/i }).getAttribute('aria-sort')).toBe('ascending')
@@ -415,7 +415,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     const rows = Array.from({ length: 10 }, (_, i) =>
       makeTask({ id: `task-${i}`, title: `Task number ${i}` }))
     mockListTasks.mockResolvedValue(rows)
-    renderAt('/tasks')
+    renderAt('/work/tasks')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     expect(document.querySelectorAll('tbody tr.task-row').length).toBe(10)
   })
@@ -431,7 +431,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       .mockResolvedValue([makeTask({ id: 'task-1', title: 'Keep me' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-2', title: 'Archive me' }), checklist: [], events: [] })
     mockArchiveTask.mockResolvedValue()
-    renderAt('/tasks/task-2')
+    renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     await waitFor(() => expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('2'))
 
@@ -443,7 +443,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
     // The archived row leaves the default list + the count decrements — no reload.
     // This assertion sits at the end of a multi-async-step chain (archiveTask resolve →
-    // refreshKey bump → list refetch → navigate('/tasks') → drawer unmount + row drop).
+    // refreshKey bump → list refetch → navigate('/work/tasks') → drawer unmount + row drop).
     // Under parallel-test CPU load that chain can take several seconds of wall-clock re-renders,
     // so the default 1000ms waitFor budget and Vitest's default 5000ms test budget are too tight.
     // Widen the budgets for this genuinely-chained transition; the goal (archived title gone from

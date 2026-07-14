@@ -31,7 +31,7 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
 
     await waitFor(() => expect(onPost).toHaveBeenCalledWith('Ship it'))
-    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('')
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue(''))
   })
 
   it('typing @ shows a person picker and selecting a person inserts their slug', () => {

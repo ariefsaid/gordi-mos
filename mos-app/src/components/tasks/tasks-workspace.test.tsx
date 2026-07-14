@@ -96,7 +96,7 @@ function stubMatchMedia(split = true, desktop = true) {
 function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
   return render(
     <AuthContext.Provider value={authedState}>
-      <MemoryRouter initialEntries={['/tasks']}>
+      <MemoryRouter initialEntries={['/work/tasks']}>
         <TasksWorkspace {...props} />
       </MemoryRouter>
     </AuthContext.Provider>,
@@ -484,7 +484,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     expect(row).toBeTruthy()
     // The row carries the canonical link to /tasks/:id (no alternate detail route)
     const link = row.querySelector('a.task-row-link') as HTMLAnchorElement
-    expect(link.getAttribute('href')).toBe('/tasks/task-9')
+    expect(link.getAttribute('href')).toBe('/work/tasks/task-9')
   })
 })
 
@@ -843,13 +843,13 @@ describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-for
 //    skeleton already renders, the name is a real <a> with hover-bg + title, and
 //    status never wraps. The app conforms to these; do not weaken them.
 describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
-  it('AC-T03: name cell is a real <a href="/tasks/:id"> Chip-link carrying title', async () => {
+  it('AC-T03: name cell is a real <a href="/work/tasks/:id"> Chip-link carrying title', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 't3', title: 'Wire the kit row craft' })])
     renderTable()
     await waitFor(() => screen.getByText('Wire the kit row craft'))
     const link = document.querySelector('tr.task-row a.task-row-link') as HTMLAnchorElement | null
     expect(link, 'expected a.task-row-link in the populated row').not.toBeNull()
-    expect(link!.getAttribute('href')).toBe('/tasks/t3')
+    expect(link!.getAttribute('href')).toBe('/work/tasks/t3')
     // The name is an identity-bearing string → carries a title (no-bleed, AC-D03).
     expect(link!.getAttribute('title')).toBe('Wire the kit row craft')
     // Chip = hover-background affordance. The CSS targets .task-row-link; the chip

@@ -42,7 +42,7 @@ test.beforeEach(async ({ page }) => {
 test('AC-001: old shell routes redirect to their new canonical URL and Back never re-enters the retired URL', async ({ page }) => {
   test.setTimeout(120_000)
   for (const routeCase of redirectCases) {
-    if (routeCase.flag === 'plan-budget' && !PLAN_BUDGET_ENABLED) continue
+    if ('flag' in routeCase && routeCase.flag === 'plan-budget' && !PLAN_BUDGET_ENABLED) continue
 
     await page.goto('')
     await expect(page).toHaveURL(/\/$|\/mos\/?$/)
