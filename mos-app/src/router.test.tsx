@@ -84,6 +84,13 @@ describe('router — tasks nesting under /work/tasks (ADR-0007)', () => {
     // The old top-level /tasks is no longer the canonical TasksLayout — it is now a redirect.
     expect(shellChildren().find((r) => r.path === 'tasks')!.element).toEqual(<SearchRedirect to="/work/tasks" />)
   })
+
+  it('AC-309/310: no second Tasks route surface is introduced under /work/tasks', () => {
+    const tasks = shellChildren().find((r) => r.path === 'work/tasks')!
+    expect(tasks.element).toEqual(<TasksLayout />)
+    expect(shellChildren().find((r) => r.path === 'work/tasks/followups')).toBeUndefined()
+    expect(shellChildren().find((r) => r.path === 'work/tasks/:taskId')).toBeUndefined()
+  })
 })
 
 // /dev/views harness is DEV + SHOW_USER_VIEWS flag gated (default false → redirect).
