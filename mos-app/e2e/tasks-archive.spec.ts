@@ -16,8 +16,8 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // ── 2. Navigate directly to the seeded task's detail ───────────────────────
   const taskId = TASKS.VIEWER_ACCOUNTABLE.id
   const taskTitle = TASKS.VIEWER_ACCOUNTABLE.title
-  await page.goto(`tasks/${taskId}`)
-  await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+  await page.goto(`work/tasks/${taskId}`)
+  await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
   // The split-view drawer hosts the task surface (ADR-0007); title is its heading.
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible({ timeout: 10_000 })
@@ -33,7 +33,7 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await confirmBtn.click()
 
   // After archiving, should navigate back to the tasks list
-  await page.waitForURL(/\/tasks$/, { timeout: 10_000 })
+  await page.waitForURL(/\/work\/tasks$/, { timeout: 10_000 })
 
   // ── 4. Assert: task is NOT in the default list ──────────────────────────────
   // Switch to "All" to broaden the scope — but archived tasks should still be hidden
@@ -55,7 +55,7 @@ test('AC-091: archive task from detail → leaves default list → reappears und
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
   )
   await taskRow.click()
-  await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+  await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
   // Detail shows archived banner
   await expect(page.getByText(/this task is archived/i)).toBeVisible()
   // Unarchive button is visible (VIEWER is A)

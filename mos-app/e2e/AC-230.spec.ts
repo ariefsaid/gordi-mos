@@ -169,8 +169,8 @@ test(
   await loginAs(page, MANAGER.email, MANAGER.password)
 
   // ── 2. Navigate to /mos/tasks ────────────────────────────────────────────────
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
 
   // ── 3. Scope = "All" ─────────────────────────────────────────────────────────
   // MANAGER's "Mine" segment shows only her R/A tasks. "All" broadens scope so

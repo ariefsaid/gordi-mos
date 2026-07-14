@@ -153,7 +153,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     return (
       <EmptyState title="No tasks match these filters" copy="Clear filters to see all tasks.">
         <button type="button" className="btn btn-outline" onClick={onClearFilters}>Clear filters</button>
-        <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+        <Link to="/work/tasks/new" className="btn btn-primary">+ New task</Link>
       </EmptyState>
     )
   }
@@ -162,7 +162,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
-        <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+        <Link to="/work/tasks/new" className="btn btn-primary">+ New task</Link>
       </EmptyState>
     )
   }

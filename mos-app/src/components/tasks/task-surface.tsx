@@ -50,7 +50,7 @@ export type TaskSurfaceProps = {
   taskId: string | null          // null only in create mode
   mode: 'view' | 'create'
   width: 'drawer' | 'full'
-  onClose?: () => void           // drawer/expanded use this; full host passes navigate('/tasks')
+  onClose?: () => void           // drawer/expanded use this; full host passes navigate('/work/tasks')
   onExpandToggle?: () => void    // wired in PR-B
   expanded?: boolean
   onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
@@ -365,7 +365,7 @@ function ViewSurface({
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
-      else navigate('/tasks')
+      else navigate('/work/tasks')
     } catch { /* surface */ }
   }
   async function handleUnarchive() {
@@ -385,7 +385,7 @@ function ViewSurface({
       <div className="not-found-panel">
         <h1 className="not-found-title">Task not found</h1>
         <p className="not-found-copy">This task doesn&apos;t exist or you don&apos;t have access.</p>
-        <Link to="/tasks" className="btn btn-outline">All tasks</Link>
+        <Link to="/work/tasks" className="btn btn-outline">All tasks</Link>
       </div>
     )
   }
@@ -410,7 +410,7 @@ function ViewSurface({
           now={now}
           onStatusChange={handleStatusChange}
           onExpandToggle={() => onExpandToggle?.()}
-          onClose={() => (onClose ? onClose() : navigate('/tasks'))}
+          onClose={() => (onClose ? onClose() : navigate('/work/tasks'))}
           onArchive={() => setShowConfirm(true)}
         />
 
@@ -720,7 +720,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
       }
       const newId = await createTask(input)
       onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
-      navigate(`/tasks/${newId}`)
+      navigate(`/work/tasks/${newId}`)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong')
       setSubmitting(false)
@@ -757,7 +757,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
       className="dw-iconbtn"
       aria-label="Close (Esc)"
       title="Close (Esc)"
-      onClick={() => (onClose ? onClose() : navigate('/tasks'))}
+      onClick={() => (onClose ? onClose() : navigate('/work/tasks'))}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M18 6 6 18M6 6l12 12" />
@@ -965,7 +965,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
           {onClose ? (
             <button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button>
           ) : (
-            <Link to="/tasks" className="btn btn-outline">Cancel</Link>
+            <Link to="/work/tasks" className="btn btn-outline">Cancel</Link>
           )}
           <button
             type="submit"

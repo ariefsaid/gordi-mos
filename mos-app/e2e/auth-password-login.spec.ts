@@ -18,5 +18,5 @@ test('AC-001: password login journey', async ({ page }) => {
 
   // Goal-oracle: Home renders (FR-013 page head) + chip shows viewer's name (FR-006)
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('Cahya Cafe')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 10_000 })
 })

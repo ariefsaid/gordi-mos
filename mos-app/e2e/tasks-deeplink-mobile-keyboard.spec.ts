@@ -17,8 +17,8 @@ test('AC-102 (J4): deep-link to /tasks/:id renders the table AND that task drawe
   const title = TASKS.VIEWER_ACCOUNTABLE.title
 
   // Land directly on the deep link (e.g. from My Week / Daily Log).
-  await page.goto(`tasks/${taskId}`)
-  await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+  await page.goto(`work/tasks/${taskId}`)
+  await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
 
   // Both panes render: the persistent table AND the task's drawer.
   const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -34,8 +34,8 @@ test.describe('mobile', () => {
     const taskId = TASKS.VIEWER_ACCOUNTABLE.id
     const title = TASKS.VIEWER_ACCOUNTABLE.title
 
-    await page.goto(`tasks/${taskId}`)
-    await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+    await page.goto(`work/tasks/${taskId}`)
+    await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
 
     // Full-screen modal dialog (no 1/3 drawer on a phone).
     const dialog = page.getByRole('dialog', { name: /task detail/i })
@@ -44,7 +44,7 @@ test.describe('mobile', () => {
 
     // Esc closes back to the list (the modal's document-level Esc handler).
     await page.keyboard.press('Escape')
-    await page.waitForURL(/\/tasks$/)
+    await page.waitForURL(/\/work\/tasks$/)
     // The list form on mobile is the card list.
     await expect(page.locator('[data-testid="task-card"]').first()).toBeVisible({ timeout: 10_000 })
   })
@@ -52,14 +52,14 @@ test.describe('mobile', () => {
 
 test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens create', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 
   // The seed has one task; create a second so j j has somewhere to land.
   await createTaskViaUI(page, `J6 Second ${Date.now()}`)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 
   // Wait for at least two rows so j j has somewhere to land.
@@ -74,17 +74,17 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await expect(page.locator('tr.task-row.kfocus')).toBeVisible()
   const cursorTitle = await page.locator('tr.task-row.kfocus .task-name').first().innerText()
   await page.keyboard.press('Enter')
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: cursorTitle })).toBeVisible({ timeout: 10_000 })
 
   // Esc closes the drawer → back to /tasks.
   await page.keyboard.press('Escape')
-  await page.waitForURL(/\/tasks$/)
+  await page.waitForURL(/\/work\/tasks$/)
 
   // n opens the create drawer.
   await page.getByRole('heading', { name: 'Tasks' }).click()
   await page.keyboard.press('n')
-  await page.waitForURL(/\/tasks\/new$/)
+  await page.waitForURL(/\/work\/tasks\/new$/)
   await expect(page.getByRole('complementary', { name: /new task/i })).toBeVisible()
 })

@@ -9,18 +9,18 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
 
 /**
- * Split-view shell for /tasks (ADR-0007, PR-B). The table persists while the
+ * Split-view shell for /work/tasks (ADR-0007, PR-B). The table persists while the
  * detail/create surface mounts beside it via <Outlet> (push/squash, no scrim):
- *   /tasks         → table full width (.split.nodrawer), no drawer
- *   /tasks/:id     → table + that task's drawer open
- *   /tasks/new     → table + drawer in create mode
+ *   /work/tasks         → table full width (.split.nodrawer), no drawer
+ *   /work/tasks/:id     → table + that task's drawer open
+ *   /work/tasks/new     → table + drawer in create mode
  * Expand is a per-user-global view toggle on the SAME URL (read here so the
  * grid can collapse to full width when the surface is expanded).
  */
 export function TasksLayout() {
   useDocumentTitle('Tasks — Gordi MOS')
   const { taskId } = useParams()
-  const isNew = useMatch('/tasks/new')
+  const isNew = useMatch('/work/tasks/new')
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
   const [expanded, setExpanded] = useExpandPref()
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal

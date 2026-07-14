@@ -1,9 +1,9 @@
 // AC-025/AC-026 (docs/specs/dashboard.spec.md) — visual/responsive proof that the
-// unit/RTL layer cannot cover: real-browser layout of /mos/dashboard at phone vs
+// unit/RTL layer cannot cover: real-browser layout of /mos/money at phone vs
 // desktop widths.
 //
 // This suite RETARGETS the old AC-010/AC-011 sales-dashboard responsive proof to the
-// rebuilt+renamed `/dashboard` page (the OD-DASH work: `/sales` → `/dashboard`). The
+// rebuilt+renamed `/money` page (the Step-2 IA move: `/dashboard` + `/sales` → `/money`). The
 // GOAL-ORACLE is unchanged — "no horizontal scroll + no overlap at phone width" and
 // "KPI row + chart + table near the fold with tabular numerics at desktop width" —
 // only the journey SELECTORS + the second data mock changed for the deliberate
@@ -15,7 +15,7 @@
 // AC-026: at ≥1280px — KPI rows + chart + table are visible above/near the fold and
 //         all numeric columns use tabular styling.
 //
-// The new /dashboard reads BOTH reporting read-models (FR-003): reporting.sales_daily_revenue
+// The new /money page reads BOTH reporting read-models (FR-003): reporting.sales_daily_revenue
 // AND reporting.sales_margin_daily. Both PostgREST responses are mocked so the journey
 // is deterministic and needs no new e2e user/role fixture beyond the existing ADMIN
 // persona (e2e/fixtures/users.ts — `admin` satisfies the route's `finance OR admin`
@@ -97,7 +97,7 @@ const MARGIN_ROWS = Array.from({ length: 10 }, (_, i) => {
   })
 }).flat()
 
-/** Mock BOTH reporting endpoints the /dashboard reads (FR-003/AC-004). */
+/** Mock BOTH reporting endpoints the /money page reads (FR-003/AC-004). */
 async function mockDashboardReporting(page: Page) {
   await page.route('**/rest/v1/sales_daily_revenue*', async (route) => {
     await route.fulfill({
@@ -131,7 +131,7 @@ test.describe('AC-025: Dashboard — phone layout (390px)', () => {
   test('AC-025: KPI values, global toolbar, tab switch, and detail cards are visible without horizontal scroll or overlap', async ({ page }) => {
     await mockDashboardReporting(page)
     await loginAs(page, ADMIN.email, ADMIN.password)
-    await page.goto('dashboard')
+    await page.goto('money')
 
     // Populated layout rendered (this label only exists in the ready state — doubles
     // as the data-loaded readiness wait; the empty state must NOT have triggered).
@@ -192,7 +192,7 @@ test.describe('AC-026: Dashboard — desktop layout (≥1280px)', () => {
   test('AC-026: KPI rows + chart + table are visible above/near the fold; numeric columns are tabular', async ({ page }) => {
     await mockDashboardReporting(page)
     await loginAs(page, ADMIN.email, ADMIN.password)
-    await page.goto('dashboard')
+    await page.goto('money')
 
     // Populated layout rendered.
     await expect(page.getByText(/trailing 7-day revenue/i)).toBeVisible()

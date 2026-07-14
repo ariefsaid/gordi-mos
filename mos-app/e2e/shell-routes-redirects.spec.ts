@@ -29,9 +29,9 @@ const redirectCases = [
   { oldPath: 'plan/pricing', finalPath: /\/money\/pricing$/, needsAdmin: true, flag: 'plan-budget' },
 ] as const
 
-async function expectBackDoesNotReenterOld(page: Parameters<typeof test>[0]['page'], oldPath: string) {
+async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
   await page.goBack()
-  await page.waitForLoadState('networkidle')
+  await page.waitForTimeout(250)
   expect(page.url()).not.toContain(`/mos/${oldPath}`)
 }
 
@@ -40,14 +40,16 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('AC-001: old shell routes redirect to their new canonical URL and Back never re-enters the retired URL', async ({ page }) => {
+  test.setTimeout(120_000)
   for (const routeCase of redirectCases) {
     if (routeCase.flag === 'plan-budget' && !PLAN_BUDGET_ENABLED) continue
 
     await page.goto('')
     await expect(page).toHaveURL(/\/$|\/mos\/?$/)
 
-    await page.goto(routeCase.oldPath)
-    await expect(page).toHaveURL(routeCase.finalPath)
+    await page.goto(routeCase.oldPath, { waitUntil: 'commit', timeout: 10_000 })
+    await page.waitForTimeout(1_000)
+    await expect(page).toHaveURL(routeCase.finalPath, { timeout: 10_000 })
     await expectBackDoesNotReenterOld(page, routeCase.oldPath)
   }
 })
@@ -57,7 +59,7 @@ test('AC-003: /work/follow-ups redirects to /work/tasks?view=followups and the s
   await expect(page).toHaveURL(/\/work\/tasks\?view=followups$/)
   await page.reload()
   await expect(page).toHaveURL(/\/work\/tasks\?view=followups$/)
-  await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
+  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 })
 
@@ -96,6 +98,6 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
-  await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
+  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 })

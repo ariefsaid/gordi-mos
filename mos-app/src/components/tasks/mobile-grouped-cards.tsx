@@ -81,7 +81,7 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
 
   return (
     <article data-testid="task-card" className="task-card">
-      <Link to={`/tasks/${task.id}`} className="task-card-link">
+      <Link to={`/work/tasks/${task.id}`} className="task-card-link">
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">Archived</span>}
           <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>

@@ -337,7 +337,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       return { key, label, rows, overdue, prefillParam, workLineType }
     }
     if (groupBy === 'status') {
-      // FR-123 (refined): Status groups open a plain /tasks/new (no ?status= pre-fill)
+      // FR-123 (refined): Status groups open a plain /work/tasks/new (no ?status= pre-fill)
       // because CreateSurface has no status field — the task always opens as "Open".
       // Owner→?r=<personId> and BU→?bu=<buId> ARE read and applied by CreateSurface.
       return STATUS_ORDER.map(s => mk(s, s, ''))
@@ -419,9 +419,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const { cursor, setCursor } = useTasksKeyboard({
     rowCount: leafTasks.length,
     enabled: isDesktop, // mobile uses the card list + native links, not row cursor
-    onOpen: i => { const t = leafTasks[i]; if (t) navigate(`/tasks/${t.id}`) },
-    onClose: () => { if (drawerOpen) navigate('/tasks') },
-    onNew: () => navigate('/tasks/new'),
+    onOpen: i => { const t = leafTasks[i]; if (t) navigate(`/work/tasks/${t.id}`) },
+    onClose: () => { if (drawerOpen) navigate('/work/tasks') },
+    onNew: () => navigate('/work/tasks/new'),
     onExpand: () => { if (drawerOpen) onToggleExpand?.() },
   })
 
@@ -522,7 +522,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // "+ Add task" pre-fill: navigate to the create surface seeding the grouped
   // dimension (Owner → R, BU → bu, Status → status) — AC-125, FR-123.
   const openAddTask = useCallback((prefillParam: string) => {
-    navigate(`/tasks/new?${prefillParam}`)
+    navigate(`/work/tasks/new?${prefillParam}`)
   }, [navigate])
 
   // ── Row renderer (shared by the plain + virtualized bodies) ────────────────
@@ -540,7 +540,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         buName={buMap.get(task.business_unit_id) ?? ''}
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         others={buildOthers(task)}
-        onOpen={(id) => navigate(`/tasks/${id}`)}
+        onOpen={(id) => navigate(`/work/tasks/${id}`)}
         checked={selectedIds.has(task.id)}
         onCheck={() => toggleSelected(task.id)}
         workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
@@ -591,7 +591,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         count={stats === null ? null : stats.total}
         action={
           showNewTask ? (
-            <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+            <Link to="/work/tasks/new" className="btn btn-primary">+ New task</Link>
           ) : undefined
         }
         meta={

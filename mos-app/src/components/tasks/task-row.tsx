@@ -1,7 +1,7 @@
 // TaskRow — one dense 50px record row (PR-2). Extracted verbatim from
 // TasksWorkspace.renderRow, then given a hover-revealed leading RowCheckbox
 // (AC-T02/T07) + trailing RowMenu ⋯ (AC-T02). The name cell is a real
-// <a href="/tasks/:id"> Chip-link (AC-T03); status is a soft StatusPill that
+// <a href="/work/tasks/:id"> Chip-link (AC-T03); status is a soft StatusPill that
 // never wraps (AC-T05); the row fill is bg-secondary on hover and the existing
 // neutral row-selected on the open drawer row (AC-T04).
 //
@@ -33,7 +33,7 @@ export type TaskRowProps = {
   buName: string
   ownerName: string
   others: OwnerCellRaciMember[]
-  /** Row click + name link activation → navigate to /tasks/:id. */
+  /** Row click + name link activation → navigate to /work/tasks/:id. */
   onOpen: (taskId: string) => void
   /** Checkbox selection (local set only — no bulk action ships this PR). */
   checked: boolean
@@ -79,12 +79,12 @@ export function TaskRow({
       </td>
       <td className="td-main">
         <Link
-          to={`/tasks/${task.id}`}
+          to={`/work/tasks/${task.id}`}
           className="task-row-link name-chip"
           title={task.title}
           tabIndex={0}
           // AC-T02/T03: clicking the name link must not also double-fire the row's
-          // onOpen — the link navigates itself to the same canonical /tasks/:id.
+          // onOpen — the link navigates itself to the same canonical /work/tasks/:id.
           onClick={(e) => e.stopPropagation()}
         >
           <span className="task-title-line">

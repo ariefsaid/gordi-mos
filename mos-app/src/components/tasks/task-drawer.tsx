@@ -68,7 +68,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   // Remember the element that had focus before the drawer opened, to restore on close.
   const invokerRef = useRef<HTMLElement | null>(null)
 
-  const close = () => navigate('/tasks')
+  const close = () => navigate('/work/tasks')
 
   // ── Focus management ────────────────────────────────────────────────────────
   useEffect(() => {

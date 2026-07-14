@@ -12,8 +12,8 @@ import { VIEWER } from './fixtures/users'
 
 test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 })
 
@@ -22,13 +22,13 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   // earlier specs (e.g. tasks-archive) may have mutated.
   const rowText = `J1 Triage ${Date.now()}`
   await createTaskViaUI(page, rowText)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 
   await expect(page.getByText(rowText).first()).toBeVisible({ timeout: 10_000 })
   await page.getByText(rowText).first().click()
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
 
   // The drawer renders beside a STILL-mounted table (the load-bearing split-view win).
   const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -46,7 +46,7 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   // The drawer pill AND the table row both reflect Blocked, still on /tasks/:id.
   await expect(drawer.getByText('Blocked')).toBeVisible({ timeout: 8_000 })
   await expect(openRow.getByText('Blocked')).toBeVisible({ timeout: 8_000 })
-  expect(page.url()).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(page.url()).toMatch(/\/work\/tasks\/[0-9a-f-]{36}$/)
 })
 
 test('AC-104 (J2): expand toggle keeps the URL, goes full width, and persists', async ({ page }) => {
@@ -67,7 +67,7 @@ test('AC-104 (J2): expand toggle keeps the URL, goes full width, and persists', 
 
   // Persisted per-user-global: reload → still expanded.
   await page.reload()
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
   await expect(page.locator('.record-2col')).toBeVisible({ timeout: 10_000 })
 
   // Collapse again so the preference doesn't leak into later specs.
@@ -77,7 +77,7 @@ test('AC-104 (J2): expand toggle keeps the URL, goes full width, and persists', 
 test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in the table', async ({ page }) => {
   const title = `J3 Created ${Date.now()}`
   await page.getByRole('link', { name: /new task/i }).first().click()
-  await page.waitForURL(/\/tasks\/new$/)
+  await page.waitForURL(/\/work\/tasks\/new$/)
 
   // The create drawer renders beside the table (no second editor).
   const form = page.getByRole('form', { name: /create task form/i })
@@ -86,7 +86,7 @@ test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in
   await form.getByRole('button', { name: /create task/i }).click()
 
   // Transitions in place to the new task's view-mode drawer on /tasks/:newId.
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/, { timeout: 15_000 })
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
 

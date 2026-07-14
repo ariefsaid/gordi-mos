@@ -160,8 +160,8 @@ test.afterAll(async () => {
 test.beforeEach(async ({ page }) => {
   // Log in as Director (MANAGER = Dewi Director) — Director persona per the AC.
   await loginAs(page, MANAGER.email, MANAGER.password)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
   // Switch to "All" so Dewi sees the full seeded dataset (not just her R/A tasks).
   await page.getByRole('tab', { name: 'All' }).click()
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
@@ -217,9 +217,9 @@ test(
   await expect(firstRow).toBeVisible({ timeout: 8_000 })
   await firstRow.click()
 
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 10_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/, { timeout: 10_000 })
   const taskUrl = page.url()
-  expect(taskUrl).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(taskUrl).toMatch(/\/work\/tasks\/[0-9a-f-]{36}$/)
 
   // Drawer opens beside the still-mounted table (split-view, ADR-0007).
   const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -274,14 +274,11 @@ test(
   await expect(addTaskBtn).toBeVisible()
   await addTaskBtn.click()
 
-  await page.waitForURL(/\/tasks\/new(\?|$)/, { timeout: 10_000 })
+  await page.waitForURL(/\/work\/tasks\/new(\?|$)/, { timeout: 10_000 })
   expect(page.url()).toContain(`r=${P_RAMA}`)
 
-  // Create form mounts and the Responsible (R) select is pre-filled with Rama's person ID.
-  const createForm = page.getByRole('form', { name: /create task form/i })
-  await expect(createForm).toBeVisible({ timeout: 8_000 })
-
-  const responsibleSelect = createForm.getByRole('combobox', { name: /Responsible \(R\)/i })
+  // Create surface mounts and the Responsible (R) select is pre-filled with Rama's person ID.
+  const responsibleSelect = page.getByRole('combobox', { name: /Responsible \(R\)/i })
   await expect(responsibleSelect).toBeVisible({ timeout: 10_000 })
   await expect(responsibleSelect).toHaveValue(P_RAMA)
 })

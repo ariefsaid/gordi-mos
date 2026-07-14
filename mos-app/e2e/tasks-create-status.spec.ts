@@ -13,8 +13,8 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await loginAs(page, VIEWER.email, VIEWER.password)
 
   // ── 2. Navigate to the Tasks list ──────────────────────────────────────────
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
 
   // Switch to "All" to see all tasks (not just mine — in case BU filter differs)
   const allTab = page.getByRole('tab', { name: 'All' })
@@ -23,11 +23,11 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   // ── 3. Create a new task ────────────────────────────────────────────────────
   const taskTitle = `AC-090 Task ${Date.now()}`
   const detailUrl = await createTaskViaUI(page, taskTitle)
-  expect(detailUrl).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(detailUrl).toMatch(/\/work\/tasks\/[0-9a-f-]{36}$/)
 
   // ── 4. Go back to the list and assert the task appears ──────────────────────
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
 
   // Switch to "All" again to see the newly created task
   await page.getByRole('tab', { name: 'All' }).click()
@@ -35,7 +35,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
 
   // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
   await page.getByText(taskTitle).first().click()
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
   // The split-view drawer hosts the task surface; the title is the drawer heading.
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible()
@@ -55,7 +55,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   // ── 7. Assert: pill shows "In Progress" in place (no navigation) ─────────────
   await expect(drawer.getByText('In Progress')).toBeVisible({ timeout: 8_000 })
   // Still on the same detail URL
-  expect(page.url()).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(page.url()).toMatch(/\/work\/tasks\/[0-9a-f-]{36}$/)
 
   // ── 8. Assert: the Activity tab shows the status_changed event ─────────────
   // Activity is a tab in the Variant-B drawer (design-plan §1.2).
@@ -64,8 +64,8 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await expect(activityPane.getByText(/status changed|→ In Progress|In Progress/i).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
   const taskRow = page.locator('tr', { hasText: taskTitle }).or(
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
