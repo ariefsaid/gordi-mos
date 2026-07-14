@@ -4,19 +4,16 @@ import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
-import { routeConfig } from './router'
+import { routeConfig, SearchRedirect, TasksIdRedirect } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
 
-// nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
-// but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
-// to false LOCALLY so the flag-gating coverage is preserved (BDD rule — the behavior is valid).
+// Step 2: SHOW_INBOX is retired (D-PLN-1/D-1); the mock factory no longer carries it.
 vi.mock('./config/features', () => ({
   SHOW_WEEKLY_UPDATES: true,
   SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: false,
   SHOW_ASSISTANT: true,
-  SHOW_INBOX: true,
   SHOW_HOME_STACKED: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
@@ -24,191 +21,235 @@ vi.mock('./config/features', () => ({
 
 const mockUseAuth = vi.mocked(useAuth)
 
-// Import components used in the route tree to verify guard behavior
 import { ProtectedRoute } from './auth/protected-route'
 import { AppShell } from './shell/app-shell'
 import { TasksLayout } from './pages/tasks-layout'
-import { UpdatesPage } from './pages/updates-page'
-import { OpsPage } from './pages/ops-page'
+import { ProjectsProcessesPage } from './pages/projects-processes-page'
+import { ObjectivesPage } from './pages/objectives-page'
+import { DashboardPage } from './pages/dashboard-page'
+import { KitchenLogPage } from './pages/kitchen-log-page'
+import { KitchenReviewPage } from './pages/kitchen-review-page'
+import { AdminUsersPage } from './pages/admin-users-page'
+import { InboxPage } from './pages/inbox-page'
+import { FollowUpsPage } from './pages/follow-ups-page'
+import { SliceStubPage } from './pages/slice-stub-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>
 }
 
-// AC-008: unauthenticated users are redirected away from new section routes
-// Uses MemoryRouter (same pattern as guards.test.tsx) for reliable redirect testing.
-describe('AC-008: Guard on new routes', () => {
-  const cases = [
-    { path: '/tasks', element: <TasksLayout /> },
-    { path: '/updates', element: <UpdatesPage /> },
-    { path: '/ops', element: <OpsPage /> },
-  ]
+// Locate the AppShell route's children (the canonical route table).
+function shellChildren() {
+  const protectedRoute = routeConfig.find(
+    (r) =>
+      Array.isArray(r.children) &&
+      r.children.some(
+        (c) => Array.isArray(c.children) && c.children.some((cc) => cc.path === 'work/tasks'),
+      ),
+  )!
+  const shell = protectedRoute.children!.find((c) => Array.isArray(c.children))!
+  return shell.children!
+}
 
-  cases.forEach(({ path, element }) => {
-    it(`redirects unauthenticated visitor from ${path} to login, no shell content`, () => {
-      mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
+// AC-008: unauthenticated users are redirected away from protected routes.
+describe('AC-008: Guard on protected routes', () => {
+  it('redirects unauthenticated visitor from /work/tasks to login, no shell content', () => {
+    mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
 
-      render(
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/login" element={<LoginStub />} />
-            <Route element={<ProtectedRoute />}>
-              <Route element={<AppShell />}>
-                <Route path="/tasks" element={element} />
-                <Route path="/updates" element={element} />
-                <Route path="/ops" element={element} />
-              </Route>
+    render(
+      <MemoryRouter initialEntries={['/work/tasks']}>
+        <Routes>
+          <Route path="/login" element={<LoginStub />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppShell />}>
+              <Route path="/work/tasks" element={<TasksLayout />} />
             </Route>
-          </Routes>
-        </MemoryRouter>,
-      )
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
 
-      // No shell navigation rendered
-      expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull()
-      // Redirected to login stub
-      expect(screen.getByTestId('login-page')).toBeInTheDocument()
-    })
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull()
+    expect(screen.getByTestId('login-page')).toBeInTheDocument()
   })
 })
 
-// ADR-0007: the three sibling /tasks routes become nested children under a
-// parent /tasks route so the table can persist (split-view, PR-B). PR-A only
-// establishes the nesting — the rendered output stays identical to today.
-describe('router — tasks nesting (ADR-0007)', () => {
-  it('AC-100: tasks is a parent route with :taskId and new as children', () => {
-    // Find the ProtectedRoute (which wraps AppShell) by locating the route whose
-    // children include an AppShell — index-agnostic so a DEV-only /dev/ui route
-    // prepended ahead of it doesn't shift the lookup.
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const tasks = shell.children!.find(r => r.path === 'tasks')!
+// ADR-0007: tasks is nested under /work/tasks with new + :taskId children.
+describe('router — tasks nesting under /work/tasks (ADR-0007)', () => {
+  it('AC-100: /work/tasks is a parent route with :taskId and new as children', () => {
+    const tasks = shellChildren().find((r) => r.path === 'work/tasks')!
     expect(tasks.children).toBeDefined()
-    const childPaths = tasks.children!.map(c => c.path).sort()
+    const childPaths = tasks.children!.map((c) => c.path).sort()
     expect(childPaths).toEqual(['new', ':taskId'].sort())
-    // siblings `tasks/new` / `tasks/:taskId` no longer exist at the shell level
-    expect(shell.children!.some(r => r.path === 'tasks/new')).toBe(false)
-    expect(shell.children!.some(r => r.path === 'tasks/:taskId')).toBe(false)
+    // The old top-level /tasks is no longer the canonical TasksLayout — it is now a redirect.
+    expect(shellChildren().find((r) => r.path === 'tasks')!.element).toEqual(<SearchRedirect to="/work/tasks" />)
   })
-
 })
 
-// ADR-0018 P1 — the /dev/views harness is DEV + SHOW_USER_VIEWS flag gated (mirrors the
-// SHOW_WEEKLY_UPDATES/SHOW_DAILY_LOG pattern). SHOW_USER_VIEWS defaults false, so both routes
-// must redirect to / — a stale deep-link can never reach the harness while the flag is off.
-describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS default false)', () => {
+// /dev/views harness is DEV + SHOW_USER_VIEWS flag gated (default false → redirect).
+describe('router — /dev/views is flag-gated (ADR-0018 P1)', () => {
   it('redirects /dev/views and /dev/views/:viewId to / while the flag is off', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const bare = shell.children!.find(r => r.path === 'dev/views')!
-    const withId = shell.children!.find(r => r.path === 'dev/views/:viewId')!
+    const bare = shellChildren().find((r) => r.path === 'dev/views')!
+    const withId = shellChildren().find((r) => r.path === 'dev/views/:viewId')!
     expect(bare.element).toEqual(<Navigate to="/" replace />)
     expect(withId.element).toEqual(<Navigate to="/" replace />)
   })
 })
 
-// FR-421 (nav-five-destinations): the catalog manage routes are RELOCATED under /work/ as
-// Work's manage-mode, and the retired top-level paths redirect into the cascade. The manage pages
-// stay behind RequireCapability (bounces non-holders to /work/cascade); page components reused.
-describe('router — catalog manage-mode relocated under /work/ (FR-421)', () => {
-  it('AC-302/304: wires /work/cascade directly + /work/objectives + /work/projects-processes behind capability gates', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+// AC-006: canonical Work routes + redirects (FR-008/009/010/027).
+describe('AC-006: Work canonical routes + redirects', () => {
+  it('AC-006: /work/projects renders ProjectsProcessesPage under RequireCapability(workline.manage)', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/projects'),
     )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-
-    expect(shell.children!.some((r) => r.path === 'work/cascade')).toBe(true)
-
-    const objectivesGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/objectives'),
-    )!
-    expect(objectivesGate.element).toEqual(<RequireCapability capability="objective.manage" />)
-
-    const workLinesGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/projects-processes'),
-    )!
-    expect(workLinesGate.element).toEqual(<RequireCapability capability="workline.manage" />)
+    expect(gate.element).toEqual(<RequireCapability capability="workline.manage" />)
+    expect(gate.children!.find((r) => r.path === 'work/projects')!.element).toEqual(<ProjectsProcessesPage />)
   })
 
-  it('AC-405: /objectives + /projects-processes are redirect routes to /work/cascade (replace)', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+  it('AC-006: /work/objectives renders ObjectivesPage under RequireCapability(objective.manage)', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/objectives'),
     )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    expect(gate.element).toEqual(<RequireCapability capability="objective.manage" />)
+    expect(gate.children!.find((r) => r.path === 'work/objectives')!.element).toEqual(<ObjectivesPage />)
+  })
 
-    const objectivesRedirect = shell.children!.find((r) => r.path === 'objectives')!
-    expect(objectivesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+  it('AC-006: /work/projects-processes redirects to /work/projects (replace)', () => {
+    expect(shellChildren().find((r) => r.path === 'work/projects-processes')!.element).toEqual(
+      <Navigate to="/work/projects" replace />,
+    )
+  })
 
-    const workLinesRedirect = shell.children!.find((r) => r.path === 'projects-processes')!
-    expect(workLinesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+  it('AC-006: /work redirects to /work/tasks (replace)', () => {
+    expect(shellChildren().find((r) => r.path === 'work')!.element).toEqual(
+      <Navigate to="/work/tasks" replace />,
+    )
+  })
+
+  it('AC-006: /work/follow-ups redirects to /work/tasks?view=followups (replace)', () => {
+    expect(shellChildren().find((r) => r.path === 'work/follow-ups')!.element).toEqual(
+      <Navigate to="/work/tasks?view=followups" replace />,
+    )
+  })
+
+  it('AC-006: /work/cascade redirects to /work/tasks (cascade noun retired)', () => {
+    expect(shellChildren().find((r) => r.path === 'work/cascade')!.element).toEqual(
+      <Navigate to="/work/tasks" replace />,
+    )
+  })
+
+  it('AC-006: /work/signals renders SliceStubPage (Signals archive — Step 4)', () => {
+    expect(shellChildren().find((r) => r.path === 'work/signals')!.element).toEqual(
+      <SliceStubPage jobKey="job.signals" name="Signals" />,
+    )
   })
 })
 
-describe('router — dashboard route gate + redirect (OD-DASH-2, FR-001/002)', () => {
-  // Helper: find the AppShell route node.
-  function shellChildren() {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+// AC-006: Money canonical routes + the old-route redirects (FR-008/009).
+describe('AC-006: Money canonical routes + redirects', () => {
+  it('AC-006: /money sits under RequireAccessRole anyOf={finance,admin}', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    return shell.children!
-  }
-
-  it('AC-002/003: /dashboard sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
-    const dashGate = shellChildren().find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
-    )!
-    expect(dashGate).toBeDefined()
-    expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(gate.children!.find((r) => r.path === 'money')!.element).toEqual(<DashboardPage />)
   })
 
-  it('AC-001: /sales redirects to /dashboard (back-compat)', () => {
+  it('AC-006: /money/detail renders DashboardPage defaultTab=detail', () => {
     const gate = shellChildren().find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'sales'),
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/detail'),
     )!
-    const salesRoute = gate.children!.find(r => r.path === 'sales')!
-    expect(salesRoute.element).toEqual(<Navigate to="/dashboard" replace />)
+    expect(gate.children!.find((r) => r.path === 'money/detail')!.element).toEqual(
+      <DashboardPage defaultTab="detail" />,
+    )
   })
 
-  it('AC-017: /dashboard/detail is wired (parameterized detail sub-view)', () => {
-    const gate = shellChildren().find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
-    )!
-    const detailRoute = gate.children!.find(r => r.path === 'dashboard/detail')
-    expect(detailRoute).toBeDefined()
+  it('AC-006: /dashboard redirects to /money; /sales redirects to /money (no chained redirect)', () => {
+    expect(shellChildren().find((r) => r.path === 'dashboard')!.element).toEqual(<SearchRedirect to="/money" />)
+    // /sales is a shell-level redirect to /money (not chained via /dashboard).
+    expect(shellChildren().find((r) => r.path === 'sales')!.element).toEqual(<SearchRedirect to="/money" />)
+  })
+
+  it('AC-006: /objectives + /projects-processes redirect to their Work children', () => {
+    expect(shellChildren().find((r) => r.path === 'objectives')!.element).toEqual(
+      <Navigate to="/work/objectives" replace />,
+    )
+    expect(shellChildren().find((r) => r.path === 'projects-processes')!.element).toEqual(
+      <Navigate to="/work/projects" replace />,
+    )
+  })
+
+  it('AC-006: /plan/budget + /plan/pricing redirect to /money/budget + /money/pricing (preserve query)', () => {
+    expect(shellChildren().find((r) => r.path === 'plan/budget')!.element).toEqual(<SearchRedirect to="/money/budget" />)
+    expect(shellChildren().find((r) => r.path === 'plan/pricing')!.element).toEqual(<SearchRedirect to="/money/pricing" />)
   })
 })
 
-// ADR-0022 (Issue D) — Plan budget + pricing pre-flight routes are flag-gated (SHOW_PLAN_BUDGET
-// default false) AND finance/admin-gated. AC-PB-001 (flag-off redirect) + AC-PB-002 (role gate).
-describe('router — Plan budget + pricing routes (ADR-0022, SHOW_PLAN_BUDGET default false)', () => {
-  it('AC-PB-001: /plan/budget + /plan/pricing redirect to / while the flag is off', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const planGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
-    )!
-    expect(planGate).toBeDefined()
-    const budget = planGate.children!.find((r) => r.path === 'plan/budget')!
-    const pricing = planGate.children!.find((r) => r.path === 'plan/pricing')!
-    expect(budget.element).toEqual(<Navigate to="/" replace />)
-    expect(pricing.element).toEqual(<Navigate to="/" replace />)
+// AC-006: Café re-home (kitchen → cafe) + stubs + admin.
+describe('AC-006: Café re-home + stub routes + admin', () => {
+  it('AC-006: /cafe/log renders KitchenLogPage (re-homed)', () => {
+    expect(shellChildren().find((r) => r.path === 'cafe/log')!.element).toEqual(<KitchenLogPage />)
   })
 
-  it('AC-PB-002: the plan/budget + plan/pricing branch sits under RequireAccessRole anyOf={finance,admin}', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+  it('AC-006: /cafe/review sits under RequireAccessRole anyOf={ops_lead,admin}', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const planGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} />)
+    expect(gate.children!.find((r) => r.path === 'cafe/review')!.element).toEqual(<KitchenReviewPage />)
+  })
+
+  it('AC-006: /events, /ecommerce, /roastery, /profile render SliceStubPage', () => {
+    expect(shellChildren().find((r) => r.path === 'events')!.element).toEqual(
+      <SliceStubPage jobKey="job.events" name="Events" />,
+    )
+    expect(shellChildren().find((r) => r.path === 'ecommerce')!.element).toEqual(
+      <SliceStubPage jobKey="job.ecommerce" name="Ecommerce" />,
+    )
+    expect(shellChildren().find((r) => r.path === 'roastery')!.element).toEqual(
+      <SliceStubPage jobKey="job.roastery" name="Roastery" />,
+    )
+    expect(shellChildren().find((r) => r.path === 'profile')!.element).toEqual(
+      <SliceStubPage jobKey="job.profile" name="Personal Profile" />,
+    )
+  })
+
+  it('AC-006: /admin redirects to /admin/people; /admin/people under AdminRoute renders AdminUsersPage', () => {
+    expect(shellChildren().find((r) => r.path === 'admin')!.element).toEqual(
+      <Navigate to="/admin/people" replace />,
+    )
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
     )!
-    expect(planGate).toBeDefined()
-    expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(gate.children!.find((r) => r.path === 'admin/people')!.element).toEqual(<AdminUsersPage />)
+  })
+
+  it('AC-006: /inbox renders InboxPage (always live)', () => {
+    expect(shellChildren().find((r) => r.path === 'inbox')!.element).toEqual(<InboxPage />)
+  })
+})
+
+// FR-009: old routes redirect to canonical (the redirect map presence).
+describe('FR-009: old-route redirect map is present', () => {
+  it('/tasks redirects to /work/tasks (search preserved via SearchRedirect)', () => {
+    expect(shellChildren().find((r) => r.path === 'tasks')!.element).toEqual(<SearchRedirect to="/work/tasks" />)
+  })
+  it('/tasks/:taskId redirects to /work/tasks/:taskId (TasksIdRedirect)', () => {
+    expect(shellChildren().find((r) => r.path === 'tasks/:taskId')!.element).toEqual(<TasksIdRedirect />)
+  })
+  it('/kitchen/log redirects (re-home to /cafe/log)', () => {
+    expect(shellChildren().find((r) => r.path === 'kitchen/log')!.element).toEqual(<SearchRedirect to="/cafe/log" />)
+  })
+  it('/updates redirects to /work/signals; /ops redirects to /', () => {
+    expect(shellChildren().find((r) => r.path === 'updates')!.element).toEqual(
+      <Navigate to="/work/signals" replace />,
+    )
+    expect(shellChildren().find((r) => r.path === 'ops')!.element).toEqual(<Navigate to="/" replace />)
+  })
+  it('/work/follow-ups/:id stays gated by SHOW_FOLLOWUPS (D-2 deep-link contract)', () => {
+    const r = shellChildren().find((x) => x.path === 'work/follow-ups/:id')!
+    // flag-off branch redirects to /; the route is present either way.
+    expect(r).toBeDefined()
+    expect([<FollowUpsPage />, <Navigate to="/" replace />]).toContainEqual(r.element)
   })
 })

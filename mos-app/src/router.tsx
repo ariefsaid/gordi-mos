@@ -1,5 +1,5 @@
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_USER_VIEWS, SHOW_INBOX, SHOW_HOME_STACKED, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
+import { createBrowserRouter, Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom'
+import { SHOW_USER_VIEWS, SHOW_HOME_STACKED, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -9,13 +9,9 @@ import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
 import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
-import { CascadePage } from './pages/cascade-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
-import { UpdatesPage } from './pages/updates-page'
-import { OpsPage } from './pages/ops-page'
 import { InboxPage } from './pages/inbox-page'
-import { OpsAddForm } from './pages/ops-add-form'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
@@ -27,6 +23,7 @@ import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
+import { SliceStubPage } from './pages/slice-stub-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -34,29 +31,45 @@ import { UiGallery } from './pages/ui-gallery'
 import { DevViewsPage } from './pages/dev-views-page'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 
-// Route layout:
-// / (RedirectIfAuthed gate) — unauthenticated users can access these
+// Route layout (Redesign Step 2 — the IA move):
+// / (RedirectIfAuthed gate) — unauthenticated users
 //   /login        → LoginPage
 //   /recovery     → RecoveryPage
 // / (ProtectedRoute gate) — authenticated viewers only
-//   AppShell (layout route — rail + header + drawer, persistent across nav)
-//     /           → HomePage (index) — ADR-0019 D2/D3; MyWeek survives as a component
-//                   (rendered inline via MyWeekPanel) but is no longer routed here.
-//     /tasks      → TasksLayout (ADR-0007 split-view shell — persistent table + <Outlet> drawer)
-//                     (index)        → table full width (.split.nodrawer)
-//       /tasks/new      → TaskDrawer (create mode, beside the table)
-//       /tasks/:taskId  → TaskDrawer (view mode, beside the table)
-//     /updates    → UpdatesPage
-//     /ops        → OpsPage (Daily Log)
-//     /ops/new    → OpsAddForm (add log entry)
-//     /ops/:id/edit → OpsAddForm (edit log entry, pre-filled)
-//     *           → NotFoundPage (catch-all)
+//   AppShell (layout route — rail + header + context-row + drawer, persistent across nav)
+//     /                        → HomePage (index) — ADR-0019 D2/D3
+//     /work/tasks              → TasksLayout (split-view shell — persistent table + <Outlet> drawer)
+//       /work/tasks/new        → TaskDrawer (create mode)
+//       /work/tasks/:taskId    → TaskDrawer (view mode)
+//     /work/signals            → SliceStubPage (Signals archive — Step 4)
+//     /work/projects           → ProjectsProcessesPage (RequireCapability workline.manage)
+//     /work/objectives         → ObjectivesPage (RequireCapability objective.manage)
+//     /events /ecommerce /roastery /profile → SliceStubPage (later steps)
+//     /money/*                 → DashboardPage/Budget/Pricing (RequireAccessRole finance/admin)
+//     /inbox                   → InboxPage (always live)
+//     /cafe/*                  → Kitchen* pages (re-homed from /kitchen/*)
+//     /admin/people            → AdminUsersPage (AdminRoute)
+//     + redirect map from every old route (§7)
+//     *                        → NotFoundPage
 //
 // basename: '/mos' matches the Caddy/Vite base (OD-P0-5).
 // replace on every redirect so Back does not re-enter (FR-012 back-guard).
+// No chained redirects (spec §16): each old route maps directly to its final canonical route.
+
+// Preserve ?view=/?record= across a redirect (FR-009). Route plumbing, not a new surface (Rule 11).
+export function SearchRedirect({ to }: { to: string }) {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: to, search }} replace />
+}
+// /tasks/:taskId → /work/tasks/:taskId (preserve param + query).
+export function TasksIdRedirect() {
+  const { taskId } = useParams()
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: `/work/tasks/${taskId}`, search }} replace />
+}
+
 export const routeConfig: RouteObject[] = [
-  // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell —
-  // for design review. Stripped from the production build via import.meta.env.DEV.
+  // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell.
   ...(import.meta.env.DEV
     ? [{ path: '/dev/ui', element: <UiGallery /> }]
     : []),
@@ -76,77 +89,73 @@ export const routeConfig: RouteObject[] = [
         element: <AppShell />,
         children: [
           { index: true, element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage /> },
-          // Issue E — DEV-only preview of the stacked-union Home, reachable regardless of the
-          // SHOW_HOME_STACKED flag so e2e + visual verification is deterministic. Production `/`
-          // still branches on the flag (above). Stripped from the production build via DEV.
           ...(import.meta.env.DEV
             ? [{ path: '__home-stacked', element: <StackedUnionHome /> }]
             : []),
+
+          // ── Work (canonical) ──
+          { path: 'work', element: <Navigate to="/work/tasks" replace /> },
           {
-            path: 'tasks',
+            path: 'work/tasks',
             element: <TasksLayout />,
             children: [
               { path: 'new', element: <TaskDrawer mode="create" /> },
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
-          { path: 'work/cascade', element: <CascadePage /> },
-          { path: 'work/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
-          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
-          // Flag-hidden for the first rollout (config/features.ts): the routes stay mounted
-          // but redirect to My Week so a stale deep-link can't reach a hidden section.
-          { path: 'updates', element: SHOW_WEEKLY_UPDATES ? <UpdatesPage /> : <Navigate to="/" replace /> },
-          { path: 'ops', element: SHOW_DAILY_LOG ? <OpsPage /> : <Navigate to="/" replace /> },
-          { path: 'inbox', element: SHOW_INBOX ? <InboxPage /> : <Navigate to="/" replace /> },
-          { path: 'ops/new', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
-          { path: 'ops/:id/edit', element: SHOW_DAILY_LOG ? <OpsAddForm /> : <Navigate to="/" replace /> },
-          // Kitchen Module (S1 — Log capture; S2 — Plan editor (ops_lead/admin) +
-          // read-only "pesanan" horizon (member); S3 — Review/approve queue, ops_lead/admin;
-          // S4 — Stock view, read-only, any authed member;
-          // S5 — Pushes/outbox, ops_lead/admin, read-only dead-letter monitoring)
-          { path: 'kitchen/log', element: <KitchenLogPage /> },
-          { path: 'kitchen/plan', element: <KitchenPlanPage /> },
-          { path: 'kitchen/review', element: <KitchenReviewPage /> },
-          { path: 'kitchen/stock', element: <KitchenStockPage /> },
-          { path: 'kitchen/pushes', element: <KitchenPushesPage /> },
-          // Admin module (FR-001, AC-070). AdminRoute bounces non-admins to /.
-          // RLS / RPC authz is the real security boundary (ADR-0011 D5).
+          { path: 'work/signals', element: <SliceStubPage jobKey="job.signals" name="Signals" /> },
+          { path: 'work/projects-processes', element: <Navigate to="/work/projects" replace /> },
           {
-            element: <AdminRoute />,
-            children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
+            element: <RequireCapability capability="workline.manage" />,
+            children: [{ path: 'work/projects', element: <ProjectsProcessesPage /> }],
           },
-          // Cascade catalog = Work's manage-mode (nav-five-destinations FR-421). The retired
-          // top-level paths redirect into the cascade (decisions.md: "direct visits redirect into
-          // it"); the manage pages are relocated under /work/ behind RequireCapability (which
-          // bounces non-holders to /work/cascade). Page components are reused unchanged (NFR-404).
-          { path: 'objectives', element: <Navigate to="/work/cascade" replace /> },
-          { path: 'projects-processes', element: <Navigate to="/work/cascade" replace /> },
           {
             element: <RequireCapability capability="objective.manage" />,
             children: [{ path: 'work/objectives', element: <ObjectivesPage /> }],
           },
-          {
-            element: <RequireCapability capability="workline.manage" />,
-            children: [{ path: 'work/projects-processes', element: <ProjectsProcessesPage /> }],
-          },
-          // Dashboard (the analytical KPI hub, Issue OD-DASH-2 — replaces /sales).
-          // FR-001/AC-001: /sales redirects to /dashboard for back-compat. FR-002/
-          // AC-002/003: finance/admin only; RequireAccessRole bounces others to /.
-          // RLS on the reporting read-models is the real security boundary.
-          // AC-017: /dashboard/detail is the parameterized detail sub-view (same page,
-          // detail tab default). The page reads ?tab= for persistence (AC-015).
+          { path: 'work/cascade', element: <Navigate to="/work/tasks" replace /> },
+          { path: 'work/follow-ups', element: <Navigate to="/work/tasks?view=followups" replace /> },
+          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
+
+          // ── Events / Money / Inbox (canonical) ──
+          { path: 'events', element: <SliceStubPage jobKey="job.events" name="Events" /> },
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
             children: [
-              { path: 'dashboard', element: <DashboardPage /> },
-              { path: 'dashboard/detail', element: <DashboardPage defaultTab="detail" /> },
-              // Back-compat redirect: /sales → /dashboard (AC-001).
-              { path: 'sales', element: <Navigate to="/dashboard" replace /> },
+              { path: 'money', element: <DashboardPage /> },
+              { path: 'money/detail', element: <DashboardPage defaultTab="detail" /> },
+              { path: 'money/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace /> },
+              { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace /> },
             ],
           },
-          // ADR-0018 P1 — view-composition dev harness (zero-agent proof). DEV-only +
-          // feature-flagged; redirects to / otherwise. Auth-gated by ProtectedRoute (reads/
-          // writes user_views via the viewer's own JWT — RLS is the real security boundary).
+          { path: 'inbox', element: <InboxPage /> },
+
+          // ── Café (Kitchen re-homed, OD-15) ──
+          { path: 'cafe', element: <Navigate to="/cafe/log" replace /> },
+          { path: 'cafe/log', element: <KitchenLogPage /> },
+          { path: 'cafe/plan', element: <KitchenPlanPage /> },
+          { path: 'cafe/stock', element: <KitchenStockPage /> },
+          {
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            children: [
+              { path: 'cafe/review', element: <KitchenReviewPage /> },
+              { path: 'cafe/pushes', element: <KitchenPushesPage /> },
+            ],
+          },
+
+          // ── Ecommerce / Roastery / Profile (stubs) ──
+          { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" name="Ecommerce" /> },
+          { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" name="Roastery" /> },
+          { path: 'profile', element: <SliceStubPage jobKey="job.profile" name="Personal Profile" /> },
+
+          // ── Admin (canonical; /admin → /admin/people) ──
+          { path: 'admin', element: <Navigate to="/admin/people" replace /> },
+          {
+            element: <AdminRoute />,
+            children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
+          },
+
+          // ADR-0018 P1 — view-composition dev harness (DEV + SHOW_USER_VIEWS).
           {
             path: 'dev/views',
             element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
@@ -155,16 +164,30 @@ export const routeConfig: RouteObject[] = [
             path: 'dev/views/:viewId',
             element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
           },
-          // ADR-0022 (Issue D) — Plan budget/COGS capture + pricing pre-flight (finance/admin).
-          // Hide-first (SHOW_PLAN_BUDGET, default false): redirect to / when off; the unit/pgTAP layers
-          // prove correctness regardless. RLS on the reporting/mos tables is the real security boundary.
-          {
-            element: <RequireAccessRole anyOf={['finance', 'admin']} />,
-            children: [
-              { path: 'plan/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace /> },
-              { path: 'plan/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace /> },
-            ],
-          },
+
+          // ── Redirects from every old route (FR-009/010, spec §7) ──
+          { path: 'tasks', element: <SearchRedirect to="/work/tasks" /> },
+          { path: 'tasks/new', element: <SearchRedirect to="/work/tasks/new" /> },
+          { path: 'tasks/:taskId', element: <TasksIdRedirect /> },
+          { path: 'updates', element: <Navigate to="/work/signals" replace /> },
+          { path: 'ops', element: <Navigate to="/" replace /> },
+          { path: 'ops/new', element: <Navigate to="/" replace /> },
+          { path: 'ops/:id/edit', element: <Navigate to="/" replace /> },
+          { path: 'kitchen', element: <Navigate to="/cafe" replace /> },
+          { path: 'kitchen/log', element: <SearchRedirect to="/cafe/log" /> },
+          { path: 'kitchen/plan', element: <SearchRedirect to="/cafe/plan" /> },
+          { path: 'kitchen/stock', element: <SearchRedirect to="/cafe/stock" /> },
+          { path: 'kitchen/review', element: <SearchRedirect to="/cafe/review" /> },
+          { path: 'kitchen/pushes', element: <SearchRedirect to="/cafe/pushes" /> },
+          { path: 'objectives', element: <Navigate to="/work/objectives" replace /> },
+          { path: 'projects-processes', element: <Navigate to="/work/projects" replace /> },
+          { path: 'dashboard', element: <SearchRedirect to="/money" /> },
+          { path: 'dashboard/detail', element: <SearchRedirect to="/money/detail" /> },
+          // /sales → /money directly (no chained redirect via /dashboard — spec §16).
+          { path: 'sales', element: <SearchRedirect to="/money" /> },
+          { path: 'plan/budget', element: <SearchRedirect to="/money/budget" /> },
+          { path: 'plan/pricing', element: <SearchRedirect to="/money/pricing" /> },
+
           { path: '*', element: <NotFoundPage /> },
         ],
       },
