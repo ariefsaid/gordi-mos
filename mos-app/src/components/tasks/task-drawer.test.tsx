@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
@@ -87,10 +87,16 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
 })
 
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>
+}
+
 function renderAt(path: string, mode: 'view' | 'create' = 'view') {
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
         <Routes>
           <Route path="/work/tasks" element={<div data-testid="list-here">Tasks list</div>} />
           <Route path="/work/tasks/new" element={<TaskDrawer mode="create" />} />
@@ -220,6 +226,39 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
     await screen.findByRole('dialog', { name: /task detail/i })
     fireEvent.click(document.querySelector('.drawer-scrim')!)
     await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
+  })
+
+  it('AC-306: closing /work/tasks/task-abc?view=overdue returns to /work/tasks?view=overdue', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/work/tasks/task-abc?view=overdue')
+    await screen.findByRole('complementary', { name: /task detail/i })
+    fireEvent.click(screen.getByRole('button', { name: /close \(esc\)/i }))
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=overdue'))
+  })
+
+  it('AC-307: modal scrim close preserves ?view=', async () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/work/tasks/task-abc?view=overdue')
+    await screen.findByRole('dialog', { name: /task detail/i })
+    fireEvent.click(document.querySelector('.drawer-scrim')!)
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=overdue'))
+  })
+
+  it('AC-308: modal Escape preserves ?view=', async () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/work/tasks/task-abc?view=overdue')
+    const dialog = await screen.findByRole('dialog', { name: /task detail/i })
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=overdue'))
+  })
+
+  it('AC-309: create close from /work/tasks/new?view=mine returns to /work/tasks?view=mine', async () => {
+    renderAt('/work/tasks/new?view=mine', 'create')
+    await screen.findByRole('complementary', { name: /new task/i })
+    fireEvent.click(screen.getByRole('button', { name: /close \(esc\)/i }))
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })
 
   it('AC-110: in the modal regime, Esc closes the drawer', async () => {

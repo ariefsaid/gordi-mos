@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom'
+import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface } from './task-surface'
 import { useExpandPref } from './use-expand-pref'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
@@ -50,6 +50,7 @@ const FOCUSABLE = [
  */
 export function TaskDrawer({ mode }: TaskDrawerProps) {
   const { taskId } = useParams<{ taskId: string }>()
+  const location = useLocation()
   const navigate = useNavigate()
   const ctx = useOutletContext<TaskDrawerOutletContext | null>()
   const [expanded, setExpanded] = useExpandPref()
@@ -68,7 +69,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   // Remember the element that had focus before the drawer opened, to restore on close.
   const invokerRef = useRef<HTMLElement | null>(null)
 
-  const close = () => navigate('/work/tasks')
+  const close = () => navigate({ pathname: '/work/tasks', search: location.search })
 
   // ── Focus management ────────────────────────────────────────────────────────
   useEffect(() => {
