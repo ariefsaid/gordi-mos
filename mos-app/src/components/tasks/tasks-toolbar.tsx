@@ -16,6 +16,8 @@ import type { TasksGroupBy } from './use-tasks-view-pref'
 import { Chevron } from '@/shell/icons'
 import { ViewTabs, type ViewTab } from '@/components/ui/view-tabs'
 
+import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
+
 export type TasksToolbarSegment = 'mine' | 'raci' | 'all'
 
 export type TasksToolbarProps = {
@@ -27,10 +29,8 @@ export type TasksToolbarProps = {
   setStatusFilter: Dispatch<SetStateAction<TaskStatus | ''>>
   personFilter: string
   setPersonFilter: Dispatch<SetStateAction<string>>
-  segment: TasksToolbarSegment
-  setSegment: Dispatch<SetStateAction<TasksToolbarSegment>>
-  /** Person filter overrides the segment (FR-124 / AC-126) → the segment is inert. */
-  segmentDisabled: boolean
+  savedView: TasksSavedView
+  onSavedViewChange: (next: TasksSavedViewChip | 'all') => void
   searchText: string
   setSearchText: Dispatch<SetStateAction<string>>
   includeArchived: boolean
@@ -39,10 +39,11 @@ export type TasksToolbarProps = {
   personOptions: PersonOption[]
 }
 
-const SEGMENTS: { key: TasksToolbarSegment; label: string }[] = [
-  { key: 'mine', label: 'Mine' },
-  { key: 'raci', label: 'RACI' },
-  { key: 'all', label: 'All' },
+const SAVED_VIEW_CHIPS: { key: TasksSavedViewChip; label: string }[] = [
+  { key: 'mine', label: 'My work' },
+  { key: 'team', label: 'Team work' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'followups', label: 'Follow-ups' },
 ]
 
 // View-tabs (the shared ViewTabs primitive, OD-P3-6): Table is the live view;
@@ -76,7 +77,7 @@ export function TasksToolbar({
   businessUnitId, setBusinessUnitId,
   statusFilter, setStatusFilter,
   personFilter, setPersonFilter,
-  segment, setSegment, segmentDisabled,
+  savedView, onSavedViewChange,
   searchText, setSearchText,
   includeArchived, setIncludeArchived,
   buOptions, personOptions,
@@ -101,27 +102,14 @@ export function TasksToolbar({
 
       <span className="tb-spacer" />
 
-      {/* Mine/RACI/All segmented pill (mockup `.seg`). Disabled when a Person filter
-          drives scope (FR-124 / AC-126) — the override gets a tooltip, not a label. */}
-      <div
-        role="tablist"
-        aria-label="Ownership filter"
-        className={`seg${segmentDisabled ? ' seg-disabled' : ''}`}
-        title={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-        aria-description={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-      >
-        {SEGMENTS.map(({ key, label }) => (
+      <div className="seg" role="group" aria-label="Tasks saved views">
+        {SAVED_VIEW_CHIPS.map(({ key, label }) => (
           <button
             key={key}
-            role="tab"
-            aria-selected={!segmentDisabled && segment === key}
-            aria-disabled={segmentDisabled ? 'true' : undefined}
-            tabIndex={segmentDisabled ? -1 : 0}
-            disabled={segmentDisabled}
-            className={!segmentDisabled && segment === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
-            title={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-            onClick={() => setSegment(key)}
             type="button"
+            aria-pressed={savedView.activeChip === key}
+            className={savedView.activeChip === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
+            onClick={() => onSavedViewChange(savedView.activeChip === key ? 'all' : key)}
           >
             {label}
           </button>

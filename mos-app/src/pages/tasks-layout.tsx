@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch } from 'react-router-dom'
+import { useTasksSavedView } from '@/components/tasks/use-tasks-saved-view'
 import { PageFrame } from '@/shell/page-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
@@ -21,6 +22,7 @@ export function TasksLayout() {
   useDocumentTitle('Tasks — Gordi MOS')
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
+  const { savedView, setSavedView } = useTasksSavedView()
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
   const [expanded, setExpanded] = useExpandPref()
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal
@@ -56,6 +58,8 @@ export function TasksLayout() {
         expanded={expanded}
         statusOverrides={statusOverrides}
         refreshKey={refreshKey}
+        savedView={savedView}
+        onSavedViewChange={setSavedView}
         onToggleExpand={() => setExpanded(e => !e)}
         drawerSlot={<Outlet context={outletContext} />}
       />

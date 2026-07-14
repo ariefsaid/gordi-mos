@@ -165,6 +165,43 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelector('.split.nodrawer')).toBeTruthy()
   })
 
+  it('AC-301: /work/tasks?view=mine activates My work and keeps one Tasks region', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Mine task' })])
+    renderAt('/work/tasks?view=mine')
+    await waitFor(() => screen.getByText('Mine task'))
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
+  })
+
+  it('AC-303: /work/tasks?view=team activates Team work without mounting a second host', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
+    renderAt('/work/tasks?view=team')
+    await waitFor(() => screen.getByText('Shared task'))
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
+    expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
+  })
+
+  it('AC-304: /work/tasks?view=bogus falls back safely with no active saved-view chip', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Fallback task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
+    renderAt('/work/tasks?view=bogus')
+    await waitFor(() => screen.getByText('Fallback task'))
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Follow-ups' })).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
+  })
+
+  it('AC-309: /work/tasks/task-1?view=mine keeps one table host and one drawer host', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open me' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
+    renderAt('/work/tasks/task-1?view=mine')
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    expect(document.querySelectorAll('.assembly')).toHaveLength(1)
+    expect(screen.getAllByRole('complementary', { name: /task detail/i })).toHaveLength(1)
+  })
+
   it('AC-101: at /tasks/:id the table STAYS mounted and the drawer renders beside it', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Triage me' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Triage me' }), checklist: [], events: [] })

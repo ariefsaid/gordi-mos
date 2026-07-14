@@ -35,6 +35,7 @@ import { TasksTableBody } from './tasks-table-body'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
+import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'raci' | 'all'
@@ -44,6 +45,8 @@ type SortDir = 'ascending' | 'descending'
 export type TasksTableStats = { total: number; blocked: number; overdue: number } | null
 
 export type TasksTableProps = {
+  savedView?: TasksSavedView
+  onSavedViewChange?: (next: TasksSavedViewChip | 'all') => void
   /** Currently-open task (split-view) — gets aria-current + the selected style. */
   selectedId?: string | null
   /** Whether a drawer is open beside the table (split-view). */
@@ -92,7 +95,7 @@ function SortArrow({ dir }: { dir: SortDir }) {
  * (NFR-120); grouping (incl. empty groups), the keyboard cursor, optimistic
  * status sync, and virtualization are layered on top. (Formerly TasksTable.)
  */
-export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = false, splitLayout = true, statusOverrides, refreshKey = 0, onToggleExpand, drawerSlot }: TasksTableProps) {
+export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = false, splitLayout = true, statusOverrides, refreshKey = 0, savedView, onSavedViewChange, onToggleExpand, drawerSlot }: TasksTableProps) {
   // Condense only in the live ≥1100px split. In the overlay/mobile regime the
   // drawer floats over a full-width table, so the table keeps all columns.
   const condensed = drawerOpen && !expanded && splitLayout
@@ -108,12 +111,12 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const [businessUnitId, setBusinessUnitId] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
   const [includeArchived, setIncludeArchived] = useState(false)
-  const [segment, setSegment] = useState<Segment>('mine')
+  const [segment, setSegment] = useState<Segment>(savedView?.segment ?? 'all')
   const [personFilter, setPersonFilter] = useState<string>('')
   const [searchText, setSearchText] = useState<string>('')
   // Transient overdue-only filter (AC-128 / FR-126) — clicking "N overdue" sets this;
   // cleared via the chip ✕ or the Clear filters button.
-  const [overdueOnly, setOverdueOnly] = useState(false)
+  const [overdueOnly, setOverdueOnly] = useState(savedView?.overdueOnly ?? false)
 
   // ── Sort (UI state; mapped onto the TanStack sorting state below) ──────────
   const [sortCol, setSortCol] = useState<SortCol>('due')
@@ -193,16 +196,17 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // (create/archive in the drawer). refreshKey is intentionally an extra dep.
   useEffect(() => { const cancel = load(); return cancel }, [load, refreshKey])
 
+  useEffect(() => {
+    if (!savedView) return
+    setSegment(savedView.segment)
+    setOverdueOnly(savedView.overdueOnly)
+  }, [savedView])
+
   // ── Apply optimistic status overrides from the open drawer ────────────────
   const tasksWithOverrides = useMemo(() => {
     if (!statusOverrides || statusOverrides.size === 0) return allTasks
     return allTasks.map(t => statusOverrides.has(t.id) ? { ...t, status: statusOverrides.get(t.id)! } : t)
   }, [allTasks, statusOverrides])
-
-  // ── Person-overrides-segment (FR-124 / AC-126) ───────────────────────────
-  // When a Person filter is set, the Mine/RACI/All segment is inert — the Person
-  // filter drives the ownership scope. The segment is re-enabled when cleared.
-  const segmentDisabled = personFilter !== ''
 
   // ── TanStack instance: the single client-side engine (NFR-120) ────────────
   // Owns filtering (ownership scope / search / overdue) + sorting (default Due-asc).
@@ -416,12 +420,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // ── Keyboard layer (AC-109, OBS-121) ───────────────────────────────────────
   // The cursor moves over LEAF rows only (group-header rows are not cursor
   // targets) — cursor index maps onto leafTasks[i].
+  const currentSearch = savedView?.search ?? ''
+
   const { cursor, setCursor } = useTasksKeyboard({
     rowCount: leafTasks.length,
     enabled: isDesktop, // mobile uses the card list + native links, not row cursor
-    onOpen: i => { const t = leafTasks[i]; if (t) navigate(`/work/tasks/${t.id}`) },
-    onClose: () => { if (drawerOpen) navigate('/work/tasks') },
-    onNew: () => navigate('/work/tasks/new'),
+    onOpen: i => { const t = leafTasks[i]; if (t) navigate({ pathname: `/work/tasks/${t.id}`, search: currentSearch }) },
+    onClose: () => { if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch }) },
+    onNew: () => navigate({ pathname: '/work/tasks/new', search: currentSearch }),
     onExpand: () => { if (drawerOpen) onToggleExpand?.() },
   })
 
@@ -522,8 +528,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // "+ Add task" pre-fill: navigate to the create surface seeding the grouped
   // dimension (Owner → R, BU → bu, Status → status) — AC-125, FR-123.
   const openAddTask = useCallback((prefillParam: string) => {
-    navigate(`/work/tasks/new?${prefillParam}`)
-  }, [navigate])
+    const params = new URLSearchParams(currentSearch)
+    if (prefillParam) {
+      const prefill = new URLSearchParams(prefillParam)
+      prefill.forEach((value, key) => params.set(key, value))
+    }
+    const search = params.toString()
+    navigate({ pathname: '/work/tasks/new', search: search ? `?${search}` : '' })
+  }, [currentSearch, navigate])
 
   // ── Row renderer (shared by the plain + virtualized bodies) ────────────────
   function renderRow(task: TaskListRow, leafIndex: number) {
@@ -540,7 +552,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         buName={buMap.get(task.business_unit_id) ?? ''}
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         others={buildOthers(task)}
-        onOpen={(id) => navigate(`/work/tasks/${id}`)}
+        onOpen={(id) => navigate({ pathname: `/work/tasks/${id}`, search: currentSearch })}
         checked={selectedIds.has(task.id)}
         onCheck={() => toggleSelected(task.id)}
         workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
@@ -591,7 +603,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         count={stats === null ? null : stats.total}
         action={
           showNewTask ? (
-            <Link to="/work/tasks/new" className="btn btn-primary">+ New task</Link>
+            <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">+ New task</Link>
           ) : undefined
         }
         meta={
@@ -647,9 +659,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             setStatusFilter={setStatusFilter}
             personFilter={personFilter}
             setPersonFilter={setPersonFilter}
-            segment={segment}
-            setSegment={setSegment}
-            segmentDisabled={segmentDisabled}
+            savedView={savedView ?? { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }}
+            onSavedViewChange={onSavedViewChange ?? (() => {})}
             searchText={searchText}
             setSearchText={setSearchText}
             includeArchived={includeArchived}
@@ -658,6 +669,16 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             personOptions={peopleDirectory}
           />
 
+          {savedView?.reserved === 'followups' ? (
+            <div className="empty-state empty-state--quiet" role="region" aria-label="Follow-ups reserved state">
+              <div className="empty-state-frame">
+                <div className="empty-state-body">
+                  <h3 className="empty-title">Follow-ups are not task-backed in this step</h3>
+                  <p className="empty-copy">Follow-ups still live outside mos.tasks right now. Use the saved view as a placeholder while task convergence is still pending.</p>
+                </div>
+              </div>
+            </div>
+          ) : (
           <TasksTableBody
             loading={loading}
             error={error}
@@ -694,7 +715,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             workLineMap={workLineMap}
             objectiveMap={objectiveMap}
             workloadSummary={workloadSummary}
-          />
+            createHref={{ pathname: '/work/tasks/new', search: currentSearch }}
+          />)}
         </section>
         {drawerOpen && drawerSlot}
       </div>

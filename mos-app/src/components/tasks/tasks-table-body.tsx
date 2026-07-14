@@ -10,6 +10,7 @@
 // keyboard-cursor scroll element stay co-located here so the windowing seam is
 // not split across files. Extracted from TasksWorkspace (conventions §1).
 import type { ReactNode, Ref } from 'react'
+import type { To } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -107,6 +108,7 @@ export type TasksTableBodyProps = {
   objectiveMap: Map<string, string>
   /** FR-236: workload summary for the caption (workline groupBy + single person). */
   workloadSummary: WorkloadSummary | null
+  createHref: To
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
@@ -118,7 +120,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     groups, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly, buildOthers,
-    workLineMap, objectiveMap, workloadSummary,
+    workLineMap, objectiveMap, workloadSummary, createHref,
   } = props
 
   if (loading) {
@@ -153,7 +155,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     return (
       <EmptyState title="No tasks match these filters" copy="Clear filters to see all tasks.">
         <button type="button" className="btn btn-outline" onClick={onClearFilters}>Clear filters</button>
-        <Link to="/work/tasks/new" className="btn btn-primary">+ New task</Link>
+        <Link to={createHref} className="btn btn-primary">+ New task</Link>
       </EmptyState>
     )
   }
@@ -162,7 +164,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
-        <Link to="/work/tasks/new" className="btn btn-primary">+ New task</Link>
+        <Link to={createHref} className="btn btn-primary">+ New task</Link>
       </EmptyState>
     )
   }
