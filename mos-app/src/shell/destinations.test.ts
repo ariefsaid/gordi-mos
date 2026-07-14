@@ -1,137 +1,171 @@
 /**
- * DESTINATIONS model tests — the five-destination IA regroup (nav-five-destinations AC-400..408).
- * DESTINATIONS is the single source of truth consumed by both the desktop rail and the phone
- * bottom-tab bar (plan §1.5). Work = Tasks/Cascade/Updates(+catalog manage routes, capability-gated);
- * Operate = Daily Log + Kitchen; Plan = Sales (finance/admin-gated).
+ * DESTINATIONS model tests — Redesign Step 2 (T4). Three-registry model (D-PLN-4):
+ * DESTINATIONS (5 workspace roots) + MODULES (2 BU groups) + UTILITY (admin/profile).
+ * Work has exactly 4 always-expanded children, 0 family headings. Money is anyOf-gated.
+ * FR-001..005, FR-020/021, AC-011/012 prep.
  */
 import { describe, it, expect } from 'vitest'
-import { DESTINATIONS, isLive, destinationForPath } from './destinations'
-import { KITCHEN_SECTIONS } from './sections'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_PLAN_BUDGET } from '@/config/features'
+import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, type Destination } from './destinations'
 
-describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
-  it('exports exactly the five destination ids in order: home, work, operate, plan, inbox', () => {
-    expect(DESTINATIONS.map((d) => d.id)).toEqual(['home', 'work', 'operate', 'plan', 'inbox'])
+describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () => {
+  it('exports exactly the five workspace ids in order: home, work, events, money, inbox', () => {
+    expect(DESTINATIONS.map((d) => d.id)).toEqual(['home', 'work', 'events', 'money', 'inbox'])
   })
 
-  it('home has a single link to "/" and is always live (no anyOf gate)', () => {
+  it('every workspace destination is zone:workspace', () => {
+    DESTINATIONS.forEach((d) => expect(d.zone).toBe('workspace'))
+  })
+
+  it('home has a single link to "/" and primaryPath "/" — always live', () => {
     const home = DESTINATIONS.find((d) => d.id === 'home')!
     expect(home.links.map((l) => l.path)).toEqual(['/'])
     expect(home.primaryPath).toBe('/')
     expect(isLive(home, [])).toBe(true)
   })
 
-  it('AC-400: Work links = Tasks, Cascade, Updates(flag) ungated; NO Daily Log; catalog routes capability-gated', () => {
+  it('AC-004/011: Work has exactly 4 children (signals · tasks · projects · objectives), 0 family headings', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
-    // Ungated links (no capability) show for everyone.
-    const ungated = work.links.filter((l) => !l.capability).map((l) => l.path)
-    expect(ungated).toEqual(['/tasks', '/work/cascade', ...(SHOW_WEEKLY_UPDATES ? ['/updates'] : [])])
-    // Daily Log moved to Operate — must NOT appear under Work.
-    expect(work.links.some((l) => l.path === '/ops')).toBe(false)
-    // The two catalog manage routes carry a capability gate (FR-424, owner decision 2026-07-07):
-    // rendered in the rail only for a holder of the named capability.
-    const gated = work.links.filter((l) => l.capability).map((l) => [l.path, l.capability])
-    expect(gated).toEqual([
-      ['/work/objectives', 'objective.manage'],
-      ['/work/projects-processes', 'workline.manage'],
+    expect(work.children).toBeDefined()
+    expect(work.children!.map((c) => c.path)).toEqual([
+      '/work/signals',
+      '/work/tasks',
+      '/work/projects',
+      '/work/objectives',
     ])
+    expect(work.primaryPath).toBe('/work/tasks')
     expect(isLive(work, [])).toBe(true)
   })
 
-  it('AC-400/401: Operate owns Daily Log (first) + the Kitchen module; reuses KITCHEN_SECTIONS', () => {
-    const operate = DESTINATIONS.find((d) => d.id === 'operate')!
-    const paths = operate.links.map((l) => l.path)
-    // Daily Log is first when its flag is on (jtbd §2 — most general, cross-Activity feed).
-    expect(paths[0]).toBe(SHOW_DAILY_LOG ? '/ops' : '/kitchen/log')
-    // The Kitchen module sections follow, verbatim (same Section objects — reused, not rebuilt).
-    const kitchenSlice = operate.links.slice(SHOW_DAILY_LOG ? 1 : 0)
-    expect(kitchenSlice).toEqual(KITCHEN_SECTIONS)
-    expect(isLive(operate, [])).toBe(true)
+  it('Work children projects/objectives carry capability gates (workline.manage / objective.manage)', () => {
+    const work = DESTINATIONS.find((d) => d.id === 'work')!
+    const projects = work.children!.find((c) => c.path === '/work/projects')!
+    const objectives = work.children!.find((c) => c.path === '/work/objectives')!
+    expect(projects.capability).toBe('workline.manage')
+    expect(objectives.capability).toBe('objective.manage')
   })
 
-  it('AC-402: Plan = [Dashboard] gated finance/admin; hidden (not live) for a member (no dead-end)', () => {
-    const plan = DESTINATIONS.find((d) => d.id === 'plan')!
-    expect(plan.anyOf).toEqual(['finance', 'admin'])
-    // Dashboard is always present; the ADR-0022 budget/pricing links are flag-gated (SHOW_PLAN_BUDGET).
-    expect(plan.links.map((l) => l.path)).toEqual(
-      SHOW_PLAN_BUDGET
-        ? ['/dashboard', '/plan/budget', '/plan/pricing']
-        : ['/dashboard'],
-    )
-    expect(isLive(plan, ['member'])).toBe(false)
-    expect(isLive(plan, ['finance'])).toBe(true)
-    expect(isLive(plan, ['admin'])).toBe(true)
+  it('AC-012: Money is anyOf finance/admin and isLive false for a plain member', () => {
+    const money = DESTINATIONS.find((d) => d.id === 'money')!
+    expect(money.anyOf).toEqual(['finance', 'admin'])
+    expect(isLive(money, [])).toBe(false)
+    expect(isLive(money, ['member'])).toBe(false)
+    expect(isLive(money, ['finance'])).toBe(true)
+    expect(isLive(money, ['admin'])).toBe(true)
   })
 
-  it('ADR-0022: budget/pricing Plan links carry i18n labelKeys (nav.planBudget / nav.planPricing) when the flag is on', () => {
-    const plan = DESTINATIONS.find((d) => d.id === 'plan')!
-    const budget = plan.links.find((l) => l.path === '/plan/budget')
-    const pricing = plan.links.find((l) => l.path === '/plan/pricing')
-    if (SHOW_PLAN_BUDGET) {
-      expect(budget?.labelKey).toBe('nav.planBudget')
-      expect(pricing?.labelKey).toBe('nav.planPricing')
-    } else {
-      expect(budget).toBeUndefined()
-      expect(pricing).toBeUndefined()
-    }
+  it('events + inbox are always live (no anyOf gate)', () => {
+    expect(isLive(DESTINATIONS.find((d) => d.id === 'events')!, [])).toBe(true)
+    expect(isLive(DESTINATIONS.find((d) => d.id === 'inbox')!, [])).toBe(true)
   })
 
-  it('AC-400: Inbox is live when its flag is on; Home is always live', () => {
-    const inbox = DESTINATIONS.find((d) => d.id === 'inbox')!
-    expect(inbox.links.map((l) => l.path)).toEqual(['/inbox'])
-    expect(isLive(inbox, [])).toBe(true)
-  })
-
-  it('isLive gates on anyOf when present — unsatisfied role set is not live even with links', () => {
-    const gated = { id: 'plan' as const, labelKey: 'dest.plan' as const, Icon: () => null,
-      links: [{ path: '/x', label: 'X', Icon: () => null }], anyOf: ['finance', 'admin'] }
-    expect(isLive(gated, [])).toBe(false)
-    expect(isLive(gated, ['member'])).toBe(false)
-    expect(isLive(gated, ['finance'])).toBe(true)
-  })
-
-  it('every destination has a labelKey, Icon, and links array', () => {
-    DESTINATIONS.forEach((d) => {
+  it('every destination has a labelKey, Icon, links, and zone', () => {
+    ;[...DESTINATIONS, ...UTILITY].forEach((d) => {
       expect(d.labelKey).toBeTruthy()
       expect(typeof d.Icon).toBe('function')
       expect(Array.isArray(d.links)).toBe(true)
+      expect(d.zone).toBeTruthy()
     })
   })
 })
 
-// Breadcrumb / bottom-tab resolution (FR-S03 + FR-424): a route resolves to its owning
-// destination via exact-or-prefix match on the destination's links (capability-gated links included —
-// so the Work tab stays active on /work/objectives and the breadcrumb reads "Work › Objectives").
-describe('destinationForPath — resolution (FR-S03 / FR-424)', () => {
-  it('AC-408: /work/objectives + /work/projects-processes resolve to Work; /dashboard to Plan', () => {
+describe('AC-011 prep (T4): MODULES — 2 BU groups, 3 module roots', () => {
+  it('has exactly 2 BU groups (Retail Ops, B2B Ops) in order', () => {
+    expect(MODULES.map((g) => g.bu)).toEqual(['rail.retailOps', 'rail.b2bOps'])
+  })
+
+  it('Retail Ops = [Café, Ecommerce]; B2B Ops = [Roastery]', () => {
+    expect(MODULES[0].items.map((m) => m.id)).toEqual(['cafe', 'ecommerce'])
+    expect(MODULES[1].items.map((m) => m.id)).toEqual(['roastery'])
+  })
+
+  it('module roots point at /cafe, /ecommerce, /roastery', () => {
+    expect(MODULES[0].items[0].primaryPath).toBe('/cafe')
+    expect(MODULES[0].items[1].primaryPath).toBe('/ecommerce')
+    expect(MODULES[1].items[0].primaryPath).toBe('/roastery')
+  })
+
+  it('modules are zone:modules and ungated (reachable by everyone)', () => {
+    MODULES.flatMap((g) => g.items).forEach((m) => {
+      expect(m.zone).toBe('modules')
+      expect(m.anyOf).toBeUndefined()
+      expect(isLive(m, [])).toBe(true)
+    })
+  })
+})
+
+describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
+  it('has admin (anyOf admin) + profile (ungated) in order', () => {
+    expect(UTILITY.map((u) => u.id)).toEqual(['admin', 'profile'])
+  })
+
+  it('AC-012: admin is absent (not live) for a non-admin', () => {
+    const admin = UTILITY.find((u) => u.id === 'admin')!
+    expect(admin.anyOf).toEqual(['admin'])
+    expect(isLive(admin, [])).toBe(false)
+    expect(isLive(admin, ['ops_lead'])).toBe(false)
+    expect(isLive(admin, ['admin'])).toBe(true)
+  })
+
+  it('AC-013: profile is always live and links /profile', () => {
+    const profile = UTILITY.find((u) => u.id === 'profile')!
+    expect(isLive(profile, [])).toBe(true)
+    expect(profile.primaryPath).toBe('/profile')
+  })
+})
+
+// destinationForPath — resolves a route to its owning destination across all three zones
+// (FR-S03 / AC-011). A record route /work/tasks/:id resolves to Work.
+describe('destinationForPath — resolution across all three zones', () => {
+  it('resolves /work/tasks/:taskId to work (record route → owning collection)', () => {
+    expect(destinationForPath('/work/tasks/123')?.id).toBe('work')
+  })
+
+  it('resolves /work/signals, /work/projects, /work/objectives to work', () => {
+    expect(destinationForPath('/work/signals')?.id).toBe('work')
+    expect(destinationForPath('/work/projects')?.id).toBe('work')
     expect(destinationForPath('/work/objectives')?.id).toBe('work')
-    expect(destinationForPath('/work/projects-processes')?.id).toBe('work')
-    expect(destinationForPath('/dashboard')?.id).toBe('plan')
   })
 
-  it('AC-401: /ops resolves to Operate (moved out of Work)', () => {
-    expect(destinationForPath('/ops')?.id).toBe('operate')
-    expect(destinationForPath('/ops/new')?.id).toBe('operate')
+  it('resolves /cafe/log (and /cafe) to the café module', () => {
+    expect(destinationForPath('/cafe/log')?.id).toBe('cafe')
+    expect(destinationForPath('/cafe')?.id).toBe('cafe')
+    expect(destinationForPath('/cafe/review')?.id).toBe('cafe')
   })
 
-  it('returns the "work" destination for /tasks, /work/cascade, and /tasks/some-id (prefix match)', () => {
-    expect(destinationForPath('/tasks')?.id).toBe('work')
-    expect(destinationForPath('/work/cascade')?.id).toBe('work')
-    expect(destinationForPath('/tasks/some-id')?.id).toBe('work')
+  it('resolves /admin/people to admin (utility)', () => {
+    expect(destinationForPath('/admin/people')?.id).toBe('admin')
   })
 
-  it('returns the "operate" destination for every /kitchen/* route', () => {
-    expect(destinationForPath('/kitchen/log')?.id).toBe('operate')
-    expect(destinationForPath('/kitchen/plan')?.id).toBe('operate')
-    expect(destinationForPath('/kitchen/review')?.id).toBe('operate')
+  it('resolves /profile to profile (utility)', () => {
+    expect(destinationForPath('/profile')?.id).toBe('profile')
   })
 
-  it('returns the "home" destination for /', () => {
+  it('resolves /, /events, /money, /inbox to their workspace roots', () => {
     expect(destinationForPath('/')?.id).toBe('home')
+    expect(destinationForPath('/events')?.id).toBe('events')
+    expect(destinationForPath('/money')?.id).toBe('money')
+    expect(destinationForPath('/inbox')?.id).toBe('inbox')
   })
 
-  it('returns null for a path owned by no destination (e.g. /admin/people, /unknown)', () => {
-    expect(destinationForPath('/admin/people')).toBeNull()
+  it('resolves /ecommerce, /roastery to their module roots', () => {
+    expect(destinationForPath('/ecommerce')?.id).toBe('ecommerce')
+    expect(destinationForPath('/roastery')?.id).toBe('roastery')
+  })
+
+  it('returns null for a truly unknown path', () => {
     expect(destinationForPath('/unknown-xyz')).toBeNull()
+  })
+})
+
+// isLive gates on anyOf when present — independent of the real destinations.
+describe('isLive — anyOf gate', () => {
+  it('unsatisfied role set is not live even with links', () => {
+    const gated: Destination = {
+      id: 'x', zone: 'workspace', labelKey: 'dest.money', Icon: () => null,
+      links: [{ path: '/x', label: 'X', Icon: () => null }], anyOf: ['finance', 'admin'],
+    }
+    expect(isLive(gated, [])).toBe(false)
+    expect(isLive(gated, ['member'])).toBe(false)
+    expect(isLive(gated, ['finance'])).toBe(true)
   })
 })
