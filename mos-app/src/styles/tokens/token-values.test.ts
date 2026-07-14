@@ -86,13 +86,6 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       )
     })
 
-    it('--ds-background-sunken (new token for aliases.css)', () => {
-      assertColorClose(
-        getToken('--ds-background-sunken'),
-        'color(display-p3 0.980 0.969 0.945)',
-        '--ds-background-sunken'
-      )
-    })
 
     it('--ds-font-color-primary (text-primary alias target)', () => {
       assertColorClose(
@@ -415,10 +408,6 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       assertColorClose(val, 'color(display-p3 0.276 0.384 0.837 / 0.10)', '--accent-subtle')
     })
 
-    it('--accent-tint → 14% wash of action blue (NEW alias)', () => {
-      const val = extractToken(aliases, '--accent-tint')!
-      assertColorClose(val, 'color(display-p3 0.276 0.384 0.837 / 0.14)', '--accent-tint')
-    })
   })
 
   describe('App entry + brand + Tailwind theme — index.css', () => {

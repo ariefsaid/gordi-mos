@@ -102,7 +102,7 @@ shadows:
   pressed:      "0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent)"
   brand-button: "0 1px 2px color-mix(in srgb, var(--accent) 25%, transparent)"
   kanban-hover: "0 4px 14px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent)"
-  overlay:      "0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)"
+  overlay:      "0 10px 30px color-mix(in srgb, var(--brand-navy) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--brand-navy) 8%, transparent)"  # navy-tinted (Step-1 reskin) — matches runtime --shadow-overlay
 gradients:
   # OD-P3-12 (2026-06-18): SUBTLE NAVY gradients only (NEVER purple). Two bounded uses.
   # The gradient is a SHEEN, not a new hue — The One Blue Rule preserved.

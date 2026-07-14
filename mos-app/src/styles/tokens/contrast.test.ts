@@ -47,11 +47,11 @@ const TOKENS = {
   '--status-lost-text':   { r: 0.2796, g: 0.1396, b: 0.0158, a: 1 },
   '--status-violet-text': { r: 0.1372, g: 0.0724, b: 0.4282, a: 1 },
   '--warning-foreground': { r: 0.28,  g: 0.22,  b: 0.08,  a: 1 },
-  // Dark theme surfaces (approximate from theme-dark.css)
-  '--surface-primary-dark':    { r: 0.09,  g: 0.09,  b: 0.09,  a: 1 },
-  '--surface-secondary-dark':  { r: 0.106, g: 0.106, b: 0.106, a: 1 },
-  '--text-primary-dark':       { r: 0.922, g: 0.922, b: 0.922, a: 1 },
-  '--text-secondary-dark':     { r: 0.702, g: 0.702, b: 0.702, a: 1 },
+  // Dark theme surfaces (warmed values as shipped in theme-dark.css)
+  '--surface-primary-dark':    { r: 0.102, g: 0.094, b: 0.078, a: 1 },
+  '--surface-secondary-dark':  { r: 0.122, g: 0.114, b: 0.099, a: 1 },
+  '--text-primary-dark':       { r: 0.954, g: 0.951, b: 0.946, a: 1 },
+  '--text-secondary-dark':     { r: 0.767, g: 0.756, b: 0.733, a: 1 },
   // Dark status text (from index.css .dark)
   '--status-open-text-dark':   { r: 0.62,  g: 0.72,  b: 1.0,   a: 1 },
   '--status-won-text-dark':    { r: 0.55,  g: 0.78,  b: 0.55,  a: 1 },
@@ -161,9 +161,9 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
 
-    it('warning-foreground-dark on amber3/amber11 ≥ 3:1 (large/UI)', () => {
+    it('--warning-foreground-dark on dark amber tint ≥ 3:1 (large/UI)', () => {
       const bg = TOKENS['--ds-color-amber3-dark']
-      const fg = TOKENS['--ds-color-amber11-dark']
+      const fg = TOKENS['--warning-foreground-dark']
       const ratio = contrastRatio(fg, bg)
       expect(ratio).toBeGreaterThanOrEqual(3)
     })
