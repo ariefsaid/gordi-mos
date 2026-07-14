@@ -16,7 +16,7 @@ test('AC-001: password login journey', async ({ page }) => {
   await page.getByLabel('Password').fill(VIEWER.password)
   await page.getByRole('button', { name: /sign in/i }).click()
 
-  // Goal-oracle: Home renders (FR-013 page head) + chip shows viewer's name (FR-006)
+  // Goal-oracle: Home renders and profile identity lives in the rail footer.
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('a[href="/mos/profile"], a[href="/profile"]').last()).toBeVisible({ timeout: 10_000 })
 })

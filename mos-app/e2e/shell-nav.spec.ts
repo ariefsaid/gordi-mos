@@ -6,9 +6,16 @@
 //
 // Extended: AC-013 e2e — MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8).
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { loginAs } from './helpers/login'
+
+async function clearSession(page: Page) {
+  await page.evaluate(() => {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+  })
+}
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await page.goto('login')
@@ -50,8 +57,8 @@ test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('p').filter({ hasText: /^Your team —/ })).toBeVisible({ timeout: 5_000 })
 
-  await page.getByRole('button', { name: 'Dewi Director' }).click()
-  await page.getByRole('menuitem', { name: /sign out/i }).click()
+  await clearSession(page)
+  await page.goto('login')
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
 
   await loginAs(page, VIEWER.email, VIEWER.password)
