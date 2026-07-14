@@ -42,3 +42,15 @@ All 5 findings fixed in the commit above; re-verified:
 - **DESIGN.md overlay (Important):** overlay shadow → navy-tinted, matches runtime (FR-014).
 
 Re-run: token-values + contrast green (94), typecheck clean, earlier full suite (2548) + e2e (38) unaffected (CSS/test-only). **Step-1 verdict now: APPROVE** (findings cleared; Director visual lens passed light+dark earlier). Formal owner visual sign-off still pending (owner AFK).
+
+## Step 2 — shell + routes (spec + code-quality, gpt-5.4 cross-family)
+
+**Verdict: BLOCK** (0 Critical · 5 Important · 2 Minor). IA move + routing/aria-current strong; not spec-clean. Findings:
+- IMPORTANT top-bar.tsx:247-291 — FR-006: header still renders UserChip; spec = header ends at Search·Inbox·Deputy, profile in rail footer.
+- IMPORTANT rail-nav.tsx:168-197 — FR-005: footer shows name+role, spec = {Site} {role}.
+- IMPORTANT context-row.tsx:20-33 — FR-024: uses person.full_name as scope, spec = resolved scope/team/BU.
+- IMPORTANT router.tsx + slice-stub-page.tsx — NFR-007: stub titles hardcoded English (no ID locale).
+- IMPORTANT command-menu.tsx + top-bar.tsx — new chrome strings hardcoded English (Ask Deputy/Share Signal/Create Task/Navigate/Recent/Search/placeholders) — EN/ID parity.
+- MINOR shell-routes-redirects.spec.ts — /kitchen→/cafe redirect not in e2e table.
+- MINOR rail-nav.test.tsx:101-105 — footer test weaker than FR-005.
+- Director live-verify (rail/redirects/aria/⌘K) + gates (2572 unit, 41 e2e) already green; these are code+spec-conformance gaps.
