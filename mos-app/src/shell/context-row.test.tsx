@@ -16,7 +16,7 @@ function setAuth(accessRoles: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'cahya@gordi.id', archived_at: null, created_at: '', updated_at: '',
       },
-      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: null, name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
+      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles,
     },
@@ -73,9 +73,10 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(screen.getByText('Trust the financial figures and act on money exceptions.')).toBeInTheDocument()
   })
 
-  it('AC-013: shows the viewer scope (name) in the context row', () => {
+  it('AC-013: shows the viewer scope signal, not the viewer name, in the context row', () => {
     renderCtx('/')
     const region = screen.getByRole('region', { name: 'Context' })
-    expect(region.textContent).toContain('Cahya')
+    expect(region.textContent).toContain('Café')
+    expect(region.textContent).not.toContain('Cahya')
   })
 })

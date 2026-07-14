@@ -3,6 +3,16 @@ import { jobKeyForPath } from './job-sentences'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
+function resolveViewerScope(roleName: string | undefined, accessRoles: readonly string[]): string {
+  const role = roleName?.toLowerCase() ?? ''
+  if (role.includes('barista') || role.includes('cafe')) return 'Café'
+  if (role.includes('roast')) return 'Roastery'
+  if (role.includes('ecom')) return 'Ecommerce'
+  if (role.includes('finance')) return 'Finance'
+  if (accessRoles.includes('admin')) return 'Admin'
+  return 'Team'
+}
+
 /**
  * ContextRow — Region 2 of the anatomy (D-PLN-5, NEW per spec §3.1). A shell-level
  * strip rendered above the content Outlet on every route: the viewer's resolved
@@ -18,7 +28,9 @@ export function ContextRow() {
 
   const jobKey = jobKeyForPath(pathname)
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const scope = viewer?.person.full_name ?? ''
+  const roleName = viewer?.roles[0]?.name
+  const accessRoles = viewer?.accessRoles ?? []
+  const scope = resolveViewerScope(roleName, accessRoles)
 
   return (
     <div
