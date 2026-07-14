@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { useAuth } from '@/auth/use-auth'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { useT } from '@/i18n/use-t'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 import './command-menu.css'
 
@@ -51,6 +52,7 @@ function matches(label: string, q: string): boolean {
 export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const auth = useAuth()
+  const t = useT()
   const { openPanel } = useAgentRuntime()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -69,24 +71,24 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
   // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
   const universalActions = useMemo<CommandItem[]>(
     () => [
-      { id: 'a-deputy', label: 'Ask Deputy', glyph: '✦', kind: 'action', run: () => openPanel() },
-      { id: 'a-signal', label: 'Share Signal', glyph: '➤', kind: 'action', run: () => navigate('/') },
-      { id: 'a-task', label: 'Create Task', glyph: '＋', kind: 'action', to: '/work/tasks/new' },
+      { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), glyph: '✦', kind: 'action', run: () => openPanel() },
+      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), glyph: '➤', kind: 'action', run: () => navigate('/') },
+      { id: 'a-task', label: t('commandMenu.action.createTask'), glyph: '＋', kind: 'action', to: '/work/tasks/new' },
     ],
-    [navigate, openPanel],
+    [navigate, openPanel, t],
   )
 
   const navigateItems = useMemo<CommandItem[]>(
     () => [
-      { id: 'n-home', label: 'Home', glyph: '⌂', kind: 'navigate', to: '/' },
-      { id: 'n-work', label: 'Work', glyph: '▦', kind: 'navigate', to: '/work/tasks' },
-      { id: 'n-signals', label: 'Signals', glyph: '✦', kind: 'navigate', to: '/work/signals' },
-      { id: 'n-events', label: 'Events', glyph: '▤', kind: 'navigate', to: '/events' },
-      { id: 'n-money', label: 'Money', glyph: '$', kind: 'navigate', to: '/money', gated: true },
-      { id: 'n-inbox', label: 'Inbox', glyph: '📥', kind: 'navigate', to: '/inbox' },
-      { id: 'n-cafe', label: 'Café', glyph: '☕', kind: 'navigate', to: '/cafe' },
+      { id: 'n-home', label: t('dest.home'), glyph: '⌂', kind: 'navigate', to: '/' },
+      { id: 'n-work', label: t('dest.work'), glyph: '▦', kind: 'navigate', to: '/work/tasks' },
+      { id: 'n-signals', label: t('nav.signals'), glyph: '✦', kind: 'navigate', to: '/work/signals' },
+      { id: 'n-events', label: t('dest.events'), glyph: '▤', kind: 'navigate', to: '/events' },
+      { id: 'n-money', label: t('dest.money'), glyph: '$', kind: 'navigate', to: '/money', gated: true },
+      { id: 'n-inbox', label: t('dest.inbox'), glyph: '📥', kind: 'navigate', to: '/inbox' },
+      { id: 'n-cafe', label: t('dest.cafe'), glyph: '☕', kind: 'navigate', to: '/cafe' },
     ],
-    [],
+    [t],
   )
 
   const visibleNavigate = useMemo(
@@ -116,9 +118,9 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
         id: `recent-${r.id}`, label: r.title, glyph: '⊞', kind: 'record',
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
-      if (recent.length) out.push({ key: 'recent', label: 'Recent', items: recent })
-      out.push({ key: 'actions', label: 'Actions', items: universalActions })
-      out.push({ key: 'navigate', label: 'Navigate', items: visibleNavigate })
+      if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
+      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: universalActions })
+      out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: visibleNavigate })
       return out
     }
     const actions = universalActions.filter((i) => matches(i.label, trimmed))
@@ -128,13 +130,13 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
       to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
     }))
     if (records.status === 'ready' && recordItems.length) {
-      out.push({ key: 'records', label: 'Records', items: recordItems })
+      out.push({ key: 'records', label: t('commandMenu.group.records'), items: recordItems })
     }
     const nav = visibleNavigate.filter((i) => matches(i.label, trimmed))
-    if (nav.length) out.push({ key: 'navigate', label: 'Navigate', items: nav })
-    if (actions.length) out.push({ key: 'actions', label: 'Actions', items: actions })
+    if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: nav })
+    if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actions })
     return out
-  }, [isSearching, trimmed, records, universalActions, visibleNavigate])
+  }, [isSearching, trimmed, records, universalActions, visibleNavigate, t])
 
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
 
@@ -202,7 +204,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
         className="cm-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Command menu"
+        aria-label={t('commandMenu.title')}
       >
         <div className="cm-input">
           <span className="cm-input-icon" aria-hidden="true">⌕</span>
@@ -213,8 +215,8 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
             aria-expanded="true"
             aria-controls="cm-list"
             aria-activedescendant={activeId}
-            aria-label="Search tasks or run a command"
-            placeholder="Search tasks, or type a command…"
+            aria-label={t('commandMenu.inputLabel')}
+            placeholder={t('commandMenu.inputPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
@@ -224,7 +226,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
 
         <ul className="cm-body" id="cm-list" role="listbox" aria-label="Command results">
           {isSearching && records.status === 'error' && (
-            <li className="cm-records-error">Couldn&apos;t search records.</li>
+            <li className="cm-records-error">{t('commandMenu.error.searchRecords')}</li>
           )}
           {isSearching && records.status === 'loading' && (
             <li className="cm-item" data-testid="cm-records-skeleton" aria-hidden="true">
@@ -233,7 +235,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
             </li>
           )}
           {isSearching && flatItems.length === 0 && records.status !== 'loading' && (
-            <li className="cm-empty">No matches for “{trimmed}”.</li>
+            <li className="cm-empty">{t('commandMenu.empty.noMatches', { query: trimmed })}</li>
           )}
 
           {groups.map((group) => (
@@ -267,9 +269,9 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
         </ul>
 
         <div className="cm-foot" aria-hidden="true">
-          <span><span className="cm-foot-key">↑↓</span> navigate</span>
-          <span><span className="cm-foot-key">↵</span> open</span>
-          <span><span className="cm-foot-key">esc</span> close</span>
+          <span><span className="cm-foot-key">↑↓</span> {t('commandMenu.footer.navigate')}</span>
+          <span><span className="cm-foot-key">↵</span> {t('commandMenu.footer.open')}</span>
+          <span><span className="cm-foot-key">esc</span> {t('commandMenu.footer.close')}</span>
         </div>
       </div>
     </div>

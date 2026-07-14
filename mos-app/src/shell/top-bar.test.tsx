@@ -103,9 +103,15 @@ describe('AC-014: TopBar layout (OD-57)', () => {
   it('AC-014/FR-007: the NotificationBell always renders (SHOW_INBOX retired — never a disabled stub)', () => {
     renderTopBar()
     const bell = screen.getByRole('button', { name: 'Inbox' })
-    // Live bell is not disabled (it navigates to /inbox)
     expect(bell.hasAttribute('disabled')).toBe(false)
     expect(bell.getAttribute('aria-disabled')).not.toBe('true')
+  })
+
+  it('renders localized top-bar chrome for Indonesian', () => {
+    localStorage.setItem('mos.locale', 'id')
+    renderTopBar()
+    expect(screen.getByRole('button', { name: /Cari/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Kotak Masuk' })).toBeInTheDocument()
   })
 })
 

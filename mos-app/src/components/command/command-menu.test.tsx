@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/auth/use-auth')
@@ -28,14 +29,17 @@ function LocationProbe() {
   return <div data-testid="location">{loc.pathname + loc.search}</div>
 }
 
-function renderMenu(onClose = vi.fn()) {
+function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en') {
+  localStorage.setItem('mos.locale', locale)
   const utils = render(
-    <MemoryRouter initialEntries={['/']}>
-      <LocationProbe />
-      <Routes>
-        <Route path="*" element={<CommandMenu open onClose={onClose} />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <LocationProbe />
+        <Routes>
+          <Route path="*" element={<CommandMenu open onClose={onClose} />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
   return { ...utils, onClose }
 }
@@ -188,6 +192,13 @@ describe('default groups (empty query): Recent + Actions + Navigate', () => {
     renderMenu()
     expect(screen.getByText('Actions')).toBeInTheDocument()
     expect(screen.getByText('Navigate')).toBeInTheDocument()
+  })
+
+  it('renders command chrome through i18n for Indonesian', () => {
+    renderMenu(vi.fn(), 'id')
+    expect(screen.getByRole('dialog', { name: 'Menu perintah' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Tanya Deputi/i })).toBeInTheDocument()
+    expect(screen.getByText('Navigasi')).toBeInTheDocument()
   })
 
   it('shows the Recent group when the ring buffer has entries', () => {

@@ -139,8 +139,9 @@ function AssistantTopBarButton() {
 // by the unread-only index, not the full list.
 function NotificationBell() {
   const navigate = useNavigate()
+  const t = useT()
   const { unreadCount } = useUnreadCount()
-  const label = unreadCount > 0 ? `Inbox, ${unreadCount} unread` : 'Inbox'
+  const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
   return (
     <button
       type="button"
@@ -179,6 +180,7 @@ function NotificationBell() {
 // At <920px the leading hamburger appears and calls onOpenDrawer.
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
 export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegisterHamburgerFocus }: TopBarProps) {
+  const t = useT()
   const isNarrow = useIsNarrow()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
 
@@ -199,7 +201,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           <button
             ref={hamburgerRef}
             type="button"
-            aria-label="Open navigation"
+            aria-label={t('topBar.openNavigation')}
             aria-expanded={drawerOpen}
             className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent flex-none"
             style={{ width: 32, height: 32 }}
@@ -251,7 +253,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         {isNarrow ? (
           <button
             type="button"
-            aria-label="Search"
+            aria-label={t('topBar.search')}
             className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-border bg-secondary text-muted-foreground hover:border-muted-foreground/50 flex-none"
             style={{ width: 32, height: 32 }}
             onClick={onOpenSearch}
@@ -261,14 +263,14 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         ) : (
           <button
             type="button"
-            aria-label="Search"
+            aria-label={t('topBar.search')}
             className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
             style={{ height: 34, width: 200 }}
             onClick={onOpenSearch}
           >
             <SearchIcon />
             <span className="flex-1 text-left" style={{ fontSize: 15 }}>
-              Search
+              {t('topBar.searchPlaceholder')}
             </span>
             <kbd
               className="rounded-xs border border-border px-1 font-medium text-muted-foreground"
