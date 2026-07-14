@@ -54,3 +54,14 @@ Re-run: token-values + contrast green (94), typecheck clean, earlier full suite 
 - MINOR shell-routes-redirects.spec.ts — /kitchen→/cafe redirect not in e2e table.
 - MINOR rail-nav.test.tsx:101-105 — footer test weaker than FR-005.
 - Director live-verify (rail/redirects/aria/⌘K) + gates (2572 unit, 41 e2e) already green; these are code+spec-conformance gaps.
+
+### Step 2 — BLOCK resolution (fix round gpt-5.4 + Director verify, 2026-07-15)
+
+All 7 findings fixed (commits a658a0a..eb248ec) + re-verified:
+- FR-006 header UserChip **removed** (Director live-confirmed: header = logo+breadcrumb · Search·Inbox·Deputy, no chip).
+- FR-005 rail footer → **{Site} {role}**; footer test tightened (finding 7).
+- FR-024 context-row → **resolved scope**, not person name.
+- NFR-007 stub route titles → **localized** via useT (H1 + document.title).
+- i18n chrome strings → **localized** (Director live-confirmed ID: Tanya Deputi · Bagikan Sinyal · Buat Tugas · Beranda · Kerja · Cari).
+- MINOR /kitchen→/cafe **added** to redirect e2e (AC-005 green).
+Re-run: typecheck clean · 2575 unit green · shell e2e 8/8. **Step-2 verdict now: APPROVE.** Formal owner visual sign-off + walkthrough still pending (owner AFK); Director live-verified the shell.
