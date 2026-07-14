@@ -5,6 +5,7 @@
  * These tests mount TasksTable directly to assert PR-2-specific additions.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
@@ -93,11 +94,41 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
+function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' | 'unknown') {
+  switch (view) {
+    case 'mine':
+      return { view, activeChip: 'mine', segment: 'mine' as const, overdueOnly: false, reserved: null, search: '?view=mine' }
+    case 'team':
+      return { view, activeChip: 'team', segment: 'all' as const, overdueOnly: false, reserved: null, search: '?view=team' }
+    case 'overdue':
+      return { view, activeChip: 'overdue', segment: 'all' as const, overdueOnly: true, reserved: null, search: '?view=overdue' }
+    case 'followups':
+      return { view, activeChip: 'followups', segment: 'all' as const, overdueOnly: false, reserved: 'followups' as const, search: '?view=followups' }
+    case 'unknown':
+      return { view, activeChip: null, segment: 'all' as const, overdueOnly: false, reserved: null, search: '?view=bogus' }
+    case 'all':
+    default:
+      return { view: 'all' as const, activeChip: null, segment: 'all' as const, overdueOnly: false, reserved: null, search: '' }
+  }
+}
+
 function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
+  function Harness() {
+    const initialSavedView = props.savedView ?? makeSavedView('all')
+    const [savedView, setSavedView] = useState(initialSavedView)
+    return (
+      <TasksWorkspace
+        {...props}
+        savedView={savedView}
+        onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next)))}
+      />
+    )
+  }
+
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/work/tasks']}>
-        <TasksWorkspace {...props} />
+        <Harness />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -246,59 +277,83 @@ describe('Task 9 — group-by control in toolbar', () => {
   })
 })
 
-// ── Task 10 — Person-overrides-segment (AC-126) ───────────────────────────────
+// ── Task 10 — saved-view mapping + reserved state ─────────────────────────────
 
-describe('Task 10 — Person-overrides-segment (AC-126, FR-124)', () => {
-  it('AC-126: when no Person is selected, the Mine/RACI/All segment is enabled', async () => {
+describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
+  it('renders My work / Team work / Overdue / Follow-ups chips', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    const segList = screen.getByRole('tablist', { name: /ownership filter/i })
-    const buttons = segList.querySelectorAll('[role="tab"]')
-    buttons.forEach(btn => {
-      expect(btn.getAttribute('aria-disabled')).not.toBe('true')
-      expect(btn.getAttribute('tabindex')).not.toBe('-1')
-    })
+    expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeInTheDocument()
   })
 
-  it('AC-126: selecting a Person disables the Mine/RACI/All segment (aria-disabled, out of tab order)', async () => {
+  it('AC-301: view=mine seeds the shipped mine scope', async () => {
     mockListTasks.mockResolvedValue([
-      makeTask({ title: 'Budi task', responsible_person_id: 'other-id' }),
+      makeTask({ id: 'mine', title: 'Mine task' }),
+      makeTask({ id: 'other', title: 'Other task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' }),
     ])
-    renderTable()
-    await waitFor(() => screen.getByText('Budi task'))
-    // Pick Budi Setiawan in the Person filter
-    const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'other-id' } })
-
-    await waitFor(() => {
-      const segList = screen.getByRole('tablist', { name: /ownership filter/i })
-      const buttons = segList.querySelectorAll('[role="tab"]')
-      buttons.forEach(btn => {
-        expect(btn).toHaveAttribute('aria-disabled', 'true')
-        expect(btn).toHaveAttribute('tabindex', '-1')
-      })
-      // PR-2-review ruling: the disabled segment carries a tooltip explaining the
-      // override (NOT a literal "Person: me" label). Goal: Person overrides segment.
-      expect(segList).toHaveAttribute('title', 'Scope is set by the Person filter')
-      expect(segList.textContent).not.toMatch(/person: me/i)
-    })
+    renderTable({ savedView: makeSavedView('mine') })
+    await waitFor(() => screen.getByText('Mine task'))
+    expect(screen.queryByText('Other task')).toBeNull()
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('AC-126: clearing Person re-enables the segment', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
-    renderTable()
-    await waitFor(() => screen.getByText('A task'))
-    const personSelect = screen.getByRole('combobox', { name: /person/i })
-    // Set person
-    fireEvent.change(personSelect, { target: { value: 'other-id' } })
-    // Clear person
-    fireEvent.change(personSelect, { target: { value: '' } })
+  it('AC-302: view=overdue seeds overdue-only behavior', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'late', title: 'Late task', responsible_person_id: 'other-id', accountable_person_id: 'other-id', due_date: '2020-01-01' }),
+      makeTask({ id: 'future', title: 'Future task', responsible_person_id: 'other-id', accountable_person_id: 'other-id', due_date: '2030-12-31' }),
+    ])
+    renderTable({ savedView: makeSavedView('overdue') })
+    await waitFor(() => screen.getByText('Late task'))
+    expect(screen.queryByText('Future task')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /clear overdue filter/i })).toBeInTheDocument()
+  })
+
+  it('AC-303: view=team reuses the org-visible task set', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'Mine task' }),
+      makeTask({ id: 'shared', title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' }),
+    ])
+    renderTable({ savedView: makeSavedView('team') })
+    await waitFor(() => screen.getByText('Mine task'))
+    expect(screen.getByText('Shared task')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('AC-311: view=followups shows reserved-state copy instead of task rows', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Ordinary task' })])
+    renderTable({ savedView: makeSavedView('followups') })
+    await waitFor(() => screen.getByRole('region', { name: /follow-ups reserved state/i }))
+    expect(screen.getByText(/follow-ups are not task-backed in this step/i)).toBeInTheDocument()
+    expect(screen.getByText(/follow-ups still live outside mos.tasks/i)).toBeInTheDocument()
+    expect(screen.queryByText('Ordinary task')).toBeNull()
+  })
+
+  it('AC-305: after view=mine loads, Group / Unit / Status / Person still work without rewriting the saved view', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'Mine task' }),
+      makeTask({ id: 'other', title: 'Shared blocked', responsible_person_id: 'other-id', accountable_person_id: 'other-id', status: 'Blocked' }),
+    ])
+    const onSavedViewChange = vi.fn()
+    renderTable({ savedView: makeSavedView('mine'), onSavedViewChange })
+    await waitFor(() => screen.getByText('Mine task'))
+
+    fireEvent.change(screen.getByRole('combobox', { name: /group/i }), { target: { value: 'status' } })
+    fireEvent.change(screen.getByRole('combobox', { name: /business unit/i }), { target: { value: 'bu-1' } })
+    fireEvent.change(screen.getByRole('combobox', { name: /status/i }), { target: { value: 'Blocked' } })
+    fireEvent.change(screen.getByRole('combobox', { name: /person/i }), { target: { value: 'other-id' } })
+
     await waitFor(() => {
-      const segList = screen.getByRole('tablist', { name: /ownership filter/i })
-      const mineBtn = Array.from(segList.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('Mine'))
-      expect(mineBtn?.getAttribute('aria-disabled')).not.toBe('true')
+      expect((screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement).value).toBe('status')
+      expect((screen.getByRole('combobox', { name: /status/i }) as HTMLSelectElement).value).toBe('Blocked')
+      expect((screen.getByRole('combobox', { name: /person/i }) as HTMLSelectElement).value).toBe('other-id')
     })
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(onSavedViewChange).not.toHaveBeenCalled()
   })
 })
 
@@ -330,14 +385,12 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     mockListTasks.mockResolvedValue([])
     renderTable()
     await waitFor(() => {
-      // Mine segment default → "No tasks assigned to you"
-      expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument()
+      expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument()
     })
     expect(screen.getByRole('link', { name: /\+ new task/i })).toBeInTheDocument()
   })
 
   it('AC-133: no-results-after-filter shows distinct message + Clear filters + New task (not the empty-no-tasks copy)', async () => {
-    // One task from a different person — viewer is on Mine segment by default but has no tasks
     // Use search to create a no-results-after-filter state
     mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
     renderTable()
@@ -364,7 +417,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     // truly-empty
     mockListTasks.mockResolvedValue([])
     const { unmount } = renderTable()
-    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
     expect(screen.queryByText(/no tasks match these filters/i)).toBeNull()
     unmount()
 
@@ -375,7 +428,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
     await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
     // distinct from the truly-empty copy + offers Clear filters
-    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.queryByText(/no tasks yet/i)).toBeNull()
     expect(screen.getByRole('button', { name: /clear filters/i })).toBeInTheDocument()
   })
 
@@ -386,10 +439,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     ])
     renderTable()
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    // Wait for data to load — use 'All' segment to ensure tasks show
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
     await waitFor(() => {
       const countEl = document.querySelector('[data-testid="tasks-count-line"]')
       // The count line is always present; assert it and that it omits "0 overdue".
@@ -406,10 +456,8 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     ])
     renderTable()
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    // Switch to All to see both tasks
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    // Switch to the org-visible view to see both tasks
+    await switchToAll()
 
     // Wait for both tasks visible
     await waitFor(() => {
@@ -460,11 +508,12 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
 
-// Helper: switch the ownership segment to "All" so non-viewer tasks are visible.
+// Helper: switch to the org-visible saved view so non-viewer tasks are visible.
 async function switchToAll() {
-  const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-  const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-  if (allBtn) fireEvent.click(allBtn as Element)
+  fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+  })
 }
 
 // Helper: opt into a group-by dimension (the default is FLAT after the UI-fidelity
@@ -693,9 +742,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
     ])
     renderTable()
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
     await waitFor(() => {
       expect(screen.getByText('Done past due')).toBeInTheDocument()
       expect(screen.getByText('Open past due')).toBeInTheDocument()
@@ -713,9 +760,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
     ])
     renderTable()
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
     await waitFor(() => screen.getByText('Done past due'))
     // The row cell must NOT carry due-overdue class
     const dueCells = document.querySelectorAll('.due-overdue')
@@ -729,9 +774,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
     ])
     renderTable()
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
     selectGroupBy('status') // opt into grouping (default is flat) — then assert the Done group subtotal
     await waitFor(() => screen.getByText('Done past due'))
     // Done group header must not render an overdue subtotal button
@@ -754,9 +797,7 @@ describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
     // drawerOpen=true + splitLayout=true → condensed=true
     renderTable({ drawerOpen: true, splitLayout: true })
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
     await waitFor(() => screen.getByText('Overdue task'))
     // In condensed mode the cell drops "Overdue · " text prefix, but must show a non-color glyph
     const dueCell = document.querySelector('tr.task-row .due-overdue')
@@ -773,9 +814,7 @@ describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
     // drawerOpen=false → condensed=false
     renderTable({ drawerOpen: false })
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
     await waitFor(() => screen.getByText('Overdue task'))
     const dueCell = document.querySelector('tr.task-row .due-overdue')
     expect(dueCell).toBeTruthy()
