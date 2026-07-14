@@ -9,9 +9,10 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import type { MessageKey } from '@/i18n/messages'
 import { SliceStubPage } from './slice-stub-page'
 
-function renderStub(jobKey: string, nameKey: string, locale: 'en' | 'id' = 'en') {
+function renderStub(jobKey: MessageKey, nameKey: MessageKey, locale: 'en' | 'id' = 'en') {
   localStorage.setItem('mos.locale', locale)
   return render(
     <I18nProvider>
