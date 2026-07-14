@@ -32,18 +32,18 @@ function renderGuard(initialEntry: string, capability: string) {
           <Route path="/objectives" element={<div data-testid="protected">Objectives</div>} />
           <Route path="/projects-processes" element={<div data-testid="protected">Projects</div>} />
         </Route>
-        <Route path="/work/cascade" element={<div data-testid="cascade">Cascade</div>} />
+        <Route path="/work/tasks" element={<div data-testid="tasks">Tasks</div>} />
       </Routes>
     </MemoryRouter>,
   )
 }
 
 describe('RequireCapability', () => {
-  it('AC-302: redirects a viewer without capabilities from /objectives to /work/cascade', () => {
+  it('AC-302: redirects a viewer without capabilities from /objectives to /work/tasks (cascade noun retired)', () => {
     mockUseAuth.mockReturnValue(authed([]))
     renderGuard('/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expect(screen.getByTestId('cascade')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks')).toBeInTheDocument()
   })
 
   it('AC-302: allows admin into /objectives', () => {
@@ -55,7 +55,7 @@ describe('RequireCapability', () => {
   it('AC-302: redirects ops_lead from /objectives without objective.manage', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
     renderGuard('/objectives', 'objective.manage')
-    expect(screen.getByTestId('cascade')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks')).toBeInTheDocument()
   })
 
   it('AC-302: allows ops_lead into /projects-processes with workline.manage', () => {
@@ -68,6 +68,6 @@ describe('RequireCapability', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as never)
     renderGuard('/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expect(screen.getByTestId('cascade')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks')).toBeInTheDocument()
   })
 })

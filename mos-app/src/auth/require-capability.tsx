@@ -8,6 +8,6 @@ import { can } from '@/lib/capabilities'
 export function RequireCapability({ capability }: { capability: string }) {
   const auth = useAuth()
   const roles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  if (!can(roles, capability)) return <Navigate to="/work/cascade" replace />
+  if (!can(roles, capability)) return <Navigate to="/work/tasks" replace />
   return <Outlet />
 }
