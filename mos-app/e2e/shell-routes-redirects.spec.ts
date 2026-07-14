@@ -17,6 +17,7 @@ const redirectCases = [
   { oldPath: 'ops', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
   { oldPath: 'ops/new', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
   { oldPath: 'ops/legacy/edit', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
+  { oldPath: 'kitchen', finalPath: /\/cafe\/log$/, needsAdmin: false },
   { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, needsAdmin: false },
   { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, needsAdmin: false },
   { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, needsAdmin: false },
