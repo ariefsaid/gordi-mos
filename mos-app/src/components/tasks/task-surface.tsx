@@ -613,9 +613,8 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated }: TaskSurfaceProps) {
+function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskSurfaceProps) {
   const navigate = useNavigate()
-  const location = useLocation()
   const auth = useAuth()
   const inDrawer = width === 'drawer'
   // AC-125 / FR-123: "+ Add task" from a group header deep-links the grouped

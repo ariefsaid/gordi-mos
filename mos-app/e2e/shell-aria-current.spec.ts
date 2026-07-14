@@ -45,7 +45,7 @@ test.describe('shell aria-current', () => {
       for (const routeCase of primaryCases) {
         await page.goto(routeCase.path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)
-        await expect(page.getByRole('link', { name: routeCase.label })).toHaveAttribute('aria-current', 'page')
+        await expect(page.getByRole('link', { name: routeCase.label, exact: true })).toHaveAttribute('aria-current', 'page')
       }
 
       const nonPrimaryCases = ['events', 'money', 'profile']

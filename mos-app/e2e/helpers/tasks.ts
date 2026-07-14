@@ -13,7 +13,7 @@ export async function createTaskViaUI(
   // Click "+ New task" link from the toolbar or empty state
   const newTaskLink = page.getByRole('link', { name: /new task/i }).first()
   await newTaskLink.click()
-  await page.waitForURL(/\/work\/tasks\/new$/)
+  await page.waitForURL(/\/work\/tasks\/new(\?.*)?$/)
 
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
@@ -25,7 +25,7 @@ export async function createTaskViaUI(
   await form.getByRole('button', { name: /create task/i }).click()
 
   // Wait for navigation to the new task detail page
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(\?.*)?$/, { timeout: 15_000 })
 
   return page.url()
 }

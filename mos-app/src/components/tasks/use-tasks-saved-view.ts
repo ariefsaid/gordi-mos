@@ -23,7 +23,7 @@ export function useTasksSavedView() {
   const savedView = useMemo<TasksSavedView>(() => {
     const params = new URLSearchParams(location.search)
     const raw = params.get('view')
-    const view = raw && KNOWN_VIEWS.has(raw as TasksSavedViewKey)
+    const view = raw && KNOWN_VIEWS.has(raw as TasksSavedViewChip | 'all')
       ? raw as TasksSavedViewKey
       : raw
         ? 'unknown'

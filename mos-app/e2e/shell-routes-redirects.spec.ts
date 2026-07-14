@@ -61,13 +61,13 @@ test('AC-003: /work/follow-ups redirects to /work/tasks?view=followups and the s
   await page.reload()
   await expect(page).toHaveURL(/\/work\/tasks\?view=followups$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {
   await page.goto(`tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
   await expect(page).toHaveURL(new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`))
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
   await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
 })
 
@@ -100,5 +100,5 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 })

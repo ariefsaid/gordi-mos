@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -95,14 +96,51 @@ function LocationCapture() {
   return null
 }
 
+function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+  switch (view) {
+    case 'mine':
+      return { view: 'mine', activeChip: 'mine', segment: 'mine', overdueOnly: false, reserved: null, search: '?view=mine' }
+    case 'team':
+      return { view: 'team', activeChip: 'team', segment: 'all', overdueOnly: false, reserved: null, search: '?view=team' }
+    case 'overdue':
+      return { view: 'overdue', activeChip: 'overdue', segment: 'all', overdueOnly: true, reserved: null, search: '?view=overdue' }
+    case 'followups':
+      return { view: 'followups', activeChip: 'followups', segment: 'all', overdueOnly: false, reserved: 'followups', search: '?view=followups' }
+    case 'all':
+    default:
+      return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
+  }
+}
+
+async function switchToAll() {
+  fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+  })
+}
+
 // ── Render helper ─────────────────────────────────────────────────────────────
-function renderPage(auth: AuthState = authedState) {
+function renderPage(auth: AuthState = authedState, props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
   _capturedLocation = null
+
+  function Harness() {
+    const [savedView, setSavedView] = useState(props.savedView ?? makeSavedView())
+    return (
+      <>
+        <TasksWorkspace
+          {...props}
+          savedView={savedView}
+          onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'mine' || next === 'team' || next === 'overdue' || next === 'followups' ? next : 'all')))}
+        />
+        <LocationCapture />
+      </>
+    )
+  }
+
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/work/tasks']}>
-        <TasksWorkspace />
-        <LocationCapture />
+        <Harness />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -338,9 +376,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     })
     mockListTasks.mockResolvedValue([taskViewerR, taskViewerC, taskUnrelated])
     renderPage()
-    // Switch to "All" so all tasks are visible before applying person filter
-    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
     await waitFor(() => screen.getByText('Not viewer task'))
 
     // Now apply person filter for the viewer
@@ -355,8 +391,8 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
   })
 })
 
-// ── T-034: AC-064 — Mine / RACI-involved / All segmented control ─────────────
-describe('AC-064 — segmented control: Mine / RACI-involved / All', () => {
+// ── T-034: AC-064 — saved-view chips ─────────────────────────────────────────
+describe('AC-064 — saved-view chips', () => {
   // Fix C1: no embedded objects
   const taskMine = makeTask({
     id: 'mine', title: 'My task',
@@ -379,31 +415,28 @@ describe('AC-064 — segmented control: Mine / RACI-involved / All', () => {
     mockListTasks.mockResolvedValue([taskMine, taskConsulted, taskUnrelated])
   })
 
-  it('AC-064: "Mine" segment (default) shows only R-or-A tasks', async () => {
-    renderPage()
+  it('AC-064: "My work" shows only R-or-A tasks when seeded from view=mine', async () => {
+    renderPage(authedState, { savedView: makeSavedView('mine') })
     await waitFor(() => screen.getByText('My task'))
     expect(screen.queryByText('Consulted task')).toBeNull()
     expect(screen.queryByText('Unrelated task')).toBeNull()
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('AC-064: "RACI-involved" adds C/I tasks in scope', async () => {
+  it('AC-064: the saved-view chip row renders My work / Team work / Overdue / Follow-ups', async () => {
+    renderPage()
+    await waitFor(() => screen.getByText('My task'))
+    expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeTruthy()
+  })
+
+  it('AC-064: "Team work" shows every loaded row regardless of RACI', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
 
-    fireEvent.click(screen.getByRole('tab', { name: /^raci$/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('My task')).toBeTruthy()
-      expect(screen.getByText('Consulted task')).toBeTruthy()
-      expect(screen.queryByText('Unrelated task')).toBeNull()
-    })
-  })
-
-  it('AC-064: "All" shows every loaded row regardless of RACI', async () => {
-    renderPage()
-    await waitFor(() => screen.getByText('My task'))
-
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
 
     await waitFor(() => {
       expect(screen.getByText('My task')).toBeTruthy()
@@ -493,16 +526,13 @@ describe('responsive — card list at <768px', () => {
 
 // ── a11y: ARIA roles and labels ──────────────────────────────────────────────
 describe('a11y — aria roles and labels', () => {
-  it('segmented control has tablist/tab roles and aria-selected', async () => {
+  it('saved-view controls expose button semantics with aria-pressed', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
-    // Wait for the Ownership-filter tablist (the view-tab strip was removed per owner)
-    await waitFor(() => screen.getAllByRole('tablist'))
-    expect(screen.getByRole('tab', { name: /mine/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /^raci$/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /^all$/i })).toBeTruthy()
-    // "Mine" is selected by default
-    expect(screen.getByRole('tab', { name: /mine/i }).getAttribute('aria-selected')).toBe('true')
+    await waitFor(() => screen.getByRole('button', { name: 'My work' }))
+    expect(screen.getByRole('group', { name: /tasks saved views/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Team work' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('loading region has aria-busy and a visually-hidden loading message', async () => {
@@ -691,9 +721,7 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     mockListTasks.mockResolvedValue([archived, live])
     renderPage()
 
-    // Switch to "All" so archived row is visible
-    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
 
     // Toggle show archived
     const toggle = screen.getByRole('checkbox', { name: /show archived/i })
@@ -734,8 +762,7 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     mockListTasks.mockResolvedValue([archived, live])
     renderPage()
 
-    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
     fireEvent.click(screen.getByRole('checkbox', { name: /show archived/i }))
 
     await waitFor(() => screen.getByText('Archived mobile task'))

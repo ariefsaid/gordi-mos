@@ -40,7 +40,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' }),
   ).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 
   await page.reload()
   await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
@@ -49,7 +49,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' }),
   ).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 })
 
 test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page }) => {

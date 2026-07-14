@@ -163,7 +163,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
   // Switch to "All" so Dewi sees the full seeded dataset (not just her R/A tasks).
-  await page.getByRole('tab', { name: 'All' }).click()
+  await page.getByRole('button', { name: 'Team work', exact: true }).click()
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
   await page.locator('#group-by-filter').selectOption('status')
@@ -217,9 +217,9 @@ test(
   await expect(firstRow).toBeVisible({ timeout: 8_000 })
   await firstRow.click()
 
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/, { timeout: 10_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(\?.*)?$/, { timeout: 10_000 })
   const taskUrl = page.url()
-  expect(taskUrl).toMatch(/\/work\/tasks\/[0-9a-f-]{36}$/)
+  expect(taskUrl).toMatch(/\/work\/tasks\/[0-9a-f-]{36}(\?.*)?$/)
 
   // Drawer opens beside the still-mounted table (split-view, ADR-0007).
   const drawer = page.getByRole('complementary', { name: /task detail/i })

@@ -12,6 +12,7 @@
  *   Fix-7: useCascadeCatalogs hook — mount-once load, no block on loading gate
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
@@ -115,11 +116,36 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
+function makeSavedView(view: 'team' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+  if (view === 'team') {
+    return { view: 'team', activeChip: 'team', segment: 'all', overdueOnly: false, reserved: null, search: '?view=team' }
+  }
+  return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
+}
+
+async function switchToAll() {
+  fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+  })
+}
+
 function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
+  function Harness() {
+    const [savedView, setSavedView] = useState(props.savedView ?? makeSavedView())
+    return (
+      <TasksWorkspace
+        {...props}
+        savedView={savedView}
+        onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'team' ? 'team' : 'all')))}
+      />
+    )
+  }
+
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <TasksWorkspace {...props} />
+        <Harness />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -180,10 +206,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     renderWorkspace()
     await waitFor(() => screen.getByText('Menu task'))
 
-    // Switch to All segment so Maya's task is visible regardless of viewer scope
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
@@ -340,9 +363,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Open project task'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
@@ -367,9 +388,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Done only'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
@@ -395,9 +414,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Project task'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
@@ -419,9 +436,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Project task'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })

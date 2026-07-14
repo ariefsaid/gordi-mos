@@ -94,16 +94,16 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
-function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' | 'unknown') {
+function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' | 'unknown'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
   switch (view) {
     case 'mine':
-      return { view, activeChip: 'mine', segment: 'mine' as const, overdueOnly: false, reserved: null, search: '?view=mine' }
+      return { view, activeChip: 'mine' as const, segment: 'mine' as const, overdueOnly: false, reserved: null, search: '?view=mine' }
     case 'team':
-      return { view, activeChip: 'team', segment: 'all' as const, overdueOnly: false, reserved: null, search: '?view=team' }
+      return { view, activeChip: 'team' as const, segment: 'all' as const, overdueOnly: false, reserved: null, search: '?view=team' }
     case 'overdue':
-      return { view, activeChip: 'overdue', segment: 'all' as const, overdueOnly: true, reserved: null, search: '?view=overdue' }
+      return { view, activeChip: 'overdue' as const, segment: 'all' as const, overdueOnly: true, reserved: null, search: '?view=overdue' }
     case 'followups':
-      return { view, activeChip: 'followups', segment: 'all' as const, overdueOnly: false, reserved: 'followups' as const, search: '?view=followups' }
+      return { view, activeChip: 'followups' as const, segment: 'all' as const, overdueOnly: false, reserved: 'followups' as const, search: '?view=followups' }
     case 'unknown':
       return { view, activeChip: null, segment: 'all' as const, overdueOnly: false, reserved: null, search: '?view=bogus' }
     case 'all':

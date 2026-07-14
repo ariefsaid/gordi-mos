@@ -175,7 +175,7 @@ test(
   // ── 3. Scope = "All" ─────────────────────────────────────────────────────────
   // MANAGER's "Mine" segment shows only her R/A tasks. "All" broadens scope so
   // the Person filter alone drives ownership (FR-124 / AC-126).
-  await page.getByRole('tab', { name: 'All' }).click()
+  await page.getByRole('button', { name: 'Team work', exact: true }).click()
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
   await page.locator('#group-by-filter').selectOption('workline')
