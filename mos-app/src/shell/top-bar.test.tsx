@@ -72,10 +72,10 @@ describe('AC-014: TopBar layout (OD-57)', () => {
     expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
-    // Inbox bell — always live now (SHOW_INBOX retired)
     expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
-    // Deputy launcher
     expect(screen.getByRole('button', { name: /Open deputy/i })).toBeInTheDocument()
+    expect(screen.queryByText('Cahya Cafe')).toBeNull()
+    expect(screen.queryByText('Barista')).toBeNull()
   })
 
   it('AC-014: order left→right is brand → breadcrumb → search → inbox → deputy', () => {

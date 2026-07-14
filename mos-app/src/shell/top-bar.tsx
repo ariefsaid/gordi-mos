@@ -1,6 +1,5 @@
 import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
-import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -176,7 +175,7 @@ function NotificationBell() {
 }
 
 // Global top bar (ADR-0013 D1).
-// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · user chip]
+// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · deputy]
 // At <920px the leading hamburger appears and calls onOpenDrawer.
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
 export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegisterHamburgerFocus }: TopBarProps) {
@@ -244,7 +243,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right cluster — search · bell · user chip */}
+      {/* Right cluster — search · bell · deputy */}
       <div className="flex items-center gap-2 px-3 flex-none">
         {/* ⌘K search trigger — opens the command menu (AC-K02). Below 920px it shrinks to an
             icon-only button (DESIGN.md Navigation·Mobile: "cmdk shrinks to an icon") so the header
@@ -287,8 +286,6 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
             Absent when SHOW_ASSISTANT=false. */}
         {SHOW_ASSISTANT && <AssistantTopBarButton />}
 
-        {/* User chip — avatar-only at <920px (FR-020); name/role show on wider viewports (AC-S08) */}
-        <UserChip variant="header" compact={isNarrow} />
       </div>
     </header>
   )
