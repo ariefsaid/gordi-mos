@@ -140,7 +140,7 @@ describe('AC-006: Work canonical routes + redirects', () => {
 
   it('AC-006: /work/signals renders SliceStubPage (Signals archive — Step 4)', () => {
     expect(shellChildren().find((r) => r.path === 'work/signals')!.element).toEqual(
-      <SliceStubPage jobKey="job.signals" name="Signals" />,
+      <SliceStubPage jobKey="job.signals" nameKey="nav.signals" />,
     )
   })
 })
@@ -201,16 +201,16 @@ describe('AC-006: Café re-home + stub routes + admin', () => {
 
   it('AC-006: /events, /ecommerce, /roastery, /profile render SliceStubPage', () => {
     expect(shellChildren().find((r) => r.path === 'events')!.element).toEqual(
-      <SliceStubPage jobKey="job.events" name="Events" />,
+      <SliceStubPage jobKey="job.events" nameKey="dest.events" />,
     )
     expect(shellChildren().find((r) => r.path === 'ecommerce')!.element).toEqual(
-      <SliceStubPage jobKey="job.ecommerce" name="Ecommerce" />,
+      <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" />,
     )
     expect(shellChildren().find((r) => r.path === 'roastery')!.element).toEqual(
-      <SliceStubPage jobKey="job.roastery" name="Roastery" />,
+      <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" />,
     )
     expect(shellChildren().find((r) => r.path === 'profile')!.element).toEqual(
-      <SliceStubPage jobKey="job.profile" name="Personal Profile" />,
+      <SliceStubPage jobKey="job.profile" nameKey="dest.profile" />,
     )
   })
 

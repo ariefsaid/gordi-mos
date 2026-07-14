@@ -104,7 +104,7 @@ export const routeConfig: RouteObject[] = [
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
-          { path: 'work/signals', element: <SliceStubPage jobKey="job.signals" name="Signals" /> },
+          { path: 'work/signals', element: <SliceStubPage jobKey="job.signals" nameKey="nav.signals" /> },
           { path: 'work/projects-processes', element: <Navigate to="/work/projects" replace /> },
           {
             element: <RequireCapability capability="workline.manage" />,
@@ -119,7 +119,7 @@ export const routeConfig: RouteObject[] = [
           { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
 
           // ── Events / Money / Inbox (canonical) ──
-          { path: 'events', element: <SliceStubPage jobKey="job.events" name="Events" /> },
+          { path: 'events', element: <SliceStubPage jobKey="job.events" nameKey="dest.events" /> },
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
             children: [
@@ -145,9 +145,9 @@ export const routeConfig: RouteObject[] = [
           },
 
           // ── Ecommerce / Roastery / Profile (stubs) ──
-          { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" name="Ecommerce" /> },
-          { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" name="Roastery" /> },
-          { path: 'profile', element: <SliceStubPage jobKey="job.profile" name="Personal Profile" /> },
+          { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" /> },
+          { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" /> },
+          { path: 'profile', element: <SliceStubPage jobKey="job.profile" nameKey="dest.profile" /> },
 
           // ── Admin (canonical; /admin → /admin/people) ──
           { path: 'admin', element: <Navigate to="/admin/people" replace /> },

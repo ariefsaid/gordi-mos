@@ -12,16 +12,17 @@ import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { PageFrame } from '@/shell/page-frame'
 
-type Props = { jobKey: string; name: string }
+type Props = { jobKey: MessageKey; nameKey: MessageKey }
 
-export function SliceStubPage({ jobKey, name }: Props) {
+export function SliceStubPage({ jobKey, nameKey }: Props) {
   const t = useT()
+  const name = t(nameKey)
   useDocumentTitle(`${name} — Gordi MOS`)
   return (
     <PageFrame>
       <h1 className="font-semibold text-foreground" style={{ fontSize: 26 }}>{name}</h1>
       <p className="text-muted-foreground" style={{ marginTop: 8 }}>
-        <b>{t(jobKey as MessageKey)}</b>
+        <b>{t(jobKey)}</b>
       </p>
       <p className="text-muted-foreground" style={{ marginTop: 16 }}>
         {t('stub.notInSlice')} — {t('stub.comingLater', { name })}
