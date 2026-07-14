@@ -100,3 +100,13 @@ REVIEW-DONE
 - row-menu.tsx:36 (row-menu Open)
 - mobile-grouped-cards.tsx:84 (mobile card open)
 So new-tab/name-link/row-menu/mobile open lose the saved view. Fix + per-path test required.
+
+### Step 3 — BLOCK resolution (fix round gpt-5.4 + Director verify, 2026-07-15)
+
+The 3 record-open paths now thread `search: recordSearch` (commit fdee22e):
+- task-row.tsx (name Link, via `recordTo`) + passes recordSearch to RowMenu
+- row-menu.tsx (Open) — `to={{pathname, search: recordSearch}}`
+- mobile-grouped-cards.tsx — same
+Re-verify: typecheck clean · 2592 unit green · saved-view + split-view e2e 7/7. Director live-confirmed
+the name-link preserves `?view=overdue` on open. **Step-3 verdict now: APPROVE.** Owner visual sign-off
++ walkthrough pending (AFK).
