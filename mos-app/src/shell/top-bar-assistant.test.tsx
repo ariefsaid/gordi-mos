@@ -29,6 +29,13 @@ vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
+// The always-live NotificationBell (SHOW_INBOX retired, D-1) fires useUnreadCount → countUnread.
+// Mock it so the bell's async read resolves cleanly instead of racing teardown.
+vi.mock('@/lib/db/notifications', () => ({
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue([]),
+}))
+
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
@@ -78,12 +85,12 @@ describe('TopBar assistant button (T28)', () => {
     renderTopBar({ narrow: false })
     const btn = screen.getByRole('button', { name: 'Open deputy' })
     expect(btn).toBeInTheDocument()
-    // It sits in the right cluster after search, before the bell — assert it precedes the bell.
+    // It sits in the right cluster after search and after the Inbox bell (OD-57: Search · Inbox · Deputy).
     const search = screen.getByRole('button', { name: /Search/i })
-    const bell = screen.getByRole('button', { name: 'Notifications' })
+    const bell = screen.getByRole('button', { name: 'Inbox' })
     const precedes = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(precedes(search, btn)).toBe(true)
-    expect(precedes(btn, bell)).toBe(true)
+    expect(precedes(search, bell)).toBe(true)
+    expect(precedes(bell, btn)).toBe(true)
   })
 
   it('AC-AP-001: clicking the desktop button opens the slide-over', () => {

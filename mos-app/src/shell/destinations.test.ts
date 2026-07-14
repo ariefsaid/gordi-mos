@@ -161,7 +161,7 @@ describe('destinationForPath — resolution across all three zones', () => {
 describe('isLive — anyOf gate', () => {
   it('unsatisfied role set is not live even with links', () => {
     const gated: Destination = {
-      id: 'x', zone: 'workspace', labelKey: 'dest.money', Icon: () => null,
+      id: 'inbox', zone: 'workspace', labelKey: 'dest.money', Icon: () => null,
       links: [{ path: '/x', label: 'X', Icon: () => null }], anyOf: ['finance', 'admin'],
     }
     expect(isLive(gated, [])).toBe(false)

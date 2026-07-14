@@ -55,23 +55,23 @@ function renderRailAtPath(path: string) {
 
 describe('shell brand touches (AC-120)', () => {
   it('AC-120: the Tasks nav item is present + role-stable (aria-current=page) after the navy active-indicator swap', () => {
-    renderRailAtPath('/tasks')
-    const tasksLink = screen.getByRole('link', { name: /tasks/i })
+    renderRailAtPath('/work/tasks')
+    const tasksLink = screen.getByRole('link', { name: /^Tasks$/i })
     expect(tasksLink).toBeInTheDocument()
     expect(tasksLink).toHaveAttribute('aria-current', 'page')
   }, 10_000)
 
-  it('AC-120: only the Tasks link has aria-current=page at /tasks (no other link is marked active)', () => {
-    renderRailAtPath('/tasks')
+  it('AC-120: only the Tasks link has aria-current=page at /work/tasks (no other link is marked active)', () => {
+    renderRailAtPath('/work/tasks')
     const activeLinks = screen.getAllByRole('link').filter(
       (l) => l.getAttribute('aria-current') === 'page',
     )
     expect(activeLinks).toHaveLength(1)
-    expect(activeLinks[0]).toHaveAccessibleName(/tasks/i)
+    expect(activeLinks[0]).toHaveAccessibleName(/^Tasks$/i)
   })
 
   it('AC-120: the Primary navigation landmark is present (landmark role-stable)', () => {
-    renderRailAtPath('/tasks')
+    renderRailAtPath('/work/tasks')
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
   })
 })

@@ -22,7 +22,7 @@ function setAuthAs(accessRoles: string[] = []) {
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [{ id: 'r1', name: 'Barista', org_id: 'o1', person_id: 'p1', access_role: 'member', archived_at: null, created_at: '', updated_at: '' }],
+      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: null, name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles,
     },

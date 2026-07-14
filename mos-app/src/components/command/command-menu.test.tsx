@@ -122,7 +122,7 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
     expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
     // Stable order: Ask Deputy, Share Signal, Create Task
-    const labels = screen.getAllByRole('option').map((o) => o.textContent)
+    const labels = screen.getAllByRole('option').map((o) => o.textContent ?? '')
     const ask = labels.findIndex((l) => /Ask Deputy/.test(l))
     const share = labels.findIndex((l) => /Share Signal/.test(l))
     const task = labels.findIndex((l) => /Create Task/.test(l))

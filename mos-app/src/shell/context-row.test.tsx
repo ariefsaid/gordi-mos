@@ -16,7 +16,7 @@ function setAuth(accessRoles: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'cahya@gordi.id', archived_at: null, created_at: '', updated_at: '',
       },
-      roles: [{ id: 'r1', name: 'Barista', org_id: 'o1', person_id: 'p1', access_role: 'member', archived_at: null, created_at: '', updated_at: '' }],
+      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: null, name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles,
     },
