@@ -65,3 +65,38 @@ All 7 findings fixed (commits a658a0a..eb248ec) + re-verified:
 - i18n chrome strings → **localized** (Director live-confirmed ID: Tanya Deputi · Bagikan Sinyal · Buat Tugas · Beranda · Kerja · Cari).
 - MINOR /kitchen→/cafe **added** to redirect e2e (AC-005 green).
 Re-run: typecheck clean · 2575 unit green · shell e2e 8/8. **Step-2 verdict now: APPROVE.** Formal owner visual sign-off + walkthrough still pending (owner AFK); Director live-verified the shell.
+
+## Step 3 — Tasks re-home (spec + code-quality, gpt-5.4)
+
+**Verdict: BLOCK**
+
+Saved-view grammar is correctly wired for `?view=mine|team|overdue|followups` with safe `all`/unknown fallback, and the accepted deviations are honored: **My/Overdue** reuse real filters, **Team** is label-level on the org-visible set, and **Follow-ups** shows explicit reserved-state copy instead of fake task filtering. Rule 11 also looks good: **`mos-app/src/components/tasks/use-tasks-saved-view.ts` is the only new production file**; `TasksLayout`/`TasksWorkspace`/`TasksToolbar`/`TaskDrawer`/`TaskSurface` are rewired, not rebuilt, and I found no duplicate table/drawer/record surface.
+
+### Strengths
+- `mos-app/src/components/tasks/use-tasks-saved-view.ts:1-57` cleanly centralizes saved-view parsing/canonicalization and maps to the existing workspace knobs (`segment`, `overdueOnly`, reserved follow-ups state).
+- `mos-app/src/pages/tasks-layout.tsx:24-26,58-61`, `mos-app/src/components/tasks/tasks-workspace.tsx:428-430,531-537,603-718`, `mos-app/src/components/tasks/task-drawer.tsx:72`, and `mos-app/src/components/tasks/task-surface.tsx:369-414,624-740,972-972` correctly preserve the current search on the main rewired paths: row click, keyboard open/close, `+ New task`, `+ Add task`, drawer close, not-found return, create cancel/create success, and archive success.
+- The updated component/e2e coverage does exercise the main saved-view journeys, including overdue open → refresh → close and create-context preservation.
+
+### Issues
+
+#### Critical
+- `mos-app/src/components/tasks/task-row.tsx:81-88`, `mos-app/src/components/tasks/row-menu.tsx:35-37`, `mos-app/src/components/tasks/mobile-grouped-cards.tsx:84` — **Rule 4 / FR-305 / FR-306 are not fully satisfied.** These links still hardcode `/work/tasks/:id` without the active search string. That means clicking the task name, using **Row actions → Open**, middle-click/open-in-new-tab on the name link, or opening a mobile task card drops `?view=` and loses the saved-view context. Suggested fix: thread a search-aware `to`/`recordHref` prop from `TasksWorkspace` into `TaskRow`, `RowMenu`, and `MobileGroupedCards`, and use `{ pathname, search: savedView.search }` everywhere a record can open.
+
+#### Important
+- `mos-app/e2e/shell-url-state.spec.ts:52-70`, `mos-app/src/components/tasks/tasks-workspace.test.tsx:535-536`, `mos-app/src/components/tasks/tasks-workspace.test.tsx:889-891`, `mos-app/src/components/tasks/task-row.test.tsx:62-76`, `mos-app/src/components/tasks/row-menu.test.tsx:47` — the updated tests **miss the broken link-based/mobile journeys**, and some unit tests still explicitly assert the old bare `/work/tasks/:id` href. So the suite proves row-click preservation, but not the full “normal click / new-tab safe” contract from Rule 4 / AC-307, and it currently locks the regression in place. Suggested fix: update the href assertions and add coverage for task-name link, row-menu open, and mobile-card open with `?view=` preserved.
+
+#### Minor
+- `mos-app/src/components/tasks/tasks-workspace.tsx:531-537`, `mos-app/src/components/tasks/task-surface.tsx:627-630` — saved-view parsing is centralized, but search-param composition is still somewhat spread. Not a functional defect on its own, but it falls a bit short of the stated “centralize URLSearchParams logic” goal. A tiny shared helper for collection/search-param merging would keep this seam tighter.
+
+### Overall assessment
+**BLOCK** — the spec mapping and rewire-first implementation are largely right, but Rule 4 is not fully met because several real record-open paths still drop `?view=`. Fix those search-blind links and align the tests, then this should be ready to approve.
+
+REVIEW-DONE
+
+## Step 3 — Tasks re-home (spec + code-quality, gpt-5.4 cross-family)
+
+**Verdict: BLOCK** (1 finding). Saved-view URL grammar + Rule-11 reuse are sound (only use-tasks-saved-view.ts new; DAL/workspace/drawer rewired), but Rule-4 `?view=` preservation is INCOMPLETE — fixed on row-click, dropped on 3 other open paths:
+- task-row.tsx:81 (task-name Link)
+- row-menu.tsx:36 (row-menu Open)
+- mobile-grouped-cards.tsx:84 (mobile card open)
+So new-tab/name-link/row-menu/mobile open lose the saved view. Fix + per-path test required.
