@@ -44,6 +44,15 @@ fi
 # ── 4. Inspect changed files to determine required reviews ───────────────────
 CHANGED_FILES="$(git diff --name-only "${MERGE_BASE}..HEAD" 2>/dev/null || true)"
 
+# AC-002: Step-1 styling pass must not change *.ts/*.tsx files
+if echo "$CHANGED_FILES" | grep -qE '\.ts$|\.tsx$'; then
+  echo ""
+  echo "FAIL: AC-002 violated — Step-1 styling pass must not change *.ts/*.tsx files:"
+  echo "$CHANGED_FILES" | grep -E '\.ts$|\.tsx$' | sed 's/^/  /'
+  echo ""
+  exit 1
+fi
+
 REQUIRE_SPEC=true        # always
 REQUIRE_CODE_QUALITY=true # always
 REQUIRE_SECURITY=false
