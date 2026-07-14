@@ -1,61 +1,76 @@
 import { Link, useLocation } from 'react-router-dom'
-import { DESTINATIONS, isLive, type Destination } from './destinations'
+import { destinationForPath } from './destinations'
+import { HomeIcon, WorkIcon, CafeIcon, InboxIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
-import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import './bottom-tab-bar.css'
 
-/**
- * A destination's tab is active when the current path matches ANY of its
- * links (not just the primary one) — e.g. Operate stays active across all
- * 5 kitchen routes, not just /kitchen/log. Mirrors sectionForPath's
- * exact-or-prefix match.
- */
-function isDestinationActive(d: Destination, pathname: string): boolean {
-  return d.links.some((link) => {
-    if (link.path === '/') return pathname === '/'
-    return pathname === link.path || pathname.startsWith(link.path + '/')
-  })
+// The 5 fixed primary tabs (convergence mobileNav). Money is NOT a bottom-nav tab —
+// it lives in the More menu (gated). Work → /work/tasks; Café → /cafe (redirects to /cafe/log).
+const PRIMARY = [
+  { id: 'home', labelKey: 'dest.home', href: '/', Icon: HomeIcon, end: true },
+  { id: 'work', labelKey: 'dest.work', href: '/work/tasks', Icon: WorkIcon, end: false },
+  { id: 'cafe', labelKey: 'dest.cafe', href: '/cafe', Icon: CafeIcon, end: false },
+  { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox', Icon: InboxIcon, end: false },
+] as const
+
+const PRIMARY_IDS = new Set(['home', 'work', 'cafe', 'inbox'])
+
+type BottomTabBarProps = {
+  /** Opens the More menu (the mobile drawer). */
+  onOpenMore?: () => void
 }
 
 /**
- * BottomTabBar — the phone-first primary nav (plan §4.3, ADR-0019 D8).
- * Renders iff narrow; one tab per LIVE destination in DESTINATIONS. The
- * hamburger drawer stays the "more" surface (Admin, locale, secondary
- * routes) — this bar is the primary phone nav, not a replacement for it.
+ * BottomTabBar — Redesign Step 2 (AC-021/022). Phone bottom-nav = Home · Work ·
+ * Café · Inbox · More. The first four are primary destinations; More opens the
+ * More menu of every authorized non-primary destination. Exactly-one
+ * aria-current="page": the active primary tab carries it, OR — when a non-primary
+ * destination is active (Events/Money/Ecommerce/Roastery/Admin/Profile) — the
+ * More button carries it (Rule 5 / Rule 9).
  */
-export function BottomTabBar() {
+export function BottomTabBar({ onOpenMore }: BottomTabBarProps) {
   const isNarrow = useIsNarrow()
-  const auth = useAuth()
   const t = useT()
   const { pathname } = useLocation()
 
-  const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-
   if (!isNarrow) return null
 
-  const live = DESTINATIONS.filter((d) => isLive(d, accessRoles))
+  const dest = destinationForPath(pathname)
+  const moreActive = !!dest && !PRIMARY_IDS.has(dest.id)
 
   return (
     <nav aria-label="Primary" className="bottom-tab-bar" style={{ gridArea: 'tabbar' }}>
-      {live.map((d) => {
-        const to = d.primaryPath ?? d.links[0].path
-        const active = isDestinationActive(d, pathname)
+      {PRIMARY.map((tab) => {
+        const active =
+          tab.href === '/' ? pathname === '/' : pathname === tab.href || pathname.startsWith(tab.href + '/')
         return (
           <Link
-            key={d.id}
-            to={to}
-            aria-label={t(d.labelKey)}
+            key={tab.id}
+            to={tab.href}
+            aria-label={t(tab.labelKey)}
             aria-current={active ? 'page' : undefined}
             className={`bottom-tab${active ? ' bottom-tab--active' : ''}`}
           >
             <span className="bottom-tab-icon">
-              <d.Icon />
+              <tab.Icon />
             </span>
-            <span className="bottom-tab-label">{t(d.labelKey)}</span>
+            <span className="bottom-tab-label">{t(tab.labelKey)}</span>
           </Link>
         )
       })}
+      <button
+        type="button"
+        aria-label={t('nav.more')}
+        aria-current={moreActive ? 'page' : undefined}
+        className={`bottom-tab${moreActive ? ' bottom-tab--active' : ''}`}
+        onClick={onOpenMore}
+      >
+        <span className="bottom-tab-icon">
+          <MoreIcon />
+        </span>
+        <span className="bottom-tab-label">{t('nav.more')}</span>
+      </button>
     </nav>
   )
 }

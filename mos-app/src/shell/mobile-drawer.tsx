@@ -1,27 +1,48 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { RailNav } from './rail-nav'
+import { Link } from 'react-router-dom'
+import { DESTINATIONS, MODULES, UTILITY, isLive, type Destination } from './destinations'
+import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 
 interface MobileDrawerProps {
   open: boolean
   onClose: () => void
-  /** Called to return focus to the opener (hamburger button) on close. */
+  /** Called to return focus to the opener (More button / hamburger) on close. */
   focusOpener?: () => void
 }
 
+// The 4 primary destinations live in the bottom-nav; the More menu owns every
+// authorized NON-primary destination (Events, Money, Ecommerce, Roastery, Admin,
+// Profile) so exactly-one aria-current holds on phone for every route (Rule 5/9).
+const PRIMARY_IDS = new Set(['home', 'work', 'cafe', 'inbox'])
+
+function moreDestinations(accessRoles: string[]): Destination[] {
+  const all = [
+    ...DESTINATIONS,
+    ...MODULES.flatMap((g) => g.items),
+    ...UTILITY,
+  ]
+  return all.filter((d) => !PRIMARY_IDS.has(d.id) && isLive(d, accessRoles))
+}
+
 /**
- * Mobile navigation drawer with focus trap, Esc close, scrim dismiss.
- * FR-018/019, AC-014.
+ * MobileDrawer — Redesign Step 2 (T15). The phone "More" menu: a focus-trapped
+ * dialog listing every authorized non-primary destination as plain links (no
+ * aria-current — the bottom-nav owns the single `page`). Esc closes + returns
+ * focus; clicking a link navigates + closes.
  */
 export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const auth = useAuth()
+  const t = useT()
+
+  const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
 
   const closeAndReturn = useCallback(() => {
-    // Return focus to opener before closing so focus isn't lost when dialog unmounts
     focusOpener?.()
     onClose()
   }, [onClose, focusOpener])
 
-  // Collect all focusable elements inside the panel
   const getFocusables = useCallback((): HTMLElement[] => {
     if (!panelRef.current) return []
     return Array.from(
@@ -31,15 +52,10 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
     )
   }, [])
 
-  // Focus trap + Esc close
   useEffect(() => {
     if (!open) return
-
-    // Focus first focusable item on open
     const focusables = getFocusables()
-    if (focusables.length > 0) {
-      focusables[0].focus()
-    }
+    if (focusables.length > 0) focusables[0].focus()
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -47,55 +63,70 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         closeAndReturn()
         return
       }
-
       if (e.key === 'Tab') {
         const focusables = getFocusables()
         if (focusables.length === 0) return
-
         const first = focusables[0]
         const last = focusables[focusables.length - 1]
-
-        if (e.shiftKey) {
-          // Shift+Tab: if on first, wrap to last
-          if (document.activeElement === first) {
-            e.preventDefault()
-            last.focus()
-          }
-        } else {
-          // Tab: if on last, wrap to first
-          if (document.activeElement === last) {
-            e.preventDefault()
-            first.focus()
-          }
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
         }
       }
     }
-
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, closeAndReturn, getFocusables])
 
   if (!open) return null
 
+  const items = moreDestinations(accessRoles)
+
   return (
     <>
-      {/* Scrim */}
-      <div
-        className="fixed inset-0 bg-foreground/40 z-40"
-        aria-hidden="true"
-        onClick={closeAndReturn}
-      />
-
-      {/* Panel */}
+      <div className="fixed inset-0 bg-foreground/40 z-40" aria-hidden="true" onClick={closeAndReturn} />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Primary navigation"
-        className="fixed inset-y-0 left-0 bg-secondary flex flex-col z-50"
-        style={{ width: 'var(--rail-w)' }}
+        aria-label="More"
+        className="fixed inset-y-0 right-0 bg-secondary flex flex-col z-50 overflow-auto"
+        style={{ width: 'min(320px, 80vw)' }}
       >
-        <RailNav onNavigate={onClose} />
+        <div className="flex items-center justify-between px-4" style={{ height: 'var(--header-h)' }}>
+          <span className="font-semibold text-foreground">{t('nav.more')}</span>
+          <button
+            type="button"
+            aria-label="Close"
+            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent"
+            style={{ width: 32, height: 32 }}
+            onClick={closeAndReturn}
+          >
+            ✕
+          </button>
+        </div>
+        <nav aria-label="More destinations" className="flex flex-col gap-[2px] p-2">
+          {items.map((d) => {
+            const href = d.primaryPath ?? d.links[0].path
+            return (
+              <Link
+                key={d.id}
+                to={href}
+                onClick={onClose}
+                className="flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
+                style={{ height: 36 }}
+              >
+                <span className="text-muted-foreground">
+                  <d.Icon />
+                </span>
+                <span className="text-foreground">{t(d.labelKey)}</span>
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </>
   )

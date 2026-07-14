@@ -1,9 +1,10 @@
 /**
- * BottomTabBar tests (plan §4.3, AC-T01/T02/T03).
- * Phone-first primary nav: one tab per LIVE destination (DESTINATIONS model).
+ * BottomTabBar tests — Redesign Step 2 (T15). Phone bottom-nav = Home · Work ·
+ * Café · Inbox · More (5). More opens the More menu; More carries aria-current=
+ * page when a non-primary destination is active (AC-021/022 unit arm).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -22,30 +23,22 @@ function setAuthAs(accessRoles: string[] = []) {
     status: 'authenticated',
     viewer: {
       person: {
-        id: '40000000-0000-0000-0000-000000000001',
-        org_id: '10000000-0000-0000-0000-000000000001',
-        user_id: 'auth-user-001',
-        full_name: 'Test User',
-        email: 'test@gordi.id',
-        archived_at: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
+        id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Test User',
+        email: 't@gordi.id', archived_at: null, created_at: '', updated_at: '',
       },
-      roles: [],
-      isManager: false,
-      accessRoles,
+      roles: [], isManager: false, accessRoles,
     },
     signOut: vi.fn(),
   })
 }
 
-function renderTabBar(initialPath = '/', { narrow = true }: { narrow?: boolean } = {}) {
+function renderTabBar(initialPath = '/', { narrow = true, onOpenMore = vi.fn() }: { narrow?: boolean; onOpenMore?: () => void } = {}) {
   mockUseIsNarrow.mockReturnValue(narrow)
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
-          <Route path="*" element={<BottomTabBar />} />
+          <Route path="*" element={<BottomTabBar onOpenMore={onOpenMore} />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
@@ -58,73 +51,77 @@ beforeEach(() => {
   setAuthAs([])
 })
 
-describe('AC-T01 / AC-410: phone viewport — one tab per live destination', () => {
-  it('AC-410: a member sees exactly Home, Work, Operate, Inbox tabs (Plan gated off)', () => {
+describe('AC-021: phone bottom-nav = Home · Work · Café · Inbox · More', () => {
+  it('renders exactly 4 primary links + a More button, in order', () => {
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate', 'Inbox'])
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Café', 'Inbox'])
+    expect(within(nav).getByRole('button', { name: /More/i })).toBeInTheDocument()
   })
 
-  it('AC-410: finance sees all five tabs including Plan; Plan links to /dashboard', () => {
-    setAuthAs(['finance'])
-    renderTabBar('/')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Operate', 'Plan', 'Inbox'])
-    expect(within(nav).getByRole('link', { name: /Plan/ })).toHaveAttribute('href', '/dashboard')
-  })
-
-  it('every tab has an accessible name via aria-label (t(labelKey))', () => {
-    renderTabBar('/')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: /Home/ })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: /Work/ })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: /Operate/ })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
-  })
-
-  it('Home links to /, Work to /tasks, Operate to Daily Log (/ops, first Operate link), Inbox to /inbox', () => {
+  it('primary tabs link to /, /work/tasks, /cafe, /inbox', () => {
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: /Home/ })).toHaveAttribute('href', '/')
-    expect(within(nav).getByRole('link', { name: /Work/ })).toHaveAttribute('href', '/tasks')
-    expect(within(nav).getByRole('link', { name: /Operate/ })).toHaveAttribute('href', '/ops')
+    expect(within(nav).getByRole('link', { name: /Work/ })).toHaveAttribute('href', '/work/tasks')
+    expect(within(nav).getByRole('link', { name: /Café/ })).toHaveAttribute('href', '/cafe')
     expect(within(nav).getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
   })
 
-  it('AC-408: Work tab stays active on a capability-gated manage route (/work/objectives)', () => {
-    renderTabBar('/work/objectives')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const active = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(active).toHaveLength(1)
-    expect(active[0]).toHaveAccessibleName(/Work/)
+  it('More button calls onOpenMore', () => {
+    const onOpenMore = vi.fn()
+    renderTabBar('/', { onOpenMore })
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i }))
+    expect(onOpenMore).toHaveBeenCalledOnce()
   })
 })
 
-describe('AC-T02: active tab per route', () => {
-  it('Work tab has aria-current=page when on /tasks', () => {
-    renderTabBar('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const active = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(active).toHaveLength(1)
-    expect(active[0]).toHaveAccessibleName(/Work/)
-  })
-
-  it('Home tab has aria-current=page when on / (end match, not a prefix match)', () => {
+describe('AC-021/008: aria-current — primary tab page on its route; More page on non-primary', () => {
+  it('Home tab page at /', () => {
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const active = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(active).toHaveLength(1)
-    expect(active[0]).toHaveAccessibleName(/Home/)
+    const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(page).toHaveLength(1)
+    expect(page[0]).toHaveAccessibleName(/Home/)
   })
 
-  it('Operate tab has aria-current=page when on /kitchen/plan (a non-primary kitchen route)', () => {
-    renderTabBar('/kitchen/plan')
+  it('Work tab page at /work/tasks', () => {
+    renderTabBar('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const active = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(active).toHaveLength(1)
-    expect(active[0]).toHaveAccessibleName(/Operate/)
+    const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(page).toHaveLength(1)
+    expect(page[0]).toHaveAccessibleName(/Work/)
+  })
+
+  it('Café tab page at /cafe/log', () => {
+    renderTabBar('/cafe/log')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(page).toHaveLength(1)
+    expect(page[0]).toHaveAccessibleName(/Café/)
+  })
+
+  it('More button carries aria-current=page at /events (non-primary)', () => {
+    renderTabBar('/events')
+    const more = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i })
+    expect(more).toHaveAttribute('aria-current', 'page')
+    // and no primary tab is page
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')).toHaveLength(0)
+  })
+
+  it('More button carries aria-current=page at /profile', () => {
+    renderTabBar('/profile')
+    const more = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i })
+    expect(more).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('More button carries aria-current=page at /money (finance viewer)', () => {
+    setAuthAs(['finance'])
+    renderTabBar('/money')
+    const more = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i })
+    expect(more).toHaveAttribute('aria-current', 'page')
   })
 })
 
