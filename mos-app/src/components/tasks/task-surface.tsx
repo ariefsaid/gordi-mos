@@ -1,6 +1,6 @@
 import './TaskSurface.css'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
   getTask, createTask,
@@ -86,6 +86,7 @@ function ViewSurface({
   taskId, width, expanded, onClose, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const auth = useAuth()
   // The feed tabs (Activity / Checklist / Notes) ride the existing per-task
   // useTabMemory store (ADR-0013 D3 — reuse, no new persistence). Its default
@@ -365,7 +366,7 @@ function ViewSurface({
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
-      else navigate('/work/tasks')
+      else navigate({ pathname: '/work/tasks', search: location.search })
     } catch { /* surface */ }
   }
   async function handleUnarchive() {
@@ -385,7 +386,7 @@ function ViewSurface({
       <div className="not-found-panel">
         <h1 className="not-found-title">Task not found</h1>
         <p className="not-found-copy">This task doesn&apos;t exist or you don&apos;t have access.</p>
-        <Link to="/work/tasks" className="btn btn-outline">All tasks</Link>
+        <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">All tasks</Link>
       </div>
     )
   }
@@ -410,7 +411,7 @@ function ViewSurface({
           now={now}
           onStatusChange={handleStatusChange}
           onExpandToggle={() => onExpandToggle?.()}
-          onClose={() => (onClose ? onClose() : navigate('/work/tasks'))}
+          onClose={() => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))}
           onArchive={() => setShowConfirm(true)}
         />
 
@@ -614,6 +615,7 @@ function ViewSurface({
 // ── Create mode ────────────────────────────────────────────────────────────────
 function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated }: TaskSurfaceProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const auth = useAuth()
   const inDrawer = width === 'drawer'
   // AC-125 / FR-123: "+ Add task" from a group header deep-links the grouped
@@ -623,6 +625,11 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
   const [searchParams] = useSearchParams()
   const prefillR = searchParams.get('r') ?? ''
   const prefillBu = searchParams.get('bu') ?? ''
+  const collectionParams = new URLSearchParams(searchParams)
+  collectionParams.delete('r')
+  collectionParams.delete('bu')
+  const collectionSearch = collectionParams.toString()
+  const collectionSearchString = collectionSearch ? `?${collectionSearch}` : ''
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -720,7 +727,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
       }
       const newId = await createTask(input)
       onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
-      navigate(`/work/tasks/${newId}`)
+      navigate({ pathname: `/work/tasks/${newId}`, search: collectionSearchString })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong')
       setSubmitting(false)
@@ -757,7 +764,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
       className="dw-iconbtn"
       aria-label="Close (Esc)"
       title="Close (Esc)"
-      onClick={() => (onClose ? onClose() : navigate('/work/tasks'))}
+      onClick={() => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: collectionSearchString }))}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M18 6 6 18M6 6l12 12" />
@@ -965,7 +972,7 @@ function CreateSurface({ onClose, width, expanded, onExpandToggle, onTaskCreated
           {onClose ? (
             <button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button>
           ) : (
-            <Link to="/work/tasks" className="btn btn-outline">Cancel</Link>
+            <Link to={{ pathname: '/work/tasks', search: collectionSearchString }} className="btn btn-outline">Cancel</Link>
           )}
           <button
             type="submit"

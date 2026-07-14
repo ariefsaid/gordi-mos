@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
@@ -98,11 +98,31 @@ beforeEach(() => {
   mockCreateTask.mockResolvedValue('new-task-id')
 })
 
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>
+}
+
 function renderSurface(props: Partial<Parameters<typeof TaskSurface>[0]> = {}, auth: AuthState = authedState) {
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/tasks/task-abc']}>
         <TaskSurface taskId="task-abc" mode="view" width="full" {...props} />
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+}
+
+function renderSurfaceRoute(path: string) {
+  return render(
+    <AuthContext.Provider value={authedState}>
+      <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/work/tasks/new" element={<TaskSurface taskId={null} mode="create" width="full" />} />
+          <Route path="/work/tasks/:taskId" element={<TaskSurface taskId="task-abc" mode="view" width="full" />} />
+          <Route path="/work/tasks" element={<div data-testid="tasks-list">Tasks list</div>} />
+        </Routes>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -469,6 +489,41 @@ function renderCreate(auth: AuthState = authedState, onClose = vi.fn()) {
     </AuthContext.Provider>,
   )
 }
+
+describe('TaskSurface — saved-view URL preservation', () => {
+  it('AC-307: not-found link from /work/tasks/task-abc?view=mine points back to /work/tasks?view=mine', async () => {
+    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    renderSurfaceRoute('/work/tasks/task-abc?view=mine')
+    const link = await screen.findByRole('link', { name: /all tasks/i })
+    expect(link.getAttribute('href')).toBe('/work/tasks?view=mine')
+  })
+
+  it('AC-308: create cancel from /work/tasks/new?view=mine&r=other-id returns to /work/tasks?view=mine without losing the prefill on load', async () => {
+    renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
+    const responsible = await screen.findByLabelText(/^responsible \(r\)/i)
+    expect((responsible as HTMLSelectElement).value).toBe('other-id')
+    fireEvent.click(screen.getByRole('link', { name: /cancel/i }))
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
+  })
+
+  it('AC-311: create success from /work/tasks/new?view=mine&r=other-id lands on /work/tasks/:id?view=mine', async () => {
+    renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
+    await waitFor(() => screen.getByLabelText(/title/i))
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Saved view task' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks/new-task-id?view=mine'))
+  })
+
+  it('AC-311: archive success from /work/tasks/task-abc?view=mine returns to /work/tasks?view=mine', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    vi.mocked(archiveTask).mockResolvedValue(undefined)
+    renderSurfaceRoute('/work/tasks/task-abc?view=mine')
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^archive$/i }))
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
+  })
+})
 
 describe('TaskSurface — create mode', () => {
   it('AC-080 (TaskSurface create): R/A default to creator, BU defaults to primary-role BU; all editable', async () => {
