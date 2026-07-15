@@ -44,6 +44,13 @@ typecheck/lint zero, RLS on every new table, review ledger + `scripts/pre-merge-
 | 8 | **Projects & Processes + Objectives** | Re-home the merged catalog screens (PR #81) under `/work/projects` + `/work/objectives`; governance visibility per capability (90%-employee-first) | catalog screens — RELABEL/re-home only | no | **No** | no |
 | 9 | **Money + Inbox alignment** | Follow-ups = Tasks saved view + Money queue entry (one record, two doors — D9); Inbox unchanged otherwise | existing finance screens + tasks views | no | **No** | no |
 | 10 | **Events stub** | `/events` page with job sentence + placeholder; proves the Rule-10 extension path | shell from step 2 | no | **No** | no |
+| 11 | **Decommission sweep** | After successors exist (4/5/8): DELETE the now-dead retired-screen code (`updates-page`, `cascade-page`, ops-log, RACI remnants), remove the parked/skipped e2e tests tied to retired destinations, and scan+fix any stale internal links or dead imports. One clean "old app is gone" checkpoint. | n/a (removal only) | no | **No** | **YES — final visual/regression pass** |
+
+**Step 11 note:** runs LAST, only after Signals (4), Home (5), and Catalog (8) have replaced every
+retired surface — never before, or users lose a function with no successor. It removes code, adds
+none. The ~5 e2e currently `.skip`'d with "successor lands in step N" notes are un-skipped or deleted
+here once their successor is live. This is the difference between "old stuff hidden" and "old stuff
+actually gone."
 
 ## Standing acceptance (every step)
 

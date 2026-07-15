@@ -1,6 +1,12 @@
 # Spec — Strategy-to-Execution cascade (first slice: foundation + person-load view)
 
-- Status: Draft (2026-06-23) — awaiting owner sign-off
+> **SUPERSEDED by the E7 redesign (2026-07-10/14, ADR-0025 + OD-REDESIGN).** The "Cascade"
+> destination/noun is retired; its successor is the Projects & Processes catalog under Work,
+> re-homed in buildout **Step 8** (`docs/plans/2026-07-14-redesign-buildout.md`). The dead
+> cascade-page code is removed in the **Step 11 decommission sweep**. Kept for history — do not build
+> from this spec.
+
+- Status: SUPERSEDED (was Draft 2026-06-23) — see banner above
 - Source decisions: **ADR-0014** (cascade foundation, additive topology), **OD-C-1** (`docs/decisions.md`)
 - Vocabulary: `CONTEXT.md` § Cascade · § Ownership
 
