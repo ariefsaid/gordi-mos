@@ -710,7 +710,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
                 />
               </button>
               {mobileOptionsOpen && (
-                <div id="mobile-task-options-panel">
+                <div id="mobile-task-options-panel" className="mobile-task-options-panel">
                   {tasksToolbar}
                 </div>
               )}
