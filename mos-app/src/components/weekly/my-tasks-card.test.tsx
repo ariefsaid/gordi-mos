@@ -1,5 +1,4 @@
-// MyTasksCard tests — PR-4 (AC-W01..W04, AC-W06)
-// TDD RED phase: these fail until my-tasks-card.tsx is implemented.
+// MyTasksCard tests — PR-4 (AC-W01..W04, AC-W06), OD-62 typed Home Task contract.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -136,18 +135,19 @@ beforeEach(() => {
   mockListTasks.mockResolvedValue([taskBlocked, taskInProgress, taskOpen, taskOther])
 })
 
-// ── AC-W01: lists R/A tasks off-track-first as name-chip links ───────────────
-describe('AC-W01: lists R/A tasks off-track-first as name-chip links', () => {
-  it('AC-W01: shows rows for tasks where viewer is R or A (not C-only tasks)', async () => {
+// ── AC-W01: lists PIC/Supervisor tasks off-track-first as name-chip links ─────
+describe('AC-W01: lists PIC/Supervisor tasks off-track-first as name-chip links', () => {
+  it('AC-W01: shows rows where viewer is PIC or Supervisor (not a consulted-only task)', async () => {
     await renderCard()
-    // R/A tasks visible
+    // PIC/Supervisor tasks visible
     await waitFor(() =>
       expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
     )
     expect(screen.getByText('Approve new bar opening checklist')).toBeInTheDocument()
     expect(screen.getByText('Draft August staff roster — all units')).toBeInTheDocument()
-    // C-only task hidden
+    // A consulted-only task is not part of the typed ownership view.
     expect(screen.queryByText('Unrelated task someone else owns')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/RACI|Owner \(R\)|Responsible \(R\)|\+\d+/)
   })
 
   it('AC-W01: off-track-first — Blocked row appears before Open row', async () => {
@@ -224,16 +224,12 @@ describe('AC-W02: mini-table th use the weight-400 overline (shared class)', () 
     })
   })
 
-  it('AC-W02: renders exactly 5 column headers: Task / Status / Owner (R) / Due / Activity', async () => {
+  it('AC-W02: renders exactly 7 typed column headers: Task / Status / Team / PIC / Supervisor / Due / Activity', async () => {
     await renderCard()
     const headers = screen.getAllByRole('columnheader')
     const texts = headers.map(h => h.textContent?.trim())
-    expect(texts).toContain('Task')
-    expect(texts).toContain('Status')
-    expect(texts).toContain('Owner (R)')
-    expect(texts).toContain('Due')
-    expect(texts).toContain('Activity')
-    expect(headers).toHaveLength(5)
+    expect(texts).toEqual(['Task', 'Status', 'Team', 'PIC', 'Supervisor', 'Due', 'Activity'])
+    expect(headers).toHaveLength(7)
   })
 })
 
@@ -247,20 +243,22 @@ describe('RI-MOBILE: MyTasksCard reflows to cards below the DataTable breakpoint
 
     expect(container.querySelector('.mini-mobile-list')).not.toBeNull()
     expect(screen.queryByRole('columnheader', { name: 'Activity' })).toBeNull()
-    expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Team').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('PIC').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Supervisor').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Due').length).toBeGreaterThan(0)
   })
 })
 
 // ── AC-W03: empty — "you're clear" copy ──────────────────────────────────────
-describe('AC-W03: empty state shows the "you\'re clear" message', () => {
-  it('AC-W03: shows clear copy when no R/A tasks', async () => {
-    // listTasks returns tasks, but none where viewer is R or A
+describe('AC-W03: empty state shows the typed "you\'re clear" message', () => {
+  it('AC-W03: shows clear copy when no PIC/Supervisor tasks exist', async () => {
+    // listTasks returns tasks, but none where viewer is PIC or Supervisor.
     mockListTasks.mockResolvedValue([taskOther])
     await renderCard()
     await waitFor(() =>
       expect(
-        screen.getByText("No tasks where you're R or A this week — you're clear."),
+        screen.getByText("No tasks where you're PIC or Supervisor this week — you're clear."),
       ).toBeInTheDocument(),
     )
   })
@@ -270,7 +268,7 @@ describe('AC-W03: empty state shows the "you\'re clear" message', () => {
     await renderCard()
     await waitFor(() =>
       expect(
-        screen.getByText("No tasks where you're R or A this week — you're clear."),
+        screen.getByText("No tasks where you're PIC or Supervisor this week — you're clear."),
       ).toBeInTheDocument(),
     )
   })
@@ -324,16 +322,16 @@ describe('AC-W04: loading skeleton and scoped inline error with Retry', () => {
       fireEvent.click(screen.getByRole('button', { name: /Retry/i }))
       await Promise.resolve()
     })
-    // After retry: error gone, empty state shown
+    // After retry: error gone, typed empty state shown
     await waitFor(() =>
       expect(
-        screen.getByText("No tasks where you're R or A this week — you're clear."),
+        screen.getByText("No tasks where you're PIC or Supervisor this week — you're clear."),
       ).toBeInTheDocument(),
     )
   })
 })
 
-// ── AC-W06: name truncation + title attr; status never wraps ─────────────────
+// ── AC-W06: name truncation + title attr; typed ownership never leaks RACI ─────
 describe('AC-W06: name cell truncates + carries title; status cells nowrap', () => {
   it('AC-W06: name link has title attribute equal to the task title', async () => {
     await renderCard()

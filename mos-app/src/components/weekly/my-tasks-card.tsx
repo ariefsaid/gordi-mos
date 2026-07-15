@@ -1,18 +1,16 @@
 // MyTasksCard — My Week dominant module (PR-4, AC-W01..W06).
-// Fetches tasks where the viewer is R or A, sorts off-track-first, and renders
-// a mini-table with the shared overline header treatment (OD-P4-10, AC-W02).
+// Fetches tasks where the viewer is PIC or Supervisor, sorts off-track-first, and
+// renders the typed Team/PIC/Supervisor grammar (OD-62, AC-W02).
 // Loading: skeleton rows; Error: scoped inline Retry (rest of My Week unaffected).
 // Empty: "you're clear" copy (AC-W03). Name chip-link to /tasks/:id (AC-W01/W06).
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { listTasks } from '@/lib/db/tasks'
-import { getPeople } from '@/lib/db/directory'
-import type { PersonOption } from '@/lib/db/directory'
-import { raciOwner } from '@/lib/raci-member'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { StatusPill } from '@/components/tasks/status-pill'
-import { OwnerCell } from '@/components/tasks/owner-cell'
-import { formatDate, formatAge, otherRaciCount } from '@/components/tasks/task-formatters'
+import { formatDate, formatAge } from '@/components/tasks/task-formatters'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -28,9 +26,10 @@ type MyTasksCardProps = {
 type FetchedData = {
   tasks: TaskListRow[]
   personMap: Map<string, string>
+  teamMap: Map<string, string>
 }
 
-const desktopMiniColWidths = ['auto', '144px', '220px', '184px', '88px'] as const
+const desktopMiniColWidths = ['auto', '120px', '160px', '180px', '180px', '144px', '88px'] as const
 
 export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -40,13 +39,16 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const load = useCallback(() => {
     let cancelled = false
     setLoadState('loading')
-    Promise.all([listTasks({}), getPeople()])
-      .then(([tasks, people]) => {
+    Promise.all([listTasks({}), getBusinessUnits(), getPeople()])
+      .then(([tasks, teams, people]) => {
         if (cancelled) return
         const personMap = new Map<string, string>(
           (people as PersonOption[]).map(p => [p.id, p.full_name]),
         )
-        setData({ tasks, personMap })
+        const teamMap = new Map<string, string>(
+          (teams as BusinessUnitOption[]).map(team => [team.id, team.name]),
+        )
+        setData({ tasks, personMap, teamMap })
         setLoadState('ready')
       })
       .catch(() => {
@@ -62,7 +64,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   // ── Filter + sort (client-side, org-readable set, Gordi scale is trivial) ──
   const myTasks: TaskListRow[] = data
     ? data.tasks
-      .filter(t => raciOwner(t, viewerId))
+      .filter(t => t.responsible_person_id === viewerId || t.accountable_person_id === viewerId)
       .sort((a, b) => compareOffTrackFirst(a, b, now))
     : []
 
@@ -74,7 +76,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
     >
       <CardHead
         title="My tasks"
-        meta="Where you're Responsible or Accountable · off track first"
+        meta="Where you're PIC or Supervisor · off track first"
         action={
           <Link
             to="/tasks"
@@ -128,7 +130,9 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
             <tr>
               <th scope="col" className="th-overline">Task</th>
               <th scope="col" className="th-overline">Status</th>
-              <th scope="col" className="th-overline">Owner (R)</th>
+              <th scope="col" className="th-overline">Team</th>
+              <th scope="col" className="th-overline">PIC</th>
+              <th scope="col" className="th-overline">Supervisor</th>
               <th scope="col" className="th-overline">Due</th>
               <th scope="col" className="th-overline">Activity</th>
             </tr>
@@ -138,10 +142,10 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
               // AC-W03: empty state — preserve existing "you're clear" copy
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={7}
                   className="mini-td text-center text-muted-foreground"
                 >
-                  No tasks where you&apos;re R or A this week — you&apos;re clear.
+                  No tasks where you&apos;re PIC or Supervisor this week — you&apos;re clear.
                 </td>
               </tr>
             ) : (
@@ -151,13 +155,14 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
                   task={task}
                   now={now}
                   personMap={data!.personMap}
+                  teamMap={data!.teamMap}
                 />
               ))
             )}
           </tbody>
         </table>
       ) : (
-        <MobileTaskList tasks={myTasks} now={now} personMap={data!.personMap} />
+        <MobileTaskList tasks={myTasks} now={now} personMap={data!.personMap} teamMap={data!.teamMap} />
       ))}
     </section>
   )
@@ -168,9 +173,10 @@ type MiniTaskRowProps = {
   task: TaskListRow
   now: Date
   personMap: Map<string, string>
+  teamMap: Map<string, string>
 }
 
-function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
+function MiniTaskRow({ task, now, personMap, teamMap }: MiniTaskRowProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const dueClass = taskOverdue ? 'mini-due-overdue' : ds === 'soon' ? 'mini-due-soon' : ds === 'calm' ? 'mini-due-calm' : 'mini-due-none'
@@ -179,10 +185,9 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
       ? `Overdue · ${formatDate(task.due_date)}`
       : formatDate(task.due_date))
     : '—'
-
-  const ownerName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id
-  const others = buildOthers(task, task.responsible_person_id, personMap)
-  const otherN = otherRaciCount(task)
+  const teamName = teamMap.get(task.business_unit_id) ?? task.business_unit_id
+  const picName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id
+  const supervisorName = personMap.get(task.accountable_person_id) ?? task.accountable_person_id
 
   return (
     <tr>
@@ -200,14 +205,9 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
         {/* AC-W01: StatusPill (dot + text, AC-W06: never wraps) */}
         <StatusPill status={task.status} />
       </td>
-      <td className="mini-td">
-        {/* AC-W01: R-avatar + name + "+N" others */}
-        <OwnerCell
-          fullName={ownerName}
-          otherCount={otherN}
-          others={others}
-        />
-      </td>
+      <td className="mini-td">{teamName}</td>
+      <td className="mini-td">{picName}</td>
+      <td className="mini-td">{supervisorName}</td>
       <td className={`mini-td mini-td-nowrap mini-due-cell tabular-nums ${dueClass}`}>
         {dueText}
       </td>
@@ -218,11 +218,11 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
   )
 }
 
-function MobileTaskList({ tasks, now, personMap }: { tasks: TaskListRow[]; now: Date; personMap: Map<string, string> }) {
+function MobileTaskList({ tasks, now, personMap, teamMap }: { tasks: TaskListRow[]; now: Date; personMap: Map<string, string>; teamMap: Map<string, string> }) {
   if (tasks.length === 0) {
     return (
       <div className="mini-mobile-empty text-muted-foreground">
-        No tasks where you&apos;re R or A this week — you&apos;re clear.
+        No tasks where you&apos;re PIC or Supervisor this week — you&apos;re clear.
       </div>
     )
   }
@@ -230,22 +230,22 @@ function MobileTaskList({ tasks, now, personMap }: { tasks: TaskListRow[]; now: 
   return (
     <div className="mini-mobile-list">
       {tasks.map(task => (
-        <MobileTaskCard key={task.id} task={task} now={now} personMap={personMap} />
+        <MobileTaskCard key={task.id} task={task} now={now} personMap={personMap} teamMap={teamMap} />
       ))}
     </div>
   )
 }
 
-function MobileTaskCard({ task, now, personMap }: MiniTaskRowProps) {
+function MobileTaskCard({ task, now, personMap, teamMap }: MiniTaskRowProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const dueClass = taskOverdue ? 'mini-due-overdue' : ds === 'soon' ? 'mini-due-soon' : ds === 'calm' ? 'mini-due-calm' : 'mini-due-none'
   const dueText = task.due_date
     ? (taskOverdue ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
     : '—'
-  const ownerName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id
-  const others = buildOthers(task, task.responsible_person_id, personMap)
-  const otherN = otherRaciCount(task)
+  const teamName = teamMap.get(task.business_unit_id) ?? task.business_unit_id
+  const picName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id
+  const supervisorName = personMap.get(task.accountable_person_id) ?? task.accountable_person_id
 
   return (
     <article className="mini-mobile-card">
@@ -258,8 +258,16 @@ function MobileTaskCard({ task, now, personMap }: MiniTaskRowProps) {
           <StatusPill status={task.status} />
         </div>
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">Owner</span>
-          <OwnerCell fullName={ownerName} otherCount={otherN} others={others} />
+          <span className="mini-mobile-label">Team</span>
+          <span className="mini-mobile-value">{teamName}</span>
+        </div>
+        <div className="mini-mobile-field">
+          <span className="mini-mobile-label">PIC</span>
+          <span className="mini-mobile-value">{picName}</span>
+        </div>
+        <div className="mini-mobile-field">
+          <span className="mini-mobile-label">Supervisor</span>
+          <span className="mini-mobile-value">{supervisorName}</span>
         </div>
         <div className="mini-mobile-field">
           <span className="mini-mobile-label">Due</span>
@@ -322,28 +330,6 @@ function compareOffTrackFirst(a: TaskListRow, b: TaskListRow, now: Date): number
   if (!a.due_date) return 1
   if (!b.due_date) return -1
   return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
-}
-
-/** Build the "others" list for OwnerCell (A + C + I persons who are NOT the R). */
-function buildOthers(
-  task: TaskListRow,
-  rId: string,
-  personMap: Map<string, string>,
-) {
-  const seen = new Set<string>()
-  const result: { role: 'A' | 'C' | 'I'; name: string }[] = []
-
-  function add(id: string, role: 'A' | 'C' | 'I') {
-    if (id !== rId && !seen.has(id)) {
-      seen.add(id)
-      result.push({ role, name: personMap.get(id) ?? id })
-    }
-  }
-
-  add(task.accountable_person_id, 'A')
-  for (const id of task.consulted_person_ids) add(id, 'C')
-  for (const id of task.informed_person_ids) add(id, 'I')
-  return result
 }
 
 /** Skeleton body rows while loading (AC-W04). */
