@@ -11,19 +11,22 @@ import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
-test('AC-102 (J4): deep-link to /tasks/:id renders the table AND that task drawer together', async ({ page }) => {
+test('AC-102 (J4): deep-link to /tasks/:id opens the standalone full canonical page (OD-63)', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   const taskId = TASKS.VIEWER_ACCOUNTABLE.id
   const title = TASKS.VIEWER_ACCOUNTABLE.title
 
-  // Land directly on the deep link (e.g. from My Week / Daily Log).
+  // Land directly on the deep link (e.g. from My Week / Daily Log / a new tab).
   await page.goto(`work/tasks/${taskId}`)
   await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
 
-  // Both panes render: the persistent table AND the task's drawer.
-  const drawer = page.getByRole('complementary', { name: /task detail/i })
-  await expect(drawer.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('region', { name: 'Tasks' })).toBeVisible()
+  // OD-63: a direct/new-tab/refresh renders the SAME record as a standalone full
+  // canonical page — not inside the table+drawer shell. The one TaskSurface renderer
+  // shows the record identity (<h1>); no table region, no split drawer.
+  await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.record-2col')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
+  await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
 })
 
 test.describe('mobile', () => {
@@ -51,7 +54,7 @@ test.describe('mobile', () => {
     await expect(page.getByRole('combobox', { name: 'Group' })).toBeVisible()
   })
 
-  test('AC-110 (J5): on a phone, /tasks/:id is a full-screen modal; back returns to the card list', async ({ page }) => {
+  test('AC-110 (J5): on a phone, a direct /tasks/:id opens the full record page (OD-63)', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
     const taskId = TASKS.VIEWER_ACCOUNTABLE.id
     const title = TASKS.VIEWER_ACCOUNTABLE.title
@@ -59,15 +62,14 @@ test.describe('mobile', () => {
     await page.goto(`work/tasks/${taskId}`)
     await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
 
-    // Full-screen modal dialog (no 1/3 drawer on a phone).
-    const dialog = page.getByRole('dialog', { name: /task detail/i })
-    await expect(dialog.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('.drawer-modal.drawer-fullscreen')).toBeVisible()
+    // OD-63: a direct open renders the record as a standalone full page on mobile too
+    // (not the in-list modal — that is reserved for an in-list card tap).
+    await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('dialog', { name: /task detail/i })).toHaveCount(0)
 
-    // Esc closes back to the list (the modal's document-level Esc handler).
-    await page.keyboard.press('Escape')
+    // Navigate to the list → the mobile card list is the phone form.
+    await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
-    // The list form on mobile is the card list.
     await expect(page.locator('[data-testid="task-card"]').first()).toBeVisible({ timeout: 10_000 })
   })
 })

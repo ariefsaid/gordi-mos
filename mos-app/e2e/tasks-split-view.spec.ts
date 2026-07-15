@@ -57,21 +57,29 @@ test('AC-104 (J2): expand toggle keeps the URL, goes full width, and persists', 
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await drawer.getByRole('button', { name: /expand to full width/i }).click()
 
-  // Same URL (no history push) + the surface is now expanded full width.
-  // expand@split PROMOTES the drawer to the two-column record page (ADR-0013 D3 / #49) —
-  // .record-2col is the full-width oracle (the older .dw-surface-expanded was the pre-#49
-  // "widen the drawer" treatment). The table column collapses (.split.expanded).
+  // Same URL (no history push) + the surface promotes to the two-column record page
+  // (ADR-0013 D3 / #49) — .record-2col is the full-width oracle; the table column
+  // collapses (.split.expanded).
   expect(page.url()).toBe(url)
   await expect(page.locator('.record-2col')).toBeVisible()
   await expect(page.locator('.split.expanded')).toBeVisible()
 
-  // Persisted per-user-global: reload → still expanded.
+  // Per-user-global: the expand preference persisted to localStorage.
+  await expect.poll(
+    () => page.evaluate(() => localStorage.getItem('mos.tasks.expandDefault')),
+  ).toBe('true')
+
+  // Collapse back to split so the preference doesn't leak into later specs.
+  await page.getByRole('button', { name: /collapse to split/i }).click()
+  await expect(page.locator('.split.expanded')).toHaveCount(0)
+
+  // OD-63: a refresh (direct open) of /work/tasks/:id renders the SAME record as a
+  // standalone full canonical page — not inside the table+drawer shell. The expand
+  // preference does not apply to the standalone page (it has no drawer chrome).
   await page.reload()
   await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(\?.*)?$/)
   await expect(page.locator('.record-2col')).toBeVisible({ timeout: 10_000 })
-
-  // Collapse again so the preference doesn't leak into later specs.
-  await page.getByRole('button', { name: /collapse to split/i }).click()
+  await expect(page.locator('.split')).toHaveCount(0)
 })
 
 test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in the table', async ({ page }) => {
@@ -82,7 +90,7 @@ test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in
   // The create drawer renders beside the table (no second editor).
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
-  await form.getByLabel('Business unit').waitFor({ state: 'visible' })
+  await form.getByLabel('Team').waitFor({ state: 'visible' })
   await form.getByRole('button', { name: /create task/i }).click()
 
   // Transitions in place to the new task's view-mode drawer on /tasks/:newId.

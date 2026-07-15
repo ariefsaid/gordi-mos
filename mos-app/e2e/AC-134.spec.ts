@@ -277,8 +277,9 @@ test(
   await page.waitForURL(/\/work\/tasks\/new(\?|$)/, { timeout: 10_000 })
   expect(page.url()).toContain(`r=${P_RAMA}`)
 
-  // Create surface mounts and the Responsible (R) select is pre-filled with Rama's person ID.
-  const responsibleSelect = page.getByRole('combobox', { name: /Responsible \(R\)/i })
+  // Create surface mounts and the PIC select is pre-filled with Rama's person ID
+  // (OD-62: typed Task ownership — the field is 'PIC', was 'Responsible (R)').
+  const responsibleSelect = page.getByRole('combobox', { name: /^pic$/i })
   await expect(responsibleSelect).toBeVisible({ timeout: 10_000 })
   await expect(responsibleSelect).toHaveValue(P_RAMA)
 })

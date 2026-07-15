@@ -23,7 +23,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await page.goto(`work/tasks/new?view=mine&r=${VIEWER.personId}`)
   await expect(page).toHaveURL(new RegExp(`/work/tasks/new\\?view=mine&r=${VIEWER.personId}$`))
   const createForm = page.getByRole('form', { name: /create task form/i })
-  await expect(createForm.getByLabel(/^responsible \(r\)/i)).toHaveValue(VIEWER.personId)
+  await expect(createForm.getByLabel(/^pic$/i)).toHaveValue(VIEWER.personId)
   await createForm.getByRole('button', { name: /cancel/i }).click()
   await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/)
   await expect(page.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
@@ -58,21 +58,24 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
   const recordUrl = page.url()
 
+  // OD-63: a refresh (direct open) renders the record as a standalone full page —
+  // the saved view (?view=overdue) is preserved in the URL (Rule 4). The page has
+  // no table/toolbar shell, so the Overdue chip is verified by returning to the list.
   await page.reload()
   await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
-  await expect(page.getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('heading', { name: overdueTitle })).toBeVisible()
 
-  await page.getByRole('button', { name: /close \(esc\)/i }).click()
-  await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
+  // Return to the list — the saved view is still active: Overdue chip pressed,
+  // overdue row present, future row absent.
+  await page.goto('work/tasks?view=overdue')
   await expect(page.getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('tr.task-row', { hasText: overdueTitle }).first()).toBeVisible()
   await expect(page.locator('tr.task-row', { hasText: futureTitle })).toHaveCount(0)
 
+  // New tab / direct URL of the record → the same full page, ?view= preserved.
   const secondPage = await context.newPage()
   await secondPage.goto(recordUrl)
   await expect(secondPage).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
-  await expect(secondPage.getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(secondPage.getByRole('heading', { name: overdueTitle })).toBeVisible({ timeout: 15_000 })
 })
 

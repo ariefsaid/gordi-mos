@@ -18,8 +18,9 @@ export async function createTaskViaUI(
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
 
-  // BU should already be pre-filled (creator's primary-role BU) — verify it's there.
-  await form.getByLabel('Business unit').waitFor({ state: 'visible' })
+  // Team (the create-form's BU field) should already be pre-filled (creator's
+  // primary-role BU) — verify it's there. (OD-62: the field is labeled 'Team'.)
+  await form.getByLabel('Team').waitFor({ state: 'visible' })
 
   // Submit
   await form.getByRole('button', { name: /create task/i }).click()

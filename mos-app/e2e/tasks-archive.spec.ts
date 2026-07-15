@@ -18,12 +18,12 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   const taskTitle = TASKS.VIEWER_ACCOUNTABLE.title
   await page.goto(`work/tasks/${taskId}`)
   await page.waitForURL(new RegExp(`/work/tasks/${taskId}(\\?.*)?$`))
-  // The split-view drawer hosts the task surface (ADR-0007); title is its heading.
-  const drawer = page.getByRole('complementary', { name: /task detail/i })
-  await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible({ timeout: 10_000 })
+  // OD-63: a direct open renders the record as a standalone full canonical page
+  // (the one TaskSurface renderer); its title is the page <h1>.
+  await expect(page.getByRole('heading', { name: taskTitle })).toBeVisible({ timeout: 10_000 })
 
-  // ── 3. Archive the task from the drawer ─────────────────────────────────────
-  const archiveBtn = drawer.getByRole('button', { name: /archive task/i })
+  // ── 3. Archive the task from the record page ──────────────────────────────
+  const archiveBtn = page.getByRole('button', { name: /archive task/i })
   await expect(archiveBtn).toBeVisible()
   await archiveBtn.click()
 
@@ -38,23 +38,23 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // ── 4. Assert: task is NOT in the default list ──────────────────────────────
   // Switch to "All" to broaden the scope — but archived tasks should still be hidden
   await page.getByRole('button', { name: 'Team work', exact: true }).click()
-  // Wait a moment for the list to load
-  await page.waitForTimeout(1_000)
-  await expect(page.getByText(taskTitle)).not.toBeVisible()
+  // Assert on the row (the visible oracle): the archived task's title span is CSS-clipped
+  // in the dense column, so getByText on the span is unreliable.
+  const taskRow = page.locator('tr', { hasText: taskTitle }).or(
+    page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
+  )
+  await expect(taskRow).toHaveCount(0)
 
   // ── 5. Toggle "Show archived" — task reappears ──────────────────────────────
   const archivedToggle = page.getByLabel(/show archived/i)
   await archivedToggle.check()
 
-  // The archived task should now be visible
-  await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
+  // The archived task's row is now visible in the list.
+  await expect(taskRow.first()).toBeVisible({ timeout: 10_000 })
 
   // ── 6. Assert: row still exists (no hard delete) ────────────────────────────
   // Click through to the detail — still accessible, just archived
-  const taskRow = page.locator('tr', { hasText: taskTitle }).or(
-    page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
-  )
-  await taskRow.click()
+  await taskRow.first().click()
   await page.waitForURL(new RegExp(`/work/tasks/${taskId}(\\?.*)?$`))
   // Detail shows archived banner
   await expect(page.getByText(/this task is archived/i)).toBeVisible()
