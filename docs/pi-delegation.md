@@ -57,7 +57,30 @@ pi --provider openai-codex --model gpt-5.6-luna --thinking max -p --no-session \
 
 The pi flag for max reasoning is **`--thinking max`** (levels: off/minimal/low/medium/high/xhigh/max;
 verified via `pi --help` 2026-07-15). Luna slug + `--thinking max` smoke-tested live 2026-07-15.
-Always pass `--thinking max` for Luna. Smoke-test the model slug first:
+Always pass `--thinking max` for Luna.
+
+**Luna is VISION-CAPABLE — it can run the design/UX review (owner-directed 2026-07-15, smoke-tested).**
+This SUPERSEDES the old "vision review must be Claude/Director; pi models are text-only" rule *for
+Luna specifically*. Luna reads images via pi's `@` attachment as a **separate argument** (NOT
+concatenated into the prompt string):
+
+```bash
+pi --provider openai-codex --model gpt-5.6-luna --thinking max -p --no-session \
+  --append-system-prompt .claude/agents/design-reviewer.md \
+  "@/abs/path/screen-desktop.png" "@/abs/path/screen-phone.png" \
+  "<4-lens design-review brief: Visual · IxD · IA · Product/JTBD + Rule-12 walkthrough>" < /dev/null
+```
+
+Verified live 2026-07-15: Luna correctly described a supplied app screenshot. **Proven pattern:**
+the Director (or a cheap pi/agent-browser driver) captures screenshots to files, then Luna judges
+them against `docs/experience-contract.md` (Rules 1–12), `docs/jtbd.md`, and
+`docs/reference/twenty-ixd-patterns.md`. The Director keeps only the FINAL taste sign-off + owner-facing
+screenshots — the bulk 4-lens design review is now delegable to Luna, saving Director context. (A
+fully-autonomous Luna run that drives agent-browser AND reads its own screenshots is plausible but
+smoke-test the agent-captures-then-sees loop at first use; the capture-then-attach pattern above is
+the proven one.)
+
+Smoke-test the model slug first:
 `pi --provider openai-codex --model gpt-5.6-luna -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
 Historical ledgers/audits that name gpt-5.4 or gpt-5.5 record the model that actually ran then — do
 not rewrite them; Luna is the go-forward model.

@@ -63,9 +63,11 @@ actually gone."
   blocks merge exactly like a failing gate.
 - **Design / UX review EVERY step, not just code review (owner-directed 2026-07-15).** Alongside the
   cross-family code review, every UI step gets a **four-lens design review — Visual · IxD · IA ·
-  Product/Intent (JTBD)** that goes back to the *intent*, run by a **vision-capable reviewer** (the
-  Director driving the live app via Playwright, or an opus Claude design-reviewer — NOT the text-only
-  pi/GLM/Luna builders, which can't judge pixels, flow-naturalness, or taste). It scores, in the ledger:
+  Product/Intent (JTBD)** that goes back to the *intent*, run by a **vision-capable reviewer**. Luna
+  (`gpt-5.6-luna`, vision-capable, smoke-tested 2026-07-15) runs the bulk review from captured
+  screenshots via pi's `@image` attach (`docs/pi-delegation.md` Luna section); the Director keeps the
+  final taste sign-off + owner screenshots (an opus Claude design-reviewer is the alternative). The
+  text-only GLM builders cannot do this lens. It scores, in the ledger:
   - **Intent (JTBD, `docs/jtbd.md`):** does the screen serve the real job of its least-technical
     persona, or just expose the data model?
   - **IA / IxD (`docs/reference/twenty-ixd-patterns.md`):** is the navigation, record-open, and
