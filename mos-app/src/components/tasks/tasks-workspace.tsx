@@ -637,6 +637,10 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       setSearchText={setSearchText}
       includeArchived={includeArchived}
       setIncludeArchived={setIncludeArchived}
+      overdueCount={stats?.overdue ?? 0}
+      overdueOnly={overdueOnly}
+      onOverdueFilter={() => setOverdueOnly(true)}
+      onClearOverdue={() => setOverdueOnly(false)}
       buOptions={busDirectory}
       personOptions={peopleDirectory}
     />
@@ -654,44 +658,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           ) : undefined
         }
         meta={
-          <>
-            {/* Blocked + clickable "N overdue" subtotals (AC-128 / FR-126). The task
-                count itself rides the count pill; this slot carries the off-track meta. */}
-            <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
-              {stats === null ? '—' : (
-                <>
-                  {stats.blocked > 0 && (
-                    <>{stats.blocked} blocked</>
-                  )}
-                  {/* Zero-overdue: omit entirely (AC-133). Non-zero: render as click-to-filter button */}
-                  {stats.overdue > 0 && (
-                    <>
-                      {stats.blocked > 0 && ' · '}
-                      <button
-                        type="button"
-                        className="overdue-filter-btn"
-                        aria-label={`Filter to ${stats.overdue} overdue tasks`}
-                        onClick={() => setOverdueOnly(true)}
-                      >
-                        {stats.overdue} overdue
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
-            </span>
-            {/* Overdue-only active chip (AC-128 — clearable transient filter) */}
-            {overdueOnly && (
-              <button
-                type="button"
-                className="overdue-chip"
-                aria-label="Clear overdue filter"
-                onClick={() => setOverdueOnly(false)}
-              >
-                Overdue only ✕
-              </button>
-            )}
-          </>
+          <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
+            {stats === null ? '—' : stats.blocked > 0 ? `${stats.blocked} blocked` : null}
+          </span>
         }
       />
 

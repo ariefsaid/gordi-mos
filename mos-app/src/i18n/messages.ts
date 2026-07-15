@@ -255,6 +255,7 @@ export const messages = {
     'commandMenu.footer.navigate': 'navigate',
     'commandMenu.footer.open': 'open',
     'commandMenu.footer.close': 'close',
+    'actionLauncher.open': 'Open actions',
   },
   id: {
     'dest.home': 'Beranda',
@@ -502,6 +503,7 @@ export const messages = {
     'commandMenu.footer.navigate': 'navigasi',
     'commandMenu.footer.open': 'buka',
     'commandMenu.footer.close': 'tutup',
+    'actionLauncher.open': 'Buka aksi',
   },
 } as const
 

@@ -68,7 +68,12 @@ function ShellContent() {
         </div>
 
         {/* BottomTabBar — grid-area: tabbar, phone-first primary nav (ADR-0019 D8, plan §4.4) */}
-        {isNarrow && <BottomTabBar onOpenMore={() => setDrawerOpen(true)} />}
+        {isNarrow && (
+          <BottomTabBar
+            onOpenMore={() => setDrawerOpen(true)}
+            onOpenActionLauncher={() => setSearchOpen(true)}
+          />
+        )}
       </div>
 
       {/* Mobile drawer — rendered outside the grid so it can be fixed/overlaid.

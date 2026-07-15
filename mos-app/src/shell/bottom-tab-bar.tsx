@@ -22,6 +22,8 @@ const PRIMARY_IDS = new Set(['home', 'work', 'cafe', 'inbox'])
 type BottomTabBarProps = {
   /** Opens the More menu (the mobile drawer). */
   onOpenMore?: () => void
+  /** Opens the shared Action Launcher/command registry. */
+  onOpenActionLauncher?: () => void
 }
 
 /**
@@ -32,7 +34,7 @@ type BottomTabBarProps = {
  * destination is active (Events/Money/Ecommerce/Roastery/Admin/Profile) — the
  * More button carries it (Rule 5 / Rule 9).
  */
-export function BottomTabBar({ onOpenMore }: BottomTabBarProps) {
+export function BottomTabBar({ onOpenMore, onOpenActionLauncher }: BottomTabBarProps) {
   const isNarrow = useIsNarrow()
   const t = useT()
   const { pathname } = useLocation()
@@ -77,6 +79,17 @@ export function BottomTabBar({ onOpenMore }: BottomTabBarProps) {
           <MoreIcon />
         </span>
         <span className="bottom-tab-label">{t('nav.more')}</span>
+      </button>
+      {/* OD-61 / OD-REDESIGN-46: the plus only opens the shared command registry;
+          it never guesses a default action. */}
+      <button
+        type="button"
+        className="mobile-action-launcher"
+        aria-label={t('actionLauncher.open')}
+        aria-haspopup="dialog"
+        onClick={onOpenActionLauncher}
+      >
+        <span aria-hidden="true">+</span>
       </button>
     </nav>
   )

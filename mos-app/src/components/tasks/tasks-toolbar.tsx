@@ -35,6 +35,10 @@ export type TasksToolbarProps = {
   setSearchText: Dispatch<SetStateAction<string>>
   includeArchived: boolean
   setIncludeArchived: Dispatch<SetStateAction<boolean>>
+  overdueCount: number
+  overdueOnly: boolean
+  onOverdueFilter: () => void
+  onClearOverdue: () => void
   buOptions: BusinessUnitOption[]
   personOptions: PersonOption[]
 }
@@ -80,6 +84,7 @@ export function TasksToolbar({
   savedView, onSavedViewChange,
   searchText, setSearchText,
   includeArchived, setIncludeArchived,
+  overdueCount, overdueOnly, onOverdueFilter, onClearOverdue,
   buOptions, personOptions,
 }: TasksToolbarProps) {
   // Current-value labels shown inside each chip (mockup `.ch-v`).
@@ -186,6 +191,29 @@ export function TasksToolbar({
           onChange={e => setIncludeArchived(e.target.checked)} aria-label="Show archived" className="archived-checkbox" />
         <span className="archived-label">Show archived</span>
       </label>
+
+      <div className="toolbar-overdue-controls" data-testid="tasks-overdue-controls">
+        {overdueCount > 0 && (
+          <button
+            type="button"
+            className="overdue-filter-btn"
+            aria-label={`Filter to ${overdueCount} overdue tasks`}
+            onClick={onOverdueFilter}
+          >
+            {overdueCount} overdue
+          </button>
+        )}
+        {overdueOnly && (
+          <button
+            type="button"
+            className="overdue-chip"
+            aria-label="Clear overdue filter"
+            onClick={onClearOverdue}
+          >
+            Overdue only ✕
+          </button>
+        )}
+      </div>
     </div>
   )
 }

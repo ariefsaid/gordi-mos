@@ -32,13 +32,17 @@ function setAuthAs(accessRoles: string[] = []) {
   })
 }
 
-function renderTabBar(initialPath = '/', { narrow = true, onOpenMore = vi.fn() }: { narrow?: boolean; onOpenMore?: () => void } = {}) {
+function renderTabBar(initialPath = '/', {
+  narrow = true,
+  onOpenMore = vi.fn(),
+  onOpenActionLauncher = vi.fn(),
+}: { narrow?: boolean; onOpenMore?: () => void; onOpenActionLauncher?: () => void } = {}) {
   mockUseIsNarrow.mockReturnValue(narrow)
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
-          <Route path="*" element={<BottomTabBar onOpenMore={onOpenMore} />} />
+          <Route path="*" element={<BottomTabBar onOpenMore={onOpenMore} onOpenActionLauncher={onOpenActionLauncher} />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
@@ -74,6 +78,16 @@ describe('AC-021: phone bottom-nav = Home · Work · Café · Inbox · More', ()
     renderTabBar('/', { onOpenMore })
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i }))
     expect(onOpenMore).toHaveBeenCalledOnce()
+  })
+
+  it('the persistent phone plus launcher opens the approved action launcher', () => {
+    const onOpenActionLauncher = vi.fn()
+    renderTabBar('/', { onOpenActionLauncher })
+    const launcher = screen.getByRole('button', { name: /open actions/i })
+    expect(launcher).toHaveClass('mobile-action-launcher')
+    expect(launcher).toHaveAttribute('aria-haspopup', 'dialog')
+    fireEvent.click(launcher)
+    expect(onOpenActionLauncher).toHaveBeenCalledOnce()
   })
 })
 

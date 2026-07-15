@@ -6,6 +6,7 @@
   height: var(--tabbar-h);
   border-top: 1px solid var(--border);
   background: var(--background);
+  padding-right: 68px;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -45,3 +46,27 @@
   color: var(--primary);
   border-top-color: var(--primary);
 }
+
+/* OD-61 / OD-REDESIGN-46 — thumb-reachable plus opens the shared Action Launcher. */
+.mobile-action-launcher {
+  position: fixed;
+  right: 8px;
+  bottom: calc(4px + env(safe-area-inset-bottom));
+  z-index: 31;
+  width: 56px;
+  height: 56px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-rest);
+  font: 500 28px/1 var(--font-sans);
+  cursor: pointer;
+}
+.mobile-action-launcher:hover { background: var(--accent-hover); }
+.mobile-action-launcher:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

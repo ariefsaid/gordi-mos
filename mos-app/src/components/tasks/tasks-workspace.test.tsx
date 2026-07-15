@@ -178,6 +178,26 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.queryByRole('button', { name: /view options/i })).toBeNull()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
   })
+
+  it('AC-W1-B: member phone keeps overdue filter and clear controls behind View options', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'late', title: 'Overdue mobile work', due_date: '2020-01-01' }),
+      makeTask({ id: 'future', title: 'Future mobile work', due_date: '2030-12-31' }),
+    ])
+
+    renderTable()
+    await waitFor(() => screen.getByText('Overdue mobile work'))
+
+    expect(screen.queryByRole('button', { name: /filter to.*overdue/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /view options/i }))
+    expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /filter to.*overdue/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue filter/i })).toBeInTheDocument())
+  })
 })
 
 // ── Visual-fidelity chrome (feat/ui-fidelity-tasks-chrome) ────────────────────
@@ -501,10 +521,9 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Normal task')).toBeInTheDocument()
     })
 
-    // The page count-line "N overdue" is a button (group subtotals also expose
-    // overdue-filter buttons now that grouping is live — scope to the count line).
-    const overdueBtn = document.querySelector('[data-testid="tasks-count-line"] .overdue-filter-btn') as HTMLButtonElement
-    expect(overdueBtn).toBeTruthy()
+    // The overdue control lives in the toolbar/options surface, not the page head.
+    const overdueBtn = screen.getByRole('button', { name: /filter to.*overdue/i })
+    expect(overdueBtn).toBeInTheDocument()
     expect(overdueBtn.getAttribute('aria-label')).toMatch(/filter to.*overdue/i)
 
     // Click it → only overdue rows shown + clearable chip
@@ -785,10 +804,10 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
       expect(screen.getByText('Done past due')).toBeInTheDocument()
       expect(screen.getByText('Open past due')).toBeInTheDocument()
     })
-    // Page count line: only 1 overdue (Open one), not 2
-    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toMatch(/1 overdue/)
-    expect(countLine?.textContent).not.toMatch(/2 overdue/)
+    // The toolbar control counts only the open task, not the Done task.
+    const overdueButton = screen.getByRole('button', { name: /filter to.*overdue/i })
+    expect(overdueButton).toHaveTextContent('1 overdue')
+    expect(overdueButton).not.toHaveTextContent('2 overdue')
   })
 
   it('RI-1: a Done task with a past due_date does NOT show the red "Overdue ·" row label', async () => {
