@@ -237,3 +237,32 @@ review-blocking defect.*
 **Pass if:** the diff extends/moves existing components; any new component demonstrably has no
 existing counterpart. **Fail if:** a new implementation duplicates an existing surface's job, even
 "temporarily".
+
+## Rule 12 — Usable by a high-school graduate with no training (added 2026-07-15, owner-directed)
+
+The bar is **not** "a power user can figure it out" — it is **"a Gordi staff member with a
+high-school education and zero training completes the job on the first try, unaided."** Usability and
+speed beat model completeness and feature richness (CLAUDE.md charter). This rule is scored by a
+**task-based cold-start walkthrough**, not by taste alone.
+
+**Concretely, on every screen:**
+- **Plain language, no system vocabulary.** UI never exposes internal object names or jargon a
+  barista wouldn't say. "Today's opening checklist," not "Process Run"; "Share an update," not "emit
+  a Signal." (Reinforces OD-58, Rule 7.)
+- **The primary action is obvious without instruction** — one clear next step per screen, not a wall
+  of equal-weight options.
+- **Recognition over recall** — labels + icons the user recognizes; never require memorizing codes,
+  paths, or which internal collection holds their work.
+- **No configuration before the goal** — the user sees their work/does the job first; setup and
+  options are optional and secondary (Rule 8 capture-first).
+- **Helper text compensates for nothing** — if a screen needs a paragraph explaining what an object
+  is, the entry point is wrong. Fix the entry point, don't add prose.
+
+**Pass if:** in a cold-start walkthrough of the step's job (as the least technical persona — a Café
+barista/member, not an admin), the user (a) identifies the starting point unaided, (b) completes the
+job, (c) hits no unexplained noun, (d) always sees an obvious next action, in a reasonable step count
+with no backtracking. **Fail if:** any of those breaks — measured, recorded in the ledger, not vibed.
+
+*Oracle: `docs/jtbd.md` (the job each screen must serve) + `docs/reference/twenty-ixd-patterns.md`
+(the "ruthless reuse → familiar grammar" target). Reusable grammar IS an ease-of-use lever: a user
+who learns one screen already knows the next.*

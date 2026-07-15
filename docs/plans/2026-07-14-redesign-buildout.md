@@ -10,7 +10,7 @@ UI step.** Any agent picking up a step reads this doc first, then the step's spe
 
 ## Read-first for EVERY agent on this workstream
 
-1. `docs/experience-contract.md` — **BINDING**. Rules 1–11 are blocking pass/fail acceptance checks
+1. `docs/experience-contract.md` — **BINDING**. Rules 1–12 are blocking pass/fail acceptance checks
    in every review. Rule 11 (component reuse — never re-implement an existing surface) exists
    because mockup iterations kept re-creating components; in the app it is a review-blocking defect.
 2. `docs/decisions.md` § OD-REDESIGN-1..55 + § "Buildout decisions (2026-07-14)" — domain law.
@@ -59,8 +59,24 @@ actually gone."
   390px in the review ledger, with the owning mockup's reference shot (per SALVAGE-INVENTORY)
   beside each "after". No step merges without the matrix. The interactive walkthroughs at steps
   2/4/6 are in addition to, not instead of, this.
-- Contract Rules 1–11 scored pass/fail in the review ledger (`docs/reviews/<branch>.md`) — a FAIL
+- Contract Rules 1–12 scored pass/fail in the review ledger (`docs/reviews/<branch>.md`) — a FAIL
   blocks merge exactly like a failing gate.
+- **Design / UX review EVERY step, not just code review (owner-directed 2026-07-15).** Alongside the
+  cross-family code review, every UI step gets a **four-lens design review — Visual · IxD · IA ·
+  Product/Intent (JTBD)** that goes back to the *intent*, run by a **vision-capable reviewer** (the
+  Director driving the live app via Playwright, or an opus Claude design-reviewer — NOT the text-only
+  pi/GLM/Luna builders, which can't judge pixels, flow-naturalness, or taste). It scores, in the ledger:
+  - **Intent (JTBD, `docs/jtbd.md`):** does the screen serve the real job of its least-technical
+    persona, or just expose the data model?
+  - **IA / IxD (`docs/reference/twenty-ixd-patterns.md`):** is the navigation, record-open, and
+    command grammar consistent with the Twenty "one renderer / one panel / one command surface"
+    target adapted for MOS?
+  - **Cross-module UI reusability:** every surface is built from the shared UI families (Rule 2) and
+    existing components (Rule 11) so Café, Ecommerce, Roastery, Money, etc. share one grammar — a user
+    who learns one module already knows the next. Flag any one-off/divergent component as a defect.
+  - **Rule 12 high-school-graduate cold-start walkthrough:** a first-time, untrained, least-technical
+    user completes the step's job unaided — starting point obvious, no unexplained noun, obvious next
+    action, low step count. Recorded as pass/fail per the Rule-12 criteria, not vibed.
 - The three validated flows are the curated e2e journeys and may not regress:
   F1 post-a-Signal (from step 4), F2 today's-opening (from step 7), F3 find-overdue-work (from step 3).
 - Playwright asserts the mechanical rules directly (one `aria-current="page"` document-wide; URL/

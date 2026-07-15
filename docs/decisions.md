@@ -1617,7 +1617,7 @@ explicitly overridden is `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-I
 (binding read-first for UI steps). Rationale for closing the mockup phase: every mockup round
 re-did whole surfaces, so the right answers got convoluted; in the app, fixes compound and Rule 11
 makes re-implementation a review-blocking defect. The Experience Contract
-(`docs/experience-contract.md`) is **binding** on the app build; its Rules 1–11 are blocking
+(`docs/experience-contract.md`) is **binding** on the app build; its Rules 1–12 are blocking
 acceptance checks in every review.
 
 ### OD-REDESIGN-57 — Owner frame directives (sketch, 2026-07-14)
