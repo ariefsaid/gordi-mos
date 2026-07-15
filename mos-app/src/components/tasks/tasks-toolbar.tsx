@@ -112,7 +112,7 @@ export function TasksToolbar({
 
       <span className="tb-spacer" />
 
-      <div className="seg" role="group" aria-label={t('tasks.title')}>
+      <div className="seg" role="group" aria-label={t('tasks.savedViews')}>
         {SAVED_VIEW_CHIPS.map(key => (
           <button
             key={key}

@@ -540,7 +540,7 @@ describe('a11y — aria roles and labels', () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
     await waitFor(() => screen.getByRole('button', { name: 'My work' }))
-    expect(screen.getByRole('group', { name: /^tasks$/i })).toBeTruthy()
+    expect(screen.getByRole('group', { name: /tasks saved views/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
     expect(screen.getByRole('button', { name: 'Team work' }).getAttribute('aria-pressed')).toBe('false')
   })
