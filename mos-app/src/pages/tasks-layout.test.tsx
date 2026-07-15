@@ -137,6 +137,30 @@ function renderAt(path: string) {
   )
 }
 
+// OD-63: a direct/new-tab/refresh (or the "Open full page" escalation) renders the
+// record as a standalone full canonical PAGE. In jsdom there's no
+// PerformanceNavigationTiming, so the boot direct-load path stays null; the
+// explicit state escalation ({ taskSurface: 'page' }) is the unit-test seam, and the
+// real-browser direct-open branch is proven by the e2e.
+function renderAtState(path: string, state: unknown) {
+  // Split the query off the path: react-router does not re-parse a `pathname` that
+  // already carries `?…` when the initial entry is an object, so pass search explicitly.
+  const [pathname, query = ''] = path.split('?')
+  const search = query ? `?${query}` : ''
+  return render(
+    <AuthContext.Provider value={authedState}>
+      <MemoryRouter initialEntries={[{ pathname, search, state }] as never}>
+        <Routes>
+          <Route path="/work/tasks" element={<TasksLayout />}>
+            <Route path="new" element={<TaskDrawer mode="create" />} />
+            <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+}
+
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-121: TasksLayout renders inside a full-bleed (variant=data) PageFrame — no 1080px maxWidth cap', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
@@ -491,4 +515,48 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(screen.getByText('Keep me')).toBeInTheDocument()
     expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('1')
   }, 10_000)
+})
+
+// ── OD-63: canonical page mode on direct open ────────────────────────────────
+describe('TasksLayout — OD-63 canonical page mode', () => {
+  it('OD-63: an "Open full page" escalation renders the record as a standalone full page — no table, no drawer', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Standalone page task' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    // The ONE renderer (TaskSurface) renders the record identity row.
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Standalone page task' }))
+
+    // No split-drawer aside and no table shell — it is a standalone canonical page.
+    expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+    expect(screen.queryByRole('region', { name: /tasks/i })).toBeNull()
+    expect(document.querySelector('.split')).toBeNull()
+    expect(document.querySelector('tbody tr.task-row')).toBeNull()
+    // The full-width two-column record anatomy mounts.
+    expect(document.querySelector('.record-2col')).toBeTruthy()
+    // presentation="page" → no "Open full page" escalation (already on the page).
+    expect(screen.queryByRole('button', { name: /open full page/i })).toBeNull()
+  })
+
+  it('OD-63: in-list click (no state) keeps the split drawer + table (panel mode)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Row task' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Row task' }), checklist: [], events: [] })
+    renderAt('/work/tasks/task-1')
+    // The drawer mounts beside a still-mounted table — the load-bearing split-view win.
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
+    expect(document.querySelector('.record-2col')).toBeNull()
+    // And the panel offers the escalation to the full page.
+    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
+  })
+
+  it('OD-63: ?view= is preserved on the standalone page (Rule 4)', async () => {
+    // The record fails to load → the not-found back link must carry the preserved
+    // ?view= search (TaskSurface builds it from location.search), so a direct-open
+    // of /work/tasks/:id?view=overdue returns the user to the SAME saved view.
+    mockGetTask.mockRejectedValue(new Error('not found'))
+    renderAtState('/work/tasks/task-1?view=overdue', { taskSurface: 'page' })
+    await waitFor(() => screen.getByText(/task not found/i))
+    const allTasks = screen.getByRole('link', { name: /all tasks/i })
+    expect(allTasks.getAttribute('href')).toContain('view=overdue')
+  })
 })

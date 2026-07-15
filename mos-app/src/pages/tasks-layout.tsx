@@ -1,11 +1,14 @@
 import { useCallback, useState } from 'react'
-import { Outlet, useParams, useMatch } from 'react-router-dom'
+import { Outlet, useParams, useMatch, useLocation } from 'react-router-dom'
 import { useTasksSavedView } from '@/components/tasks/use-tasks-saved-view'
 import { PageFrame } from '@/shell/page-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 import { useExpandPref } from '@/components/tasks/use-expand-pref'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
+import { isTaskPageMode } from '@/components/tasks/task-page-mode'
+import { TaskSurface } from '@/components/tasks/task-surface'
+import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
 
@@ -22,8 +25,8 @@ export function TasksLayout() {
   useDocumentTitle('Tasks — Gordi MOS')
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
+  const location = useLocation()
   const { savedView, setSavedView } = useTasksSavedView()
-  const drawerOpen = Boolean(taskId) || Boolean(isNew)
   const [expanded, setExpanded] = useExpandPref()
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal
   // overlay over a full-width (un-squashed) table, so the table must NOT condense.
@@ -49,6 +52,23 @@ export function TasksLayout() {
   const onTaskArchived = useCallback(() => setRefreshKey(k => k + 1), [])
   const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived }
 
+  // OD-63 / Rule 4: a direct/new-tab/refresh (or the explicit "Open full page"
+  // escalation) renders the SAME record as a standalone full canonical page — NOT
+  // inside the table+drawer shell. An in-list click (in-app SPA navigation) keeps
+  // the split drawer for fast triage. Detection lives in task-page-mode (jsdom has
+  // no PerformanceNavigationTiming, so direct-render unit tests stay in panel mode;
+  // the e2e proves the real-browser direct-open branch). All hooks run above so this
+  // branch is a plain conditional return, not a conditional hook.
+  if (isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state }) && taskId) {
+    return (
+      <PageFrame variant="data">
+        <TaskRecordPage taskId={taskId} />
+      </PageFrame>
+    )
+  }
+
+  const drawerOpen = Boolean(taskId) || Boolean(isNew)
+
   return (
     <PageFrame variant="data">
       <TasksWorkspace
@@ -64,5 +84,29 @@ export function TasksLayout() {
         drawerSlot={<Outlet context={outletContext} />}
       />
     </PageFrame>
+  )
+}
+
+/**
+ * Standalone full canonical record page (OD-63). Reuses the ONE TaskSurface
+ * renderer at width="full" / presentation="page" — no table shell, no drawer
+ * chrome (expand/close belong to the split drawer). The shell breadcrumb reads
+ * the resolved title so it shows "Work · Tasks · <title>" (mirrors TaskDrawer's
+ * BreadcrumbTitleSync). Reachable only by a direct/new-tab/refresh of
+ * `/work/tasks/:id` or the drawer's "Open full page" escalation.
+ */
+function TaskRecordPage({ taskId }: { taskId: string }) {
+  const [title, setTitle] = useState<string | null>(null)
+  // Empty string before the title resolves keeps the crumb at "Work · Tasks";
+  // once resolved it pushes the task title; on unmount the hook clears it.
+  useSetBreadcrumbTitle(title ?? '')
+  return (
+    <TaskSurface
+      taskId={taskId}
+      mode="view"
+      width="full"
+      presentation="page"
+      onTitleResolved={setTitle}
+    />
   )
 }
