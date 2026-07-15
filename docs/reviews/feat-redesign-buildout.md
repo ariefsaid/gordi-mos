@@ -397,3 +397,49 @@ honored, but the rendered user job is not yet safe to approve. Fix the four crit
 four lenses at 1280px/390px, and recheck the mockup-regression list.
 
 DESIGN-REVIEW-DONE
+
+## Remediation (waves 1+2) — code review (Luna cross-family)
+
+**Verdict: BLOCK**
+
+### Strengths
+
+- **OD-61 partial success:** `TasksWorkspace` uses the existing `viewer.isManager` seam (derived by `deriveIsManager`) to give members the collapsed `View options` surface and managers the dense toolbar (`mos-app/src/components/tasks/tasks-workspace.tsx:103-108,700-723`). The member/manager component tests and phone e2e cover the disclosure goal.
+- **OD-62 core renderer:** `TaskSurface` remains the one view/create renderer. `raci-card` was replaced by `TaskOwnershipCard`; the record/drawer and list/card ownership fields now use Team/PIC/Supervisor and source, while the record surfaces expose completion. No Objective/Project/Process production surface was deleted or modified, so governance RACI was not accidentally removed.
+- **OD-63 main path:** `TaskRecordPage` reuses `TaskSurface` with `presentation="page"`; normal row/link/card opens carry panel state, the explicit “Open full page” action exists, and `?view=` preservation is covered across the tested open/close/refresh paths.
+- **OD-64:** Home hides the legacy update/Daily Log strips in both Home compositions (`home-page.tsx:119-121`, `stacked-union-home.tsx:167-168`), while manager review data remains available. The phone Work tab uses the `/work` prefix and the targeted `aria-current` tests pass.
+- Verification: full unit suite **250 files / 2,605 tests passed**; targeted Playwright **12/12 passed**; typecheck and ESLint/stylelint passed. `git diff --check` is clean.
+
+### Issues
+
+#### Critical
+
+- **OD-62 is still violated by the shipped Home Task surface.** `MyWeekPanel` always renders `MyTasksCard`, but `mos-app/src/components/weekly/my-tasks-card.tsx:65,77,131,144,183-208,221-263` still filters/displays R/A, renders `Owner (R)`, says “Responsible or Accountable”, and exposes the legacy owner/`+N` grammar. Home mounts it at `mos-app/src/pages/home-page.tsx:121`. This is a visible Task surface and directly triggers A4, even though the main `TaskSurface` passes. The corresponding tests still encode that old goal (`my-tasks-card.test.tsx:141,227,263`). Extend/re-home this existing card to typed Team/PIC/Supervisor (or deliberately hide it), then update its BDD contract; do not remove RACI from governance surfaces.
+- **OD-63’s page-mode detector can turn a normal in-list click into a full page.** `mos-app/src/components/tasks/task-page-mode.ts:41-64` captures `BOOT_DIRECT_RECORD_ID` once and ignores `{ taskSurface: 'panel' }`. After a direct load of record `X`, navigating SPA-style to the list and clicking `X` again leaves the boot id equal to `X`, so `TasksLayout` (`pages/tasks-layout.tsx:55-68`) renders page mode instead of the required split drawer. Add a real SPA-vs-hard-navigation seam/state precedence and a regression test for direct record → list → same-record click; retain full-page behavior on an actual refresh.
+
+#### Important
+
+- **OD-61 is incomplete.** The member wrapper is present, but there is no persistent phone `+` launcher: `bottom-tab-bar.tsx:45-80` has only Home/Work/Café/Inbox/More, while the only task CTA is the conditional content-header link at `tasks-workspace.tsx:651-654`. Also, the overdue filter and clear control remain outside `View options` (`tasks-workspace.tsx:666-692`), contrary to OD-61/Rule 8’s “all filters behind one control” requirement. Reuse the approved launcher grammar and keep the member first viewport capture-first; add tests for the launcher and the collapsed overdue controls.
+- **New remediation copy is not localized.** The typed labels/actions and disclosure copy are hardcoded in `task-ownership-card.tsx:34-78`, `task-drawer-header.tsx:61-128`, and `tasks-workspace.tsx:653-730`; `TasksToolbar` also hardcodes the saved-view/filter copy (`tasks-toolbar.tsx:42-180`). There are no corresponding `useT`/EN+ID message keys, so the shipped Indonesian locale renders the new OD-61/62/63 grammar in English. Add message keys and use the shared i18n seam.
+- **Changed-code coverage misses the new navigation seam.** The coverage run reports `task-page-mode.ts` at **70.96% lines**, below the project’s ≥80% changed-code gate; its boot-navigation branches (`task-page-mode.ts:20-39`) are not unit-covered. The e2e proves a browser path but does not satisfy the instrumented coverage gate by itself. Add deterministic tests around the boot-navigation seam.
+- **BDD cleanup is incomplete beyond the new record tests.** The new typed Task tests correctly assert Team/PIC/Supervisor, completion, and absence of visible RACI (`task-record-redesign.test.tsx:85-118`; e2e `tasks-canonical-page.spec.ts:63-90`). However, list/Home tests still make the old RACI goal explicit (`tasks-page.test.tsx:372-401,430-447`, plus `my-tasks-card.test.tsx` above). Rename/re-specify any intentionally retained PIC/Supervisor filtering; do not leave old RACI semantics as the Task UX contract.
+
+#### Minor
+
+- **Dead task-row RACI plumbing remains.** `TasksWorkspace` still builds `OwnerCellRaciMember[]` (`tasks-workspace.tsx:302-318`) and passes `others` (`tasks-workspace.tsx:547-559`), while `TaskRow` no longer consumes it (`task-row.tsx:35,53-57`). `TasksTableBody`/`MobileGroupedCards` likewise retain an unused `buildOthers` prop (`tasks-table-body.tsx:105,122-185`, `mobile-grouped-cards.tsx:54`). Remove this task-only dead path after the Home card is migrated; `OwnerCellRaciMember` may remain where the genuine legacy card still needs it.
+- A few comments still describe the removed six/ten-column layout (`tasks-workspace.tsx:582-584`) and the old Mine/RACI toolbar (`tasks-toolbar.tsx:1-5`); update them with the typed column contract while touching the cleanup.
+
+### OD/rule verdict
+
+| Area | Result |
+|---|---|
+| OD-61 | **Partial** — role gate and disclosure pass; persistent launcher and full filter disclosure do not. |
+| OD-62 | **Fail** — core renderer is typed, but Home still ships a RACI Task surface; governance RACI remains untouched. |
+| OD-63 | **Fail** — tested paths pass, but the module-global boot id violates the normal-click rule after an SPA round trip. |
+| OD-64 | **Pass** — dead links are hidden and phone Work-child current-location behavior is covered. |
+| Rule 11 | **Pass for the remediation implementation** — no second Task editor/table/drawer was introduced; `TaskRecordPage` is a thin host and `TaskOwnershipCard` is the ratified extension. The existing Home mini-table is a remaining contract gap, not a new duplicate. |
+| BDD | **Partial** — new OD-62/63 journeys assert the new goal, but old Home/list RACI-goal tests and the old visible Home grammar remain. |
+
+**Overall assessment: BLOCK.** Fix the Home Task surface and the page-mode navigation edge case first; then complete the launcher/disclosure, i18n, coverage, and BDD cleanup before code approval.
+
+REVIEW-DONE
