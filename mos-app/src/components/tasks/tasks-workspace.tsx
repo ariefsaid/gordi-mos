@@ -31,6 +31,7 @@ import { useCascadeCatalogs } from './use-cascade-catalogs'
 import { GroupHeaderRow } from './group-header-row'
 import { PageHead } from '@/shell/page-head'
 import { TasksToolbar } from './tasks-toolbar'
+import { Chevron } from '@/shell/icons'
 import { TasksTableBody } from './tasks-table-body'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
@@ -704,9 +705,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
                 <span className="mobile-task-options-summary" aria-hidden="true">
                   · Tasks · {mobileViewLabel}
                 </span>
-                <span className="mobile-task-options-chevron" aria-hidden="true">
-                  {mobileOptionsOpen ? '▴' : '▾'}
-                </span>
+                <Chevron
+                  className={`mobile-task-options-chevron${mobileOptionsOpen ? ' mobile-task-options-chevron--open' : ''}`}
+                />
               </button>
               {mobileOptionsOpen && (
                 <div id="mobile-task-options-panel">

@@ -132,8 +132,15 @@
 .mobile-task-options-trigger:hover { background: var(--secondary); }
 .mobile-task-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .mobile-task-options-summary { margin-left: 4px; color: var(--muted-foreground); font-weight: 500; }
-.mobile-task-options-chevron { margin-left: auto; color: var(--muted-foreground); font-size: 13px; }
+.mobile-task-options-chevron {
+  display: block; margin-left: auto; color: var(--muted-foreground);
+  transition: transform 150ms ease;
+}
+.mobile-task-options-chevron--open { transform: rotate(180deg); }
 .mobile-task-options-panel .toolbar { border-bottom: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-task-options-chevron { transition: none; }
+}
 
 /* View-tabs inside the toolbar: the shared ViewTabs primitive defaults to the
    full-width sticky strip (the dashboard placement — view-tabs.css); here it sits
