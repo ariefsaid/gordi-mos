@@ -125,6 +125,34 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
   })
 })
 
+// OD-REDESIGN-64/F-B + Experience Contract Rule 5/9: the Work bottom-nav tab points
+// at /work/tasks but must carry aria-current="page" for EVERY /work/* child
+// (signals, projects, objectives) so exactly one current-location marker exists on
+// every phone route. Mirrors the desktop rail's `to="/work"` NavLink semantics.
+describe('F-B / Rule 5/9: Work tab is aria-current=page for every /work/* child on phone', () => {
+  const WORK_CHILDREN = ['work/signals', 'work/projects', 'work/objectives']
+
+  it.each(WORK_CHILDREN)('marks the Work tab page (and exactly one marker) at /%s', (path) => {
+    renderTabBar(`/${path}`)
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName(/Work/)
+    // More must NOT also be page on a /work/* route (no co-activation)
+    const more = within(nav).getByRole('button', { name: /More/i })
+    expect(more).not.toHaveAttribute('aria-current', 'page')
+  })
+
+  it('does NOT mark Work active on an unrelated route (/inbox)', () => {
+    renderTabBar('/inbox')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const workLink = within(nav).getByRole('link', { name: /Work/ })
+    expect(workLink).not.toHaveAttribute('aria-current', 'page')
+    const inboxLink = within(nav).getByRole('link', { name: /Inbox/ })
+    expect(inboxLink).toHaveAttribute('aria-current', 'page')
+  })
+})
+
 describe('AC-T03: desktop viewport — no bottom tab bar', () => {
   it('renders nothing when useIsNarrow is false', () => {
     renderTabBar('/', { narrow: false })

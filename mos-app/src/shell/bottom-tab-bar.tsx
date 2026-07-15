@@ -7,9 +7,12 @@ import './bottom-tab-bar.css'
 
 // The 5 fixed primary tabs (convergence mobileNav). Money is NOT a bottom-nav tab —
 // it lives in the More menu (gated). Work → /work/tasks; Café → /cafe (redirects to /cafe/log).
+// `sectionPrefix` (Work only) widens the active match to the whole /work section so the
+// tab carries aria-current="page" for EVERY /work/* child (signals/projects/objectives),
+// mirroring the desktop rail's `to="/work"` NavLink semantics (Rule 5/9, F-B/OD-64).
 const PRIMARY = [
   { id: 'home', labelKey: 'dest.home', href: '/', Icon: HomeIcon, end: true },
-  { id: 'work', labelKey: 'dest.work', href: '/work/tasks', Icon: WorkIcon, end: false },
+  { id: 'work', labelKey: 'dest.work', href: '/work/tasks', sectionPrefix: '/work', Icon: WorkIcon, end: false },
   { id: 'cafe', labelKey: 'dest.cafe', href: '/cafe', Icon: CafeIcon, end: false },
   { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox', Icon: InboxIcon, end: false },
 ] as const
@@ -42,8 +45,12 @@ export function BottomTabBar({ onOpenMore }: BottomTabBarProps) {
   return (
     <nav aria-label="Primary" className="bottom-tab-bar" style={{ gridArea: 'tabbar' }}>
       {PRIMARY.map((tab) => {
+        // Work (sectionPrefix) matches the whole /work section; other tabs match their href.
+        // Home ('/') matches exactly. This keeps exactly one aria-current="page" on every
+        // phone route, including /work/signals | /work/projects | /work/objectives (F-B).
+        const section = 'sectionPrefix' in tab ? tab.sectionPrefix : tab.href
         const active =
-          tab.href === '/' ? pathname === '/' : pathname === tab.href || pathname.startsWith(tab.href + '/')
+          tab.href === '/' ? pathname === '/' : pathname === section || pathname.startsWith(section + '/')
         return (
           <Link
             key={tab.id}
