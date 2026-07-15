@@ -443,3 +443,117 @@ DESIGN-REVIEW-DONE
 **Overall assessment: BLOCK.** Fix the Home Task surface and the page-mode navigation edge case first; then complete the launcher/disclosure, i18n, coverage, and BDD cleanup before code approval.
 
 REVIEW-DONE
+
+## Remediation re-review after wave-2b (Luna cross-family)
+
+**Verdict: APPROVE**
+
+### Verification
+
+- **OD-62 / JTBD A4 — fixed.** Task list/table/card surfaces now expose Team/PIC/Supervisor (`mos-app/src/components/tasks/tasks-table-body.tsx:219-229`, `mos-app/src/components/tasks/mobile-grouped-cards.tsx:104-110`); the drawer/full-page ownership blocks use the same typed grammar (`mos-app/src/components/tasks/task-ownership-card.tsx:36-84`, `mos-app/src/components/tasks/task-drawer-header.tsx:123-135`); Home's mini-card is also typed (`mos-app/src/components/weekly/my-tasks-card.tsx:134-140,213-215,265-278`). The visible-RACI negative contracts pass in `task-record-redesign.test.tsx:86-118`, `tasks-page.test.tsx:236-259`, `my-tasks-card.test.tsx:140-150`, and the canonical-page e2e (`e2e/tasks-canonical-page.spec.ts:77-90`).
+- **OD-63 / Rule 4 — fixed.** `isTaskPageMode` gives PUSH/REPLACE panel state precedence over the boot record (`mos-app/src/components/tasks/task-page-mode.ts:70-83`), while direct/refresh loading still selects page mode. The exact direct-record → list → same-record SPA regression and refresh case are covered at `task-page-mode.test.ts:15-31`; the layout and browser drawer checks are at `tasks-layout.tsx:58-72`, `tasks-layout.test.tsx:540-547`, and `tasks-canonical-page.spec.ts:45-60`.
+- **OD-61 / Rule 8 — fixed.** The persistent phone `+` launcher is rendered and wired to the shared action menu (`mos-app/src/shell/bottom-tab-bar.tsx:84-94`, `app-shell.tsx:82-87`, CSS `bottom-tab-bar.css:45-66`), with a behavior test at `bottom-tab-bar.test.tsx:83-90`. Member phone options are collapsed behind the single control (`tasks-workspace.tsx:660-677`); overdue count and clear controls now live inside that toolbar (`tasks-toolbar.tsx:200-220`), covered by `tasks-workspace.test.tsx:185-203`.
+- **Rules 5/11 and OD-64 — confirmed.** Work-child phone location remains exactly-one via the `/work` prefix (`bottom-tab-bar.tsx:11-15,51-72`, `bottom-tab-bar.test.tsx:146-164`). The canonical page is a thin host over the existing `TaskSurface` (`tasks-layout.tsx:99-110`), with no duplicate Task renderer/plumbing. Home hides the retired dead-link cadence cards in both compositions (`home-page.tsx:119-121`, `stacked-union-home.tsx:166-168`).
+- **i18n — fixed.** The remediation grammar has matching EN/ID catalog keys (`mos-app/src/i18n/messages.ts:63-233,485-655,850`), and the new member and record journeys assert Indonesian output (`tasks-workspace.test.tsx:205-220`, `task-drawer-header.test.tsx:103-126`).
+- **Coverage — fixed.** A focused V8 run of `task-page-mode.test.ts` reports **97.43% lines**, **93.75% branches**, and **100% functions** for `task-page-mode.ts` (above the 80% requirement).
+- **BDD/dead plumbing — fixed.** The former list/Home RACI goals are now PIC/Supervisor goals (`tasks-page.test.tsx:372-423`, `my-tasks-card.test.tsx:140-150`), with no positive old Task-RACI UX assertion remaining; remaining RACI identifiers are storage/authorization compatibility or the localized `raci_edited` → “People updated” event mapping (`activity-card.tsx:13`). The task-only `OwnerCellRaciMember`/`buildOthers`/`others` path is gone; current component props show no replacement dead path (`task-row.tsx:19-52`, `tasks-table-body.tsx:82-120`, `mobile-grouped-cards.tsx:46-62`).
+
+### Validation
+
+- Six most recent `fix:` commits in `5e81ccd..HEAD`: `21de6a4`, `d4b2583`, `ebbaaf9`, `4fe8cfc`, `5acc8b5`, `111e04e`; the Home re-home is present immediately before them at `0dd8d89`.
+- `npm test -- --run --no-file-parallelism --maxWorkers=1`: **251 files / 2,617 tests passed**.
+- `npm run typecheck` and `npm run lint`: passed.
+- Targeted Playwright remediation journeys: **8/8 passed**.
+
+No remaining findings for the wave-2b remediation. REVIEW-DONE
+
+## Design RE-review steps 1–3 (Luna, after remediation)
+
+**Verdict: BLOCK.** The five OD-61–64 findings below are resolved in the rendered app, but one remaining in-scope Tasks DB-view regression still fails the desktop fidelity bar from the e7 reference (Rule 9 / `SALVAGE-INVENTORY.md`). This is not deferred Step 4/5/7 work.
+
+### Review method and evidence
+
+I read `docs/experience-contract.md` Rules 1–12, `docs/jtbd.md` (including A4), `docs/reference/twenty-ixd-patterns.md`, `SALVAGE-INVENTORY.md`, and OD-REDESIGN-61–64 before rendering. I used clean browser sessions for each URL, logged in through the dev persona picker as **Cafe Ops / Cahya** and spot-checked **Director / Dewi**, at 1280×900 and 390×844. Branding was verified as **Gordi MOS** on titles/desktop wordmark/phone logo label; no PMO text was rendered.
+
+Rendered evidence is in `/tmp/gordi-review/` (Playwright captures: `cafe-home-desktop-playwright.png`, `cafe-tasks-phone-playwright.png`, `cafe-task-drawer-real-playwright.png`, `cafe-task-direct-real-playwright.png`, `director-tasks-phone-playwright.png`). The targeted Playwright run from `mos-app/` passed **21/21**, including shell aria-current/redirects, saved-view links, OD-62, OD-63, and mobile capture-first journeys.
+
+### Lens (a) — Visual / correctness
+
+- **Pass:** warm cream surfaces, navy structural accents, blue actions, restrained borders/shadows, Plus Jakarta/DM Sans, and the Gordi MOS shell render consistently. The centered ⌘K palette is 560px wide, modal/aria-modal, and contains Ask Deputy · Share Signal · Create Task.
+- **Pass:** the member phone Tasks surface shows cards before controls; no clipped grid, RACI, PMO branding, or purple/AI-slop treatment appeared.
+- **Important remaining finding:** at 1280px the built Tasks table is a 1,284px table inside a 994px `.tasks-scroll`; Due, Source, and Activity sit beyond the first viewport. e7’s owned table fits the decision columns (Title/Ownership/Supervisor/Status/Due) in the calm first view. This is the only rendered design blocker found in scope.
+- Fixture strings such as `URL row-menu…`, `OD63…`, and `AC-305…` were observed but explicitly waived as data, per the scope card.
+
+### Lens (b) — IxD / task-flow naturalness
+
+- **Pass:** Cafe Ops opens Tasks to work cards, uses one `View options` disclosure for filters, and has a persistent 56px phone `+` launcher. Director retains the dense filter view as permitted by OD-61.
+- **Pass:** normal list click keeps the table and opens the split drawer; the drawer exposes `Open full page`, `Mark complete`, Team, PIC, Supervisor, Due, and source. Direct record URLs open the standalone page.
+- **Pass:** the Home → My tasks → task drawer path exposes an obvious next action without a dead-end. Legacy update/log links are absent. The deferred attention-Home and Signal-feed jobs are not scored.
+
+### Lens (c) — IA / structure & navigation
+
+- **Pass:** `/work/tasks?view=mine|overdue|followups` is canonical and chips update the URL; task-name/row-menu/mobile opens preserve the query in the tested journeys.
+- **Pass:** direct `/work/tasks/:id` is the full canonical page; in-list click is the drawer; direct → list → same-record click returns to the drawer. The same `TaskSurface` renderer is used in both modes.
+- **Pass:** exactly one `aria-current="page"` was observed on phone `/work/signals`, `/work/projects`, `/work/objectives`, `/events`, and `/inbox` (Work/More is the single phone destination marker where the child is behind the menu). Home dead links are hidden.
+
+### Lens (d) — Product / intent / JTBD
+
+- **Pass for the scoped Task job:** A Cafe Ops person can find owned work, recognize Team/PIC/Supervisor, and see Mark complete adjacent to the record. A4 is absent on Home, list/card, drawer, and full page. RACI remains a governance concern and was not moved onto Task surfaces.
+- **Pass:** the manager exception is useful rather than confusing: Director sees the dense filter controls and an honest empty state with “Create one or switch to All.”
+- The Home attention brief, Signals feed, Café naming, and fixture realism are explicitly outside this re-review’s acceptance bar.
+
+### Original BLOCK findings
+
+| Finding | Result | Rendered evidence |
+|---|---|---|
+| 1. Cafe Ops phone Tasks must be cards-first; one options disclosure; persistent `+`; manager may retain filters | **RESOLVED** | At 390px, first card begins at y≈262; `View options` is collapsed (`aria-expanded="false"`) and the `Open actions` launcher is 56×56 at the bottom. After opening options, Group/Unit/Status/Person/Search/archived controls appear behind that one control. Director’s phone view intentionally shows the dense controls first. |
+| 2. No RACI on any Task surface; Team/PIC/Supervisor + Mark complete | **RESOLVED** | Home mini-card headers are Task/Status/Team/PIC/Supervisor/Due/Activity; table/card/drawer/page show Team/PIC/Supervisor and no RACI/Owner (R)/R·A·C·I/Responsible/Accountable/Consulted/Informed text. Drawer and page both show `Mark complete`. Playwright OD-62 passed. |
+| 3. Direct record = full page; in-list click = drawer; direct → list → same record = drawer | **RESOLVED** | Direct `/mos/work/tasks/a000…?view=mine` rendered no table and showed the full two-column record page. In-list `E2E Archiveable Task` kept the table mounted beside the drawer and showed `Open full page`; the direct → list → same-record manual path returned to the drawer. Playwright OD-63 passed. |
+| 4. Cafe Ops Home legacy dead links hidden | **RESOLVED** | At desktop and phone, no Home anchor matched the retired update/Daily Log/ops destinations; `Write update →` and `Open the Daily Log →` were absent. |
+| 5. Phone `/work/*` children have exactly one current marker | **RESOLVED** | `/work/signals`, `/work/projects`, and `/work/objectives` each had exactly one page marker (the Work bottom-nav destination); `/events` and `/inbox` also had exactly one. Playwright AC-007/008 passed. |
+
+### Rules 1–12 (scoped)
+
+| Rule | Result | Scoped assessment |
+|---|---|---|
+| 1 — destination jobs | **PASS** | Home/Work/Café rail jobs and the Tasks job sentence are present; deferred Home attention and later module depth are not scored. |
+| 2 — typed contracts → UI families → destinations | **PASS** | Task list/card/drawer/page use the typed Task family; no RACI is leaked into the Task contract and no duplicate editor was observed. |
+| 3 — rail/surface budgets | **PASS** | Cafe Ops is correctly gated; Director gets governance destinations; one contextual `+ New task` action coexists with the universal launcher and no duplicate rail roots appeared. |
+| 4 — canonical routes + URL state | **PASS** | Saved-view chips, redirects, query-preserving links, direct page mode, and drawer mode all held in rendered checks. |
+| 5 — one `aria-current="page"` | **PASS** | Exactly one marker held on the tested desktop/phone routes; Work children use the single active Work phone destination. |
+| 6 — one page anatomy | **PASS (scoped)** | The shell has brand/header, context row, content, and the shared Task drawer/page presentation on the inspected routes; deferred stubs are not used to fail this slice. |
+| 7 — verb+object actions | **PASS** | The shared launcher reads Ask Deputy, Share Signal, Create Task; Task actions are New task, Mark complete, Reassign PIC, and Open full page rather than a bare Create/Add. |
+| 8 — capture-first mobile disclosure | **PASS** | Cafe Ops work cards precede configuration and all options are behind one control; the manager exception is explicitly permitted by OD-61. |
+| 9 — responsive parity | **FAIL** | Phone execution/capture and bottom-nav reachability pass, but the desktop Tasks DB-view loses the e7 first-viewport decision columns to horizontal overflow at 1280px. |
+| 10 — extension test | **PASS (scoped/attested)** | Steps 1–3 add no new rail root, anatomy, or drawer host; the existing shell and record grammar remain extensible. |
+| 11 — component reuse | **PASS** | Direct page and drawer are one `TaskSurface` renderer with mode differences; no duplicate table/drawer/record editor was rendered. |
+| 12 — zero-training usability | **PASS for the scoped Task cold start** | See the cold-start verdict below; optional later Home/Signal/module jobs are excluded by the scope card. |
+
+### New regression check and remaining scoped regression
+
+**No new regression was introduced by waves 1/2/2b.** The following pre-existing cross-version mismatch remains in scope and is not deferred work.
+
+**Important — Tasks desktop first-viewport fidelity.** The e7 reference at `http://localhost:8766/e7-prototype.html#/work` renders a calm decision table with Title/Ownership/Supervisor/Status/Due visible at 1280px. The convergence phone reference at `http://localhost:8134/#/work/tasks` correctly supplies the mobile `View options`/cards grammar, which the build now ports. The built 1280px list instead renders headers Task/Status/PIC/Supervisor/Project-Process/Objective/Team/Due/Source/Activity in a 1,284px table inside a 994px viewport; the first paint ends at Team and the decision-critical Due column is off-screen. This is a cross-version regression against the e7-owned table grammar, not a future-step complaint and not a fixture-name complaint.
+
+**Suggested fix:** keep the typed Task contract, but use the e7 priority columns/condense ladder at 1280px (hide or move optional Project/Process, Objective, Source, and Activity into the record/drawer) or add an explicit, calm horizontal-scroll affordance. No new domain or renderer is needed.
+
+### Rule-12 cold-start verdict — Cafe Ops
+
+**PASS for the scoped job: find and complete owned Task work.** In a clean Cafe Ops phone session, Home was recognizable, `My tasks` exposed tappable records, the first record opened the shared drawer, and `Mark complete` was adjacent to Team/PIC/Supervisor/status. The phone `+` launcher remained available and no RACI/system ownership jargon interrupted the core path. No backtracking or dead Home link was required. The deferred Home attention-first job and synthetic fixture-name issue are intentionally not used to fail this verdict.
+
+### Owner A/B fork
+
+No owner decision is required for OD-61–64; all four decisions were rendered as locked. The remaining table fix is an implementation choice, not a new product fork: **A (recommended)** condense to e7’s priority columns at 1280px, or **B** retain horizontal overflow with an explicit affordance.
+
+### Consolidated issues
+
+**Critical:** none among OD-61–64.
+
+**Important:**
+1. `/mos/work/tasks?view=mine` at 1280px — the typed table’s optional columns push Due/Source/Activity outside the first viewport, regressing the e7 DB-view review grammar and failing scoped Rule 9. Reduce/condense optional columns or make the overflow affordance explicit.
+
+**Minor:** none.
+
+**Overall assessment: BLOCK.** The original five remediation findings are all **RESOLVED** at the rendered level, but the design gate remains blocked by the in-scope desktop Tasks table fidelity regression above. After that one table fix, re-run the 1280px/390px visual pass; no further owner decision is needed.
+
+DESIGN-REVIEW-DONE
