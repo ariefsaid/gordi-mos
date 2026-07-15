@@ -71,14 +71,29 @@ pi --provider openai-codex --model gpt-5.6-luna --thinking max -p --no-session \
   "<4-lens design-review brief: Visual · IxD · IA · Product/JTBD + Rule-12 walkthrough>" < /dev/null
 ```
 
-Verified live 2026-07-15: Luna correctly described a supplied app screenshot. **Proven pattern:**
-the Director (or a cheap pi/agent-browser driver) captures screenshots to files, then Luna judges
-them against `docs/experience-contract.md` (Rules 1–12), `docs/jtbd.md`, and
-`docs/reference/twenty-ixd-patterns.md`. The Director keeps only the FINAL taste sign-off + owner-facing
-screenshots — the bulk 4-lens design review is now delegable to Luna, saving Director context. (A
-fully-autonomous Luna run that drives agent-browser AND reads its own screenshots is plausible but
-smoke-test the agent-captures-then-sees loop at first use; the capture-then-attach pattern above is
-the proven one.)
+Verified live 2026-07-15: Luna correctly described a supplied app screenshot AND, in a second test,
+**autonomously drove agent-browser via Bash, captured a screenshot, and described it** (no image fed).
+So the **preferred pattern (owner-directed 2026-07-15) is OBJECTIVE-BASED, not step-by-step:** give
+Luna the *review objectives* + read-first docs + the URLs, and let it drive **agent-browser / Playwright
+CLI itself** (both installed; pi has Bash) to open the app + mockups, screenshot, and judge. Do NOT
+hand-capture and feed screenshots step by step — that's the Director babysitting; give the outcome and
+verify the result (§4a result-based brief posture).
+
+```bash
+pi --provider openai-codex --model gpt-5.6-luna --thinking max -p --no-session \
+  --append-system-prompt .claude/agents/design-reviewer.md \
+  "<OBJECTIVES: 4-lens design review of <slice> at localhost:5173/mos/ — assess vs Experience Contract
+   Rules 1–12 FIRST, then jtbd.md intent, then the owning mockups (e7 :8766, convergence :8134 per
+   SALVAGE-INVENTORY) incl. cross-version regressions; score reusability + Rule-12 cold-start as the
+   least-technical persona; surface owner-decisions as Option A/B. Start with
+   'agent-browser skills get core --full'. Force a CLEAN session on the exact URL (agent-browser can
+   latch onto a stale cross-project tab — verify you're on Gordi MOS, not another app). Write findings
+   to docs/reviews/<branch>.md.>" < /dev/null
+```
+
+*Caveat:* force a clean browser session on the right URL — observed once latching onto a stale PMO
+Portal tab. The Director keeps only the FINAL taste sign-off; the fed-screenshot `@image` attach
+(shown above) remains a fallback when you already have the exact shots.
 
 Smoke-test the model slug first:
 `pi --provider openai-codex --model gpt-5.6-luna -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.

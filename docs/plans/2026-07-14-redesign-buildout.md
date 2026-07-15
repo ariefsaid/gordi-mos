@@ -63,22 +63,40 @@ actually gone."
   blocks merge exactly like a failing gate.
 - **Design / UX review EVERY step, not just code review (owner-directed 2026-07-15).** Alongside the
   cross-family code review, every UI step gets a **four-lens design review — Visual · IxD · IA ·
-  Product/Intent (JTBD)** that goes back to the *intent*, run by a **vision-capable reviewer**. Luna
-  (`gpt-5.6-luna`, vision-capable, smoke-tested 2026-07-15) runs the bulk review from captured
-  screenshots via pi's `@image` attach (`docs/pi-delegation.md` Luna section); the Director keeps the
-  final taste sign-off + owner screenshots (an opus Claude design-reviewer is the alternative). The
-  text-only GLM builders cannot do this lens. It scores, in the ledger:
+  Product/Intent (JTBD)**, run by a **vision-capable reviewer**. **Order of assessment (owner-directed):
+  assess the built slice against the RULES IN DOCS FIRST** (Experience Contract Rules 1–12 →
+  `docs/jtbd.md` intent → `docs/reference/twenty-ixd-patterns.md`), **THEN against the available
+  MOCKUPS.** Mockup comparison is mandatory, not optional.
+  - **Runner + method (owner-directed): give Luna the OBJECTIVES, not step-by-step + fed screenshots.**
+    Dispatch `gpt-5.6-luna --thinking max` with the review objectives + the read-first doc list + the
+    URLs (app `localhost:5173/mos/`, e7 mockup `:8766`, convergence mockup `:8134`); Luna drives
+    **agent-browser / Playwright CLI itself** (both installed; pi has Bash) to open the app AND the
+    mockups, screenshot, and judge. It reads its own captures (vision-capable, verified 2026-07-15).
+    *Gotcha:* force a clean browser session on the exact URL — agent-browser can latch onto a stale
+    cross-project tab (observed: it once showed a PMO Portal page). The Director keeps only the final
+    taste sign-off; text-only GLM builders cannot do this lens.
   - **Intent (JTBD, `docs/jtbd.md`):** does the screen serve the real job of its least-technical
     persona, or just expose the data model?
   - **IA / IxD (`docs/reference/twenty-ixd-patterns.md`):** is the navigation, record-open, and
     command grammar consistent with the Twenty "one renderer / one panel / one command surface"
     target adapted for MOS?
+  - **Mockup fidelity + CROSS-VERSION REGRESSION (owner-directed — the fork problem):** compare the
+    built slice against the mockup that OWNS that surface per `SALVAGE-INVENTORY.md`, **and against
+    earlier mockup versions.** Explicitly flag anything that a mockup version got RIGHT (owner-approved
+    good) but the build or a later version LOST or changed for the worse — the recurring failure where
+    fixing one thing in a new version silently regressed another part that was already good. This is a
+    blocking finding, not a nit.
   - **Cross-module UI reusability:** every surface is built from the shared UI families (Rule 2) and
     existing components (Rule 11) so Café, Ecommerce, Roastery, Money, etc. share one grammar — a user
     who learns one module already knows the next. Flag any one-off/divergent component as a defect.
   - **Rule 12 high-school-graduate cold-start walkthrough:** a first-time, untrained, least-technical
     user completes the step's job unaided — starting point obvious, no unexplained noun, obvious next
     action, low step count. Recorded as pass/fail per the Rule-12 criteria, not vibed.
+  - **Owner decisions → Option A / Option B (owner-directed).** When the review surfaces a genuine
+    design fork the owner should decide (e.g. "mockup vX did it this way, the build does it another —
+    which do you want?"), the Director does NOT pick silently: raise it to the owner as **Option A vs
+    Option B** (with the tradeoff + a recommendation) to capture the preference, then lock it as a
+    convention/OD so it can't regress again.
 - The three validated flows are the curated e2e journeys and may not regress:
   F1 post-a-Signal (from step 4), F2 today's-opening (from step 7), F3 find-overdue-work (from step 3).
 - Playwright asserts the mechanical rules directly (one `aria-current="page"` document-wide; URL/
