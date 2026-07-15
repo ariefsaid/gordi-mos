@@ -93,6 +93,7 @@ export function StackedUnionHome() {
           section={section}
           canSeeFinance={canSeeFinance}
           personId={personId}
+          isManager={viewer?.isManager ?? false}
           now={now}
         />
       ))}
@@ -118,10 +119,11 @@ interface SectionViewProps {
   section: HomeSection
   canSeeFinance: boolean
   personId: string | null
+  isManager: boolean
   now: Date
 }
 
-function SectionView({ section, canSeeFinance, personId, now }: SectionViewProps) {
+function SectionView({ section, canSeeFinance, personId, isManager, now }: SectionViewProps) {
   const t = useT()
 
   if (section.kind === 'owner-cockpit') {
@@ -165,7 +167,7 @@ function SectionView({ section, canSeeFinance, personId, now }: SectionViewProps
           </h2>
         </div>
         {/* Keep retired cadence links off Home until their successors are real. */}
-        <MyWeekPanel hideLegacyCadenceCards />
+        <MyWeekPanel hideLegacyCadenceCards={!isManager} />
       </section>
     )
   }
