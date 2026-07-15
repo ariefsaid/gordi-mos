@@ -37,20 +37,19 @@ describe('OwnerCell', () => {
   })
 })
 
-describe('OwnerCell — AC-130 RACI disclosure tooltip', () => {
-  it('AC-130: the +N control reveals a read-only tooltip of the other RACI members on focus', () => {
+describe('OwnerCell — legacy overflow disclosure', () => {
+  it('the +N control reveals the other people on focus without role jargon', () => {
     render(<OwnerCell fullName="Ada Lovelace" otherCount={2}
       others={[{ role: 'C', name: 'Alan Turing' }, { role: 'I', name: 'Grace Hopper' }]} />)
-    const more = screen.getByRole('button', { name: /show other raci members/i })
+    const more = screen.getByRole('button', { name: /show other people/i })
     fireEvent.focus(more)
-    expect(screen.getByText(/C · Alan Turing/)).toBeInTheDocument()
-    expect(screen.getByText(/I · Grace Hopper/)).toBeInTheDocument()
+    expect(screen.getByText('Alan Turing')).toBeInTheDocument()
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument()
   })
 
-  it('AC-130: without an others list the +N stays a plain badge (backward compatible)', () => {
+  it('without an others list the +N stays a plain badge', () => {
     render(<OwnerCell fullName="Budi Setiawan" otherCount={3} />)
     expect(screen.getByText('+3')).toBeTruthy()
-    // No disclosure button when no others provided
-    expect(screen.queryByRole('button', { name: /show other raci members/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /show other people/i })).toBeNull()
   })
 })

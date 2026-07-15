@@ -30,7 +30,7 @@ vi.mock('../../lib/comments/postComment', () => ({
   postComment: vi.fn(),
 }))
 
-import { getTask, createTask, updateTaskStatus, toggleChecklistItem, updateTaskRaci, unarchiveTask, archiveTask } from '@/lib/db/tasks'
+import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
@@ -130,7 +130,7 @@ function renderSurfaceRoute(path: string) {
 
 // ── View mode ────────────────────────────────────────────────────────────────
 describe('TaskSurface — view mode', () => {
-  it('AC-070 (TaskSurface): renders title, status, RACI, checklist, activity for a loaded task', async () => {
+  it('AC-070 (TaskSurface): renders title, status, typed ownership, checklist, activity, and completion', async () => {
     const task = makeTask()
     const checklist: ChecklistItemRow[] = [{
       id: 'item-0', org_id: 'org', task_id: 'task-abc', label: 'Inspect coil',
@@ -147,9 +147,13 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
-    // Left panel: status + RACI always visible (decision-drivers above the fold)
+    // Left panel: status + typed ownership always visible (decision-drivers above the fold)
     expect(screen.getByText('Open')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
+    expect(screen.getByText('PIC')).toBeInTheDocument()
+    expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+    expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
     // Right feed: Activity is the default tab; Checklist is one tab away
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
@@ -270,16 +274,17 @@ describe('TaskSurface — mutation handlers', () => {
     await waitFor(() => expect(cb().checked).toBe(false))
   })
 
-  it('RACI change (rollback): restores the consulted chip when updateTaskRaci rejects', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask({ consulted_person_ids: ['other-id'] }), checklist: [], events: [] })
-    vi.mocked(updateTaskRaci).mockRejectedValue(new Error('write failed'))
+  it('PIC reassignment (rollback): restores the previous PIC when the write rejects', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    expect(screen.getByTestId('chip-consulted')).toHaveTextContent('Other Person')
-    fireEvent.click(screen.getByRole('button', { name: /remove consulted person other person/i }))
-    await waitFor(() => expect(vi.mocked(updateTaskRaci)).toHaveBeenCalled())
-    // rollback restores the removed chip
-    await waitFor(() => expect(screen.getByTestId('chip-consulted')).toHaveTextContent('Other Person'))
+    fireEvent.click(screen.getByRole('button', { name: 'Reassign PIC' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Other Person' }))
+    await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
+      'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID,
+    ))
+    expect(screen.getByRole('button', { name: 'Reassign PIC' })).toHaveTextContent('Cahya Cafe')
   })
 
   // I3: archiving reports the id back to the host (so the table drops the row).
@@ -363,12 +368,13 @@ describe('TaskSurface — live region (AC-111)', () => {
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 
-  it('AC-111: a failed RACI change reverts AND announces the rollback', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask({ consulted_person_ids: ['other-id'] }), checklist: [], events: [] })
-    vi.mocked(updateTaskRaci).mockRejectedValue(new Error('write failed'))
+  it('AC-111: a failed PIC reassignment reverts AND announces the rollback', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /remove consulted person other person/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reassign PIC' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Other Person' }))
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 })
@@ -397,20 +403,20 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     expect(screen.getByRole('tablist')).toBeInTheDocument()
     // Activity is the feed default
     expect(screen.getByRole('tab', { name: /activity/i })).toHaveAttribute('aria-selected', 'true')
-    // The compact details panel keeps RACI always visible (above the feed)
-    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    // The compact details panel keeps typed ownership always visible (above the feed)
+    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     expect(document.querySelector('.record-details-compact')).toBeTruthy()
   })
 
-  it('AC-R06 (drawer): RACI stays in the panel while the feed tabs switch to Checklist', async () => {
+  it('AC-R06 (drawer): typed ownership stays in the panel while the feed tabs switch to Checklist', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => expect(screen.getByText('Inspect coil')).toBeInTheDocument())
-    // RACI lives in the always-visible panel now, not behind a tab
-    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    // Typed ownership lives in the always-visible panel now, not behind a tab
+    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
   })
 
   it('AC-103 (drawer): changing status in the pinned header updates the pill and calls updateTaskStatus', async () => {
@@ -500,7 +506,7 @@ describe('TaskSurface — saved-view URL preservation', () => {
 
   it('AC-308: create cancel from /work/tasks/new?view=mine&r=other-id returns to /work/tasks?view=mine without losing the prefill on load', async () => {
     renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
-    const responsible = await screen.findByLabelText(/^responsible \(r\)/i)
+    const responsible = await screen.findByLabelText(/^pic$/i)
     expect((responsible as HTMLSelectElement).value).toBe('other-id')
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
@@ -526,15 +532,15 @@ describe('TaskSurface — saved-view URL preservation', () => {
 })
 
 describe('TaskSurface — create mode', () => {
-  it('AC-080 (TaskSurface create): R/A default to creator, BU defaults to primary-role BU; all editable', async () => {
+  it('AC-080 (TaskSurface create): PIC/Supervisor default to creator, Team defaults to primary-role Team; all editable', async () => {
     renderCreate()
     await waitFor(() => {
-      const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
+      const buSelect = screen.getByLabelText(/team/i) as HTMLSelectElement
       expect(buSelect.value).toBe('bu-1')
     })
-    const rSelect = screen.getByLabelText(/^responsible \(r\)/i) as HTMLSelectElement
+    const rSelect = screen.getByLabelText(/^pic$/i) as HTMLSelectElement
     expect(rSelect.value).toBe(VIEWER_ID)
-    const aSelect = screen.getByLabelText(/^accountable \(a\)/i) as HTMLSelectElement
+    const aSelect = screen.getByLabelText(/^supervisor$/i) as HTMLSelectElement
     expect(aSelect.value).toBe(VIEWER_ID)
     expect(rSelect).not.toBeDisabled()
     expect(aSelect).not.toBeDisabled()
@@ -670,7 +676,7 @@ describe('TaskSurface — create mode', () => {
     expect(title).not.toHaveClass('tc-input-error')
   })
 
-  it('AC-108: blurring an empty Business unit renders an inline error', async () => {
+  it('AC-108: blurring an empty Team renders an inline error', async () => {
     // Auth with no role → no primary-role BU, so the BU select starts empty.
     const noRoleAuth: AuthState = {
       status: 'authenticated',
@@ -678,9 +684,9 @@ describe('TaskSurface — create mode', () => {
       signOut: async () => {},
     }
     renderCreate(noRoleAuth)
-    const bu = await screen.findByLabelText('Business unit')
+    const bu = await screen.findByLabelText('Team')
     fireEvent.blur(bu)
-    const err = await screen.findByText(/business unit is required/i)
+    const err = await screen.findByText(/team is required/i)
     expect(err).toHaveAttribute('role', 'alert')
     expect(bu).toHaveClass('tc-input-error')
   })

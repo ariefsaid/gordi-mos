@@ -34,6 +34,8 @@ function renderHeader(props: Partial<Parameters<typeof TaskDrawerHeader>[0]> = {
       expanded={false}
       now={new Date('2026-06-15T08:30:00Z')}
       onStatusChange={vi.fn()}
+      onMarkComplete={vi.fn()}
+      onOpenPage={vi.fn()}
       onExpandToggle={vi.fn()}
       onClose={vi.fn()}
       onArchive={vi.fn()}
@@ -44,15 +46,17 @@ function renderHeader(props: Partial<Parameters<typeof TaskDrawerHeader>[0]> = {
 }
 
 describe('TaskDrawerHeader', () => {
-  it('renders the pinned title, unit + due, status trigger, and R/A mini-chips', () => {
+  it('renders the pinned title, Team/PIC/Supervisor summary, and status actions', () => {
     renderHeader()
     expect(screen.getByText('Replace chiller compressor')).toBeInTheDocument()
-    expect(screen.getByText(/Cafe Ops/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Cafe Ops/).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /change status/i })).toBeInTheDocument()
     expect(screen.getByText('Krishna Kitchen')).toBeInTheDocument()
     expect(screen.getByText('Dewi Director')).toBeInTheDocument()
-    expect(screen.getByText('Responsible')).toBeInTheDocument()
-    expect(screen.getByText('Accountable')).toBeInTheDocument()
+    expect(screen.getByText('Team')).toBeInTheDocument()
+    expect(screen.getByText('PIC')).toBeInTheDocument()
+    expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    expect(screen.queryByText(/RACI|Responsible|Accountable/)).toBeNull()
   })
 
   it('renders the expand + close controls with accessible labels', () => {

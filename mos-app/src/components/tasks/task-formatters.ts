@@ -33,7 +33,12 @@ export function formatDate(d: string): string {
   return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
-/** Collect unique persons (A + C + I) that are NOT the responsible person; returns count. */
+/** Resolve the human-facing provenance label for a Task row or record. */
+export function taskSourceLabel(workLineName: string, objectiveName: string): string {
+  return workLineName || objectiveName || 'Ad hoc'
+}
+
+/** Collect unique persons that are NOT the PIC; returns count for legacy cards. */
 export function otherRaciCount(task: TaskListRow): number {
   const r = task.responsible_person_id
   const seen = new Set<string>()

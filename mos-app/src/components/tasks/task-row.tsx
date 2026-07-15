@@ -33,7 +33,7 @@ export type TaskRowProps = {
   buName: string
   ownerName: string
   others: OwnerCellRaciMember[]
-  /** Row click + name link activation → navigate to /work/tasks/:id. */
+  /** Row click + name link activation → opens the split panel. */
   onOpen: (taskId: string) => void
   /** Checkbox selection (local set only — no bulk action ships this PR). */
   checked: boolean
@@ -42,14 +42,18 @@ export type TaskRowProps = {
   workLineName: string
   /** Resolved objective name (from the objectiveMap). Empty string → "—" rendered. */
   objectiveName: string
+  /** Supervisor display name resolved from the directory. */
+  supervisorName?: string
+  /** Human-facing source/provenance label. */
+  sourceName?: string
   /** Active location.search to preserve the saved view on every record-open path. */
   recordSearch?: string
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
-  buName, ownerName, others, onOpen, checked, onCheck,
-  workLineName, objectiveName, recordSearch = '',
+  buName, ownerName, onOpen, checked, onCheck,
+  workLineName, objectiveName, supervisorName = '', sourceName = '', recordSearch = '',
 }: TaskRowProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
@@ -63,6 +67,7 @@ export function TaskRow({
     : '—'
   const isArchived = task.archived_at != null
   const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
+  const panelState = { taskSurface: 'panel' as const }
 
   return (
     <tr
@@ -83,6 +88,7 @@ export function TaskRow({
       <td className="td-main">
         <Link
           to={recordTo}
+          state={panelState}
           className="task-row-link name-chip"
           title={task.title}
           tabIndex={0}
@@ -98,8 +104,9 @@ export function TaskRow({
       </td>
       <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
       <td className="td-cell td-owner">
-        <OwnerCell fullName={ownerName} otherCount={others.length} others={others} />
+        <OwnerCell fullName={ownerName} otherCount={0} variant="task" />
       </td>
+      <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
       {/* FR-234: Work-line column — resolved name; "—" when empty (never blank) */}
       {!condensed && (
         <td className="td-cell td-workline">
@@ -112,8 +119,9 @@ export function TaskRow({
           {objectiveName || <span className="td-empty">—</span>}
         </td>
       )}
-      {!condensed && <td className="td-cell td-bu">{buName}</td>}
+      <td className="td-cell td-bu">{buName}</td>
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
+      <td className="td-cell td-source" title={sourceName}>{sourceName || <span className="td-empty">—</span>}</td>
       {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
       <td className="td-cell td-menu">
         <RowMenu taskId={task.id} recordSearch={recordSearch} />

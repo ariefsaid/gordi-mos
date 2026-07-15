@@ -115,7 +115,7 @@
   font-size: 11px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--muted-foreground); /* label/meta role → muted-foreground (ADR-0013 D2) */
 }
-/* Inside the panel the reused RaciCard drops its card frame (the panel is the frame). */
+/* Inside the panel the reused Task ownership card drops its frame (the panel is the frame). */
 .record-details .card {
   background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
 }
@@ -259,26 +259,6 @@
 .desc-body { font-size: 16px; line-height: 1.5; color: var(--foreground); }
 .empty-substate { font-size: 15px; color: var(--muted-foreground); }
 
-/* ── RACI ── */
-.raci-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
-@media (max-width: 767px) { .raci-grid { grid-template-columns: 1fr; } }
-.raci-field { min-width: 0; position: relative; }
-.raci-label { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.role-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 20px; padding: 0 9px 0 7px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
-}
-.role-marker {
-  width: 15px; height: 15px; border-radius: 999px; display: grid;
-  place-items: center; font-size: 9.5px; font-weight: 700; color: var(--primary-foreground);
-}
-.role-chip-r { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--status-open-text); }
-.role-chip-r .role-marker { background: var(--primary); }
-.role-chip-a { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
-.role-chip-a .role-marker { background: var(--violet); }
-.role-chip-ci { background: var(--secondary); color: var(--muted-foreground); }
-.role-marker-ci { background: var(--muted-foreground); }
 .person-field {
   height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: var(--background); padding: 0 10px;
@@ -306,31 +286,25 @@
   font-size: 10px; font-weight: 700;
 }
 .person-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.multi-field {
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  padding: 6px 8px; min-height: 36px; border: 1px solid var(--input);
-  border-radius: var(--radius-sm); /* 8px — control/field, OD-P3-10 */
-  background: var(--background);
+/* ── Typed Task ownership ── */
+.task-ownership-card { margin: 0; }
+.task-ownership-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.task-owner-field { min-width: 0; position: relative; }
+.task-owner-label {
+  margin-bottom: 6px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted-foreground);
 }
-.chip-person {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px;
-  padding: 0 8px 0 4px; border-radius: 999px;
-  background: var(--secondary); font-size: 12px;
+.task-owner-value { min-height: 36px; display: flex; align-items: center; font-size: 15px; color: var(--foreground); }
+.task-owner-field .person-field,
+.task-owner-field .person-field-btn { min-width: 0; }
+.task-owner-field .person-field-btn { font-size: 15px; }
+.task-owner-field .person-name { min-width: 0; }
+.rd-source-value { font-weight: 500; }
+.task-mark-complete { align-self: flex-start; min-height: 36px; }
+@media (max-width: 767px) {
+  .task-ownership-grid { grid-template-columns: 1fr; }
+  .task-mark-complete { width: 100%; min-height: 44px; }
 }
-.chip-av {
-  width: 16px; height: 16px; font-size: 9px;
-}
-.chip-remove {
-  border: 0; background: transparent; color: var(--muted-foreground);
-  cursor: pointer; font-size: 16px; padding: 0 2px; line-height: 1;
-  display: flex; align-items: center;
-}
-.chip-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.add-person-btn {
-  border: 0; background: transparent; font-size: 12px;
-  color: var(--status-open-text); cursor: pointer; padding: 2px 4px;
-}
-.add-person-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── Person picker ── */
 .person-picker {
@@ -521,16 +495,31 @@
 .dw-unit { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
 .dw-statusrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .dw-activity { margin-left: 0; }
-.dw-ra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
-.ra-mini { display: flex; align-items: center; gap: 7px; }
-.ra-glyph {
-  width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
-  font-size: 10px; font-weight: 700; flex: none;
+.dw-ownership-summary {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; margin-top: 12px;
 }
-.ra-glyph-r { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); } /* --raci-responsible */
-.ra-glyph-a { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }       /* --raci-accountable */
-.ra-who { font-size: 15px; font-weight: 500; color: var(--foreground); }
-.ra-role { font-size: 11px; color: var(--muted-foreground); }
+.dw-owner-summary-item { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dw-owner-summary-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted-foreground);
+}
+.dw-owner-summary-value {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; font-weight: 500; color: var(--foreground);
+}
+.dw-open-page {
+  height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--status-open-text); font: inherit;
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.dw-open-page:hover { background: var(--accent); }
+.dw-open-page:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (max-width: 767px) {
+  .dw-ownership-summary { grid-template-columns: 1fr 1fr; }
+  .dw-owner-summary-item:first-child { grid-column: 1 / -1; }
+  .dw-open-page { min-height: 44px; }
+}
 
 /* ── Tab pane (the scrolling body — now hosts the compact panel + RecordFeed) ── */
 .dw-tabpane { overflow: auto; padding: 16px; flex: 1; min-height: 0; }

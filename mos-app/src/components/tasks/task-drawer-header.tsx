@@ -14,6 +14,8 @@ export type TaskDrawerHeaderProps = {
   expanded: boolean
   now: Date
   onStatusChange: (s: TaskStatus) => void
+  onMarkComplete?: () => void
+  onOpenPage?: () => void
   onExpandToggle: () => void
   onClose: () => void
   onArchive: () => void
@@ -43,7 +45,7 @@ const CloseIcon = () => (
  */
 export function TaskDrawerHeader({
   task, buName, people, editable, archiveable, expanded, now,
-  onStatusChange, onExpandToggle, onClose, onArchive,
+  onStatusChange, onMarkComplete, onOpenPage, onExpandToggle, onClose, onArchive,
 }: TaskDrawerHeaderProps) {
   const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? id
   const ds = dueStatus(task.due_date, now)
@@ -58,6 +60,11 @@ export function TaskDrawerHeader({
       <div className="dw-bar">
         <span className="dw-crumb-mini">{expanded ? 'Task · full width' : 'Task'}</span>
         <span className="dw-bar-spacer" />
+        {onOpenPage && (
+          <button type="button" className="dw-open-page" onClick={onOpenPage}>
+            Open full page
+          </button>
+        )}
         <button
           type="button"
           className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
@@ -94,6 +101,11 @@ export function TaskDrawerHeader({
               ? <StatusTrigger status={task.status} onChange={onStatusChange} />
               : <StatusPill status={task.status} />
             }
+            {editable && onMarkComplete && task.status !== 'Done' && !task.archived_at && (
+              <button type="button" className="btn btn-primary task-mark-complete" onClick={onMarkComplete}>
+                Mark complete
+              </button>
+            )}
             {expanded && archiveable && !task.archived_at && (
               <button type="button" className="btn-ghost-danger" aria-label="Archive task" onClick={onArchive}>
                 Archive task
@@ -102,20 +114,18 @@ export function TaskDrawerHeader({
             <span className="act tabular-nums dw-activity">Activity {formatAge(task.last_activity_at, now)} ago</span>
           </div>
 
-          <div className="dw-ra">
-            <div className="ra-mini">
-              <span className="ra-glyph ra-glyph-r" aria-hidden="true">R</span>
-              <div>
-                <div className="ra-who">{nameOf(task.responsible_person_id)}</div>
-                <div className="ra-role">Responsible</div>
-              </div>
+          <div className="dw-ownership-summary" aria-label="Task ownership summary">
+            <div className="dw-owner-summary-item">
+              <span className="dw-owner-summary-label">Team</span>
+              <span className="dw-owner-summary-value">{buName}</span>
             </div>
-            <div className="ra-mini">
-              <span className="ra-glyph ra-glyph-a" aria-hidden="true">A</span>
-              <div>
-                <div className="ra-who">{nameOf(task.accountable_person_id)}</div>
-                <div className="ra-role">Accountable</div>
-              </div>
+            <div className="dw-owner-summary-item">
+              <span className="dw-owner-summary-label">PIC</span>
+              <span className="dw-owner-summary-value">{nameOf(task.responsible_person_id)}</span>
+            </div>
+            <div className="dw-owner-summary-item">
+              <span className="dw-owner-summary-label">Supervisor</span>
+              <span className="dw-owner-summary-value">{nameOf(task.accountable_person_id)}</span>
             </div>
           </div>
         </div>

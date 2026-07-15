@@ -34,7 +34,13 @@ export function RowMenu({ taskId, recordSearch = '' }: RowMenuProps) {
       </button>
       {open && (
         <span role="menu" className="row-menu-pop" aria-label={`Row actions for task ${taskId}`}>
-          <Link to={{ pathname: `/work/tasks/${taskId}`, search: recordSearch }} role="menuitem" className="row-menu-item" onClick={(e) => { e.stopPropagation(); setOpen(false) }}>
+          <Link
+            to={{ pathname: `/work/tasks/${taskId}`, search: recordSearch }}
+            state={{ taskSurface: 'panel' }}
+            role="menuitem"
+            className="row-menu-item"
+            onClick={(e) => { e.stopPropagation(); setOpen(false) }}
+          >
             Open
           </Link>
         </span>

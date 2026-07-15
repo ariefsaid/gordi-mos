@@ -24,7 +24,7 @@ import { raciMember, raciOwner } from '@/lib/raci-member'
 import type { OwnerCellRaciMember } from './owner-cell'
 import { TaskRow } from './task-row'
 // OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
-import { STATUS_ORDER } from './task-formatters'
+import { STATUS_ORDER, taskSourceLabel } from './task-formatters'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
 import { useCascadeCatalogs } from './use-cascade-catalogs'
@@ -429,7 +429,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const { cursor, setCursor } = useTasksKeyboard({
     rowCount: leafTasks.length,
     enabled: isDesktop, // mobile uses the card list + native links, not row cursor
-    onOpen: i => { const t = leafTasks[i]; if (t) navigate({ pathname: `/work/tasks/${t.id}`, search: currentSearch }) },
+    onOpen: i => { const t = leafTasks[i]; if (t) navigate({ pathname: `/work/tasks/${t.id}`, search: currentSearch }, { state: { taskSurface: 'panel' } }) },
     onClose: () => { if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch }) },
     onNew: () => navigate({ pathname: '/work/tasks/new', search: currentSearch }),
     onExpand: () => { if (drawerOpen) onToggleExpand?.() },
@@ -556,11 +556,16 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         buName={buMap.get(task.business_unit_id) ?? ''}
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         others={buildOthers(task)}
-        onOpen={(id) => navigate({ pathname: `/work/tasks/${id}`, search: currentSearch })}
+        onOpen={(id) => navigate({ pathname: `/work/tasks/${id}`, search: currentSearch }, { state: { taskSurface: 'panel' } })}
         checked={selectedIds.has(task.id)}
         onCheck={() => toggleSelected(task.id)}
         workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
         objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+        supervisorName={personMap.get(task.accountable_person_id) ?? ''}
+        sourceName={taskSourceLabel(
+          task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
+          task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
+        )}
         recordSearch={currentSearch}
       />
     )

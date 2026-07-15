@@ -4,7 +4,7 @@ import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { StatusPill } from './status-pill'
 import { StatusTrigger } from './status-trigger'
-import { RaciCard } from './raci-card'
+import { TaskOwnershipCard } from './task-ownership-card'
 import { formatDate, initials } from './task-formatters'
 
 export type RecordDetailsPanelProps = {
@@ -23,21 +23,21 @@ export type RecordDetailsPanelProps = {
   objectives?: ObjectiveRow[]
   workLines?: WorkLineRow[]
   onStatusChange: (s: TaskStatus) => void
-  onRaChange: (patch: Partial<Pick<TaskListRow, 'responsible_person_id' | 'accountable_person_id'>>) => void
-  onRaciChange: (patch: Partial<Pick<TaskListRow, 'consulted_person_ids' | 'informed_person_ids'>>) => void
+  onPicChange: (personId: string) => void
+  onMarkComplete?: () => void
   onWorkLineChange?: (id: string | null) => void
   onObjectiveChange?: (id: string | null) => void
 }
 
 // The left details panel of the two-column record surface (ADR-0013 D3): an
-// identity row (task name + "BU · code" sub-line) above field sections —
-// Status (inline StatusTrigger for editors) · Ownership (R/A/C/I) · Dates ·
-// Checklist count. Status + R/A sit above the fold (Lens-D Q3). A `compact`
-// variant renders the same anatomy for the drawer width.
+// identity row (task name + "Team · code" sub-line) above field sections —
+// Status (inline StatusTrigger for editors) · Team/PIC/Supervisor · Details.
+// Status + ownership sit above the fold. A `compact` variant renders the same
+// anatomy for the drawer width.
 export function RecordDetailsPanel({
-  task, buName, people, editable, viewerId, checklistCount, compact,
+  task, buName, people, editable, checklistCount, compact,
   objectives = [], workLines = [],
-  onStatusChange, onRaChange, onRaciChange,
+  onStatusChange, onPicChange, onMarkComplete,
   onWorkLineChange, onObjectiveChange,
 }: RecordDetailsPanelProps) {
   const [done, total] = checklistCount
@@ -77,16 +77,15 @@ export function RecordDetailsPanel({
         </div>
       )}
 
-      {/* Ownership (RACI) — R/A above the fold */}
+      {/* Typed Task ownership — Team, PIC, and Supervisor. */}
       <div className="rd-section">
-        <div className="rd-section-label">Ownership (RACI)</div>
-        <RaciCard
+        <div className="rd-section-label">Ownership</div>
+        <TaskOwnershipCard
           task={task}
+          teamName={buName}
           people={people}
           canEdit={editable}
-          viewerId={viewerId}
-          onRaciChange={onRaciChange}
-          onRaChange={onRaChange}
+          onPicChange={onPicChange}
         />
       </div>
 
@@ -101,7 +100,7 @@ export function RecordDetailsPanel({
             </dd>
           </div>
           <div className="rd-field">
-            <dt className="rd-field-label">Unit</dt>
+            <dt className="rd-field-label">Team</dt>
             <dd className="rd-field-val">{buName}</dd>
           </div>
           <div className="rd-field">
@@ -114,6 +113,13 @@ export function RecordDetailsPanel({
             <dt className="rd-field-label">Checklist</dt>
             <dd className="rd-field-val tabular-nums">
               {total > 0 ? `${done} of ${total} done` : 'None yet'}
+            </dd>
+          </div>
+          {/* Source/provenance — the parent work-line or objective, or honest Ad hoc. */}
+          <div className="rd-field">
+            <dt className="rd-field-label">Source</dt>
+            <dd className="rd-field-val rd-source-value">
+              {workLineName ?? objectiveName ?? 'Ad hoc'}
             </dd>
           </div>
           {/* D4: Work-line — editable inline select when lookups available, else read-only */}
@@ -162,6 +168,11 @@ export function RecordDetailsPanel({
             </dd>
           </div>
         </dl>
+        {!compact && onMarkComplete && editable && task.status !== 'Done' && (
+          <button type="button" className="btn btn-primary task-mark-complete" onClick={onMarkComplete}>
+            Mark complete
+          </button>
+        )}
       </div>
     </section>
   )

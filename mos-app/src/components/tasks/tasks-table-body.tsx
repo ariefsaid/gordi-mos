@@ -217,8 +217,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             </th>
             <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('owner')} onClick={() => onSort('owner')}>
-              Owner (R){sortIndicator('owner')}
+              PIC{sortIndicator('owner')}
             </th>
+            <th scope="col" className="th-cell">Supervisor</th>
             {/* FR-234: Work-line + Objective columns — shown in non-condensed view */}
             {!condensed && (
               <th scope="col" className="th-cell">Project/Process</th>
@@ -226,13 +227,12 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             {!condensed && (
               <th scope="col" className="th-cell">Objective</th>
             )}
-            {!condensed && (
-              <th scope="col" className="th-cell">Business unit</th>
-            )}
+            <th scope="col" className="th-cell">Team</th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('due')} onClick={() => onSort('due')}>
               Due{sortIndicator('due')}
             </th>
+            <th scope="col" className="th-cell">Source</th>
             {!condensed && (
               <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
                 aria-sort={ariaSort('activity')} onClick={() => onSort('activity')}>
@@ -247,9 +247,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            // condensed = 6 cols (cb + task + status + owner + due + menu)
-            // non-condensed = 10 cols (+ work-line + objective + bu + activity)
-            const colSpan = condensed ? 6 : 10
+            // condensed = 9 cols (cb + task + status + PIC + supervisor + team + due + source + menu)
+            // non-condensed = 12 cols (+ work-line + objective + activity)
+            const colSpan = condensed ? 9 : 12
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (

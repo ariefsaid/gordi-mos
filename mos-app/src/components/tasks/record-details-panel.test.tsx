@@ -34,8 +34,7 @@ function renderPanel(props: Partial<Parameters<typeof RecordDetailsPanel>[0]> = 
       viewerId={VIEWER_ID}
       checklistCount={[2, 5]}
       onStatusChange={noop}
-      onRaChange={noop}
-      onRaciChange={noop}
+      onPicChange={noop}
       {...props}
     />,
   )
@@ -55,12 +54,15 @@ describe('RecordDetailsPanel (AC-R02/R04)', () => {
     expect(heading).toHaveAttribute('title', 'Fix the coffee machine')
   })
 
-  it('AC-R02: shows Status (editable → StatusTrigger), Ownership/RACI, Dates, Checklist count', () => {
+  it('AC-R02: shows Status, typed ownership, Dates, Checklist count, and completion', () => {
     renderPanel()
     // Status (above the fold) — editor sees the change-status trigger
     expect(screen.getByRole('button', { name: /change status/i })).toBeInTheDocument()
-    // Ownership (RACI)
-    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    // Typed ownership
+    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
+    expect(screen.getByText('PIC')).toBeInTheDocument()
+    expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     // Dates
     expect(screen.getByText(/due/i)).toBeInTheDocument()
     // Checklist count
@@ -78,10 +80,9 @@ describe('RecordDetailsPanel (AC-R02/R04)', () => {
     expect(screen.getByText('In Progress')).toBeInTheDocument()
   })
 
-  it('compact variant keeps RACI + Details but defers identity/status to the drawer header', () => {
+  it('compact variant keeps typed ownership + Details but defers identity/status to the drawer header', () => {
     renderPanel({ compact: true })
-    // RACI + Details stay
-    expect(screen.getByRole('region', { name: /raci/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     expect(screen.getByText(/2 of 5/i)).toBeInTheDocument()
     // identity heading + status trigger are owned by the drawer header — not duplicated
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()

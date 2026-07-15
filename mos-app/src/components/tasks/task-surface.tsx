@@ -4,7 +4,7 @@ import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-do
 import { useAuth } from '@/auth/use-auth'
 import {
   getTask, createTask,
-  updateTaskStatus, updateTaskRaci, updateTaskFields,
+  updateTaskStatus, updateTaskFields,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   archiveTask, unarchiveTask,
 } from '@/lib/db/tasks'
@@ -49,6 +49,8 @@ const FEED_TO_SLOT: Record<FeedTab, TabKey> = {
 export type TaskSurfaceProps = {
   taskId: string | null          // null only in create mode
   mode: 'view' | 'create'
+  /** panel = in-list split drawer; page = standalone canonical record page. */
+  presentation?: 'panel' | 'page'
   width: 'drawer' | 'full'
   onClose?: () => void           // drawer/expanded use this; full host passes navigate('/work/tasks')
   onExpandToggle?: () => void    // wired in PR-B
@@ -83,7 +85,8 @@ export function TaskSurface(props: TaskSurfaceProps) {
 
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
-  taskId, width, expanded, onClose, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
+  taskId, width, presentation = width === 'drawer' ? 'panel' : 'page', expanded,
+  onClose, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -228,32 +231,20 @@ function ViewSurface({
     setComments(loadedComments)
   }
 
-  // ── RACI C/I change ──────────────────────────────────────────────────────
-  async function handleRaciChange(patch: Partial<Pick<TaskListRow, 'consulted_person_ids' | 'informed_person_ids'>>) {
-    if (!localTask) return
+  // ── PIC reassignment ─────────────────────────────────────────────────────
+  async function handlePicChange(personId: string) {
+    if (!localTask || personId === localTask.responsible_person_id) return
     const prev = { ...localTask }
-    setLocalTask(t => t ? { ...t, ...patch } : t)
+    const next = { ...localTask, responsible_person_id: personId }
+    setLocalTask(next)
+    onTaskChanged?.(next)
     try {
-      await updateTaskRaci(localTask.id, patch, viewerId)
+      await updateTaskFields(localTask.id, { responsible_person_id: personId }, viewerId)
       await refetchEvents(localTask.id)
-      announce('RACI updated')
+      announce('PIC reassigned')
     } catch {
       setLocalTask(prev)
-      announce(ROLLBACK_MSG)
-    }
-  }
-
-  // ── RACI R/A change (I2) ─────────────────────────────────────────────────
-  async function handleRaChange(patch: Partial<Pick<TaskListRow, 'responsible_person_id' | 'accountable_person_id'>>) {
-    if (!localTask) return
-    const prev = { ...localTask }
-    setLocalTask(t => t ? { ...t, ...patch } : t)
-    try {
-      await updateTaskFields(localTask.id, patch, viewerId)
-      await refetchEvents(localTask.id)
-      announce('Owner updated')
-    } catch {
-      setLocalTask(prev)
+      onTaskChanged?.(prev)
       announce(ROLLBACK_MSG)
     }
   }
@@ -378,6 +369,11 @@ function ViewSurface({
     } catch { /* surface */ }
   }
 
+  async function handleMarkComplete() {
+    if (!localTask || localTask.status === 'Done') return
+    await handleStatusChange('Done')
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
 
@@ -410,6 +406,8 @@ function ViewSurface({
           expanded={Boolean(expanded)}
           now={now}
           onStatusChange={handleStatusChange}
+          onMarkComplete={handleMarkComplete}
+          onOpenPage={presentation === 'panel' ? () => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } }) : undefined}
           onExpandToggle={() => onExpandToggle?.()}
           onClose={() => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))}
           onArchive={() => setShowConfirm(true)}
@@ -440,8 +438,8 @@ function ViewSurface({
             workLines={workLinesDir}
             compact
             onStatusChange={handleStatusChange}
-            onRaChange={handleRaChange}
-            onRaciChange={handleRaciChange}
+            onPicChange={handlePicChange}
+            onMarkComplete={handleMarkComplete}
             onWorkLineChange={handleWorkLineChange}
             onObjectiveChange={handleObjectiveChange}
           />
@@ -572,8 +570,8 @@ function ViewSurface({
           objectives={objectivesDir}
           workLines={workLinesDir}
           onStatusChange={handleStatusChange}
-          onRaChange={handleRaChange}
-          onRaciChange={handleRaciChange}
+          onPicChange={handlePicChange}
+          onMarkComplete={handleMarkComplete}
           onWorkLineChange={handleWorkLineChange}
           onObjectiveChange={handleObjectiveChange}
         />
@@ -685,7 +683,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
     setTitleError(title.trim() ? '' : 'Title is required')
   }
   function validateBuOnBlur() {
-    setBuError(businessUnitId ? '' : 'Business unit is required')
+    setBuError(businessUnitId ? '' : 'Team is required')
   }
 
   // ── Submit state ──────────────────────────────────────────────────────────
@@ -703,7 +701,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
       setTitleError('')
     }
     if (!businessUnitId) {
-      setBuError('Business unit is required')
+      setBuError('Team is required')
       valid = false
     } else {
       setBuError('')
@@ -818,10 +816,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           )}
         </div>
 
-        {/* Business unit */}
+        {/* Team */}
         <div className="tc-field">
           <label htmlFor="task-bu" className="tc-label">
-            Business unit <span aria-hidden="true" className="tc-required">*</span>
+            Team <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
             <div className="tc-loading-field">Loading…</div>
@@ -836,9 +834,9 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               aria-invalid={buError ? 'true' : undefined}
               aria-describedby={buError ? 'bu-err' : undefined}
               disabled={submitting}
-              aria-label="Business unit"
+              aria-label="Team"
             >
-              <option value="">Select business unit…</option>
+              <option value="">Select team…</option>
               {busDirectory.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
@@ -849,10 +847,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           )}
         </div>
 
-        {/* Responsible (R) — pre-filled to creator, editable */}
+        {/* PIC — pre-filled to creator, editable */}
         <div className="tc-field">
           <label htmlFor="task-responsible" className="tc-label">
-            Responsible (R) <span aria-hidden="true" className="tc-required">*</span>
+            PIC <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
             <div className="tc-loading-field">Loading…</div>
@@ -863,7 +861,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               value={responsiblePersonId}
               onChange={e => setResponsiblePersonId(e.target.value)}
               disabled={submitting}
-              aria-label="Responsible (R)"
+              aria-label="PIC"
               aria-required="true"
             >
               {peopleDirectory.map(p => (
@@ -873,10 +871,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           )}
         </div>
 
-        {/* Accountable (A) — pre-filled to creator, editable */}
+        {/* Supervisor — pre-filled to creator, editable */}
         <div className="tc-field">
           <label htmlFor="task-accountable" className="tc-label">
-            Accountable (A) <span aria-hidden="true" className="tc-required">*</span>
+            Supervisor <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
             <div className="tc-loading-field">Loading…</div>
@@ -887,7 +885,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               value={accountablePersonId}
               onChange={e => setAccountablePersonId(e.target.value)}
               disabled={submitting}
-              aria-label="Accountable (A)"
+              aria-label="Supervisor"
               aria-required="true"
             >
               {peopleDirectory.map(p => (

@@ -6,7 +6,7 @@ import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
-import { formatAge, formatDate, otherRaciCount } from './task-formatters'
+import { formatAge, formatDate, taskSourceLabel } from './task-formatters'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 export type MobileRenderGroup = {
@@ -64,17 +64,17 @@ type TaskCardProps = {
   now: Date
   buName: string
   rName: string
-  others: OwnerCellRaciMember[]
   workLineName: string
   objectiveName: string
+  supervisorName: string
+  sourceName: string
   recordSearch?: string
 }
 
-function TaskCard({ task, now, buName, rName, others, workLineName, objectiveName, recordSearch = '' }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '' }: TaskCardProps) {
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
-  const n = otherRaciCount(task)
   const isArchived = task.archived_at != null
   // C1: only genuinely-overdue (non-Done, non-archived) gets red class / "Overdue · " prefix.
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
@@ -84,7 +84,11 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
 
   return (
     <article data-testid="task-card" className="task-card">
-      <Link to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }} className="task-card-link">
+      <Link
+        to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }}
+        state={{ taskSurface: 'panel' }}
+        className="task-card-link"
+      >
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">Archived</span>}
           <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
@@ -94,8 +98,12 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
         {/* Fix-5: dt labels are visible (label:value) per mockup — not sr-only */}
         <dl className="task-card-meta">
           <span className="task-card-meta-pair">
-            <dt>Owner</dt>
-            <dd><OwnerCell fullName={rName} otherCount={n} others={others} /></dd>
+            <dt>PIC</dt>
+            <dd><OwnerCell fullName={rName} otherCount={0} variant="task" /></dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Supervisor</dt>
+            <dd>{supervisorName || '—'}</dd>
           </span>
           {/* FR-234: Work-line + Objective in mobile card */}
           <span className="task-card-meta-pair">
@@ -109,6 +117,10 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
           <span className="task-card-meta-pair">
             <dt>Due</dt>
             <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
+          </span>
+          <span className="task-card-meta-pair">
+            <dt>Source</dt>
+            <dd className="td-empty-inline">{sourceName}</dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>Activity</dt>
@@ -133,7 +145,7 @@ function TaskCard({ task, now, buName, rName, others, workLineName, objectiveNam
  */
 export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
-  isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly, buildOthers,
+  isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   workLineMap, objectiveMap,
 }: MobileGroupedCardsProps) {
   // Flat default (mockup): the single implicit group renders as a plain card list
@@ -149,9 +161,13 @@ export function MobileGroupedCards({
               now={now}
               buName={buMap.get(task.business_unit_id) ?? ''}
               rName={personMap.get(task.responsible_person_id) ?? ''}
-              others={buildOthers(task)}
               workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
               objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+              supervisorName={personMap.get(task.accountable_person_id) ?? ''}
+              sourceName={taskSourceLabel(
+                task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
+                task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
+              )}
               recordSearch={recordSearch}
             />
           </div>
@@ -207,9 +223,13 @@ export function MobileGroupedCards({
                 now={now}
                 buName={buMap.get(task.business_unit_id) ?? ''}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
-                others={buildOthers(task)}
                 workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
                 objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+                supervisorName={personMap.get(task.accountable_person_id) ?? ''}
+                sourceName={taskSourceLabel(
+                  task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
+                  task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
+                )}
                 recordSearch={recordSearch}
               />
             </div>

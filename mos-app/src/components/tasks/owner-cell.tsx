@@ -4,18 +4,27 @@ import { firstName, initials } from './task-formatters'
 export type OwnerCellRaciMember = { role: 'A' | 'C' | 'I'; name: string }
 
 type OwnerCellProps = {
+  /** Legacy owner rendering is retained for non-Task historical cards. */
   fullName: string
   otherCount: number
-  /** When provided, the "+N" becomes an accessible disclosure listing the other
-   *  RACI members (A/C/I) as a read-only tooltip on hover/focus (AC-130, FR-128).
-   *  Absent → the "+N" stays a plain non-interactive badge (backward compatible). */
   others?: OwnerCellRaciMember[]
+  /** Task rows use the typed PIC rendering and never expose the legacy +N roles. */
+  variant?: 'legacy' | 'task'
 }
 
-export function OwnerCell({ fullName, otherCount, others }: OwnerCellProps) {
+export function OwnerCell({ fullName, otherCount, others, variant = 'legacy' }: OwnerCellProps) {
   const [open, setOpen] = useState(false)
   const tipId = useId()
   const hasDisclosure = otherCount > 0 && others != null && others.length > 0
+
+  if (variant === 'task') {
+    return (
+      <div className="owner task-pic-cell" aria-label={`PIC: ${fullName}`}>
+        <span className="ownav" aria-hidden="true">{initials(fullName)}</span>
+        <span className="own-name">{firstName(fullName)}</span>
+      </div>
+    )
+  }
 
   return (
     <div className="owner">
@@ -27,7 +36,7 @@ export function OwnerCell({ fullName, otherCount, others }: OwnerCellProps) {
             <button
               type="button"
               className="own-more own-more-btn"
-              aria-label="Show other RACI members"
+              aria-label="Show other people"
               aria-describedby={open ? tipId : undefined}
               aria-expanded={open}
               onFocus={() => setOpen(true)}
@@ -39,8 +48,8 @@ export function OwnerCell({ fullName, otherCount, others }: OwnerCellProps) {
             </button>
             {open && (
               <span role="tooltip" id={tipId} className="own-tip">
-                {others!.map((m, i) => (
-                  <span key={i} className="own-tip-row">{`${m.role} · ${m.name}`}</span>
+                {others!.map((member, i) => (
+                  <span key={i} className="own-tip-row">{member.name}</span>
                 ))}
               </span>
             )}

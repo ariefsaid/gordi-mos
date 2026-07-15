@@ -8,7 +8,7 @@ function eventLabel(ev: TaskEventRow): string {
     case 'created':        return 'Created'
     case 'status_changed': return `Status changed${ev.from_value && ev.to_value ? ` · ${ev.from_value} → ${ev.to_value}` : ''}`
     case 'field_edited':   return 'Field edited'
-    case 'raci_edited':    return 'RACI updated'
+    case 'raci_edited':    return 'People updated'
     case 'archived':       return 'Archived'
     case 'unarchived':     return 'Unarchived'
     default:               return ev.event_type
