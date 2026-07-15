@@ -189,8 +189,9 @@ describe('AC-070 — detail page renders task fields', () => {
     // Due date
     expect(screen.getByText(/sat 20 jun/i)).toBeTruthy()
 
-    // Business unit (resolved from directory)
-    expect(screen.getByText('Cafe Operations')).toBeTruthy()
+    // Business unit (resolved from directory) — in the identity sub-line
+    const identitySub = screen.getByText(/cafe operations ·/i)
+    expect(identitySub).toBeTruthy()
 
     // PIC and Supervisor names (resolved from directory) — left details panel
     expect(screen.getAllByText('Cahya Cafe').length).toBeGreaterThan(0)

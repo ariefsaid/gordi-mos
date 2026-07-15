@@ -181,8 +181,8 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     mockListObjectives.mockReturnValue(new Promise(() => {}))
     mockListWorkLines.mockReturnValue(new Promise(() => {}))
     renderCreate()
-    // BU select should be available as soon as the blocking directory loads
-    await waitFor(() => screen.getByLabelText(/business unit/i))
+    // Team select should be available as soon as the blocking directory loads
+    await waitFor(() => screen.getByLabelText(/team/i))
     expect(screen.getByRole('button', { name: /create task/i })).toBeInTheDocument()
   })
 })

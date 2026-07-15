@@ -168,8 +168,12 @@ export function RecordDetailsPanel({
             </dd>
           </div>
         </dl>
-        {!compact && onMarkComplete && editable && task.status !== 'Done' && (
-          <button type="button" className="btn btn-primary task-mark-complete" onClick={onMarkComplete}>
+        {!compact && editable && task.status !== 'Done' && (
+          <button
+            type="button"
+            className="btn btn-primary task-mark-complete"
+            onClick={onMarkComplete ?? (() => {})}
+          >
             Mark complete
           </button>
         )}

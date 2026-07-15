@@ -300,10 +300,12 @@ describe('FR-234 — Work-line and Objective columns appear in the table', () =>
     ])
     renderTable()
     await waitFor(() => screen.getByText('IG task'))
-    // Work-line name resolved from the map
-    expect(screen.getByText('Daily IG Content')).toBeInTheDocument()
-    // Objective name resolved from the map
-    expect(screen.getByText('Grow direct orders')).toBeInTheDocument()
+    // Work-line name resolved from the map — appears in the Work-line column
+    const worklineCell = screen.getByText('IG task').closest('tr')?.querySelector('.td-workline')
+    expect(worklineCell).toHaveTextContent('Daily IG Content')
+    // Objective name resolved from the map — appears in the Objective column
+    const objectiveCell = screen.getByText('IG task').closest('tr')?.querySelector('.td-objective')
+    expect(objectiveCell).toHaveTextContent('Grow direct orders')
   })
 
   it('FR-235: shows "—" when work_line_id is null', async () => {
@@ -313,8 +315,10 @@ describe('FR-234 — Work-line and Objective columns appear in the table', () =>
     renderTable()
     await waitFor(() => screen.getByText('No-WL task'))
     // At least one "—" for the empty work-line column
-    const dashes = screen.getAllByText('—')
-    expect(dashes.length).toBeGreaterThanOrEqual(1)
+    const worklineCell = screen.getByText('No-WL task').closest('tr')?.querySelector('.td-workline')
+    expect(worklineCell).toHaveTextContent('—')
+    const objectiveCell = screen.getByText('No-WL task').closest('tr')?.querySelector('.td-objective')
+    expect(objectiveCell).toHaveTextContent('—')
   })
 
   it('FR-235: shows "—" when objective_id is null', async () => {
@@ -323,10 +327,12 @@ describe('FR-234 — Work-line and Objective columns appear in the table', () =>
     ])
     renderTable()
     await waitFor(() => screen.getByText('No-obj task'))
-    // Work-line name appears (resolved)
-    expect(screen.getByText('Daily IG Content')).toBeInTheDocument()
-    // At least one "—" (for objective)
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
+    // Work-line name appears (resolved) in the Work-line column
+    const worklineCell = screen.getByText('No-obj task').closest('tr')?.querySelector('.td-workline')
+    expect(worklineCell).toHaveTextContent('Daily IG Content')
+    // At least one "—" (for objective in the Objective column)
+    const objectiveCell = screen.getByText('No-obj task').closest('tr')?.querySelector('.td-objective')
+    expect(objectiveCell).toHaveTextContent('—')
   })
 })
 
@@ -421,10 +427,11 @@ describe('Mobile cards: Work-line + Objective shown in card detail list', () => 
     ])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
-    // Work-line name present in the card
-    expect(screen.getByText('New Menu Design')).toBeInTheDocument()
+    // Work-line name present in the card (scoped to the card)
+    const card = screen.getByText('Mobile task').closest('article')
+    expect(card).toHaveTextContent('New Menu Design')
     // Objective name present in the card
-    expect(screen.getByText('Launch autumn menu')).toBeInTheDocument()
+    expect(card).toHaveTextContent('Launch autumn menu')
   })
 
   it('mobile card shows "—" for empty work_line_id', async () => {
@@ -433,7 +440,8 @@ describe('Mobile cards: Work-line + Objective shown in card detail list', () => 
     ])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
-    // At least one "—" for empty field
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
+    // At least one "—" for empty field in the card
+    const card = screen.getByText('Mobile task').closest('article')
+    expect(card?.textContent).toContain('—')
   })
 })
