@@ -1,5 +1,6 @@
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
+import { useT } from '@/i18n/use-t'
 
 type GroupHeaderRowProps = {
   /** The group label (status name, person name, BU name, or work-line name). */
@@ -45,16 +46,17 @@ type GroupHeaderRowProps = {
  * project → blue categorical tag; process → gray calm tag.
  */
 function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
+  const t = useT()
   if (type === 'project') {
     return (
       <Tag color="blue" weight="medium" className="wl-type-tag">
-        Project
+        {t('tasks.type.project')}
       </Tag>
     )
   }
   return (
     <Tag color="gray" weight="medium" className="wl-type-tag">
-      Daily / ongoing
+      {t('tasks.type.daily')}
     </Tag>
   )
 }
@@ -75,6 +77,7 @@ export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
   onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly,
 }: GroupHeaderRowProps) {
+  const t = useT()
   return (
     <tr className="grp">
       <td colSpan={colSpan}>
@@ -83,7 +86,7 @@ export function GroupHeaderRow({
             type="button"
             className="caret"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `Expand ${label} group` : `Collapse ${label} group`}
+            aria-label={collapsed ? t('tasks.group.expand', { label }) : t('tasks.group.collapse', { label })}
             onClick={onToggle}
           >
             {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
@@ -97,15 +100,15 @@ export function GroupHeaderRow({
           <span className="gcount tabular-nums">{count}</span>
           {overdue > 0 && (
             readOnly
-              ? <span>· {overdue} overdue</span>
+              ? <span>· {t('tasks.filter.overdueCount', { count: overdue })}</span>
               : (
                   <button
                     type="button"
                     className="gsub"
-                    aria-label={`Filter to ${overdue} overdue tasks`}
+                    aria-label={t('tasks.filter.overdueAria', { count: overdue })}
                     onClick={onOverdueFilter}
                   >
-                    · {overdue} overdue
+                    · {t('tasks.filter.overdueCount', { count: overdue })}
                   </button>
                 )
           )}
@@ -113,11 +116,11 @@ export function GroupHeaderRow({
             <button
               type="button"
               className="gadd"
-              aria-label={`Add task to ${label}`}
+              aria-label={t('tasks.group.add', { label })}
               data-prefill={prefill}
               onClick={onAddTask}
             >
-              + Add task
+              {t('tasks.add')}
             </button>
           )}
         </div>

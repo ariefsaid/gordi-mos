@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
+import { useT } from '@/i18n/use-t'
 
 const STATUSES: TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
 
@@ -12,6 +13,7 @@ export type StatusTriggerProps = {
 }
 
 export function StatusTrigger({ status, onChange }: StatusTriggerProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -36,14 +38,14 @@ export function StatusTrigger({ status, onChange }: StatusTriggerProps) {
         className="status-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="Change status"
+        aria-label={t('tasks.status.change')}
         onClick={() => setOpen(o => !o)}
       >
         <StatusPill status={status} />
         <Chevron className="trigger-chev" />
       </button>
       {open && (
-        <div role="listbox" aria-label="Select status" className="status-popover">
+        <div role="listbox" aria-label={t('tasks.status.select')} className="status-popover">
           {STATUSES.map(s => (
             <div
               key={s}

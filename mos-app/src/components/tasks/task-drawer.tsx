@@ -6,6 +6,7 @@ import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import { useT } from '@/i18n/use-t'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
@@ -64,6 +65,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
 
   const isModal = !isSplit
   const isFullScreen = !isDesktop // <768px: full-screen modal (design-plan §1.5)
+  const t = useT()
 
   const panelRef = useRef<HTMLElement>(null)
   // Remember the element that had focus before the drawer opened, to restore on close.
@@ -120,7 +122,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
     }
   }, [isModal, taskId, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const label = mode === 'create' ? 'New task' : 'Task detail'
+  const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
 
   // ADR-0013 D3 / AC-R06: the expand control PROMOTES the surface to the full-width
   // two-column record page — but only where there's room for two columns (the split

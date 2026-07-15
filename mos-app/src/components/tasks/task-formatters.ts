@@ -1,4 +1,5 @@
 import type { TaskStatus } from '@/lib/db/tasks.types'
+import type { Locale } from '@/i18n/messages'
 
 // OFF-TRACK-FIRST status order (OD-P3-6 / signed mockup): In Progress → Blocked → Open → Done.
 // Shared by the tasks workspace + the My Week mini-table so the two never drift.
@@ -27,13 +28,13 @@ export function formatAge(isoDate: string, now: Date): string {
 }
 
 /** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun". */
-export function formatDate(d: string): string {
+export function formatDate(d: string, locale: Locale = 'en'): string {
   const [y, m, day] = d.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, day))
-  return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+  return dt.toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
 /** Resolve the human-facing provenance label for a Task row or record. */
-export function taskSourceLabel(workLineName: string, objectiveName: string): string {
-  return workLineName || objectiveName || 'Ad hoc'
+export function taskSourceLabel(workLineName: string, objectiveName: string, adHocLabel: string): string {
+  return workLineName || objectiveName || adHocLabel
 }

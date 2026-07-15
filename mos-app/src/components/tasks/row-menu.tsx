@@ -10,6 +10,7 @@
 // scope for this stub; the single item is directly reachable.)
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useT } from '@/i18n/use-t'
 
 export type RowMenuProps = {
   taskId: string
@@ -17,13 +18,14 @@ export type RowMenuProps = {
 }
 
 export function RowMenu({ taskId, recordSearch = '' }: RowMenuProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   return (
     <span className="row-menu-wrap">
       <button
         type="button"
         className="row-menu"
-        aria-label="Row actions"
+        aria-label={t('tasks.rowActions')}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
@@ -33,7 +35,7 @@ export function RowMenu({ taskId, recordSearch = '' }: RowMenuProps) {
         </svg>
       </button>
       {open && (
-        <span role="menu" className="row-menu-pop" aria-label={`Row actions for task ${taskId}`}>
+        <span role="menu" className="row-menu-pop" aria-label={t('tasks.rowActionsFor', { id: taskId })}>
           <Link
             to={{ pathname: `/work/tasks/${taskId}`, search: recordSearch }}
             state={{ taskSurface: 'panel' }}
@@ -41,7 +43,7 @@ export function RowMenu({ taskId, recordSearch = '' }: RowMenuProps) {
             className="row-menu-item"
             onClick={(e) => { e.stopPropagation(); setOpen(false) }}
           >
-            Open
+            {t('tasks.rowOpen')}
           </Link>
         </span>
       )}

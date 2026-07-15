@@ -3,6 +3,7 @@ import type { PersonOption } from '@/lib/db/directory'
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
+import { useT } from '@/i18n/use-t'
 
 // Feed tab vocabulary (ADR-0013 D3 right-feed). "Notes" maps to the existing
 // description pane — no new entity (Director resolution). Order: Activity first
@@ -10,12 +11,6 @@ import { CommentThread, type TaskComment } from './CommentThread'
 export type FeedTab = 'activity' | 'checklist' | 'notes'
 
 const TAB_ORDER: FeedTab[] = ['activity', 'checklist', 'notes']
-const TAB_LABEL: Record<FeedTab, string> = {
-  activity: 'Activity',
-  checklist: 'Checklist',
-  notes: 'Notes',
-}
-
 export type RecordFeedProps = {
   task: TaskListRow
   checklist: ChecklistItemRow[]
@@ -45,6 +40,7 @@ export function RecordFeed({
   onAddChecklist, onToggleChecklist, onReorderChecklist, onDeleteChecklist,
   onPostComment,
 }: RecordFeedProps) {
+  const t = useT()
   const done = checklist.filter(i => i.is_done).length
 
   function move(dir: 1 | -1) {
@@ -72,7 +68,7 @@ export function RecordFeed({
         onClick={() => onSelectTab(key)}
         onKeyDown={handleKey}
       >
-        {TAB_LABEL[key]}
+        {key === 'activity' ? t('tasks.feed.activity') : key === 'checklist' ? t('tasks.feed.checklist') : t('tasks.feed.notes')}
         {count !== null && <span className="rf-tcount tabular-nums">{count}</span>}
       </button>
     )
@@ -80,7 +76,7 @@ export function RecordFeed({
 
   return (
     <div className="record-feed">
-      <div className="rf-tabs" role="tablist" aria-label="Record feed">
+      <div className="rf-tabs" role="tablist" aria-label={t('tasks.feed.aria')}>
         {renderTab('activity', events.length > 0 ? `${events.length}` : null)}
         {renderTab('checklist', checklist.length > 0 ? `${done}/${checklist.length}` : null)}
         {renderTab('notes', null)}
@@ -111,10 +107,10 @@ export function RecordFeed({
           />
         )}
         {activeTab === 'notes' && (
-          <section className="rf-notes" aria-label="Notes">
+          <section className="rf-notes" aria-label={t('tasks.feed.notes')}>
             {task.description
               ? <p className="desc-body">{task.description}</p>
-              : <p className="empty-substate">No notes.</p>
+              : <p className="empty-substate">{t('tasks.notesEmpty')}</p>
             }
           </section>
         )}

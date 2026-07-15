@@ -5,6 +5,7 @@ import { StatusTrigger } from './status-trigger'
 import { formatAge, formatDate } from './task-formatters'
 import { dueStatus } from '@/lib/due-status'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export type TaskDrawerHeaderProps = {
   task: TaskListRow
@@ -41,7 +42,7 @@ const CloseIcon = () => (
 /**
  * The PINNED action header of the task drawer (Variant B, design-plan §1.2):
  * utility bar (expand + close), title + unit/due, inline Status trigger, and
- * R/A mini-chips — the decision drivers stay above the fold at any tab/scroll.
+ * Team/PIC/Supervisor summary — the decision drivers stay above the fold at any tab/scroll.
  * Presentational: all mutations are routed through the supplied callbacks.
  */
 export function TaskDrawerHeader({
@@ -49,13 +50,14 @@ export function TaskDrawerHeader({
   onStatusChange, onMarkComplete, onOpenPage, onExpandToggle, onClose, onArchive,
 }: TaskDrawerHeaderProps) {
   const t = useT()
+  const { locale } = useI18n()
   const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? id
   const ds = dueStatus(task.due_date, now)
   const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
     ? (ds === 'overdue'
-      ? t('tasks.overdueDate', { date: formatDate(task.due_date) })
-      : formatDate(task.due_date))
+      ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) })
+      : formatDate(task.due_date, locale))
     : t('tasks.noDue')
 
   return (

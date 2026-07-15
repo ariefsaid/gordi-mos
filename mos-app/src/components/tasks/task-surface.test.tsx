@@ -6,6 +6,7 @@ import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -113,6 +114,18 @@ function renderSurface(props: Partial<Parameters<typeof TaskSurface>[0]> = {}, a
   )
 }
 
+function renderIndonesianSurface() {
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/tasks/task-abc']}>
+          <TaskSurface taskId="task-abc" mode="view" width="full" />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </I18nProvider>,
+  )
+}
+
 function renderSurfaceRoute(path: string) {
   return render(
     <AuthContext.Provider value={authedState}>
@@ -158,6 +171,22 @@ describe('TaskSurface — view mode', () => {
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+  })
+
+  it('AC-I02: Indonesian locale localizes the task record chrome and feed', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+
+    renderIndonesianSurface()
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
+    expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
+    expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
+    expect(screen.getByText('Aktivitas & pembaruan')).toBeInTheDocument()
+    expect(screen.getByText('Komentar')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
+    expect(screen.queryByText('Task details')).toBeNull()
+    localStorage.removeItem('mos.locale')
   })
 
   it('AC-R01: full width renders a two-column record page (details panel + feed)', async () => {

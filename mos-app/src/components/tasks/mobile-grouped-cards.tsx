@@ -7,6 +7,7 @@ import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { formatAge, formatDate, taskSourceLabel } from './task-formatters'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 export type MobileRenderGroup = {
@@ -73,6 +74,7 @@ type TaskCardProps = {
 
 function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '' }: TaskCardProps) {
   const t = useT()
+  const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
@@ -80,7 +82,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
   // C1: only genuinely-overdue (non-Done, non-archived) gets red class / "Overdue · " prefix.
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
-    ? (taskOverdue ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
+    ? (taskOverdue ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }) : formatDate(task.due_date, locale))
     : '—'
 
   return (
@@ -149,12 +151,13 @@ export function MobileGroupedCards({
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   workLineMap, objectiveMap,
 }: MobileGroupedCardsProps) {
+  const t = useT()
   // Flat default (mockup): the single implicit group renders as a plain card list
   // with NO group-header chrome (no caret / label / count / add).
   const isFlat = groups.length === 1 && groups[0].key === '__flat__'
   if (isFlat) {
     return (
-      <div className="mgc" role="list" aria-label="Tasks">
+      <div className="mgc" role="list" aria-label={t('tasks.title')}>
         {groups[0].rows.map(task => (
           <div key={task.id} role="listitem">
             <TaskCard
@@ -168,6 +171,7 @@ export function MobileGroupedCards({
               sourceName={taskSourceLabel(
                 task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
                 task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
+                t('tasks.adHoc'),
               )}
               recordSearch={recordSearch}
             />
@@ -178,7 +182,7 @@ export function MobileGroupedCards({
   }
 
   return (
-    <div className="mgc" role="list" aria-label="Tasks">
+    <div className="mgc" role="list" aria-label={t('tasks.title')}>
       {groups.map(group => (
         <div key={`mgc-${group.key}`} className="mgc-group">
           <div className="mgc-group-head">
@@ -186,7 +190,9 @@ export function MobileGroupedCards({
               type="button"
               className="mgc-caret"
               aria-expanded={!isCollapsed(group.key)}
-              aria-label={isCollapsed(group.key) ? `Expand ${group.label} group` : `Collapse ${group.label} group`}
+              aria-label={isCollapsed(group.key)
+                ? t('tasks.group.expand', { label: group.label })
+                : t('tasks.group.collapse', { label: group.label })}
               onClick={() => toggleCollapsed(group.key)}
             >
               {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
@@ -202,19 +208,19 @@ export function MobileGroupedCards({
               <button
                 type="button"
                 className="mgc-sub"
-                aria-label={`Filter to ${group.overdue} overdue tasks`}
+                aria-label={t('tasks.filter.overdueAria', { count: group.overdue })}
                 onClick={() => setOverdueOnly(true)}
               >
-                · {group.overdue} overdue
+                · {t('tasks.filter.overdueCount', { count: group.overdue })}
               </button>
             )}
             <button
               type="button"
               className="mgc-add"
-              aria-label={`Add task to ${group.label}`}
+              aria-label={t('tasks.group.add', { label: group.label })}
               onClick={() => openAddTask(group.prefillParam)}
             >
-              + Add task
+              {t('tasks.add')}
             </button>
           </div>
           {!isCollapsed(group.key) && group.rows.map(task => (
@@ -230,6 +236,7 @@ export function MobileGroupedCards({
                 sourceName={taskSourceLabel(
                   task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
                   task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
+                  t('tasks.adHoc'),
                 )}
                 recordSearch={recordSearch}
               />

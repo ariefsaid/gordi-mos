@@ -12,6 +12,7 @@ import type { TaskStatus } from '@/lib/db/tasks.types'
 import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
 import './status-pill.css'
+import { useT } from '@/i18n/use-t'
 
 export type { TaskStatus }
 
@@ -25,6 +26,14 @@ const STATUS_COLOR: Record<TaskStatus, TagColor> = {
 }
 
 export function StatusPill({ status, label }: StatusPillProps) {
+  const t = useT()
+  const localizedStatus = status === 'Open'
+    ? t('tasks.status.open')
+    : status === 'In Progress'
+      ? t('tasks.status.inProgress')
+      : status === 'Blocked'
+        ? t('tasks.status.blocked')
+        : t('tasks.status.done')
   // NO aria-label: the visible text IS the accessible name. StatusTrigger renders
   // StatusPill inside a role=option / button, and an aria-label would override the
   // option's computed name, breaking status-change (AC-071/103/111).
@@ -35,7 +44,7 @@ export function StatusPill({ status, label }: StatusPillProps) {
       className="status-pill"
       Icon={<span className="status-dot" aria-hidden="true" />}
     >
-      {label ?? status}
+      {label ?? localizedStatus}
     </Tag>
   )
 }

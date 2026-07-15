@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChecklistItemRow } from '@/lib/db/tasks.types'
+import { useT } from '@/i18n/use-t'
 
 // ── Checklist card ───────────────────────────────────────────────────────────
 export type ChecklistCardProps = {
@@ -14,6 +15,7 @@ export type ChecklistCardProps = {
 }
 
 export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete }: ChecklistCardProps) {
+  const t = useT()
   const [draft, setDraft] = useState('')
   const done = items.filter(i => i.is_done).length
 
@@ -25,18 +27,18 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
   }
 
   return (
-    <section className="card" aria-label="Checklist">
+    <section className="card" aria-label={t('tasks.checklistTitle')}>
       <h2 className="card-h2">
-        Checklist
+        {t('tasks.checklistTitle')}
         {items.length > 0 && (
-          <span className="checklist-count tabular-nums">{done} of {items.length} done</span>
+          <span className="checklist-count tabular-nums">{t('tasks.checklist.done', { done, total: items.length })}</span>
         )}
       </h2>
 
       {/* M7: empty Checklist always shows the empty line (plan §3.2); editors
           additionally get the add field below it. */}
       {items.length === 0 && (
-        <p className="empty-substate">No steps yet.</p>
+        <p className="empty-substate">{t('tasks.checklist.noSteps')}</p>
       )}
 
       <ul className="checklist-list">
@@ -64,21 +66,21 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
                 <button
                   type="button"
                   className="checklist-ctrl-btn"
-                  aria-label={`Move up ${item.label}`}
+                  aria-label={t('tasks.checklist.moveUp', { label: item.label })}
                   disabled={idx === 0}
                   onClick={() => onReorder(item.id, 'up')}
                 >▲</button>
                 <button
                   type="button"
                   className="checklist-ctrl-btn"
-                  aria-label={`Move down ${item.label}`}
+                  aria-label={t('tasks.checklist.moveDown', { label: item.label })}
                   disabled={idx === items.length - 1}
                   onClick={() => onReorder(item.id, 'down')}
                 >▼</button>
                 <button
                   type="button"
                   className="checklist-ctrl-btn checklist-ctrl-delete"
-                  aria-label={`Delete checklist item ${item.label}`}
+                  aria-label={t('tasks.checklist.delete', { label: item.label })}
                   onClick={() => onDelete(item.id)}
                 >×</button>
               </div>
@@ -91,11 +93,11 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
         <input
           type="text"
           className="checklist-add-input"
-          placeholder="+ Add a step"
+          placeholder={t('tasks.checklist.addPlaceholder')}
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
-          aria-label="Add checklist item"
+          aria-label={t('tasks.checklist.addAria')}
         />
       )}
     </section>

@@ -299,6 +299,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     else { setSortCol(col); setSortDir('ascending') }
   }
 
+  const statusLabel = useCallback((status: TaskStatus): string => status === 'Open'
+    ? t('tasks.status.open')
+    : status === 'In Progress'
+      ? t('tasks.status.inProgress')
+      : status === 'Blocked'
+        ? t('tasks.status.blocked')
+        : t('tasks.status.done'), [t])
+
   // ── Grouping (FR-122/123, AC-123/124) ────────────────────────────────────
   // Build the ordered group list from the engine's filtered + sorted rows.
   // Empty groups (Owner/BU with zero rows) are injected from the full directory
@@ -330,7 +338,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       // FR-123 (refined): Status groups open a plain /work/tasks/new (no ?status= pre-fill)
       // because CreateSurface has no status field — the task always opens as "Open".
       // Owner→?r=<personId> and BU→?bu=<buId> ARE read and applied by CreateSurface.
-      return STATUS_ORDER.map(s => mk(s, s, ''))
+      return STATUS_ORDER.map(s => mk(s, statusLabel(s), ''))
     }
     if (groupBy === 'owner') {
       return peopleDirectory.map(p => mk(p.id, p.full_name, `r=${p.id}`))
@@ -346,7 +354,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       const named = workLinesDirectory
         .map(wl => mk(wl.id, wl.name, '', wl.type))
         .filter(g => !filterZeroWhenPerson || g.rows.length > 0)
-      const noGroup = mk('__no_workline__', 'No work-line', '', null)
+      const noGroup = mk('__no_workline__', t('tasks.group.noWorkLine'), '', null)
       // Also suppress the "No work-line" group when person-filtered and it has no rows
       const groups: typeof named = [...named]
       if (!filterZeroWhenPerson || noGroup.rows.length > 0) groups.push(noGroup)
@@ -354,7 +362,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     }
     // bu
     return busDirectory.map(b => mk(b.id, b.name, `bu=${b.id}`))
-  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter])
+  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter, statusLabel, t])
 
   // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
   // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
@@ -544,6 +552,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         sourceName={taskSourceLabel(
           task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
           task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
+          t('tasks.adHoc'),
         )}
         recordSearch={currentSearch}
       />

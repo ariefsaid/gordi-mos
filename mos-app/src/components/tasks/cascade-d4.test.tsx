@@ -176,7 +176,7 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     expect(options).toContain('Launch autumn menu')
   })
 
-  it('FR-250: the create form is usable (shows BU/R/A) before Work-line/Objective lookups resolve', async () => {
+  it('FR-250: the create form is usable (shows Team/PIC/Supervisor) before Work-line/Objective lookups resolve', async () => {
     // Make lookups never resolve — form should still be functional (non-blocking)
     mockListObjectives.mockReturnValue(new Promise(() => {}))
     mockListWorkLines.mockReturnValue(new Promise(() => {}))

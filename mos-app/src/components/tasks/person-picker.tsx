@@ -1,5 +1,6 @@
 import type { PersonOption } from '@/lib/db/directory'
 import { initials } from './task-formatters'
+import { useT } from '@/i18n/use-t'
 
 // ── Person picker (simple select overlay) ───────────────────────────────────
 export type PersonPickerProps = {
@@ -10,9 +11,10 @@ export type PersonPickerProps = {
 }
 
 export function PersonPicker({ people, onSelect, onClose, exclude = [] }: PersonPickerProps) {
+  const t = useT()
   const available = people.filter(p => !exclude.includes(p.id))
   return (
-    <div role="listbox" aria-label="Select person" className="person-picker">
+    <div role="listbox" aria-label={t('tasks.people.select')} className="person-picker">
       {available.map(p => (
         <div
           key={p.id}

@@ -15,6 +15,7 @@ import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 import './my-tasks-card.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -179,13 +180,15 @@ type MiniTaskRowProps = {
 }
 
 function MiniTaskRow({ task, now, personMap, teamMap }: MiniTaskRowProps) {
+  const t = useT()
+  const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const dueClass = taskOverdue ? 'mini-due-overdue' : ds === 'soon' ? 'mini-due-soon' : ds === 'calm' ? 'mini-due-calm' : 'mini-due-none'
   const dueText = task.due_date
     ? (taskOverdue
-      ? `Overdue · ${formatDate(task.due_date)}`
-      : formatDate(task.due_date))
+      ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) })
+      : formatDate(task.due_date, locale))
     : '—'
   const teamName = teamMap.get(task.business_unit_id) ?? task.business_unit_id
   const picName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id
@@ -241,11 +244,12 @@ function MobileTaskList({ tasks, now, personMap, teamMap }: { tasks: TaskListRow
 
 function MobileTaskCard({ task, now, personMap, teamMap }: MiniTaskRowProps) {
   const t = useT()
+  const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const dueClass = taskOverdue ? 'mini-due-overdue' : ds === 'soon' ? 'mini-due-soon' : ds === 'calm' ? 'mini-due-calm' : 'mini-due-none'
   const dueText = task.due_date
-    ? (taskOverdue ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
+    ? (taskOverdue ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }) : formatDate(task.due_date, locale))
     : '—'
   const teamName = teamMap.get(task.business_unit_id) ?? task.business_unit_id
   const picName = personMap.get(task.responsible_person_id) ?? task.responsible_person_id

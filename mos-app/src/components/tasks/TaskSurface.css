@@ -264,7 +264,7 @@
   background: var(--background); padding: 0 10px;
   display: flex; align-items: center; gap: 8px;
 }
-/* I2: editable R/A person field — button form of person-field */
+/* I2: editable PIC field — button form of person-field */
 .person-field-btn {
   height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: var(--background); padding: 0 10px;
@@ -277,8 +277,8 @@
   margin-left: auto; font-size: 11px; color: var(--muted-foreground); flex-shrink: 0;
 }
 /* VIS-1: ONE avatar gradient (navy→primary, OD-P3-7) — same as shell/UserChip.tsx.
-   Violet (--violet) is KPI/timeline only; no avatar carries it. R and A share the
-   canonical gradient; the R/A distinction lives on the role-chip, not the avatar. */
+   Violet (--violet) is KPI/timeline only; no avatar carries it. PIC and Supervisor
+   share the canonical gradient; the typed label carries the ownership distinction. */
 .person-av {
   width: 22px; height: 22px; border-radius: 999px; flex: none;
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));

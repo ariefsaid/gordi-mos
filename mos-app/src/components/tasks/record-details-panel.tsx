@@ -6,6 +6,8 @@ import { StatusPill } from './status-pill'
 import { StatusTrigger } from './status-trigger'
 import { TaskOwnershipCard } from './task-ownership-card'
 import { formatDate, initials } from './task-formatters'
+import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export type RecordDetailsPanelProps = {
   task: TaskListRow
@@ -40,6 +42,8 @@ export function RecordDetailsPanel({
   onStatusChange, onPicChange, onMarkComplete,
   onWorkLineChange, onObjectiveChange,
 }: RecordDetailsPanelProps) {
+  const t = useT()
+  const { locale } = useI18n()
   const [done, total] = checklistCount
   // Short reference code derived from the task id — no new field (the mockup's
   // "TASK-1042" stands in for a stable per-task ref; we surface the id suffix).
@@ -52,7 +56,7 @@ export function RecordDetailsPanel({
   return (
     <section
       className={`record-details${compact ? ' record-details-compact' : ''}`}
-      aria-label="Task details"
+      aria-label={t('tasks.detailsTitle')}
       data-testid="record-details"
     >
       {/* Identity row — suppressed in compact (the drawer header owns it) */}
@@ -69,7 +73,7 @@ export function RecordDetailsPanel({
       {/* Status — above the fold; suppressed in compact (the drawer header owns it) */}
       {!compact && (
         <div className="rd-section">
-          <div className="rd-section-label">Status</div>
+          <div className="rd-section-label">{t('tasks.status.label')}</div>
           {editable
             ? <StatusTrigger status={task.status} onChange={onStatusChange} />
             : <StatusPill status={task.status} />
@@ -79,7 +83,7 @@ export function RecordDetailsPanel({
 
       {/* Typed Task ownership — Team, PIC, and Supervisor. */}
       <div className="rd-section">
-        <div className="rd-section-label">Ownership</div>
+        <div className="rd-section-label">{t('tasks.ownership')}</div>
         <TaskOwnershipCard
           task={task}
           teamName={buName}
@@ -91,79 +95,79 @@ export function RecordDetailsPanel({
 
       {/* Dates + checklist count + work-line + objective */}
       <div className="rd-section">
-        <div className="rd-section-label">Details</div>
+        <div className="rd-section-label">{t('tasks.detailsSection')}</div>
         <dl className="rd-fields">
           <div className="rd-field">
-            <dt className="rd-field-label">Due</dt>
+            <dt className="rd-field-label">{t('tasks.dueLabel')}</dt>
             <dd className="rd-field-val tabular-nums">
-              {task.due_date ? formatDate(task.due_date) : '—'}
+              {task.due_date ? formatDate(task.due_date, locale) : '—'}
             </dd>
           </div>
           <div className="rd-field">
-            <dt className="rd-field-label">Team</dt>
+            <dt className="rd-field-label">{t('tasks.team')}</dt>
             <dd className="rd-field-val">{buName}</dd>
           </div>
           <div className="rd-field">
-            <dt className="rd-field-label">Created</dt>
+            <dt className="rd-field-label">{t('tasks.created')}</dt>
             <dd className="rd-field-val tabular-nums">
-              {formatDate(task.created_at.slice(0, 10))}
+              {formatDate(task.created_at.slice(0, 10), locale)}
             </dd>
           </div>
           <div className="rd-field">
-            <dt className="rd-field-label">Checklist</dt>
+            <dt className="rd-field-label">{t('tasks.checklistTitle')}</dt>
             <dd className="rd-field-val tabular-nums">
-              {total > 0 ? `${done} of ${total} done` : 'None yet'}
+              {total > 0 ? t('tasks.checklist.done', { done, total }) : t('tasks.checklist.none')}
             </dd>
           </div>
           {/* Source/provenance — the parent work-line or objective, or honest Ad hoc. */}
           <div className="rd-field">
-            <dt className="rd-field-label">Source</dt>
+            <dt className="rd-field-label">{t('tasks.source')}</dt>
             <dd className="rd-field-val rd-source-value">
-              {workLineName ?? objectiveName ?? 'Ad hoc'}
+              {workLineName ?? objectiveName ?? t('tasks.adHoc')}
             </dd>
           </div>
           {/* D4: Work-line — editable inline select when lookups available, else read-only */}
           <div className="rd-field">
-            <dt className="rd-field-label">Project/Process</dt>
+            <dt className="rd-field-label">{t('tasks.filter.projectProcess')}</dt>
             <dd className="rd-field-val rd-field-val-select">
               {editable && workLines.length > 0 && onWorkLineChange ? (
                 <select
                   className="rd-inline-select"
                   value={task.work_line_id ?? ''}
                   onChange={e => onWorkLineChange(e.target.value || null)}
-                  aria-label="Project/Process"
+                  aria-label={t('tasks.filter.projectProcess')}
                 >
-                  <option value="">— None —</option>
+                  <option value="">{t('tasks.create.none')}</option>
                   {/* Fix-6: (project) / (daily) cue so attribution intent is visible at selection */}
                   {workLines.map(wl => (
                     <option key={wl.id} value={wl.id}>
-                      {wl.name} ({wl.type === 'project' ? 'project' : 'daily'})
+                      {wl.name} ({wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})
                     </option>
                   ))}
                 </select>
               ) : (
-                workLineName ?? '—'
+                workLineName ?? t('tasks.noDue')
               )}
             </dd>
           </div>
           {/* D4: Objective — editable inline select when lookups available, else read-only */}
           <div className="rd-field">
-            <dt className="rd-field-label">Objective</dt>
+            <dt className="rd-field-label">{t('tasks.objective')}</dt>
             <dd className="rd-field-val rd-field-val-select">
               {editable && objectives.length > 0 && onObjectiveChange ? (
                 <select
                   className="rd-inline-select"
                   value={task.objective_id ?? ''}
                   onChange={e => onObjectiveChange(e.target.value || null)}
-                  aria-label="Objective"
+                  aria-label={t('tasks.objective')}
                 >
-                  <option value="">— None —</option>
+                  <option value="">{t('tasks.create.none')}</option>
                   {objectives.map(obj => (
                     <option key={obj.id} value={obj.id}>{obj.name}</option>
                   ))}
                 </select>
               ) : (
-                objectiveName ?? '—'
+                objectiveName ?? t('tasks.noDue')
               )}
             </dd>
           </div>
@@ -174,7 +178,7 @@ export function RecordDetailsPanel({
             className="btn btn-primary task-mark-complete"
             onClick={onMarkComplete ?? (() => {})}
           >
-            Mark complete
+            {t('tasks.markComplete')}
           </button>
         )}
       </div>

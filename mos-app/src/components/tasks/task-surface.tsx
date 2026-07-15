@@ -25,6 +25,7 @@ import { RecordFeed } from './record-feed'
 import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
 import type { TabKey } from './use-tab-memory'
+import { useT } from '@/i18n/use-t'
 
 // Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
 // persistence). The two stores name the same three panes differently, so map
@@ -63,9 +64,10 @@ export type TaskSurfaceProps = {
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 function DetailSkeleton() {
+  const t = useT()
   return (
     <div aria-busy="true">
-      <span className="sr-only" role="status">Loading task</span>
+      <span className="sr-only" role="status">{t('tasks.detail.loading')}</span>
       <div className="card sk-block">
         <div className="sk" style={{ width: '40%', height: 24, marginBottom: 12 }} />
         <div className="sk" style={{ width: '60%', height: 14 }} />
@@ -103,6 +105,7 @@ function ViewSurface({
 
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const isManager = auth.status === 'authenticated' ? auth.viewer.isManager : false
+  const t = useT()
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -125,7 +128,7 @@ function ViewSurface({
     setLiveMessage('')
     requestAnimationFrame(() => setLiveMessage(msg))
   }, [])
-  const ROLLBACK_MSG = "Couldn't save — reverted"
+  const ROLLBACK_MSG = t('tasks.feedback.rollback')
 
   const now = useMemo(() => new Date(), [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -208,7 +211,7 @@ function ViewSurface({
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
       onTaskChanged?.(refreshed.task)
-      announce(`Status changed to ${newStatus}`)
+      announce(t('tasks.feedback.statusChanged', { status: newStatus === 'Open' ? t('tasks.status.open') : newStatus === 'In Progress' ? t('tasks.status.inProgress') : newStatus === 'Blocked' ? t('tasks.status.blocked') : t('tasks.status.done') }))
     } catch {
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
       onTaskChanged?.({ ...localTask, status: oldStatus })
@@ -241,7 +244,7 @@ function ViewSurface({
     try {
       await updateTaskFields(localTask.id, { responsible_person_id: personId }, viewerId)
       await refetchEvents(localTask.id)
-      announce('PIC reassigned')
+      announce(t('tasks.feedback.picReassigned'))
     } catch {
       setLocalTask(prev)
       onTaskChanged?.(prev)
@@ -257,7 +260,7 @@ function ViewSurface({
     try {
       await updateTaskFields(localTask.id, { work_line_id: workLineId }, viewerId)
       await refetchEvents(localTask.id)
-      announce('Project/Process updated')
+      announce(t('tasks.feedback.workLineUpdated'))
     } catch {
       setLocalTask(prev)
       announce(ROLLBACK_MSG)
@@ -272,7 +275,7 @@ function ViewSurface({
     try {
       await updateTaskFields(localTask.id, { objective_id: objectiveId }, viewerId)
       await refetchEvents(localTask.id)
-      announce('Objective updated')
+      announce(t('tasks.feedback.objectiveUpdated'))
     } catch {
       setLocalTask(prev)
       announce(ROLLBACK_MSG)
@@ -292,7 +295,7 @@ function ViewSurface({
     try {
       await addChecklistItem(localTask.id, label, position, viewerId)
       await refetchEvents(localTask.id)
-      announce('Checklist item added')
+      announce(t('tasks.feedback.checklistAdded'))
     } catch {
       setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
       announce(ROLLBACK_MSG)
@@ -306,7 +309,7 @@ function ViewSurface({
     try {
       await toggleChecklistItem(itemId, isDone, localTask.id, viewerId)
       await refetchEvents(localTask.id)
-      announce(isDone ? 'Checklist item completed' : 'Checklist item reopened')
+      announce(isDone ? t('tasks.feedback.checklistCompleted') : t('tasks.feedback.checklistReopened'))
     } catch {
       setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: !isDone } : i))
       announce(ROLLBACK_MSG)
@@ -342,7 +345,7 @@ function ViewSurface({
     try {
       await deleteChecklistItem(itemId, localTask.id, viewerId)
       await refetchEvents(localTask.id)
-      announce('Checklist item removed')
+      announce(t('tasks.feedback.checklistRemoved'))
     } catch {
       setLocalChecklist(prev)
       announce(ROLLBACK_MSG)
@@ -380,9 +383,9 @@ function ViewSurface({
   if (notFound || !localTask) {
     return (
       <div className="not-found-panel">
-        <h1 className="not-found-title">Task not found</h1>
-        <p className="not-found-copy">This task doesn&apos;t exist or you don&apos;t have access.</p>
-        <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">All tasks</Link>
+        <h1 className="not-found-title">{t('tasks.notFound.title')}</h1>
+        <p className="not-found-copy">{t('tasks.notFound.copy')}</p>
+        <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">{t('tasks.all')}</Link>
       </div>
     )
   }
@@ -415,10 +418,10 @@ function ViewSurface({
 
         {isArchived && (
           <div className="archived-banner" role="status">
-            <span>This task is archived.</span>
+            <span>{t('tasks.archivedBanner')}</span>
             {archiveable && (
               <button type="button" className="btn-outline-sm" onClick={handleUnarchive}>
-                Unarchive
+                {t('tasks.unarchive')}
               </button>
             )}
           </div>
@@ -468,10 +471,10 @@ function ViewSurface({
             <button
               type="button"
               className="btn-ghost-danger"
-              aria-label="Archive task"
+              aria-label={t('tasks.archive')}
               onClick={() => setShowConfirm(true)}
             >
-              Archive task
+              {t('tasks.archive')}
             </button>
           </div>
         )}
@@ -498,15 +501,15 @@ function ViewSurface({
           and render no chrome bar. (AC-R06 / IxD: post-action feedback + next step.) */}
       {(onExpandToggle || onClose) && (
         <div className="dw-bar record-chrome">
-          <span className="dw-crumb-mini">Task · full width</span>
+          <span className="dw-crumb-mini">{t('tasks.fullWidth')}</span>
           <span className="dw-bar-spacer" />
           {onExpandToggle && (
             <button
               type="button"
               className="dw-iconbtn dw-iconbtn-on"
               aria-pressed={true}
-              aria-label="Collapse to split (e)"
-              title="Collapse (e)"
+              aria-label={t('tasks.collapse')}
+              title={t('tasks.collapse')}
               onClick={() => onExpandToggle()}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -518,8 +521,8 @@ function ViewSurface({
             <button
               type="button"
               className="dw-iconbtn"
-              aria-label="Close (Esc)"
-              title="Close (Esc)"
+              aria-label={t('tasks.close')}
+              title={t('tasks.close')}
               onClick={() => onClose()}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -533,10 +536,10 @@ function ViewSurface({
       {/* AC-R05: archived banner + Unarchive sit above the two columns */}
       {isArchived && (
         <div className="archived-banner" role="status">
-          <span>This task is archived.</span>
+          <span>{t('tasks.archivedBanner')}</span>
           {archiveable && (
             <button type="button" className="btn-outline-sm" onClick={handleUnarchive}>
-              Unarchive
+              {t('tasks.unarchive')}
             </button>
           )}
         </div>
@@ -546,14 +549,14 @@ function ViewSurface({
           owns identity/status, the feed owns the activity; archive is the one
           consequential action and lives in a quiet action row). */}
       {archiveable && !isArchived && (
-        <div className="record-actions" role="group" aria-label="Task actions">
+        <div className="record-actions" role="group" aria-label={t('tasks.actions')}>
           <button
             type="button"
             className="btn-ghost"
-            aria-label="Archive task"
+            aria-label={t('tasks.archive')}
             onClick={() => setShowConfirm(true)}
           >
-            Archive task
+            {t('tasks.archive')}
           </button>
         </div>
       )}
@@ -614,11 +617,12 @@ function ViewSurface({
 function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
+  const t = useT()
   const inDrawer = width === 'drawer'
   // AC-125 / FR-123: "+ Add task" from a group header deep-links the grouped
   // dimension via query params (?r=<personId> / ?bu=<buId>).
   // Note: Status groups do NOT pass ?status= — CreateSurface has no status field;
-  // all new tasks open as "Open". Only Owner (r=) and BU (bu=) pre-fills are read.
+  // all new tasks open as "Open". Only PIC (r=) and Team (bu=) pre-fills are read.
   const [searchParams] = useSearchParams()
   const prefillR = searchParams.get('r') ?? ''
   const prefillBu = searchParams.get('bu') ?? ''
@@ -680,10 +684,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
   const [buError, setBuError] = useState('')
 
   function validateTitleOnBlur() {
-    setTitleError(title.trim() ? '' : 'Title is required')
+    setTitleError(title.trim() ? '' : t('tasks.create.titleRequired'))
   }
   function validateBuOnBlur() {
-    setBuError(businessUnitId ? '' : 'Team is required')
+    setBuError(businessUnitId ? '' : t('tasks.create.teamRequired'))
   }
 
   // ── Submit state ──────────────────────────────────────────────────────────
@@ -695,13 +699,13 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
     // Validate
     let valid = true
     if (!title.trim()) {
-      setTitleError('Title is required')
+      setTitleError(t('tasks.create.titleRequired'))
       valid = false
     } else {
       setTitleError('')
     }
     if (!businessUnitId) {
-      setBuError('Team is required')
+      setBuError(t('tasks.create.teamRequired'))
       valid = false
     } else {
       setBuError('')
@@ -725,8 +729,8 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
       const newId = await createTask(input)
       onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
       navigate({ pathname: `/work/tasks/${newId}`, search: collectionSearchString })
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong')
+    } catch {
+      setSubmitError(t('tasks.create.error'))
       setSubmitting(false)
     }
   }
@@ -742,8 +746,8 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
       type="button"
       className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
       aria-pressed={Boolean(expanded)}
-      aria-label={expanded ? 'Collapse to split (e)' : 'Expand to full width (e)'}
-      title={expanded ? 'Collapse (e)' : 'Expand (e)'}
+      aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
+      title={expanded ? t('tasks.collapse') : t('tasks.expand')}
       onClick={() => onExpandToggle?.()}
     >
       {expanded ? (
@@ -761,8 +765,8 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
     <button
       type="button"
       className="dw-iconbtn"
-      aria-label="Close (Esc)"
-      title="Close (Esc)"
+      aria-label={t('tasks.close')}
+      title={t('tasks.close')}
       onClick={closeToCollection}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -772,7 +776,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
   )
   const chromeBar = (
     <div className={inDrawer ? 'dw-bar' : 'dw-bar record-chrome'}>
-      <span className="dw-crumb-mini">{expanded ? 'New task · full width' : 'New task'}</span>
+      <span className="dw-crumb-mini">{expanded ? t('tasks.create.newFullWidth') : t('tasks.create.new')}</span>
       <span className="dw-bar-spacer" />
       {onExpandToggle && expandBtn}
       {closeBtn}
@@ -783,7 +787,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
       <form
         onSubmit={handleSubmit}
         noValidate
-        aria-label="Create task form"
+        aria-label={t('tasks.create.form')}
         className={inDrawer ? 'tc-create-form' : undefined}
       >
         {submitError && (
@@ -795,7 +799,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {/* Title */}
         <div className="tc-field">
           <label htmlFor="task-title" className="tc-label">
-            Title <span aria-hidden="true" className="tc-required">*</span>
+            {t('tasks.create.title')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           <input
             id="task-title"
@@ -807,9 +811,9 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
             aria-required="true"
             aria-invalid={titleError ? 'true' : undefined}
             aria-describedby={titleError ? 'title-err' : undefined}
-            placeholder="What needs to be done?"
+            placeholder={t('tasks.create.titlePlaceholder')}
             disabled={submitting}
-            aria-label="Title"
+            aria-label={t('tasks.create.title')}
           />
           {titleError && (
             <span id="title-err" role="alert" className="tc-field-error">{titleError}</span>
@@ -819,10 +823,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {/* Team */}
         <div className="tc-field">
           <label htmlFor="task-bu" className="tc-label">
-            Team <span aria-hidden="true" className="tc-required">*</span>
+            {t('tasks.team')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
-            <div className="tc-loading-field">Loading…</div>
+            <div className="tc-loading-field">{t('tasks.loading')}</div>
           ) : (
             <select
               id="task-bu"
@@ -834,9 +838,9 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               aria-invalid={buError ? 'true' : undefined}
               aria-describedby={buError ? 'bu-err' : undefined}
               disabled={submitting}
-              aria-label="Team"
+              aria-label={t('tasks.team')}
             >
-              <option value="">Select team…</option>
+              <option value="">{t('tasks.create.teamPlaceholder')}</option>
               {busDirectory.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
@@ -850,10 +854,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {/* PIC — pre-filled to creator, editable */}
         <div className="tc-field">
           <label htmlFor="task-responsible" className="tc-label">
-            PIC <span aria-hidden="true" className="tc-required">*</span>
+            {t('tasks.pic')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
-            <div className="tc-loading-field">Loading…</div>
+            <div className="tc-loading-field">{t('tasks.loading')}</div>
           ) : (
             <select
               id="task-responsible"
@@ -861,7 +865,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               value={responsiblePersonId}
               onChange={e => setResponsiblePersonId(e.target.value)}
               disabled={submitting}
-              aria-label="PIC"
+              aria-label={t('tasks.pic')}
               aria-required="true"
             >
               {peopleDirectory.map(p => (
@@ -874,10 +878,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {/* Supervisor — pre-filled to creator, editable */}
         <div className="tc-field">
           <label htmlFor="task-accountable" className="tc-label">
-            Supervisor <span aria-hidden="true" className="tc-required">*</span>
+            {t('tasks.supervisor')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
-            <div className="tc-loading-field">Loading…</div>
+            <div className="tc-loading-field">{t('tasks.loading')}</div>
           ) : (
             <select
               id="task-accountable"
@@ -885,7 +889,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               value={accountablePersonId}
               onChange={e => setAccountablePersonId(e.target.value)}
               disabled={submitting}
-              aria-label="Supervisor"
+              aria-label={t('tasks.supervisor')}
               aria-required="true"
             >
               {peopleDirectory.map(p => (
@@ -899,20 +903,20 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
             UI term is Project/Process (OD-C-2 / ADR-0015); table stays mos.work_lines. */}
         {workLinesDir.length > 0 && (
           <div className="tc-field">
-            <label htmlFor="task-workline" className="tc-label">Project/Process</label>
+            <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
             <select
               id="task-workline"
               className="tc-select"
               value={workLineId}
               onChange={e => setWorkLineId(e.target.value)}
               disabled={submitting}
-              aria-label="Project/Process"
+              aria-label={t('tasks.filter.projectProcess')}
             >
-              <option value="">— None —</option>
+              <option value="">{t('tasks.create.none')}</option>
               {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}
               {workLinesDir.map(wl => (
                 <option key={wl.id} value={wl.id}>
-                  {wl.name} ({wl.type === 'project' ? 'project' : 'daily'})
+                  {wl.name} ({wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})
                 </option>
               ))}
             </select>
@@ -922,16 +926,16 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {/* Objective (optional) — non-blocking; renders once lookups arrive */}
         {objectivesDir.length > 0 && (
           <div className="tc-field">
-            <label htmlFor="task-objective" className="tc-label">Objective</label>
+            <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
             <select
               id="task-objective"
               className="tc-select"
               value={objectiveId}
               onChange={e => setObjectiveId(e.target.value)}
               disabled={submitting}
-              aria-label="Objective"
+              aria-label={t('tasks.objective')}
             >
-              <option value="">— None —</option>
+              <option value="">{t('tasks.create.none')}</option>
               {objectivesDir.map(obj => (
                 <option key={obj.id} value={obj.id}>{obj.name}</option>
               ))}
@@ -941,7 +945,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
 
         {/* Due date (optional) */}
         <div className="tc-field">
-          <label htmlFor="task-due" className="tc-label">Due date</label>
+          <label htmlFor="task-due" className="tc-label">{t('tasks.create.dueDate')}</label>
           <input
             id="task-due"
             type="date"
@@ -954,28 +958,28 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
 
         {/* Description (optional) */}
         <div className="tc-field">
-          <label htmlFor="task-desc" className="tc-label">Description</label>
+          <label htmlFor="task-desc" className="tc-label">{t('tasks.create.description')}</label>
           <textarea
             id="task-desc"
             className="tc-textarea"
             value={description}
             onChange={e => setDescription(e.target.value)}
             rows={3}
-            placeholder="Optional context, goals, or notes…"
+            placeholder={t('tasks.create.descriptionPlaceholder')}
             disabled={submitting}
           />
         </div>
 
         {/* Actions */}
         <div className="tc-actions">
-          <button type="button" className="btn btn-outline" onClick={closeToCollection}>Cancel</button>
+          <button type="button" className="btn btn-outline" onClick={closeToCollection}>{t('tasks.cancel')}</button>
           <button
             type="submit"
             className="btn btn-primary"
             disabled={submitting}
             aria-busy={submitting}
           >
-            {submitting ? 'Creating…' : 'Create task'}
+            {submitting ? t('tasks.create.submitting') : t('tasks.create.submit')}
           </button>
         </div>
       </form>

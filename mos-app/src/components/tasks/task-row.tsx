@@ -18,6 +18,7 @@ import { formatAge, formatDate } from './task-formatters'
 import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export type TaskRowProps = {
   task: TaskListRow
@@ -55,15 +56,16 @@ export function TaskRow({
   workLineName, objectiveName, supervisorName = '', sourceName = '', recordSearch = '',
 }: TaskRowProps) {
   const t = useT()
+  const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   // C1: only genuinely-overdue (non-Done, non-archived) rows get the red class.
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
     ? (taskOverdue
-      // M1: condensed drops the "Overdue · " prefix but keeps a "!" glyph (WCAG 1.4.1).
-      ? (condensed ? `! ${formatDate(task.due_date)}` : `Overdue · ${formatDate(task.due_date)}`)
-      : formatDate(task.due_date))
+      // M1: condensed drops the overdue prefix but keeps a "!" glyph (WCAG 1.4.1).
+      ? (condensed ? `! ${formatDate(task.due_date, locale)}` : t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }))
+      : formatDate(task.due_date, locale))
     : '—'
   const isArchived = task.archived_at != null
   const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
@@ -81,7 +83,7 @@ export function TaskRow({
       <td className="td-cell td-cb">
         <RowCheckbox
           checked={checked}
-          label={`Select ${task.title}`}
+          label={t('tasks.selectTask', { title: task.title })}
           onChange={onCheck}
         />
       </td>
