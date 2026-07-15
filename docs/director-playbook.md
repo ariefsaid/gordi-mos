@@ -46,7 +46,7 @@ mockups (`docs/design-mockups/`) → Director sanity-check (tokens, realistic da
 
 ## 3. Delegation & context discipline
 - **Substrate (ACTIVE): the pi CLI.** Dispatch role work to pi (`docs/pi-delegation.md`) — model
-  routing by §2 of that doc (glm-5.2 ≈ opus, glm-4.7 ≈ sonnet/haiku, gpt-5.4 = all reviews,
+  routing by §2 of that doc (glm-5.2 ≈ opus, glm-4.7 ≈ sonnet/haiku, gpt-5.6-luna = all reviews,
   cross-family), invocation `pi --provider … --model … -p --no-session --append-system-prompt
   .claude/agents/<role>.md "<brief>" < /dev/null`, rendered UI via `agent-browser`. The Director still
   verifies every claim doubly (§7 + pi-delegation §5), keeps the final visual-taste lens, and owns

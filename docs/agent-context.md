@@ -33,7 +33,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
   secrets only via **`op-get.sh <item> <vault> <field>`** (1Password vaults **AS** + **Gordi**). When op
   isn't authenticated in the shell, ask him to unlock / provide — don't work around it.
 - When Claude is overloaded/rate-limited, he's fine delegating heavy work to **pi CLI** (GLM builders +
-  gpt-5.4 cross-family reviewers, `docs/pi-delegation.md`); vision/design-review stays Claude/Director.
+  gpt-5.6-luna cross-family reviewers, `docs/pi-delegation.md`); vision/design-review stays Claude/Director.
 
 ## Hard rules (non-negotiable)
 1. **Review battery before EVERY merge-to-main.** Run `bash scripts/pre-merge-check.sh` (exit 0) + record
@@ -120,7 +120,7 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   ownership, adopted Codex's clean rebased stack (verified byte-identical code), merged, cleaned up stale
   branches. If HEAD ever looks wrong, check `git branch --show-current` + reflog before acting.
 - **Delegation posture (owner-directed 2026-07-06):** orchestrate heavy build/fix via **pi** (GLM-4.7/GLM-5.2
-  builders, gpt-5.4 cross-family reviewers — `docs/pi-delegation.md`) to preserve Anthropic tokens;
+  builders, gpt-5.6-luna cross-family reviewers — `docs/pi-delegation.md`) to preserve Anthropic tokens;
   Director retains verify + merge/git + final visual taste. (The #88/#89 close-out needed no code fix — it
   was git orchestration + CI-watch, no pi spend.)
 - Remaining user-facing rollout work is owner-gated: staging db push, edge-function model secret/live

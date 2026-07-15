@@ -9,7 +9,7 @@ else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md
 `docs/product-expectations.md` are unchanged and binding.
 
 Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; providers
-`zai` and `openai-codex/gpt-5.4` both smoke-tested green. **`zai/glm-5.2`** (newest GLM, out
+`zai` and `openai-codex/gpt-5.6-luna` both smoke-tested green. **`zai/glm-5.2`** (newest GLM, out
 2026-06) trialed-good as a builder 2026-06-16 — now the **preferred builder** and a capable
 **orchestrator/Director of a parallel pi team** (§3e, owner-directed for max Claude-token economy).
 
@@ -32,16 +32,35 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 |---|---|---|
 | `zai` / `glm-5.2` | **OPUS TIER (owner-directed 2026-07-07, re-confirmed 2026-07-13 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth), **hard/cross-cutting build slices**; orchestrator/Director of a parallel pi team (§3e) | opus |
 | `zai` / `glm-4.7` | Sonnet-alt **implementer** — routine build slices, mechanical edits, QA runs, mockup builds | sonnet/haiku |
-| `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+| `openai-codex` / `gpt-5.6-luna` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders. **Owner-directed 2026-07-15: gpt-5.6-luna supersedes the former gpt-5.4 for all reviews AND is the z.ai-cap build fallback; ALWAYS dispatch Luna at MAX reasoning effort (see below).** | opus reviewers |
 | `nvidia` / **`nvidia/nemotron-3-ultra` (NIM)** | Preferred **overflow builder** when z.ai AND/OR codex are rate-limited — direct NVIDIA NIM endpoint (not free-tier OpenRouter), higher availability. **Routine/low-risk slices only** (CSS, mechanical, throwaway); **never sole author of a security/RLS/RPC/auth/money-path or schema slice** — same lower-trust rule as any non-GLM/-codex substrate | overflow-impl |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback (after NIM) — keeps the loop moving on a 429. Note: OpenRouter Nemotron can 404 on account data-policy guardrails (`openrouter.ai/settings/privacy`); prefer the `nvidia` NIM provider above | best-effort |
 
-> **⚑ GLM-only degraded review mode (gpt-5.4 / openai-codex unavailable).** When the cross-family
+> **⚑ GLM-only degraded review mode (gpt-5.6-luna / openai-codex unavailable).** When the cross-family
 > reviewer is down, route reviews to a **different GLM than the builder** (build `glm-5.2` → review
 > `glm-4.7`): gives *some* independence but is **same-family** — weaker than the intended cross-family
 > check. OK for low-risk / presentational slices; for **security / RLS / RPC / auth or money-path**
 > changes, escalate to the Director's own review or wait for cross-family — never ship those on a
 > same-family-only sign-off.
+
+### Luna (gpt-5.6-luna) — reviewer + z.ai-cap fallback, ALWAYS max reasoning (owner-directed 2026-07-15)
+
+`openai-codex` / **`gpt-5.6-luna`** replaces the former `gpt-5.4` everywhere as the cross-family
+reviewer/auditor, and is the sanctioned builder fallback while z.ai (GLM) is rate-capped (used that
+way across the 2026-07-14/15 redesign steps 1–3 recovery/reviews). **Owner directive: run Luna at the
+HIGHEST reasoning effort ("max thinking") on every dispatch — quality over speed/cost.**
+
+```bash
+pi --provider openai-codex --model gpt-5.6-luna --thinking max -p --no-session \
+  --append-system-prompt .claude/agents/<role>.md "<brief>" < /dev/null
+```
+
+The pi flag for max reasoning is **`--thinking max`** (levels: off/minimal/low/medium/high/xhigh/max;
+verified via `pi --help` 2026-07-15). Luna slug + `--thinking max` smoke-tested live 2026-07-15.
+Always pass `--thinking max` for Luna. Smoke-test the model slug first:
+`pi --provider openai-codex --model gpt-5.6-luna -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
+Historical ledgers/audits that name gpt-5.4 or gpt-5.5 record the model that actually ran then — do
+not rewrite them; Luna is the go-forward model.
 
 ### NIM (NVIDIA Inference Microservices) — `nvidia` provider (added 2026-07-14, owner-directed)
 
@@ -76,10 +95,10 @@ security/RLS/RPC/auth/money-path or schema slice, and the Director's double-veri
 OpenRouter slugs (confirmed live 2026-06-12): Nemotron 3 Ultra (free) = `nvidia/nemotron-3-ultra-550b-a55b:free`; Nex N2 Pro (free) = `nex-agi/nex-n2-pro:free`. Both reachable via `--provider openrouter` (may 404 on account data-policy — prefer the `nvidia` NIM provider above).
 
 The agent's own `model:` frontmatter is IGNORED under pi (pi uses `--model`); route by this table.
-**Fallback (owner rule):** z.ai limit → use `gpt-5.4`; OpenAI limit → use GLM; **BOTH rate-limited →
+**Fallback (owner rule):** z.ai limit → use `gpt-5.6-luna`; OpenAI limit → use GLM; **BOTH rate-limited →
 NIM `nvidia/nemotron-3-ultra`** (owner directive 2026-07-14, preferred over the free tier), then the
 **OpenRouter free models** (Nemotron 3 Ultra free → Nex N2 Pro free) if NIM is down. All of these are
-overflow capacity, not quality-matched to GLM/gpt-5.4 — routine/low-risk work only, and the
+overflow capacity, not quality-matched to GLM/gpt-5.6-luna — routine/low-risk work only, and the
 Director's double-verification (§5) matters more, not less, when running on them. Smoke-test any provider with
 `pi --provider <p> --model <m> -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
 
@@ -188,7 +207,7 @@ finishes. This is the owner-directed "pi + GLM as a separate parallel team, GLM 
 - **Parallelism:** launch several GLM-orchestrator runs in **separate git worktrees** at once (one
   workstream each) — a true parallel team. **Stagger anything that drives the single local Supabase stack**
   (migrations / `db reset` / pgTAP / e2e) — never two at once (playbook §3).
-- **Models inside the team:** orchestrator = glm-5.2; builders = glm-5.2 (hard) / glm-4.7 (routine); reviewers = **gpt-5.4
+- **Models inside the team:** orchestrator = glm-5.2; builders = glm-5.2 (hard) / glm-4.7 (routine); reviewers = **gpt-5.6-luna
   cross-family** (or the GLM-only degraded mode in §2 if codex is down — then Claude's own review carries
   more weight on load-bearing slices).
 
@@ -271,7 +290,7 @@ Never accept a pi completion report. Minimum per dispatch:
   round, never a blind retry.
 
 **Cross-family review is complementary, not sufficient.** Run **both** lenses on anything load-bearing
-— the cross-family reviewer (gpt-5.4) AND the Director's own read. (Trial empirics from PMO: gpt-5.4
+— the cross-family reviewer (gpt-5.6-luna) AND the Director's own read. (Trial empirics from PMO: gpt-5.6-luna
 caught 3 criticals a GLM author missed — a fake progress bar, e2e not proving their ACs, an org_id seam
 violation — while the Director's own read caught 2 the reviewer missed. Both lenses, always.)
 
