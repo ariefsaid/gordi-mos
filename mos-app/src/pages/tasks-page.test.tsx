@@ -233,11 +233,13 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
     expect(document.querySelector('.act')).toBeTruthy()
   })
 
-  it('AC-060: shows "+N" overflow when Accountable / Consulted / Informed differ from R', async () => {
-    // Fix C1: no embedded objects — raw IDs only; +N count via otherRaciCount on raw fields
+  it('AC-060: shows typed ownership — PIC + Supervisor columns, no RACI overflow (OD-62)', async () => {
+    // accountable (Supervisor) + consulted + informed differ from responsible (PIC);
+    // under the typed-Task contract the row surfaces PIC + Supervisor only — the
+    // consulted/informed ids must NOT leak as a RACI "+N" overflow.
     const task = makeTask({
-      responsible_person_id: VIEWER_ID,
-      accountable_person_id: OTHER_ID,
+      responsible_person_id: VIEWER_ID,   // PIC = Arief Said
+      accountable_person_id: OTHER_ID,    // Supervisor = Budi Setiawan
       consulted_person_ids: [C_PERSON],
       informed_person_ids: [I_PERSON],
     })
@@ -245,8 +247,16 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
     renderPage()
 
     await waitFor(() => screen.getByText('Arief'))
-    // A + C + I = 3 other RACI members beyond R
-    expect(screen.getByText('+3')).toBeTruthy()
+    const row = document.querySelector('tbody tr.task-row')!
+    // PIC column renders the responsible person (first name) and names the role.
+    const ownerCell = row.querySelector('.td-owner')
+    expect(ownerCell?.textContent).toContain('Arief')
+    expect(ownerCell?.querySelector('[aria-label]')?.getAttribute('aria-label')).toMatch(/PIC: Arief Said/i)
+    // Supervisor is its own column (OD-62) — the accountable person.
+    expect(row.querySelector('.td-supervisor')?.textContent).toContain('Budi')
+    // No RACI "+N" overflow or RACI grammar on a Task surface (OD-62).
+    expect(screen.queryByText(/^\+\d+$/)).toBeNull()
+    expect(document.body.textContent).not.toMatch(/RACI|Owner \(R\)|Responsible \(R\)/)
   })
 })
 
