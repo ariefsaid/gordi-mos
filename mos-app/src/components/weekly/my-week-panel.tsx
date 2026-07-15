@@ -89,7 +89,7 @@ export function MyWeekPanel({ hideLegacyCadenceCards = false }: MyWeekPanelProps
   const [teamRows,  setTeamRows]  = useState<TeamUpdateRow[]>([])
 
   const loadTeam = useCallback(async () => {
-    if (!isManager || hideLegacyCadenceCards) return
+    if (!isManager) return
     try {
       const roster: TeamMember[] = viewerRoleIds.length > 0
         ? await getTeamForManager(viewerRoleIds)
@@ -102,12 +102,12 @@ export function MyWeekPanel({ hideLegacyCadenceCards = false }: MyWeekPanelProps
     }
   // viewerRoleIds is an array — serialize to avoid spurious re-runs
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManager, hideLegacyCadenceCards, weekStart, JSON.stringify(viewerRoleIds)])
+  }, [isManager, weekStart, JSON.stringify(viewerRoleIds)])
 
   useEffect(() => {
-    if (!isManager || hideLegacyCadenceCards) return
+    if (!isManager) return
     loadTeam()
-  }, [isManager, hideLegacyCadenceCards, loadTeam])
+  }, [isManager, loadTeam])
 
   return (
     <>
@@ -137,7 +137,7 @@ export function MyWeekPanel({ hideLegacyCadenceCards = false }: MyWeekPanelProps
       )}
 
       {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) — weekly-update review, flag-hidden ===== */}
-      {SHOW_WEEKLY_UPDATES && !hideLegacyCadenceCards && isManager && (
+      {SHOW_WEEKLY_UPDATES && isManager && (
         <>
           <p
             className="text-muted-foreground font-semibold uppercase"

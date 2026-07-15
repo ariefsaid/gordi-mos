@@ -36,7 +36,6 @@ export function HomePage() {
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
   const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
-  const isManager = viewer?.isManager ?? false
 
   // ── Finance reporting fetch (role-guarded — a member never issues this query) ──
   const fin = useCompanyFinanceKpis(canSeeFinance)
@@ -119,7 +118,7 @@ export function HomePage() {
 
       {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
           successors are real; the direct My Week route remains available. */}
-      <MyWeekPanel hideLegacyCadenceCards={!isManager} />
+      <MyWeekPanel hideLegacyCadenceCards />
     </PageFrame>
   )
 }
