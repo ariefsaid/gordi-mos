@@ -10,6 +10,18 @@ merge nothing, deploy nothing.** Owner ratifies + merges on return.
 - Each of steps 4–11: own branch `feat/redesign-stepN-<slug>`, stacked on the prior step's tip
   (dependencies), each an independent PR-able unit. Hold local.
 
+## ⚑ NON-NEGOTIABLE GATE — BOTH reviews per step, every feature (owner-directed 2026-07-15)
+No step/feature is "done" or eligible to hold-as-shippable until BOTH batteries have run and are
+recorded in `docs/reviews/<branch>.md`:
+1. **CODE review** — cross-family Luna (`gpt-5.6-luna --thinking max`): spec conformance + code quality
+   (+ security-auditor when the step touches auth/RLS/schema — steps 4 & 6 REQUIRE it).
+2. **DESIGN review** — autonomous Luna (agent-browser): 4-lens (Visual·IxD·IA·Intent) vs docs Rules
+   1–12 FIRST then the owning mockups (cross-version regressions), reusability, Rule-12 cold-start,
+   A/B forks. Scope card mandatory.
+A review that returns BLOCK must be fixed + re-verified (BLOCK→fix→APPROVE), not waved through. No
+shipping a step on green tests alone or on one review. If substrate churn makes a review impossible,
+STOP that step at "built, review-pending" — never mark it done.
+
 ## Loop per step (unchanged)
 spec → plan → build → code review (Luna gpt-5.6-luna --thinking max, cross-family) → design review
 (Luna autonomous, agent-browser, docs-rules-first THEN mockups, SCOPE CARD to avoid future-step
