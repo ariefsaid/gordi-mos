@@ -117,6 +117,24 @@
 }
 .tb-spacer { flex: 1 1 0; min-width: 8px; }
 
+/* F-A / OD-REDESIGN-61: member phones see work before configuration. The
+   existing toolbar remains the one options surface; only its disclosure chrome
+   is added for the least-technical mobile persona. */
+.mobile-task-options {
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.mobile-task-options-trigger {
+  display: flex; align-items: center; width: 100%; min-height: 44px;
+  padding: 0 12px; border: 0; background: transparent; color: var(--foreground);
+  font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.mobile-task-options-trigger:hover { background: var(--secondary); }
+.mobile-task-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.mobile-task-options-summary { margin-left: 4px; color: var(--muted-foreground); font-weight: 500; }
+.mobile-task-options-chevron { margin-left: auto; color: var(--muted-foreground); font-size: 13px; }
+.mobile-task-options-panel .toolbar { border-bottom: 0; }
+
 /* View-tabs inside the toolbar: the shared ViewTabs primitive defaults to the
    full-width sticky strip (the dashboard placement — view-tabs.css); here it sits
    INLINE as the first toolbar item, so the strip chrome (padding/border/sticky/

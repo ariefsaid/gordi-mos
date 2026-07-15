@@ -29,6 +29,28 @@ test('AC-102 (J4): deep-link to /tasks/:id renders the table AND that task drawe
 test.describe('mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
+  test('AC-W1-A: a member phone shows work before the collapsed task options', async ({ page }) => {
+    await loginAs(page, VIEWER.email, VIEWER.password)
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+
+    const options = page.getByRole('button', { name: /view options/i })
+    await expect(options).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.locator('.toolbar')).toHaveCount(0)
+
+    const card = page.locator('[data-testid="task-card"]').first()
+    await expect(card).toBeVisible({ timeout: 10_000 })
+    const box = await card.boundingBox()
+    expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(844)
+
+    // The existing page action remains reachable while filters stay disclosed.
+    await expect(page.getByRole('link', { name: /new task/i }).first()).toBeVisible()
+
+    await options.click()
+    await expect(options).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByRole('combobox', { name: 'Group' })).toBeVisible()
+  })
+
   test('AC-110 (J5): on a phone, /tasks/:id is a full-screen modal; back returns to the card list', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
     const taskId = TASKS.VIEWER_ACCOUNTABLE.id

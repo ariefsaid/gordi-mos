@@ -113,6 +113,8 @@ function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' =
 }
 
 async function switchToAll() {
+  const options = screen.queryByRole('button', { name: /view options/i })
+  if (options?.getAttribute('aria-expanded') === 'false') fireEvent.click(options)
   fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
   await waitFor(() => {
     expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')

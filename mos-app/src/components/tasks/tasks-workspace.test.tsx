@@ -58,6 +58,10 @@ const authedState: AuthState = {
   viewer: { person: VIEWER_PERSON, roles: [mockRole], isManager: false, accessRoles: [] },
   signOut: async () => {},
 }
+const managerState: AuthState = {
+  ...authedState,
+  viewer: { ...authedState.viewer, isManager: true },
+}
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -112,7 +116,10 @@ function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' |
   }
 }
 
-function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
+function renderTable(
+  props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {},
+  auth: AuthState = authedState,
+) {
   function Harness() {
     const initialSavedView = props.savedView ?? makeSavedView('all')
     const [savedView, setSavedView] = useState(initialSavedView)
@@ -126,7 +133,7 @@ function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>>
   }
 
   return render(
-    <AuthContext.Provider value={authedState}>
+    <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/work/tasks']}>
         <Harness />
       </MemoryRouter>
@@ -142,6 +149,35 @@ beforeEach(() => {
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+})
+
+// ── F-A / OD-REDESIGN-61 — member phone disclosure (RED) ─────────────────────
+// A member's first phone viewport must show work, not the configuration wall.
+// The options control should be the only toolbar affordance before the card list.
+describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () => {
+  it('AC-W1-A: member phone shows a task card while View options starts collapsed', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'First mobile work item' })])
+
+    renderTable()
+    await waitFor(() => screen.getByText('First mobile work item'))
+
+    const options = screen.getByRole('button', { name: /view options/i })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
+    expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
+  })
+
+  it('AC-W1-A: manager phone keeps the dense toolbar visible', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Manager mobile work item' })])
+
+    renderTable({}, managerState)
+    await waitFor(() => screen.getByText('Manager mobile work item'))
+
+    expect(screen.queryByRole('button', { name: /view options/i })).toBeNull()
+    expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
+  })
 })
 
 // ── Visual-fidelity chrome (feat/ui-fidelity-tasks-chrome) ────────────────────
@@ -510,6 +546,8 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
 // Helper: switch to the org-visible saved view so non-viewer tasks are visible.
 async function switchToAll() {
+  const options = screen.queryByRole('button', { name: /view options/i })
+  if (options?.getAttribute('aria-expanded') === 'false') fireEvent.click(options)
   fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
   await waitFor(() => {
     expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')

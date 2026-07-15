@@ -103,6 +103,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const navigate = useNavigate()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const isManager = auth.status === 'authenticated' && auth.viewer.isManager
+  const captureFirstMobile = !isDesktop && !isManager
 
   // ── Persistence (FR-125) ──────────────────────────────────────────────────
   const { groupBy, setGroupBy, isCollapsed, toggleCollapsed, collapsedGroups } = useTasksViewPref()
@@ -114,6 +116,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const [segment, setSegment] = useState<Segment>(savedView?.segment ?? 'all')
   const [personFilter, setPersonFilter] = useState<string>('')
   const [searchText, setSearchText] = useState<string>('')
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   // Transient overdue-only filter (AC-128 / FR-126) — clicking "N overdue" sets this;
   // cleared via the chip ✕ or the Clear filters button.
   const [overdueOnly, setOverdueOnly] = useState(savedView?.overdueOnly ?? false)
@@ -595,6 +598,43 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // is populated — empty / no-results states own their own create CTA, so every
   // state has exactly one create link.
   const showNewTask = !drawerOpen && !loading && !error && leafTasks.length > 0
+  const effectiveSavedView = savedView ?? {
+    view: 'all' as const,
+    activeChip: null,
+    segment: 'all' as const,
+    overdueOnly: false,
+    reserved: null,
+    search: '',
+  }
+  const mobileViewLabel = effectiveSavedView.activeChip === 'mine'
+    ? 'My work'
+    : effectiveSavedView.activeChip === 'team'
+      ? 'Team work'
+      : effectiveSavedView.activeChip === 'overdue'
+        ? 'Overdue'
+        : effectiveSavedView.activeChip === 'followups'
+          ? 'Follow-ups'
+          : 'All'
+  const tasksToolbar = (
+    <TasksToolbar
+      groupBy={groupBy}
+      setGroupBy={setGroupBy}
+      businessUnitId={businessUnitId}
+      setBusinessUnitId={setBusinessUnitId}
+      statusFilter={statusFilter}
+      setStatusFilter={setStatusFilter}
+      personFilter={personFilter}
+      setPersonFilter={setPersonFilter}
+      savedView={effectiveSavedView}
+      onSavedViewChange={onSavedViewChange ?? (() => {})}
+      searchText={searchText}
+      setSearchText={setSearchText}
+      includeArchived={includeArchived}
+      setIncludeArchived={setIncludeArchived}
+      buOptions={busDirectory}
+      personOptions={peopleDirectory}
+    />
+  )
 
   return (
     <>
@@ -651,24 +691,30 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
       <div className={splitClass}>
         <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label="Tasks">
-          <TasksToolbar
-            groupBy={groupBy}
-            setGroupBy={setGroupBy}
-            businessUnitId={businessUnitId}
-            setBusinessUnitId={setBusinessUnitId}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            personFilter={personFilter}
-            setPersonFilter={setPersonFilter}
-            savedView={savedView ?? { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }}
-            onSavedViewChange={onSavedViewChange ?? (() => {})}
-            searchText={searchText}
-            setSearchText={setSearchText}
-            includeArchived={includeArchived}
-            setIncludeArchived={setIncludeArchived}
-            buOptions={busDirectory}
-            personOptions={peopleDirectory}
-          />
+          {captureFirstMobile ? (
+            <div className="mobile-task-options">
+              <button
+                type="button"
+                className="mobile-task-options-trigger"
+                aria-expanded={mobileOptionsOpen}
+                aria-controls="mobile-task-options-panel"
+                onClick={() => setMobileOptionsOpen(open => !open)}
+              >
+                <span>View options</span>
+                <span className="mobile-task-options-summary" aria-hidden="true">
+                  · Tasks · {mobileViewLabel}
+                </span>
+                <span className="mobile-task-options-chevron" aria-hidden="true">
+                  {mobileOptionsOpen ? '▴' : '▾'}
+                </span>
+              </button>
+              {mobileOptionsOpen && (
+                <div id="mobile-task-options-panel">
+                  {tasksToolbar}
+                </div>
+              )}
+            </div>
+          ) : tasksToolbar}
 
           {savedView?.reserved === 'followups' ? (
             <div className="empty-state empty-state--quiet" role="region" aria-label="Follow-ups reserved state">
