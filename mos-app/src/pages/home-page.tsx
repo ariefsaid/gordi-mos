@@ -2,26 +2,24 @@
 // Home v1 — the default composition behind SHOW_HOME_STACKED=false. Slot composition: each slot =
 // one read-model/DAL query + one existing kit primitive. Finance KPI row (revenue + margin) is
 // role-guarded — a member never issues the reporting query, so the row is simply absent (RLS-empty
-// handling, never a misleading zero). Tasks (+ ops, flag-gated) row renders for everyone. MyWeekPanel
+// handling, never a misleading zero). Tasks row renders for everyone. Legacy cadence cards stay
+// hidden on Home until their successors are real; MyWeekPanel still supplies the personal task card.
 // renders below (demoted from route, ADR-0019 D2 "component survives"). Every tile is a drill-target
 // <Link> — KPITile itself stays presentation-only (never learns router or "revenue").
 //
 // When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
 // documented default (docs/specs/home-v1.spec.md). The revenue/margin fetch+derive lives in the shared
 // useCompanyFinanceKpis hook so the stacked money-position section renders the SAME tiles (reuse).
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { SHOW_DAILY_LOG } from '@/config/features'
 import { formatIDRCompact } from '@/lib/sales-dashboard'
 import { useCompanyFinanceKpis } from '@/lib/use-company-finance-kpis'
 import { listTasks } from '@/lib/db/tasks'
-import { getTodayOpsSummary } from '@/lib/db/ops-log'
-import type { TodayOpsSummary } from '@/lib/db/ops-log'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
@@ -63,32 +61,6 @@ export function HomePage() {
     return () => { cancelled = true }
   }, [personId])
 
-  // ── Ops count (everyone, flag-gated) ────────────────────────────────────────
-  const now = useMemo(() => new Date(), [])
-  const [opsSummary, setOpsSummary] = useState<TodayOpsSummary>({ count: 0, needsAttention: false })
-  const [opsState, setOpsState] = useState<FetchState>('loading')
-
-  const loadOps = useCallback(() => {
-    if (!SHOW_DAILY_LOG) return
-    let cancelled = false
-    setOpsState('loading')
-    getTodayOpsSummary(now)
-      .then(summary => {
-        if (cancelled) return
-        setOpsSummary(summary)
-        setOpsState('ready')
-      })
-      .catch(() => {
-        if (!cancelled) setOpsState('error')
-      })
-    return () => { cancelled = true }
-  }, [now])
-
-  useEffect(() => {
-    const cancel = loadOps()
-    return cancel
-  }, [loadOps])
-
   return (
     <PageFrame surfaceWash>
       <PageHead title={t('home.title')} subtitle={t('home.subtitle')} />
@@ -125,7 +97,7 @@ export function HomePage() {
         </div>
       )}
 
-      {/* Everyone row — tasks (always) + ops (flag-gated). */}
+      {/* Everyone row — tasks (always). */}
       <div className="home-kpi-grid">
         <Link to="/tasks" className="home-kpi-link">
           <KPITile
@@ -134,15 +106,6 @@ export function HomePage() {
             state={taskState === 'loading' ? 'loading' : 'ready'}
           />
         </Link>
-        {SHOW_DAILY_LOG && (
-          <Link to="/ops" className="home-kpi-link">
-            <KPITile
-              label={t('home.kpi.ops')}
-              value={opsState === 'ready' ? String(opsSummary.count) : '—'}
-              state={opsState === 'loading' ? 'loading' : 'ready'}
-            />
-          </Link>
-        )}
       </div>
 
       {canSeeFinance && (snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
@@ -153,7 +116,9 @@ export function HomePage() {
         />
       )}
 
-      <MyWeekPanel />
+      {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
+          successors are real; the direct My Week route remains available. */}
+      <MyWeekPanel hideLegacyCadenceCards />
     </PageFrame>
   )
 }

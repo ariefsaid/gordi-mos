@@ -164,7 +164,8 @@ function SectionView({ section, canSeeFinance, personId, now }: SectionViewProps
             {t('home.stack.myweek.title')}
           </h2>
         </div>
-        <MyWeekPanel />
+        {/* Keep retired cadence links off Home until their successors are real. */}
+        <MyWeekPanel hideLegacyCadenceCards />
       </section>
     )
   }

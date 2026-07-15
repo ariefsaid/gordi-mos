@@ -21,7 +21,12 @@ import type { TodayOpsSummary } from '@/lib/db/ops-log'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 import { MyTasksCard } from '@/components/weekly/my-tasks-card'
 
-export function MyWeekPanel() {
+type MyWeekPanelProps = {
+  /** Hide retired Weekly Update/Daily Log cards when this panel is embedded on Home. */
+  hideLegacyCadenceCards?: boolean
+}
+
+export function MyWeekPanel({ hideLegacyCadenceCards = false }: MyWeekPanelProps = {}) {
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
@@ -36,7 +41,7 @@ export function MyWeekPanel() {
   const [myUpdate, setMyUpdate]   = useState<MyUpdate | null>(null)
 
   useEffect(() => {
-    if (!personId) return
+    if (!personId || hideLegacyCadenceCards) return
     let cancelled = false
     getMyUpdate(personId, weekStart).then(result => {
       if (!cancelled) {
@@ -47,7 +52,7 @@ export function MyWeekPanel() {
       if (!cancelled) setStripLoad('error')
     })
     return () => { cancelled = true }
-  }, [personId, weekStart])
+  }, [personId, weekStart, hideLegacyCadenceCards])
 
   // Derive strip state
   const stripStatus = myUpdate?.update.status ?? null
@@ -58,6 +63,7 @@ export function MyWeekPanel() {
   const [opsSummary, setOpsSummary] = useState<TodayOpsSummary>({ count: 0, needsAttention: false })
 
   const loadOpsSummary = useCallback(() => {
+    if (hideLegacyCadenceCards) return
     let cancelled = false
     getTodayOpsSummary(now).then(summary => {
       if (!cancelled) {
@@ -68,7 +74,7 @@ export function MyWeekPanel() {
       if (!cancelled) setOpsLoad('error')
     })
     return () => { cancelled = true }
-  }, [now])
+  }, [now, hideLegacyCadenceCards])
 
   useEffect(() => {
     const cancel = loadOpsSummary()
@@ -83,7 +89,7 @@ export function MyWeekPanel() {
   const [teamRows,  setTeamRows]  = useState<TeamUpdateRow[]>([])
 
   const loadTeam = useCallback(async () => {
-    if (!isManager) return
+    if (!isManager || hideLegacyCadenceCards) return
     try {
       const roster: TeamMember[] = viewerRoleIds.length > 0
         ? await getTeamForManager(viewerRoleIds)
@@ -96,12 +102,12 @@ export function MyWeekPanel() {
     }
   // viewerRoleIds is an array — serialize to avoid spurious re-runs
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManager, weekStart, JSON.stringify(viewerRoleIds)])
+  }, [isManager, hideLegacyCadenceCards, weekStart, JSON.stringify(viewerRoleIds)])
 
   useEffect(() => {
-    if (!isManager) return
+    if (!isManager || hideLegacyCadenceCards) return
     loadTeam()
-  }, [isManager, loadTeam])
+  }, [isManager, hideLegacyCadenceCards, loadTeam])
 
   return (
     <>
@@ -111,7 +117,7 @@ export function MyWeekPanel() {
       )}
 
       {/* ===== Auxiliary strip 1: weekly update (AC-050, AC-051) — flag-hidden ===== */}
-      {SHOW_WEEKLY_UPDATES && (
+      {SHOW_WEEKLY_UPDATES && !hideLegacyCadenceCards && (
         <WeeklyUpdateStrip
           stripLoad={stripLoad}
           stripStatus={stripStatus}
@@ -122,7 +128,7 @@ export function MyWeekPanel() {
       )}
 
       {/* ===== Auxiliary strip 2: ops (AC-080/081/082) — flag-hidden ===== */}
-      {SHOW_DAILY_LOG && (
+      {SHOW_DAILY_LOG && !hideLegacyCadenceCards && (
         <OpsStrip
           opsLoad={opsLoad}
           summary={opsSummary}
@@ -131,7 +137,7 @@ export function MyWeekPanel() {
       )}
 
       {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) — weekly-update review, flag-hidden ===== */}
-      {SHOW_WEEKLY_UPDATES && isManager && (
+      {SHOW_WEEKLY_UPDATES && !hideLegacyCadenceCards && isManager && (
         <>
           <p
             className="text-muted-foreground font-semibold uppercase"

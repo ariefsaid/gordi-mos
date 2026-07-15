@@ -61,17 +61,6 @@ vi.mock('../lib/db/team', () => ({
   getTeamForManager: vi.fn(),
 }))
 
-vi.mock('../lib/db/ops-log', () => ({
-  getTodayOpsSummary: vi.fn(),
-  listLogEntries: vi.fn(),
-  addLogEntry: vi.fn(),
-  editLogEntry: vi.fn(),
-  archiveLogEntry: vi.fn(),
-  unarchiveLogEntry: vi.fn(),
-}))
-import { getTodayOpsSummary } from '@/lib/db/ops-log'
-const mockGetTodayOpsSummary = vi.mocked(getTodayOpsSummary)
-
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
 }))
@@ -166,7 +155,6 @@ beforeEach(() => {
   mockListRevenue.mockResolvedValue([revenueRow()])
   mockListMargin.mockResolvedValue([marginRow()])
   mockGetMyUpdate.mockResolvedValue(null)
-  mockGetTodayOpsSummary.mockResolvedValue({ count: 0, needsAttention: false })
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
@@ -287,6 +275,19 @@ describe('AC-H05: reporting fetch errors — finance tiles degrade, tasks/My-Wee
     const marginTile = screen.getByRole('group', { name: /gross margin/i })
     expect(marginTile.getAttribute('aria-busy')).toBeNull()
     expect(marginTile.textContent).toContain('—')
+  })
+})
+
+describe('F-C / OD-REDESIGN-64 — member Home has no legacy dead-link cards', () => {
+  it('AC-W1-C: member Home keeps work visible but hides update and Daily Log cards', async () => {
+    await renderHome(memberViewer)
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+
+    expect(screen.queryByRole('region', { name: 'My weekly update' })).toBeNull()
+    expect(screen.queryByRole('region', { name: /Today on the Daily Log/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /write update/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /open the daily log/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /log entries/i })).toBeNull()
   })
 })
 
