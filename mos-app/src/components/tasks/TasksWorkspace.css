@@ -234,25 +234,32 @@
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
 /* ── Table ── */
-/* The 9 fixed cols now sum to 1064px (40+136+184+132+132+112+184+104+40). That
-   leaves a protected ~220px floor for Task while keeping Due fully inside the table
-   frame on 1440px-class desktop widths; if the shell gets narrower, .tasks-scroll owns
-   the horizontal overflow instead of letting the Due column bleed out of frame. */
-.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 1284px; }
-/* Base col widths: cols 1-4 stable; cols 5-10 overridden below (Cascade D1 added
-   Work-line + Objective cols). cb+menu fixed 40px; Task absorbs the remainder. */
+/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop DB-view shows ONLY
+   the decision columns — cb + Task + Status + PIC + Supervisor + Due + menu (7 cols).
+   Project/Process, Objective, Team, Source, Activity moved to the record drawer
+   (where the typed Task already shows them — OD-62). min-width:0 (was 1284px) so
+   width:100% + table-layout:fixed always fit the content area — the decision-critical
+   Due column can NEVER be clipped off-screen at 1280px. .tasks-scroll (overflow-x:auto)
+   is the safety net only for absurdly narrow shells. */
+.tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
+/* Priority col widths: cb + menu fixed 40px; Task absorbs the remainder (auto);
+   the four decision cols get fixed px so their headers/labels never wrap or squash. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
 .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: auto; }   /* Task */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 150px; }  /* Status */
-.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 200px; }  /* Owner */
-/* Condensed 6-col widths (drawer-open: BU + Activity dropped; Owner narrows to avatar).
-   %-based so the cols flex to the narrow split; cb + menu stay fixed 40px. */
+.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 184px; }  /* PIC / Ownership */
+.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 168px; }  /* Supervisor */
+.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 132px; }  /* Due */
+.tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 40px; }   /* row menu */
+/* Condensed (drawer-open split): %-based widths so the 7 priority cols flex to the
+   narrow split; cb + menu stay fixed 40px. */
 .assembly.condensed .tasks-table th:nth-child(1), .assembly.condensed .tasks-table td:nth-child(1) { width: 40px; }
-.assembly.condensed .tasks-table th:nth-child(2), .assembly.condensed .tasks-table td:nth-child(2) { width: 50%; }
-.assembly.condensed .tasks-table th:nth-child(3), .assembly.condensed .tasks-table td:nth-child(3) { width: 20%; }
-.assembly.condensed .tasks-table th:nth-child(4), .assembly.condensed .tasks-table td:nth-child(4) { width: 14%; }
-.assembly.condensed .tasks-table th:nth-child(5), .assembly.condensed .tasks-table td:nth-child(5) { width: 16%; }
-.assembly.condensed .tasks-table th:nth-child(6), .assembly.condensed .tasks-table td:nth-child(6) { width: 40px; }
+.assembly.condensed .tasks-table th:nth-child(2), .assembly.condensed .tasks-table td:nth-child(2) { width: auto; }
+.assembly.condensed .tasks-table th:nth-child(3), .assembly.condensed .tasks-table td:nth-child(3) { width: 18%; }  /* Status */
+.assembly.condensed .tasks-table th:nth-child(4), .assembly.condensed .tasks-table td:nth-child(4) { width: 16%; }  /* PIC */
+.assembly.condensed .tasks-table th:nth-child(5), .assembly.condensed .tasks-table td:nth-child(5) { width: 18%; }  /* Supervisor */
+.assembly.condensed .tasks-table th:nth-child(6), .assembly.condensed .tasks-table td:nth-child(6) { width: 16%; }  /* Due */
+.assembly.condensed .tasks-table th:nth-child(7), .assembly.condensed .tasks-table td:nth-child(7) { width: 40px; }
 /* Checkbox / menu col alignment + header (PR-2 AC-T02/T07). */
 .td-cb, .th-cb { text-align: left; white-space: nowrap; padding-left: 12px; }
 .td-menu, .th-menu { text-align: right; white-space: nowrap; padding-right: 12px; }
@@ -617,19 +624,12 @@ tr.grp td { padding: 0; }
   line-height: 1.4;
 }
 
-/* ── Cascade D1: expanded column grid (non-condensed now = 10 cols) ──────────
-   Added 2 new cols: Work-line (col 5) and Objective (col 6).
-   Existing columns shift right by 2. Previous col 5=BU → now col 7.
-   Condensed (6 col) layout is unchanged — new cols are hidden via !condensed. */
-/* Work-line col — fixed width, same class as td-bu */
-.tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 136px; }  /* Status */
-.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 184px; }  /* Owner */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 132px; }  /* Work-line */
-.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 132px; }  /* Objective */
-.tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 112px; }  /* Business unit */
-.tasks-table th:nth-child(8), .tasks-table td:nth-child(8) { width: 184px; }  /* Due */
-.tasks-table th:nth-child(9), .tasks-table td:nth-child(9) { width: 104px; }  /* Activity */
-.tasks-table th:nth-child(10), .tasks-table td:nth-child(10) { width: 40px; } /* row menu */
+/* ── Cascade D1 column widths: REMOVED (Wave 2c) ──────────────────────────────
+   The Work-line + Objective + Team + Source + Activity columns moved to the record
+   drawer (OD-62). The 7-column priority widths are authored in the `.tasks-table`
+   block above; this former 10-col nth-child override is deleted so it can't shadow
+   the priority grid. The Work-line group-by dimension + workload caption remain
+   (FR-231/232/233/236) — only the table COLUMNS were trimmed. */
 
 /* ── Utility ── */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }

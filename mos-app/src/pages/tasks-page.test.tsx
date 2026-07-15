@@ -208,9 +208,12 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
   })
 })
 
-// ── T-031: AC-060 — row content (title+BU, status, owner, due, activity) ───
-describe('AC-060 — row renders title, BU, status, owner, due, activity', () => {
-  it('AC-060: renders title, BU subline, status pill, responsible name, and activity age', async () => {
+// ── T-031: AC-060 — row content (priority decision columns) ───────────────
+// Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the row shows ONLY Title ·
+// Status · PIC · Supervisor · Due. BU/Team + Activity moved to the record drawer
+// (where the typed Task already shows them — OD-62).
+describe('AC-060 — row renders the priority decision columns', () => {
+  it('AC-060: renders title, status pill, PIC name, and due (priority columns)', async () => {
     // Fix C1: names resolved from directory. task only carries IDs.
     // bu-ops is in DEFAULT_BUS as 'Ops Unit', VIEWER_ID is in DEFAULT_PEOPLE as 'Arief Said'.
     const task = makeTask({
@@ -225,12 +228,14 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
     renderPage()
 
     await waitFor(() => screen.getByText('SOP stock opname mingguan'))
-    expect(screen.getAllByText('Ops Unit')[0]).toBeTruthy()
     // Status tag (not the select option) — soft Tag (.mk-tag)
     expect(screen.getAllByText('In Progress').find(el => el.closest('.mk-tag'))).toBeTruthy()
-    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // first name only from directory
-    // Activity age rendered as some unit (d/h/m)
-    expect(document.querySelector('.act')).toBeTruthy()
+    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // PIC first name from directory
+    // Due renders (calm future date) — the decision-critical column stays in-frame.
+    expect(document.querySelector('.due-calm')).toBeTruthy()
+    // Wave 2c: BU/Team + Activity moved OUT of the row into the drawer.
+    expect(document.querySelector('tr.task-row .td-bu')).toBeNull()
+    expect(document.querySelector('tr.task-row .act')).toBeNull()
   })
 
   it('AC-060: shows typed ownership — PIC + Supervisor columns, no RACI overflow (OD-62)', async () => {

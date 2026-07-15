@@ -117,4 +117,28 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     fireEvent.click(complete)
     await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(task.id, 'Open', 'Done', VIEWER_ID))
   })
+
+  // Wave 2c (OD-REDESIGN-61..64): the optional columns moved OUT of the default desktop
+  // table must remain reachable in the record drawer/full page. This proves the
+  // Objective field (the one not covered by the test above) resolves + renders in the
+  // drawer — alongside Team/Source/Work-line already asserted above.
+  it('AC-W2C: Objective (moved out of the table) stays reachable in the drawer', async () => {
+    vi.mocked(listObjectives).mockResolvedValue([
+      { id: 'obj-direct', name: 'Grow direct orders' } as never,
+    ])
+    const task = makeTask({ objective_id: 'obj-direct' })
+    vi.mocked(getTask).mockResolvedValue({ task, checklist: [], events: [] })
+
+    render(
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={['/work/tasks/task-typed']}>
+          <TaskSurface taskId={task.id} mode="view" width="full" />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
+    // The objective name resolves + renders in the drawer (moved out of the table, not removed).
+    expect(screen.getByText('Grow direct orders')).toBeInTheDocument()
+  })
 })

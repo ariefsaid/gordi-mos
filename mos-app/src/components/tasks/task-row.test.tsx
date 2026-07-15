@@ -34,13 +34,10 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   isSelected: false,
   isCursor: false,
   leafIndex: 0,
-  buName: 'Roastery',
   ownerName: 'Rina Lestari',
   onOpen: () => {},
   checked: false,
   onCheck: () => {},
-  workLineName: '',
-  objectiveName: '',
   recordSearch: '',
   ...overrides,
 })

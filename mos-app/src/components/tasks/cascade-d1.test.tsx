@@ -283,56 +283,34 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
   })
 })
 
-// ── FR-234/235: Work-line + Objective columns in the table ────────────────────
-
-describe('FR-234 — Work-line and Objective columns appear in the table', () => {
-  it('thead has "Work-line" and "Objective" column headers', async () => {
+// ── FR-234/235: Work-line + Objective — moved to the drawer (Wave 2c) ────────
+// OD-REDESIGN-61..64 (e7 priority columns): the default desktop DB-view table shows
+// ONLY Title · PIC · Supervisor · Status · Due. Work-line/Project-Process + Objective
+// (and Team/Source/Activity) moved OUT of the table into the record drawer/full page,
+// where the typed Task already shows them (OD-62). This is column PRIORITY, not data
+// removal — the work-line group-by dimension (FR-231/232/233) + workload caption
+// (FR-236) are unchanged, and resolution + reachability stay proven by the mobile
+// card tests below + the TaskSurface drawer.
+describe('FR-234 — Work-line/Objective moved OUT of the default desktop table (Wave 2c)', () => {
+  it('thead does NOT render Work-line or Objective column headers (priority trim)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('columnheader', { name: /project\/process/i })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /objective/i })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /project\/process/i })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /objective/i })).toBeNull()
+    // Priority decision headers remain (incl. Due — the regression was Due clipping).
+    expect(screen.getByRole('columnheader', { name: /due/i })).toBeInTheDocument()
   })
 
-  it('FR-235: resolves work_line_id to name in the row', async () => {
+  it('a body row does NOT render Work-line/Objective cells (moved to drawer)', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'IG task', work_line_id: 'wl-1', objective_id: 'obj-1' }),
     ])
     renderTable()
     await waitFor(() => screen.getByText('IG task'))
-    // Work-line name resolved from the map — appears in the Work-line column
-    const worklineCell = screen.getByText('IG task').closest('tr')?.querySelector('.td-workline')
-    expect(worklineCell).toHaveTextContent('Daily IG Content')
-    // Objective name resolved from the map — appears in the Objective column
-    const objectiveCell = screen.getByText('IG task').closest('tr')?.querySelector('.td-objective')
-    expect(objectiveCell).toHaveTextContent('Grow direct orders')
-  })
-
-  it('FR-235: shows "—" when work_line_id is null', async () => {
-    mockListTasks.mockResolvedValue([
-      makeTask({ id: 't1', title: 'No-WL task', work_line_id: null, objective_id: null }),
-    ])
-    renderTable()
-    await waitFor(() => screen.getByText('No-WL task'))
-    // At least one "—" for the empty work-line column
-    const worklineCell = screen.getByText('No-WL task').closest('tr')?.querySelector('.td-workline')
-    expect(worklineCell).toHaveTextContent('—')
-    const objectiveCell = screen.getByText('No-WL task').closest('tr')?.querySelector('.td-objective')
-    expect(objectiveCell).toHaveTextContent('—')
-  })
-
-  it('FR-235: shows "—" when objective_id is null', async () => {
-    mockListTasks.mockResolvedValue([
-      makeTask({ id: 't1', title: 'No-obj task', work_line_id: 'wl-1', objective_id: null }),
-    ])
-    renderTable()
-    await waitFor(() => screen.getByText('No-obj task'))
-    // Work-line name appears (resolved) in the Work-line column
-    const worklineCell = screen.getByText('No-obj task').closest('tr')?.querySelector('.td-workline')
-    expect(worklineCell).toHaveTextContent('Daily IG Content')
-    // At least one "—" (for objective in the Objective column)
-    const objectiveCell = screen.getByText('No-obj task').closest('tr')?.querySelector('.td-objective')
-    expect(objectiveCell).toHaveTextContent('—')
+    const row = screen.getByText('IG task').closest('tr')!
+    expect(row.querySelector('.td-workline')).toBeNull()
+    expect(row.querySelector('.td-objective')).toBeNull()
   })
 })
 

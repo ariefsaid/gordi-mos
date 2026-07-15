@@ -1039,3 +1039,62 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
     expect(ths.length).toBeGreaterThanOrEqual(7) // 6 data cols + checkbox + (menu is in-row)
   })
 })
+
+// ── Wave 2c — desktop table density (OD-REDESIGN-61..64, e7 priority columns) ───
+// The design re-review found the desktop Tasks table overflowed at 1280px
+// (10 cols ≈ 1284px in a <1284px content area), clipping the decision-critical
+// Due column off-screen. Option A: the default desktop DB-view shows ONLY the
+// e7 priority decision columns (Title · PIC · Supervisor · Status · Due);
+// Project/Process, Objective, Team, Source, Activity move to the record drawer
+// (where the typed Task already shows them — OD-62). This is column PRIORITY,
+// not data removal. Tagged so grep -r AC-W2C finds the proof.
+describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', () => {
+  it('AC-W2C: renders ONLY the priority headers (Task/Status/PIC/Supervisor/Due) at desktop', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Density task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Density task'))
+    // Priority decision headers present (Due MUST be in the first paint).
+    expect(screen.getByRole('columnheader', { name: /^task$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^status$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^pic$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^supervisor$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^due$/i })).toBeInTheDocument()
+    // Optional headers moved OUT of the default table (to the drawer/full page).
+    expect(screen.queryByRole('columnheader', { name: /project\/process/i })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /^objective$/i })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /^team$/i })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /^source$/i })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /^activity$/i })).toBeNull()
+  })
+
+  it('AC-W2C: a body row renders exactly the priority cells — no optional td-workline/objective/source/activity/bu', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'd1', title: 'Density row' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Density row'))
+    const row = document.querySelector('tr.task-row')!
+    // 7 cells: cb + Task + Status + PIC + Supervisor + Due + menu (no optional cols).
+    expect(row.querySelectorAll('td').length).toBe(7)
+    // Optional cells gone (moved to drawer)…
+    expect(row.querySelector('.td-workline')).toBeNull()
+    expect(row.querySelector('.td-objective')).toBeNull()
+    expect(row.querySelector('.td-source')).toBeNull()
+    expect(row.querySelector('.td-activity')).toBeNull()
+    expect(row.querySelector('.td-bu')).toBeNull()
+    // …priority data cells present.
+    expect(row.querySelector('.td-owner')).toBeTruthy()      // PIC
+    expect(row.querySelector('.td-supervisor')).toBeTruthy()
+    expect(row.querySelector('.due-calm,.due-soon,.due-overdue')).toBeTruthy() // Due
+  })
+
+  it('AC-W2C: .tasks-table min-width no longer forces a 1284px overflow (Due cannot clip at 1280px)', () => {
+    // The regression's root cause was `.tasks-table { min-width: 1284px }`: in any
+    // content area < 1284px (the live split at 1280px ≈ 994px), the table overflowed
+    // and the right-hand Due column scrolled out of the first paint. The fix drops
+    // the authored min-width to a value that fits the desktop content width.
+    const body = cssRuleBody('.tasks-table')
+    const m = body.match(/min-width:\s*(\d+)px/)
+    const minPx = m ? Number(m[1]) : 0 // removed entirely (width:100%) is also valid
+    expect(minPx, 'min-width must fit a ~994px content area so Due is never clipped')
+      .toBeLessThanOrEqual(1000)
+  })
+})

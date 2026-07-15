@@ -14,7 +14,7 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { StatusPill } from './status-pill'
 import { OwnerCell } from './owner-cell'
-import { formatAge, formatDate } from './task-formatters'
+import { formatDate } from './task-formatters'
 import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
 import { useT } from '@/i18n/use-t'
@@ -31,29 +31,22 @@ export type TaskRowProps = {
   leafIndex: number
   /** Ref applied to the <tr> when it is the cursor row (scrollIntoView wiring). */
   cursorRowRef?: Ref<HTMLTableRowElement>
-  buName: string
   ownerName: string
   /** Row click + name link activation → opens the split panel. */
   onOpen: (taskId: string) => void
   /** Checkbox selection (local set only — no bulk action ships this PR). */
   checked: boolean
   onCheck: (next: boolean) => void
-  /** Resolved work-line name (from the workLineMap). Empty string → "—" rendered. */
-  workLineName: string
-  /** Resolved objective name (from the objectiveMap). Empty string → "—" rendered. */
-  objectiveName: string
   /** Supervisor display name resolved from the directory. */
   supervisorName?: string
-  /** Human-facing source/provenance label. */
-  sourceName?: string
   /** Active location.search to preserve the saved view on every record-open path. */
   recordSearch?: string
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
-  buName, ownerName, onOpen, checked, onCheck,
-  workLineName, objectiveName, supervisorName = '', sourceName = '', recordSearch = '',
+  ownerName, onOpen, checked, onCheck,
+  supervisorName = '', recordSearch = '',
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -108,23 +101,13 @@ export function TaskRow({
       <td className="td-cell td-owner">
         <OwnerCell fullName={ownerName} />
       </td>
+      {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
+          the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).
+          Work-line/Project-Process, Objective, Team, Source, Activity moved to the
+          record drawer/full page (where the typed Task already shows them — OD-62).
+          This is column PRIORITY, not data removal. */}
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
-      {/* FR-234: Work-line column — resolved name; "—" when empty (never blank) */}
-      {!condensed && (
-        <td className="td-cell td-workline">
-          {workLineName || <span className="td-empty">—</span>}
-        </td>
-      )}
-      {/* FR-234: Objective column — resolved name; "—" when empty */}
-      {!condensed && (
-        <td className="td-cell td-objective">
-          {objectiveName || <span className="td-empty">—</span>}
-        </td>
-      )}
-      <td className="td-cell td-bu">{buName}</td>
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
-      <td className="td-cell td-source" title={sourceName}>{sourceName || <span className="td-empty">—</span>}</td>
-      {!condensed && <td className="td-cell td-nowrap tabular-nums act">{formatAge(task.last_activity_at, now)}</td>}
       <td className="td-cell td-menu">
         <RowMenu taskId={task.id} recordSearch={recordSearch} />
       </td>

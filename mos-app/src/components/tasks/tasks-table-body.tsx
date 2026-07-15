@@ -31,7 +31,9 @@ export type FlatRow =
   | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
-function SkeletonRow({ condensed }: { condensed: boolean }) {
+// Wave 2c: matches the 7-column priority row (cb + Task + Status + PIC + Supervisor
+// + Due + menu). Both desktop modes share the priority column set.
+function SkeletonRow() {
   return (
     <tr>
       {/* leading checkbox col (empty - hover-reveal is irrelevant while loading) */}
@@ -39,17 +41,10 @@ function SkeletonRow({ condensed }: { condensed: boolean }) {
       <td className="sk-cell"><div className="sk" style={{ width: '42%' }} /></td>
       <td className="sk-cell"><div className="sk pill" /></td>
       <td className="sk-cell"><div className="sk av" /></td>
-      {!condensed && (
-        <td className="sk-cell"><div className="sk" style={{ width: 60 }} /></td>
-      )}
+      <td className="sk-cell"><div className="sk" style={{ width: 60 }} /></td>
       <td className="sk-cell" style={{ textAlign: 'right' }}>
         <div className="sk" style={{ width: 56, marginLeft: 'auto' }} />
       </td>
-      {!condensed && (
-        <td className="sk-cell" style={{ textAlign: 'right' }}>
-          <div className="sk" style={{ width: 28, marginLeft: 'auto' }} />
-        </td>
-      )}
       {/* trailing row-menu col (empty) */}
       <td className="sk-cell td-menu" />
     </tr>
@@ -63,7 +58,6 @@ export type TasksTableBodyProps = {
   /** Leaf (non-header) rows currently visible — drives empty/populated branching. */
   leafTasks: TaskListRow[]
   hasActiveFilter: boolean
-  condensed: boolean
   isDesktop: boolean
   /** Retry the failed load (error state). */
   onRetry: () => void
@@ -114,7 +108,7 @@ export type TasksTableBodyProps = {
 export function TasksTableBody(props: TasksTableBodyProps) {
   const t = useT()
   const {
-    loading, error, leafTasks, hasActiveFilter, condensed, isDesktop,
+    loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
     sortCol, onSort, ariaSort, sortIndicator,
     allChecked, someChecked, onToggleSelectAll,
@@ -131,9 +125,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         {isDesktop ? (
           <table className="tasks-table" aria-label={t('tasks.loading')}>
             <tbody>
-              <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
-              <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
-              <SkeletonRow condensed={condensed} />
+              <SkeletonRow /><SkeletonRow />
+              <SkeletonRow /><SkeletonRow />
+              <SkeletonRow />
             </tbody>
           </table>
         ) : (
@@ -219,25 +213,13 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               {t('tasks.pic')}{sortIndicator('owner')}
             </th>
             <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
-            {/* FR-234: Work-line + Objective columns — shown in non-condensed view */}
-            {!condensed && (
-              <th scope="col" className="th-cell">{t('tasks.filter.projectProcess')}</th>
-            )}
-            {!condensed && (
-              <th scope="col" className="th-cell">{t('tasks.objective')}</th>
-            )}
-            <th scope="col" className="th-cell">{t('tasks.team')}</th>
+            {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
+                inside the first paint. Project/Process, Objective, Team, Source, Activity
+                moved to the drawer (OD-62). */}
             <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('due')} onClick={() => onSort('due')}>
               {t('tasks.dueLabel')}{sortIndicator('due')}
             </th>
-            <th scope="col" className="th-cell">{t('tasks.source')}</th>
-            {!condensed && (
-              <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
-                aria-sort={ariaSort('activity')} onClick={() => onSort('activity')}>
-                {t('tasks.activityLabel')}{sortIndicator('activity')}
-              </th>
-            )}
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
             <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />
           </tr>
@@ -246,9 +228,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            // condensed = 9 cols (cb + task + status + PIC + supervisor + team + due + source + menu)
-            // non-condensed = 12 cols (+ work-line + objective + activity)
-            const colSpan = condensed ? 9 : 12
+            // Wave 2c: both desktop modes share the 7-column priority set
+            // (cb + Task + Status + PIC + Supervisor + Due + menu).
+            const colSpan = 7
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (

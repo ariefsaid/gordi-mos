@@ -281,23 +281,32 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(screen.getByRole('columnheader', { name: /due/i }).getAttribute('aria-sort')).toBe('ascending')
   })
 
-  it('AC-113: at /tasks (no drawer) the Activity column is present (not condensed)', async () => {
+  // Wave 2c: Activity moved OUT of the default table (to the drawer) for every desktop
+  // mode, so the decision-critical Due column can't be clipped. The priority columns
+  // (Task/Status/Due) remain + Due stays sortable.
+  it('AC-113: at /tasks (no drawer) the priority columns render and Activity is drawer-only', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Open one'))
-    expect(screen.getByRole('columnheader', { name: /activity/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^task$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /due/i }).getAttribute('aria-sort')).toBe('ascending')
+    // Activity is no longer a table column (moved to the drawer — OD-62).
+    expect(screen.queryByRole('columnheader', { name: /activity/i })).toBeNull()
   })
 
   // AC-110/113: below the split threshold the drawer floats over a full-width table
-  // (overlay/mobile), so the table must NOT condense (Activity stays).
+  // (overlay/mobile), so the table must NOT condense. Priority columns render; Activity
+  // is drawer-only in every mode.
   it('AC-113: below 1100px the table is NOT condensed even with a task open (drawer is a modal overlay)', async () => {
     stubWidths({ split: false, desktop: true }) // <1100px but ≥768 → overlay/modal regime
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
     renderAt('/work/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
-    expect(screen.getByRole('columnheader', { name: /activity/i })).toBeInTheDocument()
+    // Overlay regime never condenses (the drawer floats over a full-width table).
     expect(document.querySelector('.assembly.condensed')).toBeNull()
+    // Activity is drawer-only in every mode (Wave 2c priority trim).
+    expect(screen.queryByRole('columnheader', { name: /activity/i })).toBeNull()
   })
 
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {

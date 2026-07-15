@@ -22,7 +22,7 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { isOverdue } from '@/lib/due-status'
 import { TaskRow } from './task-row'
 // OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
-import { STATUS_ORDER, taskSourceLabel } from './task-formatters'
+import { STATUS_ORDER } from './task-formatters'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
 import { useCascadeCatalogs } from './use-cascade-catalogs'
@@ -541,19 +541,11 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         isCursor={cursor === leafIndex}
         leafIndex={leafIndex}
         cursorRowRef={cursor === leafIndex ? cursorRowRef : undefined}
-        buName={buMap.get(task.business_unit_id) ?? ''}
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         onOpen={(id) => navigate({ pathname: `/work/tasks/${id}`, search: currentSearch }, { state: { taskSurface: 'panel' } })}
         checked={selectedIds.has(task.id)}
         onCheck={() => toggleSelected(task.id)}
-        workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
-        objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
-        sourceName={taskSourceLabel(
-          task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
-          task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
-          t('tasks.adHoc'),
-        )}
         recordSearch={currentSearch}
       />
     )
@@ -567,9 +559,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         count={group.rows.length}
         overdue={group.overdue}
         collapsed={isCollapsed(group.key)}
-        // condensed = 6 cols (cb + task + status + owner + due + menu)
-        // non-condensed = 10 cols (+ work-line + objective + bu + activity)
-        colSpan={condensed ? 6 : 10}
+        // Wave 2c: both desktop modes share the 7-column priority set
+        // (cb + Task + Status + PIC + Supervisor + Due + menu).
+        colSpan={7}
         prefill={group.prefillParam}
         controlsId={`grp-rows-${group.key}`}
         workLineType={group.workLineType}
@@ -694,7 +686,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             error={error}
             leafTasks={leafTasks}
             hasActiveFilter={hasActiveFilter}
-            condensed={condensed}
             isDesktop={isDesktop}
             onRetry={load}
             onClearFilters={clearFilters}
