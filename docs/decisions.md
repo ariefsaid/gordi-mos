@@ -1657,3 +1657,35 @@ No agent may re-implement a surface or component that already exists in `mos-app
 re-home it. Canonical implementations: the Tasks DB-view (ADR-0007/0008), the record-panel host,
 and everything under `mos-app/src/components/`. Re-implementation is a review-blocking defect
 (Experience Contract Rule 11).
+
+### OD-REDESIGN-61 — Role-based Tasks disclosure (owner 2026-07-15, from step-1–3 design review Fork 1)
+
+Tasks disclosure is **role-adaptive**, not one-size. The **default / least-technical persona (member,
+e.g. Café Ops)** gets **capture-first**: work cards in the first viewport, all filters (collection /
+view / saved-view / Group/Unit/Status/Person / search) collapsed behind one "View options" control,
+persistent `+` launcher (Rule 8). A **manager persona** may default to the **denser filter view**
+(the "control wall") because managers filter constantly. Rule 8 is refined accordingly: capture-first
+binds the **primary/least-technical** surface; manager surfaces may expose more controls up-front but
+must never bury the member's work. Not an amendment that weakens Rule 8 — a role scoping of it.
+
+### OD-REDESIGN-62 — Task record = typed Task, no RACI; RACI reserved for governance (owner 2026-07-15, Fork 3)
+
+The Task record shows **Team + PIC + Supervisor + Due + source/provenance** and a visible **"Mark
+complete"** action (+ Reassign PIC). **RACI (R/A/C/I) is removed from Task surfaces** — it belongs on
+**Objectives / Projects / Processes** only (ratifies OD-REDESIGN Task-ownership model + JTBD anchor
+A4). This changes the shipped Task renderer (`TaskSurface`) — a deliberate exception to "rewire, don't
+rebuild," ratified here so it can't regress through future "rewire" work.
+
+### OD-REDESIGN-63 — Record URL: split drawer for in-list click, full canonical page for direct open (owner 2026-07-15, Fork 4)
+
+Both, not either. A **normal in-list click opens the shared split drawer** (fast quick-pass triage —
+owner wants this, no back-and-forth between full pages). A **direct URL / new-tab / refresh opens the
+same record content as a standalone full canonical page** (task links are independently usable). This
+is the correct reading of Rule 4 — the drawer is not lost; only direct-open escalates to full page.
+
+### OD-REDESIGN-64 — Legacy Home dead-links fixed now; attention-Home deferred to Step 5 (owner 2026-07-15, Fork 2)
+
+Home's job-first attention brief is **Step 5** (not pulled forward). BUT the current legacy Home's
+**dead links are fixed now** (a step-2/3 follow-up): "Write update →" and "Open the Daily Log →" must
+not lead to a stub/redirect-to-self. Either point them at a working successor or hide them from the
+least-technical persona until Step 5. No broken promises in front of staff, even on a legacy screen.

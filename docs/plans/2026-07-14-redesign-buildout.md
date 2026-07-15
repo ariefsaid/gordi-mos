@@ -67,6 +67,14 @@ actually gone."
   assess the built slice against the RULES IN DOCS FIRST** (Experience Contract Rules 1–12 →
   `docs/jtbd.md` intent → `docs/reference/twenty-ixd-patterns.md`), **THEN against the available
   MOCKUPS.** Mockup comparison is mandatory, not optional.
+  - **Scope card is MANDATORY in every review dispatch (owner-directed 2026-07-15 — anti-pedantry).**
+    Review as-we-go, but tell the reviewer what this step DELIVERS vs what is DEFERRED, or it holds a
+    3-step foundation to the 11-step finished vision and floods the ledger with not-yet-built
+    "failures" (observed: the steps 1–3 review flagged Home/Signals/Café-naming, all future steps).
+    Each dispatch's brief MUST include: (a) the surfaces IN SCOPE for this step, (b) a "DEFERRED to
+    Step N" list (e.g. "Home attention brief = Step 5; Signals = Step 4; Café rename = Step 7 — do NOT
+    fail these here, note them as out-of-scope"), (c) any known-accepted deviations. The reviewer
+    judges the step's own bar; genuine regressions in in-scope surfaces are still blocking.
   - **Runner + method (owner-directed): give Luna the OBJECTIVES, not step-by-step + fed screenshots.**
     Dispatch `gpt-5.6-luna --thinking max` with the review objectives + the read-first doc list + the
     URLs (app `localhost:5173/mos/`, e7 mockup `:8766`, convergence mockup `:8134`); Luna drives

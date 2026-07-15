@@ -90,6 +90,8 @@ destination/Module is duplicated, or the Work switcher re-sprouts family heading
 
 ## Rule 4 — Canonical routes + URL state semantics
 
+*Clarified by OD-REDESIGN-63 (2026-07-15): in-list click opens the split drawer (fast triage); direct/new-tab/refresh opens the same content as a standalone full canonical page. Both — the drawer is retained.*
+
 Every collection and saved view has a **canonical route**; view/presentation state lives in **URL query
 params**; Back / refresh / bookmark / new-tab all preserve location.
 
@@ -154,6 +156,8 @@ job; the Launcher shows ≤1 contextual action alongside the stable universal se
 action is a bare `Create`/`Add`/`New`, or the Launcher algorithmically reorders its universal actions.
 
 ## Rule 8 — Capture-first disclosure (mobile first)
+
+*Refined by OD-REDESIGN-61 (2026-07-15): capture-first binds the primary/least-technical persona surface; a MANAGER persona may default to a denser filter view. Role-scoped, not weakened.*
 
 On phone, **work appears before configuration.** A user opening any collection sees their work items in
 the first viewport; the collection picker, saved-view selector, and view-as/presentation controls collapse
