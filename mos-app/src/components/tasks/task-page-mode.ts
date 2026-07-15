@@ -17,22 +17,30 @@
  * real browser direct-load opens the full page (proven by the e2e).
  */
 
+type BootNavigation = Pick<PerformanceNavigationTiming, 'type'>
+
 const BOOT_NAV =
   typeof performance !== 'undefined'
-    ? (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)
+    ? (performance.getEntriesByType('navigation')[0] as unknown as BootNavigation | undefined)
     : undefined
 
-function readBootRecordId(): string | null {
-  if (!BOOT_NAV) return null // non-browser / jsdom — cannot be a hard load
+/**
+ * Read the record path from a hard-navigation timing entry.
+ *
+ * The arguments are injectable so boot-navigation behavior is deterministic in unit
+ * tests; the default capture below is the only module-level browser observation.
+ */
+export function readBootRecordId(
+  navigation: BootNavigation | undefined = BOOT_NAV,
+  pathname: string | null = typeof window !== 'undefined' ? window.location.pathname : null,
+): string | null {
+  if (!navigation) return null // non-browser / jsdom — cannot be a hard load
   // navigate = typed URL / new tab / external link; reload = refresh; back_forward =
   // browser back/forward into the SPA from outside. All are hard (re)loads onto the URL.
-  if (BOOT_NAV.type !== 'navigate' && BOOT_NAV.type !== 'reload' && BOOT_NAV.type !== 'back_forward') {
+  if (navigation.type !== 'navigate' && navigation.type !== 'reload' && navigation.type !== 'back_forward') {
     return null
   }
-  const m =
-    typeof window !== 'undefined'
-      ? window.location.pathname.match(/\/work\/tasks\/([^/?#]+)$/)
-      : null
+  const m = pathname?.match(/\/work\/tasks\/([^/?#]+)$/) ?? null
   // `new` is the create route, not a record — never a standalone page host.
   if (!m || m[1] === 'new') return null
   return m[1]
@@ -41,11 +49,15 @@ function readBootRecordId(): string | null {
 /** The record id the SPA hard-loaded onto, or null (booted elsewhere / in-app nav). */
 const BOOT_DIRECT_RECORD_ID = readBootRecordId()
 
+export type TaskNavigationType = 'POP' | 'PUSH' | 'REPLACE'
+
 export type TaskPageModeInput = {
   taskId: string | null | undefined
   isNew: boolean
   /** react-router `location.state` — the "Open full page" button sets `{ taskSurface: 'page' }`. */
   state?: unknown
+  /** React Router navigation type. POP is the hard-load/refresh precedence seam. */
+  navigationType?: TaskNavigationType
 }
 
 /**
@@ -56,11 +68,18 @@ export type TaskPageModeInput = {
  *   Defaults to the real capture; pass an explicit value in unit tests.
  */
 export function isTaskPageMode(
-  { taskId, isNew, state }: TaskPageModeInput,
+  { taskId, isNew, state, navigationType }: TaskPageModeInput,
   bootRecordId: string | null = BOOT_DIRECT_RECORD_ID,
 ): boolean {
   if (!taskId || isNew) return false
   if (isPageState(state)) return true // explicit "Open full page" escalation
+
+  // A collection click is an in-app PUSH/REPLACE and must always stay in the
+  // split drawer, even when the module was originally booted on this same id.
+  // On a real POP (direct load/refresh/back-forward), the boot id wins even if
+  // browser history retained a prior panel state.
+  if (navigationType === 'PUSH' || navigationType === 'REPLACE') return false
+  if (isPanelState(state) && navigationType !== 'POP') return false
   return bootRecordId === taskId // direct/new-tab/refresh onto this record
 }
 
@@ -69,5 +88,13 @@ function isPageState(state: unknown): boolean {
     !!state &&
     typeof state === 'object' &&
     (state as { taskSurface?: unknown }).taskSurface === 'page'
+  )
+}
+
+function isPanelState(state: unknown): boolean {
+  return (
+    !!state &&
+    typeof state === 'object' &&
+    (state as { taskSurface?: unknown }).taskSurface === 'panel'
   )
 }

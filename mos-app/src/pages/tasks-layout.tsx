@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Outlet, useParams, useMatch, useLocation } from 'react-router-dom'
+import { Outlet, useParams, useMatch, useLocation, useNavigationType } from 'react-router-dom'
 import { useTasksSavedView } from '@/components/tasks/use-tasks-saved-view'
 import { PageFrame } from '@/shell/page-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -26,6 +26,7 @@ export function TasksLayout() {
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
+  const navigationType = useNavigationType()
   const { savedView, setSavedView } = useTasksSavedView()
   const [expanded, setExpanded] = useExpandPref()
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal
@@ -59,7 +60,7 @@ export function TasksLayout() {
   // no PerformanceNavigationTiming, so direct-render unit tests stay in panel mode;
   // the e2e proves the real-browser direct-open branch). All hooks run above so this
   // branch is a plain conditional return, not a conditional hook.
-  if (isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state }) && taskId) {
+  if (isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && taskId) {
     return (
       <PageFrame variant="data">
         <TaskRecordPage taskId={taskId} />
