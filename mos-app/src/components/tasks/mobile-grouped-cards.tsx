@@ -7,6 +7,7 @@ import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { formatAge, formatDate, taskSourceLabel } from './task-formatters'
+import { useT } from '@/i18n/use-t'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 export type MobileRenderGroup = {
@@ -26,16 +27,17 @@ export type MobileRenderGroup = {
 
 // ── Work-line type label tag (mirrors desktop WorkLineTypeTag in group-header-row) ──
 function MobileWorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
+  const t = useT()
   if (type === 'project') {
     return (
       <Tag color="blue" weight="medium" className="wl-type-tag">
-        Project
+        {t('tasks.type.project')}
       </Tag>
     )
   }
   return (
     <Tag color="gray" weight="medium" className="wl-type-tag">
-      Daily / ongoing
+      {t('tasks.type.daily')}
     </Tag>
   )
 }
@@ -72,6 +74,7 @@ type TaskCardProps = {
 }
 
 function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '' }: TaskCardProps) {
+  const t = useT()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const age = formatAge(task.last_activity_at, now)
@@ -90,7 +93,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
         className="task-card-link"
       >
         <div className="task-card-head">
-          {isArchived && <span className="archived-tag">Archived</span>}
+          {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
           <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
           <StatusPill status={task.status} />
         </div>
@@ -98,32 +101,32 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
         {/* Fix-5: dt labels are visible (label:value) per mockup — not sr-only */}
         <dl className="task-card-meta">
           <span className="task-card-meta-pair">
-            <dt>PIC</dt>
+            <dt>{t('tasks.pic')}</dt>
             <dd><OwnerCell fullName={rName} otherCount={0} variant="task" /></dd>
           </span>
           <span className="task-card-meta-pair">
-            <dt>Supervisor</dt>
+            <dt>{t('tasks.supervisor')}</dt>
             <dd>{supervisorName || '—'}</dd>
           </span>
           {/* FR-234: Work-line + Objective in mobile card */}
           <span className="task-card-meta-pair">
-            <dt>Project/Process</dt>
+            <dt>{t('tasks.filter.projectProcess')}</dt>
             <dd className="td-empty-inline">{workLineName || '—'}</dd>
           </span>
           <span className="task-card-meta-pair">
-            <dt>Objective</dt>
+            <dt>{t('tasks.objective')}</dt>
             <dd className="td-empty-inline">{objectiveName || '—'}</dd>
           </span>
           <span className="task-card-meta-pair">
-            <dt>Due</dt>
+            <dt>{t('tasks.dueLabel')}</dt>
             <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
           </span>
           <span className="task-card-meta-pair">
-            <dt>Source</dt>
+            <dt>{t('tasks.source')}</dt>
             <dd className="td-empty-inline">{sourceName}</dd>
           </span>
           <span className="task-card-meta-pair">
-            <dt>Activity</dt>
+            <dt>{t('tasks.activityLabel')}</dt>
             <dd className="act tabular-nums">{age}</dd>
           </span>
         </dl>

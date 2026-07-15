@@ -12,6 +12,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
@@ -133,11 +134,13 @@ function renderTable(
   }
 
   return render(
-    <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/work/tasks']}>
-        <Harness />
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <I18nProvider>
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={['/work/tasks']}>
+          <Harness />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </I18nProvider>,
   )
 }
 
@@ -197,6 +200,21 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
     fireEvent.click(screen.getByRole('button', { name: /filter to.*overdue/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue filter/i })).toBeInTheDocument())
+  })
+
+  it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Pekerjaan pertama' })])
+
+    renderTable()
+    await waitFor(() => screen.getByText('Pekerjaan pertama'))
+
+    expect(screen.getByRole('button', { name: 'Opsi tampilan' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Opsi tampilan' }))
+    expect(screen.getByRole('button', { name: 'Pekerjaan saya' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Kelompok' })).toBeInTheDocument()
+    localStorage.removeItem('mos.locale')
   })
 })
 
@@ -304,7 +322,7 @@ describe('Task 9 — group-by control in toolbar', () => {
     // Options
     const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
     expect(options).toContain('Status')
-    expect(options).toContain('Owner')
+    expect(options).toContain('PIC')
     expect(options.some(o => o && /business unit/i.test(o))).toBe(true)
   })
 
@@ -383,9 +401,9 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
   it('AC-311: view=followups shows reserved-state copy instead of task rows', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Ordinary task' })])
     renderTable({ savedView: makeSavedView('followups') })
-    await waitFor(() => screen.getByRole('region', { name: /follow-ups reserved state/i }))
-    expect(screen.getByText(/follow-ups are not task-backed in this step/i)).toBeInTheDocument()
-    expect(screen.getByText(/follow-ups still live outside mos.tasks/i)).toBeInTheDocument()
+    await waitFor(() => screen.getByRole('region', { name: /follow-ups/i }))
+    expect(screen.getByText(/follow-ups are coming to this workspace/i)).toBeInTheDocument()
+    expect(screen.getByText(/choose another view to review tasks/i)).toBeInTheDocument()
     expect(screen.queryByText('Ordinary task')).toBeNull()
   })
 

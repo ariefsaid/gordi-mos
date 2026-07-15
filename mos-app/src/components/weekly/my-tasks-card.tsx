@@ -14,6 +14,7 @@ import { formatDate, formatAge } from '@/components/tasks/task-formatters'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useT } from '@/i18n/use-t'
 import './my-tasks-card.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -35,6 +36,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [data, setData] = useState<FetchedData | null>(null)
   const isDesktop = useIsDesktop()
+  const t = useT()
 
   const load = useCallback(() => {
     let cancelled = false
@@ -71,19 +73,19 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   return (
     <section
       className="bg-card border border-border rounded-lg shadow-rest mb-4"
-      aria-label="My tasks this week"
+      aria-label={t('tasks.myTitle')}
       aria-busy={loadState === 'loading' ? 'true' : undefined}
     >
       <CardHead
-        title="My tasks"
-        meta="Where you're PIC or Supervisor · off track first"
+        title={t('tasks.myTitle')}
+        meta={t('tasks.myMeta')}
         action={
           <Link
             to="/tasks"
             className="font-semibold text-primary no-underline"
             style={{ fontSize: 15 }}
           >
-            All tasks →
+            {t('tasks.all')}
           </Link>
         }
       />
@@ -103,14 +105,14 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       {/* ── Error: scoped inline block + Retry (rest of My Week unaffected) ─ */}
       {loadState === 'error' && (
         <div className="mini-error-block" role="status">
-          <span>Couldn&apos;t load your tasks.</span>
+          <span>{t('tasks.error.load')}</span>
           <button
             type="button"
             className="font-semibold text-primary"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 15 }}
             onClick={load}
           >
-            Retry
+            {t('tasks.retry')}
           </button>
         </div>
       )}
@@ -128,13 +130,13 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
           </colgroup>
           <thead>
             <tr>
-              <th scope="col" className="th-overline">Task</th>
-              <th scope="col" className="th-overline">Status</th>
-              <th scope="col" className="th-overline">Team</th>
-              <th scope="col" className="th-overline">PIC</th>
-              <th scope="col" className="th-overline">Supervisor</th>
-              <th scope="col" className="th-overline">Due</th>
-              <th scope="col" className="th-overline">Activity</th>
+              <th scope="col" className="th-overline">{t('tasks.label.task')}</th>
+              <th scope="col" className="th-overline">{t('tasks.filter.status')}</th>
+              <th scope="col" className="th-overline">{t('tasks.team')}</th>
+              <th scope="col" className="th-overline">{t('tasks.pic')}</th>
+              <th scope="col" className="th-overline">{t('tasks.supervisor')}</th>
+              <th scope="col" className="th-overline">{t('tasks.dueLabel')}</th>
+              <th scope="col" className="th-overline">{t('tasks.activityLabel')}</th>
             </tr>
           </thead>
           <tbody className="mini-tbody">
@@ -145,7 +147,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
                   colSpan={7}
                   className="mini-td text-center text-muted-foreground"
                 >
-                  No tasks where you&apos;re PIC or Supervisor this week — you&apos;re clear.
+                  {t('tasks.myEmpty')}
                 </td>
               </tr>
             ) : (
@@ -219,10 +221,11 @@ function MiniTaskRow({ task, now, personMap, teamMap }: MiniTaskRowProps) {
 }
 
 function MobileTaskList({ tasks, now, personMap, teamMap }: { tasks: TaskListRow[]; now: Date; personMap: Map<string, string>; teamMap: Map<string, string> }) {
+  const t = useT()
   if (tasks.length === 0) {
     return (
       <div className="mini-mobile-empty text-muted-foreground">
-        No tasks where you&apos;re PIC or Supervisor this week — you&apos;re clear.
+        {t('tasks.myEmpty')}
       </div>
     )
   }
@@ -237,6 +240,7 @@ function MobileTaskList({ tasks, now, personMap, teamMap }: { tasks: TaskListRow
 }
 
 function MobileTaskCard({ task, now, personMap, teamMap }: MiniTaskRowProps) {
+  const t = useT()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   const dueClass = taskOverdue ? 'mini-due-overdue' : ds === 'soon' ? 'mini-due-soon' : ds === 'calm' ? 'mini-due-calm' : 'mini-due-none'
@@ -254,27 +258,27 @@ function MobileTaskCard({ task, now, personMap, teamMap }: MiniTaskRowProps) {
       </Link>
       <div className="mini-mobile-grid">
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">Status</span>
+          <span className="mini-mobile-label">{t('tasks.filter.status')}</span>
           <StatusPill status={task.status} />
         </div>
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">Team</span>
+          <span className="mini-mobile-label">{t('tasks.team')}</span>
           <span className="mini-mobile-value">{teamName}</span>
         </div>
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">PIC</span>
+          <span className="mini-mobile-label">{t('tasks.pic')}</span>
           <span className="mini-mobile-value">{picName}</span>
         </div>
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">Supervisor</span>
+          <span className="mini-mobile-label">{t('tasks.supervisor')}</span>
           <span className="mini-mobile-value">{supervisorName}</span>
         </div>
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">Due</span>
+          <span className="mini-mobile-label">{t('tasks.dueLabel')}</span>
           <span className={`mini-mobile-value tabular-nums ${dueClass}`}>{dueText}</span>
         </div>
         <div className="mini-mobile-field">
-          <span className="mini-mobile-label">Activity</span>
+          <span className="mini-mobile-label">{t('tasks.activityLabel')}</span>
           <span className="mini-mobile-value mini-meta">{formatAge(task.last_activity_at, now)}</span>
         </div>
       </div>

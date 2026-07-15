@@ -15,7 +15,9 @@ type I18nContextValue = {
   setLocale: (next: Locale) => void
 }
 
-const I18nContext = createContext<I18nContextValue | null>(null)
+// Standalone renderers (component tests, embeds, and story-like previews) default to
+// English; the application root still supplies the real persisted provider below.
+const I18nContext = createContext<I18nContextValue>({ locale: 'en', setLocale: () => {} })
 
 export function readPersistedLocale(): Locale {
   if (typeof window === 'undefined') return 'en'
@@ -45,9 +47,5 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useI18n(): I18nContextValue {
-  const ctx = useContext(I18nContext)
-  if (!ctx) {
-    throw new Error('useI18n must be used within an I18nProvider')
-  }
-  return ctx
+  return useContext(I18nContext)
 }

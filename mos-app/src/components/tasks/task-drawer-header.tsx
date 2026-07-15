@@ -4,6 +4,7 @@ import { StatusPill } from './status-pill'
 import { StatusTrigger } from './status-trigger'
 import { formatAge, formatDate } from './task-formatters'
 import { dueStatus } from '@/lib/due-status'
+import { useT } from '@/i18n/use-t'
 
 export type TaskDrawerHeaderProps = {
   task: TaskListRow
@@ -47,30 +48,33 @@ export function TaskDrawerHeader({
   task, buName, people, editable, archiveable, expanded, now,
   onStatusChange, onMarkComplete, onOpenPage, onExpandToggle, onClose, onArchive,
 }: TaskDrawerHeaderProps) {
+  const t = useT()
   const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? id
   const ds = dueStatus(task.due_date, now)
   const dueClass = ds === 'overdue' ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
-    ? (ds === 'overdue' ? `Overdue · ${formatDate(task.due_date)}` : formatDate(task.due_date))
-    : '—'
+    ? (ds === 'overdue'
+      ? t('tasks.overdueDate', { date: formatDate(task.due_date) })
+      : formatDate(task.due_date))
+    : t('tasks.noDue')
 
   return (
     <header className={expanded ? 'dw-head dw-head-expanded' : 'dw-head'}>
       {/* Utility bar */}
       <div className="dw-bar">
-        <span className="dw-crumb-mini">{expanded ? 'Task · full width' : 'Task'}</span>
+        <span className="dw-crumb-mini">{expanded ? t('tasks.fullWidth') : t('tasks.label.task')}</span>
         <span className="dw-bar-spacer" />
         {onOpenPage && (
           <button type="button" className="dw-open-page" onClick={onOpenPage}>
-            Open full page
+            {t('tasks.openFullPage')}
           </button>
         )}
         <button
           type="button"
           className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
           aria-pressed={expanded}
-          aria-label={expanded ? 'Collapse to split (e)' : 'Expand to full width (e)'}
-          title={expanded ? 'Collapse (e)' : 'Expand (e)'}
+          aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
+          title={expanded ? t('tasks.collapse') : t('tasks.expand')}
           onClick={onExpandToggle}
         >
           {expanded ? <CollapseIcon /> : <ExpandIcon />}
@@ -78,8 +82,8 @@ export function TaskDrawerHeader({
         <button
           type="button"
           className="dw-iconbtn"
-          aria-label="Close (Esc)"
-          title="Close (Esc)"
+          aria-label={t('tasks.close')}
+          title={t('tasks.close')}
           onClick={onClose}
         >
           <CloseIcon />
@@ -92,7 +96,7 @@ export function TaskDrawerHeader({
           <div className="dw-titlewrap">
             <h2 className="dw-title" title={task.title}>{task.title}</h2>
             <p className="dw-unit">
-              {buName} · due <span className={`${dueClass} tabular-nums`}>{dueText}</span>
+              {buName} · {t('tasks.due')} <span className={`${dueClass} tabular-nums`}>{dueText}</span>
             </p>
           </div>
 
@@ -103,28 +107,28 @@ export function TaskDrawerHeader({
             }
             {editable && onMarkComplete && task.status !== 'Done' && !task.archived_at && (
               <button type="button" className="btn btn-primary task-mark-complete" onClick={onMarkComplete}>
-                Mark complete
+                {t('tasks.markComplete')}
               </button>
             )}
             {expanded && archiveable && !task.archived_at && (
-              <button type="button" className="btn-ghost-danger" aria-label="Archive task" onClick={onArchive}>
-                Archive task
+              <button type="button" className="btn-ghost-danger" aria-label={t('tasks.archive')} onClick={onArchive}>
+                {t('tasks.archive')}
               </button>
             )}
-            <span className="act tabular-nums dw-activity">Activity {formatAge(task.last_activity_at, now)} ago</span>
+            <span className="act tabular-nums dw-activity">{t('tasks.activity', { age: formatAge(task.last_activity_at, now) })}</span>
           </div>
 
-          <div className="dw-ownership-summary" aria-label="Task ownership summary">
+          <div className="dw-ownership-summary" aria-label={t('tasks.ownershipSummary')}>
             <div className="dw-owner-summary-item">
-              <span className="dw-owner-summary-label">Team</span>
+              <span className="dw-owner-summary-label">{t('tasks.team')}</span>
               <span className="dw-owner-summary-value">{buName}</span>
             </div>
             <div className="dw-owner-summary-item">
-              <span className="dw-owner-summary-label">PIC</span>
+              <span className="dw-owner-summary-label">{t('tasks.pic')}</span>
               <span className="dw-owner-summary-value">{nameOf(task.responsible_person_id)}</span>
             </div>
             <div className="dw-owner-summary-item">
-              <span className="dw-owner-summary-label">Supervisor</span>
+              <span className="dw-owner-summary-label">{t('tasks.supervisor')}</span>
               <span className="dw-owner-summary-value">{nameOf(task.accountable_person_id)}</span>
             </div>
           </div>

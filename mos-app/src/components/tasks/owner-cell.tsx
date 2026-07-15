@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { firstName, initials } from './task-formatters'
+import { useT } from '@/i18n/use-t'
 
 export type OwnerCellRaciMember = { role: 'A' | 'C' | 'I'; name: string }
 
@@ -13,13 +14,14 @@ type OwnerCellProps = {
 }
 
 export function OwnerCell({ fullName, otherCount, others, variant = 'legacy' }: OwnerCellProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const tipId = useId()
   const hasDisclosure = otherCount > 0 && others != null && others.length > 0
 
   if (variant === 'task') {
     return (
-      <div className="owner task-pic-cell" aria-label={`PIC: ${fullName}`}>
+      <div className="owner task-pic-cell" aria-label={`${t('tasks.pic')}: ${fullName}`}>
         <span className="ownav" aria-hidden="true">{initials(fullName)}</span>
         <span className="own-name">{firstName(fullName)}</span>
       </div>
@@ -36,7 +38,7 @@ export function OwnerCell({ fullName, otherCount, others, variant = 'legacy' }: 
             <button
               type="button"
               className="own-more own-more-btn"
-              aria-label="Show other people"
+              aria-label={t('tasks.showOtherPeople')}
               aria-describedby={open ? tipId : undefined}
               aria-expanded={open}
               onFocus={() => setOpen(true)}

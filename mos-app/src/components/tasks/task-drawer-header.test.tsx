@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { TaskDrawerHeader } from './task-drawer-header'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption } from '@/lib/db/directory'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -97,5 +98,32 @@ describe('TaskDrawerHeader', () => {
       />,
     )
     expect(screen.getByRole('button', { name: /archive task/i })).toBeInTheDocument()
+  })
+
+  it('renders the completion and ownership grammar in Indonesian', () => {
+    localStorage.setItem('mos.locale', 'id')
+    render(
+      <I18nProvider>
+        <TaskDrawerHeader
+          task={makeTask()}
+          buName="Operasi Kafe"
+          people={people}
+          editable
+          archiveable={false}
+          expanded={false}
+          now={new Date('2026-07-15T08:30:00Z')}
+          onStatusChange={vi.fn()}
+          onMarkComplete={vi.fn()}
+          onOpenPage={vi.fn()}
+          onExpandToggle={vi.fn()}
+          onClose={vi.fn()}
+          onArchive={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
+    expect(screen.getAllByText('Tim').length).toBeGreaterThan(0)
+    expect(screen.getByText('Buka halaman penuh')).toBeInTheDocument()
+    localStorage.removeItem('mos.locale')
   })
 })

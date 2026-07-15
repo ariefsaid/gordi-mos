@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption } from '@/lib/db/directory'
 import { TaskOwnershipCard } from './task-ownership-card'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 const PIC = 'pic'
 const SUPERVISOR = 'supervisor'
@@ -73,5 +74,24 @@ describe('TaskOwnershipCard — OD-62', () => {
     )
     expect(screen.queryByRole('button', { name: 'Reassign PIC' })).toBeNull()
     expect(screen.getByLabelText('PIC: Cahya Cafe')).toBeInTheDocument()
+  })
+
+  it('renders the typed ownership grammar in Indonesian', () => {
+    localStorage.setItem('mos.locale', 'id')
+    render(
+      <I18nProvider>
+        <TaskOwnershipCard
+          task={makeTask()}
+          teamName="Operasi Kafe"
+          people={people}
+          canEdit
+          onPicChange={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('region', { name: 'Kepemilikan tugas' })).toBeInTheDocument()
+    expect(screen.getByText('Tim')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tetapkan ulang PIC' })).toBeInTheDocument()
+    localStorage.removeItem('mos.locale')
   })
 })

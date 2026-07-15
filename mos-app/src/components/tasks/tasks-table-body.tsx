@@ -21,6 +21,7 @@ import type { RenderGroup } from './tasks-grouping'
 import type { OwnerCellRaciMember } from './owner-cell'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
+import { useT } from '@/i18n/use-t'
 
 type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
 
@@ -113,6 +114,7 @@ export type TasksTableBodyProps = {
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
+  const t = useT()
   const {
     loading, error, leafTasks, hasActiveFilter, condensed, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
@@ -126,10 +128,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
 
   if (loading) {
     return (
-      <div aria-busy="true" aria-label="Loading tasks">
-        <span className="sr-only" role="status">Loading tasks</span>
+      <div aria-busy="true" aria-label={t('tasks.loading')}>
+        <span className="sr-only" role="status">{t('tasks.loading')}</span>
         {isDesktop ? (
-          <table className="tasks-table" aria-label="Loading tasks">
+          <table className="tasks-table" aria-label={t('tasks.loading')}>
             <tbody>
               <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
               <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
@@ -148,15 +150,15 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   }
 
   if (error) {
-    return <ErrorState message="Couldn't load tasks" onRetry={onRetry} />
+    return <ErrorState message={t('tasks.error.load')} onRetry={onRetry} />
   }
 
   if (leafTasks.length === 0 && hasActiveFilter) {
     // No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3)
     return (
-      <EmptyState title="No tasks match these filters" copy="Clear filters to see all tasks.">
-        <button type="button" className="btn btn-outline" onClick={onClearFilters}>Clear filters</button>
-        <Link to={createHref} className="btn btn-primary">+ New task</Link>
+      <EmptyState title={t('tasks.empty.filteredTitle')} copy={t('tasks.empty.filteredCopy')}>
+        <button type="button" className="btn btn-outline" onClick={onClearFilters}>{t('tasks.empty.clearFilters')}</button>
+        <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
       </EmptyState>
     )
   }
@@ -165,7 +167,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
-        <Link to={createHref} className="btn btn-primary">+ New task</Link>
+        <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
       </EmptyState>
     )
   }
@@ -195,7 +197,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
       {captionEl}
-      <table className="tasks-table" aria-label="Tasks">
+      <table className="tasks-table" aria-label={t('tasks.title')}>
         <thead>
           <tr>
             {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}
@@ -204,43 +206,43 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                 checked={allChecked}
                 indeterminate={someChecked && !allChecked}
                 onChange={onToggleSelectAll}
-                label="Select all tasks"
+                label={t('tasks.selectAll')}
               />
             </th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('task')} onClick={() => onSort('task')}>
-              Task{sortIndicator('task')}
+              {t('tasks.label.task')}{sortIndicator('task')}
             </th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('status')} onClick={() => onSort('status')}>
-              Status{sortIndicator('status')}
+              {t('tasks.filter.status')}{sortIndicator('status')}
             </th>
             <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('owner')} onClick={() => onSort('owner')}>
-              PIC{sortIndicator('owner')}
+              {t('tasks.pic')}{sortIndicator('owner')}
             </th>
-            <th scope="col" className="th-cell">Supervisor</th>
+            <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
             {/* FR-234: Work-line + Objective columns — shown in non-condensed view */}
             {!condensed && (
-              <th scope="col" className="th-cell">Project/Process</th>
+              <th scope="col" className="th-cell">{t('tasks.filter.projectProcess')}</th>
             )}
             {!condensed && (
-              <th scope="col" className="th-cell">Objective</th>
+              <th scope="col" className="th-cell">{t('tasks.objective')}</th>
             )}
-            <th scope="col" className="th-cell">Team</th>
+            <th scope="col" className="th-cell">{t('tasks.team')}</th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
               aria-sort={ariaSort('due')} onClick={() => onSort('due')}>
-              Due{sortIndicator('due')}
+              {t('tasks.dueLabel')}{sortIndicator('due')}
             </th>
-            <th scope="col" className="th-cell">Source</th>
+            <th scope="col" className="th-cell">{t('tasks.source')}</th>
             {!condensed && (
               <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
                 aria-sort={ariaSort('activity')} onClick={() => onSort('activity')}>
-                Last activity{sortIndicator('activity')}
+                {t('tasks.activityLabel')}{sortIndicator('activity')}
               </th>
             )}
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
-            <th scope="col" className="th-cell th-menu" aria-label="Row actions" />
+            <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />
           </tr>
         </thead>
         {virtualize ? (

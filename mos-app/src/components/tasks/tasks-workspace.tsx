@@ -20,7 +20,6 @@ import { getBusinessUnits } from '@/lib/db/directory'
 import { getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { isOverdue } from '@/lib/due-status'
-import { raciMember, raciOwner } from '@/lib/raci-member'
 import type { OwnerCellRaciMember } from './owner-cell'
 import { TaskRow } from './task-row'
 // OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
@@ -37,9 +36,10 @@ import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
+import { useT } from '@/i18n/use-t'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Segment = 'mine' | 'raci' | 'all'
+type Segment = 'mine' | 'all'
 type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
 type SortDir = 'ascending' | 'descending'
 
@@ -106,6 +106,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const isManager = auth.status === 'authenticated' && auth.viewer.isManager
   const captureFirstMobile = !isDesktop && !isManager
+  const t = useT()
 
   // ── Persistence (FR-125) ──────────────────────────────────────────────────
   const { groupBy, setGroupBy, isCollapsed, toggleCollapsed, collapsedGroups } = useTasksViewPref()
@@ -255,10 +256,11 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     const t = row.original
     const { search, overdueOnly: od, segment: seg, personFilter: pf } =
       value as { search: string; overdueOnly: boolean; segment: Segment; personFilter: string }
-    // Ownership scope (Person overrides the Mine/RACI/All segment, FR-124)
-    if (pf) { if (!raciMember(t, pf)) return false }
-    else if (seg === 'mine' && viewerId && !raciOwner(t, viewerId)) return false
-    else if (seg === 'raci' && viewerId && !raciMember(t, viewerId)) return false
+    // Typed ownership scope (Person overrides the My work/All view, FR-124).
+    const isOwnedBy = (personId: string) =>
+      t.responsible_person_id === personId || t.accountable_person_id === personId
+    if (pf) { if (!isOwnedBy(pf)) return false }
+    else if (seg === 'mine' && viewerId && !isOwnedBy(viewerId)) return false
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
     if (od && !isOverdue(t, now)) return false
     return true
@@ -517,16 +519,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
   // ── Empty copy ─────────────────────────────────────────────────────────────
   function emptyTitle(): string {
-    if (includeArchived) return 'No archived tasks.'
-    if (segment === 'mine') return 'No tasks assigned to you'
-    if (segment === 'raci') return 'No tasks you are involved in'
-    return 'No tasks yet'
+    if (includeArchived) return t('tasks.empty.archivedTitle')
+    if (segment === 'mine') return t('tasks.empty.mineTitle')
+    return t('tasks.empty.noTasksTitle')
   }
   function emptyCopy(): string {
-    if (includeArchived) return 'Archived tasks would appear here.'
-    if (segment === 'mine') return 'When a task names you as R or A it shows up here. Create one or switch to "All".'
-    if (segment === 'raci') return 'When a task names you as R, A, C, or I it shows up here.'
-    return 'No tasks match your current filters.'
+    if (includeArchived) return t('tasks.empty.archivedCopy')
+    if (segment === 'mine') return t('tasks.empty.mineCopy')
+    return t('tasks.empty.noTasksCopy')
   }
 
   // "+ Add task" pre-fill: navigate to the create surface seeding the grouped
@@ -613,14 +613,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     search: '',
   }
   const mobileViewLabel = effectiveSavedView.activeChip === 'mine'
-    ? 'My work'
+    ? t('tasks.saved.mine')
     : effectiveSavedView.activeChip === 'team'
-      ? 'Team work'
+      ? t('tasks.saved.team')
       : effectiveSavedView.activeChip === 'overdue'
-        ? 'Overdue'
+        ? t('tasks.saved.overdue')
         : effectiveSavedView.activeChip === 'followups'
-          ? 'Follow-ups'
-          : 'All'
+          ? t('tasks.saved.followups')
+          : t('tasks.saved.all')
   const tasksToolbar = (
     <TasksToolbar
       groupBy={groupBy}
@@ -650,22 +650,22 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     <>
       <PageHead
         variant="content"
-        title="Tasks"
+        title={t('tasks.title')}
         count={stats === null ? null : stats.total}
         action={
           showNewTask ? (
-            <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">+ New task</Link>
+            <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
           ) : undefined
         }
         meta={
           <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
-            {stats === null ? '—' : stats.blocked > 0 ? `${stats.blocked} blocked` : null}
+            {stats === null ? '—' : stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null}
           </span>
         }
       />
 
       <div className={splitClass}>
-        <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label="Tasks">
+        <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           {captureFirstMobile ? (
             <div className="mobile-task-options">
               <button
@@ -675,9 +675,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
                 aria-controls="mobile-task-options-panel"
                 onClick={() => setMobileOptionsOpen(open => !open)}
               >
-                <span>View options</span>
+                <span>{t('tasks.viewOptions')}</span>
                 <span className="mobile-task-options-summary" aria-hidden="true">
-                  · Tasks · {mobileViewLabel}
+                  {t('tasks.viewSummary', { view: mobileViewLabel })}
                 </span>
                 <Chevron
                   className={`mobile-task-options-chevron${mobileOptionsOpen ? ' mobile-task-options-chevron--open' : ''}`}
@@ -692,11 +692,11 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           ) : tasksToolbar}
 
           {savedView?.reserved === 'followups' ? (
-            <div className="empty-state empty-state--quiet" role="region" aria-label="Follow-ups reserved state">
+            <div className="empty-state empty-state--quiet" role="region" aria-label={t('tasks.saved.followups')}>
               <div className="empty-state-frame">
                 <div className="empty-state-body">
-                  <h3 className="empty-title">Follow-ups are not task-backed in this step</h3>
-                  <p className="empty-copy">Follow-ups still live outside mos.tasks right now. Use the saved view as a placeholder while task convergence is still pending.</p>
+                  <h3 className="empty-title">{t('tasks.followups.title')}</h3>
+                  <p className="empty-copy">{t('tasks.followups.copy')}</p>
                 </div>
               </div>
             </div>

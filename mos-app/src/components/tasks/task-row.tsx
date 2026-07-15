@@ -18,6 +18,7 @@ import type { OwnerCellRaciMember } from './owner-cell'
 import { formatAge, formatDate } from './task-formatters'
 import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
+import { useT } from '@/i18n/use-t'
 
 export type TaskRowProps = {
   task: TaskListRow
@@ -55,6 +56,7 @@ export function TaskRow({
   buName, ownerName, onOpen, checked, onCheck,
   workLineName, objectiveName, supervisorName = '', sourceName = '', recordSearch = '',
 }: TaskRowProps) {
+  const t = useT()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   // C1: only genuinely-overdue (non-Done, non-archived) rows get the red class.
@@ -97,7 +99,7 @@ export function TaskRow({
           onClick={(e) => e.stopPropagation()}
         >
           <span className="task-title-line">
-            {isArchived && <span className="archived-tag">Archived</span>}
+            {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
             <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
           </span>
         </Link>

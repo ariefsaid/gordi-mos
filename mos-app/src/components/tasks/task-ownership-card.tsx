@@ -4,6 +4,7 @@ import type { PersonOption } from '@/lib/db/directory'
 import { initials } from './task-formatters'
 import { PersonPicker } from './person-picker'
 import { Chevron } from '@/shell/icons'
+import { useT } from '@/i18n/use-t'
 
 /**
  * The canonical Task ownership block. The database still stores the legacy
@@ -21,6 +22,7 @@ export type TaskOwnershipCardProps = {
 export function TaskOwnershipCard({
   task, teamName, people, canEdit, onPicChange,
 }: TaskOwnershipCardProps) {
+  const t = useT()
   const [showPicPicker, setShowPicPicker] = useState(false)
 
   function personName(id: string) {
@@ -31,21 +33,21 @@ export function TaskOwnershipCard({
   const supervisorName = personName(task.accountable_person_id)
 
   return (
-    <section className="card task-ownership-card" aria-label="Task ownership">
+    <section className="card task-ownership-card" aria-label={t('tasks.ownership')}>
       <div className="task-ownership-grid">
         <div className="task-owner-field">
-          <div className="task-owner-label">Team</div>
+          <div className="task-owner-label">{t('tasks.team')}</div>
           <div className="task-owner-value">{teamName}</div>
         </div>
 
         <div className="task-owner-field task-owner-field-pic">
-          <div className="task-owner-label">PIC</div>
+          <div className="task-owner-label">{t('tasks.pic')}</div>
           {canEdit ? (
             <>
               <button
                 type="button"
                 className="person-field-btn"
-                aria-label="Reassign PIC"
+                aria-label={t('tasks.reassignPic')}
                 aria-haspopup="listbox"
                 aria-expanded={showPicPicker}
                 onClick={() => setShowPicPicker(open => !open)}
@@ -66,7 +68,7 @@ export function TaskOwnershipCard({
               )}
             </>
           ) : (
-            <div className="person-field" aria-label={`PIC: ${picName}`}>
+            <div className="person-field" aria-label={`${t('tasks.pic')}: ${picName}`}>
               <span className="person-av" aria-hidden="true">{initials(picName)}</span>
               <span className="person-name">{picName}</span>
             </div>
@@ -74,8 +76,8 @@ export function TaskOwnershipCard({
         </div>
 
         <div className="task-owner-field">
-          <div className="task-owner-label">Supervisor</div>
-          <div className="person-field" aria-label={`Supervisor: ${supervisorName}`}>
+          <div className="task-owner-label">{t('tasks.supervisor')}</div>
+          <div className="person-field" aria-label={`${t('tasks.supervisor')}: ${supervisorName}`}>
             <span className="person-av" aria-hidden="true">{initials(supervisorName)}</span>
             <span className="person-name">{supervisorName}</span>
           </div>
