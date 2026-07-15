@@ -18,7 +18,6 @@ import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import { RowCheckbox } from './row-checkbox'
 import type { RenderGroup } from './tasks-grouping'
-import type { OwnerCellRaciMember } from './owner-cell'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
 import { useT } from '@/i18n/use-t'
@@ -103,7 +102,6 @@ export type TasksTableBodyProps = {
   toggleCollapsed: (key: string) => void
   openAddTask: (prefillParam: string) => void
   setOverdueOnly: (next: boolean) => void
-  buildOthers: (task: TaskListRow) => OwnerCellRaciMember[]
   /** FR-234: resolved work-line names (id → name). */
   workLineMap: Map<string, string>
   /** FR-234: resolved objective names (id → name). */
@@ -122,7 +120,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     allChecked, someChecked, onToggleSelectAll,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
-    openAddTask, setOverdueOnly, buildOthers,
+    openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref,
   } = props
 
@@ -184,7 +182,6 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         toggleCollapsed={toggleCollapsed}
         openAddTask={openAddTask}
         setOverdueOnly={setOverdueOnly}
-        buildOthers={buildOthers}
         workLineMap={workLineMap}
         objectiveMap={objectiveMap}
       />

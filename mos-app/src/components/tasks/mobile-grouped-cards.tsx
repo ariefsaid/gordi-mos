@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import type { OwnerCellRaciMember } from './owner-cell'
 import { OwnerCell } from './owner-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
@@ -53,7 +52,6 @@ export type MobileGroupedCardsProps = {
   toggleCollapsed: (key: string) => void
   openAddTask: (prefillParam: string) => void
   setOverdueOnly: (value: boolean) => void
-  buildOthers: (task: TaskListRow) => OwnerCellRaciMember[]
   /** FR-234: resolved work-line names (id → name). */
   workLineMap: Map<string, string>
   /** FR-234: resolved objective names (id → name). */
@@ -102,7 +100,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
         <dl className="task-card-meta">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
-            <dd><OwnerCell fullName={rName} otherCount={0} variant="task" /></dd>
+            <dd><OwnerCell fullName={rName} /></dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>

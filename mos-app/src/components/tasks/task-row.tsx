@@ -14,7 +14,6 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { StatusPill } from './status-pill'
 import { OwnerCell } from './owner-cell'
-import type { OwnerCellRaciMember } from './owner-cell'
 import { formatAge, formatDate } from './task-formatters'
 import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
@@ -33,7 +32,6 @@ export type TaskRowProps = {
   cursorRowRef?: Ref<HTMLTableRowElement>
   buName: string
   ownerName: string
-  others: OwnerCellRaciMember[]
   /** Row click + name link activation → opens the split panel. */
   onOpen: (taskId: string) => void
   /** Checkbox selection (local set only — no bulk action ships this PR). */
@@ -106,7 +104,7 @@ export function TaskRow({
       </td>
       <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
       <td className="td-cell td-owner">
-        <OwnerCell fullName={ownerName} otherCount={0} variant="task" />
+        <OwnerCell fullName={ownerName} />
       </td>
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
       {/* FR-234: Work-line column — resolved name; "—" when empty (never blank) */}

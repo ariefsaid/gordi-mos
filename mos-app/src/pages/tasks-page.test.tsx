@@ -48,8 +48,8 @@ function stubMatchMedia(matches: boolean) {
 // ── Viewer fixture ───────────────────────────────────────────────────────────
 const VIEWER_ID = 'viewer-person-id'
 const OTHER_ID  = 'other-person-id'
-const C_PERSON  = 'consulted-person-id'
-const I_PERSON  = 'informed-person-id'
+const SUPPORT_PERSON = 'support-person-id'
+const OBSERVER_PERSON = 'observer-person-id'
 
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
@@ -158,8 +158,8 @@ const DEFAULT_BUS = [
 const DEFAULT_PEOPLE = [
   { id: VIEWER_ID, full_name: 'Arief Said' },
   { id: OTHER_ID,  full_name: 'Budi Setiawan' },
-  { id: C_PERSON,  full_name: 'Consulted Person' },
-  { id: I_PERSON,  full_name: 'Informed Person' },
+  { id: SUPPORT_PERSON,  full_name: 'Sari Support' },
+  { id: OBSERVER_PERSON, full_name: 'Iman Observer' },
 ]
 
 beforeEach(() => {
@@ -240,8 +240,8 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
     const task = makeTask({
       responsible_person_id: VIEWER_ID,   // PIC = Arief Said
       accountable_person_id: OTHER_ID,    // Supervisor = Budi Setiawan
-      consulted_person_ids: [C_PERSON],
-      informed_person_ids: [I_PERSON],
+      consulted_person_ids: [SUPPORT_PERSON],
+      informed_person_ids: [OBSERVER_PERSON],
     })
     mockListTasks.mockResolvedValue([task])
     renderPage()
@@ -369,24 +369,23 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     )
   })
 
-  it('AC-063: Person filter — selecting a person shows tasks where they are in any RACI role', async () => {
-    // Use "All" segment so all tasks load visibly regardless of RACI role
-    // Tasks: viewer is R on first, viewer is C on second, neither on third
-    // Fix C1: no embedded objects
-    const taskViewerR = makeTask({
-      id: 'task-viewer-r', title: 'Viewer is R',
-      responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID,
+  it('AC-063: Person filter — selecting a person shows tasks where they are PIC or Supervisor', async () => {
+    // Use "All" view so all tasks load visibly regardless of typed ownership scope.
+    // Tasks: viewer is PIC on first, viewer is Supervisor on second, neither on third.
+    // Fix C1: no embedded objects.
+    const taskViewerPic = makeTask({
+      id: 'task-viewer-pic', title: 'Viewer is PIC',
+      responsible_person_id: VIEWER_ID, accountable_person_id: OTHER_ID,
     })
-    const taskViewerC = makeTask({
-      id: 'task-viewer-c', title: 'Viewer is C',
-      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
-      consulted_person_ids: [VIEWER_ID],
+    const taskViewerSupervisor = makeTask({
+      id: 'task-viewer-supervisor', title: 'Viewer is Supervisor',
+      responsible_person_id: OTHER_ID, accountable_person_id: VIEWER_ID,
     })
     const taskUnrelated = makeTask({
       id: 'task-unrelated', title: 'Not viewer task',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
     })
-    mockListTasks.mockResolvedValue([taskViewerR, taskViewerC, taskUnrelated])
+    mockListTasks.mockResolvedValue([taskViewerPic, taskViewerSupervisor, taskUnrelated])
     renderPage()
     await switchToAll()
     await waitFor(() => screen.getByText('Not viewer task'))
@@ -396,8 +395,8 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     fireEvent.change(personSelect, { target: { value: VIEWER_ID } })
 
     await waitFor(() => {
-      expect(screen.getByText('Viewer is R')).toBeTruthy()
-      expect(screen.getByText('Viewer is C')).toBeTruthy()
+      expect(screen.getByText('Viewer is PIC')).toBeTruthy()
+      expect(screen.getByText('Viewer is Supervisor')).toBeTruthy()
       expect(screen.queryByText('Not viewer task')).toBeNull()
     })
   })
@@ -411,11 +410,10 @@ describe('AC-064 — saved-view chips', () => {
     responsible_person_id: VIEWER_ID,
     accountable_person_id: VIEWER_ID,
   })
-  const taskConsulted = makeTask({
-    id: 'consulted', title: 'Consulted task',
+  const taskOtherWork = makeTask({
+    id: 'other-work', title: 'Other team task',
     responsible_person_id: OTHER_ID,
     accountable_person_id: OTHER_ID,
-    consulted_person_ids: [VIEWER_ID],
   })
   const taskUnrelated = makeTask({
     id: 'unrelated', title: 'Unrelated task',
@@ -424,13 +422,13 @@ describe('AC-064 — saved-view chips', () => {
   })
 
   beforeEach(() => {
-    mockListTasks.mockResolvedValue([taskMine, taskConsulted, taskUnrelated])
+    mockListTasks.mockResolvedValue([taskMine, taskOtherWork, taskUnrelated])
   })
 
-  it('AC-064: "My work" shows only R-or-A tasks when seeded from view=mine', async () => {
+  it('AC-064: "My work" shows only PIC-or-Supervisor tasks when seeded from view=mine', async () => {
     renderPage(authedState, { savedView: makeSavedView('mine') })
     await waitFor(() => screen.getByText('My task'))
-    expect(screen.queryByText('Consulted task')).toBeNull()
+    expect(screen.queryByText('Other team task')).toBeNull()
     expect(screen.queryByText('Unrelated task')).toBeNull()
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
@@ -444,7 +442,7 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeTruthy()
   })
 
-  it('AC-064: "Team work" shows every loaded row regardless of RACI', async () => {
+  it('AC-064: "Team work" shows every loaded row regardless of ownership scope', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
 
@@ -452,7 +450,7 @@ describe('AC-064 — saved-view chips', () => {
 
     await waitFor(() => {
       expect(screen.getByText('My task')).toBeTruthy()
-      expect(screen.getByText('Consulted task')).toBeTruthy()
+      expect(screen.getByText('Other team task')).toBeTruthy()
       expect(screen.getByText('Unrelated task')).toBeTruthy()
     })
   })
@@ -542,7 +540,7 @@ describe('a11y — aria roles and labels', () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
     await waitFor(() => screen.getByRole('button', { name: 'My work' }))
-    expect(screen.getByRole('group', { name: /tasks saved views/i })).toBeTruthy()
+    expect(screen.getByRole('group', { name: /^tasks$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
     expect(screen.getByRole('button', { name: 'Team work' }).getAttribute('aria-pressed')).toBe('false')
   })
@@ -641,12 +639,12 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     expect(optsAfter).toContain('Roastery BU')
   })
 
-  it('AC-C1-person: Person dropdown options come from directory (all people, not just R/A on loaded rows)', async () => {
-    // People with only C/I roles previously showed raw UUIDs; now from directory they show full_name.
+  it('AC-C1-person: Person dropdown options come from the directory, not only loaded PIC/Supervisor rows', async () => {
+    // Directory-only people still receive stable display names even when absent from the rows.
     const task = makeTask({
       id: 't1', title: 'Task with CI',
       responsible_person_id: VIEWER_ID, accountable_person_id: OTHER_ID,
-      consulted_person_ids: [C_PERSON], informed_person_ids: [I_PERSON],
+      consulted_person_ids: [SUPPORT_PERSON], informed_person_ids: [OBSERVER_PERSON],
     })
     mockListTasks.mockResolvedValue([task])
     renderPage()
@@ -654,14 +652,14 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
 
     const personSelect = screen.getByLabelText(/^person$/i) as HTMLSelectElement
     const opts = Array.from(personSelect.options).map(o => o.text)
-    // All people from directory are present — including C/I-only people with real names
+    // All people from directory are present, with stable display names.
     expect(opts).toContain('Arief Said')
     expect(opts).toContain('Budi Setiawan')
-    expect(opts).toContain('Consulted Person')
-    expect(opts).toContain('Informed Person')
-    // Must NOT show raw UUIDs as display names
-    expect(opts.some(o => o === C_PERSON)).toBe(false)
-    expect(opts.some(o => o === I_PERSON)).toBe(false)
+    expect(opts).toContain('Sari Support')
+    expect(opts).toContain('Iman Observer')
+    // Must NOT show raw UUIDs as display names.
+    expect(opts.some(o => o === SUPPORT_PERSON)).toBe(false)
+    expect(opts.some(o => o === OBSERVER_PERSON)).toBe(false)
   })
 })
 

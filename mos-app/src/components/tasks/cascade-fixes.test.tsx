@@ -265,7 +265,6 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map([['wl-project', 'New Menu Design']])}
           objectiveMap={new Map()}
         />
@@ -299,7 +298,6 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map([['wl-process', 'Daily IG Content']])}
           objectiveMap={new Map()}
         />
@@ -331,7 +329,6 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map()}
           objectiveMap={new Map()}
         />
@@ -472,7 +469,6 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map([['wl-project', 'New Menu Design']])}
           objectiveMap={new Map([['obj-1', 'Grow direct orders']])}
         />

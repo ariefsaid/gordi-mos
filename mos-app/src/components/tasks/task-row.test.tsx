@@ -10,7 +10,6 @@ import { resolve } from 'node:path'
 import { TaskRow } from './task-row'
 import type { TaskRowProps } from './task-row'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import type { OwnerCellRaciMember } from './owner-cell'
 
 const NOW = new Date('2026-06-19T00:00:00Z')
 
@@ -37,7 +36,6 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   leafIndex: 0,
   buName: 'Roastery',
   ownerName: 'Rina Lestari',
-  others: [] as OwnerCellRaciMember[],
   onOpen: () => {},
   checked: false,
   onCheck: () => {},

@@ -3,8 +3,8 @@
 // matching the signed records-table status tags. Color mapping keeps the
 // semantic hues: In Progress→blue, Blocked→red, Open→amber, Done→green.
 //
-// The leading dot is localized to StatusPill (the base Tag stays dot-less so
-// RACI chips remain markerless). The dot is aria-hidden and inherits the Tag's
+// The leading dot is localized to StatusPill (the base Tag stays dot-less).
+// The dot is aria-hidden and inherits the Tag's
 // status-tinted text color, so it is a redundant cue only — the visible status
 // word is always the accessible name. WCAG 1.4.1 stays satisfied even without
 // the dot, so the word remains the non-color cue.

@@ -161,7 +161,7 @@ beforeEach(() => {
 
 // AC-011: My Week task-table card — now backed by MyTasksCard (data-wired, PR-4).
 // Goal-oracle (unchanged): a clear viewer sees the "you're clear" message.
-// Data source changes from hardcoded stub → listTasks + raciOwner filter.
+// Data source changes from hardcoded stub → listTasks + typed PIC/Supervisor filter.
 describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () => {
   it('AC-W01/AC-011: shows "My tasks" card head', async () => {
     await renderMyWeek()
@@ -172,7 +172,7 @@ describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () =>
     await renderMyWeek()
     await waitFor(() =>
       expect(
-        screen.getByText("Where you're Responsible or Accountable · off track first"),
+        screen.getByText("Where you're PIC or Supervisor · off track first"),
       ).toBeInTheDocument(),
     )
   })
@@ -186,13 +186,13 @@ describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () =>
   })
 
   // AC-W03 goal-oracle (deliberate data-source change, goal unchanged):
-  // a clear viewer (no R/A tasks) sees the "you're clear" message.
-  it('AC-W03/AC-011: empty state — "you\'re clear" copy when no R/A tasks', async () => {
-    // Default beforeEach: listTasks returns [] → empty after raciOwner filter
+  // a clear viewer (no PIC/Supervisor tasks) sees the "you're clear" message.
+  it('AC-W03/AC-011: empty state — "you\'re clear" copy when no PIC/Supervisor tasks', async () => {
+    // Default beforeEach: listTasks returns [] → empty after typed ownership filter
     await renderMyWeek()
     await waitFor(() =>
       expect(
-        screen.getByText("No tasks where you're R or A this week — you're clear."),
+        screen.getByText("No tasks where you're PIC or Supervisor this week — you're clear."),
       ).toBeInTheDocument(),
     )
   })
@@ -201,7 +201,7 @@ describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () =>
     await renderMyWeek()
     await waitFor(() => {
       const { container } = { container: document.body }
-      const ths = container.querySelectorAll('[aria-label="My tasks this week"] thead th')
+      const ths = container.querySelectorAll('[aria-label="My tasks"] thead th')
       expect(ths.length).toBeGreaterThan(0)
       ths.forEach(th => {
         expect(th.className).toMatch(/th-overline/)
@@ -291,13 +291,13 @@ describe('FIX-1: Mobile strip reflow — structural layout guards', () => {
 describe('FIX-2: Card-head uses the shared <CardHead> (IA-3)', () => {
   it('renders the shared <CardHead> shell (.card-head — flex-wrap via CardHead.css)', async () => {
     const { container } = await renderMyWeek()
-    const cardHead = container.querySelector('[aria-label="My tasks this week"] .card-head')
+    const cardHead = container.querySelector('[aria-label="My tasks"] .card-head')
     expect(cardHead).toBeTruthy()
   })
 
   it('"My tasks" is the CardHead title (h2.card-head-title)', async () => {
     const { container } = await renderMyWeek()
-    const titleEl = container.querySelector('[aria-label="My tasks this week"] .card-head-title')
+    const titleEl = container.querySelector('[aria-label="My tasks"] .card-head-title')
     expect(titleEl).toBeTruthy()
     expect(titleEl!.tagName).toBe('H2')
     expect(titleEl!.textContent).toBe('My tasks')

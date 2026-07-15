@@ -256,9 +256,8 @@
 /* Checkbox / menu col alignment + header (PR-2 AC-T02/T07). */
 .td-cb, .th-cb { text-align: left; white-space: nowrap; padding-left: 12px; }
 .td-menu, .th-menu { text-align: right; white-space: nowrap; padding-right: 12px; }
-/* Condensed Owner: drop the name + "+N", keep the avatar (AC-113 ladder step 2) */
-.assembly.condensed .td-owner .own-name,
-.assembly.condensed .td-owner .own-more { display: none; }
+/* Condensed PIC: drop the name, keep the avatar (AC-113 ladder step 2). */
+.assembly.condensed .td-owner .own-name { display: none; }
 
 /* OD-P4-10 overline, scoped to thead th ONLY (group headers + rail labels keep
    weight 600/500). Weight 400 + UPPERCASE + 0.06em tracking, color
@@ -366,7 +365,6 @@ tr:focus-within .row-menu { visibility: visible; }
   color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
 }
 .own-name { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.own-more { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
 .td-bu { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -552,21 +550,6 @@ tr.grp td { padding: 0; }
 .gbar .gadd:focus-visible, .gbar .gsub:focus-visible {
   outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px;
 }
-
-/* ── Owner "+N" RACI disclosure tooltip (AC-130, FR-128) ── */
-.own-more-wrap { position: relative; display: inline-flex; }
-.own-more-btn {
-  background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer;
-}
-.own-more-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
-.own-tip {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
-  display: flex; flex-direction: column; gap: 2px; min-width: 120px; padding: 8px 10px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); white-space: nowrap;
-}
-.own-tip-row { font-size: 12px; color: var(--foreground); }
 
 /* ── Mobile grouped cards (AC-129, FR-127) ── */
 .mgc { padding: 8px; display: flex; flex-direction: column; gap: 12px; }

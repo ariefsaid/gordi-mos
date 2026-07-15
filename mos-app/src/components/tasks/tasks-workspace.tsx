@@ -20,7 +20,6 @@ import { getBusinessUnits } from '@/lib/db/directory'
 import { getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { isOverdue } from '@/lib/due-status'
-import type { OwnerCellRaciMember } from './owner-cell'
 import { TaskRow } from './task-row'
 // OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
 import { STATUS_ORDER, taskSourceLabel } from './task-formatters'
@@ -300,25 +299,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     else { setSortCol(col); setSortDir('ascending') }
   }
 
-
-  // ── RACI disclosure data per task (for the OwnerCell +N tooltip, AC-130) ──
-  const buildOthers = useCallback((task: TaskListRow): OwnerCellRaciMember[] => {
-    const r = task.responsible_person_id
-    const out: OwnerCellRaciMember[] = []
-    const seen = new Set<string>()
-    if (task.accountable_person_id !== r && !seen.has(task.accountable_person_id)) {
-      seen.add(task.accountable_person_id)
-      out.push({ role: 'A', name: personMap.get(task.accountable_person_id) ?? '—' })
-    }
-    for (const id of task.consulted_person_ids) {
-      if (id !== r && !seen.has(id)) { seen.add(id); out.push({ role: 'C', name: personMap.get(id) ?? '—' }) }
-    }
-    for (const id of task.informed_person_ids) {
-      if (id !== r && !seen.has(id)) { seen.add(id); out.push({ role: 'I', name: personMap.get(id) ?? '—' }) }
-    }
-    return out
-  }, [personMap])
-
   // ── Grouping (FR-122/123, AC-123/124) ────────────────────────────────────
   // Build the ordered group list from the engine's filtered + sorted rows.
   // Empty groups (Owner/BU with zero rows) are injected from the full directory
@@ -555,7 +535,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         cursorRowRef={cursor === leafIndex ? cursorRowRef : undefined}
         buName={buMap.get(task.business_unit_id) ?? ''}
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
-        others={buildOthers(task)}
         onOpen={(id) => navigate({ pathname: `/work/tasks/${id}`, search: currentSearch }, { state: { taskSurface: 'panel' } })}
         checked={selectedIds.has(task.id)}
         onCheck={() => toggleSelected(task.id)}
@@ -734,7 +713,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             toggleCollapsed={toggleCollapsed}
             openAddTask={openAddTask}
             setOverdueOnly={setOverdueOnly}
-            buildOthers={buildOthers}
             workLineMap={workLineMap}
             objectiveMap={objectiveMap}
             workloadSummary={workloadSummary}

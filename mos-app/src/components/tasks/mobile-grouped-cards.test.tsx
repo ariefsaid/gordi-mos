@@ -50,7 +50,6 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   toggleCollapsed: () => {},
   openAddTask: () => {},
   setOverdueOnly: () => {},
-  buildOthers: () => [],
   workLineMap: new Map<string, string>(),
   objectiveMap: new Map<string, string>(),
 }

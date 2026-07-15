@@ -1,7 +1,7 @@
 // TasksToolbar — the records-workspace toolbar strip, re-presented in the signed
 // mockup idiom (docs/design-mockups/ui-revamp/mock-shell-and-table.html `.toolbar`):
 //   view-tabs (Table active · Board/Calendar disabled "soon") · spacer ·
-//   Mine/RACI/All segmented pill (`.seg`) · chip-style filter controls (`.chip`:
+//   My work/Team work/Overdue/Follow-ups segmented pill (`.seg`) · chip-style filter controls (`.chip`:
 //   Group / Business unit / Status / Person) · search-mini · Show-archived.
 //
 // Pure presentational control surface — it owns no state; every value + setter is

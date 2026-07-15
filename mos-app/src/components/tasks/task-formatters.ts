@@ -1,4 +1,4 @@
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskStatus } from '@/lib/db/tasks.types'
 
 // OFF-TRACK-FIRST status order (OD-P3-6 / signed mockup): In Progress → Blocked → Open → Done.
 // Shared by the tasks workspace + the My Week mini-table so the two never drift.
@@ -36,14 +36,4 @@ export function formatDate(d: string): string {
 /** Resolve the human-facing provenance label for a Task row or record. */
 export function taskSourceLabel(workLineName: string, objectiveName: string): string {
   return workLineName || objectiveName || 'Ad hoc'
-}
-
-/** Collect unique persons that are NOT the PIC; returns count for legacy cards. */
-export function otherRaciCount(task: TaskListRow): number {
-  const r = task.responsible_person_id
-  const seen = new Set<string>()
-  if (task.accountable_person_id !== r) seen.add(task.accountable_person_id)
-  for (const id of task.consulted_person_ids) if (id !== r) seen.add(id)
-  for (const id of task.informed_person_ids) if (id !== r) seen.add(id)
-  return seen.size
 }

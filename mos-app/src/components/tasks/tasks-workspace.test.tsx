@@ -220,7 +220,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
 // ── Visual-fidelity chrome (feat/ui-fidelity-tasks-chrome) ────────────────────
 // Restores the signed mockup's toolbar/header idiom (mock-shell-and-table.html):
-// view-tabs (Table active; Board/Calendar disabled "soon"), the Mine/RACI/All
+// view-tabs (Table active; Board/Calendar disabled "soon"), the My work/Team work
 // segmented pill, chip-style filter controls, the content-header (count + inline
 // New task), and a FLAT default list. Behavioral goal-oracles (filtering, segment
 // scope, overdue filter, New task) are unchanged — these assert the new chrome.
