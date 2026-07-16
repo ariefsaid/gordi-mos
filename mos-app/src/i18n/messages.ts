@@ -428,6 +428,13 @@ export const messages = {
     'commandMenu.footer.open': 'open',
     'commandMenu.footer.close': 'close',
     'actionLauncher.open': 'Open actions',
+    // ── Step 4 — Signal composer (capture-minimal, Rule 8; docs/specs/signals-v1.spec.md §4) ──
+    'signals.composer.placeholder': 'What happened? Type @ to mention a person, team, or BU.',
+    'signals.composer.teamLabel': 'Owning Team',
+    'signals.composer.occurredLabel': 'Occurred at',
+    'signals.composer.author': 'Author: ${name} (implicit)',
+    'signals.composer.categoryHelp': 'Category is added after posting — it never blocks capture.',
+    'signals.action.share': 'Share Signal',
   },
   id: {
     'dest.home': 'Beranda',
@@ -848,6 +855,12 @@ export const messages = {
     'commandMenu.footer.open': 'buka',
     'commandMenu.footer.close': 'tutup',
     'actionLauncher.open': 'Buka aksi',
+    'signals.composer.placeholder': 'Apa yang terjadi? Ketik @ untuk menyebut orang, tim, atau BU.',
+    'signals.composer.teamLabel': 'Tim Pemilik',
+    'signals.composer.occurredLabel': 'Terjadi pada',
+    'signals.composer.author': 'Penulis: ${name} (implisit)',
+    'signals.composer.categoryHelp': 'Kategori ditambahkan setelah diposting — tidak pernah menghalangi pencatatan.',
+    'signals.action.share': 'Bagikan Sinyal',
   },
 } as const
 
