@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { SignalRow, MentionKind } from './signals.types'
+import type { SignalRow, MentionKind, CreateSignalInput } from './signals.types'
 
 // Data layer for mos.signals + the Signal child tables (Step 4 / ADR-0050). Reads/writes mos via
 // supabase.schema('mos') and shared substrate (teams/sites/team_memberships) via
@@ -68,4 +68,38 @@ export async function getSignal(id: string): Promise<SignalDetail> {
     acknowledgements: (acks ?? []) as unknown as SignalAckRow[],
     tasks: (tasks ?? []) as unknown as SignalTaskLinkRow[],
   }
+}
+
+// ── createSignal (B3, AC-430 backing / FR-406) ───────────────────────────────
+
+/** Insert a Signal (org_id/author_id stamped by DB defaults), bulk-insert its staged mentions,
+ * then fan out notifications via the SECURITY DEFINER RPC. A fan-out error (e.g. above the
+ * recipient cap) is re-thrown — the composer surfaces it as a confirm-above-cap message rather
+ * than silently posting an unnotified Signal. Returns the new Signal id. */
+export async function createSignal(input: CreateSignalInput): Promise<string> {
+  const { data, error } = await mos().from('signals').insert({
+    body: input.body,
+    owning_team_id: input.owningTeamId,
+    occurred_at: input.occurredAt,
+  }).select('id').single()
+  if (error) throw new Error(`createSignal failed — ${error.message}`)
+  const id = (data as { id: string }).id
+
+  if (input.mentions.length === 0) return id
+
+  const { error: mErr } = await mos().from('signal_mentions').insert(
+    input.mentions.map((m) => ({
+      signal_id: id,
+      mention_kind: m.kind,
+      target_person_id: m.kind === 'person' ? m.targetId : null,
+      target_team_id: m.kind === 'team' ? m.targetId : null,
+      target_bu_id: m.kind === 'bu' ? m.targetId : null,
+    })),
+  )
+  if (mErr) throw new Error(`createSignal mentions failed — ${mErr.message}`)
+
+  const { error: fanErr } = await mos().rpc('fan_out_signal_mention', { p_signal_id: id })
+  if (fanErr) throw new Error(`createSignal fan-out failed — ${fanErr.message}`)
+
+  return id
 }

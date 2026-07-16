@@ -8,7 +8,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { listReadableSignals, getSignal } from './signals'
+import { listReadableSignals, getSignal, createSignal } from './signals'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -140,5 +140,68 @@ describe('getSignal', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'nope' } }] }, rec)
     await expect(getSignal(SIGNAL_ID)).rejects.toThrow(/nope/)
+  })
+})
+
+// ── createSignal (B3, AC-430 backing / FR-406) ───────────────────────────────
+describe('createSignal', () => {
+  it('inserts the signal (no org_id/author_id sent), bulk-inserts staged mentions, fans out, returns the id', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.signals': [{ data: { id: SIGNAL_ID }, error: null }],
+      'mos.signal_mentions': [{ data: null, error: null }],
+      'rpc.fan_out_signal_mention': [{ data: 1, error: null }],
+    }, rec)
+
+    const id = await createSignal({
+      body: 'Freezer alarm went off @Peer',
+      owningTeamId: TEAM_ID,
+      occurredAt: '2026-07-16T02:00:00Z',
+      mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer' }],
+    })
+
+    expect(id).toBe(SIGNAL_ID)
+    const signalInsert = rec.inserts[0] as Record<string, unknown>
+    expect(signalInsert.body).toBe('Freezer alarm went off @Peer')
+    expect(signalInsert.owning_team_id).toBe(TEAM_ID)
+    expect(signalInsert.occurred_at).toBe('2026-07-16T02:00:00Z')
+    expect(Object.keys(signalInsert)).not.toContain('org_id')
+    expect(Object.keys(signalInsert)).not.toContain('author_id')
+
+    const mentionInsert = rec.inserts[1] as Array<Record<string, unknown>>
+    expect(mentionInsert).toEqual([
+      { signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null },
+    ])
+
+    expect(rec.rpcs).toEqual([['fan_out_signal_mention', { p_signal_id: SIGNAL_ID }]])
+  })
+
+  it('skips the fan-out RPC when no mentions are staged', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: { id: SIGNAL_ID }, error: null }] }, rec)
+
+    await createSignal({ body: 'No mentions here', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] })
+    expect(rec.rpcs).toEqual([])
+  })
+
+  it('throws on a signal insert error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'insert failed' } }] }, rec)
+    await expect(createSignal({ body: 'X', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] }))
+      .rejects.toThrow(/insert failed/)
+  })
+
+  it('surfaces a fan-out RPC error (so the composer can show the confirm-above-cap message)', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.signals': [{ data: { id: SIGNAL_ID }, error: null }],
+      'mos.signal_mentions': [{ data: null, error: null }],
+      'rpc.fan_out_signal_mention': [{ data: null, error: { message: 'fan-out exceeds cap of 50 recipients' } }],
+    }, rec)
+
+    await expect(createSignal({
+      body: 'X', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z',
+      mentions: [{ kind: 'team', targetId: 'team-x', label: 'Team X' }],
+    })).rejects.toThrow(/fan-out exceeds cap/)
   })
 })
