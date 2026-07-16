@@ -148,6 +148,10 @@ mockups is authorized yet; environment resets and deploys remain owner-gated.
 
 ## Provenance — the source conversations these decisions came from
 
+> **📁 EXTRACTED IN-REPO → `docs/reference/provenance/`** — the owner↔assistant prose from the threads
+> below, **owner prompts byte-verbatim**, tool-noise/secrets stripped, secret-scanned. Start there; it
+> is version-controlled and cloud-reachable. The raw transcripts (paths below) are local + unversioned.
+
 The E7 redesign was decided in agent threads outside this repo. They are **the primary record** behind
 ADR-0025 + OD-REDESIGN-1..55; the docs here are their distillation. Cited so the reasoning is
 recoverable (transcripts are local, machine-bound, and **not** version-controlled — treat the docs as

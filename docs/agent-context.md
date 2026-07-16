@@ -6,8 +6,9 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > **Product/IA direction below is superseded (2026-07-09/10) by ADR-0025 + `docs/decisions.md`
 > OD-REDESIGN-1..55** (era **E7**, `docs/requirements-evolution.md`) — a full redesign, not a
 > continuation of the "Current state" / "Headline current state" workstream dated 2026-07-07 below.
-> Quick map: `docs/redesign-decision-index.md` (its **§ Provenance** cites the original Codex grill
-> thread behind OD-REDESIGN-1..55 — open that when you need the *why* behind a decision). Owner prefs, hard rules, multi-agent/git gotchas, and
+> Quick map: `docs/redesign-decision-index.md` (its **§ Provenance** maps the source threads).
+> **Need the *why* behind a decision? → `docs/reference/provenance/`** — extracted grill + frustration
+> threads, owner prompts verbatim, in-repo. Owner prefs, hard rules, multi-agent/git gotchas, and
 > the delegation posture below are **not** superseded and remain binding.
 >
 > **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md`** (mode, branch strategy, per-step
