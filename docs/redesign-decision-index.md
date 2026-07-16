@@ -159,12 +159,28 @@ authority and these as evidence/archaeology).
 | **★ THE 50+ QnA GRILL → OD-REDESIGN-1..55 + ADR-0025** | The marathon owner↔agent interrogation that produced the locked decision set. Contains the ODs being authored inline (e.g. "OD-REDESIGN-1 — IA: modules as nav roots, grouped by BU (supersedes ADR-0019 D2)"). **~7,200 turns spanning 2026-07-10T00:05 → 2026-07-12T15:40**; ~1,076 OD-REDESIGN references. This is the thread to open when asking "why is OD-REDESIGN-N what it is?" | Codex `~/.codex/sessions/2026/07/10/rollout-2026-07-10T07-02-16-019f4955-0695-7012-a976-14dbee3263b8.jsonl` (~28 MB) |
 | **Parallel/continued redesign thread** | Opened "we have a few model iterating on the redesign of the app… pick up where they have left" — a pick-up session continuing the redesign + prototype work. | Codex `~/.codex/sessions/2026/07/11/rollout-2026-07-11T08-50-33-019f4ede-83d0-7a12-a4a4-72fe86ea00aa.jsonl` (~11 MB) |
 | **Later redesign follow-up** | Smaller continuation thread. | Codex `~/.codex/sessions/2026/07/13/rollout-2026-07-13T07-56-27-019f58f9-b2d6-76e0-b493-abc7ceb92596.jsonl` (~264 KB) |
-| **zcode prototype build** | The E7/convergence prototype build work (GLM/zcode substrate). Artifacts: `~/.zcode/cli/artifacts/sess_c46f9ce4-986f-4248-8153-6ec5ccc3e2bd/`. A surviving plan is committed in-repo: `.zcode/plans/plan-sess_1becba75-1a74-4b48-a45d-1e0174d14ddd.md` (SOPs + shifts + Projects screen + editor conversion, 2026-07-15). | `~/.zcode/cli/artifacts/…` + repo `.zcode/plans/…` |
+| **zcode prototype build** | Build-substrate work only — **contains NO redesign QnA** (verified 2026-07-16). The only readable zcode artifact is the plan committed in-repo: `.zcode/plans/plan-sess_1becba75-1a74-4b48-a45d-1e0174d14ddd.md` (SOPs + shifts + Projects screen + editor conversion, 2026-07-15). | repo `.zcode/plans/…` |
 
 **Reading order if you need the "why":** the 07-08 critique thread (why a redesign at all) → the
 07-10/12 grill (what was decided and why) → `docs/decisions.md` OD-REDESIGN-1..55 + ADR-0025 (the
 distilled law) → `docs/experience-contract.md` (the falsifiable bar built from it).
 
-**Caveat:** these transcripts are huge (28 MB / 7k turns). Grep them for the specific OD number rather
-than reading linearly, and remember the **docs are authority — a transcript may contain superseded
-mid-conversation positions.**
+### Format — what these files actually are (verified 2026-07-16)
+
+- **Codex = readable owner↔assistant QnA.** `.jsonl`, one JSON object per line (the 07-10 grill = 7,206
+  records). Record types `response_item` / `event_msg` / `turn_context` / `session_meta`; turns carry
+  `role: user | assistant | developer`. **The grill Q&A is genuinely reconstructable from these.**
+- **zcode = NOT a QnA record.** Two stores, neither is a conversation:
+  - `~/.zcode/cli/artifacts/sess_*/…json` — tool-result blobs (`kind: workspace_file_before_change`,
+    `toolName: Edit`), i.e. file snapshots. The `sess_c46f9ce4…` set is dated **2026-06-19** — the
+    June TasksWorkspace era, **not** the redesign. (An earlier version of this doc cited it as redesign
+    provenance; that was wrong.)
+  - `~/.zcode/cli/rollout/model-io-sess_*.jsonl` — raw model API I/O envelopes
+    (`requestId`/`model`/`durationMs`/`attempt`), 3 files, **zero OD-REDESIGN references**.
+  - Net: **the redesign QnA exists ONLY in Codex.** zcode contributed build work; its one readable
+    redesign artifact is the in-repo plan above.
+
+**Caveats:** the Codex transcripts are huge (28 MB / 7k turns) — grep for the specific OD number rather
+than reading linearly. The **docs are authority — a transcript may contain superseded mid-conversation
+positions.** They are local, machine-bound and unversioned: if this machine is lost, the *why* behind
+OD-REDESIGN-1..55 is lost with it (the decisions themselves survive here).

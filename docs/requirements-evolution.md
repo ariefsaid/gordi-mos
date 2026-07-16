@@ -95,7 +95,7 @@ E7 was not decided in this repo; it was decided in agent threads and distilled h
 - **The 50+ QnA grill (what E7 IS):** the 2026-07-10→12 Codex marathon (~7,200 turns) that produced
   **OD-REDESIGN-1..55 + ADR-0025**.
   `~/.codex/sessions/2026/07/10/rollout-2026-07-10T07-02-16-019f4955-0695-7012-a976-14dbee3263b8.jsonl`
-- Later threads + the zcode prototype builds, with caveats and reading order:
+- Later Codex threads (the redesign QnA is **Codex-only**; zcode holds build artifacts, not conversation) — caveats + reading order:
   `docs/redesign-decision-index.md` § Provenance.
 
 Transcripts are local + unversioned. **The docs are authority; transcripts are archaeology.**
