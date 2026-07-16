@@ -1,528 +1,420 @@
-# Spec — Occurrence-as-tasks (Process definitions → cadence → spawned Tasks)
+# Spec — Occurrence-as-Tasks (redesign buildout Step 6)
 
-- Feature: the schema foundation that lets a **Process/Project definition** hold checklist items +
-  a **cadence**, and have each scheduled **occurrence** deterministically spawn **Tasks** into
-  `mos.tasks`, grouped under a **caption**, backed by a **thin occurrence record** that owns
-  completion/history/version-snapshot. PIC is bound to a **job function** on the generated Task
-  definition and resolved to its **current holder** at spawn; ambiguity → a human (OD-41). Per-occurrence
-  progress is a **derived roll-up** read-model.
-- Buildout step: **Step 6** of `docs/plans/2026-07-14-redesign-buildout.md`. This is the **schema
-  foundation** step (DB/RLS: yes). Step 7 (Café retrofit) builds the *"Start today's opening"* surface
-  **on top of** this spawner — **out of scope here**.
-- Status: ready for engineering planning. The domain grill is **CLOSED** — all law below is derived
-  from locked ODs. Genuinely-ambiguous schema/RLS/recurrence choices are marked inline
-  `RATIFY-BEFORE-MERGE:` with the conservative default taken plus alternatives (consolidated in §11).
-- Authority (read order): `docs/decisions.md` **OD-REDESIGN-11** (definition ≠ occurrence),
-  **OD-REDESIGN-12** (Task-vs-Checklist ownership boundary), **OD-REDESIGN-14** (Supervisor
-  inheritance), **OD-REDESIGN-41 / "OD-41"** (function→holder resolution order; *ambiguity never
-  guesses*), **OD-REDESIGN-58** (occurrences surface as Tasks; job-function assignment; Q2 APPROVED),
-  **OD-REDESIGN-40/41** (Team is scope, not authority) · `docs/adr/0025-…redesign-direction.md`
-  **D6/D7/D14/D18/D40/D41** · `CONTEXT.md` (**Process**, **Process Run**, **occurrence**, **job
-  function**, **holder**, **Activity**, **Task**, **Checklist item**, **Check**) ·
-  `docs/experience-contract.md` **Rule 2** (Process-occurrence = thin Run record + roll-up) /
-  **Rule 4 & 6** (record grammar) · existing schema: `mos.tasks`
-  (`supabase/migrations/20260611000007…`), `mos.task_checklist_items`/`task_events`
-  (…`0008`), `mos.tasks` RLS + `mos.can_edit_task` (…`0009`), the tenancy guard
-  (…`20260711000001`), `mos.work_lines`/`mos.objectives` catalog (…`20260624000001`),
-  `shared.roles`/`person_roles`/`people` (…`20260611000002`), `shared.is_manager_of`
-  (…`0004`), `mos.notifications` + `mos.create_notification` (…`20260706000002/3`), the
-  `approve_kitchen_log` SECURITY-DEFINER lock→gate→write RPC (…`20260620000009`), the
-  external-cron precedent `scripts/reporting_snapshot.py` (…`20260704000001`).
+**Status:** DRAFT for the Step-6 full grill + owner walkthrough (`docs/plans/2026-07-14-redesign-buildout.md`
+row 6). **Domain law is CLOSED** (OD-REDESIGN-1..66); this spec *derives* from it and never reopens it. Every
+genuinely-ambiguous schema / RLS / spawn / resolution edge is resolved to the **most conservative, fail-closed**
+option and tagged `RATIFY-BEFORE-MERGE:` inline (collected in §8).
+
+> **Supersession note.** This replaces the earlier pre-ADR draft (FR-0xx numbering, an external-VPS-cron
+> spawner, a separate `mos.process_definitions` table). Its two considered alternatives — a dedicated definition
+> table and a cron-driven spawner — are **preserved as the recorded alternatives** in §8 RATIFY-1 / RATIFY-3, so
+> nothing is lost; the conservative v1 default now follows the task brief's steer ("a deterministic, idempotent
+> spawn that CAN run without external cron in v1") and ADR-0051.
+
+**Authority chain:** `CONTEXT.md` (Process · Process Run · Standard · Check · Shift · PIC · Supervisor) →
+`docs/decisions.md` OD-REDESIGN-11/12/13/14/40/41/53/54/58 + OD-12 + OD-41 →
+`docs/adr/0025-…redesign-direction.md` D6/D18/D26/D27/D40 → `docs/adr/0051-occurrence-as-tasks-schema.md` (this
+spec's schema decisions D1–D12) → `docs/experience-contract.md` Rules 1–12. **Binding prior art:**
+`docs/adr/0050-signal-data-model-and-visibility.md` (the `shared.teams`/`shared.team_memberships` substrate) ·
+`supabase/migrations/20260709000001_mos_follow_ups.sql` (the single-DEFINER-RPC gated-write idiom) ·
+`supabase/migrations/20260624000001_mos_cascade_lookups.sql` (`mos.work_lines`) · the kitchen Module tables
+(`ops.kitchen_plans`/`ops.kitchen_logs`) that Step 7 retrofits onto this spawner.
+
+---
 
 ## 1. Overview
 
-A **Process** is a permanent definition of recurring work and is never "done"; each occurrence is a
-distinct execution (OD-REDESIGN-11). Today `mos.work_lines` is only a thin catalog row (`name`,
-`type ∈ {project,process}`, `archived_at`) — it carries **no cadence, no generated-task structure, no
-RACI**. This step adds the **spawnable** layer:
+A **Process** is the permanent definition of recurring work (OD-REDESIGN-11, CONTEXT "Process"). Step 6 makes
+each **occurrence** of a Process spawn concrete, owned **Tasks** into the one universal `/work/tasks` runtime,
+while a **thin occurrence record** ("Process Run" — internal only, never UI vocabulary) owns that occurrence's
+completion, history, and a **version snapshot** (OD-REDESIGN-58). Generated Task definitions bind their **PIC to
+a job function** (Role + optional Team scope), resolved to the **current holder at spawn**; ambiguity requires a
+**human choice** and is never guessed (OD-41). Occurrences surface as a **grouping caption** over their Tasks; a
+**derived roll-up** reports per-occurrence progress (OD-REDESIGN-58).
 
-1. **`mos.process_definitions`** — a versioned, BU-owned recurring-work definition: its **cadence**
-   (how often, at what WIB time), its RACI defaults (for Supervisor inheritance), and its lifecycle.
-2. **`mos.process_task_templates`** (+ **`…_checklist_items`**) — the **generated Task definitions**.
-   Per OD-REDESIGN-12 a template becomes **one Task** (single-operator checklists = one Task with its
-   checks/checklist inside); each template binds its **PIC to a job function** (a `shared.roles`
-   position + optional BU scope), never to a fixed person.
-3. **`mos.process_occurrences`** — the **thin occurrence record** ("Process Run", *invisible in the
-   UI* per OD-REDESIGN-58). It owns the occurrence's **caption**, its **version snapshot** (immutable
-   copy of the definition + templates + resolved assignments at spawn), and is the **idempotency
-   anchor** (`unique (process_definition_id, occurrence_key)`). Completion/progress/history is a
-   **derived roll-up**, not a stored status.
-4. **`mos.tasks.occurrence_id`** (new nullable FK) — spawned Tasks are ordinary `mos.tasks` rows
-   (they reuse the shipped Tasks DB-view, Rule 11), grouped by their `occurrence_id` under the
-   occurrence caption.
-5. **`mos.occurrence_pending_assignments`** — the **ambiguity→human** queue. When a template's job
-   function resolves to **0 holders (vacant)** or **>1 holders (ambiguous)**, the spawner does **not**
-   fabricate a PIC: it records a pending row (candidate list + reason) and notifies a human, who
-   resolves it into a real Task via an RPC. `mos.tasks.responsible_person_id` is `NOT NULL`, so a Task
-   is **never** created with a guessed owner.
-6. The **spawner** `mos.spawn_due_occurrences()` is a **SECURITY DEFINER** RPC, invoked server-side
-   by a VPS cron (the `reporting_snapshot.py` external-scheduler pattern) as a dedicated role. It is
-   **deterministic** (occurrence_key derived purely from the definition + WIB window) and
-   **idempotent** (`ON CONFLICT DO NOTHING` on the occurrence unique key — re-running a window never
-   double-spawns).
+Step 6 delivers: the process-definition extension (`mos.work_lines` + `mos.process_cadences` +
+`mos.process_task_defs`); the thin occurrence record + pending human-choice queue (`mos.process_runs`,
+`mos.process_run_pending_tasks`); the **deterministic, idempotent** spawn / resolve / complete RPCs; the
+job-function→holder resolver; the derived roll-up + `due` read-model; fail-closed RLS; a DAL; and a **thin UI**
+(a Start-run control over due occurrences, occurrence-caption grouping in the Tasks list, and a pending-PIC
+resolution surface). It builds **nothing** in the kitchen tables (Step 7 seam — FR-611 note / ADR D11), and it
+does **not** build the guided Process **designer** (OD-REDESIGN-13) or Standards/Checks (OD-REDESIGN-4/30/31).
 
-**Non-goals (this step):** any UI/surface (the *"Start today's opening"* screen, the Café retrofit,
-occurrence grouping in `/work/tasks`) — **Step 7**; the guided Process **designer** (authoring UI,
-D7) — later; **Standards / Checks / Exceptions** typed-step machinery (OD-REDESIGN-12 mentions them;
-the *template* carries lightweight checklist items only in this step, Check objects deferred);
-**Standard publication / consumer adoption / per-Team version upgrade** notifications (D18/D40) —
-deferred (this step versions the definition and *snapshots* at spawn, but does not build the
-publish→adopt→upgrade transaction); a **Teams table** (does not exist yet — see RATIFY-1); `pg_cron`
-in-DB scheduling (RATIFY-6); backfill of arbitrarily old missed windows (RATIFY-5).
+**The Step-6 job sentences** (Rule 1): the manager/lead's *"Start today's recurring work and see it as tasks
+someone owns."*; the resolver's *"Two people could own this — you pick who."*
 
-## 2. Data model (schema `mos`, tenant seam `org_id`, no app-tier DELETE anywhere — NFR-002)
+### In scope
+- Extend `mos.work_lines` (Process governance: `business_unit_id`, `accountable_person_id`,
+  `responsible_person_id`, `definition_version`).
+- `mos.process_cadences` (per-process recurrence) + `mos.process_task_defs` (generated Task templates with a
+  job-function PIC binding + checklist steps).
+- `mos.process_runs` (thin occurrence record: caption, period key, version snapshot, status) +
+  `mos.process_run_pending_tasks` (ambiguity → human choice).
+- New nullable provenance columns on `mos.tasks`: `process_run_id`, `generated_from_task_def_id`.
+- `mos.spawn_process_run`, `mos.resolve_pending_task`, `mos.complete_process_run` (all `SECURITY DEFINER`,
+  gated, cross-org-guarded); `mos._function_holders` resolver; `mos.can_start_process_for_team` helper.
+- `mos.process_run_rollup` view + `mos.due_process_runs()` read-model (both `security_invoker`).
+- Capabilities `process.start` (ops_lead+admin) / `process.adopt` (admin, reserved).
+- DAL (`mos-app/src/lib/db/processes.ts`) + thin UI: Start-run control, occurrence-caption grouping in the Tasks
+  list, pending-PIC resolution surface.
 
-All new tables: `id uuid pk default gen_random_uuid()`; `org_id uuid not null references shared.orgs(id)
-on delete cascade default shared.current_org_id()`; `created_at`/`updated_at timestamptz` with the
-`shared.set_updated_at()` trigger where mutable; **RLS enabled + forced** (§6); **no DELETE grant**.
+### Non-goals (explicitly deferred — do NOT fail these in review)
+- **Guided Process designer** (authoring cadence/task-defs/Standard steps in-app) → OD-REDESIGN-13, later slice.
+  v1 seeds definitions by migration/seed (as `business_units`/`work_lines` are).
+- **Standards / Standard Steps / Checks / Exceptions / evidence / sign-off** quality loop → OD-REDESIGN-4/30/31.
+- **Full OD-REDESIGN-41 manager-chain Supervisor resolution** → deferred; v1 resolves explicit → process A →
+  PIC-self, editable (§8 RATIFY-4).
+- **Background/scheduled spawning** (pg_cron / VPS cron / edge scheduler) + **auto-materialize-on-read** →
+  deferred; v1 is explicit idempotent Start over a `due` read-model. The identical idempotent RPC is the seam a
+  cron would later drive additively (§8 RATIFY-3).
+- **Missed-window catch-up / backfill horizon** → not modeled in v1 (there is no auto-spawner to miss windows);
+  it re-enters only if RATIFY-3 later adopts a scheduler.
+- **Per-Team Process adoption + independent versioning** (OD-REDESIGN-54) → capability reserved, config deferred.
+- **Café kitchen-log→occurrence bridge** (`ops.kitchen_logs.process_run_id`) → **Step 7** (ADR D11).
+- **Task BU→Team re-home** → later; generated Tasks keep `business_unit_id` (derived from the owning Team's BU).
+- **Auto-completion of a run** → deferred; completion is a deliberate human act (FR-610).
 
-### 2.1 `mos.process_definitions` — the spawnable recurring-work definition
+---
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `org_id` | uuid not null fk→`shared.orgs` | tenant seam (OD-P1-1). |
-| `work_line_id` | uuid **nullable** fk→`mos.work_lines` | optional link to the catalog row (RATIFY-1: link vs fold). Same-org-guarded. |
-| `name` | text not null check `btrim(name)<>''` | e.g. *"Café HQ daily opening"*. |
-| `business_unit_id` | uuid not null fk→`shared.business_units` | governance definitions belong to a BU (CONTEXT *Team execution scope*). Same-org-guarded. |
-| `accountable_person_id` | uuid not null fk→`shared.people` | definition **A** — the Supervisor-inheritance source (OD-REDESIGN-14). Same-org-guarded. |
-| `responsible_person_id` | uuid not null fk→`shared.people` | definition **R**. Same-org-guarded. |
-| `cadence_kind` | text not null check in (`daily`,`weekly`,`monthly`,`manual`) | `manual` = never auto-spawns (started by a future human RPC; still gets occurrences/idempotency). |
-| `cadence_config` | jsonb not null default `'{}'` | `weekly`: `{"dow":[1,2,…]}` (ISO 1=Mon…7=Sun); `monthly`: `{"dom":[1,15]}` or `{"dom":["last"]}`; `daily`/`manual`: `{}`. Shape validated by a CHECK/guard (RATIFY-3). |
-| `spawn_time_local` | time not null default `'03:00'` | the WIB wall-clock time the window opens for spawning. |
-| `timezone` | text not null default `'Asia/Jakarta'` check `= 'Asia/Jakarta'` | fixed in v1 (WIB); column present so multi-tz is additive later. |
-| `version` | integer not null default 1 check `> 0` | bumped by an authoring edit that changes spawn-affecting structure (RATIFY-4). Snapshotted onto each occurrence. |
-| `is_active` | boolean not null default true | inactive ⇒ the spawner skips it; existing occurrences/tasks untouched. |
-| `archived_at` | timestamptz | soft-archive (NFR-002). Archived ⇒ never spawns. |
-| `created_by` | uuid not null fk→`shared.people` default `shared.current_person_id()` | audit; immutable (guard). |
-| `created_at` / `updated_at` | timestamptz | audit. |
+## 2. Data model
 
-Indexes: `(org_id) where archived_at is null`; `(org_id, is_active) where archived_at is null` (the
-spawner's due-scan); `(business_unit_id)`; `(work_line_id)`.
+All ids `uuid`; timestamps `timestamptz` UTC; business day/week/period boundaries computed in **Asia/Jakarta**
+(OD-P1-4). Schema `mos` for occurrence tables; the Team substrate is the ADR-0050 `shared.*`. Every new business
+table: `org_id` defaulted from `shared.current_org_id()`, **RLS enabled + forced**, **no DELETE grant**.
+Migrations reversible (manual DOWN; pre-prod `supabase db reset`). Exact DDL is in the plan
+(`docs/plans/2026-07-16-occurrence-as-tasks.md`, Track A); this section is the contract.
 
-### 2.2 `mos.process_task_templates` — generated Task definitions (OD-REDESIGN-12 / -58)
+### 2.1 `mos.work_lines` delta — Process governance (ADR D1)
+Add nullable, additive: `business_unit_id uuid → shared.business_units` (BU derivation + manager chain),
+`accountable_person_id uuid → shared.people` (Process **A** → Supervisor inheritance), `responsible_person_id
+uuid → shared.people` (Process **R**), `definition_version int not null default 1` (bumped on generation-config
+edit; snapshotted per run). Existing `type in ('project','process')`, `name`, `archived_at` unchanged.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `org_id` | uuid not null fk→`shared.orgs` | tenant seam. |
-| `process_definition_id` | uuid not null fk→`mos.process_definitions` **on delete cascade** | parent. |
-| `title` | text not null check `btrim(title)<>''` | becomes `mos.tasks.title`. |
-| `business_unit_id` | uuid not null fk→`shared.business_units` | becomes the spawned Task BU. Same-org-guarded. Defaults from the definition's BU but overridable per template. |
-| `pic_job_function_role_id` | uuid not null fk→`shared.roles` | **the job-function binding** — the Role whose current holder becomes PIC at spawn (Q2 / OD-REDESIGN-58). Same-org-guarded. Turnover changes the holder, never this row. |
-| `pic_scope_business_unit_id` | uuid **nullable** fk→`shared.business_units` | optional narrowing when the role is held across BUs/teams (RATIFY-2). NULL = no narrowing. Same-org-guarded. |
-| `supervisor_mode` | text not null default `inherit_a` check in (`inherit_a`,`override`) | OD-REDESIGN-14: default Supervisor = definition **A**; `override` uses the column below. |
-| `supervisor_override_person_id` | uuid nullable fk→`shared.people` | required iff `supervisor_mode='override'` (CHECK). Same-org-guarded. |
-| `due_offset_days` | integer not null default 0 check `>= 0` | spawned Task `due_date` = occurrence window date + this. |
-| `position` | integer not null | ordering within the occurrence caption group. |
-| `created_by` | uuid not null fk→`shared.people` | audit; immutable. |
-| `created_at` / `updated_at` | timestamptz | audit. |
+### 2.2 `mos.process_cadences` — per-process recurrence (ADR D2 · one row per process)
+`id` · `org_id` · `work_line_id uuid not null unique → mos.work_lines` · `cadence_kind text check in
+('manual','daily','weekly','monthly')` · `cadence_config jsonb not null default '{}'` · `timezone text not null
+default 'Asia/Jakarta'` · `anchor_date date` · `active boolean not null default true` · timestamps. Period-key
+grains (WIB): daily `YYYY-MM-DD`, weekly `IYYY-"W"IW` (ISO Mon-start), monthly `YYYY-MM`, manual `YYYY-MM-DD`.
 
-Index: `(process_definition_id, position)`.
+### 2.3 `mos.process_task_defs` — generated Task template (ADR D3)
+`id` · `org_id` · `work_line_id uuid not null → mos.work_lines` · `title text not null check (btrim(title)<>'')` ·
+`description text` · `position int not null default 0` · `due_offset_days int not null default 0` ·
+`checklist_items jsonb not null default '[]'` (single-operator steps that stay inside one Task — OD-12) ·
+`pic_person_id uuid → shared.people` · `pic_role_id uuid → shared.roles` · `pic_team_id uuid → shared.teams` ·
+`supervisor_person_id uuid → shared.people` · `supervisor_role_id uuid → shared.roles` · `supervisor_team_id
+uuid → shared.teams` · `archived_at` · timestamps. **CHECK** `pic_person_id is not null OR pic_role_id is not
+null` (never an ownerless definition). Index `(work_line_id) where archived_at is null`.
 
-### 2.3 `mos.process_task_template_checklist_items` — template checklist lines (mirrors `task_checklist_items`)
+### 2.4 `mos.process_runs` — the thin occurrence record (ADR D4)
+`id` · `org_id` · `work_line_id uuid not null → mos.work_lines` · `owning_team_id uuid not null → shared.teams`
+(adopting Team) · `period_key text not null` · `caption text not null` · `scheduled_date date not null` ·
+`status text not null check in ('open','completed','cancelled') default 'open'` · `completed_at timestamptz` ·
+`completed_by uuid → shared.people` · `definition_version int not null` · `spec_snapshot jsonb not null` ·
+`started_by uuid → shared.people default shared.current_person_id()` · timestamps.
+**Idempotency:** `unique(org_id, work_line_id, owning_team_id, period_key)`. Indexes `(org_id)`,
+`(work_line_id)`, `(owning_team_id)`, `(org_id) where status = 'open'`. No stored roll-up counts (§2.8).
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `org_id` | uuid not null fk→`shared.orgs` | tenant seam. |
-| `template_id` | uuid not null fk→`mos.process_task_templates` **on delete cascade** | parent. |
-| `label` | text not null check `btrim(label)<>''` | copied into a real `mos.task_checklist_items.label` at spawn. |
-| `position` | integer not null | order. |
-| `created_at` / `updated_at` | timestamptz | audit. |
+### 2.5 `mos.process_run_pending_tasks` — ambiguity human-choice queue (ADR D7 · OD-41)
+`id` · `org_id` · `process_run_id uuid not null → mos.process_runs (on delete cascade)` · `task_def_id uuid not
+null → mos.process_task_defs` · `candidate_person_ids uuid[] not null default '{}'` · `reason text not null
+check in ('none','multiple')` · `resolved_at timestamptz` · `resolved_by uuid → shared.people` ·
+`materialized_task_id uuid → mos.tasks` · `created_at`. Partial-unique one **unresolved** pending row per
+(run, def): `unique(process_run_id, task_def_id) where resolved_at is null`. Index `(process_run_id) where
+resolved_at is null`.
 
-> **Scope note (OD-REDESIGN-12):** template checklist items are the *lightweight* steps that inherit
-> the parent Task's ownership/lifecycle. Typed **Standard Steps → Checks/forms/evidence** are a
-> **deferred** richer layer; v1 spawns only Task + checklist items. Flagged as a deferred boundary, not
-> a RATIFY (the OD explicitly permits a checklist-only first cut).
+### 2.6 `mos.tasks` delta — occurrence provenance (ADR D10)
+Add nullable `process_run_id uuid → mos.process_runs` + `generated_from_task_def_id uuid → mos.process_task_defs`
+and indexes. Existing behavior/columns unchanged (both nullable; all shipped tasks unaffected). The
+`mos._guard_task_cascade_refs` trigger is extended (create-or-replace) to assert `process_run_id` is same-org.
 
-### 2.4 `mos.process_occurrences` — the thin occurrence record (idempotency anchor + version snapshot)
+### 2.7 Generated Task shape (ADR D10 — the spawn contract)
+A materialized Task is an ordinary `mos.tasks` row: `business_unit_id` = owning Team's BU
+(`teams.business_unit_id`), `responsible_person_id` = resolved PIC, `accountable_person_id` = resolved
+Supervisor, `status='Open'`, `work_line_id` = the process, `due_date = scheduled_date + due_offset_days`,
+`created_by = started_by`, `process_run_id`/`generated_from_task_def_id` set. The def's `checklist_items` →
+`mos.task_checklist_items` rows (reuse).
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `org_id` | uuid not null fk→`shared.orgs` | tenant seam. |
-| `process_definition_id` | uuid not null fk→`mos.process_definitions` | parent (NO cascade delete — occurrences are execution history; there is no DELETE anyway). Same-org-guarded. |
-| `occurrence_key` | text not null | **deterministic WIB window token** (§4.1): `daily`=`'YYYY-MM-DD'`, `weekly`=`'IYYY-"W"IW'` (ISO week), `monthly`=`'YYYY-MM'` (or `'YYYY-MM-DD'` when `dom` names a specific day), `manual`=caller-supplied. |
-| `scheduled_for` | date not null | the WIB window date the occurrence represents. |
-| `caption` | text not null | grouping caption stored at spawn (e.g. *"Daily opening · Wed 16 Jul"*). Rule 2 caption grouping. |
-| `definition_version` | integer not null | snapshot pointer = `process_definitions.version` at spawn. |
-| `definition_snapshot` | jsonb not null | **immutable** copy of the definition + templates + resolved PIC/Supervisor per template at spawn (D6/D14/D18/D40 "resolved value is snapshotted"). Survives later edits/archival of the definition. |
-| `spawned_at` | timestamptz not null default `now()` | when the spawner materialised it. |
-| `spawned_by` | uuid nullable fk→`shared.people` | the human for a `manual` start; NULL for the automated cron (system). |
-| `created_at` | timestamptz not null default `now()` | append-only; **no `updated_at`** — the row is immutable after spawn (guard). |
+### 2.8 `mos.process_run_rollup` (view · `security_invoker`) + `mos.due_process_runs()` (ADR D9)
+`process_run_rollup` keyed by `process_run_id`: `total`, `open`, `in_progress`, `blocked`, `done`, `overdue`
+(WIB `due_date < today`), `pending_unresolved`, `completion_pct`. `due_process_runs()` returns each
+active-cadence process whose current-period occurrence for the caller's authorized Teams is **not yet spawned**.
+Both inherit base-table RLS.
 
-**Idempotency key:** `unique (process_definition_id, occurrence_key)`. Indexes: `(org_id)`,
-`(process_definition_id, scheduled_for desc)`.
+---
 
-> **Completion/progress is NOT stored here.** Per OD-REDESIGN-58 "per-occurrence roll-up is a derived
-> read-model." Completion = *all non-archived child Tasks are `Done`* is **computed** by the roll-up
-> (§5), never a mutable column, so it can never drift from the Tasks it summarises.
+## 3. RLS + authorization matrix (fail-closed; RPC-only run writes)
 
-### 2.5 `mos.occurrence_pending_assignments` — the ambiguity→human queue (OD-41)
+Definition tables are **org-readable** with authored writes; occurrence records are **org-readable** (D4/D6,
+consistent with org-readable Tasks) with **RPC-only** writes (the follow-ups idiom). **No DELETE** anywhere.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `org_id` | uuid not null fk→`shared.orgs` | tenant seam. |
-| `occurrence_id` | uuid not null fk→`mos.process_occurrences` | the occurrence this unassigned work belongs to. Same-org-guarded. |
-| `template_id` | uuid not null fk→`mos.process_task_templates` | which generated-Task definition could not be assigned. Same-org-guarded. |
-| `reason` | text not null check in (`vacant_role`,`ambiguous_holder`,`ambiguous_supervisor`) | why the spawner deferred it. |
-| `candidate_person_ids` | uuid[] not null default `'{}'` | the >1 holders for `ambiguous_holder` (empty for `vacant_role`). Every element same-org-guarded. |
-| `resolved_task_id` | uuid nullable fk→`mos.tasks` | set when a human resolves it (the Task then exists). NULL = still pending. |
-| `resolved_by` | uuid nullable fk→`shared.people` | audit. |
-| `resolved_at` | timestamptz nullable | audit. |
-| `created_at` / `updated_at` | timestamptz | audit. |
-
-Index: `(org_id) where resolved_at is null` (the Home/Inbox "needs assignment" query). Unique
-`(occurrence_id, template_id)` — one pending row per template per occurrence (idempotent with the
-spawner).
-
-### 2.6 `mos.tasks` — additive column
-
-- Add `occurrence_id uuid nullable references mos.process_occurrences(id)`. **No backfill** (all
-  existing Tasks are ad-hoc; the FK is additive, matching the `objective_id`/`work_line_id` precedent).
-- Add index `tasks_occurrence_idx on mos.tasks (occurrence_id) where occurrence_id is not null`.
-- Extend the existing `mos._guard_task_refs()` (or add a sibling guard) so a non-NULL `occurrence_id`
-  must resolve to a **same-org** occurrence (FKs check existence only; the tenancy guard closes the
-  cross-org seam exactly as it does for `business_unit_id`/`responsible_person_id`).
-- Spawned Tasks keep the **full Task contract** (R/A NOT NULL, BU, status, checklist, events). They are
-  Tasks in every way (Rule 2: same renderer) — `occurrence_id` is only the grouping link.
-
-## 3. Functional requirements (EARS)
-
-**Definitions & templates (authoring — schema/write contracts only; the designer UI is Step-7+):**
-
-- **FR-001** The system SHALL persist a Process definition with a BU, a definition A and R, a
-  `cadence_kind`, a `cadence_config`, a `spawn_time_local`, a `timezone`, a `version`, and an
-  `is_active` flag.
-- **FR-002** WHERE `cadence_kind ∈ {weekly, monthly}`, the system SHALL reject a definition whose
-  `cadence_config` does not contain the required key (`dow` / `dom`) with a well-formed value
-  (error `23514`).
-- **FR-003** The system SHALL persist one or more generated-Task **templates** per definition, each
-  with a title, a BU, a `pic_job_function_role_id`, a `supervisor_mode`, a `due_offset_days`, and a
-  `position`.
-- **FR-004** WHERE a template's `supervisor_mode = 'override'`, the system SHALL require a non-NULL
-  `supervisor_override_person_id` (error `23514`); WHERE `supervisor_mode = 'inherit_a'`, the
-  override person SHALL be NULL.
-- **FR-005** The system SHALL persist ordered checklist-item templates under a task template.
-- **FR-006** The system SHALL treat `created_by`, `org_id` (all new tables) and `version` monotonicity
-  as immutable-on-UPDATE (guard raises `42501` on change), mirroring the `mos.tasks`/`notifications`
-  immutability guards.
-
-**Cadence evaluation & spawning (the deterministic, idempotent engine):**
-
-- **FR-010** WHEN `mos.spawn_due_occurrences(p_now)` runs, the system SHALL, for every **active,
-  non-archived** definition whose cadence produces a window whose spawn moment (`scheduled_for` +
-  `spawn_time_local`, in `Asia/Jakarta`) is at or before `p_now`, compute that window's
-  deterministic `occurrence_key`.
-- **FR-011** The system SHALL create **at most one** `process_occurrences` row per
-  `(process_definition_id, occurrence_key)` — a second spawn of the same window SHALL create no new
-  occurrence, no duplicate Tasks, and no duplicate pending rows (idempotency via `ON CONFLICT
-  (process_definition_id, occurrence_key) DO NOTHING`).
-- **FR-012** WHEN it creates a new occurrence, the system SHALL write the `caption`,
-  `definition_version`, and an **immutable `definition_snapshot`** capturing the definition + all
-  templates + each template's **resolved** PIC and Supervisor at that instant.
-- **FR-013** For each template of a newly-created occurrence, the system SHALL resolve the job function
-  to its current holder(s) (§4.2) and: **(a)** IF exactly one holder → insert a `mos.tasks` row
-  (`occurrence_id` set, PIC = that holder, Supervisor per §4.3, BU/title/due from the template) plus
-  its checklist items; **(b)** IF zero holders (`vacant_role`) or more than one holder
-  (`ambiguous_holder`) → insert a `mos.occurrence_pending_assignments` row and **NOT** insert a Task.
-- **FR-014** WHEN a pending assignment is created, the system SHALL deliver a `mos.notifications` Inbox
-  item (via `mos.create_notification`) to a human resolver (§4.4) whose metadata deep-links to the
-  pending row; the system SHALL NOT auto-select any candidate (OD-41 "ambiguity never guesses").
-- **FR-015** WHERE the manager/Supervisor resolution for an otherwise-assignable template is ambiguous
-  (multiple manager paths, OD-REDESIGN-41), the system SHALL still create the Task with its resolved
-  PIC but record an `ambiguous_supervisor` pending row and notify — the Supervisor, not the Task, is
-  deferred. `RATIFY-BEFORE-MERGE` (RATIFY-7) covers whether an ambiguous Supervisor instead blocks the
-  Task.
-- **FR-016** WHEN a definition changes after occurrences exist, the system SHALL leave every existing
-  occurrence's `definition_snapshot` and its spawned Tasks **unchanged** (D18/D40: started/materialised
-  runs keep their snapshot); only future unspawned windows use the new version.
-- **FR-017** WHERE the spawner missed one or more past windows (e.g. the cron did not run), the system
-  SHALL spawn only windows whose spawn moment falls within the **catch-up horizon** (default: the same
-  WIB day as `p_now`; RATIFY-5) and SHALL NOT retroactively spawn windows older than the horizon;
-  skipped windows are recorded (a `raise notice` / spawn-log row), not silently lost.
-- **FR-018** A per-occurrence failure (one definition's resolution error) SHALL be isolated in a
-  subtransaction so that the batch continues and other definitions still spawn (the RPC never aborts
-  the whole run on one bad definition).
-- **FR-019** WHERE `cadence_kind = 'manual'`, `mos.spawn_due_occurrences` SHALL skip the definition;
-  a manual occurrence is created only by an explicit future human-invoked start RPC (out of scope for
-  auto-spawn; the table + idempotency key support it now).
-
-**Resolution into a real Task (human clears the pending queue):**
-
-- **FR-020** WHEN a human invokes `mos.resolve_pending_assignment(p_pending_id, p_person_id)`, the
-  system SHALL verify the actor is authorised (§6), verify `p_person_id` is a valid same-org person
-  (and, for `ambiguous_holder`, a member of `candidate_person_ids`), create the `mos.tasks` row
-  (identical shape to FR-013a) with its checklist items, and stamp `resolved_task_id/by/at` — idempotently
-  (a second call on an already-resolved row is a no-op/`P0003`).
-
-**Derived roll-up (read-model):**
-
-- **FR-030** The system SHALL expose a per-occurrence **roll-up** (view/function, §5) reporting, over
-  the occurrence's non-archived child Tasks: total count, counts by status
-  (Open/In Progress/Blocked/Done), a **derived completion** flag (true iff ≥1 child Task exists and all
-  are `Done`), the earliest child `due_date`, and the count of unresolved pending assignments.
-- **FR-031** The roll-up SHALL be scoped to the viewer's org (RLS) and SHALL reflect live Task state
-  (no stored/duplicated progress column to drift).
-
-## 4. Algorithms & resolution rules
-
-### 4.1 Occurrence-key derivation (deterministic, WIB)
-
-Given a definition and a candidate window date `d` (a WIB calendar date):
-
-- `daily` → `occurrence_key = to_char(d,'YYYY-MM-DD')`, one per WIB day.
-- `weekly` → for each ISO dow in `cadence_config.dow`, the window date is that day's date in the WIB
-  ISO week; `occurrence_key = to_char(d,'IYYY-"W"IW')` **plus** the dow when multiple days/week (so
-  each configured day is its own occurrence — `RATIFY-3` fixes the multi-day-per-week key form).
-- `monthly` → for each `dom` in `cadence_config.dom` (`'last'` = month-end), the window date is that
-  day in the WIB month; `occurrence_key = to_char(d,'YYYY-MM-DD')`.
-- All timezone math uses `(timestamptz) AT TIME ZONE 'Asia/Jakarta'`; **no** server-local or UTC-date
-  assumption. The key is a **pure function** of (cadence, window) — identical inputs always yield the
-  identical key (the idempotency guarantee's basis).
-
-### 4.2 Job-function → current-holder resolution (Q2 / OD-REDESIGN-58)
-
-For a template's `pic_job_function_role_id` (optionally narrowed by `pic_scope_business_unit_id`):
-
-```
-holders := { pr.person_id
-             from shared.person_roles pr
-             join shared.people p on p.id = pr.person_id
-             where pr.role_id = template.pic_job_function_role_id
-               and p.org_id = occurrence.org_id
-               and p.archived_at is null }
-        (∩ role BU = pic_scope_business_unit_id when the narrowing column is set)
-```
-
-- `count(holders) = 1` → **resolved** PIC.
-- `count(holders) = 0` → **`vacant_role`** → pending + notify (never fabricate).
-- `count(holders) > 1` → **`ambiguous_holder`** → pending with `candidate_person_ids = holders` +
-  notify. **Never** pick the "first" holder (OD-41).
-
-Turnover (a `person_roles` change) alters *who resolves next spawn*; it never edits the template or any
-already-spawned occurrence (OD-REDESIGN-58 "turnover changes the holder mapping, never the Process").
-
-### 4.3 Supervisor resolution (OD-REDESIGN-14 / -41)
-
-Resolution order for the spawned Task's Supervisor:
-
-1. template `supervisor_mode='override'` → `supervisor_override_person_id`.
-2. else definition **A** (`process_definitions.accountable_person_id`) — the default (OD-14).
-3. *(fallback, only if A is somehow unresolvable — defensive)* PIC's BU-matching direct manager via
-   `shared.is_manager_of` chain; multiple manager paths → `ambiguous_supervisor` pending (FR-015).
-4. else PIC self-supervises (OD-REDESIGN-41 top-level-PIC clause).
-
-Because a definition always has an A (NOT NULL), path 2 is the normal outcome; paths 3–4 are the
-ad-hoc-parity fallbacks and the only source of an `ambiguous_supervisor`.
-
-### 4.4 Who is notified for a pending assignment (FR-014)
-
-Deliver the Inbox item to the definition's **A** and **R** (both are same-org people, guaranteed
-present). `RATIFY-8` covers whether to additionally notify a Team supervisor once a Teams table
-exists. No fan-out beyond A+R in v1 (conservative — avoids notifying an unbounded audience).
-
-### 4.5 Spawner shape (SECURITY DEFINER, lock→gate→write; mirrors `approve_kitchen_log`)
-
-`mos.spawn_due_occurrences(p_now timestamptz default now()) returns integer` (count of occurrences
-created), `security definer`, `set search_path=''`:
-
-1. Gate the caller to the dedicated spawner role / `service_role` (defense-in-depth; the cron connects
-   as that role, per the `reporting_snapshot.py` pattern). A normal `authenticated` JWT is rejected
-   (`42501`) — users do not trigger mass spawns.
-2. For each active, non-archived definition: compute due windows within the catch-up horizon (§4.1,
-   FR-017); for each, `insert … on conflict (process_definition_id, occurrence_key) do nothing
-   returning id`.
-3. IF a row was returned (new occurrence): build the snapshot, loop templates, resolve (§4.2/4.3),
-   insert Tasks or pending rows, deliver notifications — **inside a per-occurrence subtransaction**
-   (`begin … exception when others then …` block) so one failure does not abort the batch (FR-018).
-4. Because the RPC is RLS-bypassing, **every write pins `org_id` from the definition row** (never from
-   a JWT claim — the cron has no person context) and every reference is same-org by construction (the
-   templates/roles/people were same-org-guarded at author time).
-
-## 5. Derived roll-up (read-model)
-
-`mos.occurrence_rollup` — a `security_invoker` view (or a `stable` function
-`mos.occurrence_rollup(p_occurrence_id uuid)`) over `mos.process_occurrences` LEFT JOIN
-`mos.tasks (occurrence_id, archived_at is null)`:
-
-| Field | Definition |
-|---|---|
-| `occurrence_id` | the occurrence. |
-| `caption`, `scheduled_for` | passthrough. |
-| `task_total` | count of non-archived child Tasks. |
-| `open` / `in_progress` / `blocked` / `done` | counts by `status`. |
-| `is_complete` | `task_total > 0 AND done = task_total`. **Derived** (FR-030). |
-| `progress_pct` | `done::numeric / nullif(task_total,0)`. |
-| `earliest_due` | `min(due_date)`. |
-| `pending_unassigned` | count of `occurrence_pending_assignments where resolved_at is null`. |
-
-The view inherits the underlying tables' RLS (invoker) → org-scoped automatically. No stored
-completion column exists to reconcile.
-
-## 6. RLS matrix (every new table: `enable` + `force`; org-gate on every branch; no DELETE grant)
-
-| Table | SELECT | INSERT | UPDATE | Notes |
+| Table | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
-| `mos.process_definitions` | org member (pickers/roll-up) | `admin` OR `ops_lead` | `admin` OR `ops_lead`; `created_by`/`org_id`/`version`-monotonic guard | catalog-management parity with `work_lines`/`objectives`. |
-| `mos.process_task_templates` | org member | `admin` OR `ops_lead` | `admin` OR `ops_lead` | same. |
-| `mos.process_task_template_checklist_items` | org member | `admin` OR `ops_lead` | `admin` OR `ops_lead` | same. |
-| `mos.process_occurrences` | org member | **no `authenticated` INSERT policy** — written only by the SECURITY DEFINER spawner (service role bypasses RLS) | **none** (immutable after spawn) | execution record; humans read, never hand-write. `manual` start goes through a future RPC, not a raw INSERT. |
-| `mos.occurrence_pending_assignments` | org member | spawner (definer) only | **resolve only** via `mos.resolve_pending_assignment` (definer) — no direct `authenticated` UPDATE policy, OR a policy gated to definition A/R + `process.adopt`-style capability (RATIFY-9) | the ambiguity queue. |
-| `mos.tasks` (spawned rows) | unchanged (org-readable) | unchanged (spawner inserts as definer; humans still insert ad-hoc) | unchanged (`can_edit_task`) | `occurrence_id` cross-org guard added to `_guard_task_refs`. |
+| `mos.work_lines` (delta) | org (unchanged) | admin/ops_lead (unchanged) | admin/ops_lead (unchanged) | none |
+| `mos.process_cadences` | org-readable | `admin OR ops_lead`, org-pinned | `admin OR ops_lead` | none |
+| `mos.process_task_defs` | org-readable | `admin OR ops_lead`, org-pinned | `admin OR ops_lead` | none |
+| `mos.process_runs` | org-readable | **none** (RPC-only) | **none** (RPC-only) | none |
+| `mos.process_run_pending_tasks` | org-readable | **none** (RPC-only) | **none** (RPC-only) | none |
+| `mos.tasks` (generated) | org-readable (unchanged) | via spawn RPC (DEFINER) / any-member (unchanged) | `can_edit_task` (unchanged) | none |
 
-- **Grants:** `select, insert, update` to `authenticated` on the definition/template/checklist tables;
-  `select` to `authenticated` on `process_occurrences` + `occurrence_pending_assignments` (writes via
-  definer RPCs). **No `delete`** anywhere (NFR-002).
-- **Spawner role:** `mos.spawn_due_occurrences` + `mos.resolve_pending_assignment` are
-  `security definer`; `execute` granted narrowly (the spawner to the cron role; the resolver to
-  `authenticated` with an internal capability gate). Mirrors the reporting-writer dedicated-role
-  posture (…`20260704000001`).
-- **Cross-org seams:** the `_guard_task_refs` extension + a new
-  `mos._guard_process_refs()` (BEFORE INSERT/UPDATE on definitions/templates/pending) enforce that
-  `business_unit_id`, `pic_job_function_role_id`, `pic_scope_business_unit_id`,
-  `supervisor_override_person_id`, A/R person ids, `work_line_id`, `occurrence_id`, `template_id`, and
-  every `candidate_person_ids[]` element resolve **within the row's org** (raise `23514`) — FKs check
-  existence only and bypass RLS (the exact seam the tasks tenancy guard closes).
+**Write RPCs (all `SECURITY DEFINER`, `search_path=''`, `revoke … from public,anon,authenticated` + `grant …
+to authenticated` — CI definer-revoke lint):**
+- `mos.spawn_process_run(p_work_line_id, p_owning_team_id, p_target_date)` — load process+cadence → **cross-org
+  guard** → gate `can('process.start') AND mos.can_start_process_for_team(p_owning_team_id)` → derive period key
+  → `insert … on conflict (org,process,team,period) do nothing returning` (**idempotent**; existing ⇒ return it,
+  generate nothing) → snapshot definition → per active `process_task_defs`: resolve PIC/Supervisor (§4) → **one
+  holder ⇒ create Task** (+ checklist) ; **zero/many ⇒ pending row, no Task, no guess**.
+- `mos.resolve_pending_task(p_pending_id, p_pic_person_id)` — cross-org guard → gate `can('process.start') AND
+  can_start_process_for_team(run.owning_team_id)` → assert unresolved + `p_pic_person_id` is a candidate (or an
+  authorized override) → materialize the Task → set `resolved_at`/`materialized_task_id`.
+- `mos.complete_process_run(p_run_id)` — cross-org guard → same gate → set `status='completed'`,
+  `completed_at`, `completed_by`; Tasks persist.
+- `mos.can_start_process_for_team(p_team_id)` (`SECURITY INVOKER STABLE`) — `has_access_role('admin')` OR active
+  membership of `p_team_id`.
+- `mos._function_holders(p_org, p_role_id, p_team_id)` (`STABLE`) — current holders (person holds role in org
+  AND, if team set, active member); **pinned to explicit `p_org`** so cross-org never resolves a holder.
 
-## 7. NFRs
+**Capabilities** (`shared.role_capabilities`): `process.start` → **ops_lead + admin**; `process.adopt` →
+**admin** (reserved). No `member` grant in v1 (RATIFY-5).
 
-- **NFR-001 (idempotency)** Re-running `spawn_due_occurrences` over any window is a no-op for
-  already-spawned windows — proven by the unique key + `ON CONFLICT DO NOTHING`. No duplicate
-  occurrence, Task, pending row, or notification.
-- **NFR-002 (no hard delete)** No table grants DELETE to `authenticated`; removal is `archived_at`
-  (definitions) or immutability (occurrences). Structural parity with `mos.tasks`.
-- **NFR-003 (determinism)** Given identical (definition, `p_now`) inputs and identical directory state,
-  the spawner produces identical occurrence keys and identical resolution outcomes (pure functions;
-  no `random()`, no reliance on row order for holder pick — ambiguity defers, never picks).
-- **NFR-004 (timezone correctness)** All window/date math is `Asia/Jakarta`; a definition with
-  `spawn_time_local='03:00'` spawns the WIB-day window, never a UTC-day-boundary artefact.
-- **NFR-005 (tenant isolation)** No new table leaks across `org_id`; every reference is same-org
-  guarded; the definer RPCs pin `org_id` from the definition row, never from a spoofable claim.
-- **NFR-006 (reversibility)** The migration is fully reversible (spelled-out DOWN, §8); the
-  `mos.tasks.occurrence_id` addition is additive/nullable with no backfill.
-- **NFR-007 (audit/history)** Occurrences are append-only immutable; pending resolutions stamp
-  who/when; spawned Tasks carry the standard `task_events` trail; the `definition_snapshot` preserves
-  the exact resolved structure even after the definition changes/archives.
-- **NFR-008 (batch resilience)** One malformed definition never aborts the batch (FR-018
-  subtransaction isolation).
+**Cross-org isolation** holds structurally: `org_id` defaulted + WITH-CHECK-pinned on every authored write; the
+RPCs re-derive org from the loaded row + reject `org_id <> current_org_id()` before any gate or write;
+`_function_holders(p_org,…)` is org-pinned; the idempotency unique key is `org_id`-scoped. A cross-org
+Role/Team claim resolves **no** holder (fails closed → a pending row, never a wrong person).
 
-## 8. Migration & reversibility plan
+---
 
-One migration `supabase/migrations/2026071x000001_mos_process_occurrences.sql` (single logical slice;
-may split definitions/RLS/spawner across files following house convention). Order:
+## 4. Spawn / resolution semantics (the deterministic contract)
 
-1. `create table mos.process_definitions` (+ indexes, `set_updated_at` trigger, `_guard_process_refs`
-   immutability+cross-org guard).
-2. `create table mos.process_task_templates` (+ checklist-items child).
-3. `create table mos.process_occurrences` (immutability guard, unique idempotency key).
-4. `create table mos.occurrence_pending_assignments`.
-5. `alter table mos.tasks add column occurrence_id …` + index + extend `_guard_task_refs` for the
-   `occurrence_id` same-org check.
-6. `create function mos.spawn_due_occurrences` + `mos.resolve_pending_assignment` (definer) + narrow
-   `execute` grants.
-7. `create view mos.occurrence_rollup` (invoker).
-8. RLS: enable+force + policies + grants on all new tables.
+- **When:** explicit human **Start run** in v1 (no scheduler — ADR D6/RATIFY-3). `mos.due_process_runs()`
+  populates the Start surface. Idempotency makes repeat Start safe.
+- **Idempotency / at-most-once:** `unique(org, process, team, period_key)` + row-level `on conflict do nothing`;
+  a second spawn of the same occurrence returns the existing run and generates **no** duplicate Tasks (NFR-602).
+- **Version snapshot:** `definition_version` + `spec_snapshot` captured at spawn; later definition edits never
+  alter a spawned run or its Tasks (OD-REDESIGN-11/14; FR-603/613).
+- **PIC resolution:** explicit `pic_person_id` → job-function holder (**exactly one** ⇒ PIC). **Zero or many ⇒
+  ambiguous ⇒ a pending row, never a Task, never a guess** (OD-41; FR-605). Holder = a person holding
+  `pic_role_id` in the run's org AND, where `pic_team_id` is set, an *active* member of that Team
+  (`shared.team_memberships`, effective-dated).
+- **Supervisor resolution (shallow, v1):** explicit `supervisor_person_id` → `supervisor_role_id`+scope holder
+  (if unique) → process `accountable_person_id` → **PIC self** (OD-REDESIGN-41 "same-person valid" / "PIC when
+  no manager"); full manager-chain deferred (RATIFY-4). Supervisor stays editable (Reassign, OD-REDESIGN-62).
+- **Ownership boundary (OD-12):** only `process_task_defs` rows become Tasks; a def's `checklist_items` become
+  that Task's checklist items — single-operator steps stay inside one Task, never spawn extra Tasks (FR-608).
+- **Turnover:** changing who holds a Role/Team changes **future** resolution only; already-spawned Tasks keep
+  their historical PIC (FR-613).
 
-**DOWN (pre-production, spelled out at file foot):** drop view → drop functions → drop policies →
-`alter table mos.tasks drop column occurrence_id` (+ index, + revert guard) → drop the four new tables
-in FK order → drop guards. No data backfill to reverse.
+---
 
-## 9. Test plan — one AC per test, lowest sufficient layer
+## 5. UI contract (thin — Rule 11 reuse; no designer)
 
-Layer legend: **pgTAP** (`supabase test db`) for RLS + spawner SQL + idempotency + cross-org
-contracts; **Unit** (Vitest) for pure TS derivations exposed to the app; **e2e** — *none this step*
-(the occurrence UI/journey — *"Start today's opening"* — is Step 7; F2 e2e lands there).
+- **Start-run control** — surfaces `due_process_runs()` for the viewer; visible only to `process.start`-capable
+  viewers; each due row shows the process name + occurrence caption + "Start"; Start calls `spawn_process_run`
+  and reports `{created, pending}`. **No bare "Create"** (Rule 7) — the verb+object is **"Start run"** /
+  **"Start today's opening"** (Step 7 reuses this). "Process Run" never appears (FR-611).
+- **Occurrence grouping in `/work/tasks`** — the shipped Tasks DB-view (ADR-0007/0008) gains an occurrence
+  **caption** group header for tasks carrying a `process_run_id` (reuse the existing `group-header-row` grammar;
+  do not rebuild the table). The label is the run **caption**, never "Process Run".
+- **Pending-PIC resolution surface** — lists unresolved `process_run_pending_tasks` for the occurrence with
+  candidate people (or a full picker when `reason='none'`); selecting a person calls `resolve_pending_task` and
+  the Task then appears in the group. Job sentence: *"Two people could own this — you pick who."*
+- **Roll-up read** — the occurrence caption header shows `process_run_rollup` counts (done/total, overdue,
+  N unresolved) — reuses the group-header count/overdue-subtotal affordance (OD-P3-6).
 
-| AC | Given / When / Then | Owning layer |
-|---|---|---|
-| **AC-001** | Given an active `daily` definition with one template whose job function has exactly one holder, When `spawn_due_occurrences` runs for a WIB day, Then exactly one occurrence and one `mos.tasks` row (PIC = that holder, `occurrence_id` set) exist. | pgTAP |
-| **AC-002** | Given the same definition already spawned for that WIB day, When `spawn_due_occurrences` runs **again** for the same window, Then no new occurrence, Task, pending row, or notification is created (idempotency). | pgTAP |
-| **AC-003** | Given a template whose job-function role has **zero** current holders, When the occurrence spawns, Then **no Task** is created and one `occurrence_pending_assignments` row with `reason='vacant_role'` (+ an Inbox notification to A and R) exists. | pgTAP |
-| **AC-004** | Given a template whose job-function role has **two** current holders, When the occurrence spawns, Then no Task is created and a pending row with `reason='ambiguous_holder'` and both ids in `candidate_person_ids` exists (no holder auto-picked). | pgTAP |
-| **AC-005** | Given a pending `ambiguous_holder` row, When a human calls `resolve_pending_assignment` with one candidate, Then a `mos.tasks` row (PIC = chosen candidate, `occurrence_id` set) is created and `resolved_task_id/by/at` are stamped; a second call is a no-op. | pgTAP |
-| **AC-006** | Given `resolve_pending_assignment` is called with a person **not** in `candidate_person_ids`, Then it is rejected (no Task created). | pgTAP |
-| **AC-007** | Given a template with `supervisor_mode='inherit_a'`, When its Task spawns, Then the Task Supervisor = the definition's A. | pgTAP |
-| **AC-008** | Given a template with `supervisor_mode='override'`, When its Task spawns, Then the Task Supervisor = `supervisor_override_person_id`. | pgTAP |
-| **AC-009** | Given a definition edited (version bumped) **after** an occurrence exists, When the definition changes, Then the existing occurrence's `definition_snapshot`, `definition_version`, and spawned Tasks are unchanged. | pgTAP |
-| **AC-010** | Given the spawner missed a window older than the catch-up horizon, When it runs, Then that stale window is **not** spawned (only in-horizon windows are). | pgTAP |
-| **AC-011** | Given a batch with one malformed definition among valid ones, When the spawner runs, Then valid definitions still spawn and the RPC returns (the bad one is skipped, not fatal). | pgTAP |
-| **AC-012** | Given org A and org B each with a definition, When org A's context reads `process_definitions`/`process_occurrences`/`pending_assignments`/`occurrence_rollup`, Then only org-A rows are visible (RLS isolation). | pgTAP |
-| **AC-013** | Given a non-admin/non-ops_lead member, When they attempt to INSERT/UPDATE a `process_definition` or `process_task_template`, Then it is denied; an admin/ops_lead succeeds. | pgTAP |
-| **AC-014** | Given a member tries to INSERT a `process_occurrences` row directly (no definer), Then it is denied (occurrences are spawner-written only). | pgTAP |
-| **AC-015** | Given a template references a role/BU/person from **another org**, When it is inserted, Then the cross-org guard raises `23514`. | pgTAP |
-| **AC-016** | Given an occurrence with 3 child Tasks (2 Done, 1 Open, none archived), When the roll-up is read, Then `task_total=3, done=2, is_complete=false, progress_pct≈0.67`; when all 3 are Done, `is_complete=true`. | pgTAP |
-| **AC-017** | Given a `weekly` definition with `dow=[3]` (Wed), When the occurrence-key function is evaluated for a WIB Wednesday vs the same instant read as UTC, Then the key is the WIB-week token and is stable/deterministic (no UTC-boundary drift). | pgTAP |
-| **AC-018** | Given a `manual` definition, When `spawn_due_occurrences` runs, Then no occurrence is auto-created for it. | pgTAP |
-| **AC-019** | Given an attempt to UPDATE an occurrence's `definition_snapshot`/`caption` or a template/definition `created_by`/`org_id`, Then the immutability guard raises `42501`. | pgTAP |
-| **AC-020** | Given the app-facing occurrence-caption formatter (`deriveOccurrenceCaption(cadence, date)`), When called with each cadence kind, Then it returns the human caption used at spawn (pure function). | Unit |
-| **AC-021** | Given the app-facing roll-up progress mapper (turning `occurrence_rollup` row → UI progress shape), When given boundary counts (0 tasks, all done, mixed), Then it yields the correct `is_complete`/`progress_pct` display values. | Unit |
+---
 
-## 10. ADR — decisions the schema ADR MUST capture (eng-planner authors; this spec enumerates)
+## 6. Requirements
 
-The deferred **OD-REDESIGN-11 schema ADR** (`docs/adr/00XX-process-occurrence-schema.md`) must record:
+### Functional (EARS)
+- **FR-601** The system SHALL persist a Process definition's recurrence (a cadence: kind + WIB config) and its
+  generated Task definitions, each binding PIC to an explicit person **or** a job function (Role + optional Team
+  scope) (OD-REDESIGN-11/58).
+- **FR-602** WHEN a process occurrence is started, the system SHALL create **at most one** Process Run per
+  (process, owning Team, occurrence period); a repeat start SHALL return the existing run and SHALL NOT
+  duplicate its Tasks (idempotent; OD-REDESIGN-11).
+- **FR-603** WHEN a Process Run is created, the system SHALL snapshot the definition version + generated Task
+  definitions so later definition edits do NOT alter that run or its already-generated Tasks (OD-REDESIGN-11/14).
+- **FR-604** For each generated Task definition, WHEN the run spawns, the system SHALL resolve the PIC to the
+  **current single holder** of its job function (holder = a person holding the Role in the org and, where a Team
+  scope is set, an active member of that Team) (OD-REDESIGN-58).
+- **FR-605** WHERE a job function resolves to **zero or more than one** current holder, the system SHALL NOT
+  create a Task and SHALL NOT guess a PIC; it SHALL record a pending human-choice item with the candidates
+  (OD-41).
+- **FR-606** The system SHALL let an authorized human resolve a pending item by selecting a PIC, which SHALL
+  materialize the generated Task with the chosen PIC and mark the item resolved; re-resolving a resolved item
+  SHALL be rejected (OD-41).
+- **FR-607** WHEN a generated Task is materialized, the system SHALL set its BU from the owning Team, its
+  Supervisor by the resolution order (explicit override → process A → PIC-self), its Status to Open, its due
+  date to `scheduled_date + offset`, and SHALL link it to the Process Run and the generating definition
+  (OD-REDESIGN-12/14/40).
+- **FR-608** The system SHALL materialize a definition's checklist steps as the Task's checklist items and SHALL
+  create a separate Task only for a step that has its own definition — single-operator steps stay inside one
+  Task (OD-12 / OD-REDESIGN-12).
+- **FR-609** The system SHALL expose a **derived** per-occurrence roll-up (task counts by status, overdue,
+  unresolved-pending, completion) WITHOUT storing counts on the run (OD-REDESIGN-58).
+- **FR-610** The system SHALL let an authorized human mark a Process Run complete as a deliberate act (never
+  auto-inferred); a completed run SHALL retain its Tasks and history (OD-REDESIGN-58).
+- **FR-611** The system SHALL NOT surface "Process Run" as UI vocabulary; occurrences SHALL appear only as a
+  grouping caption over their generated Tasks (OD-REDESIGN-58). *Step-7 seam: kitchen logs/plans map onto this
+  occurrence model without a Step-6 kitchen-schema change (ADR D11).*
+- **FR-612** The system SHALL compute which processes have a due, not-yet-spawned occurrence (cadence + WIB) for
+  a Start surface, and SHALL NOT spawn via any background/scheduled job in v1 (no external-scheduler dependency).
+- **FR-613** A change in who holds a Role/Team SHALL affect only future PIC resolution; already-spawned Tasks
+  SHALL keep their historical PIC (OD-REDESIGN-58).
+- **FR-614** Starting a run SHALL require `process.start` AND authorization over the owning Team; a **direct**
+  INSERT/UPDATE of a Process Run or a pending item by an app user SHALL be denied (RPC-only).
 
-1. **Definition layer placement** — new `mos.process_definitions` *linked to* `mos.work_lines` vs
-   folding cadence/version onto `work_lines` (RATIFY-1). Rationale for a separate spawnable layer.
-2. **Job-function binding** — job function = `shared.roles` (+ optional BU narrowing) vs a
-   role+explicit-Team-scope pair (blocked on a Teams table, RATIFY-1/2). Why `roles` is sufficient now.
-3. **Occurrence identity & idempotency** — `occurrence_key` derivation per cadence and the
-   `unique (definition, key)` + `ON CONFLICT DO NOTHING` contract (RATIFY-3 multi-day-per-week form).
-4. **Version snapshot** — snapshot-at-spawn semantics (immutable `definition_snapshot`); what bumps
-   `version` (RATIFY-4); D18/D40 alignment (no retro-rewrite of materialised occurrences); the
-   deferred publish→adopt→upgrade transaction boundary.
-5. **Task-vs-Checklist boundary at generation** (OD-REDESIGN-12) — template = one Task; checklist items
-   = lightweight steps; Standard Steps/Checks/Exceptions deferred.
-6. **PIC ambiguity policy** (OD-41) — 0/1/>1 holder rules; the pending-assignment queue; *no Task with
-   a guessed PIC* (grounded in `mos.tasks.responsible_person_id NOT NULL`).
-7. **Supervisor resolution** (OD-REDESIGN-14/41) — inherit-A default, override, manager-fallback,
-   self-supervise; ambiguous-Supervisor handling (RATIFY-7).
-8. **Scheduling substrate** — external VPS cron → SECURITY DEFINER RPC (reporting-snapshot pattern)
-   vs `pg_cron` (RATIFY-6); the catch-up horizon / missed-window policy (RATIFY-5).
-9. **RLS posture** — occurrences/pending as definer-written execution records; definitions/templates as
-   admin/ops_lead catalog; the resolve capability gate (RATIFY-9).
-10. **Roll-up as derived read-model** — completion never stored (drift-free); view vs function.
+### Non-functional
+- **NFR-601** RLS **enabled + forced** on every new table; `org_id` defaulted + WITH-CHECK pinned; **no DELETE
+  grant** anywhere; run/pending writes are RPC-only via `SECURITY DEFINER` functions that revoke PUBLIC execute.
+- **NFR-602** Spawn SHALL be **idempotent and at-most-once** per occurrence key under retries and concurrency
+  (row lock + `org_id`-scoped unique key + `on conflict do nothing`).
+- **NFR-603** Holder resolution SHALL be **deterministic and org-walled**; a cross-org Role/Team SHALL resolve
+  no holder (fails closed to a pending item, never a wrong person).
+- **NFR-604** Migrations reversible (manual DOWN); pre-prod reset via `supabase db reset`; staging reset +
+  deploy remain owner-gated (OD-34).
+- **NFR-605** Coverage ≥80% changed lines; typecheck/lint zero; the review battery (incl. **mandatory
+  security-auditor**, §7) + `pre-merge-check.sh` green before merge.
 
-## 11. RATIFY-BEFORE-MERGE (conservative default taken; owner/Director ratifies)
+---
 
-- **RATIFY-1 — Definition table vs fold onto `work_lines`.** *Default:* a **separate**
-  `mos.process_definitions` with a nullable `work_line_id` link. *Alt:* add cadence/version/RACI columns
-  onto `mos.work_lines`. *Recommendation:* keep separate — reversible, non-destructive to the shipped
-  catalog, and `work_lines` has no BU/RACI today; fold later if the catalog and the spawnable definition
-  prove 1:1.
-- **RATIFY-2 — Job-function scope granularity.** *Default:* `pic_job_function_role_id` (role) + optional
-  `pic_scope_business_unit_id` narrowing. *Alt:* add an explicit Team-scope column (blocked — **no Teams
-  table exists**). *Recommendation:* ship role + optional BU narrowing now; add Team scope additively when
-  a Teams table lands (CONTEXT's "Team" is currently modelled via role BU + reporting chain).
-- **RATIFY-3 — Weekly multi-day occurrence-key form.** *Default:* one occurrence **per configured day**,
-  key = ISO-week token **+ dow**. *Alt:* one occurrence per ISO week regardless of `dow` count.
-  *Recommendation:* per-day (matches "daily opening on Mon/Wed/Fri" intuition; each day is its own run).
-- **RATIFY-4 — What bumps `version`.** *Default:* any edit to **spawn-affecting** structure (cadence,
-  templates, job-function bindings) bumps `version`; cosmetic edits (name/description) do not. *Alt:* every
-  edit bumps. *Recommendation:* spawn-affecting only — keeps the snapshot meaningful without version churn.
-- **RATIFY-5 — Missed-window catch-up horizon.** *Default (most conservative):* spawn only windows within
-  the **same WIB day** as `p_now`; older missed windows are logged + skipped, **never backfilled**. *Alt:*
-  a configurable N-day horizon, or full backfill. *Recommendation:* same-day only — avoids a
-  spawn-storm/duplicate-work flood after an outage; widen later if a real need appears.
-- **RATIFY-6 — Scheduling substrate.** *Default:* **external VPS cron → SECURITY DEFINER RPC** (reuse the
-  `reporting_snapshot.py` dedicated-role pattern, already operating at 03:30 WIB). *Alt:* in-DB `pg_cron`.
-  *Recommendation:* external cron — no new DB extension, matches the shipped snapshot job, keeps scheduling
-  observable/outside RLS.
-- **RATIFY-7 — Ambiguous Supervisor: defer vs block.** *Default:* create the Task with its resolved PIC and
-  raise an `ambiguous_supervisor` pending row (work proceeds; oversight is chased). *Alt:* block the Task
-  until the Supervisor is chosen. *Recommendation:* defer — a definition's A is NOT NULL so this path is
-  rare (only the ad-hoc manager fallback); blocking work on a supervisory ambiguity is heavier than the OD
-  requires.
-- **RATIFY-8 — Pending-assignment notification audience.** *Default:* definition **A + R** only. *Alt:*
-  additionally a Team supervisor (needs a Teams table). *Recommendation:* A+R now; extend when Teams land.
-- **RATIFY-9 — Who may resolve a pending assignment.** *Default (fail-closed):* the definition **A or R**,
-  or **admin/ops_lead**, enforced inside `mos.resolve_pending_assignment` (definer). *Alt:* any authorised
-  manager of the candidate. *Recommendation:* A/R + admin/ops_lead — the smallest set that owns the
-  definition; widen via capability later.
-- **RATIFY-10 — Standard/Check richness at generation.** *Default:* templates carry **checklist items
-  only**; typed Standard Steps → Checks/forms/evidence are deferred (OD-REDESIGN-12 permits a checklist-only
-  first cut). *Alt:* model Checks now. *Recommendation:* defer — keeps step 6 to the spawner foundation; the
-  Café retrofit (step 7) and a later Standards step add the richer typed steps additively.
-```
+## 7. Security review scope (security-auditor is MANDATORY for this step)
+
+This step adds a privileged spawn seam over owned work + tenancy-crossing resolution; the auditor (OWASP/STRIDE)
+MUST cover:
+
+1. **Spawn RPC (`mos.spawn_process_run`) — privilege + injection.** `SECURITY DEFINER` bypasses RLS: verify the
+   in-function **cross-org guard** rejects `org_id <> current_org_id()` before any gate/write; the
+   `can('process.start') AND can_start_process_for_team` gate cannot be bypassed by crafted params; the
+   `on conflict` idempotency cannot be raced into duplicate Tasks (row lock); `search_path=''` + schema-qualified
+   refs; no dynamic SQL from `cadence_config`/`spec_snapshot`; `revoke execute … from public,anon,authenticated`
+   present (CI lint).
+2. **Job-function → holder resolution (`_function_holders`) — tenancy.** Confirm the resolver is pinned to an
+   explicit `p_org` and joins `person_roles`/`roles`/`team_memberships` all org-scoped, so a cross-org or
+   archived Role/Team/person can never be resolved as a PIC; confirm a person outside the org yields a **pending
+   row**, never a Task (fail-closed).
+3. **RLS seams — `process_runs` / `process_run_pending_tasks` / definition tables.** Confirm no
+   INSERT/UPDATE/DELETE policy exists for `authenticated` on the run/pending tables (RPC-only), SELECT is
+   org-walled, RLS is **forced**, and the generated-Task provenance columns cannot be used to leak cross-org
+   task rows (org-readable is unchanged; verify the cascade guard blocks a cross-org `process_run_id`).
+4. **`org_id` tenancy on generated Tasks.** The spawn RPC writes Tasks on the caller's behalf — confirm every
+   generated Task's `org_id` is the run's org (never client-supplied), BU derives from a same-org Team, and PIC/
+   Supervisor are same-org people; a compromised param cannot plant a task in another org.
+5. **`resolve_pending_task` / `complete_process_run`.** Confirm the same cross-org + capability + Team-auth gates,
+   that a resolver cannot pick a non-candidate/cross-org person as PIC (or that an authorized override is
+   explicit and logged), and that completion cannot be driven cross-org.
+6. **Capability grants.** Confirm `process.start` is default-deny beyond ops_lead/admin (no `member`), matching
+   OD-P4-4 least-privilege, and that grants are seed-only (no self-assignment path).
+
+The auditor's findings are recorded in `docs/reviews/<branch>.md`; any Critical/High blocks merge
+(`scripts/pre-merge-check.sh`).
+
+---
+
+## 8. RATIFY-BEFORE-MERGE (grill + owner walkthrough must ratify each)
+
+1. **Process-definition storage.** Extend `mos.work_lines` (add `business_unit_id`/`accountable_person_id`/
+   `responsible_person_id`/`definition_version`) vs a dedicated `mos.process_definitions` table (the earlier
+   draft's choice). *Alt (separate table)* keeps `work_lines` a thin catalog but forks the `/work/projects`
+   catalog + the `work_line_id` task bridge into two homes for one Process. **Recommend: extend `work_lines`**
+   (additive, reversible; the deferred designer fills it richly; one Process identity).
+2. **Cadence kinds + period grain.** Support `manual/daily/weekly/monthly` with WIB period keys (daily
+   `YYYY-MM-DD`, weekly ISO Mon-week, monthly `YYYY-MM`); RRULE deferred; `manual` collapses to one run per
+   (team, day). **Recommend: the four kinds as stated.**
+3. **Spawn trigger model.** Explicit human **Start run** over a `due_process_runs()` read-model; **no** cron/
+   scheduler in v1; auto-materialize-on-read deferred. *Alt A (earlier draft):* an **external VPS cron** driving
+   the identical idempotent RPC as a dedicated role (the shipped `scripts/reporting_snapshot.py` @03:30-WIB
+   precedent). *Alt B:* in-DB `pg_cron`. Because the spawn primitive is one idempotent RPC, either scheduler is
+   an **additive** future change (only the *caller* differs). **Recommend: explicit idempotent Start in v1
+   (fail-closed, human-in-the-loop while the owner is absent); adopt the VPS-cron caller later if a real
+   unattended-spawn need appears.**
+4. **Supervisor resolution depth.** v1 resolves Supervisor explicit → process A → **PIC-self** (editable); the
+   full OD-REDESIGN-41 manager-chain (PIC's BU-matching manager, multi-path→human) is deferred to the designer
+   slice. **Recommend: shallow + editable** (never mis-assigns oversight).
+5. **`process.start` capability grants.** Default-grant **ops_lead + admin** only; no `member` in v1; the Café
+   retrofit (Step 7) decides whether a rostered café `member` may start *"today's opening"*. **Recommend:
+   ops_lead + admin (default-deny broad).**
+6. **Run read visibility.** `mos.process_runs` **org-readable** (consistent with the org-readable Tasks it
+   groups) vs Team-scoped. **Recommend: org-readable.**
+7. **Ambiguity handling model.** Zero/many holders ⇒ a `process_run_pending_tasks` human-choice row (never a
+   Task, never a guessed PIC), resolved via `resolve_pending_task`. This is OD-41 encoded because a Task
+   *requires* a PIC (OD-REDESIGN-40). **Recommend: as stated (fail-closed).**
+8. **Idempotency grain.** `unique(org_id, work_line_id, owning_team_id, period_key)`; `on conflict do nothing`;
+   generate Tasks only on a fresh run. **Recommend: as stated.**
+9. **Completion semantics.** Human `complete_process_run` sets `status='completed'`; no auto-complete; the
+   rollup view carries live progress. **Recommend: human-complete.**
+10. **Checklist-vs-Task boundary (OD-12).** Single-operator steps ⇒ `process_task_defs.checklist_items` →
+    materialized into `task_checklist_items` on one Task; only independently-owned steps get their own def+Task.
+    The author decides at design time (deferred designer); the schema supports both. **Recommend: as stated.**
+
+---
+
+## 9. Acceptance criteria (each owned by ONE test at the lowest sufficient layer)
+
+**Schema / RLS / spawn — pgTAP.** The sandbox has **no Docker**, so `supabase test db` runs in CI via
+`.github/workflows/integration.yml` **`workflow_dispatch`** (`gh workflow run integration.yml --ref <branch>`),
+not locally. Tag each assertion's title with its `AC-###` so `grep -r AC-6## supabase/tests` finds the proof.
+- **AC-601** (pgTAP): Given the migrated DB, then `mos.process_cadences`, `mos.process_task_defs`,
+  `mos.process_runs`, `mos.process_run_pending_tasks` exist with RLS **enabled + forced**, the run idempotency
+  `unique(org_id,work_line_id,owning_team_id,period_key)` and the `process_task_defs` PIC-binding CHECK hold,
+  and `mos.tasks` has nullable `process_run_id`/`generated_from_task_def_id`; **no** table grants DELETE to
+  `authenticated` (NFR-601).
+- **AC-602** (pgTAP): Given an authorized starter, when `spawn_process_run` is called twice for the same
+  (process, team, period), then exactly **one** `process_runs` row exists and the generated Task count does not
+  change on the second call (FR-602 / NFR-602).
+- **AC-603** (pgTAP): Given a spawned run, when a `process_task_defs` row is then edited, then the run's
+  `spec_snapshot`/`definition_version` and its generated Tasks are **unchanged** (FR-603 / FR-613).
+- **AC-604** (pgTAP): Given a def bound to a job function with exactly **one** current holder, when the run
+  spawns, then a Task is created with that holder as PIC (`responsible_person_id`) (FR-604).
+- **AC-605** (pgTAP): Given a def whose job function has **zero** holders, when the run spawns, then **no** Task
+  is created and a `process_run_pending_tasks` row (`reason='none'`) exists; given **two** holders, then no Task
+  and a pending row (`reason='multiple'`, both candidates listed) (FR-605 / OD-41).
+- **AC-606** (pgTAP): Given a pending item, when an authorized human calls `resolve_pending_task` with a
+  candidate, then the Task is created linked to the run + def and the item is marked resolved; a second
+  `resolve_pending_task` on it is **rejected**; a call with a **non-candidate** person is rejected (FR-606).
+- **AC-607** (pgTAP): Given a spawned single-holder Task, then its `business_unit_id` equals the owning Team's
+  BU, its Supervisor (`accountable_person_id`) equals the process A (or PIC-self when A is null), `status='Open'`,
+  `process_run_id` + `generated_from_task_def_id` are set, and `due_date = scheduled_date + due_offset_days`
+  (FR-607).
+- **AC-608** (pgTAP): Given a def carrying `checklist_items`, when its Task materializes, then matching
+  `mos.task_checklist_items` rows exist and no extra Task was created for those steps (FR-608 / OD-12).
+- **AC-609** (pgTAP): Given a run with a mix of Open/Done/overdue Tasks + one unresolved pending item, then
+  `process_run_rollup` returns the correct `total/open/done/overdue/pending_unresolved/completion_pct` (FR-609).
+- **AC-610** (pgTAP): Given an authorized human, when `complete_process_run` is called, then `status='completed'`
+  + `completed_at` are set and the run's Tasks persist; an **unauthorized** caller is rejected (FR-610).
+- **AC-611** (pgTAP): Given an app user, when they attempt a **direct** INSERT into `mos.process_runs` (or
+  `process_run_pending_tasks`), then it is denied (no policy); when `spawn_process_run` is called **without**
+  `process.start` **or** without owning-Team authorization, then it is rejected (FR-614 / NFR-601).
+- **AC-612** (pgTAP): Given a cross-org caller (org-B) invoking `spawn_process_run` on an org-A process/team,
+  then it is rejected; and given a job function whose Role/Team lives in another org, `_function_holders`
+  resolves **zero** holders so a pending row (not a Task) results (NFR-603 / FR-614).
+- **AC-613** (pgTAP): Given `due_process_runs()`, then a daily-cadence process with no run for today (WIB) is
+  listed, and once `spawn_process_run(today)` succeeds it is **omitted** (FR-612).
+
+**DAL / UI — unit (Vitest/RTL, mocked):**
+- **AC-620** (unit): Given the DAL, when `startRun(processId, teamId, date)` is called, then it invokes
+  `.rpc('spawn_process_run', …)` and returns `{ runId, created, pending }`; an RPC error is surfaced (FR-602).
+- **AC-621** (unit): Given a pending item in the DAL, when `resolvePendingTask(id, picId)` is called, then it
+  invokes `.rpc('resolve_pending_task', …)`; `listPendingTasks(runId)` reads the unresolved rows (FR-606).
+- **AC-622** (unit): Given generated Tasks carrying a `process_run_id`, when the Tasks list renders, then they
+  are grouped under the run **caption** and the label string "Process Run" is **never** rendered (FR-611).
+- **AC-623** (unit): Given the Start-run control, when the viewer is `process.start`-capable, then due
+  occurrences render with a **"Start run"** action (no bare "Create"); when not capable, the control is absent
+  (FR-612 / Rule 7).
+- **AC-624** (unit): Given the pending-PIC resolution surface, when it renders a `reason='multiple'` item, then
+  its candidate people are listed and selecting one calls `resolvePendingTask` (FR-606 / OD-41).
+
+**End-to-end — Playwright (≤1 curated; may fold into F2 *today's-opening* at Step 7):**
+- **AC-630** (e2e): Given an authorized lead, when they Start a due process occurrence, then its single-holder
+  generated Tasks appear in `/work/tasks` grouped under the occurrence caption, and an ambiguous step surfaces as
+  a pending item that, once resolved to a PIC, appears as a Task in the same group — the real cross-stack flow
+  across the spawn RPC + RLS + the Tasks view.
+
+---
+
+## 10. Open follow-ups (tracked, not Step 6)
+- Guided Process **designer** (OD-REDESIGN-13); Standards/Steps/Checks/Exceptions (OD-REDESIGN-4/30/31).
+- Auto-materialize-on-read or a VPS-cron/pg_cron caller for the idempotent spawn RPC (RATIFY-3 sequel); the full
+  OD-REDESIGN-41 manager-chain Supervisor resolver.
+- Per-Team Process **adoption** + independent versioning (OD-REDESIGN-54); `process.adopt` wiring.
+- **Café** kitchen-log→occurrence bridge (`ops.kitchen_logs.process_run_id`) — **Step 7** (ADR D11).
+- Task **BU→Team** re-home; run cancellation workflow; occurrence notifications on spawn.
