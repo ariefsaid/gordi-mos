@@ -603,8 +603,12 @@ logic); **e2e** = Playwright (routing / aria-current document-wide / Back+refres
   - _Owns: `mos-app/src/shell/rail-nav.test.tsx` AC-012._
 - **AC-013** (RTL) — _Owns FR-005, FR-024; Rule 1 / Rule 6._
   Given any signed-in viewer, When the rail renders, Then the profile footer row shows the viewer's
-  avatar and "{Site} {role}" and links to `/profile`; the context row renders the active route's job
+  avatar and **full name** + role and opens the identity menu (UserChip) with a working **Sign out**;
+  `/profile` remains reachable as a Utility rail link; the context row renders the active route's job
   sentence from the registry.
+  _(Amended 2026-07-16, security audit HIGH-1: the original "{Site} {role}, links to /profile" footer
+  removed the only sign-out affordance and the viewer's name from the shell — the amended wording is
+  the security-correct behavior; original prose preserved in git history.)_
   - _Owns: `mos-app/src/shell/context-row.test.tsx` AC-013 (and rail-nav AC-013 for the footer)._
 
 ### Top bar + ⌘K palette (Rule 6, Rule 7, OD-57)
