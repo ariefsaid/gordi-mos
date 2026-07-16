@@ -82,3 +82,20 @@ the SDD loop (spec → plan → build → review → accept).
 When an owner decision moves the bar again, add an era here **in the same PR** that records the
 decision (ADR/OD), and banner any doc the new era obsoletes. Do not rewrite old docs to match new
 requirements — stamp them.
+
+
+## E7 provenance — where the redesign era came from (added 2026-07-16)
+
+E7 was not decided in this repo; it was decided in agent threads and distilled here.
+
+- **Origin (why a redesign at all):** the 2026-07-08 Codex design-critique thread — the owner asked for
+  an unsparing critique of the then-current design, concluding it "behaved like several apps", then
+  commissioned high-fidelity mockups.
+  `~/.codex/sessions/2026/07/08/rollout-2026-07-08T11-09-22-019f3fea-869f-77e1-8e42-dad5e34ce85a.jsonl`
+- **The 50+ QnA grill (what E7 IS):** the 2026-07-10→12 Codex marathon (~7,200 turns) that produced
+  **OD-REDESIGN-1..55 + ADR-0025**.
+  `~/.codex/sessions/2026/07/10/rollout-2026-07-10T07-02-16-019f4955-0695-7012-a976-14dbee3263b8.jsonl`
+- Later threads + the zcode prototype builds, with caveats and reading order:
+  `docs/redesign-decision-index.md` § Provenance.
+
+Transcripts are local + unversioned. **The docs are authority; transcripts are archaeology.**

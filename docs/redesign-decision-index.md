@@ -145,3 +145,26 @@ mockups is authorized yet; environment resets and deploys remain owner-gated.
 - `docs/decisions.md` OD-REDESIGN-65 (design iterates ONCE inside implementation; the per-slice design
   review carries the mockup judgment) · OD-REDESIGN-66 (two fronts: manager efficiency AND barista
   obviousness).
+
+## Provenance — the source conversations these decisions came from
+
+The E7 redesign was decided in agent threads outside this repo. They are **the primary record** behind
+ADR-0025 + OD-REDESIGN-1..55; the docs here are their distillation. Cited so the reasoning is
+recoverable (transcripts are local, machine-bound, and **not** version-controlled — treat the docs as
+authority and these as evidence/archaeology).
+
+| Thread | What it is | Where |
+|---|---|---|
+| **Design critique → mockups (the origin)** | The owner asked for an unsparing critique of the then-current design ("be as critical for all the design it currently has"), then "build high fidelity mockups for all of them". This is where the redesign path **started** — the critique that concluded the app "behaved like several apps". | Codex `~/.codex/sessions/2026/07/08/rollout-2026-07-08T11-09-22-019f3fea-869f-77e1-8e42-dad5e34ce85a.jsonl` (~6.4 MB, 2026-07-08) |
+| **★ THE 50+ QnA GRILL → OD-REDESIGN-1..55 + ADR-0025** | The marathon owner↔agent interrogation that produced the locked decision set. Contains the ODs being authored inline (e.g. "OD-REDESIGN-1 — IA: modules as nav roots, grouped by BU (supersedes ADR-0019 D2)"). **~7,200 turns spanning 2026-07-10T00:05 → 2026-07-12T15:40**; ~1,076 OD-REDESIGN references. This is the thread to open when asking "why is OD-REDESIGN-N what it is?" | Codex `~/.codex/sessions/2026/07/10/rollout-2026-07-10T07-02-16-019f4955-0695-7012-a976-14dbee3263b8.jsonl` (~28 MB) |
+| **Parallel/continued redesign thread** | Opened "we have a few model iterating on the redesign of the app… pick up where they have left" — a pick-up session continuing the redesign + prototype work. | Codex `~/.codex/sessions/2026/07/11/rollout-2026-07-11T08-50-33-019f4ede-83d0-7a12-a4a4-72fe86ea00aa.jsonl` (~11 MB) |
+| **Later redesign follow-up** | Smaller continuation thread. | Codex `~/.codex/sessions/2026/07/13/rollout-2026-07-13T07-56-27-019f58f9-b2d6-76e0-b493-abc7ceb92596.jsonl` (~264 KB) |
+| **zcode prototype build** | The E7/convergence prototype build work (GLM/zcode substrate). Artifacts: `~/.zcode/cli/artifacts/sess_c46f9ce4-986f-4248-8153-6ec5ccc3e2bd/`. A surviving plan is committed in-repo: `.zcode/plans/plan-sess_1becba75-1a74-4b48-a45d-1e0174d14ddd.md` (SOPs + shifts + Projects screen + editor conversion, 2026-07-15). | `~/.zcode/cli/artifacts/…` + repo `.zcode/plans/…` |
+
+**Reading order if you need the "why":** the 07-08 critique thread (why a redesign at all) → the
+07-10/12 grill (what was decided and why) → `docs/decisions.md` OD-REDESIGN-1..55 + ADR-0025 (the
+distilled law) → `docs/experience-contract.md` (the falsifiable bar built from it).
+
+**Caveat:** these transcripts are huge (28 MB / 7k turns). Grep them for the specific OD number rather
+than reading linearly, and remember the **docs are authority — a transcript may contain superseded
+mid-conversation positions.**

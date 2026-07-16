@@ -1017,6 +1017,14 @@ section records the direction decisions; the binding ADR is **ADR-0025**; the vo
 **`docs/reference/twenty-ixd-patterns.md`**. One-page map of all 55 (theme groups, OD↔ADR-0025
 cross-refs, supersession chains): **`docs/redesign-decision-index.md`**.
 
+> **Provenance of OD-REDESIGN-1..55 (the "50+ QnA"):** these were decided in a marathon owner↔agent
+> grill on Codex, **2026-07-10T00:05 → 2026-07-12T15:40 (~7,200 turns)** —
+> `~/.codex/sessions/2026/07/10/rollout-2026-07-10T07-02-16-019f4955-0695-7012-a976-14dbee3263b8.jsonl`.
+> The redesign path itself started with the design-critique thread of 2026-07-08
+> (`~/.codex/sessions/2026/07/08/rollout-2026-07-08T11-09-22-019f3fea-869f-77e1-8e42-dad5e34ce85a.jsonl`).
+> Full map + caveats: `docs/redesign-decision-index.md` § Provenance. **These docs are authority; the
+> transcripts are evidence** (they contain superseded mid-conversation positions).
+
 ### OD-REDESIGN-1 — IA: modules as nav roots, grouped by BU (supersedes ADR-0019 D2)
 
 The rail is a **two-zone structure**: Destinations (Home · Work · Money [role-gated] · Inbox) then
