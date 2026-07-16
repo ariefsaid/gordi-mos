@@ -569,8 +569,9 @@ record drawer / full page, where the typed Task already carries them. No new ren
 
 - **Gates:** typecheck 0 · lint 0 · unit green (~2619) · Playwright green (49) · task tests 303 green.
 - **NOT DONE:** the 4-lens design re-review has **not** been re-run against the rendered result, so no
-  APPROVE is recorded. **Blocked on Gordi's local Supabase being down** (design review needs the live
-  app to log in; see `docs/plans/AUTONOMOUS-RUN-STATE.md` § next open item).
+  APPROVE is recorded. **NOT blocked (corrected 2026-07-16):** an earlier note here claimed Supabase was
+  down — that was a mis-read; Supabase is UP (containers healthy, :44321 → 200, app authenticates). The
+  review is simply outstanding. See `docs/plans/AUTONOMOUS-RUN-STATE.md` § THE NEXT OPEN ITEM.
 - **Acceptance when it runs:** at 1280px the Due column is visible with no horizontal clip; optional
   fields reachable in the drawer/full page; no regression of the four already-resolved OD-61..64
   findings.

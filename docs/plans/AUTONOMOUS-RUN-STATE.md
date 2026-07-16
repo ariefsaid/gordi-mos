@@ -135,14 +135,14 @@ merge-to-main; this buildout applies it **per step** because each step is an ind
 (steps 4–11) or part of one (steps 1–3). Passing it per step is what makes the eventual PR reviewable;
 it is not a second, different standard.
 
-## Branch stacking — how step 4+ actually cuts (nothing is pushed)
+## Branch stacking — how step 4+ actually cuts
 
-`feat/redesign-buildout` is **local-only and never pushed**, so remote-tracking stacking is not
-available. Stack **locally off the local branch tip**:
-`git checkout -b feat/redesign-step4-signals feat/redesign-buildout`.
-Each subsequent step cuts from the previous step's local tip. They become independent PRs later, in
-order, once the owner approves and the base is pushed — until then the whole chain stays local. Do not
-try to push an intermediate base to create a stack.
+`feat/redesign-buildout` **is pushed** (`origin/feat/redesign-buildout`, 2026-07-16) but **not merged**.
+Cut each step off the previous step's tip — local or remote-tracking both work now:
+`git checkout -b feat/redesign-step4-signals origin/feat/redesign-buildout` (or the local ref; they're
+in sync — `git fetch` first if unsure). Each subsequent step cuts from the previous step's tip. They
+become independent PRs, merged in order, once the owner approves. **Pushing a step branch is fine
+(a cloud agent needs it); opening a PR / merging is the owner's call.**
 
 ## Related
 

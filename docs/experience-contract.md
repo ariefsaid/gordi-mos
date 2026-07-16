@@ -81,7 +81,7 @@ posts**, never by new rail roots or new anatomies (see Rule 10).
 
 | Budget | Cap |
 |---|---|
-| Destination roots in the rail | **5** (Home · Work · Events · Money *[gated]* · Inbox) — Events added by owner frame directive 2026-07-14 (amends OD-REDESIGN-1 / D1; third ratification slot) |
+| Destination roots in the rail | **5** (Home · Work · Events · Money *[gated]* · Inbox) — Events added by owner frame directive 2026-07-14 (amends OD-REDESIGN-1 / D1). **RATIFIED** by the owner's frame sketch (OD-REDESIGN-57) and shipped in the rail — not a pending slot |
 | Module roots | **3** initially (Café · Ecommerce · Roastery) |
 | BU group headings above Modules | **2** (Retail Ops · B2B Ops) |
 | Utility entries in the rail | **2** (Admin Settings · Personal Profile), gated, in their own group — never a destination zone |
