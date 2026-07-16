@@ -112,9 +112,19 @@ Score **both fronts** (**OD-REDESIGN-66**): manager efficiency/density AND baris
 obviousness. **Every design-review dispatch carries a SCOPE CARD** (what's in-scope this step vs
 deferred to step N) or the reviewer floods the ledger with future-step false failures.
 
-**Serve the mockups to compare against** (they're versioned in-repo):
-`docs/design-mockups/redesign-mockups-2026-07/` — e7 shell (`serve-e7.py` → :8766) and
-`convergence-flows/serve-flows.py` → :8134.
+**Serve the mockups to compare against** — they ARE in-repo (verified from a clean checkout
+2026-07-17; before that, `convergence-flows/` and `serve-e7.py` were in **no git ref** and this
+instruction would have dead-ended):
+```bash
+cd docs/design-mockups/redesign-mockups-2026-07
+python3 serve-e7.py                              # :8766  e7 shell
+cd convergence-flows && python3 serve-flows.py   # :8134  convergence flows
+```
+`SALVAGE-INVENTORY.md` says which mockup owns which surface. **Superseded ≠ wrong:** an older
+mockup or doc that a newer decision moved past is still evidence — read it, don't dismiss it, and
+never delete it. Where an earlier version answered something the current one lost, that's a
+**cross-version regression → blocking** (OD-REDESIGN-65). Mockup-era material that the buildout
+branch doesn't carry is preserved on `codex/e7-prototype`.
 
 ## 6. Substrate
 
@@ -135,8 +145,18 @@ model, the substrate table is advisory — **the gates are not**.
 
 ## 8. Known traps (paid for in blood)
 
-- **Verify the machine before recording a blocker.** A false "Supabase is down" note (a mis-read of a
-  transient port-forward failure) stopped work that wasn't actually blocked.
+- **"Stale" is the quicksand — don't reach for it.** The recurring failure of this project: an agent
+  focused on one thing declares everything else stale/superseded, acts on that, and then the work has
+  to return to what was dismissed (owner, 2026-07-17). **Superseded ≠ wrong ≠ deletable.** Before
+  calling anything stale: (a) prove it — a line count or a date is not proof; diff for content the
+  newer copy *lacks*; (b) **preserve it on its own branch instead of judging it**; (c) say what
+  supersedes it and *by which decision*. This is the same instinct OD-REDESIGN-65 exists to stop:
+  every round re-deciding what earlier rounds already got right.
+- **Verify the machine before recording a blocker — or a reassurance.** A false "Supabase is down"
+  note (a mis-read of a transient port-forward failure) stopped work that wasn't blocked. Worse, the
+  docs claimed the mockups were "not at risk of being lost" while `convergence-flows/` sat in **no git
+  ref at all** — a false reassurance fails silently, later, in someone else's sandbox. `git ls-tree`
+  the thing before you promise it's there.
 - **Edit one section → check its dependents.** Four self-contradictions shipped this way.
 - **Two RACI leaks** were found only because *both* reviews ran — code review caught the one the design
   review missed, and vice-versa. Don't drop either.

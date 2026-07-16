@@ -104,15 +104,26 @@ this removes no phase, spec, review, or gate.
   context), minimal screenshots. `/private/tmp` is wiped on restart — dispatch scripts must be
   recreated; anything durable belongs in the repo.
 
-## Mockups: where they actually live (they are VERSIONED HERE)
+## Mockups: where they actually live (VERSIONED HERE — true as of 2026-07-17, was NOT before)
 
-The mockups are **tracked in this repo** at `docs/design-mockups/redesign-mockups-2026-07/` (e7 shell +
-`convergence-flows/` + `SALVAGE-INVENTORY.md`). They are load-bearing evidence for every UI review and
-are **not** at risk of being lost.
+The mockups are tracked at `docs/design-mockups/redesign-mockups-2026-07/` (e7 shell +
+`convergence-flows/` + `SALVAGE-INVENTORY.md`). Serve them **straight from this repo**:
+`python3 serve-e7.py` → :8766 · `cd convergence-flows && python3 serve-flows.py` → :8134
+(both verified HTTP 200 + rendering from a repo checkout, 2026-07-17).
 
-The sibling working copy `../gordi-mos-e7-prototype` is only a **convenience for serving them live**
-(`serve-e7.py` → :8766, `convergence-flows/serve-flows.py` → :8134) while the main repo sits on a
-feature branch. If it's missing, serve the same files straight from this repo — nothing is lost.
+**⚠ This section used to say the mockups were tracked and "not at risk of being lost." That was
+FALSE and went unchallenged for days.** `convergence-flows/` (19 files) and `serve-e7.py` existed in
+**no git ref at all** — only as untracked files in the sibling `../gordi-mos-e7-prototype` worktree,
+on one disk — while 10 committed docs pointed at them and `SALVAGE-INVENTORY.md` named
+convergence-flows the **owner** of specific surfaces. Fixed 2026-07-17 (commit `962de90`); the
+worktree is preserved verbatim on `codex/e7-prototype` (`6f0a46a`).
+
+**Lesson (same shape as the false-Supabase-blocker below): verify the machine before writing a
+reassurance into the docs.** "Nothing is lost" is a claim about the filesystem — check it with
+`git ls-tree`, don't infer it. A false reassurance is more dangerous than a false blocker: a blocker
+stops work loudly; a reassurance fails silently, at the worst moment, in someone else's sandbox.
+
+The sibling worktree `../gordi-mos-e7-prototype` is now **optional** — nothing depends on it.
 
 ## Open-question trackers — ONE source of truth
 
