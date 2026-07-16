@@ -89,9 +89,23 @@ drives it itself and reads its own screenshots.
 
 **Skills are GITIGNORED — a clone has none.** `.claude/agents/` (11 role agents) IS committed, but
 `.claude/skills/` is not, and `design-reviewer` invokes `design-review` / `impeccable` / `taste` /
-`ui-ux-pro-max`. Re-create them: **`bash scripts/vendor-skills.sh`** (clones 5 public repos — needs
-network). If it fails, say so and run the 4 lenses from `design-reviewer.md`'s own instructions
-rather than silently skipping the lens — a skipped lens is not a pass.
+`ui-ux-pro-max`. Two commands, both needed:
+
+```bash
+bash scripts/vendor-skills.sh    # 15 skills from 6 public repos (needs network). Verified 2026-07-17:
+                                 # exit 0, restores design-review + impeccable + taste + ui-ux-pro-max.
+claude plugin install superpowers@claude-plugins-official --scope project
+```
+
+**The plugin is NOT optional and NOT covered by the vendor script.** `CLAUDE.md`'s skill-ownership
+table gives superpowers three phases of the loop — **planning** (brainstorming, writing-plans),
+**TDD/debugging/verification**, and **code review** (spec + quality reviewers). Without it you have
+the design engines and none of the build/review engines.
+
+If either fails, **say so and stop the step at "review-pending"** — run the 4 lenses from
+`design-reviewer.md`'s own directed prompts rather than silently dropping one. A skipped lens is not
+a pass, and a battery that quietly ran three of four is the exact false-green this project keeps
+paying for (§8).
 
 **Also verify before trusting the design battery:** `.claude/agents/design-reviewer.md` still carries
 pre-redesign calibration anchors (a "Review" verb on a *Daily Log*, the upward *weekly-update* pane).

@@ -24,7 +24,11 @@ era-bound history unless the evolution doc says otherwise.
   `reporting` (curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5).
 - `scripts/` — repo tooling. `pre-merge-check.sh` (the gate), `cloud-agent-bootstrap.sh` (full local
   stack for a fresh sandbox), `vendor-skills.sh`.
-- `.claude/agents/`, `.claude/skills/` — role agents and vendored skills (skills are gitignored; re-create with `scripts/vendor-skills.sh`).
+- `.claude/agents/` — the 11 role agents (committed). `.claude/skills/` — vendored skills, **gitignored**,
+  so a fresh clone has NONE. Restore the toolchain with BOTH:
+  `bash scripts/vendor-skills.sh` (15 skills incl. the design battery's `design-review` · `impeccable` ·
+  `taste` · `ui-ux-pro-max`) **and** `claude plugin install superpowers@claude-plugins-official --scope project`
+  (a plugin, not vendored — it owns planning · TDD/verification · code review in the table below).
 
 ## Operating model: Owner → Director → role agents
 The **owner** (Arief) talks to the **Director** (the main session). The Director runs an
