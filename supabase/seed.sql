@@ -176,3 +176,36 @@ insert into reporting.bom_lines (org_id, menu_item_esb_code, ingredient_esb_code
 on conflict (org_id, menu_item_esb_code, ingredient_esb_code) do update
   set recipe_qty = excluded.recipe_qty, qty_unit = excluded.qty_unit, as_of = excluded.as_of,
       loaded_at = excluded.loaded_at;
+
+-- ─── Signal Team substrate (Step 4, ADR-0050 D1) ─────────────────────────────────────────────
+-- Fresh-reset parity for the sites/teams the 20260716000001 migration seeds on a pre-existing DB.
+-- Migrations run BEFORE this seed, so on a bare `supabase db reset` the migration's own do-block is a
+-- no-op (shared.orgs empty at migration-time); this block seeds the substrate for the Gordi org that
+-- seed.sql creates above. Idempotent (resolves BU by stable `code`; on conflict do nothing).
+do $$
+declare o record;
+begin
+  for o in select id as org_id from shared.orgs loop
+    insert into shared.sites (id, org_id, name, code) values
+      (gen_random_uuid(), o.org_id, 'Gordi HQ', 'gordi_hq'),
+      (gen_random_uuid(), o.org_id, 'Radiant',  'radiant'),
+      (gen_random_uuid(), o.org_id, 'Roastery', 'roastery')
+    on conflict (org_id, code) do nothing;
+    insert into shared.teams (id, org_id, business_unit_id, site_id, name, code)
+    select gen_random_uuid(), o.org_id, bu.id,
+           (select s.id from shared.sites s where s.org_id = o.org_id and s.code = t.site_code),
+           t.name, t.code
+    from (values
+      ('retail_ops','HQ Operations','hq_operations','gordi_hq'),
+      ('retail_ops','Radiant Operations','radiant_operations','radiant'),
+      ('retail_ops','Ecommerce Team','ecommerce_team',null),
+      ('b2b_ops','Roastery Team','roastery_team','roastery'),
+      ('b2b_sales','B2B Sales Team','b2b_sales_team',null),
+      ('marketing','Marketing Team','marketing_team',null),
+      ('hr','HR Team','hr_team',null),
+      ('finance','Finance Team','finance_team',null)
+    ) as t(bu_code,name,code,site_code)
+    join shared.business_units bu on bu.org_id = o.org_id and bu.code = t.bu_code and bu.archived_at is null
+    on conflict (org_id, code) do nothing;
+  end loop;
+end $$;
