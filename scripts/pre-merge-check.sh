@@ -23,7 +23,23 @@ if [[ "$BRANCH" == "main" ]]; then
   exit 1
 fi
 
-MERGE_BASE="$(git merge-base main HEAD)"
+# Resolve the main ref explicitly. A fresh/cloud clone of a feature branch often has NO local
+# `main`, and the bare `git merge-base main HEAD` then died before a single check ran. Prefer the
+# local ref, fall back to origin/main, and fail LOUDLY (never silently) if neither resolves.
+if git rev-parse --verify --quiet main >/dev/null; then
+  MAIN_REF=main
+elif git rev-parse --verify --quiet origin/main >/dev/null; then
+  MAIN_REF=origin/main
+else
+  echo "ERROR: cannot resolve 'main' or 'origin/main' — cannot compute the diff to review." >&2
+  echo "  Fix: git fetch origin main    (do NOT skip this gate because the ref is missing)" >&2
+  exit 1
+fi
+
+if ! MERGE_BASE="$(git merge-base "$MAIN_REF" HEAD)"; then
+  echo "ERROR: git merge-base $MAIN_REF HEAD failed — refusing to guess the review scope." >&2
+  exit 1
+fi
 
 # ── 2. Compute ledger path (slashes → dashes) ────────────────────────────────
 LEDGER_SLUG="${BRANCH//\//-}"
@@ -42,7 +58,19 @@ if [[ ! -f "$LEDGER" ]]; then
 fi
 
 # ── 4. Inspect changed files to determine required reviews ───────────────────
-CHANGED_FILES="$(git diff --name-only "${MERGE_BASE}..HEAD" 2>/dev/null || true)"
+# FAIL-CLOSED. This was `... 2>/dev/null || true` — which meant ANY git failure produced an empty
+# file list, and an empty list matches no pattern, so REQUIRE_DESIGN and REQUIRE_SECURITY silently
+# became false and the gate waved the branch through on spec+code-quality alone. A check whose
+# failure mode is silence is not a check: the error must never be quieter than the pass.
+if ! CHANGED_FILES="$(git diff --name-only "${MERGE_BASE}..HEAD")"; then
+  echo "ERROR: git diff ${MERGE_BASE}..HEAD failed — cannot determine which reviews are required." >&2
+  exit 1
+fi
+if [[ -z "$CHANGED_FILES" ]]; then
+  echo "ERROR: no files changed vs ${MAIN_REF} — nothing to review, or the merge-base is wrong." >&2
+  echo "  A gate that requires no reviews is not a gate. Refusing to pass." >&2
+  exit 1
+fi
 
 # AC-002 (step-1 styling pass) is NOT enforced here: this is the SHARED pre-merge gate and later
 # redesign steps (2+) legitimately change *.tsx. AC-002 was a one-time property of the step-1 commit
@@ -69,15 +97,21 @@ fi
 # Verdict must be one of: PASS, SHIP, FIX-THEN-SHIP
 # Blocking verdicts: REWORK, FAIL, STILL-FAILING, or anything else (incl blank)
 
-ACCEPTED_PATTERN='^(PASS|SHIP|FIX-THEN-SHIP)$'
-BLOCKING_PATTERN='^(REWORK|FAIL|STILL-FAILING)$'
+# APPROVE/BLOCK were missing here while the review battery has used exactly those two words since
+# the redesign began — so the vocabulary the reviewers actually write was unrecognized by the gate
+# that judges them. Both spellings are accepted now; drift like this is why the gate went unrun.
+ACCEPTED_PATTERN='^(PASS|SHIP|FIX-THEN-SHIP|APPROVE|APPROVED)$'
+BLOCKING_PATTERN='^(REWORK|FAIL|STILL-FAILING|BLOCK|BLOCKED)$'
 
 parse_verdict() {
   local review_key="$1"
   # Match lines like: - spec: PASS — ...  or  - code-quality: SHIP — ...
   # Key is case-insensitive prefix match
   local line
-  line="$(grep -iE "^[[:space:]]*-[[:space:]]+${review_key}[[:space:]]*:" "$LEDGER" | head -1 || true)"
+  # tail -1, not head -1: the battery's convention is BLOCK -> fix -> re-verify -> APPROVE, so the
+  # LAST recorded verdict is the current one. head -1 read the oldest — which meant an early PASS
+  # could outrank a later BLOCK. If a key has several lines, the count is surfaced in the report.
+  line="$(grep -iE "^[[:space:]]*-[[:space:]]+${review_key}[[:space:]]*:" "$LEDGER" | tail -1 || true)"
   if [[ -z "$line" ]]; then
     echo ""
     return
