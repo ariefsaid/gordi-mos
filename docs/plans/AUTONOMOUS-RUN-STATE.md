@@ -46,20 +46,18 @@ owner's visual sign-off + the step-2 walkthrough.
 | 2 Shell + routes | ✅ | BLOCK → fixed → **APPROVE** | ✅ | **Done** (pending owner walkthrough) |
 | 3 Tasks re-home | ✅ | BLOCK → fixed → **APPROVE** | ✅ | **Done** (pending owner visual sign-off) |
 | Remediation waves 1/2/2b | ✅ | BLOCK → fixed → **APPROVE** | OD-61..64 all **RESOLVED**, 0 new regressions | Done |
-| **Wave 2c** (desktop table density) | ✅ `8ab3235` | gates green (typecheck 0, lint 0, ~2619 unit, 49 e2e) | ⛔ **NOT re-verified — the open item** | **Built, design-review PENDING** |
-| 4–11 | ❌ not started | — | — | Blocked on the item below + owner gates |
+| **Wave 2c** (desktop table density) | ✅ `8ab3235` | spec + code-quality **APPROVE** (2026-07-16, cloud) | **APPROVE** (2026-07-16, rendered, pixel evidence) | **Done** |
+| Security BLOCK (HIGH-1/2, MED-1, LOW-1) | ✅ fixed `54afd98`+`0088246` | re-audit **APPROVE** | shell fix 4-lens **APPROVE** | **Done** |
+| 4 Signal v1 | 🔨 in progress (cloud run) | — | — | spec+plan+ADR-0050 done; building |
+| 5–11 | ❌ not started | — | — | queued behind step 4 |
 
-## ▶ THE NEXT OPEN ITEM (do this first)
+## ▶ BASE IS CLOSED (2026-07-16, cloud autonomous run — OD-REDESIGN-67)
 
-**Re-run the design review to confirm Wave 2c cleared the last BLOCK.** The design re-review
-(`docs/reviews/feat-redesign-buildout.md` § "Design RE-review steps 1–3") returned **BLOCK** on exactly
-one in-scope finding: the desktop Tasks table at 1280px overflowed (10 columns / ~1284px inside a 994px
-viewport), pushing the decision-critical **Due** column off-screen vs the e7 reference. Wave 2c
-(`8ab3235`) trimmed the table to e7 priority columns and moved the optional ones to the drawer.
-**No APPROVE has been recorded** — steps 1–3 are NOT closed until it is.
-
-Acceptance: at 1280px the Due column is visible with no horizontal clip; the optional fields remain
-reachable in the drawer/full page; none of the other four resolved OD-61..64 findings regress.
+All four STEP-0 verdicts are honest APPROVEs and `bash scripts/pre-merge-check.sh` exits **0** on
+`claude/redesign-buildout-completion-6vu4tr` (= `origin/feat/redesign-buildout` + the base-closing
+commits; `feat/redesign-buildout` itself left untouched — merge remains the owner's). Steps 4–11
+proceed on step branches stacked on this tip. Owner-facing sign-offs (visual diffs, walkthroughs,
+Q1 ratification) collapse into the single post-step-11 review per the handoff.
 
 **Environment: NOT blocked (corrected 2026-07-16).** Gordi's local Supabase **is UP** — all
 `supabase_*_gordi-mos` containers healthy, api :44321 returns 200, and the app authenticates. An earlier

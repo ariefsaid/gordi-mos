@@ -31,6 +31,14 @@ shell + routes, Tasks re-home) + design-remediation waves 1 / 2 / 2b / 2c.
   no APPROVE recorded. **THE next open item** (`docs/plans/AUTONOMOUS-RUN-STATE.md`). Acceptance: at
   1280px the Due column is visible with no horizontal clip; optional fields reachable in the
   drawer/full page; no regression of the resolved OD-61..64 findings.
+- design: APPROVE — 4-lens re-review ran 2026-07-16 (design-reviewer, opus, cloud run) against the
+  RENDERED app (Director persona, fresh contexts, 1280px + 390px, screenshots) on both deltas:
+  **Wave 2c APPROVE** (all four acceptance clauses pass with pixel evidence — Due th at 1083-1215
+  inside a 1255 table edge, scrollWidth==clientWidth==994 at every container, optional fields
+  verified in the drawer, OD-61..64 hold, Rule-5 single aria-current verified) and **security-fix
+  shell APPROVE** (sign-out discoverable both breakpoints, e7/OD-57 footer intent matched, Rule 11
+  reuse, Rules 2/3/5/6/7/9/11/12 pass). 0 Critical / 0 Important in scope. Minors + one
+  out-of-scope Rule-8 mobile observation recorded in § "Design re-review (2026-07-16)" below.
 - security: BLOCK — OWASP/STRIDE audit RAN 2026-07-17 (`security-auditor`, opus; Director-verified
   every load-bearing claim against the code). **0 Critical. 2 High, 1 Medium, 1 Low.** Nothing
   injectable, no secret exposure, no tenancy/`org_id` bypass, no ungated sensitive route, no
@@ -777,3 +785,43 @@ against the code, not the fixer's report; confirmed by a passing 4-spec auth e2e
 - **New findings: none blocking.** Informational → step-11 sweep: `user-chip.tsx:23` header-variant/
   `compact` dead branch; persona-swap resets could reuse `signOutViaUi`. No new access-control,
   tenancy, injection, secret, or capability regressions. Zero migrations touched.
+
+---
+
+## Design re-review (2026-07-16, cloud autonomous run) — 4-lens, rendered (design-reviewer, opus)
+
+**Method:** live app driven as Director persona (broad access), fresh Chromium contexts, 1280px +
+390px screenshots read by the reviewer; e7 (:8766) + convergence (:8134) mockups compared per
+SALVAGE-INVENTORY. Rules-in-docs assessed FIRST, then mockup fidelity + cross-version regression.
+
+### Delta 1 — Wave 2c Tasks DB-view (`8ab3235`): **APPROVE**
+Acceptance clause-by-clause, all PASS with pixel evidence: Due visible at 1280px, zero horizontal
+clip (scrollWidth==clientWidth==994 at .tasks-scroll/.assembly/.split); 7-col priority table; all
+five optional fields verified reachable in the drawer (+ full-page link); OD-61..64 hold (canonical
+URL drawer, single aria-current). All four lenses PASS; Rule-12 cold-start PASS (manager front —
+the surface's primary persona per OD-61).
+
+### Delta 2 — security-fix shell (`54afd98`, `0088246`): **APPROVE**
+Footer chip matches convergence frame/OD-57 "profile footer" intent (not a re-invention); sign-out
+screenshot-verified discoverable on BOTH breakpoints (rail footer chip → menu up; mobile More →
+drawer chip → menu down); no drawer crowding (~40px row); on-token visuals; chip is a button (no
+aria-current impact); /profile reachable as Utility link. Rules 2/3/5/6/7/9/11/12 all PASS. This
+commit is a cross-version FIX (restores an affordance the redesign lost).
+
+### Issues
+- Critical: none. Important: none in scope.
+- **Out-of-scope observation (flag for step-5/-3 member-persona re-audit):** mobile /work/tasks at
+  390px front-loads view controls before the first work card — against Rule 8's letter, but audited
+  as Director (OD-61 grants managers density). Re-audit as member/barista persona in a later step.
+- Minor 1: identity-chip menu lacks a "Personal Profile" item (convention: profile inside avatar
+  menu; rail link exists so not a defect). Minor 2: transient popover overlaps (Locale row /
+  Admin Settings) — close on dismiss, acceptable.
+
+### Mockup-regression list
+None blocking. e7's row subtitle + Lane column absent = intended (OD-62 drawer move); identity in
+rail footer not top-right = intended (OD-57); "Ask deputy" in ⌘K = owner frame directive.
+
+### Regression-invariant candidates (Director follow-ups)
+1. Assert tasks-table container scrollWidth==clientWidth at 1280/1024 (extend AC-W2C).
+2. Keep the shell-level sign-out mount tests as the LOW-1 guard (already landed).
+3. Curated assertion: exactly one aria-current="page" across /work/tasks, /work/tasks/<id>, /.
