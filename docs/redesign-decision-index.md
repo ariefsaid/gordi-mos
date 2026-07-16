@@ -161,9 +161,37 @@ authority and these as evidence/archaeology).
 | **Later redesign follow-up** | Smaller continuation thread. | Codex `~/.codex/sessions/2026/07/13/rollout-2026-07-13T07-56-27-019f58f9-b2d6-76e0-b493-abc7ceb92596.jsonl` (~264 KB) |
 | **zcode prototype build** | Build-substrate work only — **contains NO redesign QnA** (verified 2026-07-16). The only readable zcode artifact is the plan committed in-repo: `.zcode/plans/plan-sess_1becba75-1a74-4b48-a45d-1e0174d14ddd.md` (SOPs + shifts + Projects screen + editor conversion, 2026-07-15). | repo `.zcode/plans/…` |
 
+### Follow-up threads — from the grill to the current buildout (Claude side)
+
+The grill produced the *decisions*; these threads are where the mockups were judged, the **owner's
+frustration surfaced**, and that frustration was converted into the buildout + OD-REDESIGN-56..66.
+
+| Thread | Span | What it is |
+|---|---|---|
+| **Claude — pre-redesign era running into the lock** | 2026-06-29 → **2026-07-09** | The MOS workstream (agent-native ADR port, kitchen, cascade) that was in flight when E7 was locked on 07-09/10. Context for what the redesign inherited. `~/.claude/projects/-Users-ariefsaid-Coding-gordi-mos/da880767-4e08-4533-974b-fde455dccd86.jsonl` (~43 MB) |
+| **★ Claude — THE FRUSTRATION → this buildout** | **2026-07-13 → 2026-07-16** | **The thread you are in.** Opens: *"im working on the redesign and ask the same question to 2 agents… assess which of these agents answer better?"* Contains the owner's frustration stated directly — mockups after 50+ QnA still *"not repulsed with, not happy enough, but passable"*; *"when we did a new version to address 1 thing, the other part that is already good for me, get changed in the new version"* (the **fork problem**); *"might as well reiterate when building rather than reiterating twice"*. **This is where the redesign changed course.** `~/.claude/projects/-Users-ariefsaid-Coding-gordi-mos/7e03ff90-ef78-4491-8422-d103534d2d51.jsonl` (~8 MB) |
+| **Claude — MOS origin era** | 2026-06-18 → 06-29 | Earliest MOS-as-management-OS framing, pre-redesign. `…/92581b7f-b291-4b14-b677-e6d20b20f5bb.jsonl` (~31 MB) |
+
+**What the frustration thread produced** (i.e. why the current plan looks the way it does):
+- **OD-REDESIGN-56** — mockup phase CLOSED; iterate in the app, not in throwaway drafts (*"might as well
+  reiterate when building rather than reiterating twice"*).
+- **OD-REDESIGN-57** — the owner's hand-sketched frame (breadcrumb + ⌘K header, Work ▸ 4 collections,
+  Events rail root).
+- **OD-REDESIGN-58** — process occurrences surface as **Tasks**; job-function → holder PIC binding.
+- **OD-REDESIGN-59..64** — Signal home, component reuse (Rule 11), role-based disclosure, typed Task
+  (RACI off tasks), record URL grammar, Home dead-links.
+- **OD-REDESIGN-65** — *the direct answer to the quicksand*: design iterates **once, inside
+  implementation**; the per-slice design review carries the mockup judgment incl. **cross-version
+  fork-catching**.
+- **OD-REDESIGN-66** — the **two fronts** (manager efficiency AND barista obviousness).
+- `docs/experience-contract.md` (Rules 1–12) + `docs/plans/2026-07-14-redesign-buildout.md` (the 11
+  steps) + steps 1–3 built on `feat/redesign-buildout`.
+
 **Reading order if you need the "why":** the 07-08 critique thread (why a redesign at all) → the
 07-10/12 grill (what was decided and why) → `docs/decisions.md` OD-REDESIGN-1..55 + ADR-0025 (the
-distilled law) → `docs/experience-contract.md` (the falsifiable bar built from it).
+distilled law) → `docs/experience-contract.md` (the falsifiable bar built from it) → **the 07-13→16
+Claude frustration thread** (why the mockup loop was closed and the buildout looks like this) →
+`docs/plans/AUTONOMOUS-RUN-STATE.md` (where it stands now).
 
 ### Format — what these files actually are (verified 2026-07-16)
 
