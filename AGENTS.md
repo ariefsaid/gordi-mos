@@ -1,8 +1,9 @@
 # Gordi MOS — project instructions
 
-> **Cold start? → `docs/agent-context.md` — read this FIRST** (owner prefs · hard rules · gotchas ·
-> pointers). Then **`docs/plans/AUTONOMOUS-RUN-STATE.md`** for where the current workstream stands.
-> Evidence of record for the redesign: `docs/reviews/feat-redesign-buildout.md`.
+> **This file is the standing rules — it does not track state.** Current state, active workstreams,
+> and per-run handoffs live in **`docs/agent-context.md`**. **Cold start → read that FIRST**
+> (owner prefs · hard rules · gotchas · pointers to everything else, including where the current
+> workstream stands and who is running it). Anything ephemeral belongs there, never here.
 
 > **Precedence:** `CLAUDE.md` is the authority for this repo's charter, loop, and gates. This file
 > mirrors it for non-Claude agents. If the two ever disagree, **CLAUDE.md wins** — and the divergence is
@@ -12,30 +13,23 @@
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
 Ships at `https://ops.gordi.id/mos`. **Usability and speed beat model completeness and Notion fidelity.**
 
-> **Redesign is the current direction (2026-07-09/10).** A full IA/IxD/UI redesign was locked by the
-> owner — orient through **`docs/redesign-decision-index.md`**, then **ADR-0025**
-> (`docs/adr/0025-ia-modules-in-rail-redesign-direction.md`) and
-> **`docs/decisions.md` OD-REDESIGN-1..55**. Current product model/vocabulary is **`CONTEXT.md`**
-> (PIC + Supervisor Task ownership; Signal replacing Weekly Update/Daily Log; one record workspace;
-> modules-in-rail: Home · Work · Money · Inbox + Café/Ecommerce/Roastery). Canonical Phase-0 next step
-> = **update the redesign working set into one decision-complete prototype**
-> (`docs/design-mockups/redesign-mockups-2026-07/`)
-> to `docs/jtbd.md` v0.4 + its `PROTOTYPE-BRIEF.md` → owner approval → SDD → plan → TDD build →
-> review → BDD acceptance.
->
-> The earlier **"first slice: task ownership + lightweight RACI + weekly updates + daily ops
-> updates"** framing (below and in `docs/project-brief.md`) is **pre-redesign history** — Task RACI,
-> Weekly Updates, and Daily Log are superseded; the app has never been used and a clean data baseline
-> is authorized in direction only (no reset/deploy is authorized by this note). **Everything else in
-> this file — the operating model, the per-issue loop, quality gates, checkpoints — is unchanged and
-> still binding.**
+**Scope evolves by owner decision, in eras.** Never trust an older doc's scope without checking the
+era timeline first: **`docs/requirements-evolution.md`** (authoritative), then `docs/decisions.md`
+(owner decisions) + `docs/adr/` (architecture). The current product model/vocabulary is **`CONTEXT.md`**.
+`docs/project-brief.md` and `docs/roadmap.md` are era-bound history unless the evolution doc says
+otherwise. Where the current workstream stands — and any active autonomous-run charter — is in
+`docs/agent-context.md`, not here.
 
 ## Repo layout
-- `mos-app/` — the app (React 19 + Vite + TypeScript; scaffolded in Phase 1, NOT before). Run npm/vite here.
+- `mos-app/` — the app (React 19 + Vite + TypeScript). Run npm/vite here, never at the repo root.
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
-- `docs/design-mockups/` — Phase 0 static HTML mockups (IA proposals + key screens).
+- `docs/design-mockups/` — static HTML mockups (IA proposals + key screens), versioned in-repo.
 - `docs/backlog.md` `docs/decisions.md` `docs/roadmap.md` — what's next, owner decisions, phasing.
-- `supabase/migrations/` — Postgres schema + RLS (schemas: `shared` / `mos` / `ops` / `integrations` / `reporting`). (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migrations deployed (`20260701000001_reporting_sales_daily_revenue.sql`, `20260704000002_reporting_sales_margin_daily.sql`); snapshot job runs on the VPS at 03:30 WIB; live on staging.)
+- `docs/reviews/<branch>.md` — the review ledger: evidence of record for every merge gate.
+- `supabase/migrations/` — Postgres schema + RLS. Schemas: `shared` / `mos` / `ops` / `integrations` /
+  `reporting` (curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5).
+- `scripts/` — repo tooling. `pre-merge-check.sh` (the gate), `cloud-agent-bootstrap.sh` (full local
+  stack for a fresh sandbox), `vendor-skills.sh`.
 - `.claude/agents/`, `.claude/skills/` — role agents and vendored skills (skills are gitignored; re-create with `scripts/vendor-skills.sh`).
 
 ## Operating model: Owner → Director → role agents
@@ -59,11 +53,12 @@ do not require an approval pause; push, PR-to-merge, merge, and deploy always do
    targeting `dev`). Opening or updating the PR needs no further approval after the branch exists
    remotely. Director merges only after the applicable approval gate.
 
-**Phase 0 exception (mockup-first):** before redesign implementation, `design-architect` produces one
-decision-complete interactive HTML prototype in `docs/design-mockups/` to the adopted `DESIGN.md`
-tokens. Earlier variants remain evidence only. The owner's prototype approval is a **gate**: no redesign
-spec or implementation proceeds until signed off. The existing app is legacy evidence, not authorization
-to skip this gate.
+**Mockup-first (any new UI workstream):** `design-architect` produces static HTML mockups in
+`docs/design-mockups/` to the adopted `DESIGN.md` tokens *before* UI code. The owner's mockup pick is a
+**gate**. Once a workstream's mockups are signed off they are **standing references with a presumption
+of correctness** — port what they answered; don't re-open them mid-build. Re-iterating mockups per
+build round is a known failure mode of this project (see the redesign's OD-REDESIGN-65).
+Whether a given workstream's mockup gate is open or closed is **state** — check `docs/agent-context.md`.
 
 ## Director posture (main session)
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
@@ -143,8 +138,13 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
   fix the **app**; only for a *deliberate* UX change update the journey *steps*, and the goal-oracle
   stays intact. Never bend an assertion to the app's current state to go green.
 
-## Tech stack & commands (Phase 1 on; run inside `mos-app/`)
+## Tech stack & commands (run inside `mos-app/`)
 - React 19, Vite, TypeScript, react-router-dom 7. Backend: **self-hosted Supabase** (Postgres + Auth +
-  RLS), shared with future Gordi ops apps via schemas `shared` / `mos` / `ops` / `integrations` / `reporting`. (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migrations deployed (`20260701000001_reporting_sales_daily_revenue.sql`, `20260704000002_reporting_sales_margin_daily.sql`); snapshot job runs on the VPS at 03:30 WIB; live on staging.)
+  RLS), shared with future Gordi ops apps via schema separation, not project separation.
 - `npm run dev` · `npm run build` · `npm run typecheck` · `npm test` (Vitest) · `npx playwright test` (e2e).
+- **Fresh sandbox / no local stack?** `bash scripts/cloud-agent-bootstrap.sh` brings up Supabase, writes
+  the app's env, installs deps + Chromium, and verifies the app actually renders. Env files are
+  gitignored — a clone alone cannot log in, so nothing that needs a rendered app works without this.
+- **Never** point tests, `db reset`, or pgTAP at cloud staging — it holds real migrated business data.
+  Everything runs against the ephemeral local stack.
 - Commit trailer: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.

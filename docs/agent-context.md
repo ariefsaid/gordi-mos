@@ -3,6 +3,18 @@
 Fast cold-start for a fresh agent (esp. post-compaction). This is the human/process layer; the
 authoritative product/decision docs are linked at the bottom. Keep this file updated as things change.
 
+> **This file owns STATE. `CLAUDE.md` / `AGENTS.md` own the standing RULES and deliberately carry no
+> state** (tidied 2026-07-16, owner-directed: "it needs to be the rules spanning over time, it cannot
+> be for ephemeral notes"). So: what's in flight, what's next, which gate is open, who's running it →
+> **here**. A rule that outlives the workstream → there. Putting state back into `CLAUDE.md` is a
+> regression, not an update.
+
+> **Working in a fresh sandbox / cloud agent / new clone?** Run **`bash scripts/cloud-agent-bootstrap.sh`**
+> first: `mos-app/.env*` are gitignored, so a clone has **no anon key** — the dev server boots but login
+> is dead and **no design review is possible**. The script starts Supabase, writes the env, installs deps
+> + Chromium, and verifies the app renders. Verified from a bare clone 2026-07-16 (bootstrap → login →
+> Home with live data).
+
 > **Product/IA direction below is superseded (2026-07-09/10) by ADR-0025 + `docs/decisions.md`
 > OD-REDESIGN-1..55** (era **E7**, `docs/requirements-evolution.md`) — a full redesign, not a
 > continuation of the "Current state" / "Headline current state" workstream dated 2026-07-07 below.

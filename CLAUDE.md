@@ -1,26 +1,29 @@
 # Gordi MOS — project instructions
 
-> **Cold start? → `docs/agent-context.md` — read this FIRST** (owner prefs · hard rules · gotchas ·
-> pointers). Then **`docs/plans/AUTONOMOUS-RUN-STATE.md`** for where the current workstream stands.
-> Evidence of record for the redesign: `docs/reviews/feat-redesign-buildout.md`.
-> **Cloud agent running redesign steps 4–11 → `docs/plans/CLOUD-AGENT-HANDOFF.md`** (OD-67).
-> **Why any redesign decision is what it is → `docs/reference/provenance/`** (grill + frustration threads, owner prompts verbatim).
+> **This file is the standing rules — it does not track state.** It changes when a *rule* changes,
+> not when work moves. Current state, active workstreams, and per-run handoffs live in
+> **`docs/agent-context.md`** (cold-start: owner prefs · hard rules · gotchas · pointers to
+> everything else). **Cold start → read `docs/agent-context.md` FIRST.**
+> Anything ephemeral (what's in flight, what's next, who's running it) belongs there, never here.
 
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
-The requirement has **evolved by owner decision** — current bar (E6, ADR-0019/0020): **the operating
-system for all ~30 people** — viable, not minimum; five destinations (Home/Work/Operate/Plan/Inbox);
-tasks + RACI + updates + per-Activity ops + reference data + money follow-ups. The original
-"first slice" (tasks + RACI + weekly/daily updates) is **historical (E1)** — read
-`docs/requirements-evolution.md` for the era timeline before trusting any older doc's scope.
-Ships at `https://ops.gordi.id/mos`. Product history: `docs/project-brief.md` (era-bound E1).
-Phasing: `docs/roadmap.md`. **Usability and speed beat model completeness and Notion fidelity.**
+Ships at `https://ops.gordi.id/mos`. **Usability and speed beat model completeness and Notion fidelity.**
+
+**Scope evolves by owner decision, in eras.** Never trust an older doc's scope without checking the
+era timeline first: **`docs/requirements-evolution.md`** (authoritative), then `docs/decisions.md`
+(owner decisions) + `docs/adr/` (architecture). `docs/project-brief.md` and `docs/roadmap.md` are
+era-bound history unless the evolution doc says otherwise.
 
 ## Repo layout
-- `mos-app/` — the app (React 19 + Vite + TypeScript; scaffolded in Phase 1, NOT before). Run npm/vite here.
+- `mos-app/` — the app (React 19 + Vite + TypeScript). Run npm/vite here, never at the repo root.
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
-- `docs/design-mockups/` — Phase 0 static HTML mockups (IA proposals + key screens).
+- `docs/design-mockups/` — static HTML mockups (IA proposals + key screens), versioned in-repo.
 - `docs/backlog.md` `docs/decisions.md` `docs/roadmap.md` — what's next, owner decisions, phasing.
-- `supabase/migrations/` — Postgres schema + RLS (schemas: `shared` / `mos` / `ops` / `integrations` / `reporting`). (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migrations deployed (`20260701000001_reporting_sales_daily_revenue.sql`, `20260704000002_reporting_sales_margin_daily.sql`); snapshot job runs on the VPS at 03:30 WIB; live on staging.)
+- `docs/reviews/<branch>.md` — the review ledger: evidence of record for every merge gate.
+- `supabase/migrations/` — Postgres schema + RLS. Schemas: `shared` / `mos` / `ops` / `integrations` /
+  `reporting` (curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5).
+- `scripts/` — repo tooling. `pre-merge-check.sh` (the gate), `cloud-agent-bootstrap.sh` (full local
+  stack for a fresh sandbox), `vendor-skills.sh`.
 - `.claude/agents/`, `.claude/skills/` — role agents and vendored skills (skills are gitignored; re-create with `scripts/vendor-skills.sh`).
 
 ## Operating model: Owner → Director → role agents
@@ -41,9 +44,11 @@ push / merge / deploy. Per-issue loop:
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
 8. **Ship** — `release-engineer` (branch → commit → push → PR). Director merges.
 
-**Phase 0 exception (mockup-first):** before any app code, `design-architect` produces static HTML
-mockups in `docs/design-mockups/` (IA proposals + first-slice key screens) to the adopted `DESIGN.md`
-tokens. The owner's mockup pick is a **gate**: no scaffold, spec, or UI build until signed off.
+**Mockup-first (any new UI workstream):** `design-architect` produces static HTML mockups in
+`docs/design-mockups/` to the adopted `DESIGN.md` tokens *before* UI code. The owner's mockup pick is a
+**gate**. Once a workstream's mockups are signed off they are **standing references with a presumption
+of correctness** — port what they answered; don't re-open them mid-build. Re-iterating mockups per
+build round is a known failure mode of this project (see the redesign's OD-REDESIGN-65).
 
 ## Director posture (main session)
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
@@ -116,8 +121,13 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
   fix the **app**; only for a *deliberate* UX change update the journey *steps*, and the goal-oracle
   stays intact. Never bend an assertion to the app's current state to go green.
 
-## Tech stack & commands (Phase 1 on; run inside `mos-app/`)
+## Tech stack & commands (run inside `mos-app/`)
 - React 19, Vite, TypeScript, react-router-dom 7. Backend: **self-hosted Supabase** (Postgres + Auth +
-  RLS), shared with future Gordi ops apps via schemas `shared` / `mos` / `ops` / `integrations` / `reporting`. (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migrations deployed (`20260701000001_reporting_sales_daily_revenue.sql`, `20260704000002_reporting_sales_margin_daily.sql`); snapshot job runs on the VPS at 03:30 WIB; live on staging.)
+  RLS), shared with future Gordi ops apps via schema separation, not project separation.
 - `npm run dev` · `npm run build` · `npm run typecheck` · `npm test` (Vitest) · `npx playwright test` (e2e).
+- **Fresh sandbox / no local stack?** `bash scripts/cloud-agent-bootstrap.sh` brings up Supabase, writes
+  the app's env, installs deps + Chromium, and verifies the app actually renders. Env files are
+  gitignored — a clone alone cannot log in, so nothing that needs a rendered app works without this.
+- **Never** point tests, `db reset`, or pgTAP at cloud staging — it holds real migrated business data.
+  Everything runs against the ephemeral local stack.
 - Commit trailer: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.

@@ -52,18 +52,32 @@ RLS, visibility, mention fan-out, recurrence, function→holder. **That grill ca
 
 **Code review needs nothing** (reads the diff + spec).
 
-**Design review needs a RENDERED app** — that is the whole gate. It needs:
-1. `cd mos-app && npm run dev` → the SPA at `http://localhost:5173/mos/`
-2. **A Supabase backend** — login calls `supabase.auth.signInWithPassword`, so you cannot get past the
-   login screen without one. Options, in order of preference:
-   - **Ephemeral, in your sandbox (BEST):** `supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics`
-     (api :44321). **This is proven — `.github/workflows/integration.yml` already does exactly this.**
-     Requires Docker in your runtime. Demo login: persona buttons, password `Passw0rd!dev`.
-   - **Fallback (no Docker):** point `VITE_SUPABASE_URL`/key at a **separate** cloud Supabase project.
-     **Do NOT use the staging project** — staging holds REAL migrated data (48 wip / 521 logs / 524
-     plans, `docs/backlog.md`); a design review that clicks "Mark complete" would mutate it.
-3. **A browser** — Playwright (`npx playwright test`, v1.60 in-repo) or `agent-browser`. The reviewer
-   drives it itself and reads its own screenshots.
+**Design review needs a RENDERED, LOGGED-IN app** — that is the whole gate. **One command gets you
+there:**
+
+```bash
+bash scripts/cloud-agent-bootstrap.sh
+```
+
+It starts Supabase (same container-exclusion list as CI), **writes `mos-app/.env` + `.env.e2e`**,
+runs `npm ci`, installs Chromium, and verifies the app actually serves and auth answers. Idempotent;
+never clobbers an existing `.env`.
+
+**Why you can't skip it: `mos-app/.env*` are GITIGNORED.** A clone gives you no anon key → the dev
+server boots but login is dead → no design review. This is the single thing that breaks a fresh
+sandbox, and the script exists only to close it.
+
+**Verified end-to-end 2026-07-16** from a bare clone of this branch: bootstrap → `npm run dev` →
+login screen → demo persona button (`Passw0rd!dev`) → Home renders with live local data. So this
+path is known-good, not theoretical.
+
+Then: **a browser** — Playwright (`npx playwright test`, in-repo) or `agent-browser`. The reviewer
+drives it itself and reads its own screenshots.
+
+**No Docker in your runtime?** Then in order: (1) enable it — everything works; (2) point
+`VITE_SUPABASE_URL`/key at a **separate** cloud Supabase project — **never the staging project**,
+which holds REAL migrated data (48 wip / 521 logs / 524 plans, `docs/backlog.md`); a design review
+that clicks "Mark complete" would mutate it; (3) stop the step.
 
 **⚠ If you cannot render, you cannot run the design half of the gate → STOP that step at
 "built, review-pending" and say so. Never mark a step done on code review alone.**
