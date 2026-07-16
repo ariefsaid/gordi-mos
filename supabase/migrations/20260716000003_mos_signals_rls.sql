@@ -5,8 +5,15 @@ grant select, insert         on mos.signal_acknowledgements to authenticated; --
 grant select                 on mos.signal_revisions        to authenticated; -- trigger-written; NO insert grant
 grant select, insert         on mos.signal_tasks            to authenticated;
 
+-- SECURITY DEFINER (not INVOKER): the SELECT policy on mos.signals AND every child-table SELECT policy
+-- call this function, and the function itself reads mos.signals + mos.signal_mentions (both of which are
+-- gated by this very predicate). Under INVOKER those internal reads re-apply the calling policy and
+-- recurse to a stack-overflow. DEFINER makes the internal reads bypass RLS; the function returns only a
+-- boolean, computed strictly for the JWT caller (current_org_id/current_person_id, both unspoofable), so
+-- no row data escapes — the canonical self-referential-RLS pattern. EXECUTE is revoked from PUBLIC and
+-- re-granted only to authenticated (definer-revoke lint clean; policy evaluation needs authenticated EXECUTE).
 create or replace function mos.can_read_signal(p_signal_id uuid)
-returns boolean language sql stable security invoker set search_path = '' as $$
+returns boolean language sql stable security definer set search_path = '' as $$
   select exists (
     select 1
     from mos.signals s
@@ -43,7 +50,9 @@ returns boolean language sql stable security invoker set search_path = '' as $$
         or shared.can('signal.read_all') -- R5 override (unregistered v1 ⇒ inert)
       ));
 $$;
-comment on function mos.can_read_signal(uuid) is 'ADR-0050 D4 default-deny read gate (R1..R5). SECURITY INVOKER; org-gated first.';
+comment on function mos.can_read_signal(uuid) is 'ADR-0050 D4 default-deny read gate (R1..R5). SECURITY DEFINER to avoid self-referential-RLS recursion; org-gated first; returns only a boolean for the JWT caller.';
+revoke execute on function mos.can_read_signal(uuid) from public, anon, authenticated;
+grant  execute on function mos.can_read_signal(uuid) to authenticated;
 
 create or replace function mos.can_post_signal_for_team(p_team_id uuid)
 returns boolean language sql stable security invoker set search_path = '' as $$
