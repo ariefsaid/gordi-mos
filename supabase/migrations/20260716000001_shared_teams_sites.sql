@@ -96,7 +96,25 @@ create policy teams_select_org on shared.teams for select to authenticated using
 create policy team_memberships_select_org on shared.team_memberships for select to authenticated using (org_id = shared.current_org_id());
 -- no insert/update/delete policy or grant → only service_role writes (seed/Admin-later).
 
+-- ADR-0050 D7: capability registration (fail-closed). member gets signal.create; the broad three are
+-- default-deny, granted to manager/finance/admin bundles per e7-data.js. signal.read_all NOT registered (R5 off).
+insert into shared.role_capabilities (role, capability, scope) values
+  ('member',   'signal.create',           'org'),
+  ('ops_lead', 'signal.create',           'org'),
+  ('finance',  'signal.create',           'org'),
+  ('admin',    'signal.create',           'org'),
+  ('ops_lead', 'signal.create_for_team',  'org'),
+  ('admin',    'signal.create_for_team',  'org'),
+  ('ops_lead', 'signal.mention_bu',       'org'),
+  ('finance',  'signal.mention_bu',       'org'),
+  ('admin',    'signal.mention_bu',       'org'),
+  ('ops_lead', 'signal.retract',          'org'),
+  ('finance',  'signal.retract',          'org'),
+  ('admin',    'signal.retract',          'org')
+on conflict (role, capability) do nothing;
+
 -- DOWN (manual, pre-production):
+-- delete from shared.role_capabilities where capability like 'signal.%';
 -- drop policy if exists team_memberships_select_org on shared.team_memberships;
 -- drop policy if exists teams_select_org on shared.teams;
 -- drop policy if exists sites_select_org on shared.sites;
