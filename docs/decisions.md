@@ -1022,6 +1022,8 @@ cross-refs, supersession chains): **`docs/redesign-decision-index.md`**.
 > `~/.codex/sessions/2026/07/10/rollout-2026-07-10T07-02-16-019f4955-0695-7012-a976-14dbee3263b8.jsonl`.
 > The redesign path itself started with the design-critique thread of 2026-07-08
 > (`~/.codex/sessions/2026/07/08/rollout-2026-07-08T11-09-22-019f3fea-869f-77e1-8e42-dad5e34ce85a.jsonl`).
+> **📁 Read it in-repo (cloud-reachable, owner prompts verbatim): [`docs/reference/provenance/02-the-50plus-qna-grill-2026-07-10_12.md`](reference/provenance/02-the-50plus-qna-grill-2026-07-10_12.md)** —
+> the grill itself. Origin critique: [`docs/reference/provenance/01-origin-critique-2026-07-08.md`](reference/provenance/01-origin-critique-2026-07-08.md).
 > Full map + caveats: `docs/redesign-decision-index.md` § Provenance. **These docs are authority; the
 > transcripts are evidence** (they contain superseded mid-conversation positions).
 
@@ -1613,6 +1615,8 @@ ADR-0025 D41 and amended ADR-0020 D3/D11.
 
 ## Buildout decisions (owner, 2026-07-13/14 — E7 convergence sprint close-out)
 
+> *Why:* the mockup **quicksand** — see the owner's own words in [`docs/reference/provenance/03-frustration-and-buildout-2026-07-13_16.md`](reference/provenance/03-frustration-and-buildout-2026-07-13_16.md) (the frustration thread that produced OD-56..66).
+
 ### OD-REDESIGN-56 — Mockup phase closed; iteration moves into mos-app (owner 2026-07-14)
 
 All further redesign iteration happens in `mos-app` per `docs/plans/2026-07-14-redesign-buildout.md`
@@ -1698,6 +1702,8 @@ Home's job-first attention brief is **Step 5** (not pulled forward). BUT the cur
 not lead to a stub/redirect-to-self. Either point them at a working successor or hide them from the
 least-technical persona until Step 5. No broken promises in front of staff, even on a legacy screen.
 
+> *Why:* the **quicksand / fork problem** stated by the owner verbatim in [`docs/reference/provenance/03-frustration-and-buildout-2026-07-13_16.md`](reference/provenance/03-frustration-and-buildout-2026-07-13_16.md) — mockups after 50+ QnA still *"not happy enough, but passable"*; *"might as well reiterate when building rather than reiterating twice"*.
+
 ### OD-REDESIGN-65 — Design iterates ONCE, inside implementation; the per-slice design review carries the mockup judgment (owner 2026-07-15/16)
 
 **Problem it solves:** the mockups became **quicksand** — each new version fixed one thing and silently
@@ -1727,6 +1733,8 @@ removed. Only the *mockup re-iteration* phase is folded into the design review.
 `docs/jtbd.md` intent → `docs/reference/twenty-ixd-patterns.md`), THEN the mockups. Owner-facing design
 forks are raised as **Option A / Option B** with a recommendation — never silently chosen — then locked
 as a convention/OD so they cannot regress again.
+
+> *Why:* the owner's role-based correction during the steps-1–3 design review — see [`docs/reference/provenance/03-frustration-and-buildout-2026-07-13_16.md`](reference/provenance/03-frustration-and-buildout-2026-07-13_16.md).
 
 ### OD-REDESIGN-66 — Two-front app: manager efficiency AND barista obviousness; neither is sacrificed (owner 2026-07-15/16)
 

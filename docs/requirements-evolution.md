@@ -98,4 +98,8 @@ E7 was not decided in this repo; it was decided in agent threads and distilled h
 - Later Codex threads (the redesign QnA is **Codex-only**; zcode holds build artifacts, not conversation) — caveats + reading order:
   `docs/redesign-decision-index.md` § Provenance.
 
-Transcripts are local + unversioned. **The docs are authority; transcripts are archaeology.**
+**📁 Extracted in-repo (cloud-reachable, owner prompts verbatim): `docs/reference/provenance/`** — origin critique, the
+grill, and the 2026-07-13→16 frustration thread that closed the mockup loop (OD-56) and produced the
+design-iterates-once rule (OD-65) + the two fronts (OD-66).
+
+Raw transcripts are local + unversioned. **The docs are authority; transcripts are archaeology.**

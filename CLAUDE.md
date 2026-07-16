@@ -3,6 +3,7 @@
 > **Cold start? → `docs/agent-context.md` — read this FIRST** (owner prefs · hard rules · gotchas ·
 > pointers). Then **`docs/plans/AUTONOMOUS-RUN-STATE.md`** for where the current workstream stands.
 > Evidence of record for the redesign: `docs/reviews/feat-redesign-buildout.md`.
+> **Why any redesign decision is what it is → `docs/reference/provenance/`** (grill + frustration threads, owner prompts verbatim).
 
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
 The requirement has **evolved by owner decision** — current bar (E6, ADR-0019/0020): **the operating

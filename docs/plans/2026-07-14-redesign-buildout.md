@@ -23,7 +23,10 @@ UI step.** Any agent picking up a step reads this doc first, then the step's spe
    convergence flows via `convergence-flows/serve-flows.py` :8134 (both in the
    `gordi-mos-e7-prototype` working copy). Precedence when sources disagree: explicit owner/OD
    override → Experience Contract → the mockup that owns that surface per the inventory.
-6. Reference slice for conventions: the shipped Tasks DB-view — `mos-app/src/pages/TasksLayout.tsx`
+6. **The *why* behind all of it (read if a decision seems arbitrary): `docs/reference/provenance/`** — the 50+ QnA grill,
+   the origin critique, and the owner's frustration thread (verbatim) that produced OD-REDESIGN-56..66.
+   *Docs are authority; these are evidence.*
+7. Reference slice for conventions: the shipped Tasks DB-view — `mos-app/src/pages/TasksLayout.tsx`
    + `mos-app/src/components/tasks/*` + `mos-app/src/lib/db/tasks.ts` (ADR-0007/0008).
 
 Loop discipline unchanged (CLAUDE.md / `docs/director-playbook.md`): one step = one issue = spec →

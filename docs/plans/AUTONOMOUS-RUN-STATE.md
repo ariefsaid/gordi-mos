@@ -143,6 +143,9 @@ try to push an intermediate base to create a stack.
 
 ## Related
 
+`docs/reference/provenance/` — **the why**: the 50+ QnA grill, the origin critique, and the owner's frustration
+thread (prompts verbatim) that produced the mockup-quicksand fix (OD-65) + the two fronts (OD-66).
+
 `docs/plans/2026-07-14-redesign-buildout.md` (the 11-step plan) · `docs/experience-contract.md`
 (Rules 1–12) · `docs/reviews/feat-redesign-buildout.md` (evidence of record) ·
 `docs/decisions.md` OD-REDESIGN-56..66 · `docs/redesign-decision-index.md` (map) ·

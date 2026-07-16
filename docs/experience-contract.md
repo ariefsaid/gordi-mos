@@ -9,6 +9,9 @@ each one against a rendered screen at desktop and ≤390px phone, with no vibes.
 `docs/adr/0025-ia-modules-in-rail-redesign-direction.md` (D1–D41) → `docs/decisions.md` OD-REDESIGN-1…55
 → `CONTEXT.md`. Where a rule operationalises a locked OD/D, it is cited inline.
 
+**Why this contract exists (the owner's words):** [`docs/reference/provenance/03-frustration-and-buildout-2026-07-13_16.md`](reference/provenance/03-frustration-and-buildout-2026-07-13_16.md)
+— the mockup quicksand/fork problem that produced OD-REDESIGN-56..66.
+
 **How design iterates (OD-REDESIGN-65):** mockup re-iteration is CLOSED; the per-slice design review
 carries the mockup judgment (all iterations, fork-catching) PLUS the IA/IxD/UX fundamentals — design
 loops ONCE, inside implementation. The SDD/BDD/TDD convention and both review batteries are unchanged.
