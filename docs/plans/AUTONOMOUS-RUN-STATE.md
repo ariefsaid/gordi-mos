@@ -17,7 +17,10 @@ If the two disagree, **the ledger is ground truth** — and this file is stale: 
 ## Branch / PR strategy (owner-directed 2026-07-15)
 
 - `feat/redesign-buildout` = **steps 1–3 + their design remediation**. This branch is **one PR unit**.
-  It is **held local — never pushed, no PR opened, nothing merged.** Owner reviews + merges.
+  **PUSHED to `origin/feat/redesign-buildout` (2026-07-16)** so a cloud agent can reach it —
+  **no PR opened, nothing merged.** Seeing/working this branch is expected, not a rule violation.
+  Merge remains the owner's call. *(It was local-only until 2026-07-16; older notes saying "never
+  pushed" are stale.)*
 - **Steps 4–11: each gets its OWN branch**, `feat/redesign-stepN-<slug>`, stacked on the prior step's
   tip (to satisfy dependencies), each an independent PR-able unit. Also held pending owner approval.
 - Steps 4 & 6 touch schema/RLS → conservative/fail-closed defaults, every ambiguous decision flagged
