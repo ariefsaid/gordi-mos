@@ -1,5 +1,10 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
+> **CURRENT (2026-07-16) — one line:** the active workstream is the **E7 redesign buildout**; live
+> state + next action live in **`docs/plans/AUTONOMOUS-RUN-STATE.md`**. Redesign open/unratified items
+> live there too. The dated banners below are historical strata (newest first) — read them for
+> archaeology, not for what to do next.
+
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
 bar itself moved (era timeline E1→E7): `docs/requirements-evolution.md`.

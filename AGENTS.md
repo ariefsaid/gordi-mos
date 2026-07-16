@@ -1,5 +1,9 @@
 # Gordi MOS — project instructions
 
+> **Cold start? → `docs/agent-context.md` — read this FIRST** (owner prefs · hard rules · gotchas ·
+> pointers). Then **`docs/plans/AUTONOMOUS-RUN-STATE.md`** for where the current workstream stands.
+> Evidence of record for the redesign: `docs/reviews/feat-redesign-buildout.md`.
+
 > **Precedence:** `CLAUDE.md` is the authority for this repo's charter, loop, and gates. This file
 > mirrors it for non-Claude agents. If the two ever disagree, **CLAUDE.md wins** — and the divergence is
 > a bug: fix this file. (Reconciled 2026-07-16 after a fresh-agent audit found 3-lens vs 4-lens and

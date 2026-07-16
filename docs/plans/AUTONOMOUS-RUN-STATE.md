@@ -23,6 +23,13 @@ If the two disagree, **the ledger is ground truth** — and this file is stale: 
 - Steps 4 & 6 touch schema/RLS → conservative/fail-closed defaults, every ambiguous decision flagged
   **"ratify before merge"**, `security-auditor` mandatory.
 
+## Owner sign-off status (reconciles the ledger's "owner AFK" notes)
+
+Ledger entries for steps 1–3 say "owner visual sign-off pending (owner AFK)" — that was true when
+written. **The AFK window is closed; the owner is present.** Those sign-offs are **still outstanding** —
+"pending" is accurate, only the reason changed. Steps 1–3 need: the Wave-2c design APPROVE, then the
+owner's visual sign-off + the step-2 walkthrough.
+
 ## Where the work stands
 
 | Step | Built | Code review | Design review | Status |
@@ -46,11 +53,15 @@ viewport), pushing the decision-critical **Due** column off-screen vs the e7 ref
 Acceptance: at 1280px the Due column is visible with no horizontal clip; the optional fields remain
 reachable in the drawer/full page; none of the other four resolved OD-61..64 findings regress.
 
-**⚠ Blocker:** the design review needs the **live app**, which needs **Gordi's local Supabase**
-(`supabase start`, api :44321). It is currently **DOWN** (stopped after an OOM; the running docker
-containers are PMO-portal's — a different project — do not touch them). Without Supabase you can build
-and code-review, but you **cannot** run the design half of the gate, and **no step may be marked done
-without it** (see the gate below).
+**Environment: NOT blocked (corrected 2026-07-16).** Gordi's local Supabase **is UP** — all
+`supabase_*_gordi-mos` containers healthy, api :44321 returns 200, and the app authenticates. An earlier
+entry in this doc claimed Supabase was "DOWN after an OOM" and treated it as *the* blocker on the whole
+workstream; **that was wrong** (a mis-read at a moment when port-forwarding was transiently broken — see
+the `docker restart` gotcha in `docs/agent-context.md`). **Lesson: verify the machine before recording a
+blocker in the docs — a false blocker stops real work.** The design review can run now.
+
+*(Also note: `docker ps` shows a second, unrelated `*_pmo-portal` Supabase stack — a different project.
+Do not stop those.)*
 
 ## ⚑ NON-NEGOTIABLE GATE — BOTH reviews per step, every feature (owner-directed 2026-07-15)
 
@@ -97,9 +108,11 @@ feature branch. If it's missing, serve the same files straight from this repo �
 
 ## Open-question trackers — ONE source of truth
 
-`docs/backlog.md` § THE WALL is the **single source of truth for open/unratified items**. The buildout
-plan's "Q-status" section is a *convenience summary* of the redesign-specific ones; if the two ever
-disagree, **the backlog wins** and the Q-status is stale.
+**For the REDESIGN, this doc's list below is the source of truth** for open/unratified items — a fresh
+-agent audit (2026-07-16) found `docs/backlog.md` § THE WALL contains only closed *pre-redesign* items
+(WALL-1..4) and no redesign-era ones, so pointing there was wrong. `docs/backlog.md` remains the
+source of truth for **non-redesign** open items + risks; the buildout plan's "Q-status" is a summary of
+the list below (if they disagree, **this list wins**).
 
 Current standing ratifications:
 - **Q1 Signal-on-Home** — *provisionally approved* (OD-REDESIGN-59); final ratification at the step-4
