@@ -9,16 +9,10 @@
 // Uses RECOVERY_VIEWER (e2e.recovery@example.test) — a dedicated fixture so password rotation
 // in this test does NOT affect VIEWER's credentials used by other e2e specs.
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { RECOVERY_VIEWER } from './fixtures/users'
 import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
-
-async function clearSession(page: Page) {
-  await page.evaluate(() => {
-    window.localStorage.clear()
-    window.sessionStorage.clear()
-  })
-}
+import { signOutViaUi } from './helpers/sign-out'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
 const NEW_PASSWORD = `E2eRecovery${Date.now()}`
@@ -58,12 +52,15 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   await page.getByLabel('Confirm password').fill(NEW_PASSWORD)
   await page.getByRole('button', { name: /save password/i }).click()
 
-  // ── Step 6: lands home authenticated ─────────────────────────────────────
-  await expect(page.locator('a[href="/mos/profile"], a[href="/profile"]').last()).toBeVisible({ timeout: 15_000 })
+  // ── Step 6: lands home authenticated — identity resolved to THIS viewer (MEDIUM-1: proves
+  // FR-006 at e2e, not just "some authenticated viewer reached a static nav link"). Scoped to
+  // the identity chip's accessible name, not getByText, so it can't ambiguously match the same
+  // name elsewhere on the page (e.g. as a task owner in a table cell). ─────────────────────────
+  await expect(page.getByRole('button', { name: RECOVERY_VIEWER.displayName, exact: true })).toBeVisible({ timeout: 15_000 })
 
-  // ── Step 7: clear the authenticated session before re-testing login flows ──
-  await clearSession(page)
-  await page.goto('login')
+  // ── Step 7: sign out through the REAL affordance (security audit HIGH-2) — not a storage
+  // wipe. Proves supabase.auth.signOut() actually ran before re-testing login flows. ──────────
+  await signOutViaUi(page, RECOVERY_VIEWER.displayName)
   await expect(page).toHaveURL(/\/login/, { timeout: 5_000 })
 
   // ── Step 8 (goal-oracle): old password FAILS ──────────────────────────────
@@ -76,10 +73,10 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   // Must remain on /login — no redirect to home
   await expect(page).toHaveURL(/\/login/)
 
-  // ── Step 9 (goal-oracle): new password WORKS ─────────────────────────────
+  // ── Step 9 (goal-oracle): new password WORKS — identity resolved correctly again (MEDIUM-1) ──
   await page.getByLabel('Password').fill(NEW_PASSWORD)
   await page.getByRole('button', { name: /sign in/i }).click()
-  await expect(page.locator('a[href="/mos/profile"], a[href="/profile"]').last()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: RECOVERY_VIEWER.displayName, exact: true })).toBeVisible({ timeout: 10_000 })
 
   // global-setup deletes and re-creates RECOVERY_VIEWER with RECOVERY_VIEWER.password
   // before each run, so password drift across runs is not an issue.

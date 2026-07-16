@@ -11,6 +11,7 @@ export const VIEWER = {
   email: 'cahya.dev@example.test',
   password: 'Passw0rd!dev',
   personId: '40000000-0000-0000-0000-000000000001', // Cahya Cafe (dual-hat: Cafe Ops + Sales leads)
+  fullName: 'Cahya Cafe', // supabase/seed.sql shared.people.full_name for this person id
 }
 
 // MANAGER: Dewi Director holds the Managing Director role (30000000-…-0000).

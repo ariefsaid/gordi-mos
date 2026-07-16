@@ -29,6 +29,9 @@ test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
   // Navigate to the magic link — Supabase processes it and redirects to the app
   await page.goto(magicUrl)
 
-  // Goal-oracle: home renders with the profile identity in the rail footer.
-  await expect(page.locator('a[href="/mos/profile"], a[href="/profile"]').last()).toBeVisible({ timeout: 15_000 })
+  // Goal-oracle: home renders with the ACTUAL resolved identity visible (MEDIUM-1 — a static
+  // "/profile" nav link would pass for any authenticated viewer; the identity chip's accessible
+  // name proves FR-006/FR-003/004). Scoped to the chip — Home also lists Cahya as a task owner
+  // in table cells, which would make an unscoped text match ambiguous.
+  await expect(page.getByRole('button', { name: VIEWER.fullName, exact: true })).toBeVisible({ timeout: 15_000 })
 })

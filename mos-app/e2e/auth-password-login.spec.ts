@@ -16,7 +16,11 @@ test('AC-001: password login journey', async ({ page }) => {
   await page.getByLabel('Password').fill(VIEWER.password)
   await page.getByRole('button', { name: /sign in/i }).click()
 
-  // Goal-oracle: Home renders and profile identity lives in the rail footer.
+  // Goal-oracle: Home renders, and the RESOLVED identity is the actual viewer (MEDIUM-1 —
+  // a static "/profile" nav link would pass for any authenticated viewer; the identity chip's
+  // accessible name proves FR-006 — resolveViewer returned THIS person — at the e2e layer).
+  // Scoped to the chip (not getByText) — the Home dashboard also lists Cahya as a task owner
+  // in table cells, which would make an unscoped text match ambiguous.
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('a[href="/mos/profile"], a[href="/profile"]').last()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: VIEWER.fullName, exact: true })).toBeVisible({ timeout: 10_000 })
 })
