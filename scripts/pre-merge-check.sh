@@ -101,7 +101,10 @@ fi
 # the redesign began — so the vocabulary the reviewers actually write was unrecognized by the gate
 # that judges them. Both spellings are accepted now; drift like this is why the gate went unrun.
 ACCEPTED_PATTERN='^(PASS|SHIP|FIX-THEN-SHIP|APPROVE|APPROVED)$'
-BLOCKING_PATTERN='^(REWORK|FAIL|STILL-FAILING|BLOCK|BLOCKED)$'
+# NOT-RUN is a first-class blocking verdict: "this review never happened" is a distinct, honest
+# state from "it ran and failed", and both must block. Without it the only way to say "owed" was to
+# omit the line, which the gate reports as a MISSING line — indistinguishable from a formatting slip.
+BLOCKING_PATTERN='^(REWORK|FAIL|STILL-FAILING|BLOCK|BLOCKED|NOT-RUN)$'
 
 parse_verdict() {
   local review_key="$1"

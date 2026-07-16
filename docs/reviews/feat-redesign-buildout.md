@@ -1,3 +1,36 @@
+# Review ledger — `feat/redesign-buildout`
+
+Diff scope: `git diff $(git merge-base main HEAD)..HEAD` — redesign buildout steps 1–3 (styling pass,
+shell + routes, Tasks re-home) + design-remediation waves 1 / 2 / 2b / 2c.
+
+## Verdicts
+
+<!-- Machine-read by scripts/pre-merge-check.sh. Format: - <review>: <VERDICT> — <reviewer / notes>
+     Accepted: PASS SHIP FIX-THEN-SHIP APPROVE | Blocking: REWORK FAIL STILL-FAILING BLOCK NOT-RUN
+     The LAST line for a review wins (BLOCK -> fix -> re-verify -> APPROVE).
+     These verdicts judge the BRANCH TIP, not the best moment in its history. Do not record a
+     verdict a review did not actually return. -->
+
+- spec: NOT-RUN — tip `8ab3235` (Wave 2c) has gates only, no spec review. Steps 1–3 + waves 1/2/2b
+  each ran BLOCK → fix → **APPROVE** (gpt-5.4/luna cross-family) — see the sections below; that
+  APPROVE does not extend to the Wave 2c delta.
+- code-quality: NOT-RUN — same as spec: Wave 2c (`8ab3235`) changed the desktop Tasks table and was
+  never code-reviewed. Prior steps/waves are APPROVE below.
+- design: BLOCK — the 4-lens design re-review has not been re-run against Wave 2c's rendered result;
+  no APPROVE recorded. **THE next open item** (`docs/plans/AUTONOMOUS-RUN-STATE.md`). Acceptance: at
+  1280px the Due column is visible with no horizontal clip; optional fields reachable in the
+  drawer/full page; no regression of the resolved OD-61..64 findings.
+- security: NOT-RUN — **no security review has ever been run on this branch, in any wording.** It is
+  REQUIRED: the diff touches auth paths (`mos-app/src/auth/require-capability.test.tsx`, the four
+  `mos-app/e2e/auth-*.spec.ts` journeys). `security-auditor` (OWASP/STRIDE on auth + RLS + org_id).
+
+> **Why this block exists (2026-07-17).** This ledger had **zero** verdict lines in the template's
+> format, so `scripts/pre-merge-check.sh` — the gate `CLAUDE.md` calls binding — reported
+> `MISSING × 4` and exited 1 on every run, and had never passed on this branch. It was red for a
+> parsing artifact while also red for four real reasons; a gate that can never go green gets
+> bypassed, not fixed. The verdicts above are derived only from what this ledger already records.
+> Fixing them means running the reviews, never editing this block.
+
 ## Step 1 — styling (spec + code-quality, gpt-5.4 cross-family)
 
 Verdict: **BLOCK**
