@@ -15,6 +15,7 @@ vi.mock('./tasks', () => ({ createTask: vi.fn() }))
 import {
   listReadableSignals, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask, createFollowUpTask,
+  listAuthorTeams, listAllTeams, getTeamSite,
 } from './signals'
 import * as tasksDal from './tasks'
 import { supabase } from '@/lib/supabase'
@@ -303,5 +304,101 @@ describe('createFollowUpTask', () => {
     expect(tasksDal.createTask).toHaveBeenCalledWith(taskInput)
     expect(id).toBe(TASK_ID)
     expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
+  })
+})
+
+// ── composer option loaders (B6) ──────────────────────────────────────────────
+describe('listAuthorTeams', () => {
+  it('reads active team_memberships for the person, joins client-side to teams, primary first', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.team_memberships': [{
+        data: [
+          { team_id: 'team-b', is_primary: false },
+          { team_id: 'team-a', is_primary: true },
+        ], error: null,
+      }],
+      'shared.teams': [{
+        data: [
+          { id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: 'site-1' },
+          { id: 'team-b', name: 'SiblingTeam', business_unit_id: 'bu-1', site_id: null },
+        ], error: null,
+      }],
+    }, rec)
+
+    const teams = await listAuthorTeams(AUTHOR_ID)
+    expect(teams).toEqual([
+      { id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: 'site-1', is_primary: true },
+      { id: 'team-b', name: 'SiblingTeam', business_unit_id: 'bu-1', site_id: null, is_primary: false },
+    ])
+    expect(rec.eqs).toContainEqual(['person_id', AUTHOR_ID])
+    expect(rec.eqs).toContainEqual(['effective_to', null])
+    expect(rec.eqs.filter(([c]) => c === 'org_id')).toHaveLength(0)
+  })
+
+  it('returns [] without querying teams when the person has no active memberships', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.team_memberships': [{ data: [], error: null }] }, rec)
+    const teams = await listAuthorTeams(AUTHOR_ID)
+    expect(teams).toEqual([])
+    expect(rec.fromTables).not.toContain('shared.teams')
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.team_memberships': [{ data: null, error: { message: 'boom' } }] }, rec)
+    await expect(listAuthorTeams(AUTHOR_ID)).rejects.toThrow(/boom/)
+  })
+})
+
+describe('listAllTeams', () => {
+  it('reads active shared.teams ordered by name (backs the @Team mention group)', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.teams': [{
+        data: [{ id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: 'site-1' }],
+        error: null,
+      }],
+    }, rec)
+
+    const teams = await listAllTeams()
+    expect(teams).toEqual([
+      { id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: 'site-1', is_primary: false },
+    ])
+    expect(rec.eqs).toContainEqual(['archived_at', null])
+    expect(rec.orders[0]).toEqual(['name', { ascending: true }])
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.teams': [{ data: null, error: { message: 'boom' } }] }, rec)
+    await expect(listAllTeams()).rejects.toThrow(/boom/)
+  })
+})
+
+describe('getTeamSite', () => {
+  it("resolves the Team's derived Site via its site_id", async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.teams': [{ data: { site_id: 'site-1' }, error: null }],
+      'shared.sites': [{ data: { id: 'site-1', name: 'Gordi HQ' }, error: null }],
+    }, rec)
+
+    const site = await getTeamSite(TEAM_ID)
+    expect(site).toEqual({ id: 'site-1', name: 'Gordi HQ' })
+  })
+
+  it('returns null for a site-less (central) Team, without querying sites', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.teams': [{ data: { site_id: null }, error: null }] }, rec)
+    const site = await getTeamSite(TEAM_ID)
+    expect(site).toBeNull()
+    expect(rec.fromTables).not.toContain('shared.sites')
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.teams': [{ data: null, error: { message: 'boom' } }] }, rec)
+    await expect(getTeamSite(TEAM_ID)).rejects.toThrow(/boom/)
   })
 })

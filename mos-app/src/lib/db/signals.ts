@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { createTask, type CreateTaskInput } from './tasks'
-import type { SignalRow, MentionKind, CreateSignalInput } from './signals.types'
+import type { SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption } from './signals.types'
 
 // Data layer for mos.signals + the Signal child tables (Step 4 / ADR-0050). Reads/writes mos via
 // supabase.schema('mos') and shared substrate (teams/sites/team_memberships) via
@@ -9,6 +9,7 @@ import type { SignalRow, MentionKind, CreateSignalInput } from './signals.types'
 // error so the UI can surface failures.
 
 const mos = () => supabase.schema('mos')
+const shared = () => supabase.schema('shared')
 
 // ── reads (B2) ───────────────────────────────────────────────────────────────
 
@@ -147,4 +148,61 @@ export async function createFollowUpTask(signalId: string, input: CreateTaskInpu
   const taskId = await createTask(input)
   await linkSignalTask(signalId, taskId)
   return taskId
+}
+
+// ── composer option loaders (B6) — shared.teams/sites/team_memberships ───────
+
+type TeamJoinRow = { id: string; name: string; business_unit_id: string; site_id: string | null }
+
+/** The author's active membership Teams (owning-Team select options), primary first. Not a full
+ * effective-dated evaluation — approximates "active" as `effective_to is null` for the picker's
+ * convenience; RLS (`mos.can_post_signal_for_team`) is the write-time authority. */
+export async function listAuthorTeams(personId: string): Promise<TeamOption[]> {
+  const { data: memberships, error: mErr } = await shared()
+    .from('team_memberships')
+    .select('team_id,is_primary')
+    .eq('person_id', personId)
+    .is('effective_to', null)
+  if (mErr) throw new Error(`listAuthorTeams failed — ${mErr.message}`)
+
+  const rows = (memberships ?? []) as { team_id: string; is_primary: boolean }[]
+  if (rows.length === 0) return []
+
+  const { data: teams, error: tErr } = await shared()
+    .from('teams')
+    .select('id,name,business_unit_id,site_id')
+    .in('id', rows.map((r) => r.team_id))
+  if (tErr) throw new Error(`listAuthorTeams teams failed — ${tErr.message}`)
+
+  const primaryById = new Map(rows.map((r) => [r.team_id, r.is_primary]))
+  return ((teams ?? []) as TeamJoinRow[])
+    .map((team) => ({ ...team, is_primary: primaryById.get(team.id) ?? false }))
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+}
+
+/** All active (non-archived) Teams — backs the `@Team` mention-picker group. */
+export async function listAllTeams(): Promise<TeamOption[]> {
+  const { data, error } = await shared()
+    .from('teams')
+    .select('id,name,business_unit_id,site_id')
+    .is('archived_at', null)
+    .order('name', { ascending: true })
+  if (error) throw new Error(`listAllTeams failed — ${error.message}`)
+  return ((data ?? []) as TeamJoinRow[]).map((team) => ({ ...team, is_primary: false }))
+}
+
+/** Resolve a Team's derived Site (the composer's read-only location pill, D37). Central/site-less
+ * Teams resolve to null — no second query is issued. */
+export async function getTeamSite(teamId: string): Promise<SiteOption | null> {
+  const { data: team, error: tErr } = await shared()
+    .from('teams').select('site_id').eq('id', teamId).maybeSingle()
+  if (tErr) throw new Error(`getTeamSite failed — ${tErr.message}`)
+
+  const siteId = (team as { site_id: string | null } | null)?.site_id ?? null
+  if (!siteId) return null
+
+  const { data: site, error: sErr } = await shared()
+    .from('sites').select('id,name').eq('id', siteId).maybeSingle()
+  if (sErr) throw new Error(`getTeamSite site failed — ${sErr.message}`)
+  return (site as SiteOption | null) ?? null
 }
