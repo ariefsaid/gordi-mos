@@ -17,6 +17,10 @@ on:
       - 'mos-app/package-lock.json'
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
+  # Manual dispatch: lets a sandboxed agent (no Docker-registry egress) run the full-stack
+  # gate — pgTAP + live-stack e2e — against its working branch before any PR exists.
+  # Same job, same stack, zero convention change: PR→main coverage is untouched.
+  workflow_dispatch:
 
 jobs:
   db:
