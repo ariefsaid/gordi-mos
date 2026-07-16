@@ -4,7 +4,7 @@ Review the remediation commits since the last code-approve. Verdict to
 `docs/reviews/feat-redesign-buildout.md` under "## Remediation (waves 1+2) — code review (Luna cross-family)".
 
 ## Scope
-Branch `feat/redesign-buildout`. Diff: `git diff 5e81ccd..HEAD -- mos-app/src` (waves 1+2). Focus:
+Branch `feat/redesign-buildout`. Diff: `git diff 5e81ccd..HEAD (waves 1+2+2b) -- mos-app/src` (waves 1+2). Focus:
 - OD-61 role-based mobile Tasks disclosure (member capture-first vs manager filter view; `deriveIsManager` seam).
 - OD-62 typed Task record: RACI removed from Task SURFACES (Team/PIC/Supervisor + Mark complete);
   raci-card→task-ownership-card. RACI must remain valid on Objective/Project/Process (not removed there).
