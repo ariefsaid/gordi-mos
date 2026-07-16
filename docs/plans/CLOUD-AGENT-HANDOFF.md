@@ -4,6 +4,19 @@
 batteries on every step**, and present the result to the owner **only after step 11**. The owner is
 deliberately not looking before then.
 
+**⚠ STEP 0 — the base you are stacking on is NOT closed (2026-07-17).** `bash scripts/pre-merge-check.sh`
+on `feat/redesign-buildout` exits 1 with four blocking verdicts, and they are real, not paperwork:
+
+| Owed on the base | Why |
+|---|---|
+| **security review** | **Never run on this branch, in any wording.** REQUIRED — the diff touches `mos-app/src/auth/` + four `e2e/auth-*.spec.ts`. Run `security-auditor` (OWASP/STRIDE on auth + RLS + `org_id`). |
+| **design re-review of Wave 2c** | THE next open item — desktop Tasks table density (`8ab3235`). Acceptance in the ledger. |
+| **spec + code-quality on Wave 2c** | `8ab3235` has **gates only** (typecheck/lint/unit/e2e green). Green gates are not a review. |
+
+**Clear these FIRST and record them in `docs/reviews/feat-redesign-buildout.md` § Verdicts**, or every
+step branch you stack inherits an unreviewed, security-unaudited base. Do not start step 4 before the
+gate's four verdicts are honest — if the owner has already cleared them, the ledger will say so.
+
 **Read first (in order):** `CLAUDE.md` → `docs/agent-context.md` → this file →
 `docs/plans/AUTONOMOUS-RUN-STATE.md` (live state + THE next open item) →
 `docs/plans/2026-07-14-redesign-buildout.md` (the 11 steps) → `docs/experience-contract.md` (Rules
@@ -73,6 +86,19 @@ path is known-good, not theoretical.
 
 Then: **a browser** — Playwright (`npx playwright test`, in-repo) or `agent-browser`. The reviewer
 drives it itself and reads its own screenshots.
+
+**Skills are GITIGNORED — a clone has none.** `.claude/agents/` (11 role agents) IS committed, but
+`.claude/skills/` is not, and `design-reviewer` invokes `design-review` / `impeccable` / `taste` /
+`ui-ux-pro-max`. Re-create them: **`bash scripts/vendor-skills.sh`** (clones 5 public repos — needs
+network). If it fails, say so and run the 4 lenses from `design-reviewer.md`'s own instructions
+rather than silently skipping the lens — a skipped lens is not a pass.
+
+**Also verify before trusting the design battery:** `.claude/agents/design-reviewer.md` still carries
+pre-redesign calibration anchors (a "Review" verb on a *Daily Log*, the upward *weekly-update* pane).
+The redesign replaced Weekly Update / Daily Log with **Signal** (`CONTEXT.md`), so those anchors
+describe objects the app no longer has. They are era-E1/E2 wording, not wrong judgment — read them as
+the *principle* (a verb must match the object's real job), not as a literal checklist, and do not fail
+a screen for lacking a Daily Log. Flag it rather than "fixing" the agent mid-run.
 
 **No Docker in your runtime?** Then in order: (1) enable it — everything works; (2) point
 `VITE_SUPABASE_URL`/key at a **separate** cloud Supabase project — **never the staging project**,
