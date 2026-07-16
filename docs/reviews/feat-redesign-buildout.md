@@ -36,6 +36,11 @@ shell + routes, Tasks re-home) + design-remediation waves 1 / 2 / 2b / 2c.
   injectable, no secret exposure, no tenancy/`org_id` bypass, no ungated sensitive route, no
   capability-guard bypass — the blockers are one regression and the test that hid it. Full findings:
   § "Security audit (2026-07-17)" below.
+- security: APPROVE — re-audit ran 2026-07-16 (security-auditor, opus, cloud run) after fix commits
+  `54afd98` + `0088246`. HIGH-1/HIGH-2/MEDIUM-1/LOW-1 all **CLEARED** with code evidence + passing
+  4-spec auth e2e run. No new findings (2 informational cleanup notes → step-11 sweep list:
+  `user-chip.tsx` header-variant dead branch; persona-swap resets could reuse `signOutViaUi`).
+  Zero migrations touched — server-side RLS unchanged. § "Security re-audit (2026-07-16)" below.
 
 > **Why this block exists (2026-07-17).** This ledger had **zero** verdict lines in the template's
 > format, so `scripts/pre-merge-check.sh` — the gate `CLAUDE.md` calls binding — reported
@@ -747,3 +752,28 @@ assert accessible contract (role+name). Minors → step-11 sweep list: dead `'ac
 accessor (`tasks-workspace.tsx:42,233-236` — no trigger can reach it); orphaned `.td-bu`/
 `.td-workline`/`.td-objective` CSS (`TasksWorkspace.css:376,599-607`); colSpan `7` magic literal in
 3 files (pre-existing; recommend shared column-descriptor array as follow-up).
+
+---
+
+## Security re-audit (2026-07-16, cloud autonomous run) — `security-auditor` (opus)
+
+**Verdict: APPROVE.** Fix commits `54afd98` (shell remount) + `0088246` (e2e re-authoring) verified
+against the code, not the fixer's report; confirmed by a passing 4-spec auth e2e run (8.7s).
+
+- **HIGH-1 CLEARED** — real `supabase.auth.signOut()` reachable on both breakpoints: rail
+  `rail-nav.tsx:167-171` (`UserChip variant="rail"`), drawer `mobile-drawer.tsx:118-122`
+  (`variant="drawer"` via BottomTabBar "More"); trace intact to `auth-provider.tsx:28-31`. Viewer's
+  full name back in the shell (`user-chip.tsx:26,59,98`, also the button aria-label); `/profile`
+  still reachable as a Utility rail link.
+- **HIGH-2 CLEARED** — `auth-signout-back.spec.ts` drives the real affordance (`helpers/
+  sign-out.ts`) and asserts three goal-oracles: redirect to /login, Back reaches no protected
+  content, direct nav to `work/tasks` bounces to /login (distinguishes server-side revoke from a
+  client redirect). e2e-wide grep: no storage-wipe-as-sign-out remains (4 survivors are legitimate
+  persona-swap/input-clear setup).
+- **MEDIUM-1 CLEARED** — all three journeys assert the persona-specific DB-resolved name scoped to
+  the chip button role; a wrong `resolveViewer` now fails e2e (FR-006 proven).
+- **LOW-1 CLEARED** — shell-level tests `rail-nav.test.tsx:235-267` + `mobile-drawer.test.tsx:97-130`
+  render the real shell and fail if UserChip is unmounted again.
+- **New findings: none blocking.** Informational → step-11 sweep: `user-chip.tsx:23` header-variant/
+  `compact` dead branch; persona-swap resets could reuse `signOutViaUi`. No new access-control,
+  tenancy, injection, secret, or capability regressions. Zero migrations touched.
