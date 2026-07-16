@@ -6,9 +6,11 @@ interface UserChipProps {
   /** When true, hides name/role text (used at <920px per FR-020). */
   compact?: boolean
   // 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
-  // the sidebar foot with an upward-opening menu.
+  // the sidebar foot with an upward-opening menu; 'drawer' = full-width row at
+  // the top of the phone "More" drawer — same layout as 'rail' but the menu
+  // opens DOWNWARD (there is no space above the drawer's fixed top edge).
   /** Display variant. */
-  variant?: 'header' | 'rail'
+  variant?: 'header' | 'rail' | 'drawer'
 }
 
 function getInitials(fullName: string): string {
@@ -19,7 +21,10 @@ function getInitials(fullName: string): string {
 }
 
 export function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
-  const isRail = variant === 'rail'
+  // 'rail' and 'drawer' both render the full-width identity row (name + role); only the
+  // menu's open direction differs (rail opens up, drawer opens down — see menuOpensUp below).
+  const isFullWidth = variant === 'rail' || variant === 'drawer'
+  const menuOpensUp = variant === 'rail'
   const auth = useAuth()
   const [open, setOpen] = useState(false)
   const chipRef = useRef<HTMLButtonElement>(null)
@@ -51,10 +56,10 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
   const initials = getInitials(viewer.person.full_name)
   const primaryRole = viewer.roles[0]?.name
 
-  const showText = isRail || !compact
+  const showText = isFullWidth || !compact
 
   return (
-    <div className={isRail ? 'relative' : 'relative flex items-center gap-2'}>
+    <div className={isFullWidth ? 'relative' : 'relative flex items-center gap-2'}>
       {/* Chip button */}
       <button
         ref={chipRef}
@@ -63,11 +68,11 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
         aria-expanded={open}
         aria-label={viewer.person.full_name}
         className={
-          isRail
+          isFullWidth
             ? 'flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer'
             : `tap-target-phone${compact ? ' tap-target-phone--icon' : ''} flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer`
         }
-        style={{ height: isRail ? 40 : 36 }}
+        style={{ height: isFullWidth ? 40 : 36 }}
         onClick={() => setOpen((v) => !v)}
       >
         {/* Avatar: 28px rounded-full, navy→blue gradient (OD-P3-7 / Structural-Navy Rule) */}
@@ -84,7 +89,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           {initials}
         </div>
         {showText && (
-          <div className={isRail ? 'flex-1 text-left min-w-0' : 'text-left'}>
+          <div className={isFullWidth ? 'flex-1 text-left min-w-0' : 'text-left'}>
             <div
               className="truncate font-semibold text-foreground"
               style={{ fontSize: 15, lineHeight: 1.1 }}
@@ -107,13 +112,12 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           ref={menuRef}
           role="menu"
           className={
-            (isRail
-              ? 'absolute left-0 bottom-full mb-1 '
-              : 'absolute right-0 top-full mt-1 ') +
+            (isFullWidth ? 'absolute left-0 ' : 'absolute right-0 ') +
+            (menuOpensUp ? 'bottom-full mb-1 ' : 'top-full mt-1 ') +
             'bg-popover border border-border rounded-lg p-[5px] z-50'
           }
           style={{
-            minWidth: isRail ? 200 : 140,
+            minWidth: isFullWidth ? 200 : 140,
             boxShadow:
               '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
           }}

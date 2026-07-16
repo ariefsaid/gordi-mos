@@ -1,31 +1,14 @@
 import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, MODULES, UTILITY, isLive, type Destination } from './destinations'
 import type { Section } from './sections'
-import { Chevron } from './icons'
 import { LocaleToggle } from './locale-toggle'
+import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
 
 type RailNavProps = {
   onNavigate?: () => void
-}
-
-function getInitials(fullName: string): string {
-  const words = fullName.trim().split(/\s+/)
-  const first = words[0]?.[0] ?? ''
-  const second = words[1]?.[0] ?? ''
-  return (first + second).toUpperCase()
-}
-
-function resolveViewerSite(roleName: string | undefined, accessRoles: readonly string[]): string {
-  const role = roleName?.toLowerCase() ?? ''
-  if (role.includes('barista') || role.includes('cafe')) return 'Café'
-  if (role.includes('roast')) return 'Roastery'
-  if (role.includes('ecom')) return 'Ecommerce'
-  if (role.includes('finance')) return 'Finance'
-  if (accessRoles.includes('admin')) return 'Admin'
-  return 'Team'
 }
 
 const itemBase = (isActive: boolean) =>
@@ -103,17 +86,14 @@ export function RailNav({ onNavigate }: RailNavProps) {
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
-  const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles) && u.id === 'admin')
+  // Both Utility entries render as ordinary rail links now: Admin Settings (gated) and Personal
+  // Profile (security audit fix — the footer below is the identity/sign-out chip, not a /profile
+  // link, so /profile needs its own reachable rail entry to stay navigable, Rule 11).
+  const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
   const liveModules = MODULES.map((g) => ({
     bu: g.bu,
     items: g.items.filter((m) => isLive(m, accessRoles)),
   })).filter((g) => g.items.length > 0)
-
-  const fullName = viewer?.person.full_name ?? ''
-  const initials = getInitials(fullName)
-  const roleLabel = viewer?.roles[0]?.name
-  const siteLabel = resolveViewerSite(roleLabel, accessRoles)
-  const footerIdentity = roleLabel ? `${siteLabel} ${roleLabel}` : siteLabel
 
   return (
     <>
@@ -169,7 +149,8 @@ export function RailNav({ onNavigate }: RailNavProps) {
           </div>
         ))}
 
-        {/* Utility — Admin Settings (gated). Profile is the footer row below. */}
+        {/* Utility — Admin Settings (gated) and Personal Profile. The footer below is the
+            identity/sign-out chip, not a nav link, so /profile needs its own entry here. */}
         {liveUtility.map((u) => (
           <div key={u.id} className="mt-1">
             <DestLink d={u} onNavigate={onNavigate} />
@@ -177,35 +158,15 @@ export function RailNav({ onNavigate }: RailNavProps) {
         ))}
       </nav>
 
-      {/* Profile footer row — avatar + {Site} {role} + chevron, links to /profile (AC-013).
-          Always present for a signed-in viewer (gated only by authentication). */}
+      {/* Identity + sign-out footer row (security audit HIGH-1, 2026-07-17). The redesign had
+          reduced this row to a bare NavLink showing only "{site} {role}" with no way to sign out —
+          on shared café/kitchen terminals a stale session became invisible AND unterminable. Reuses
+          the existing UserChip (Rule 11 — no new component): the 'rail' variant shows the viewer's
+          full NAME + role and opens a menu with Sign out (handleSignOut is unchanged). /profile
+          itself moved to a normal Utility rail link above (see liveUtility). */}
       {viewer && (
         <div className="px-2 pb-1">
-          <NavLink
-            to="/profile"
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              [
-                'flex items-center gap-2 rounded-sm px-2 no-underline text-sm',
-                isActive ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent/60',
-              ].join(' ')
-            }
-            style={{ height: 40 }}
-          >
-            <span
-              className="flex items-center justify-center rounded-full text-primary-foreground flex-none font-bold"
-              style={{ width: 28, height: 28, fontSize: 11, background: 'linear-gradient(135deg, var(--brand-navy), var(--primary))' }}
-              aria-hidden="true"
-            >
-              {initials}
-            </span>
-            <span className="flex-1 min-w-0 text-left">
-              <span className="block truncate font-semibold text-foreground" style={{ fontSize: 13, lineHeight: 1.1 }} title={footerIdentity}>
-                {footerIdentity}
-              </span>
-            </span>
-            <Chevron className="rotate-[-90deg] text-muted-foreground" />
-          </NavLink>
+          <UserChip variant="rail" />
         </div>
       )}
 

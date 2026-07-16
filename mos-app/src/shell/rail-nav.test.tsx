@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ThemeProvider } from '@/theme/theme-provider'
 import { RailNav } from './rail-nav'
 
 vi.mock('@/auth/use-auth')
@@ -37,21 +39,23 @@ function LocationDisplay() {
 
 function renderRailNav(initialPath: string) {
   return render(
-    <I18nProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route
-            path="*"
-            element={
-              <>
-                <RailNav />
-                <LocationDisplay />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
+    <ThemeProvider>
+      <I18nProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  <RailNav />
+                  <LocationDisplay />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </ThemeProvider>,
   )
 }
 
@@ -98,11 +102,14 @@ describe('AC-011: Rail structure — Workspace · Modules · Utility (admin)', (
     expect(workLink).toBeInTheDocument()
   })
 
-  it('AC-013: profile footer row shows the exact site+role shape and links to /profile', () => {
+  it('AC-013: profile footer row is the identity chip — shows the viewer\'s full name, and Personal Profile is reachable as a separate utility link', () => {
     setAuthAs(['admin'])
     renderRailNav('/work/tasks')
-    const profileLink = screen.getByRole('link', { name: /^Café Barista$/i })
-    expect(profileLink).toHaveAttribute('href', '/profile')
+    // Security fix (HIGH-1): the footer must show the viewer's NAME (not just "{site} {role}")
+    // so a stale/shared session is noticeable, and it must open the sign-out menu.
+    expect(screen.getByRole('button', { name: 'Cahya Cafe' })).toBeInTheDocument()
+    // /profile stays reachable — now as a normal Utility rail link (Rule 11: reuses DestLink).
+    expect(screen.getByRole('link', { name: /Personal Profile/i })).toHaveAttribute('href', '/profile')
   })
 
   it('AC-012: non-finance/admin → Money absent (not disabled, no stub)', () => {
@@ -218,6 +225,44 @@ describe('AC-015: Nav icon semantics', () => {
     const svgs = container.querySelectorAll('nav svg')
     expect(svgs.length).toBeGreaterThan(0)
     svgs.forEach((svg) => expect(svg).toHaveAttribute('aria-hidden', 'true'))
+  })
+})
+
+// Security audit HIGH-1/LOW-1 (2026-07-17): the sign-out affordance must be MOUNTED in the
+// authenticated shell, not just exist as an unmounted component (user-chip.test.tsx rendered
+// UserChip directly and passed even though nothing mounted it). This proves it is reachable
+// AND invokable from the real rail footer.
+describe('AC-005/HIGH-1: sign-out affordance is mounted in the rail footer and invokable', () => {
+  it('clicking the identity chip opens a menu with a working Sign out item', async () => {
+    const user = userEvent.setup()
+    setAuthAs(['admin'])
+    const signOut = vi.fn()
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: '40000000-0000-0000-0000-000000000001',
+          org_id: '10000000-0000-0000-0000-000000000001',
+          user_id: 'auth-user-001',
+          full_name: 'Cahya Cafe',
+          email: 'cahya@gordi.id',
+          archived_at: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
+        isManager: false,
+        accessRoles: ['admin'],
+      },
+      signOut,
+    })
+    renderRailNav('/work/tasks')
+
+    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
+    const menuItem = screen.getByRole('menuitem', { name: /sign out/i })
+    expect(menuItem).toBeInTheDocument()
+    await user.click(menuItem)
+    expect(signOut).toHaveBeenCalledOnce()
   })
 })
 

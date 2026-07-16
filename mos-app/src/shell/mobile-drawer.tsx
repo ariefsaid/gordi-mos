@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { DESTINATIONS, MODULES, UTILITY, isLive, type Destination } from './destinations'
+import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
@@ -37,6 +38,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const t = useT()
 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
   const closeAndReturn = useCallback(() => {
     focusOpener?.()
@@ -108,6 +110,17 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             ✕
           </button>
         </div>
+
+        {/* Identity + sign-out row (security audit HIGH-1, 2026-07-17). Phone has no rail, so the
+            drawer is the only place a viewer can see who is signed in and end the session — the
+            'drawer' variant reuses UserChip (Rule 11) with a downward-opening menu (there is no
+            room above the drawer's fixed top edge, unlike the desktop rail footer). */}
+        {viewer && (
+          <div className="px-2 pt-2">
+            <UserChip variant="drawer" />
+          </div>
+        )}
+
         <nav aria-label="More destinations" className="flex flex-col gap-[2px] p-2">
           {items.map((d) => {
             const href = d.primaryPath ?? d.links[0].path

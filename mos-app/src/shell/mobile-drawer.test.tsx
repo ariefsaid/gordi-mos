@@ -9,6 +9,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ThemeProvider } from '@/theme/theme-provider'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -38,13 +39,15 @@ function LocationDisplay() {
 function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'] }: { open?: boolean; onClose?: () => void; accessRoles?: string[] } = {}) {
   setAuthAs(accessRoles)
   return render(
-    <I18nProvider>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="*" element={<><MobileDrawer open={open} onClose={onClose} /><LocationDisplay /></>} />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
+    <ThemeProvider>
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="*" element={<><MobileDrawer open={open} onClose={onClose} /><LocationDisplay /></>} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </ThemeProvider>,
   )
 }
 
@@ -89,6 +92,43 @@ describe('AC-022: Money absent for non-finance/admin (from More)', () => {
   })
 })
 
+// Security audit HIGH-1 (2026-07-17): the phone drawer is the only nav surface at <920px, so the
+// sign-out affordance must be mounted here too, not just on the desktop rail.
+describe('AC-005/HIGH-1: sign-out affordance is mounted in the phone drawer and invokable', () => {
+  it('shows the viewer\'s name and a working Sign out item', async () => {
+    const user = userEvent.setup()
+    const signOut = vi.fn()
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
+          email: 'c@gordi.id', archived_at: null, created_at: '', updated_at: '',
+        },
+        roles: [], isManager: false, accessRoles: ['admin'],
+      },
+      signOut,
+    })
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
+    const menuItem = screen.getByRole('menuitem', { name: /sign out/i })
+    expect(menuItem).toBeInTheDocument()
+    await user.click(menuItem)
+    expect(signOut).toHaveBeenCalledOnce()
+  })
+})
+
 describe('More menu navigation + a11y', () => {
   it('clicking a destination link navigates and closes the drawer', async () => {
     const user = userEvent.setup()
@@ -104,13 +144,15 @@ describe('More menu navigation + a11y', () => {
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
     render(
-      <I18nProvider>
-        <MemoryRouter initialEntries={['/']}>
-          <Routes>
-            <Route path="*" element={<MobileDrawer open onClose={vi.fn()} focusOpener={focusOpener} />} />
-          </Routes>
-        </MemoryRouter>
-      </I18nProvider>,
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} focusOpener={focusOpener} />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
     )
     await user.keyboard('{Escape}')
     expect(focusOpener).toHaveBeenCalled()
