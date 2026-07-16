@@ -5,7 +5,7 @@
    ════════════════════════════════════════════════════════════════════════════ */
 import { people, teams, bus, records, inboxItems, can, canViewRecord, scopeOf, journeys, scenarios, anchors, journeyScenarios, anchorText, requiredStates, routes } from './e7-data.js';
 import { renderRecord } from './e7-records.js';
-import { renderHome, renderWork, renderMoney, renderInbox, renderCafe, renderEcommerce, renderRoastery, renderAdmin, renderProfile, renderRecordPageChrome, computeAttention } from './e7-views.js';
+import { renderHome, renderWork, renderMoney, renderInbox, renderCafe, renderEcommerce, renderRoastery, renderAdmin, renderProfile, renderRecordPageChrome, computeAttention, workNavModel } from './e7-views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -45,17 +45,30 @@ const person = () => people[state.personId];
    NAV — capability-gated; destinations + BU-grouped modules + utilities
    ════════════════════════════════════════════════════════════════════════════ */
 const navIcons = { home:'orient', work:'work', money:'money', inbox:'inbox', cafe:'coffee', ecommerce:'ops', roastery:'layers', admin:'settings', profile:'people' };
+/* One unread source of truth: rail badge, top-bar bell, and the Inbox page
+   must always agree. */
+function unreadCount(p){
+  return inboxItems.filter(i=>i.toPersonId===p.id && i.unread && !state.inboxRead.has(i.id)).length;
+}
 function buildNav(){
   const p = person();
   const primary = $('#e7-primary-nav');
+  const unread = unreadCount(p);
   const dests = [
     {id:'home', label:'Home', show:true},
     {id:'work', label:'Work', show: can(p,'work.view')},
     {id:'money', label:'Money', show: can(p,'money.view')},
-    {id:'inbox', label:'Inbox', show:true, count: inboxItems.filter(i=>i.toPersonId===p.id && i.unread && !state.inboxRead.has(i.id)).length},
+    {id:'inbox', label:'Inbox', show:true, count: unread},
   ];
+  /* Work expands its collection sub-nav while active (Linear-style): the D9
+     grouped collection switcher lives in navigation, not in the content area. */
+  const workSub = (state.route==='work' && can(p,'work.view')) ? `<div class="e7-nav-sub">${workNavModel(p).map(g =>
+    `<div class="overline e7-sub-label">${esc(g.label)}</div>` + g.items.map(it =>
+      `<a class="e7-nav-item e7-nav-child ${state.workCollection===it.id?'active':''}" href="#/work" data-work-nav="${it.id}" data-journey="${it.j}" ${state.workCollection===it.id?'aria-current="page"':''}><span>${esc(it.label)}</span>${it.count?`<span class="e7-count">${it.count}</span>`:''}</a>`).join('')).join('')}</div>` : '';
   primary.innerHTML = `<div class="overline">Destinations</div>` + dests.filter(d=>d.show).map(d =>
-    `<a class="e7-nav-item ${state.route===d.id?'active':''}" href="#/${d.id}" data-go="${d.id}" data-nav="${d.id}" ${state.route===d.id?'aria-current="page"':''}><span data-i="${navIcons[d.id]}"></span><span>${esc(d.label)}</span>${d.count?`<span class="e7-count">${d.count}</span>`:''}</a>`).join('');
+    `<a class="e7-nav-item ${state.route===d.id?'active':''}" href="#/${d.id}" data-go="${d.id}" data-nav="${d.id}" ${state.route===d.id?'aria-current="page"':''}><span data-i="${navIcons[d.id]}"></span><span>${esc(d.label)}</span>${d.count?`<span class="e7-count">${d.count}</span>`:''}</a>` + (d.id==='work'?workSub:'')).join('');
+  const bell = $('[data-inbox-count]');
+  if (bell){ bell.textContent = String(unread); bell.hidden = unread===0; }
 
   const mod = $('#e7-module-nav');
   const retailMods = [
@@ -1009,6 +1022,15 @@ function onDocumentClick(e){
   const pageLink = e.target.closest('[data-open-page]');
   if (pageLink){ e.preventDefault(); openRecordPage(pageLink.getAttribute('data-open-page')); return; }
 
+  const workNav = e.target.closest('[data-work-nav]');
+  if (workNav){
+    e.preventDefault();
+    state.workCollection = workNav.getAttribute('data-work-nav');
+    state.workSavedView = null;
+    state.workPresentation = 'table';
+    if (state.route !== 'work') { location.hash = '#/work'; } else { route(); }
+    return;
+  }
   const coll = e.target.closest('[data-collection]');
   if (coll){
     state.workCollection = coll.getAttribute('data-collection');

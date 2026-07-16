@@ -1,0 +1,298 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   CONVERGENCE FLOWS — structural CSS
+   Loaded AFTER ../e7-prototype.css, whose :root tokens (--e7-*) and primitive
+   classes (.btn/.field/.pill/.card/.row-item/.e7-panel-host/.e7-modal/…) are
+   reused verbatim. This file adds ONLY the structure the Experience Contract
+   demands that the e7 shell lacks:
+     · Region 2 context row (Rule 6 four-region anatomy)
+     · FB-style Signal composer: capture-first, text-primary, compact pills
+       (Rule 8 / audit item 1)
+     · grouped `@` fuzzy dropdown with visible type badges — Person/Team/BU only
+       (Site is a location pill, never a mention target — D37)
+     · occurrence caption + derived roll-up + job-function provenance (F2)
+   Every color/radius/shadow/spacing value below references an --e7-* token.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Region 2: context row (scope + job sentence) — present on every route ── */
+.ctx-row {
+  display: flex; align-items: center; gap: var(--e7-s-md);
+  padding: 10px var(--e7-s-2xl) 10px;
+  background: var(--e7-bg);
+  border-bottom: 1px solid var(--e7-border-soft);
+  position: sticky; top: 0; z-index: 5;
+}
+.ctx-scope { display: inline-flex; align-items: center; gap: 6px; }
+.ctx-scope .e7-avatar { width: 22px; height: 22px; font-size: 10px; }
+.ctx-scope-name { font-weight: 600; font-size: 13px; color: var(--e7-text); }
+.ctx-job { font-size: 13px; color: var(--e7-text-3); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-job b { color: var(--e7-text); font-weight: 600; }
+.ctx-meta { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── F2: occurrence caption + derived roll-up (no "Process Run" noun) ─────── */
+.occ-caption { display: flex; align-items: center; gap: var(--e7-s-sm);
+  font-family: var(--e7-font-display); font-weight: 700; font-size: 16px;
+  color: var(--e7-brand); }
+.occ-rollup { display: inline-flex; align-items: center; gap: 6px; height: 24px;
+  padding: 0 10px; border-radius: var(--e7-radius-pill);
+  background: var(--e7-surface-3); color: var(--e7-text-2);
+  font-size: 12px; font-weight: 600; font-family: var(--e7-font-tabular); }
+.occ-rollup .bar-mini { width: 56px; height: 6px; border-radius: 99px;
+  background: var(--e7-surface-4); overflow: hidden; }
+.occ-rollup .bar-mini > span { display: block; height: 100%; background: var(--e7-action); }
+.occ-rollup.done { background: var(--e7-done-tint); color: var(--e7-done-text); }
+.occ-rollup.done .bar-mini > span { background: var(--e7-done); }
+.prov-line { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;
+  color: var(--e7-text-2); padding: 6px 10px; border-radius: var(--e7-radius-control);
+  background: var(--e7-surface-2); border: 1px solid var(--e7-border); }
+.prov-line .ico { width: 14px; height: 14px; color: var(--e7-text-3); }
+.prov-line b { color: var(--e7-text); font-weight: 600; }
+
+/* ── F1: FB-style Signal composer (capture-first; Rule 8 / audit item 1) ────
+   Initial fields EXACTLY: content + owning Team (prefilled) + occurrence time
+   (default now) + author (implicit). Category, attention-raising, mentions are
+   compact pills / post-capture — never gates on capture. */
+.composer { display: flex; flex-direction: column; gap: var(--e7-s-md); }
+.composer textarea.sig-body {
+  width: 100%; min-height: 96px; padding: var(--e7-s-md);
+  border: 1px solid var(--e7-border); border-radius: var(--e7-radius);
+  background: var(--e7-surface); font: inherit; color: var(--e7-text);
+  resize: vertical; line-height: 1.5;
+}
+.composer textarea.sig-body:focus { outline: 2px solid var(--e7-action); outline-offset: 1px; border-radius: var(--e7-radius); }
+.composer-pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.composer-pill {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px;
+  border-radius: var(--e7-radius-pill); background: var(--e7-surface-2);
+  border: 1px solid var(--e7-border); font-size: 12.5px; color: var(--e7-text-2);
+  cursor: pointer; min-height: var(--e7-tap-h);
+}
+.composer-pill:hover { background: var(--e7-surface-3); }
+.composer-pill .ico { width: 14px; height: 14px; color: var(--e7-text-3); }
+.composer-pill.raised { background: var(--e7-warning-tint); border-color: hsl(38 92% 50% / 0.35); color: var(--e7-warning-text); }
+.composer-pill.raised .ico { color: var(--e7-warning); }
+.composer-team { font-size: 12px; color: var(--e7-text-3); }
+.composer-team b { color: var(--e7-text); font-weight: 600; }
+.composer-vis { font-size: 12px; color: var(--e7-text-3); display: inline-flex; align-items: center; gap: 5px; }
+.composer-foot { display: flex; align-items: center; gap: var(--e7-s-sm); }
+.composer-foot .spacer { flex: 1; }
+.evidence-ico { display: inline-flex; align-items: center; justify-content: center;
+  width: var(--e7-tap-h); height: var(--e7-tap-h); border-radius: var(--e7-radius-control);
+  color: var(--e7-text-3); border: 1px solid transparent; }
+.evidence-ico:hover { background: var(--e7-surface-3); color: var(--e7-text); }
+
+/* ── `@` grouped fuzzy mention dropdown (Person/Team/BU badges; never Site) ── */
+.mention-pop {
+  position: absolute; z-index: 50; width: 320px; max-width: calc(100vw - 24px);
+  background: var(--e7-surface); border: 1px solid var(--e7-border);
+  border-radius: var(--e7-radius); box-shadow: var(--e7-shadow-overlay);
+  overflow: hidden; }
+.mention-group { padding: 4px; }
+.mention-group + .mention-group { border-top: 1px solid var(--e7-border-soft); }
+.mention-group-head { padding: 6px 10px 2px; font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--e7-text-3); }
+.mention-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-radius: var(--e7-radius-control); cursor: pointer; font-size: 13px; min-height: 36px; }
+.mention-row:hover, .mention-row.active { background: var(--e7-surface-3); }
+.mention-row .nm { font-weight: 500; color: var(--e7-text); }
+.mention-row .sub { font-size: 11px; color: var(--e7-text-3); margin-left: auto; }
+.type-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px;
+  border-radius: var(--e7-radius-pill); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; flex: none; }
+.type-badge.person { background: var(--e7-action-subtle); color: var(--e7-action-active); }
+.type-badge.team   { background: var(--e7-violet-tint);  color: var(--e7-violet-text); }
+.type-badge.bu     { background: var(--e7-warning-tint); color: var(--e7-warning-text); }
+.mention-empty { padding: 10px 12px; font-size: 12.5px; color: var(--e7-text-3); }
+
+/* ── Posted Signal card (FB grammar; "Create Task" lives here, not composer) ─ */
+.signal-card { padding: var(--e7-s-base); background: var(--e7-surface);
+  border: 1px solid var(--e7-border); border-radius: var(--e7-radius);
+  box-shadow: var(--e7-shadow-rest); }
+.signal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.signal-head .e7-avatar { width: 30px; height: 30px; font-size: 12px; }
+.signal-head .who { font-weight: 600; font-size: 13.5px; color: var(--e7-text); }
+.signal-head .when { font-size: 12px; color: var(--e7-text-3); }
+.signal-head .actions { margin-left: auto; }
+.signal-body { font-size: 14px; line-height: 1.5; color: var(--e7-text); }
+.signal-body .mention-chip { display: inline-flex; align-items: center; padding: 0 6px;
+  margin: 0 1px; border-radius: var(--e7-radius-pill); background: var(--e7-action-subtle);
+  color: var(--e7-action-active); font-weight: 600; font-size: 13px; }
+.signal-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.signal-vis { font-size: 11.5px; color: var(--e7-text-3); margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 5px; }
+.signal-actions { display: flex; align-items: center; gap: var(--e7-s-sm); margin-top: 12px;
+  padding-top: 10px; border-top: 1px solid var(--e7-border-soft); flex-wrap: wrap; }
+.enrich-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+  color: var(--e7-text-3); cursor: pointer; min-height: var(--e7-tap-h); padding: 0 6px; border-radius: var(--e7-radius-control); background: none; border: none; font-family: inherit; }
+.enrich-link:hover { background: var(--e7-surface-3); color: var(--e7-text); }
+.loc-pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px;
+  border-radius: var(--e7-radius-pill); background: var(--e7-surface-3); color: var(--e7-text-2);
+  font-size: 11.5px; }
+.loc-pill .ico { width: 12px; height: 12px; color: var(--e7-text-3); }
+
+/* ── Attention selector (tap-to-raise; default FYI) ───────────────────────── */
+.att-pop { position: absolute; z-index: 50; min-width: 200px; background: var(--e7-surface);
+  border: 1px solid var(--e7-border); border-radius: var(--e7-radius); box-shadow: var(--e7-shadow-overlay); padding: 4px; }
+.att-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--e7-radius-control); cursor: pointer; font-size: 13px; min-height: 36px; background: none; border: none; width: 100%; text-align: left; font-family: inherit; color: inherit; }
+.att-row:hover { background: var(--e7-surface-3); }
+.att-row .desc { font-size: 11px; color: var(--e7-text-3); margin-left: auto; }
+
+/* ── Work list / saved-view tabs (flat; no family headings — Rule 3) ──────── */
+.view-tabs { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.view-tab { height: 30px; padding: 0 12px; border-radius: var(--e7-radius-control);
+  font-size: 13px; font-weight: 500; color: var(--e7-text-3); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--e7-tap-h);
+  background: none; border: none; font-family: inherit; }
+.view-tab:hover { background: var(--e7-surface-3); color: var(--e7-text); }
+.view-tab.active { background: var(--e7-action-subtle); color: var(--e7-action-active); font-weight: 600; }
+
+/* Work mobile controls — one affordance for collection/view config (Rule 8) */
+.mobile-viewbar { display: none; margin-bottom: 12px; }
+.mobile-viewbar .btn { width: 100%; justify-content: flex-start; }
+.mobile-viewsheet { margin-bottom: 12px; }
+.work-desktop-tabs { display: flex; }
+
+/* Café area cards (F2 entry) */
+.cafe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--e7-s-md); }
+.cafe-area { padding: var(--e7-s-base); background: var(--e7-surface); border: 1px solid var(--e7-border);
+  border-radius: var(--e7-radius); box-shadow: var(--e7-shadow-rest); display: flex; flex-direction: column; gap: 10px; }
+.cafe-area .area-h { display: flex; align-items: center; gap: 8px; }
+.cafe-area .area-h .t { font-weight: 600; font-size: 14px; }
+
+/* Stub route ("not in this slice") — still satisfies Rules 1/3/5 */
+.slice-stub { max-width: 440px; margin: var(--e7-s-2xl) auto; text-align: center;
+  color: var(--e7-text-3); padding: var(--e7-s-2xl); }
+.slice-stub .pill { margin-bottom: var(--e7-s-md); }
+
+/* Quiet inline confirmation (post-action feedback) */
+.inline-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;
+  color: var(--e7-done-text); }
+.inline-ok .ico { width: 14px; height: 14px; }
+
+/* Checklist (F2) — checks inside ONE task */
+.checklist { display: flex; flex-direction: column; gap: 6px; }
+.check-item { display: flex; align-items: center; gap: 10px; padding: 10px var(--e7-s-base);
+  border: 1px solid var(--e7-border); border-radius: var(--e7-radius-control); background: var(--e7-surface); }
+.check-item.done { background: var(--e7-surface-2); }
+.check-item .lbl { flex: 1; font-size: 13.5px; }
+.check-item.done .lbl { color: var(--e7-text-3); text-decoration: line-through; }
+
+/* Persona switcher popover */
+.persona-pop { position: absolute; z-index: 50; min-width: 220px; background: var(--e7-surface);
+  border: 1px solid var(--e7-border); border-radius: var(--e7-radius); box-shadow: var(--e7-shadow-overlay); padding: 4px; }
+.persona-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--e7-radius-control); cursor: pointer; font-size: 13px; min-height: 40px; background: none; border: none; width: 100%; text-align: left; font-family: inherit; color: inherit; }
+.persona-opt:hover { background: var(--e7-surface-3); }
+.persona-opt[aria-current="true"] { background: var(--e7-action-subtle); }
+.persona-opt .nm { font-weight: 600; }
+.persona-opt .rl { font-size: 11px; color: var(--e7-text-3); }
+
+/* Mobile menu sheet rows already reuse .cmd-row */
+
+/* ── Phone: collapse header + context row into compact sticky bar (Rule 6) ── */
+@media (max-width: 767px) {
+  /* e7-main is the scroll container and already sits below the header, so the
+     sticky offset is 0 — header-h here double-offsets and overlaps the page title */
+  .ctx-row { position: sticky; top: 0; padding: 8px var(--e7-s-md);
+    background: var(--e7-bg); }
+  .ctx-job { font-size: 12px; }
+  .e7-page { padding-top: var(--e7-s-md); }
+  .composer textarea.sig-body { min-height: 80px; }
+  .mobile-viewbar { display: block; }
+  .work-desktop-tabs { display: none; }
+}
+@media (max-width: 390px) {
+  .ctx-row { padding: 6px var(--e7-s-md); gap: var(--e7-s-sm); }
+  .ctx-scope-name { display: none; }
+  .composer-pill, .view-tab, .check-item, .mention-row, .att-row, .persona-opt { min-height: var(--e7-tap-h); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   REFRAME 2026-07-14 — owner-frame shell chrome
+   (header search field + breadcrumb; rail profile row; command palette;
+   Signals archive search). Tokens only — no raw hex/spacing/radius.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header search field (opens the ⌘K palette; not a live search) ─────────── */
+.e7-searchfield {
+  display: inline-flex; align-items: center; gap: var(--e7-s-sm);
+  height: var(--e7-control-h); min-width: 224px; padding: 0 var(--e7-s-md);
+  background: var(--e7-surface); border: 1px solid var(--e7-border);
+  border-radius: var(--e7-radius-control); color: var(--e7-text-3); text-align: left;
+}
+.e7-searchfield:hover { border-color: var(--e7-text-light); background: var(--e7-surface-2); }
+.e7-searchfield .ico { width: 15px; height: 15px; }
+.e7-searchfield-text { font-size: 13px; flex: 1; }
+
+/* ── Header breadcrumb (current-location, last segment bold) ───────────────── */
+.e7-breadcrumb { display: inline-flex; align-items: center; min-width: 0;
+  overflow: hidden; }
+.crumb-parent { color: var(--e7-text-3); white-space: nowrap; }
+.crumb-current { color: var(--e7-text); font-weight: 600; white-space: nowrap; }
+.crumb-sep { color: var(--e7-text-light); margin: 0 6px; }
+
+/* ── Rail pinned profile row (avatar · name · role; doubles as persona switch) */
+.e7-rail-profile-wrap { position: relative; display: block; margin-top: var(--e7-s-sm); }
+.e7-rail-profile {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  height: var(--e7-tap-h); padding: 4px var(--e7-s-sm);
+  border-radius: var(--e7-radius-control); border: 1px solid transparent; text-align: left;
+}
+.e7-rail-profile:hover { background: var(--e7-surface-3); }
+.e7-rail-profile[aria-expanded="true"] { background: var(--e7-surface-3); }
+.e7-rail-profile .e7-avatar { width: 30px; height: 30px; font-size: 12px; }
+.e7-rail-profile .e7-profile-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
+.e7-rail-profile .nm { font-weight: 600; font-size: 13px; color: var(--e7-text); }
+.e7-rail-profile .rl { font-size: 11px; color: var(--e7-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.e7-rail-profile .ico { width: 16px; height: 16px; color: var(--e7-text-3); }
+/* Persona popover opens upward from the pinned profile row. */
+.persona-pop { position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
+  min-width: 224px; background: var(--e7-surface); border: 1px solid var(--e7-border);
+  border-radius: var(--e7-radius); box-shadow: var(--e7-shadow-overlay); padding: 4px; z-index: 40; }
+.persona-pop a.persona-opt { text-decoration: none; color: inherit; }
+
+/* ── Work → Signals archive search bar ─────────────────────────────────────── */
+.searchbar { display: flex; align-items: center; gap: var(--e7-s-sm);
+  height: var(--e7-control-h); padding: 0 var(--e7-s-md); margin-bottom: var(--e7-s-md);
+  background: var(--e7-surface); border: 1px solid var(--e7-border);
+  border-radius: var(--e7-radius-control); }
+.searchbar:focus-within { border-color: var(--e7-action); }
+.searchbar .ico { width: 16px; height: 16px; color: var(--e7-text-3); }
+.searchbar input { border: none; background: transparent; outline: none; width: 100%;
+  font: inherit; color: var(--e7-text); }
+
+/* ── Command palette (⌘K): search input on top, actions beneath ────────────── */
+.cmdk-input-wrap { display: flex; align-items: center; gap: var(--e7-s-sm);
+  padding: 10px var(--e7-s-md); border-bottom: 1px solid var(--e7-border-soft); }
+.cmdk-input-wrap .ico { width: 16px; height: 16px; color: var(--e7-text-3); }
+.cmdk-input { border: none; background: transparent; outline: none; flex: 1;
+  font: inherit; color: var(--e7-text); }
+.cmdk-list { padding: 6px; max-height: 50vh; overflow-y: auto; }
+.cmdk-section + .cmdk-section { margin-top: 4px; }
+.cmdk-section-h { padding: 6px 10px 2px; }
+.cmdk-empty { padding: 16px; text-align: center; color: var(--e7-text-3); font-size: 13px; }
+.cmd-row .hint { margin-left: auto; font-size: 11px; color: var(--e7-text-3); }
+
+/* ── Tablet (≤1099): collapse rail labels; profile row shows avatar only ──── */
+@media (max-width: 1099px) {
+  .e7-rail-profile { justify-content: center; padding: 0; }
+  .e7-rail-profile .e7-profile-text, .e7-rail-profile .ico:last-child { display: none; }
+}
+
+/* ── Phone: keep the logo cell (brand) in the header per owner frame ───────── */
+@media (max-width: 767px) {
+  .e7-brand-lockup { display: inline-flex; }       /* override e7 hide */
+  .e7-brand-mos { display: none; }                  /* keep phone header tight */
+  .e7-searchfield { min-width: 0; width: var(--e7-control-h); height: var(--e7-control-h); padding: 0; justify-content: center; }
+  .e7-searchfield-text, .e7-searchfield .e7-kbd { display: none; }
+  .searchbar { min-height: var(--e7-tap-h); }
+}
+@media (max-width: 390px) {
+  .e7-searchfield { width: var(--e7-tap-h); height: var(--e7-tap-h); }
+  .e7-iconbtn { width: var(--e7-tap-h); height: var(--e7-tap-h); }
+}
+
+/* Phone bottom-nav active state (items + the "More" owner use aria-current). */
+.e7-mobile-nav [aria-current="page"] { color: var(--e7-action-active); }
+.e7-mobile-nav [aria-current="page"] .ico { color: var(--e7-action); }
+.e7-rail-profile[aria-current="page"] { background: var(--e7-action-subtle); }
