@@ -103,3 +103,24 @@ export async function createSignal(input: CreateSignalInput): Promise<string> {
 
   return id
 }
+
+// ── correctSignal / retractSignal (B4, FR-410/411) ───────────────────────────
+
+export type SignalCorrection = Partial<Pick<SignalRow, 'body' | 'occurred_at' | 'category' | 'attention'>>
+
+/** Correct body/occurred_at/category/attention. owning_team_id/author_id/source stay immutable —
+ * the DB guard trigger (mos._signal_guard_update) rejects any attempt to change them and appends
+ * the signal_revisions audit row + sets edited_at server-side. */
+export async function correctSignal(id: string, patch: SignalCorrection): Promise<void> {
+  const { error } = await mos().from('signals').update(patch).eq('id', id)
+  if (error) throw new Error(`correctSignal failed — ${error.message}`)
+}
+
+/** Retract (soft-tombstone) a Signal with a required reason. The DB guard trigger gates retraction
+ * to the author or a signal.retract holder and rejects an empty reason. */
+export async function retractSignal(id: string, reason: string): Promise<void> {
+  const { error } = await mos().from('signals')
+    .update({ retracted_at: new Date().toISOString(), retract_reason: reason })
+    .eq('id', id)
+  if (error) throw new Error(`retractSignal failed — ${error.message}`)
+}

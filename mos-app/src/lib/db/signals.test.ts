@@ -8,7 +8,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { listReadableSignals, getSignal, createSignal } from './signals'
+import { listReadableSignals, getSignal, createSignal, correctSignal, retractSignal } from './signals'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -203,5 +203,44 @@ describe('createSignal', () => {
       body: 'X', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z',
       mentions: [{ kind: 'team', targetId: 'team-x', label: 'Team X' }],
     })).rejects.toThrow(/fan-out exceeds cap/)
+  })
+})
+
+// ── correctSignal / retractSignal (B4, FR-410/411) ───────────────────────────
+describe('correctSignal', () => {
+  it('updates only body|occurred_at|category|attention, scoped to the id', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: null }] }, rec)
+
+    await correctSignal(SIGNAL_ID, { body: 'Corrected body', category: 'Quality', attention: 'Urgent' })
+    expect(rec.updates).toEqual([{ body: 'Corrected body', category: 'Quality', attention: 'Urgent' }])
+    expect(rec.eqs).toContainEqual(['id', SIGNAL_ID])
+    expect(Object.keys(rec.updates[0] as object)).not.toContain('owning_team_id')
+    expect(Object.keys(rec.updates[0] as object)).not.toContain('author_id')
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'immutable' } }] }, rec)
+    await expect(correctSignal(SIGNAL_ID, { body: 'x' })).rejects.toThrow(/immutable/)
+  })
+})
+
+describe('retractSignal', () => {
+  it('sets retracted_at + retract_reason, scoped to the id', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: null }] }, rec)
+
+    await retractSignal(SIGNAL_ID, 'Duplicate report')
+    const patch = rec.updates[0] as Record<string, unknown>
+    expect(patch.retract_reason).toBe('Duplicate report')
+    expect(typeof patch.retracted_at).toBe('string')
+    expect(rec.eqs).toContainEqual(['id', SIGNAL_ID])
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'requires author or signal.retract' } }] }, rec)
+    await expect(retractSignal(SIGNAL_ID, 'reason')).rejects.toThrow(/signal\.retract/)
   })
 })
