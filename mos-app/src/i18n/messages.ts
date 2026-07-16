@@ -435,6 +435,11 @@ export const messages = {
     'signals.composer.author': 'Author: ${name} (implicit)',
     'signals.composer.categoryHelp': 'Category is added after posting — it never blocks capture.',
     'signals.action.share': 'Share Signal',
+    'signals.mention.pickerLabel': 'Mention a person, team, or BU',
+    'signals.mention.noMatches': 'No matches — Person/Team/BU only. Site is a location pill, not a mention.',
+    'signals.mention.group.person': 'Person',
+    'signals.mention.group.team': 'Team',
+    'signals.mention.group.bu': 'BU',
   },
   id: {
     'dest.home': 'Beranda',
@@ -861,6 +866,11 @@ export const messages = {
     'signals.composer.author': 'Penulis: ${name} (implisit)',
     'signals.composer.categoryHelp': 'Kategori ditambahkan setelah diposting — tidak pernah menghalangi pencatatan.',
     'signals.action.share': 'Bagikan Sinyal',
+    'signals.mention.pickerLabel': 'Sebut orang, tim, atau BU',
+    'signals.mention.noMatches': 'Tidak ada hasil — hanya Orang/Tim/BU. Site adalah pil lokasi, bukan sebutan.',
+    'signals.mention.group.person': 'Orang',
+    'signals.mention.group.team': 'Tim',
+    'signals.mention.group.bu': 'BU',
   },
 } as const
 

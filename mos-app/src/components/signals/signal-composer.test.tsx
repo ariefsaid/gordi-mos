@@ -104,3 +104,55 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     expect(call.mentions).toEqual([])
   })
 })
+
+describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
+  it('opens a grouped Person/Team/BU popover on "@" with a type badge per option', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+
+    await userEvent.type(body, 'Heads up @Pe')
+
+    const popover = await screen.findByRole('listbox', { name: /mention/i })
+    expect(popover).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Peer Person/i })).toBeInTheDocument()
+    expect(screen.getAllByText('person')[0]).toBeInTheDocument() // type badge
+
+    // Team and BU groups render even without a matching prefix filter on this query
+    expect(screen.getByText('Person')).toBeInTheDocument()
+  })
+
+  it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
+    const { unmount } = renderComposer({ canMentionBu: false })
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, '@')
+
+    const buOption = await screen.findByRole('option', { name: /Retail Ops/i })
+    expect(buOption).toBeDisabled()
+    unmount()
+
+    renderComposer({ canMentionBu: true })
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalledTimes(2))
+    const body2 = screen.getAllByRole('textbox', { name: /what happened/i })[0]
+    await userEvent.type(body2, '@')
+    const enabledBuOption = await screen.findByRole('option', { name: /Retail Ops/i })
+    expect(enabledBuOption).toBeEnabled()
+  })
+
+  it('selecting a mention option inserts an @Name chip in the body and stages the mention', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+
+    await userEvent.click(await screen.findByRole('option', { name: /Peer Person/i }))
+
+    expect(body).toHaveValue('Heads up @Peer Person ')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([
+      { kind: 'person', targetId: 'person-peer', label: 'Peer Person' },
+    ])
+  })
+})
