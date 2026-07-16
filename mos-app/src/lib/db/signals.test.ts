@@ -8,7 +8,15 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { listReadableSignals, getSignal, createSignal, correctSignal, retractSignal } from './signals'
+// createFollowUpTask reuses the canonical createTask (Rule 11) — mocked here, exercised for real
+// in tasks.test.ts.
+vi.mock('./tasks', () => ({ createTask: vi.fn() }))
+
+import {
+  listReadableSignals, getSignal, createSignal, correctSignal, retractSignal,
+  acknowledgeSignal, linkSignalTask, createFollowUpTask,
+} from './signals'
+import * as tasksDal from './tasks'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -242,5 +250,58 @@ describe('retractSignal', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'requires author or signal.retract' } }] }, rec)
     await expect(retractSignal(SIGNAL_ID, 'reason')).rejects.toThrow(/signal\.retract/)
+  })
+})
+
+// ── acknowledgeSignal / linkSignalTask / createFollowUpTask (B5, FR-412/413) ─
+describe('acknowledgeSignal', () => {
+  it('inserts an acknowledgement without sending person_id (DB default stamps the caller)', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_acknowledgements': [{ data: null, error: null }] }, rec)
+
+    await acknowledgeSignal(SIGNAL_ID)
+    expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID }])
+  })
+
+  it('throws on a duplicate-ack unique-constraint error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_acknowledgements': [{ data: null, error: { message: 'duplicate key value' } }] }, rec)
+    await expect(acknowledgeSignal(SIGNAL_ID)).rejects.toThrow(/duplicate key/)
+  })
+})
+
+const TASK_ID = '00000000-0000-0000-0000-00000000c001'
+
+describe('linkSignalTask', () => {
+  it('inserts a signal_tasks row', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_tasks': [{ data: null, error: null }] }, rec)
+
+    await linkSignalTask(SIGNAL_ID, TASK_ID)
+    expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_tasks': [{ data: null, error: { message: 'nope' } }] }, rec)
+    await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).rejects.toThrow(/nope/)
+  })
+})
+
+describe('createFollowUpTask', () => {
+  it('creates the Task via the canonical createTask, then links it to the Signal (Rule 11 — reuse)', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_tasks': [{ data: null, error: null }] }, rec)
+    vi.mocked(tasksDal.createTask).mockResolvedValue(TASK_ID)
+
+    const taskInput = {
+      title: 'Repair freezer', businessUnitId: 'bu-1',
+      responsiblePersonId: AUTHOR_ID, accountablePersonId: AUTHOR_ID, createdBy: AUTHOR_ID,
+    }
+    const id = await createFollowUpTask(SIGNAL_ID, taskInput)
+
+    expect(tasksDal.createTask).toHaveBeenCalledWith(taskInput)
+    expect(id).toBe(TASK_ID)
+    expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
   })
 })
