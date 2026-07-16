@@ -14,8 +14,19 @@ shell + routes, Tasks re-home) + design-remediation waves 1 / 2 / 2b / 2c.
 - spec: NOT-RUN — tip `8ab3235` (Wave 2c) has gates only, no spec review. Steps 1–3 + waves 1/2/2b
   each ran BLOCK → fix → **APPROVE** (gpt-5.4/luna cross-family) — see the sections below; that
   APPROVE does not extend to the Wave 2c delta.
+- spec: APPROVE — Wave 2c (`8ab3235`) spec review ran 2026-07-16 (spec-reviewer, opus, cloud run
+  OD-REDESIGN-67). Option A verified exactly: 7-col priority table (thead/body/skeleton/colSpan all
+  7), optional columns genuinely reachable in drawer/full page (test-proven AC-W2C), no new renderer
+  (Rule 11), tests adjusted honestly (goal-oracles preserved, Due assertions strengthened),
+  OD-61..64 not regressed in code. 1 Minor: column order Title·Status·PIC·Supervisor·Due is
+  set-identical to spec's literal order (non-load-bearing). § "Wave 2c code reviews" below.
 - code-quality: NOT-RUN — same as spec: Wave 2c (`8ab3235`) changed the desktop Tasks table and was
   never code-reviewed. Prior steps/waves are APPROVE below.
+- code-quality: APPROVE — Wave 2c (`8ab3235`) code-quality review ran 2026-07-16 (code-quality-
+  reviewer, opus, cloud run). 0 Critical / 0 Important. Minors (cleanup, non-blocking, folded into
+  the step-11 sweep list): dead `'activity'` SortCol + accessor (tasks-workspace.tsx:42,233-236),
+  orphaned `.td-bu`/`.td-workline`/`.td-objective` CSS, column-count `7` magic literal in 3 files
+  (pre-existing pattern; follow-up: shared column-descriptor array). § "Wave 2c code reviews" below.
 - design: BLOCK — the 4-lens design re-review has not been re-run against Wave 2c's rendered result;
   no APPROVE recorded. **THE next open item** (`docs/plans/AUTONOMOUS-RUN-STATE.md`). Acceptance: at
   1280px the Due column is visible with no horizontal clip; optional fields reachable in the
@@ -708,3 +719,31 @@ they pass while nothing mounts it — false assurance that sign-out works.
    no protected content*, driven **through the UI**, not a storage wipe. Do not delete the journey.
 3. Restore an identity assertion (MEDIUM-1) once the viewer's name is back in the shell.
 4. Re-run the audit → record `security: APPROVE` above only when High findings are cleared.
+
+---
+
+## Wave 2c code reviews (2026-07-16, cloud autonomous run — OD-REDESIGN-67)
+
+### Spec review (spec-reviewer, opus) — **APPROVE**
+
+Static review of `8ab3235` against the Option A spec (§ Design RE-review above). Verified:
+(a) column trim = Option A exactly — thead/body/skeleton each 7 cells (`tasks-table-body.tsx:195-224`,
+`task-row.tsx:76-113`), old 10-col min-width 1284px → `min-width:0; table-layout:fixed`, Cascade-D1
+override block deleted so it can't shadow the grid; at 994px fixed cols leave Task ~280px → Due
+cannot clip. (b) Optional fields reachable: `record-details-panel.tsx` renders Team/Source/
+Work-line/Objective; wired in both drawer + full page (`task-surface.tsx:433-441,566-574`);
+test-proven (`task-record-redesign.test.tsx:102-142`, `cascade-d1.test.tsx:393-409`).
+(c) Rule 11: zero new component files; single `TaskSurface` renderer preserved. (d) Tests adjusted
+honestly: FR-234/235, AC-060, AC-113 updated to the moved-to-drawer contract (deliberate UX change;
+goal-oracles preserved); new AC-W2C asserts priority-only headers + drawer reachability; Due
+assertions strengthened. OD-61..64 not regressed. 1 Minor: literal column order differs from spec
+wording (set-identical, non-blocking).
+
+### Code-quality review (code-quality-reviewer, opus) — **APPROVE**
+
+0 Critical / 0 Important. Strengths: column count consistent across all 6 render sites; net
+simplification (dual-count regime collapsed); props/imports cleaned at call sites; header tests
+assert accessible contract (role+name). Minors → step-11 sweep list: dead `'activity'` sort union +
+accessor (`tasks-workspace.tsx:42,233-236` — no trigger can reach it); orphaned `.td-bu`/
+`.td-workline`/`.td-objective` CSS (`TasksWorkspace.css:376,599-607`); colSpan `7` magic literal in
+3 files (pre-existing; recommend shared column-descriptor array as follow-up).
