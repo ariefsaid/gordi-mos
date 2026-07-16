@@ -10,6 +10,11 @@ UI step.** Any agent picking up a step reads this doc first, then the step's spe
 
 ## Read-first for EVERY agent on this workstream
 
+0. **Running steps 4–11 autonomously? → `docs/plans/CLOUD-AGENT-HANDOFF.md`** (OD-REDESIGN-67): the
+   owner gates at steps 4/6 + per-step visual diffs are SUSPENDED into one review after step 11;
+   both review batteries stay mandatory; conservative-default + `RATIFY-BEFORE-MERGE` policy for the
+   step 4 & 6 schema/RLS decisions.
+
 1. `docs/experience-contract.md` — **BINDING**. Rules 1–12 are blocking pass/fail acceptance checks
    in every review. Rule 11 (component reuse — never re-implement an existing surface) exists
    because mockup iterations kept re-creating components; in the app it is a review-blocking defect.

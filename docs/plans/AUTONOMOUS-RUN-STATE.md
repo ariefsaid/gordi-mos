@@ -9,6 +9,11 @@ If the two disagree, **the ledger is ground truth** — and this file is stale: 
 
 ## Mode (READ THIS FIRST — it changes what you're allowed to do)
 
+- **▶ CLOUD-AGENT AUTONOMOUS RUN (OD-REDESIGN-67, 2026-07-16):** steps 4–11 run independently; the
+  owner reviews **once, after step 11**. Per-step owner gates are suspended; **both review batteries
+  remain mandatory**. Charter + piping: **`docs/plans/CLOUD-AGENT-HANDOFF.md`** — read it before
+  starting any step.
+
 - **Owner is PRESENT.** Normal per-issue gates are in force: spec sign-off, owner walkthroughs at
   steps 2/4/6, owner visual diff every step, owner approves push/merge/deploy.
 - *(Historical: a 2026-07-15 AFK window authorized building all steps unattended on conservative

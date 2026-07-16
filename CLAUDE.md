@@ -3,6 +3,7 @@
 > **Cold start? → `docs/agent-context.md` — read this FIRST** (owner prefs · hard rules · gotchas ·
 > pointers). Then **`docs/plans/AUTONOMOUS-RUN-STATE.md`** for where the current workstream stands.
 > Evidence of record for the redesign: `docs/reviews/feat-redesign-buildout.md`.
+> **Cloud agent running redesign steps 4–11 → `docs/plans/CLOUD-AGENT-HANDOFF.md`** (OD-67).
 > **Why any redesign decision is what it is → `docs/reference/provenance/`** (grill + frustration threads, owner prompts verbatim).
 
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).

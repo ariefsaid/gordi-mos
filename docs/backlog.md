@@ -427,3 +427,9 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
 - **Gordi local Supabase is DOWN** (stopped after an OOM, 2026-07-15/16) — blocks the design half of the
   review gate (needs the live app to log in). Bring up with `supabase start` (api :44321) when RAM
   allows. The running docker containers are PMO-portal's, a different project — do not stop those.
+
+- **▶ Cloud agent: redesign steps 4→11 autonomous** (OD-REDESIGN-67, 2026-07-16) — charter +
+  environment/piping in `docs/plans/CLOUD-AGENT-HANDOFF.md`. Both review batteries stay mandatory per
+  step; owner reviews ONCE after step 11. Open items it must surface, not decide: Q1 Signal-on-Home
+  (provisional), Modules-in-rail window, and every `RATIFY-BEFORE-MERGE:` conservative default it takes
+  on the step 4 & 6 schema/RLS work.

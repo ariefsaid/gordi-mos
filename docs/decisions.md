@@ -1749,3 +1749,28 @@ to capture-first for the member and permitting density for the manager. Rule 12 
 as the **member/least-technical persona**; manager efficiency is scored as its own lens. A design
 review must judge **both** fronts; "it's clean for the barista" is not a pass if it destroyed manager
 throughput, and vice-versa.
+
+### OD-REDESIGN-67 — Cloud agent runs steps 4→11 autonomously; owner reviews once, after step 11 (owner 2026-07-16)
+
+> *Why:* the owner wants the remaining buildout completed without per-step supervision. Full charter +
+> environment/piping: [`docs/plans/CLOUD-AGENT-HANDOFF.md`](plans/CLOUD-AGENT-HANDOFF.md).
+
+A cloud agent executes **steps 4–11** of `docs/plans/2026-07-14-redesign-buildout.md` independently.
+**The per-step owner gates (walkthroughs at 4/6, visual diff every step) are SUSPENDED and collapse
+into ONE owner review after step 11.** Everything else stands — most importantly **BOTH review
+batteries on every step** (code + 4-lens design), BLOCK→fix→re-verify→APPROVE, Contract Rules 1–12,
+coverage/typecheck/lint, RLS + `security-auditor` on steps 4 & 6, TDD/BDD, Rule 11 reuse.
+
+Because the **step 4 & 6 grills cannot happen without the owner**: derive from locked law
+(OD-REDESIGN-1..66 + ADR-0025 + CONTEXT.md) first; where genuinely ambiguous take the **most
+conservative / fail-closed** option and record it as **`RATIFY-BEFORE-MERGE:`** in the step's ledger.
+Never guess a business rule silently; never reopen the closed domain grill. **Q1 (Signal-on-Home)
+stays provisional** — build as specified, flag for ratification.
+
+The agent **may push step branches** (so the owner can review) but **may not open PRs, merge, or
+deploy** — those remain the owner's after step 11. **Staging/Cloudflare is NOT used for reviews** (it
+deploys downstream of `main`, which would invert the review gate); the design review renders the app in
+the agent's own sandbox against an **ephemeral** Supabase (`supabase start`, as `integration.yml`
+already does) — **never against the staging project, which holds real migrated data**. If the agent
+cannot render, it stops the step at **"built, review-pending"** rather than shipping on code review
+alone.

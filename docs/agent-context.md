@@ -11,6 +11,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > threads, owner prompts verbatim, in-repo. Owner prefs, hard rules, multi-agent/git gotchas, and
 > the delegation posture below are **not** superseded and remain binding.
 >
+> **Running the redesign steps 4–11 autonomously? → `docs/plans/CLOUD-AGENT-HANDOFF.md`** (OD-67).
+>
 > **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md`** (mode, branch strategy, per-step
 > status, the next open item, the both-reviews gate). Evidence of record: `docs/reviews/feat-redesign-buildout.md`.
 >
