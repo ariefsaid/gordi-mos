@@ -20,9 +20,11 @@ shell + routes, Tasks re-home) + design-remediation waves 1 / 2 / 2b / 2c.
   no APPROVE recorded. **THE next open item** (`docs/plans/AUTONOMOUS-RUN-STATE.md`). Acceptance: at
   1280px the Due column is visible with no horizontal clip; optional fields reachable in the
   drawer/full page; no regression of the resolved OD-61..64 findings.
-- security: NOT-RUN — **no security review has ever been run on this branch, in any wording.** It is
-  REQUIRED: the diff touches auth paths (`mos-app/src/auth/require-capability.test.tsx`, the four
-  `mos-app/e2e/auth-*.spec.ts` journeys). `security-auditor` (OWASP/STRIDE on auth + RLS + org_id).
+- security: BLOCK — OWASP/STRIDE audit RAN 2026-07-17 (`security-auditor`, opus; Director-verified
+  every load-bearing claim against the code). **0 Critical. 2 High, 1 Medium, 1 Low.** Nothing
+  injectable, no secret exposure, no tenancy/`org_id` bypass, no ungated sensitive route, no
+  capability-guard bypass — the blockers are one regression and the test that hid it. Full findings:
+  § "Security audit (2026-07-17)" below.
 
 > **Why this block exists (2026-07-17).** This ledger had **zero** verdict lines in the template's
 > format, so `scripts/pre-merge-check.sh` — the gate `CLAUDE.md` calls binding — reported
@@ -608,3 +610,101 @@ record drawer / full page, where the typed Task already carries them. No new ren
 - **Acceptance when it runs:** at 1280px the Due column is visible with no horizontal clip; optional
   fields reachable in the drawer/full page; no regression of the four already-resolved OD-61..64
   findings.
+
+---
+
+## Security audit (2026-07-17) — `security-auditor` (opus), OWASP Top 10 + STRIDE
+
+**Verdict: BLOCK** · 0 Critical · **2 High** · 1 Medium · 1 Low.
+Scope: `git diff f2546f66..HEAD` — 133 code files (+6919/-4170). **Zero migrations changed**, so
+server-side RLS is unchanged from `main`; this audit is about the client and what it now exposes.
+Every load-bearing claim below was **re-verified by the Director against the code** (the auditor's
+summary was not taken on trust).
+
+### HIGH-1 — Sign-out removed from the authenticated UI; a session cannot be terminated (A07)
+
+The redesign unmounted the **only** sign-out affordance. Verified:
+- merge-base `top-bar.tsx:3,304` imported and rendered `<UserChip variant="header">`; at HEAD
+  `top-bar.tsx` has **0** references. `git grep UserChip HEAD -- mos-app/src` returns only
+  `user-chip.tsx` and its own test → **unmounted dead code**.
+- `user-chip.tsx:135` held the only `signOut?.()` for an authenticated viewer. The sole remaining
+  reachable caller is `orphan-screen.tsx:51`, which renders only when `status === 'orphan'`.
+- Its replacement is a bare `NavLink to="/profile"` (`rail-nav.tsx:185`); `/profile` → `SliceStubPage`
+  (`router.tsx:150`) = "not in this slice".
+
+**Why it matters here:** `supabase.ts:13` sets `persistSession: true, autoRefreshToken: true`, so the
+refresh token in `localStorage` renews indefinitely. The deployment IS shared terminals (café/kitchen
+screens, ~30 staff, mixed roles). Shift ends, no way to sign out → the next person inherits the prior
+session, including `admin`/`finance` access roles (which unlock `/money`, `/admin/people`). Writes
+stamp `actor_person_id = shared.current_person_id()` → misattributed. STRIDE: Spoofing + EoP +
+Repudiation. Aggravated by `rail-nav.tsx:116` showing only "{site} {role}" + initials — the person's
+name is gone from the shell, so a stale session is unlikely to be *noticed*.
+**Local-access-only** — if shared terminals were out of scope this would be Medium; they are not.
+**Fix is small:** `handleSignOut` (`auth-provider.tsx:28`) is intact; only the UI entry point is gone.
+
+### HIGH-2 — AC-002's sign-out journey rewritten to a storage wipe, masking HIGH-1
+
+`e2e/auth-signout-back.spec.ts` — the test named "sign-out and back-button guard":
+- **Before:** `getByRole('button', {name:/cahya cafe/i}).click()` → `getByRole('menuitem',
+  {name:/sign out/i}).click()` — drove the real affordance.
+- **After:** `clearSession(page)` = `localStorage.clear()` + `sessionStorage.clear()`.
+
+Clearing storage is **not signing out**: it never calls `supabase.auth.signOut()` and never revokes
+the refresh token server-side. `signOut()` could be deleted entirely and AC-002 would still pass.
+This is the **"app conforms to the test, never the test to the app"** rule inverted — and it is the
+direct reason a shipped auth-control regression reached this gate green. Same substitution at
+`auth-recovery.spec.ts:62-66`.
+
+### MEDIUM-1 — Identity goal-oracle now vacuous in three auth journeys
+
+`auth-password-login.spec.ts:21`, `auth-magic-link.spec.ts:32`, `auth-recovery.spec.ts:62,82`: the
+assertion moved from the viewer's name (`getByText('Cahya Cafe')`) to `a[href="/mos/profile"]` — a
+static nav link rendered for **any** authenticated viewer. It proves the login gate was passed, not
+**which identity resolved**; if `resolveViewer` returned the wrong person, all three still pass.
+FR-006 is unproven at the e2e layer. (Partly forced by HIGH-1 removing the name from the shell.)
+
+### LOW-1 — `user-chip.test.tsx` is green for an unmounted component
+
+13 assertions incl. `describe('AC-005: UserChip and sign-out menu')` render `<UserChip/>` directly, so
+they pass while nothing mounts it — false assurance that sign-out works.
+
+### Verified clean (what was actually checked, not assumed)
+
+- **`require-capability.tsx` fail-closed, not bypassable.** Only change is the redirect target
+  (`/work/cascade` → `/work/tasks`). No loading fail-open: nested under `ProtectedRoute`
+  (`router.tsx:86-91`) which returns a loading `<div role="status">`, **not** `<Outlet/>`, while
+  `status === 'loading'` (`protected-route.tsx:14-20`). Unknown capability → `ROLE_CAPABILITIES[role]
+  ?? []` → deny (`capabilities.ts:14`). No session → `roles = []` → deny.
+- **Route→guard mapping got STRONGER, not weaker.** `/money*` → `RequireAccessRole
+  ['finance','admin']`; `/admin/people` → `AdminRoute`; `/work/projects` → `workline.manage`;
+  `/work/objectives` → `objective.manage`; `/cafe/review`,`/cafe/pushes` → `RequireAccessRole
+  ['ops_lead','admin']` — **newly gated; `main` had NO route guard on `kitchen/review|pushes`**.
+  `/events`,`/ecommerce`,`/roastery`,`/profile`,`/work/signals` are stubs (zero data access).
+  `/dev/*` stripped by `import.meta.env.DEV`.
+- **No RACI-style leak** (the project's two prior findings): `record-details-panel`,
+  `task-ownership-card`, `owner-cell`, `person-picker`, `record-feed` are props-driven, no fetching.
+  `my-tasks-card.tsx:45` uses RLS-scoped queries; `tasks_select_org` / `people_select_org` are
+  deliberately org-readable (OD-P1-3) — excluded by query/RLS, not by the UI.
+- **Command palette not an over-fetch:** `searchTasksByTitle` (`db/tasks.ts:194-206`) is `.ilike` +
+  `.limit(20)` on the RLS-scoped client; postgrest-js URL-encodes filter values → no PostgREST filter
+  injection. No `.or()`/`.filter()` string building anywhere in `src/lib/db/`.
+- **XSS:** zero `dangerouslySetInnerHTML` / `.innerHTML` / `eval` / `new Function` / `document.write`
+  in `src/`. i18n interpolation returns plain strings into React-escaped JSX text nodes. The one
+  markdown sink (`AssistantMarkdown.tsx:10-25`, unchanged) protocol-allowlists via `transformUrl`.
+- **Secrets/tenancy:** no key material in `src/` or history. `cloud-agent-bootstrap.sh:65` writes
+  `SUPABASE_SERVICE_ROLE_KEY` **without** a `VITE_` prefix → never bundled into the client.
+  **38/38 business tables** RLS enabled + forced (an initial regex said 36 — false positive from
+  double-spaced `alter table mos.follow_ups        enable`; verified directly at
+  `20260709000001_mos_follow_ups.sql:315-318`). Both views are `security_invoker = true` → no
+  view-level RLS bypass.
+- **`features.ts` not client-toggleable:** all flags build-time constants; no localStorage/query-param
+  toggle. Flipping any flag still leaves `RequireAccessRole` + RLS in front of the data.
+
+### To clear this BLOCK
+
+1. Restore a sign-out affordance (rail-footer menu, or implement `/profile`). `handleSignOut` is
+   intact. This is a `*.tsx` shell change → **design review is required on the fix too**.
+2. Re-author AC-002 against the real affordance — goal-oracle: *user signs out → back button reaches
+   no protected content*, driven **through the UI**, not a storage wipe. Do not delete the journey.
+3. Restore an identity assertion (MEDIUM-1) once the viewer's name is back in the shell.
+4. Re-run the audit → record `security: APPROVE` above only when High findings are cleared.
