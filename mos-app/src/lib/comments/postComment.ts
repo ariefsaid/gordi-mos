@@ -1,7 +1,7 @@
 import { buildPersonMentionIndex, extractMentions, type MentionPerson, type PersonMentionIndex } from './mentions'
 import { supabase } from '@/lib/supabase'
 
-export type CommentEntityType = 'task' | 'weekly_update' | 'daily_log' | 'follow_up'
+export type CommentEntityType = 'task' | 'weekly_update' | 'daily_log' | 'follow_up' | 'signal'
 
 type QueryResult<T> = PromiseLike<{ data: T | null; error: { message?: string } | null }>
 

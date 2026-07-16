@@ -96,6 +96,20 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
     expect(rec.rpcs).toEqual([])
   })
 
+  it('accepts entityType "signal" (Step 4 — Signal comments reuse mos.comments, Rule 11)', async () => {
+    const { sb, rec } = makeSb()
+
+    const id = await postComment({
+      sb: sb as unknown as CommentSupabase,
+      entityType: 'signal',
+      entityId: 'signal-1',
+      body: 'Acknowledged, dispatching a tech.',
+    })
+
+    expect(id).toBe('comment-1')
+    expect(rec.inserts).toContainEqual({ entity_type: 'signal', entity_id: 'signal-1', body: 'Acknowledged, dispatching a tech.' })
+  })
+
   it('CQ#1: a transient mention-notify failure does not invalidate the committed comment row', async () => {
     // The comment INSERT succeeds (row is durable); the create_notification RPC rejects.
     // postComment must return the comment id and swallow the per-mention error, so a retry
