@@ -1689,3 +1689,47 @@ Home's job-first attention brief is **Step 5** (not pulled forward). BUT the cur
 **dead links are fixed now** (a step-2/3 follow-up): "Write update →" and "Open the Daily Log →" must
 not lead to a stub/redirect-to-self. Either point them at a working successor or hide them from the
 least-technical persona until Step 5. No broken promises in front of staff, even on a legacy screen.
+
+### OD-REDESIGN-65 — Design iterates ONCE, inside implementation; the per-slice design review carries the mockup judgment (owner 2026-07-15/16)
+
+**Problem it solves:** the mockups became **quicksand** — each new version fixed one thing and silently
+regressed something the owner had already approved in an earlier version (the "fork" problem). Looping
+on mockups burned the owner, and then the same design judgment had to be re-litigated again during
+implementation: **two design loops, both painful.**
+
+**Decision:** the project convention is UNCHANGED — SDD/BDD/TDD, `grill → spec → mockup → implement →
+code/spec review battery → design review battery (IA/IxD/UX) → loop` (CLAUDE.md,
+`docs/director-playbook.md`). Grill ✅, spec ✅, mockups ✅ are DONE. We do **not** run further mockup
+iteration rounds. Instead the **per-slice design review carries the mockup judgment**, so design
+iterates **once — inside the implementation loop**, not twice.
+
+**This is NOT a new methodology and NOT a reduction of the loop.** No spec, review, battery, or gate is
+removed. Only the *mockup re-iteration* phase is folded into the design review.
+
+**Therefore every slice's design review does DOUBLE DUTY:**
+1. **Mockup fidelity ACROSS ITERATIONS** — judge against *all* mockup versions (not just the latest),
+   per `SALVAGE-INVENTORY.md` ownership + the explicit override list. **Blocking finding:** anything an
+   earlier mockup got right (owner-approved good) that a later version or the build LOST or changed for
+   the worse. Restore it. This is the fork problem; it is not a nit.
+2. **The IA/IxD/UX fundamentals** — information architecture, interaction design, ease of use, the
+   **two fronts** (OD-REDESIGN-66), **UI component reusability across modules**, and the product-
+   requirement principles from the grill/ADR-0025/OD-REDESIGN-1..64.
+
+**Order of assessment (binding):** rules in docs FIRST (`docs/experience-contract.md` Rules 1–12 →
+`docs/jtbd.md` intent → `docs/reference/twenty-ixd-patterns.md`), THEN the mockups. Owner-facing design
+forks are raised as **Option A / Option B** with a recommendation — never silently chosen — then locked
+as a convention/OD so they cannot regress again.
+
+### OD-REDESIGN-66 — Two-front app: manager efficiency AND barista obviousness; neither is sacrificed (owner 2026-07-15/16)
+
+MOS serves **two fronts at once** and a design that serves only one is wrong:
+- **The manager / power user** — needs **efficiency and density**: filters, dense review tables,
+  multi-column scanning, fast repeated triage. Do not dumb this down.
+- **The high-school-graduate barista / member** — needs **obviousness**: zero training, first-try
+  success, work before configuration, no system jargon (`docs/experience-contract.md` Rule 12).
+
+**Mechanism:** role-adaptive disclosure (OD-REDESIGN-61) — the same surface serves both by defaulting
+to capture-first for the member and permitting density for the manager. Rule 12 (cold-start) is scored
+as the **member/least-technical persona**; manager efficiency is scored as its own lens. A design
+review must judge **both** fronts; "it's clean for the barista" is not a pass if it destroyed manager
+throughput, and vice-versa.

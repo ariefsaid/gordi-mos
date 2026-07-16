@@ -557,3 +557,20 @@ No owner decision is required for OD-61–64; all four decisions were rendered a
 **Overall assessment: BLOCK.** The original five remediation findings are all **RESOLVED** at the rendered level, but the design gate remains blocked by the in-scope desktop Tasks table fidelity regression above. After that one table fix, re-run the 1280px/390px visual pass; no further owner decision is needed.
 
 DESIGN-REVIEW-DONE
+
+### Wave 2c — desktop table density (fix for the design RE-review's last BLOCK)
+
+**Status: BUILT, DESIGN-REVIEW PENDING — steps 1–3 are NOT closed.**
+
+Commit `8ab3235` "trim desktop table to e7 priority columns so Due never clips". Applies the reviewer's
+recommended **Option A**: at desktop, show the e7 priority decision columns (Title · PIC · Supervisor ·
+Status · Due); the optional columns (Project/Process, Objective, Team, Source, Activity) move to the
+record drawer / full page, where the typed Task already carries them. No new renderer (Rule 11).
+
+- **Gates:** typecheck 0 · lint 0 · unit green (~2619) · Playwright green (49) · task tests 303 green.
+- **NOT DONE:** the 4-lens design re-review has **not** been re-run against the rendered result, so no
+  APPROVE is recorded. **Blocked on Gordi's local Supabase being down** (design review needs the live
+  app to log in; see `docs/plans/AUTONOMOUS-RUN-STATE.md` § next open item).
+- **Acceptance when it runs:** at 1280px the Due column is visible with no horizontal clip; optional
+  fields reachable in the drawer/full page; no regression of the four already-resolved OD-61..64
+  findings.

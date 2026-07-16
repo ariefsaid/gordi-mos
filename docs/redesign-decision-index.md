@@ -138,3 +138,10 @@ mockups is authorized yet; environment resets and deploys remain owner-gated.
 - `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md` — **which mockup owns which
   surface (presumed correct — port, don't re-invent) + the only explicit overrides.** Live refs:
   e7 shell (:8766) + convergence flows (:8134) in the `gordi-mos-e7-prototype` working copy.
+
+- `docs/plans/AUTONOMOUS-RUN-STATE.md` — **live run state**: mode (owner present/AFK), branch/PR
+  strategy, per-step status, THE next open item, and the non-negotiable both-reviews gate. Index over
+  the review ledger; the ledger is ground truth if they disagree.
+- `docs/decisions.md` OD-REDESIGN-65 (design iterates ONCE inside implementation; the per-slice design
+  review carries the mockup judgment) · OD-REDESIGN-66 (two fronts: manager efficiency AND barista
+  obviousness).

@@ -1,5 +1,10 @@
 # Gordi MOS — project instructions
 
+> **Precedence:** `CLAUDE.md` is the authority for this repo's charter, loop, and gates. This file
+> mirrors it for non-Claude agents. If the two ever disagree, **CLAUDE.md wins** — and the divergence is
+> a bug: fix this file. (Reconciled 2026-07-16 after a fresh-agent audit found 3-lens vs 4-lens and
+> approval-pause drift.)
+
 Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
 Ships at `https://ops.gordi.id/mos`. **Usability and speed beat model completeness and Notion fidelity.**
 
@@ -32,8 +37,9 @@ Ships at `https://ops.gordi.id/mos`. **Usability and speed beat model completene
 ## Operating model: Owner → Director → role agents
 The **owner** (Arief) talks to the **Director** (the main session). The Director runs an
 **issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**. Routine worktree commits and opening/updating PR metadata do not require
-an approval pause. Always obtain owner approval before every push, merge, or deploy. Per-issue loop:
+Build **one issue at a time**; **pause for owner approval at issue boundaries** and before any push /
+merge / deploy (matches `CLAUDE.md` — that file governs if these ever diverge). Routine worktree commits
+do not require an approval pause; push, PR-to-merge, merge, and deploy always do. Per-issue loop:
 
 1. **Intake** — Director clarifies the issue with the owner. For architecturally-significant issues
    (schema, auth, cross-cutting), run a `grill-with-docs` session: grill the approach against
@@ -42,7 +48,7 @@ an approval pause. Always obtain owner approval before every push, merge, or dep
 2. **Spec (SDD)** — `feature-forge` (new behavior) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs); `design-architect` for UI design-plans.
 4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing test).
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (3-lens) for UI.
+5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (**4-lens**: Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) for UI.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
 8. **Ship** — `release-engineer` (worktree branch → checkpoint commits → owner-approved push → PR

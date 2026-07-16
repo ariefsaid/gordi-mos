@@ -9,6 +9,10 @@ each one against a rendered screen at desktop and ≤390px phone, with no vibes.
 `docs/adr/0025-ia-modules-in-rail-redesign-direction.md` (D1–D41) → `docs/decisions.md` OD-REDESIGN-1…55
 → `CONTEXT.md`. Where a rule operationalises a locked OD/D, it is cited inline.
 
+**How design iterates (OD-REDESIGN-65):** mockup re-iteration is CLOSED; the per-slice design review
+carries the mockup judgment (all iterations, fork-catching) PLUS the IA/IxD/UX fundamentals — design
+loops ONCE, inside implementation. The SDD/BDD/TDD convention and both review batteries are unchanged.
+
 **Scope:** these are *experience law* (URL semantics, rail budget, page anatomy, disclosure order, action
 grammar). They do **not** re-litigate *domain law* (objects, authority, lifecycle) — that is closed. The
 two owner ratification calls live in the audit (Q1 Signal home, Q2 function-based assignment); until
@@ -243,6 +247,10 @@ existing counterpart. **Fail if:** a new implementation duplicates an existing s
 "temporarily".
 
 ## Rule 12 — Usable by a high-school graduate with no training (added 2026-07-15, owner-directed)
+
+*TWO FRONTS (OD-REDESIGN-66): Rule 12 is scored as the **member/least-technical persona**. It does NOT
+license dumbing down the **manager** front, which needs efficiency + density (filters, dense review
+tables). Role-adaptive disclosure (OD-REDESIGN-61) serves both. A review must judge BOTH fronts.*
 
 The bar is **not** "a power user can figure it out" — it is **"a Gordi staff member with a
 high-school education and zero training completes the job on the first try, unaided."** Usability and

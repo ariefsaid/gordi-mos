@@ -9,10 +9,13 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Quick map: `docs/redesign-decision-index.md`. Owner prefs, hard rules, multi-agent/git gotchas, and
 > the delegation posture below are **not** superseded and remain binding.
 >
+> **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md`** (mode, branch strategy, per-step
+> status, the next open item, the both-reviews gate). Evidence of record: `docs/reviews/feat-redesign-buildout.md`.
+>
 > **UPDATE 2026-07-14 — mockup phase CLOSED (OD-REDESIGN-56).** The canonical next product step is the
-> **buildout in `mos-app`** per `docs/plans/2026-07-14-redesign-buildout.md` (10 owner-approved steps;
-> step 1 = styling pass). Binding on every step: `docs/experience-contract.md` Rules 1–11 (incl. Rule 11
-> component reuse — never re-implement an existing surface) + OD-REDESIGN-56..60. The E7/convergence
+> **buildout in `mos-app`** per `docs/plans/2026-07-14-redesign-buildout.md` (11 owner-approved steps;
+> step 1 = styling pass). Binding on every step: `docs/experience-contract.md` Rules 1–12 (incl. Rule 11
+> component reuse — never re-implement an existing surface) + OD-REDESIGN-56..66. The E7/convergence
 > mockups are **standing references with a presumption of correctness** — port what they answered
 > unless it's on the explicit override list; ownership map:
 > `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md` (binding read-first for UI

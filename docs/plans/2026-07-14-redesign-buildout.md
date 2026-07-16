@@ -61,7 +61,8 @@ actually gone."
   2/4/6 are in addition to, not instead of, this.
 - Contract Rules 1–12 scored pass/fail in the review ledger (`docs/reviews/<branch>.md`) — a FAIL
   blocks merge exactly like a failing gate.
-- **Design / UX review EVERY step, not just code review (owner-directed 2026-07-15).** Alongside the
+- **Design / UX review EVERY step, not just code review (owner-directed 2026-07-15; rationale + double
+  duty defined in OD-REDESIGN-65; two-front bar in OD-REDESIGN-66).** Alongside the
   cross-family code review, every UI step gets a **four-lens design review — Visual · IxD · IA ·
   Product/Intent (JTBD)**, run by a **vision-capable reviewer**. **Order of assessment (owner-directed):
   assess the built slice against the RULES IN DOCS FIRST** (Experience Contract Rules 1–12 →

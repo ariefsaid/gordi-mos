@@ -414,3 +414,11 @@ on GKID at the owner-gated switch (OD-K-3/K-4). NB: `/assembly-actual` isn't val
 costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
 
 - **Brand coherence: app vs Document System** (surfaced 2026-07-14, owner: leave for now) — the MOS app (Plus Jakarta + action-blue, E7-derived) and the client-facing Gordi Document System v2 (Arkhip + Lato, navy `#1B3A6B` + ember `#EE6C3D` + pine, built on Gordi's 2018 brand guideline) read as two different brands. Not de-reference (Gordi's own brand). Options if revisited: selective navy/ember alignment (small) or full 2018-brand re-skin (replaces E7, reshapes redesign). Doc system: `~/Library/CloudStorage/GoogleDrive-arief@gordi.id/My Drive/Consultation/Sami - Vila Mule/Gordi Document System/`.
+
+- **Step 7 (Café retrofit) collision check** (flagged 2026-07-16 by a fresh-agent doc audit) — before
+  starting step 7, verify the unmerged `feat/kitchen-log-redesign` branch (kitchen UI redesign, "built
+  + verified, awaiting sign-off" per memory) does not collide with the Café retrofit, which builds on
+  the existing kitchen module. Either merge/close it first or rebase step 7 onto it.
+- **Gordi local Supabase is DOWN** (stopped after an OOM, 2026-07-15/16) — blocks the design half of the
+  review gate (needs the live app to log in). Bring up with `supabase start` (api :44321) when RAM
+  allows. The running docker containers are PMO-portal's, a different project — do not stop those.
