@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Gordi MOS — convergence flows</title>
+  <meta name="color-scheme" content="light" />
+  <!-- Fonts: Plus Jakarta Sans (display) + DM Sans (body) + Inter (tabular) — DESIGN.md OD-P3-9 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Reuse the canonical e7 tokens + primitive classes verbatim; flows.css adds only
+       the structure the Experience Contract demands. No icons.js dependency —
+       flows.js ships its own inline currentColor SVGs (self-contained). -->
+  <link rel="stylesheet" href="./e7-prototype.css?v=b2">
+  <link rel="stylesheet" href="flows.css?v=b2">
+</head>
+<body>
+  <!-- The four-region anatomy (Rule 6) is rendered into #app by flows.js:
+       (1) header · (2) context row · (3) content region · (4) record drawer. -->
+  <div id="app" aria-busy="true"></div>
+  <noscript>
+    <div class="e7-noscript card">
+      <h1>JavaScript required</h1>
+      <p class="muted">The convergence-flows prototype is an in-memory hash-routed shell. Enable JavaScript to view the three flows (Ayu posts a Signal · Ayu runs Café opening · Rina acts on overdue Team work).</p>
+    </div>
+  </noscript>
+  <script>window.__cfErr=[];window.addEventListener('error',function(e){window.__cfErr.push((e&&e.message||'?')+' @'+((e&&e.filename||'').split('/').pop())+':'+(e&&e.lineno)+':'+(e&&e.colno)+' >>'+((e&&e.error&&e.error.stack||'').split('\n')[1]||''));});window.addEventListener('unhandledrejection',function(e){window.__cfErr.push('PROMISE:'+(e&&e.reason&&(e.reason.message||e.reason)));});</script>
+  <script type="module" src="flows.js?v=b2"></script>
+</body>
+</html>

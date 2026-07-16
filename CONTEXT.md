@@ -1,23 +1,25 @@
 # Gordi MOS
 
 Vocabulary for Gordi's Management Operating System — the internal app for task ownership,
-lightweight RACI, weekly updates, and daily ops visibility. Glossary only (per grill-with-docs
+operational definitions/execution, real-time Signals, and management visibility. Glossary only (per grill-with-docs
 rules): no specs, no implementation notes. Heritage terms trace to the dormant Notion Management
 OS constellation (see `docs/decisions.md` OD-P0-9).
 
 ## Work
 
 **Task**:
-The unit of owned work and the **cascade-bridgeable unit** (layer 6) — always carries R and A people, a
-business unit, and a status. Its permanent cascade parent is a **Project/Process** (layer 4); the
-link is an additive nullable seam (ADR-0003/0014) so the cascade grows in without reshaping the task. A
-Task never routes *through* an Output — Output is an optional side-grouping, not a link in the chain.
+The unit of owned work and the **cascade-bridgeable unit** (layer 6) — always carries one PIC, one
+Supervisor, one executing Team, and a status; BU and optional Site derive from Team. A Task may optionally
+link directly to one **Project/Process**
+(layer 4); ad-hoc Tasks are valid and never require a fake catch-all parent. When linked, a Task never
+routes *through* an Output. A generated Process Run step is a Task only when it
+needs independent ownership, due date, status, blocker lifecycle, dependency, or reporting identity.
 _Avoid_: action item, to-do, work item, ticket
 
 **Checklist item** (a.k.a. subtask):
-A lightweight step under a task — a label + done flag + order, nothing more. It has NO RACI, status,
-business unit, or due of its own, and does NOT bridge into the cascade (only its parent Task does).
-Distinct from a Task; "subtask" in conversation means this, not a nested task.
+A lightweight step under a task — a label + done flag + order, nothing more. It has no independent
+PIC, Supervisor, status, business unit, or due date, and does not bridge into the cascade. It inherits
+the parent Task's ownership and lifecycle; "subtask" in conversation means this, not a nested Task.
 _Avoid_: subtask (as a second full task), sub-item
 
 **Status** (of a task):
@@ -31,18 +33,55 @@ reversible. Replaces hard deletion entirely; no task row is ever destroyed.
 _Avoid_: deleted, closed, cancelled (as a verb for this)
 
 **Business Unit**:
-A **team** in Gordi's org chart — Marketing, HR, Finance, Retail Ops, B2B Ops, B2B Sales. Owns
-people, objectives, and budgets; every task and person belongs to one. (The earlier operating-area
+A functional/accountability parent in Gordi's org chart — Marketing, HR, Finance, Retail Ops, B2B Ops,
+B2B Sales. Owns objectives, budgets, cross-Team policy, and BU-scoped Roles; concrete operating groups
+are **Teams** beneath it. (The earlier operating-area
 canon — "Kitchen and Bar", "Cafe Ops – General" — is superseded: those are **Activities** or
 **Revenue streams**, not BUs. Seeded rows predate this and need re-mapping.)
-_Avoid_: department, division; operating area (that's an **Activity**)
+_Avoid_: Team, Site, operating area (that's an **Activity**)
+
+**Site**:
+A physical Gordi branch/place such as Gordi HQ, Radiant, or Roastery. A Site may host several Teams and
+may be referenced by operational/inventory models, but it is not itself a Team or Stock location.
+_Avoid_: Team, BU, Stock location, branch (as the schema/domain term)
+
+**Team**:
+The concrete group that operates together. Every Team belongs to exactly one BU and may reference one
+Site; central/cross-site Teams may have no Site. Examples: Gordi HQ Operations and Radiant Operations
+under Retail Ops; Central Marketing under Marketing; Roastery Team under B2B Ops. People join Teams
+through explicit effective-dated Team memberships. A Role with no Team is BU-scoped and may govern all
+child Teams; a Team-scoped Role requires membership in that Team.
+_Avoid_: Business Unit, Site, Activity, Module
+
+**Team membership**:
+An effective-dated Person ↔ Team assignment, independent of org Role and app Access role. Every active
+app Person has one primary Team for default context and may hold additional memberships. BU participation
+derives from Teams; a BU-scoped Role expresses BU-wide authority. Transfers end the old membership and
+start a new one, preserving history.
+_Avoid_: Person.team_id, Person.business_unit_id, job title, permission grant
 
 **Activity**:
 An **operating workstream within a BU** — kitchen, bar, ecommerce (inside Retail Ops); roasting
-(inside B2B Ops). The unit ops surfaces are organized around. A **Module** serves an Activity but
-usually covers only a slice of it (today's Kitchen module = plan/log/stock/review, one part of the
-kitchen Activity); Modules grow Features toward covering their Activity.
-_Avoid_: business unit (that's the owning team), app, module (that's the code)
+(inside B2B Ops). Classifies where operational work belongs; one or more related Activities may be
+served by the same Module when they share one operating workflow.
+_Avoid_: business unit (that's the functional parent), Team (that's the concrete group), module
+
+**Module**:
+A dedicated workspace for one **coherent operational workflow** with its own recurring records,
+actions, cadence, and operating context. A Module may span related Activities when the work is genuinely
+shared (**Café** spans Kitchen and Bar), or serve one Activity (Ecommerce, Roastery); a team does not
+earn a Module merely because it exists on the org chart. Café's expanded page title is **Café Operations**.
+_Avoid_: department, business unit, activity, screen, app
+
+**Area**:
+A meaningful operating subdivision inside a Module — Kitchen and Bar are Areas inside the **Café**
+Module. Areas scope records and Standards without becoming separate workspaces.
+_Avoid_: module, business unit, department
+
+**Station**:
+The specific role or work point a person covers during a Shift, such as Espresso, Kitchen Prep, or
+Pick-pack. A Station belongs to an Area and is narrower than an Activity or Module.
+_Avoid_: area, module, job title
 
 **Revenue stream**:
 A **reporting lens for money** — Cafe Ops (kitchen + bar POS), Ecommerce, B2B. May map 1:1 to an
@@ -94,37 +133,100 @@ a lane; it is the grouping a person's work is read against. (Strategy, layer 1, 
 the same self-similar shape, via a nullable parent.)
 _Avoid_: goal, mission, OKR (that's the measurement layers)
 
-**Outcome** (layer 3 — vocabulary now, table later):
+**Outcome** (layer 3 — deferred):
 The KPI/KR target that *proves* an Objective is being met — the number, distinct from the aspiration.
 Deferred; folds in between Objective and the Project/Process layer additively.
 _Avoid_: metric (the measurement act), KR (one kind), result
 
 **Project / Process** (layer 4 — the work-system that moves a goal):
-One entity distinguished by **`type ∈ {project, process}`**; carries A/R ownership, a business unit, a
-lane, and a nullable Objective link. It is a Task's permanent cascade parent. **No umbrella term is
+Two sibling kinds of governed work; each carries A/R ownership, a Business Unit, a lane, and an optional
+Objective link. Either may be a Task's direct cascade parent. **No umbrella term is
 locked** (owner 2026-06-23 — "use the Project/Process pair for now"; the earlier "Initiative" is dropped);
 refer to the pair, or to the specific type.
-_Avoid_: Initiative, workstream, work (umbrella terms — none locked); **work-line** in UI copy
-(owner 2026-06-26 — UI term is Project/Process; "work-line" survives only as the physical table name
-`mos.work_lines`, ADR-0015). The task-form field and the management surface both read "Project/Process".
+_Avoid_: Initiative, workstream, work (umbrella terms — none locked), work-line
 
-**Project** (`type: project`):
+**Project**:
 Bounded, time-boxed **change** work (Transform/Optimize lane) — scope, an end, milestones. E.g. new-menu
 design. (The wiki calls this layer "Program"; in-app the term is Project.)
 _Avoid_: program (in-app say Project), initiative
 
-**Process** (`type: process`):
-Standing, recurring **run** work (BAU lane) — never "done," produces repeating Outputs. E.g. daily IG
-content, daily fulfillment. The home for daily ongoing *assigned* work — NOT the reserved term
-**Activity** (a task timestamp), and distinct from the **Daily Log** (the factual record that something
-*happened*, owner-less; a Process is owned recurring work). Person-load reads from the Projects/Processes
-a person is A/R on, never from Daily Log entries. A Process *uses* SOPs but is not one.
-_Avoid_: SWP (the wiki's term — say Process), routine, SOP (that's documentation), activity (reserved)
+**Process**:
+Standing, recurring **run** work (BAU lane) — never "done," produces repeating Process Runs. E.g. daily IG
+content, daily fulfillment. The home for daily ongoing *assigned* work — distinct from **Activity**
+(the operating workstream) and from **Signals** (factual observations that something
+*happened*, without work ownership; a Process is owned recurring work). Person-load reads from the
+Projects/Processes a person is A/R on, never from Signals. A Process *uses* **Standards** (the checkable specs that
+define doing it correctly) but is not one — a Process is the owned recurring work; a Standard is the spec.
+_Avoid_: SWP (the wiki's term — say Process), routine, activity (reserved). _Do not_ call a Process an
+"SOP" — the spec object is a Standard; the Process *uses* Standards. (The earlier blanket Avoid on "SOP"
+is relaxed 2026-07-09: "SOP" is a sanctioned synonym for Standard; the thing to avoid is conflating a
+Process with its Standard.)
 
-**Output** (layer 5 — vocabulary now, table later):
+**Process Run**:
+A time-bounded occurrence of a standing Process, such as **July 2026 Monthly Close** or **Retail Stock
+Opname · 31 July**. It owns that occurrence's Tasks, required checks/forms/evidence, progress, completion,
+and history for one adopting Team while the Process remains the permanent BU-governed recurring-work
+definition. It snapshots the
+Process RACI and resolves generated Task ownership when the Run starts.
+_Avoid_: Project, Process, recurring Task; cycle (informal only)
+
+**Object Contract**:
+The system-wide, code-owned schema for one MOS object type. It declares required fields/relationships,
+optional fields, valid nested object types, validation, and which structured-canvas blocks humans or the
+deputy may create. For example, every Standard requires a BU, name, version, and at least one Standard
+Step, while a governing parent, measured-control step, and measurement unit are optional because
+many Standards are instructional, documentary, or approval-based. An Object Contract is not a user row
+and cannot be edited in admin settings.
+_Avoid_: Template (ambiguous), preset, custom schema, freeform data model
+
+**Blueprint** (deferred hypothesis, not a current object):
+A possible future user-authored, versioned preset inside an **Object Contract**, justified only if
+multiple independent Process or Standard definitions are repeatedly duplicated and manually synchronized
+across BUs. Current reuse is **Duplicate as Draft**; Blueprint is not a current domain object.
+_Avoid_: Template, current domain object, Object Contract
+
+**Standard** (quality-loop object; sanctioned synonym: **SOP**):
+A canonical, versioned, BU-scoped execution specification that defines how work is performed correctly
+and what proof is required. It may link to zero or many Processes/Projects. A Standard governs execution
+quality; a linked Process owns recurrence and generated work. Publication uses scoped
+`standard.publish`; each consuming Process/Project A separately decides whether and which published
+version its definition adopts through a version diff and effective date. Publishing a new version creates
+an actionable Inbox upgrade item for the A and R of every linked consuming definition; it never changes
+their active definition by itself. A Standard has no RACI. It is distinct from a Certified metric and from
+Reference material, which has no executable instruction/check/input/evidence/sign-off contract.
+_Avoid_: procedure, runbook, checklist, quality document; Process (that's the recurring work)
+
+**Standard Step**:
+One typed requirement inside a Standard: **instruction/reference · confirmation · measured control ·
+required form field · required evidence/sign-off**. Checkable steps generate Checks during a Process Run;
+instructions provide guidance but do not become work records by themselves.
+_Avoid_: Task, Checklist item, form (the whole), Standard (the containing specification)
+
+**Check**:
+A captured evaluation of a checkable Standard Step during a Process Run or Task. It records the submitted
+value/evidence and the resulting pass/fail outcome against the step's rule.
+_Avoid_: Checklist item, Task, inspection (one kind of Check)
+
+**Exception**:
+An out-of-standard outcome raised by a failed Check that requires evidence and corrective work. It opens
+a correction Task and remains linked to the Check, Standard, and Process Run until resolved.
+_Avoid_: error, alert, failed Task
+
+**Shift** (roster unit — owner 2026-07-09):
+A roster assignment of **person + station/area + time window**, scoped to one Team. The Café roster
+spans its Kitchen + Bar Areas within each branch Team; HQ and Radiant remain separate Team scopes.
+Roastery carries its own roster. A Shift drives three things: (1) **check assignment** — a person's station's **Standards** generate
+their checks for the shift; (2) **exception context** — records who was on the station and supervising
+window when a Check failed, while correction-Task ownership follows the Process's generation rules; and
+(3) the floor's Home "your shift today" + "your checks today." It is assignment context, distinct from
+a Process (recurring work) and a Task (owned work).
+_Avoid_: schedule (say Shift or roster), timesheet (that's hours-worked, not assignment)
+
+**Output** (layer 5 — deferred):
 A discrete deliverable a Program/Process produces in a week/month — the unit of committed load ("2–5 per
 person per week; tasks are infinite, outputs are not"). Deferred; folds in as an optional grouping that
-*also* belongs to its Project/Process — never inserted between Task and Project/Process (ADR-0014).
+*also* belongs to its Project/Process — never inserted as a mandatory bridge between Task and
+Project/Process (ADR-0014 as amended by ADR-0025 D26).
 _Avoid_: deliverable, milestone (one kind), artifact
 
 **Lane**:
@@ -133,145 +235,232 @@ improve, OKR-measured), **Transform** (new capability, OKR-measured). A classifi
 Projects/Processes; incidents/fires sit inside Run as a sub-queue.
 _Avoid_: category, stream, type (reserve `type` for Program|Process)
 
-## Ownership (RACI)
+## Ownership
 
-**Accountable / Responsible per layer**:
-The A/R split is not task-only — every cascade layer (Objective · Project/Process · Output · Task) carries an
-Accountable and a Responsible owner (the wiki's per-layer ownership model; a cross-functional Outcome gets
-a single **DRI**). C/I stay task-level. A person's "load" is read from the layers they are A or R on — so
-RACI-on-a-task is one instance of a uniform ownership shape, not the product's headline.
-_Avoid_: owner (ambiguous as a field), single-owner-per-layer
+**RACI**:
+The governance ownership model used only on **Objectives, Projects, and Processes**: one Accountable,
+one Responsible, and optional multi-person Consulted/Informed relationships. Tasks deliberately use the
+simpler operational PIC/Supervisor model instead.
+_Avoid_: Task RACI, owner (ambiguous as a field)
 
-**Responsible (R)**:
-The one person doing the task. Notion heritage: "Assigned to" / "PIC". Shown as the row avatar in
-lists (UI column label "Owner" = the R person).
-_Avoid_: PIC, assignee, doer, owner (as a field name)
-
-**Accountable (A)**:
-The single person answerable for the task's outcome; may equal R. Notion heritage: "Supervisor".
-_Avoid_: supervisor, approver
+**Responsible (R)** / **Accountable (A)**:
+On an Objective, Project, or Process, R leads the work and A is the single person answerable for its
+outcome; they may be the same person. These terms are not used for Task ownership.
+_Avoid_: PIC or Supervisor (those are Task relationships), approver
 
 **Consulted (C)** / **Informed (I)**:
-People whose input is sought (C) or who are kept in the loop (I). Multi-person; visible on task
-detail only.
-_Avoid_: watcher, CC, stakeholder
+People whose input is sought (C) or who are kept informed (I) on an Objective, Project, or Process.
+They are multi-person stakeholder relationships and never Task ownership fields.
+_Avoid_: watcher, CC, Task stakeholder
+
+**PIC** (Person in charge):
+The single person expected to perform and close a Task. Dense surfaces use **PIC**; creation and detail
+surfaces expand it to **Person in charge (PIC)** with helper text for unfamiliar users.
+_Avoid_: Owner, Responsible, assignee, doer
+
+**Supervisor** (of a Task):
+The single person who monitors, unblocks, and verifies a Task; may be the same person as its PIC and need
+not hold the organizational job title Supervisor. Resolution order is explicit selection → generated-
+Task override → parent Project/Process A → PIC's direct manager in the role matching the Task BU → PIC
+when no manager exists; multiple manager paths require a human choice. The UI always shows the source.
+Always spell out **Supervisor**, reserving **SPV** for a person's formal job title.
+_Avoid_: SPV, Accountable, checker, approver
 
 ## Cadence
 
-**Weekly Update**:
-A person-keyed recap of one person's week — a free-text summary plus a list of update lines. Keyed by
-(person, week). Everyone files one (incl. top-of-chain, who has no reviewer); a manager reads their
-reports' (upward-only — author + manager chain, OD-P1-3) and files their own upward. Person-keyed is a
-deliberate change from Notion's project-keyed "Project Updates".
-_Avoid_: project update, status report, check-in
+**Signal**:
+A real-time, attributable factual note that something relevant happened or was observed anywhere in
+Gordi: a menu stockout caused by a vendor delay, an AC breakdown, a customer pattern, or a cross-team
+handoff. A person may type/dictate it or their deputy may record it under their identity; a person may
+deliberately share a Module record as a linked Signal, and only a published anomaly rule may emit one
+automatically. It carries occurred-at, author,
+owning Team, optional Area/Module, category/attention, mentions, and canonical links. Its author is who
+reported it; owning Team is where it applies and may differ from the author's home Team/BU. It has no PIC, Supervisor,
+due date, or work Status. An `@mention` nudges through Inbox; required action becomes a linked **Task**;
+a failed Standard Check remains an **Exception**. Signals support later clustering/root-cause analysis
+that may lead to a Task, Project, Process change, or Standard revision. Default read reach is upward:
+the owning Team, parent-BU scope, then configured higher BU **Signal visibility layers**. Sibling Teams
+do not see one another by default; lower layers read only when an explicit person/Team/BU mention grants
+access. Visibility layers are information policy, not the org chart.
+A Signal must be suitable for that operational sharing model; confidential HR, legal, medical,
+whistleblowing, or similarly sensitive matters use a separate protected channel/workflow, never a
+"Restricted Signal." Signals are intentional: a human/deputy posts one, a person deliberately shares a
+canonical record as one, or a published rule emits one for a configured meaningful condition. Routine
+domain/audit events are not copied into Signal.
+_Avoid_: Weekly Update, Daily Log, Log entry, Task, Exception, system activity event, confidential case
 
-**Update line**:
-One free-text row inside a weekly update — what was worked on — carrying a **progress marker**. It is
-NOT linked to a Task (deliberate: a weekly recap is narrative + self-reported progress, not
-task-tracking). Distinct from a Task and from a Checklist item.
-_Avoid_: task (a line is not a task), entry
+**Signal category**:
+Non-blocking classification of what was observed. Stable system families provide cross-team comparison
+(Supply/vendor · Equipment/facility · Inventory/availability · Quality · Customer · People · Process ·
+Other); admins may manage BU-specific subcategories beneath them. The deputy may suggest one with
+confidence, but low-confidence capture remains **Uncategorised** and humans may correct it. Category is
+not root cause, visibility, urgency, Status, or a free-form tag.
+_Avoid_: tag, root cause, task type, severity
 
-**Progress marker**:
-The done/achieved cue on an update line — **Done · In progress · Blocked**. Distinct from a task's
-**Status** (an update line has no Status; it is self-reported, not the task's real state).
-_Avoid_: status (reserve that for tasks)
+**Signal attention**:
+One of **FYI · Needs attention · Urgent**. A lightweight cue for ordering, visual treatment, Home, and
+delivery to explicitly mentioned recipients/subscribers; it is not Status, ownership, an SLA, or a
+visibility tier. FYI is default. Higher attention suggests—but never automatically creates—a follow-up
+Task. Deputy inference of Urgent requires confirmation unless the user's wording is explicit.
+_Avoid_: status, severity workflow, priority (reserve for owned work), needs-attention boolean
 
-**Submitted** / **Draft** (a weekly update):
-A weekly update is **Draft** (editable) until the author **Submits** it, which locks it read-only (the
-stable thing a manager reviews). The author may **Reopen** a submitted update back to Draft, edit, and
-re-Submit. Filing after the Friday due / week close is allowed ("filed late") — weeks never hard-lock.
-_Avoid_: filed (as the status name — say Submitted), published, locked
+**Signal mention**:
+An explicit `@Person`, `@Team`, or `@BU` that grants Signal read access and creates Inbox notification(s):
+one person; every current Team member; or every current person across a BU's child Teams plus BU-scoped
+Roles. Recipients are deduplicated and previewed before Team/BU fan-out. Owning Team/upward visibility
+without a mention never notifies. Future members gain access but no retroactive notification. A mention
+communicates awareness, not work ownership; required action belongs in a linked Task. BU fan-out requires
+the configurable `signal.mention_bu` capability.
+_Avoid_: assignee, PIC, watcher, team task
 
-**Log entry** (the **Daily Log**):
-A record that something *happened* on the floor — past-tense and factual: a typed (production ·
-receiving · QC · follow-up · other), business-unit-badged operational happening, manually added now
-and mirrored from ops apps (kitchen, future roastery) later. It is NOT work-to-do (that's a Task) —
-no owner / RACI / status, just *when it occurred*. The chronological surface is the **Daily Log** (the
-`/ops` feed). A log entry may carry **needs attention** and link to a Task (the follow-up seam).
-The user-facing surface name is **Daily Log** (owner rename 2026-06-12, was "Ops Log"); the internal
-schema/route/module stay `ops` / `/ops` / `opsLog` (OD-DIR-3 — internal seams, not user-facing).
-_Avoid_: event (collides with cafe events — cuppings, workshops, bookings), activity, daily update, ticket, "Ops Log" (superseded as a user-facing label)
+**Signal author vs owning Team**:
+Author is the immutable Person who reported the Signal. Owning Team is the concrete operational group
+affected, independent of the author's home Team/BU. Cross-Team creation requires scoped capability; the
+author keeps read/correction rights. Owning Team determines default layered visibility, while mentions
+determine explicit access/notifications. Exactly one primary Team is selected; other affected Teams/BUs
+are mentioned. BU and optional Site derive from the owning Team.
+_Avoid_: infer ownership from author, multiple primary owners, mention as owner
 
-**Needs attention**:
-The amber state on a log entry or strip meaning something waits on the viewer (sign-off,
-follow-up). Set explicitly on a log entry; often a follow-up linked to a Blocked task.
-_Avoid_: alert, warning, flagged
+**Signal–Task link**:
+A many-to-many source/response relationship. A Signal remains the factual record; **Create follow-up
+Task** creates a separate Task under its Object Contract and links it, while **Link existing Task** avoids
+duplicates. One Signal may need several cross-team Tasks and one prevention/repair Task may address many
+related Signals. Signal displays derived linked-work counts but never gains work Status or becomes
+“resolved.”
+_Avoid_: promote/convert Signal, embedded Task, Signal status, deleting the source after follow-up
 
-**Activity**:
-A task's last-any-write timestamp (status change, comment, field/RACI edit) shown as an age
-("3h", "4d"). Notion heritage: "Last edited time".
-_Avoid_: last touched, updated at (in UI copy)
+**Team execution scope**:
+Concrete execution records—Signal, Task, Process Run, Shift, Check, Exception—belong to one Team and
+derive BU/Site. Governance definitions—Objective, Project, Process, Standard—belong to a BU. Projects may
+name participating Teams; their Tasks name the executing Team. An authorized scoped Role holder adopts a
+BU Process for a Team with local cadence/assignment defaults; each Run belongs to one adopting Team.
+Cross-Team work uses separate Tasks
+under a shared Project rather than a multi-Team Task.
+_Avoid_: BU-only execution row, multi-Team Task/Run, independently duplicated BU/Site fields
+
+**Process adoption** (for a Team):
+A version-pinned Team execution configuration for a published BU Process. A Person with scoped
+`process.adopt` capability acts for that Team to review the Process/Standard/task/cadence diff, confirm
+only the published contract's Team-configurable parameters, and choose an effective date.
+Existing/materialized Runs retain snapshots; future unmaterialized Runs use the adopted version.
+Adoption may pause/resume but cannot rewrite the BU Process or invent Team RACI.
+_Avoid_: Process copy, silent upgrade, Team Process fork, Team RACI
+
+**Signal correction**:
+A posted Signal may be corrected but never silently rewritten. Author/deputy edits to body, occurrence
+time, category, or attention create visible immutable revisions; owning Team and canonical source are fixed
+after post. Wrong provenance requires Retract + repost. Retraction records a reason, leaves an audit
+tombstone, and removes the Signal from default feeds/analytics. Mention changes update grants and notify
+appropriately; recipients may already have seen removed content. No hard deletion.
+_Avoid_: edit in place without history, delete, change source/BU, resolve
+
+**Signal acknowledgement**:
+An explicit per-person “I have seen this” reaction, displayed on the Signal. It is separate from private
+Inbox read/handled state and is not ownership, completion, approval, or a promise to act. Discussion uses
+Signal comments; commitment becomes a linked Task. Team/BU mention never requires every member to acknowledge.
+_Avoid_: status, resolved, accepted, assigned, read receipt
+
+**Signal visibility layer**:
+An admin-configured ordered information-access level used only for default Signal read reach. A viewer in
+the owning Team, a BU-scoped Role over its parent BU, or a configured higher BU layer may read. Sibling
+Teams do not inherit access from one another. A lower-layer viewer may read only when explicitly
+`@mentioned` as a person, Team, or BU. Example cross-BU order: Operations < Marketing/support < Finance/
+control < Management.
+This is separate from a Role's `reports_to` hierarchy and remains subject to `can()` individual overrides.
+_Avoid_: management level, org-chart level, security role, notification audience
+
+**Weekly Update** / **Daily Log** (superseded):
+Legacy pre-redesign objects/surfaces. Mandatory retrospective Weekly Update filing is removed; weekly
+management summaries are generated from Tasks, Projects, Process Runs, Signals, and domain events. The
+operations-only Daily Log is replaced by the shared Signal model. Historical artifacts remain evidence only.
+_Avoid_: implementing either in the redesign, separate parallel factual feed
+
+**Last activity** (of a Task):
+The age of the Task's most recent meaningful change, such as a status change, comment, or field edit.
+Use this term so **Activity** remains reserved for the operating workstream.
+_Avoid_: Activity, last touched, updated at
 
 **Week**:
-Monday–Sunday in Asia/Jakarta time; the weekly update for a week is due Friday 17:00 WIB.
+Monday–Sunday in Asia/Jakarta time; used as a reporting/digest window, not a filing deadline.
 _Avoid_: sprint, cycle
+
+**Management period view**:
+A live, sourced Today / This week / Last week presentation over authorized Tasks, Projects, Process Runs,
+Exceptions, Signals, and domain events. It is not an employee-authored artifact. Deputy summaries link
+every claim to canonical records; optional Automation delivery carries an as-of time but creates no
+Draft/Submitted/missing-update lifecycle.
+_Avoid_: Weekly Update, Weekly Brief object, filing, status report
 
 ## People & structure
 
 **Org**:
-The tenant container; Gordi is the only row for now. Every business row belongs to exactly one org
-— the seam that lets future apps/tenants share the stack.
+The company-level container for people, structure, records, and policy. Gordi is the only Org today.
 _Avoid_: company, workspace, tenant (in UI copy)
 
 **Person**:
-Anyone in `shared.people` — managers and selected ops users in the first slice. Identity is shared
-across MOS and future ops apps.
+An individual recognized by the Org who may be assigned Teams, Roles, Access roles, and MOS work.
 _Avoid_: user (except in auth contexts), employee, member
 
 **Role**:
 A named **org position**; a person may hold several roles at once. Roles form the reporting line via
 reports-to between roles. Notion heritage: Roles DB with "Reports to / Subordinate". Distinct from an
-**Access role** (what a person may *do* in the app) and from a **RACI role** (R/A/C/I task ownership).
+**Access role** (what a person may *do* in the app) and from a **RACI role**. A Role belongs to one BU and
+may be scoped to one Team; no Team means BU-wide responsibility across its child Teams.
 _Avoid_: job title (as a field), position; access role / permission (that's app authorization, below)
 
 **Manager**:
 A person any of whose roles has subordinate roles with current holders; sees the team module and
-reviews their people's weekly updates. Derived from the role chain, never a flag on the person.
-A dual-hat person appears in ALL their managers' teams (union), and any of those managers may
-review their one weekly update.
+reviews authorized team work and Signals. Derived from the role chain, never a flag on the person.
+A dual-hat person appears in all relevant managers' team scopes (union).
 _Avoid_: supervisor, lead (except inside role names like "Kitchen Lead")
 
-**Access role** (a.k.a. Permission):
-What a person may *do* in the app — the app-authorization layer, distinct from their org **Role**
-(position) and from **RACI** (R/A/C/I task ownership). A person may hold several at once; effective
-access is the union. First-slice set is **fixed** (a configurable role↔permission model is the deferred
-upgrade path): **admin** (the *system administrator* — user management + system config; the only role
-that sees the admin UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance**
-(review financial data/dashboards sourced from the ESB warehouse), **member** (default — own tasks, file
-own weekly update, log operational activity if rostered). **manager** is NOT an assigned access role — it
-is *derived* from the role chain (see **Manager**); effective access = assigned access role(s) ∪ derived
-manager. Granting **admin**/**finance** is admin-only and never self-assignable; the first admin is seeded.
-_Avoid_: role (reserve for org position), permission group, RACI role
+**Access role**:
+An admin-editable named bundle of default **Capabilities**, distinct from an org **Role** (position) and
+from record **RACI**. A person may hold several; their role grants combine. Default role bundles may
+evolve while protected capabilities remain system-owned.
+An org Role may map to Access role defaults at its configured Team/selected-Team/BU/org scope; individual
+exceptions overlay without mutating or copying either role.
+_Avoid_: Role (without “access”), permission (for the bundle), RACI role
+
+**Capability** (app authorization):
+A fixed, code-owned action key describing what someone may do, evaluated by `can()` with a meaningful
+scope such as self, own Team, selected Teams, own BU, selected BUs, or org. Effective access for an
+action/resource resolves an
+applicable individual **Deny**, then individual **Allow**, then the union of access-role grants, then
+default deny. Admin settings displays this as Inherited / Allowed / Denied with Reset to role default.
+Capabilities remain separate from record governance: permission to publish Processes does not make a
+person the A of every Process; bypass requires a distinct audited override capability.
+_Avoid_: org Role, RACI, copied per-person role
 
 ## Surfaces
 
+**Action Launcher**:
+The single prescribed command entry: phone `+` FAB and desktop/tablet top-bar `+ Create`, backed by the
+same capability-filtered registry as ⌘K and the deputy. It opens stable Share Signal, Ask Deputy/dictate,
+Create Task, More, plus at most one current-context action; it never executes an ambiguous default and is
+not a navigation destination.
+_Avoid_: Capture, speed dial (as UI copy), global create default, configurable nav item
+
 **Home**:
-The hub surface at `/` every user lands on: a role-aware composition of KPI tiles with drill-downs
-plus the **My Week** panel — every tile drills, no dead-end numbers (ADR-0019 D2). What a user's Home
-shows follows their **persona/access**, composed as a **stacked union of the roles the person holds** —
-one scrollable surface, **widest-scope section first** (a BU-head-who-is-also-a-lead lands on their function
-cockpit with the **My Week** lead panel stacked below; a pure lead sees only My Week). **Not a toggle, not a
-separate login** — the same person's distinct jobs stack in one Home. _(Later, if the union gets too dense:
-separate **workspaces** or a **toggle with layered rails** — deferred v2, don't build until density forces
-it.)_ For the **owner-director / function-owner** it is a **financial +
-ops cockpit**: revenue · margins · a **money-position strip (AR · AP · unbilled · unearned)** · **ops KPIs**
-(the "state of ops" per Activity — specific metric set TBD, owner-decided) · the **cascade progress +
-updates** list. Money-position workflow scope: **AR is a worked queue now** (the Follow-up lifecycle);
-**AP / unbilled** are visibility + drill-to-read-only with their engagement workflows phased later;
-**unearned** stays visibility-only. A **member** sees their My Week + ops content dominant, no finance row.
-"Dashboard" is acceptable UI copy for its KPI area.
-_Avoid_: My Week (as the name of the surface — that's a panel on it)
+Every person's landing surface. Its non-removable, role-aware **attention brief**
+answers “What needs my attention today?” from currently authorized work, Process Runs, Checks,
+Exceptions, approvals, mentioned/actionable Signals, and financial exceptions; every signal links to its canonical
+record. Alongside it, the person or deputy may compose an authorized personal structured canvas.
+Personal Profile controls only the two regions' order (Attention first by default, or Personal canvas
+first); when attention is below, the header retains `Needs attention · N`. Detailed dashboards and
+period analysis stay in Money or the owning Module.
+_Avoid_: Dashboard (for the whole surface), My Week (as the surface name), role cockpit
 
 **My Week**:
-The personal panel on **Home**: R-or-A task table grouped by urgency + weekly-update strip + ops strip
-(+ team module for managers). Formerly the home surface itself; now a component of Home.
-_Avoid_: home surface, home page (it's a panel, not the destination)
+A legacy name for the former personal Home panel. Its useful signals are absorbed into Home's attention
+brief and the Work collections; do not create a separate My Week surface or fixed panel in the redesign.
+_Avoid_: current surface name, home page, mandatory panel
 
 **Inbox**:
 The **to-triage** destination: notifications, @mentions, approval requests. Routes the user to the
 entity where the conversation lives — conversation never happens *in* the Inbox. Binding rule:
-**MOS owns communication about work items** (comments/updates attached to a task, objective, log
-entry, follow-up); **free-form conversation stays outside MOS** (WhatsApp). Not a chat surface.
+**MOS owns communication about work items** (comments/updates attached to a Task, Objective, Signal,
+or Follow-up); **free-form conversation stays outside MOS** (WhatsApp). Not a chat surface.
 _Avoid_: chat, messages, feed
 
 ## App structure
@@ -280,18 +469,10 @@ _Avoid_: chat, messages, feed
 There is exactly **one** app — **MOS**. Everything users do lives inside it.
 _Avoid_: kitchen app, roastery app, mini-app, "ops apps" (legacy names from the separate-deployment era — now Modules of MOS)
 
-**Module**:
-A coarse functional area of MOS — e.g. Tasks, Weekly Updates, Daily Log, Kitchen, (future) Roastery.
-What were once standalone "apps" become Modules within the one MOS app. Names the *producer* in
-cross-cutting seams: the ESB-outbox `source_module` and a Daily Log entry's `origin` identify the
-emitting Module. Distinct from a **Feature** (finer capability *within* a Module) and from a
-**Business Unit** (the owning team) and from an **Activity** (the operating workstream a Module serves — a Module usually covers one slice of one Activity).
-**WIP-based activities share the ops-module spine:** **Kitchen and Bar are both WIP-producing** (they
-pre-produce), so both are served by the **Kitchen Module's** pattern — plan → log → stock → review. The
-eventual per-Activity scoping (a "WIP folder" so the kitchen team sees kitchen WIPs and the bar team bar
-WIPs) is **deliberately deferred** — you don't disrupt an incumbent team's established UX for model-purity;
-change it only as a considered UX decision, not incidentally.
-_Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained, below)
+**Module** (app structure):
+See **Module** under Work. The initial Modules are Café, Ecommerce, and Roastery; Café serves the
+Kitchen and Bar Areas without turning either Area or Team into a separate Module.
+_Avoid_: app, mini-app, department module, Kitchen Module
 
 **Feature**:
 A capability *within* a Module — e.g. task filtering, bulk-approve, the review queue. Finer-grained
@@ -303,8 +484,9 @@ Inventory is **not global — it is scoped per location/Activity**: the **Roaste
 **HQ retail** (cafe bean stock), and **Ecommerce** (online-fulfilment stock) each hold their *own* pool of
 the same roasted beans. The Roastery is the **internal supplier**: HQ retail and Ecommerce raise
 **internal replenishment orders** to the Roastery to refill their stock (a roastery→retail / roastery→
-ecommerce transfer, distinct from an external B2B sale). So Operate needs **location-scoped stock** + an
-**internal-order/transfer** flow between Activities — not just each Activity's own WIP log. (ESB tracks
+ecommerce transfer, distinct from an external B2B sale). So the Café/Roastery/Ecommerce Modules need
+**location-scoped stock** + an **internal-order/transfer** flow between Activities — not just each
+Activity's own WIP log. (ESB tracks
 stock per company code — GKID vs GRI — so a roastery→HQ transfer is a GRI→GKID movement.)
 _Avoid_: warehouse (implementation), "the stock" (say which location), transfer (bare — say internal replenishment)
 
@@ -355,12 +537,33 @@ authorization the human is. A deputy carrying the user's badge, never a master k
 *real* identity, never an impersonated one.
 _Avoid_: AI, assistant, bot, copilot (as the canonical term); "the system" (it is the user, deputised)
 
+**External agent** (via MCP):
+A compatible agent chosen and connected by a Person through the future remote MOS MCP transport. It acts
+as that Person with the same capabilities and record governance as the built-in deputy. Client trust
+permits connection but never expands the Person's authority; consequential actions become approval requests.
+_Avoid_: integration user, service account, deputy (reserved for the built-in agent), direct DB client
+
 **User view**:
-A surface a user **composes for themselves** — to analyse, input, or present things their preferred way —
-saved as **data (a row), not code**, and rendered natively inside MOS like any built-in surface. Private to
-its owner by default; a manager may **share** one to their team (see **Manager**). Composed via the product
-UI or the **deputy agent**, the user's choice. Distinct from a built-in **Surface** (which is code).
+A versioned surface a person composes for themselves to analyse, input, or present authorized records in
+their preferred arrangement. It is private by default and may be shared when authorized. A person or
+their deputy composes it from registered primitives; it never contains executable code or copied result
+data and is distinct from a built-in product Surface.
 _Avoid_: custom dashboard, report, widget, saved query (too narrow — a user view may also *input*)
+
+**Deputy Proposal**:
+An ephemeral, reviewable suggestion from the deputy for an object or UI composition that does not have a
+real draft lifecycle. A Proposal may prefill a typed Create form or preview a Home widget, Work saved
+view, or pin, but **is not yet the business record** and makes no persistent UI change until the user
+confirms it. Used for widgets, saved views, pins, and confirmation-required consequential actions—not for
+Tasks, which an authorized deputy writes directly, or governed definitions, which use Draft.
+_Avoid_: draft (reserved for publishable/submittable objects), pending record, AI action
+
+**Draft** (a governed definition):
+A persistent, editable pre-activation/pre-publish state for **Objectives, Projects, Process definitions,
+and Standards**. A Draft may be human- or deputy-authored, but a human activates or publishes it. Tasks are
+direct records, never Drafts. Process Runs, Checks, Exceptions, and factual execution records are never
+Drafts.
+_Avoid_: using draft for every newly proposed object; proposal (when no row should exist yet)
 
 **Promotion** (of a user view):
 The path by which a **user view** is **proposed for the product** — either *flipped* to an org/role-default
@@ -369,11 +572,10 @@ requirement. The product's intake of demonstrated demand; not automatic — a ma
 _Avoid_: publish, release, promote-to-prod (overloaded with deployment)
 
 **Read-model**:
-A **curated, named** data surface that UI and the **deputy agent** read from — never raw tables. Each is
-scoped to the viewer's own access. Two kinds: an **operational read-model** (derived from MOS's own
-transactional data — tasks, kitchen, ops) and a **reporting read-model** (financial figures fed in from the
-ESB analytics warehouse on a schedule; gated to **finance**/**admin**). Carries an **as-of** time for any
-non-live figure.
+A **curated, named** data surface that UI and the **deputy agent** read from. Each is scoped to the
+viewer's effective access. Two kinds: an **operational read-model** derived from MOS work and execution
+records, and a **reporting read-model** fed from the financial analytics source and capability-gated.
+Carries an **as-of** time for any non-live figure.
 _Avoid_: view (overloaded — reserve for **User view**), table, dataset, query
 
 **Certified metric**:
@@ -400,16 +602,17 @@ for traditional-market/fresh produce, tight for contracted goods) whose outside-
 Follow-up/Inbox alert to Finance + affected managers. MVP just uses `last_hpp`.
 _Avoid_: "the cost sheet", hardcoded price, master price list
 
-**Budget** (the Plan destination's core create-verb):
+**Budget**:
 A MOS-captured **budgeted COGS** = a menu item's **BOM (recipe: qty × materials)** costed at the ingredient
-cost lines (`last_hpp`). Plan is where budgets are **created/captured** — new-branch costing, promo/menu
-scenarios — as the **certified number pricing prices against** (the anti-stale-copy fix). The actual price
-still lands in ecommerce/POS; MOS never writes prices there.
+cost lines (`last_hpp`). Budgets are **created/captured** — new-branch costing, promo/menu scenarios — as
+the **certified number pricing prices against** (the anti-stale-copy fix). The actual price still lands in
+ecommerce/POS; MOS never writes prices there. Consumers link to the same Budget record rather than
+embedding or copying it.
 **MVP boundary — read-and-budget only:** MOS **reads** ESB's BOM + `last_hpp` and captures budget scenarios
 on top; it does **not edit recipes** in MVP. Recipe editing would fork the recipe from ESB unless it writes
-back, so **recipe-edit + ESB BOM write-back are one deferred v2**, gated on an **ESB-BOM-write API spike**
-(same discipline as the AR write-back spike). MVP never writes BOMs to ESB.
-_Avoid_: forecast (that's a different lens), "the costing sheet", plan (collides with the destination name)
+back, so **recipe editing + ESB BOM write-back are one deferred capability**, gated on validated
+integration support. MVP never writes BOMs to ESB.
+_Avoid_: forecast (that's a different lens), "the costing sheet", "the Plan destination" (retired IA term), copied budget
 
 **OLTP / OLAP** (the engagement/analysis split):
 **OLTP** = MOS itself — the live system of *engagement* (per-user reads/writes, auth, RLS). **OLAP** = the

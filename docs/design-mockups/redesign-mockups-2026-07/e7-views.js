@@ -102,9 +102,9 @@ export function renderHome(person, { widgets = [] } = {}){
   const canvas = `
     <section class="section">
       <div class="section-title"><span data-i="layers"></span>Your work today</div>
-      <div class="stack">
-        ${personalTasks.length?personalTasks.map(t=>recordRow(t.id,{sub:`${esc(t.classification||'Task')} · ${esc(teams[t.teamId]?.name)}`,meta:pill(t.status)})).join(''):`<div class="empty-state" data-state="empty"><span class="ico" data-i="work"></span><h3>No other Tasks assigned to you</h3><p>Items needing attention remain in the section above.</p></div>`}
-      </div>
+      ${personalTasks.length?`<div class="stack">
+        ${personalTasks.map(t=>recordRow(t.id,{sub:`${esc(t.classification||'Task')} · ${esc(teams[t.teamId]?.name)}`,meta:pill(t.status)})).join('')}
+      </div>`:`<div class="e7-empty-line" data-state="empty"><span class="ico" data-i="check"></span>No other Tasks assigned to you — anything needing attention is listed above.</div>`}
     </section>`;
 
   // Deputy-composed widgets accepted into the personal canvas. These run
@@ -158,15 +158,30 @@ export function renderHome(person, { widgets = [] } = {}){
    collection — and Tasks support all three presentations.
    ════════════════════════════════════════════════════════════════════════════ */
 const collections = [
-  {id:'tasks', label:'Tasks', j:'J07'},
-  {id:'runs', label:'Process Runs', j:'J10'},
-  {id:'projects', label:'Projects', j:'J08'},
-  {id:'processes', label:'Processes', j:'J09'},
-  {id:'standards', label:'Standards', j:'J11'},
-  {id:'objectives', label:'Objectives', j:'J08'},
-  {id:'signals', label:'Signals', j:'J12'},
-  {id:'followups', label:'Follow-ups', j:'J21'},
+  {id:'tasks', label:'Tasks', j:'J07', desc:'Commitments with one PIC, one Supervisor, and a Status — ad hoc or generated.'},
+  {id:'runs', label:'Process Runs', j:'J10', desc:'Scheduled occurrences of recurring checklists — each Run owns its Tasks, Checks and evidence.'},
+  {id:'projects', label:'Projects', j:'J08', desc:'One-off initiatives with RACI accountability and contributing Tasks across Teams.'},
+  {id:'processes', label:'Processes', j:'J09', desc:'Recurring-work definitions a Team adopts — publishing a version never changes running work.'},
+  {id:'standards', label:'Standards', j:'J11', desc:'Versioned how-to-do-it-right specifications that Processes run against (SOPs).'},
+  {id:'objectives', label:'Objectives', j:'J08', desc:'Direction: what each BU is trying to achieve, with accountable owners and progress.'},
+  {id:'signals', label:'Signals', j:'J12', desc:'Factual notes about what happened — no owner, no status; action becomes a linked Task.'},
+  {id:'followups', label:'Follow-ups', j:'J21', desc:'Outstanding money to chase — promises, partials, and evidence-gated settlement.'},
 ];
+
+/* Rail sub-navigation model: the D9 collection switcher, grouped by family,
+   with per-person authorized counts. Rendered by e7-app.js under Work. */
+const collectionType = {tasks:'task', runs:'run', projects:'project', processes:'process', standards:'standard', objectives:'objective', signals:'signal', followups:'followup'};
+export function workNavModel(person){
+  const countFor = (colId) => Object.values(records).filter(r =>
+    r.type===collectionType[colId] && !(r.type==='task'&&r.archivedAt) && canViewRecord(person,r)).length;
+  const item = (id) => { const c = collections.find(x=>x.id===id); return {id, label:c.label, j:c.j, count:countFor(id)}; };
+  return [
+    {label:'Execution', items:[item('tasks'), item('runs')]},
+    {label:'Work systems', items:[item('projects'), item('processes'), item('standards')]},
+    {label:'Direction', items:[item('objectives')]},
+    {label:'Cadence', items:[item('signals'), item('followups')]},
+  ];
+}
 
 /* Saved-view subsets per collection. "My tasks" is the Tasks default. */
 const savedViews = {
@@ -272,7 +287,13 @@ function timelineView(rows, col){
 export function renderWork(person, opts={}){
   const activeCollection = opts.collection || 'tasks';
   const col = collections.find(c=>c.id===activeCollection)||collections[0];
-  const activeView = opts.savedView || (activeCollection==='tasks' ? 'mine' : (savedViews[activeCollection][0]?.id||'all'));
+  let activeView = opts.savedView || (activeCollection==='tasks' ? 'mine' : (savedViews[activeCollection][0]?.id||'all'));
+  /* Role-aware default: "My tasks" is empty for people who supervise rather
+     than execute — fall back to the team-scoped view instead of a void. */
+  if (!opts.savedView && activeCollection==='tasks' && activeView==='mine'
+      && !Object.values(records).some(r=>r.type==='task' && !r.archivedAt && r.picId===person.id && canViewRecord(person,r))){
+    activeView = 'openteam';
+  }
   const activePresentation = opts.presentation || 'table';
   const supported = presentations[activeCollection]||['table'];
   const presentation = supported.includes(activePresentation) ? activePresentation : supported[0];
@@ -333,19 +354,20 @@ export function renderWork(person, opts={}){
         <select class="field" data-work-mobile-presentation aria-label="View as">${supported.map(p=>`<option value="${p}" ${p===presentation?'selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')}</select></label>`:''}
     </div>`;
 
-  return `${head('Work', `One workspace for Tasks, Processes, Standards, Signals, and date-based views`,
+  /* Page identity: one noun per page (the collection), summary + plain-language
+     description. Collection switching lives in the rail sub-nav (workNavModel);
+     chips are reserved for saved views; View-as is a segmented control. */
+  const segControl = supported.length>1
+    ? `<div class="e7-seg" role="group" aria-label="View as">${supported.map(p=>presentationButton(p, p===presentation)).join('')}</div>` : '';
+  return `${head(col.label, `${count} item${count===1?'':'s'} · ${esc(viewDef.label)}`,
     `<button class="btn btn-primary btn-sm" data-launcher="${launcherCmd}" data-journey="${col.j}" data-inline-create="${esc(col.id)}"><span data-i="plus"></span>${createTxt}</button>`, 'J07')}
   <div class="stack">
+    <p class="muted-2 work-desc">${esc(col.desc)}</p>
     <div class="card"><div class="card-body work-toolbar">
-      <div class="work-row"><span class="work-label overline">Collection</span>
-        <div class="chiplist">${collections.map(c=>`<button class="chip ${c.id===activeCollection?'active':''}" data-collection="${c.id}" aria-pressed="${c.id===activeCollection?'true':'false'}" data-journey="${c.j}">${esc(c.label)}</button>`).join('')}</div>
-      </div>
       <div class="work-row"><span class="work-label overline">Saved view</span>
-        <div class="chiplist">${savedViews[activeCollection].map(v=>`<button class="chip ${v.id===activeView?'active':''}" data-saved-view="${esc(v.id)}" aria-pressed="${v.id===activeView?'true':'false'}">${esc(v.label)}${v.id==='mine'&&col.id==='tasks'?'':''}</button>`).join('')}</div>
+        <div class="chiplist">${savedViews[activeCollection].map(v=>`<button class="chip ${v.id===activeView?'active':''}" data-saved-view="${esc(v.id)}" aria-pressed="${v.id===activeView?'true':'false'}">${esc(v.label)}</button>`).join('')}</div>
+        <span style="flex:1"></span>${segControl}
       </div>
-      ${supported.length>1?`<div class="work-row"><span class="work-label overline">View as</span>
-        <div class="chiplist">${supported.map(p=>presentationButton(p, p===presentation)).join('')}</div>
-      </div>`:''}
       ${workspaceToolbar}
       ${mobilePickers}
     </div></div>
@@ -353,7 +375,7 @@ export function renderWork(person, opts={}){
       <div class="card-head"><h3>${esc(viewDef.label)} · ${esc(col.label)}</h3><span class="actions"><span class="basis-chip">${count} item${count===1?'':'s'} in your scope</span></span></div>
       ${bodyHtml}
     </div>
-    ${activeCollection==='tasks'?`<p class="muted-2" style="font-size:12px">Select a Task title to edit it. <span class="e7-kbd">Enter</span> saves · <span class="e7-kbd">Esc</span> discards · <span class="e7-kbd">Tab</span> moves.</p>`:''}
+    ${activeCollection==='tasks'?`<p class="muted-2 e7-edit-hint" style="font-size:12px">Select a Task title to edit it. <span class="e7-kbd">Enter</span> saves · <span class="e7-kbd">Esc</span> discards · <span class="e7-kbd">Tab</span> moves.</p>`:''}
     <div class="state-skeleton" data-state="loading" aria-hidden="true" hidden style="display:none;max-width:240px;margin-top:var(--e7-s-md)"><div class="sk-line"></div><div class="sk-line" style="width:80%"></div></div>
   </div>`;
 }
@@ -366,17 +388,16 @@ function renderPeriodTasks(person, viewId, presentation){
   if (presentation==='board') body = boardView(sorted, {id:'tasks',j:'J07',label:'Tasks'});
   else if (presentation==='timeline') body = timelineView(sorted, {id:'tasks',j:'J07',label:'Tasks'});
   else body = tableView(sorted, {id:'tasks',label:'Tasks',j:'J07'});
-  return `${head('Work', `${esc(viewLabel)} · Tasks in your scope`, `<button class="btn btn-primary btn-sm" data-launcher="create-task" data-journey="J07" data-inline-create="tasks"><span data-i="plus"></span>Create Task</button>`, 'J07')}
+  return `${head('Tasks', `${sorted.length} item${sorted.length===1?'':'s'} · ${esc(viewLabel)}`, `<button class="btn btn-primary btn-sm" data-launcher="create-task" data-journey="J07" data-inline-create="tasks"><span data-i="plus"></span>Create Task</button>`, 'J07')}
   <div class="stack">
     <div class="card"><div class="card-body work-toolbar">
-      <div class="work-row"><span class="work-label overline">Collection</span>
-        <div class="chiplist">${collections.map(c=>`<button class="chip ${c.id==='tasks'?'active':''}" data-collection="${c.id}" aria-pressed="${c.id==='tasks'?'true':'false'}" data-journey="${c.j}">${esc(c.label)}</button>`).join('')}</div>
-      </div>
       <div class="work-row"><span class="work-label overline">Saved view</span>
         <div class="chiplist">${savedViews.tasks.map(v=>`<button class="chip ${v.id===viewId?'active':''}" data-saved-view="${esc(v.id)}" aria-pressed="${v.id===viewId?'true':'false'}">${esc(v.label)}</button>`).join('')}</div>
+        <span style="flex:1"></span><div class="e7-seg" role="group" aria-label="View as">${presentations.tasks.map(p=>presentationButton(p, p===presentation)).join('')}</div>
       </div>
-      <div class="work-row"><span class="work-label overline">View as</span>
-        <div class="chiplist">${presentations.tasks.map(p=>presentationButton(p, p===presentation)).join('')}</div>
+      <div class="work-mobile-pickers" data-work-mobile-toolbar>
+        <label class="work-mobile-field"><span class="overline">Collection</span>
+          <select class="field" data-work-mobile-collection aria-label="Collection">${collections.map(c=>`<option value="${c.id}" ${c.id==='tasks'?'selected':''}>${esc(c.label)}</option>`).join('')}</select></label>
       </div>
     </div></div>
     <div class="card" data-journey="J07 J15">
@@ -392,7 +413,7 @@ function renderPeriod(person, viewId='week'){
   return `${head('Period view', `Live, sourced — every item links to its real record`, `<div class="chiplist">${[{id:'today',l:'Today'},{id:'week',l:'This week'},{id:'lastweek',l:'Last week'}].map(p=>`<button class="chip ${p.id===viewId?'active':''}" data-period="${p.id}" aria-pressed="${p.id===viewId?'true':'false'}">${esc(p.l)}</button>`).join('')}</div>`, 'J15')}
   <div class="stack" data-journey="J15" data-scenario="S3">
     <div class="card"><div class="card-head"><h3>${esc(viewLabel)} — as of 2026-07-11 09:00</h3><span class="basis-chip">sourced from real work</span></div>
-      <div class="card-body" style="padding:0">${periodEvents.filter(e=>canViewRecord(person,records[e.source])).map(e=>`<a class="row-item" style="border-radius:0;border:none;border-bottom:1px solid var(--e7-border)" data-open-record="${e.source}" href="#/record/${e.source}"><div class="body"><div class="t">${esc(e.label)}</div><div class="s">${esc(e.kind)} · ${esc(e.when)}</div></div></a>`).join('')}</div>
+      <div class="card-body" style="padding:0">${periodEvents.filter(e=>canViewRecord(person,records[e.source])).map(e=>`<a class="row-item" style="border-radius:0;border:none;border-bottom:1px solid var(--e7-border)" data-open-record="${e.source}" href="#/record/${e.source}"><div class="body"><div class="t">${esc(records[e.source]?.title||records[e.source]?.name||e.label)}</div><div class="s">${esc(e.label)}</div></div></a>`).join('')}</div>
     </div>
     <p class="muted-2" style="font-size:12px">Every item links to its real source record. No Draft/Submitted/missing-submission lifecycle — missing context is captured in real time as a Signal.</p>
   </div>`;
@@ -525,12 +546,18 @@ function renderCafeRunSteps(run, person){
   const canSubmit = can(person,'check.submit',{teamId:run.teamId,buId:teams[run.teamId]?.buId});
   const steps = (run.steps||[]).map(s => {
     const done = s.kind==='check' ? (s.result==='pass'||s.result==='fail') : s.done;
+    /* One completion affordance per step: simple steps toggle via the checkbox
+       itself; measured Checks keep an explicit button (they capture a result,
+       not a toggle) and their box stays a passive status indicator. */
     let action = '';
-    if (canSubmit && !done){
-      if (s.kind==='check') action = `<button class="btn btn-sm btn-outline" data-run-action="check|${esc(run.id)}|${esc(s.id)}">Check</button>`;
-      else action = `<button class="btn btn-sm btn-outline" data-run-action="complete|${esc(run.id)}|${esc(s.id)}">Complete</button>`;
+    if (canSubmit && !done && s.kind==='check'){
+      action = `<button class="btn btn-sm btn-outline" data-run-action="check|${esc(run.id)}|${esc(s.id)}">Run check</button>`;
     }
-    const left = s.kind==='check' ? `<span class="check-box ${s.result==='fail'?'fail':s.result==='pass'?'pass':''}">${s.result==='fail'?'!':(s.result==='pass'?'<span data-i="check"></span>':'')}</span>` : `<span class="check-box ${done?'pass':''}">${done?'<span data-i="check"></span>':''}</span>`;
+    const left = s.kind==='check'
+      ? `<span class="check-box ${s.result==='fail'?'fail':s.result==='pass'?'pass':''}">${s.result==='fail'?'!':(s.result==='pass'?'<span data-i="check"></span>':'')}</span>`
+      : (canSubmit && !done
+        ? `<button class="check-box e7-check-toggle" data-run-action="complete|${esc(run.id)}|${esc(s.id)}" aria-label="Mark step complete"></button>`
+        : `<span class="check-box ${done?'pass':''}">${done?'<span data-i="check"></span>':''}</span>`);
     const sub = s.kind==='check' ? `${esc(s.label)}${s.value?` · submitted ${esc(s.value)}`:''}` : esc(s.label);
     return `<div class="check-row">${left}<div class="body"><div class="t">${esc(s.kind)}</div><div class="s">${sub}</div></div>${action}${s.exceptionId?`<a class="rel-pill" data-open-record="${esc(s.exceptionId)}" href="#/record/${esc(s.exceptionId)}" style="background:var(--e7-blocked-tint);color:var(--e7-blocked-text)">Exception →</a>`:''}</div>`;
   }).join('');

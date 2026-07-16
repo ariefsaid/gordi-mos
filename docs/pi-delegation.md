@@ -9,7 +9,7 @@ else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md
 `docs/product-expectations.md` are unchanged and binding.
 
 Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; providers
-`zai/glm-5.1` and `openai-codex/gpt-5.4` both smoke-tested green. **`zai/glm-5.2`** (newest GLM, out
+`zai` and `openai-codex/gpt-5.4` both smoke-tested green. **`zai/glm-5.2`** (newest GLM, out
 2026-06) trialed-good as a builder 2026-06-16 — now the **preferred builder** and a capable
 **orchestrator/Director of a parallel pi team** (§3e, owner-directed for max Claude-token economy).
 
@@ -30,15 +30,14 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 
 | Substrate | Use for | Claude analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **PLANNER + top tier (owner-directed 2026-06-21, re-confirmed 2026-07-04 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth); orchestrator/Director of a parallel pi team (§3e) | opus |
-| `zai` / `glm-5.1` | Opus-alt **implementer** — hard/cross-cutting build slices; also the same-family degraded reviewer (⚑ below) | opus-impl |
+| `zai` / `glm-5.2` | **OPUS TIER (owner-directed 2026-07-07, re-confirmed 2026-07-13 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth), **hard/cross-cutting build slices**; orchestrator/Director of a parallel pi team (§3e) | opus |
 | `zai` / `glm-4.7` | Sonnet-alt **implementer** — routine build slices, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback **only when BOTH z.ai AND OpenAI are rate-limited** — keeps the loop moving rather than stalling on a 429 | best-effort |
 
 > **⚑ GLM-only degraded review mode (gpt-5.4 / openai-codex unavailable).** When the cross-family
 > reviewer is down, route reviews to a **different GLM than the builder** (build `glm-5.2` → review
-> `glm-5.1`): gives *some* independence but is **same-family** — weaker than the intended cross-family
+> `glm-4.7`): gives *some* independence but is **same-family** — weaker than the intended cross-family
 > check. OK for low-risk / presentational slices; for **security / RLS / RPC / auth or money-path**
 > changes, escalate to the Director's own review or wait for cross-family — never ship those on a
 > same-family-only sign-off.
@@ -58,7 +57,7 @@ matters more, not less, when running on them. Smoke-test any provider with
 
 ```bash
 cd <issue-worktree-or-repo-root>   # dispatch from where the work happens (worktree per issue, playbook §6)
-pi --provider zai --model glm-5.1 -p --no-session \
+pi --provider zai --model glm-5.2 -p --no-session \
   --append-system-prompt .claude/agents/<role>.md \
   "<self-contained brief>" < /dev/null
 ```
@@ -148,7 +147,7 @@ finishes. This is the owner-directed "pi + GLM as a separate parallel team, GLM 
 (2026-06-16).
 
 **Shape:**
-- One `pi --provider zai --model glm-5.1` (orchestrator judgment) **or** `glm-5.2` (builder-strong) run
+- One `pi --provider zai --model glm-5.2` (orchestrator) run
   whose brief = *"You are the Director for workstream X. Run the per-issue loop (`docs/director-playbook.md`
   §2): for each item, dispatch a sub-`pi` role-worker via Bash (pi-calling-pi,
   `--append-system-prompt .claude/agents/<role>.md`), verify it (gates + grep + sentinel), then the next;
@@ -159,7 +158,7 @@ finishes. This is the owner-directed "pi + GLM as a separate parallel team, GLM 
 - **Parallelism:** launch several GLM-orchestrator runs in **separate git worktrees** at once (one
   workstream each) — a true parallel team. **Stagger anything that drives the single local Supabase stack**
   (migrations / `db reset` / pgTAP / e2e) — never two at once (playbook §3).
-- **Models inside the team:** orchestrator = glm-5.1/5.2; builders = glm-5.2; reviewers = **gpt-5.4
+- **Models inside the team:** orchestrator = glm-5.2; builders = glm-5.2 (hard) / glm-4.7 (routine); reviewers = **gpt-5.4
   cross-family** (or the GLM-only degraded mode in §2 if codex is down — then Claude's own review carries
   more weight on load-bearing slices).
 

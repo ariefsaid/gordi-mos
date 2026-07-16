@@ -46,7 +46,7 @@ mockups (`docs/design-mockups/`) → Director sanity-check (tokens, realistic da
 
 ## 3. Delegation & context discipline
 - **Substrate (ACTIVE): the pi CLI.** Dispatch role work to pi (`docs/pi-delegation.md`) — model
-  routing by §2 of that doc (glm-5.1 ≈ opus, glm-4.7 ≈ sonnet/haiku, gpt-5.4 = all reviews,
+  routing by §2 of that doc (glm-5.2 ≈ opus, glm-4.7 ≈ sonnet/haiku, gpt-5.4 = all reviews,
   cross-family), invocation `pi --provider … --model … -p --no-session --append-system-prompt
   .claude/agents/<role>.md "<brief>" < /dev/null`, rendered UI via `agent-browser`. The Director still
   verifies every claim doubly (§7 + pi-delegation §5), keeps the final visual-taste lens, and owns
@@ -58,8 +58,8 @@ mockups (`docs/design-mockups/`) → Director sanity-check (tokens, realistic da
 - **Ask for CONCISE reports** to preserve the Director's context (hard constraint on long runs).
 - **Parallelize** independent agents in one message. Avoid running two agents that both drive the
   single local Supabase stack at once — stagger those.
-- **Model choice:** opus for planning, all review, security, and hard/security build slices; sonnet
-  for routine implementation, QA runs, releases; haiku for mechanical edits.
+- **Model choice:** top-tier model for planning, review, security, and hard/security build slices;
+  routine model for routine implementation, QA runs, and releases; lightweight model for mechanical edits.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
 ## 3a. Series is the default SOP; parallel is an opt-in transient mode
@@ -83,8 +83,8 @@ and `main` integration:
 ## 4. Decision policy (decide vs escalate)
 - **Decide yourself** (then state it): tactical sequencing, which agent/model, file layout, library
   patterns already chosen, fixing a failing gate, applying `[OWNER-DECISION]` defaults and flagging them.
-- **Escalate to owner**: business-rule semantics (who may assign/close tasks, weekly-update cadence
-  rules, RACI semantics, what counts as a daily ops update), strategic priority, anything
+- **Escalate to owner**: unresolved business-rule semantics (who may act at which scope, governance
+  RACI, what constitutes a Signal versus a Task/Exception), strategic priority, anything
   irreversible/expensive (production deploy on ris-dev, destructive infra), or anything outside the
   signed spec. Locked decisions live in `docs/decisions.md`; open ones in `docs/backlog.md` THE WALL.
 - **In autonomous mode:** apply a sensible default to non-blocking owner-flags + record them; **skip**
@@ -98,7 +98,7 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   (`shared`/`mos`/`ops`/`integrations`). "In-org read allowed / cross-app blocked / role gate" lives
   HERE, not in e2e.
 - **E2E (few, ~6–8 curated journeys):** Playwright against the live stack — real cross-stack flows only
-  (login→my-tasks, weekly-update submit, daily-ops feed, one real-data smoke per module).
+  (login→role-aware Home, complete a Task/Process Run, Signal→follow-up Task, one real-data smoke per Module).
 - **Never push an AC up a layer to satisfy a convention.** Tag the `AC-id` in the owning test's
   title/description for `grep` traceability.
 
@@ -134,8 +134,10 @@ broken render, a self-escalation RLS hole, and a lying test that the implementer
 - Schema: `org_id` (defaulted, client-unspoofable via `with check`) + RLS (+`force row level security`)
   on every business table; **schema-per-domain** (`shared`/`mos`/`ops`/`integrations`) — never dump MOS
   tables into `public`; reversible-by-`db reset` migrations; partial unique indexes where intended.
-- **RACI v1 is fields on tasks** (`responsible_person_id`, `accountable_person_id`,
-  `consulted_person_ids`, `informed_person_ids`), not a matrix UI (locked, `docs/decisions.md`).
+- **Task ownership is PIC + Supervisor**; RACI is reserved for Objective/Project/Process
+  (OD-REDESIGN-3). Legacy Task-RACI columns describe the pre-redesign app only and are removed or
+  migrated by the owner-gated clean baseline; new specs, APIs, tests, seeds, and UI must not preserve
+  Task RACI as a compatibility contract.
 
 ## 9. Lessons / pitfalls (inherited from PMO — don't re-pay for them)
 - **Stale `origin/main` + squash-merge collapsed all history.** → Push main; reset after merge (§6).

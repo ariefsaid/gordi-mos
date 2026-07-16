@@ -9,25 +9,24 @@ PMO added the fourth lens (Product/Intent, JTBD) after intent-failures shipped c
 and the first three lenses. MOS adopts the lens and its oracle (`docs/jtbd.md`); the content is Gordi's
 own (its roles, screens, domain), not PMO's product.
 
-## 1. Phase 0 — mockup-first (MOS-specific; replaces PMO's reverse-engineering Foundation)
-MOS is greenfield, so the Foundation inverts: instead of extracting a design system from an existing
-app, we **adopt** PMO's owner-approved `DESIGN.md` (already copied to repo root — identity authority,
-never re-invent) and **mock the product before building it**.
+## 1. Phase 0 — redesign prototype first
+The app exists but has never been used. For the E7 redesign, existing routes and mockups are evidence;
+`DESIGN.md` remains the identity/token authority and ADR-0025 plus OD-REDESIGN-1..55 govern structure.
 
-1. **IA proposals** — `design-architect` writes 2–3 competing static HTML IA proposals to
-   `docs/design-mockups/proposal-IA-<n>-<slug>.html` (shell + nav + one populated screen each),
-   resolving the brief's open "first navigation IA for /mos" question into concrete options.
-2. **Key-screen mockups** — for the first slice: task list with RACI ownership, task detail,
-   weekly update (write + review), daily ops feed. `docs/design-mockups/mock-<screen>.html`.
-   Realistic Gordi data (names, business units, real-sounding tasks) — never lorem.
-3. **Owner picks** — the owner reviews in a browser, picks an IA + confirms/redlines screens.
-   Picks are recorded in `docs/decisions.md`; redlines loop back to `design-architect`.
-4. **Gate** — no app scaffold, spec, or UI build proceeds until the Phase-0 picks are signed off.
-   The chosen mockups become the design-plan anchors for every Phase-1/2 UI issue.
+1. **Consolidate** — `design-architect` updates the existing working set into one coherent interactive
+   prototype, not another set of competing IA options.
+2. **Prove the operating model** — demonstrate Home, Work, Inbox, role-gated Money/People/Admin,
+   Café/Ecommerce/Roastery Modules, record-panel navigation, Action Launcher, Deputy, and role/scope
+   differences. Use realistic scenarios spanning a Café Run, monthly close, Signal→Task, Standard
+   adoption, cross-Team management, and Admin access configuration.
+3. **Verify the oracle** — confirm current `docs/jtbd.md` journeys cover the prototype brief and update
+   them only for genuinely new outcomes, then run the four-lens review on desktop and phone.
+4. **Owner approves** — record approval/redlines in `docs/decisions.md`; redlines loop back to the
+   prototype.
+5. **Gate** — no redesign SDD or implementation proceeds until the owner approves the prototype.
 
-Mockup rules: self-contained single HTML files, inline CSS using `DESIGN.md` token VALUES with the
-token NAME in a comment; an HTML comment block at the end lists tokens used, open questions, and any
-proposed new tokens (e.g. RACI badge colors) flagged for owner sign-off.
+Mockup rules: use `DESIGN.md` tokens, realistic Gordi data, canonical domain language, working links and
+interactions, and explicit loading/empty/error/permission states where they affect the tested journeys.
 
 > **Lens D applies to mockups too.** A mockup can — and should — be graded against the screen's job
 > story (`docs/jtbd.md` §2) **before any code exists**. When `design-architect` shapes a key-screen
@@ -62,8 +61,8 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
      AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA,
      interaction perf, vs `DESIGN.md` + the design-plan + the Phase-0 mockup.
    - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load +
-     persona walkthrough)* — for each role's REAL tasks (manager triaging the week, ops user filing a
-     daily update, Arief scanning ownership), walk the journey in the running app and flag workflow
+     persona walkthrough)* — for each role's REAL tasks (a manager triaging attention, an operator
+     completing a Process Run or sharing a Signal, Arief scanning ownership), walk the journey and flag
      friction, convention violation, needless state transitions, information overload, mental-model
      mismatch. *Naturalness, not correctness — scoped to flow-smoothness, not job-fit (that is Lens D).*
    - **(c) IA / structure & navigation** — **one canonical home/URL per entity**, no list/route
@@ -75,15 +74,19 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
      for the primary role**. Read `docs/jtbd.md` §2 for the screen's job row first, then interrogate the
      **5 questions**: **1. Job** — what job did the user come here to do (state it as a job story)?
      **2. Expectation** — does the user *expect* this affordance HERE, named in Gordi's language
-     (`CONTEXT.md`)? **3. Priority/placement** — is the decision-relevant info above the fold (on My
-     Week, is the drifting-task table truly first, strips quiet and below)? **4. Actionability** —
+     (`CONTEXT.md`)? **3. Priority/placement** — is the decision-relevant information above the fold
+     (on Home, does the role-aware attention brief stay primary)? **4. Actionability** —
      *"so what / now what?"* — can the user act in one step, with the next action adjacent? **5.
-     Mental-model consistency** — do analogous MOS objects share one paradigm, *including the
-     read-vs-review verb and the upward-only vs org-readable visibility direction* (`jtbd.md` §3)? Lens
+     Mental-model consistency** — do analogous MOS objects share one paradigm, including the
+     fact-vs-work boundary and layered visibility/mention rules (`jtbd.md` §3)? Lens
      D must always catch the three Gordi calibration anchors (`jtbd.md` §5): **A1** a "Review"/"Approve"
      verb on a Daily Log entry (a log entry is *read, not reviewed* — OD-P2-15/16); **A2** a write
      affordance on the upward weekly-update review pane (v1 review is READ-ONLY — OD-P2-12); **A3** a
-     downward/lateral weekly-update view (visibility is upward-only — OD-P1-3). These pass code review +
+     downward/lateral weekly-update view (visibility is upward-only — OD-P1-3).
+     *(E6-era anchors: Daily Log/Weekly Update are retired — OD-REDESIGN-33. For redesign-era reviews,
+     use the E7 replacements: **A1′** a workflow/status/resolve verb on a Signal (fact, not work);
+     **A2′** Acknowledge treated as ownership/commitment or Signal treated as a promoted Task; **A3′**
+     sideways sibling-Team visibility without an explicit mention. See OD-REDESIGN-36/39/43/47.)* These pass code review +
      Lenses A/B/C but fail the user's actual job. *Job-fit, not flow-smoothness.* **Lens D runs on both
      rounds** — the Phase-0 mockup (§1) and the built UI here — since the job story does not need a
      running app.
