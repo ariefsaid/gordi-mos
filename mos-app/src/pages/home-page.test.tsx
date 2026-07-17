@@ -5,7 +5,7 @@
 // FreshnessLabel. Every KPI tile is a drill-target <Link>.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -399,5 +399,54 @@ describe('AC-514: the order toggle persists (Step 5)', () => {
     const position = personalCanvas.compareDocumentPosition(attentionRegion)
     expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(resolveRegionOrder(personId)).toBe('personal-first')
+  })
+})
+
+describe('AC-515: region order is width-independent, no CSS reflow (Step 5)', () => {
+  async function renderAtWidth(width: number) {
+    let utils!: ReturnType<typeof render>
+    await act(async () => {
+      utils = render(
+        createElement(
+          MemoryRouter,
+          null,
+          createElement(
+            I18nProvider,
+            null,
+            createElement('div', { style: { width } }, createElement(HomePage)),
+          ),
+        ),
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    return utils
+  }
+
+  it('keeps personal-canvas before #attention-brief at both 390px and desktop, with no CSS order override', async () => {
+    const personId = financeViewer.viewer.person.id
+    setRegionOrder(personId, 'personal-first')
+    mockUseAuth.mockReturnValue(financeViewer)
+
+    for (const width of [390, 1280]) {
+      const utils = await renderAtWidth(width)
+      await waitFor(() =>
+        expect(within(utils.container).getByRole('region', { name: 'Needs attention' })).toBeInTheDocument(),
+      )
+
+      const wrapperEl = utils.container.querySelector('.home-regions') as HTMLElement
+      expect(wrapperEl.getAttribute('data-region-order')).toBe('personal-first')
+
+      const attentionEl = utils.container.querySelector('#attention-brief') as HTMLElement
+      const personalEl = within(utils.container).getByTestId('personal-canvas')
+      const position = personalEl.compareDocumentPosition(attentionEl)
+      expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+      // DOM-driven, not flex-`order`-driven — neither region node carries an inline `order` style.
+      expect(attentionEl.style.order).toBe('')
+      expect(personalEl.style.order).toBe('')
+
+      utils.unmount()
+    }
   })
 })
