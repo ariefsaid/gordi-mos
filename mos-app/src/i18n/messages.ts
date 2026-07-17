@@ -374,6 +374,7 @@ export const messages = {
     'nav.events': 'Events',
     'nav.money': 'Money',
     'nav.cafe': 'Café',
+    'nav.cafe.opening': 'Opening',
     'nav.cafe.log': 'Log',
     'nav.cafe.plan': 'Plan',
     'nav.cafe.stock': 'Stock',
@@ -514,6 +515,12 @@ export const messages = {
     'processes.pending.assignCount': '${count} to assign',
     'processes.pending.close': 'Close',
     'processes.pending.empty': 'Everything for this occurrence is assigned.',
+    // Step 7 — Café retrofit "Start today's opening" surface (cafe-retrofit.spec.md §4/§6.2).
+    // Reuses processes.rollup.summary for the roll-up line (Rule 11 — no café-only duplicate copy).
+    'cafe.opening.start': "Start today's opening",
+    'cafe.opening.notStartedLead': "Not started yet — start today's opening.",
+    'cafe.opening.notStartedMember': "Not started yet — your shift lead starts today's opening.",
+    'cafe.opening.viewTasks': 'View opening tasks',
   },
   id: {
     'dest.home': 'Beranda',
@@ -880,6 +887,7 @@ export const messages = {
     'nav.events': 'Acara',
     'nav.money': 'Keuangan',
     'nav.cafe': 'Kafe',
+    'nav.cafe.opening': 'Pembukaan',
     'nav.cafe.log': 'Log',
     'nav.cafe.plan': 'Rencana',
     'nav.cafe.stock': 'Stok',
@@ -1006,6 +1014,11 @@ export const messages = {
     'processes.pending.assignCount': '${count} perlu ditetapkan',
     'processes.pending.close': 'Tutup',
     'processes.pending.empty': 'Semua untuk kejadian ini sudah ditetapkan.',
+    // Step 7 — Café retrofit "Start today's opening" surface (cafe-retrofit.spec.md §4/§6.2).
+    'cafe.opening.start': 'Mulai pembukaan hari ini',
+    'cafe.opening.notStartedLead': 'Belum dimulai — mulai pembukaan hari ini.',
+    'cafe.opening.notStartedMember': 'Belum dimulai — pemimpin shift memulai pembukaan hari ini.',
+    'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
   },
 } as const
 
