@@ -27,3 +27,30 @@ describe('can', () => {
     expect(can(['ops_lead', 'admin'], 'workline.manage')).toBe(true)
   })
 })
+
+// Step 4 (ADR-0050 D7 / A2 seed): signal.create_for_team / signal.mention_bu / signal.retract are
+// default-deny, granted to ops_lead/finance/admin (signal.create_for_team is finance-excluded per
+// the A2 seed — finance never posts on behalf of another Team). member holds only signal.create
+// (implicit — every authenticated viewer can post; no client gate needed for it).
+describe('can — Signal capabilities (Step 4)', () => {
+  it('grants ops_lead and admin signal.create_for_team; denies finance and member', () => {
+    expect(can(['ops_lead'], 'signal.create_for_team')).toBe(true)
+    expect(can(['admin'], 'signal.create_for_team')).toBe(true)
+    expect(can(['finance'], 'signal.create_for_team')).toBe(false)
+    expect(can(['member'], 'signal.create_for_team')).toBe(false)
+  })
+
+  it('grants ops_lead, finance, and admin signal.mention_bu; denies member', () => {
+    expect(can(['ops_lead'], 'signal.mention_bu')).toBe(true)
+    expect(can(['finance'], 'signal.mention_bu')).toBe(true)
+    expect(can(['admin'], 'signal.mention_bu')).toBe(true)
+    expect(can(['member'], 'signal.mention_bu')).toBe(false)
+  })
+
+  it('grants ops_lead, finance, and admin signal.retract; denies member', () => {
+    expect(can(['ops_lead'], 'signal.retract')).toBe(true)
+    expect(can(['finance'], 'signal.retract')).toBe(true)
+    expect(can(['admin'], 'signal.retract')).toBe(true)
+    expect(can(['member'], 'signal.retract')).toBe(false)
+  })
+})
