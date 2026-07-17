@@ -92,4 +92,44 @@ describe('GroupHeaderRow', () => {
       expect(screen.getByText(/2 overdue/i)).toBeInTheDocument()
     })
   })
+
+  // Step 6 (C2, spec §5 "Pending-PIC resolution surface"): a distinct, SEPARATE affordance from
+  // the plain roll-up summary text — clicking it is how a host mounts PendingResolution (B7) for
+  // this occurrence. Never rendered when there's nothing to assign (readOnly-like omission, mirrors
+  // the overdue-subtotal pattern which also hides at zero).
+  describe('"N to assign" affordance (C2)', () => {
+    it('renders a clickable "N to assign" affordance when pendingUnresolved > 0 and fires onAssignPending', () => {
+      const onAssignPending = vi.fn()
+      renderRow({
+        label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
+        occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
+        onAssignPending,
+      })
+      const assignBtn = screen.getByRole('button', { name: '2 to assign' })
+      fireEvent.click(assignBtn)
+      expect(onAssignPending).toHaveBeenCalled()
+    })
+
+    it('does not render the affordance when pendingUnresolved is 0', () => {
+      renderRow({
+        label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
+        occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 0 },
+        onAssignPending: vi.fn(),
+      })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('does not render the affordance when no onAssignPending handler is given (nothing to open)', () => {
+      renderRow({
+        label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
+        occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
+      })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('never renders the affordance outside occurrence rendering (no occurrenceRollup)', () => {
+      renderRow({ label: 'Blocked', count: 3, overdue: 2, onAssignPending: vi.fn() })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+  })
 })

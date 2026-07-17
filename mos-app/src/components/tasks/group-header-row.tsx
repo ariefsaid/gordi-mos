@@ -45,6 +45,14 @@ type GroupHeaderRowProps = {
    * carries the run's caption (never the internal-only string "Process Run", FR-611).
    */
   occurrenceRollup?: { total: number; done: number; overdue: number; pendingUnresolved: number }
+  /**
+   * Step 6 (C2, spec §5): opens the pending-PIC resolution surface (PendingResolution, B7) for
+   * this occurrence. When present AND `occurrenceRollup.pendingUnresolved > 0`, a separate
+   * "N to assign" affordance renders (distinct from the plain roll-up summary text above — that
+   * text stays a single unsplit string so it keeps reporting the count even while this button is
+   * the actionable entry point). Omitted entirely at zero-pending or when no handler is given.
+   */
+  onAssignPending?: () => void
 }
 
 /**
@@ -84,6 +92,7 @@ function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
 export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
   onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly, occurrenceRollup,
+  onAssignPending,
 }: GroupHeaderRowProps) {
   const t = useT()
   return (
@@ -114,6 +123,15 @@ export function GroupHeaderRow({
             </span>
           ) : (
             <span className="gcount tabular-nums">{count}</span>
+          )}
+          {occurrenceRollup && occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+            <button
+              type="button"
+              className="gsub gsub-pending"
+              onClick={onAssignPending}
+            >
+              {t('processes.pending.assignCount', { count: occurrenceRollup.pendingUnresolved })}
+            </button>
           )}
           {!occurrenceRollup && overdue > 0 && (
             readOnly

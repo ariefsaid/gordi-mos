@@ -504,6 +504,13 @@ export const messages = {
     'processes.pending.choose': 'Choose PIC',
     'processes.rollup.summary': '${done}/${total} done · ${overdue} overdue · ${pending} to assign',
     'processes.due.empty': 'No recurring work due to start.',
+    // Track C wiring (C1/C2): the Occurrence group-by option + its ad-hoc-tasks catch-all label,
+    // and the "N to assign" affordance + its host dialog copy.
+    'tasks.filter.occurrence': 'Occurrence',
+    'tasks.group.noOccurrence': 'Not part of a recurring occurrence',
+    'processes.pending.assignCount': '${count} to assign',
+    'processes.pending.close': 'Close',
+    'processes.pending.empty': 'Everything for this occurrence is assigned.',
   },
   id: {
     'dest.home': 'Beranda',
@@ -988,6 +995,11 @@ export const messages = {
     'processes.pending.choose': 'Pilih PIC',
     'processes.rollup.summary': '${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan',
     'processes.due.empty': 'Tidak ada pekerjaan rutin yang perlu dimulai.',
+    'tasks.filter.occurrence': 'Kejadian',
+    'tasks.group.noOccurrence': 'Bukan bagian dari kejadian berulang',
+    'processes.pending.assignCount': '${count} perlu ditetapkan',
+    'processes.pending.close': 'Tutup',
+    'processes.pending.empty': 'Semua untuk kejadian ini sudah ditetapkan.',
   },
 } as const
 
