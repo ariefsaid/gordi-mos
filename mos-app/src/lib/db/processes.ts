@@ -80,6 +80,19 @@ export async function listRunTasks(runId: string): Promise<TaskListRow[]> {
   return (data ?? []) as unknown as TaskListRow[]
 }
 
+/** Batched roll-up read for the Occurrence group-by in `/work/tasks` (Track C wiring): one
+ * `.in('process_run_id', runIds)` read instead of N `getRunRollup` calls per rendered occurrence
+ * group. Returns `[]` (no network call) for an empty `runIds` list. */
+export async function listRunRollups(runIds: string[]): Promise<ProcessRunRollup[]> {
+  if (runIds.length === 0) return []
+  const { data, error } = await mos()
+    .from('process_run_rollup')
+    .select('*')
+    .in('process_run_id', runIds)
+  if (error) throw new Error(`listRunRollups failed — ${error.message}`)
+  return (data ?? []) as unknown as ProcessRunRollup[]
+}
+
 /** Mark a run complete via `mos.complete_process_run` — a deliberate human act; the run's Tasks
  * persist unchanged (FR-610). Returns the updated run row. */
 export async function completeRun(runId: string): Promise<ProcessRunRow> {
