@@ -1,0 +1,39 @@
+/* SignalMentionPicker — the grouped `@` fuzzy dropdown (PORT convergence mention-pop grammar @
+   the e7 visual bar, design-review step-4 CRITICAL-1/3). A floating popover, grouped rows with
+   real separation between Person/Team/BU, and styled type badges. Anchored by
+   .signal-composer-mention-anchor (position: relative) in signal-composer.css. Keyboard focus
+   uses the app's global *:focus-visible ring (index.css) — .mention-row is a real <button>, so
+   Tab/Escape and the visible ring both work without any extra wiring (CRITICAL-3). */
+.mention-pop {
+  position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 50;
+  width: 320px; max-width: calc(100vw - 24px); max-height: 280px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay);
+}
+.mention-group { padding: 4px; }
+.mention-group + .mention-group {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.mention-group-head {
+  padding: 6px 10px 2px; font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground);
+}
+.mention-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px;
+  padding: 8px 10px; border: none; background: none; font: inherit; text-align: left;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: inherit;
+}
+.mention-row:hover { background: var(--secondary); }
+.mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
+.mention-row .nm { font-weight: 500; color: var(--foreground); }
+
+.type-badge {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px; flex: none;
+  border-radius: var(--radius-pill); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.type-badge--person { background: var(--accent-subtle); color: var(--text-accent); }
+.type-badge--team { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
+.type-badge--bu { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
+
+.mention-empty { padding: 10px 12px; font-size: 12.5px; color: var(--muted-foreground); }
