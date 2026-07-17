@@ -1,0 +1,28 @@
+// home-attention.ts — pure attention selectors for the Home attention brief (Step 5, Track P).
+// No I/O; "today" is always an injected WIB string (never Date.now() inside the selectors —
+// FR-512). Reuses raciOwner (raci-member.ts) — the same ownership predicate the rest of the app
+// already uses (Rule 11/NFR-504).
+
+import type { TaskListRow } from '@/lib/db/tasks.types'
+import { raciOwner } from '@/lib/raci-member'
+
+export type AttentionLaneKind = 'overdue' | 'due-today' | 'mentions' | 'failed-checks'
+export type LaneState = 'loading' | 'ready' | 'error'
+
+export interface AttentionItem { id: string; title: string; meta?: string; route: string }
+export interface AttentionLane { kind: AttentionLaneKind; state: LaneState; items: AttentionItem[] }
+
+/** WIB (Asia/Jakarta) calendar date YYYY-MM-DD from an injected clock — never scattered Date.now() (FR-512). */
+export function wibToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(now)
+}
+
+const toTaskItem = (t: TaskListRow): AttentionItem =>
+  ({ id: t.id, title: t.title, meta: t.due_date ?? undefined, route: `/work/tasks/${t.id}` })
+
+/** Owned (R/A), non-Done tasks due strictly before `today` (YYYY-MM-DD WIB) — FR-502/512. */
+export function overdueTasks(tasks: TaskListRow[], viewerId: string, today: string): AttentionItem[] {
+  return tasks
+    .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date != null && t.due_date < today)
+    .map(toTaskItem)
+}
