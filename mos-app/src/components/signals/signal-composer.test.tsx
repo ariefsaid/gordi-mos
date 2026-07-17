@@ -202,3 +202,29 @@ describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () =>
     expect(screen.getByText('Post to Radiant Operations · FYI · notify 1')).toBeInTheDocument()
   })
 })
+
+describe('SignalComposer — derived Site pill, no @Site (AC-423)', () => {
+  it('renders a read-only Site pill derived from the owning Team, and Site is absent from the @ picker', async () => {
+    mockGetTeamSite.mockResolvedValue({ id: 'site-hq', name: 'Gordi HQ' })
+    renderComposer()
+    await waitFor(() => expect(mockGetTeamSite).toHaveBeenCalledWith('team-hq'))
+
+    const pill = await screen.findByTestId('signal-site-pill')
+    expect(pill).toHaveTextContent('Gordi HQ')
+    // The pill is not an interactive control — location, not a mention target (D37).
+    expect(pill.tagName).not.toBe('BUTTON')
+    expect(pill.tagName).not.toBe('A')
+
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, '@')
+    const popover = await screen.findByRole('listbox', { name: /mention/i })
+    expect(within(popover).queryByText(/site/i)).not.toBeInTheDocument()
+  })
+
+  it('renders no Site pill for a central/site-less Team', async () => {
+    mockGetTeamSite.mockResolvedValue(null)
+    renderComposer()
+    await waitFor(() => expect(mockGetTeamSite).toHaveBeenCalledWith('team-hq'))
+    expect(screen.queryByTestId('signal-site-pill')).not.toBeInTheDocument()
+  })
+})

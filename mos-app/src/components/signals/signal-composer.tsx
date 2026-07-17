@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { listAuthorTeams, listAllTeams, createSignal, dedupeRecipients, type MemberLookup } from '@/lib/db/signals'
-import type { TeamOption, StagedMention, MentionKind } from '@/lib/db/signals.types'
+import {
+  listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+} from '@/lib/db/signals'
+import type { TeamOption, SiteOption, StagedMention, MentionKind } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
 import { SignalMentionPicker } from './signal-mention-picker'
@@ -40,6 +42,7 @@ export function SignalComposer({
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [teamId, setTeamId] = useState('')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
+  const [site, setSite] = useState<SiteOption | null>(null)
   const [people, setPeople] = useState<MentionCandidate[]>([])
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState('')
@@ -63,6 +66,17 @@ export function SignalComposer({
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
     return () => { cancelled = true }
   }, [authorId, canCreateForTeam])
+
+  // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
+  // whenever the selected Team changes (including the cross-Team destination switch, B10).
+  useEffect(() => {
+    if (!teamId) { setSite(null); return }
+    let cancelled = false
+    getTeamSite(teamId)
+      .then((resolved) => { if (!cancelled) setSite(resolved) })
+      .catch(() => { if (!cancelled) setSite(null) })
+    return () => { cancelled = true }
+  }, [teamId])
 
   const teamCandidates: MentionCandidate[] = teams.map((team) => ({ id: team.id, label: team.name }))
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null
@@ -160,6 +174,12 @@ export function SignalComposer({
           />
         </label>
       </div>
+
+      {site && (
+        <span className="signal-composer-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>
+          {site.name}
+        </span>
+      )}
 
       <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>
 

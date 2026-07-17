@@ -443,6 +443,7 @@ export const messages = {
     'signals.composer.visibleTo': 'Visible to ${team}',
     'signals.composer.visibleToNotify': 'Visible to ${team} · notify ${count}',
     'signals.composer.postTo': 'Post to ${team} · ${attention} · notify ${count}',
+    'signals.composer.siteHint': "Location derives from the owning Team (Site is never a mention target).",
   },
   id: {
     'dest.home': 'Beranda',
@@ -877,6 +878,7 @@ export const messages = {
     'signals.composer.visibleTo': 'Terlihat oleh ${team}',
     'signals.composer.visibleToNotify': 'Terlihat oleh ${team} · beri tahu ${count}',
     'signals.composer.postTo': 'Kirim ke ${team} · ${attention} · beri tahu ${count}',
+    'signals.composer.siteHint': 'Lokasi berasal dari Tim pemilik (Site tidak pernah menjadi sasaran sebutan).',
   },
 } as const
 
