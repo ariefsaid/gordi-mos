@@ -895,3 +895,77 @@ and `bash scripts/pre-merge-check.sh` — out of this implementer task's scope p
 explicit FINISH criteria; both remain required before merge per this repo's binding review-battery
 gate (spec/code-quality/design reviews + the ledger verdicts above are also still outstanding for
 this step's diff and must be recorded before merge-to-main, same as Wave 2c above).
+
+## Design review — Step 5 Home proper (rendered, 4-lens): **BLOCK**
+
+Rendered at 1280px + 390px (Cafe Ops / Café / Director personas), evidence screenshots under the
+reviewer's scratchpad (`pop-390-firstvp.png`, `mock-conv-1280.png`, `manager-02-afterlogin.png`,
+`focus-toggle.png`, `focus-link.png`, `err-1280-mentions-error.png`, `pf-1280-header.png`,
+`pf-390-firstvp.png`). Findings (RI = Regression-Invariant fix, tests supplied by the reviewer):
+
+- **RI-1 (Q1 — owner-decision fork, ratified Option B).** The Home order toggle reused `ViewTabs`
+  in its default `role="tablist"`/`role="tab"` grammar, but the control is a mutually-exclusive
+  SETTING (attention-first vs. personal-first), not a content-view switch — wrong ARIA semantics
+  for a screen-reader user. Option A (keep tablist, accept the semantic mismatch) was rejected;
+  Option B (add a `mode="radiogroup"` variant to the shared primitive, same visual grammar) was
+  ratified.
+- **RI-2 (Q2/Rule 8 — owner-decision fork, ratified Option B).** At 390px the order toggle
+  rendered as a full-width lead element ahead of the attention brief (`pop-390-firstvp.png`) —
+  a Rule 8 (capture-first) violation at the page level, distinct from AC-511's region-level
+  guarantee (which only promises no config *inside* `#attention-brief`). Option A (shrink the
+  toggle in place) was rejected; Option B (fold it behind a compact disclosure, reusing the Tasks
+  toolbar's mobile-options grammar) was ratified.
+- **RI-3.** Attention-item date meta rendered the raw ISO `due_date` ("2026-07-10") instead of the
+  app's shared humanized date format (the My-tasks table's "Overdue · Thu, 16 Jul" convention).
+- **RI-4.** The region title "Needs attention" was `aria-label` only — never rendered as visible
+  content (no in-page confirmation of what the region is for a sighted user).
+- **Jump affordance.** The personal-first header's "Needs attention · N" summary already targeted
+  `#attention-brief` (role=link) but had no visual affordance — it read as plain prose next to the
+  page title, not a clickable jump cue (`pf-1280-header.png`, `pf-390-firstvp.png`).
+- **Minors:** (a) the all-clear state was the centered checkmark floating in a large empty frame
+  (`manager-02-afterlogin.png`) rather than a compact calm affirmation; (b) loading/error lanes
+  dropped their title, so "which list failed?" was unanswerable at a glance
+  (`err-1280-mentions-error.png`); (c) "My canvas first" uses implementation jargon ("canvas") not
+  Gordi's own vocabulary for the work; (d) lane titles carried no item count.
+
+### Fix wave (this pass) — resolution
+
+All items fixed with a failing RTL/unit test written first (RED → GREEN → REFACTOR), one commit
+per item, on `claude/redesign-buildout-completion-vdrd17`:
+
+| Item | Commit | What changed |
+|---|---|---|
+| RI-1 | `b4bd9f8` | `ViewTabs` gains a `mode="radiogroup"` variant (role=radiogroup/radio, aria-checked, same roving-tabindex + Arrow/Home/End/Space keyboard contract, visually identical). Home's order toggle opts in. Every existing tablist consumer (dashboard Summary/Detail, Tasks Table/Board/Calendar) is untouched — the default `mode` stays `'tablist'`. |
+| RI-2 | `0bed5c3` | New `useIsPhone()` hook (`(max-width: 390px)`, sibling of `useIsDesktop()`'s 768px). At ≤390px the radiogroup folds behind a compact, right-aligned "View options" disclosure (reuses the Tasks toolbar's `.mobile-task-options` trigger/chevron/panel grammar, resized/repositioned — not a full-width toolbar row). Desktop/tablet render the radiogroup inline, unchanged. |
+| RI-3 | `0f182e2` | `overdueTasks`/`dueTodayTasks` now format `due_date` via the shared `formatDate` (task-formatters.ts — the same function the My-tasks table uses), with a new locale-aware param threaded from `HomePage`'s `useI18n()`. |
+| RI-4 | `4b0059e` | The attention region renders a real `<h2>` ("Needs attention", DESIGN.md Subheading token 18px/600); the region's accessible name now comes from `aria-labelledby` pointing at that heading, replacing the old `aria-label` — one source of truth, no double-announcement. |
+| Jump affordance | `90bd519` | The header summary link gets a dedicated `.home-attention-jump` class (underline + `--primary` color, mirrors `cascade-page.css`'s inline text-link grammar) and a trailing "→" per the app's existing link-cue convention ("All tasks →", "Open the Daily Log →"). |
+| Minors (a–d) | `4e21f34` | (a) all-clear `EmptyState` gets a compact left-aligned CSS variant (`attention-all-clear`) instead of the centered void; (b) loading/error lane branches now render the `<h3>` lane title before their skeleton/error content; (c) "My canvas first" → "My items first" (plain language, no "canvas" jargon); (d) ready-lane titles append the item count via a new `home.attention.laneTitleCount` template ("Overdue · 2"). |
+
+**Test/gate evidence (this fix wave):** every item's test was written and confirmed RED before the
+corresponding implementation commit. Full suite after all six commits: `npm run typecheck` — 0
+errors; `npm run lint -- --max-warnings=0` — 0 errors; `npm test` — **266 test files / 2788 tests,
+all green** (baseline before this wave: 266 files / 2774 tests — net +14, plus several existing
+tests extended in place per the BDD "extend, never weaken" rule, e.g. AC-509/AC-510/AC-513/AC-514).
+`npm run build` also succeeds (CSS compiles; the pre-existing >500kB JS chunk warning is unrelated
+to this diff). i18n en/id parity verified by `messages.test.ts`'s key-parity test for every new/
+changed string. No token was invented — every new class resolves to existing DESIGN.md CSS
+variables (`--primary`, `--card`, `--border`, `--ring`, `--secondary`, `--foreground`,
+`--muted-foreground`) and the existing 18px/600 Subheading + `.mobile-task-options` disclosure
+patterns; no raw hex/spacing was added. `ViewTabs`'s existing consumers (dashboard, Tasks toolbar)
+were re-run and are unaffected.
+
+### RATIFY-BEFORE-MERGE (owner decisions still open)
+
+1. **Q1 — ViewTabs radiogroup variant.** Option B (add `mode="radiogroup"`, implemented) vs.
+   Option A (keep tablist semantics, accept the mismatch). This wave implemented Option B.
+2. **Q2 — phone order-toggle fold.** Option B (compact disclosure, reusing the Tasks mobile-
+   options grammar, implemented) vs. Option A (shrink the toggle in place, kept full-width).
+   This wave implemented Option B.
+3. **Toggle label wording.** "My canvas first" → "My items first" (this wave's recommendation,
+   Minor (c)) — needs owner sign-off on the final copy before merge; the id-catalog counterpart
+   ("Kanvas saya dulu" → "Item saya dulu") tracks whatever the owner picks.
+
+Not yet re-rendered against the live app by a design-reviewer pass — this section records the
+fix-wave commits and test evidence; the BLOCK is not cleared until a design re-review confirms the
+rendered result and the three RATIFY items above are resolved by the owner.
