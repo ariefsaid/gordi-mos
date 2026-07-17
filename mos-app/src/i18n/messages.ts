@@ -473,6 +473,18 @@ export const messages = {
     'signals.record.existingTaskPlaceholder': 'Choose a Task…',
     'signals.record.noLinkableTasks': 'No other Tasks to link yet.',
     'signals.record.linkSave': 'Link',
+    // Step 5 — Home attention brief (spec home-proper.spec.md, AC-501..515). en/id shape-identical.
+    'home.attention.title': 'Needs attention',
+    'home.attention.allClear': "You're all caught up",
+    'home.attention.lane.overdue': 'Overdue',
+    'home.attention.lane.dueToday': 'Due today',
+    'home.attention.lane.mentions': 'Mentions',
+    'home.attention.lane.failedChecks': 'Failed checks',
+    'home.attention.laneError': "Couldn't load this list. Refresh to try again.",
+    'home.attention.summary': 'Needs attention · ${n}',
+    'home.order.toggle': 'Home order',
+    'home.order.attentionFirst': 'Attention first',
+    'home.order.personalFirst': 'My canvas first',
   },
   id: {
     'dest.home': 'Beranda',
@@ -937,6 +949,18 @@ export const messages = {
     'signals.record.existingTaskPlaceholder': 'Pilih Tugas…',
     'signals.record.noLinkableTasks': 'Belum ada Tugas lain untuk ditautkan.',
     'signals.record.linkSave': 'Tautkan',
+    // Step 5 — Home attention brief (spec home-proper.spec.md, AC-501..515). en/id shape-identical.
+    'home.attention.title': 'Perlu perhatian',
+    'home.attention.allClear': 'Semua beres',
+    'home.attention.lane.overdue': 'Terlambat',
+    'home.attention.lane.dueToday': 'Jatuh tempo hari ini',
+    'home.attention.lane.mentions': 'Sebutan',
+    'home.attention.lane.failedChecks': 'Pemeriksaan gagal',
+    'home.attention.laneError': 'Gagal memuat. Muat ulang untuk mencoba lagi.',
+    'home.attention.summary': 'Perlu perhatian · ${n}',
+    'home.order.toggle': 'Urutan Beranda',
+    'home.order.attentionFirst': 'Perhatian dulu',
+    'home.order.personalFirst': 'Kanvas saya dulu',
   },
 } as const
 

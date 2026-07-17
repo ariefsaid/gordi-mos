@@ -25,3 +25,22 @@
   text-decoration: none;
   min-width: 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Home two-region wrapper (Step 5, OD-REDESIGN-18, AC-515). The Attention brief
+   and the Personal canvas are emitted in DOM in the user-chosen order — this
+   wrapper is a plain block-flow column and MUST NEVER use CSS `order` or
+   `flex-direction: column-reverse`/media-query reflow to visually reorder the
+   two regions against their DOM order (Rule 9). Only density/disclosure inside
+   each region may adapt at ≤390px, never the region order itself.
+   ════════════════════════════════════════════════════════════════════════════ */
+.home-regions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-personal-canvas {
+  display: flex;
+  flex-direction: column;
+}

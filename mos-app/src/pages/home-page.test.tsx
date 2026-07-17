@@ -5,7 +5,8 @@
 // FreshnessLabel. Every KPI tile is a drill-target <Link>.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -75,6 +76,21 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 const mockGetBUs = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 
+// Step 5 — attention brief data sources. Mentions lane (Inbox's own DAL).
+vi.mock('../lib/db/notifications', () => ({
+  listNotifications: vi.fn(),
+  notificationRoute: () => null,
+}))
+import { listNotifications } from '@/lib/db/notifications'
+const mockListNotifications = vi.mocked(listNotifications)
+
+// Step 5 — failed-checks adapter (café rejected logs, RATIFY-3).
+vi.mock('../lib/db/home-attention-data', () => ({
+  loadFailedChecksForViewer: vi.fn(),
+}))
+import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
+const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
+
 // Signal ambient feed (Step 4 C3, AC-426/FR-414) — SignalFeedSection's own DAL fetch, mocked so
 // the Home tests stay isolated (component tests mock the DAL, never a live one).
 vi.mock('../lib/db/signals', async (importOriginal) => {
@@ -91,6 +107,7 @@ vi.mock('../shell/signal-composer-host', () => ({
 }))
 
 import { HomePage } from './home-page'
+import { setRegionOrder, resolveRegionOrder } from '@/lib/home-region-order'
 
 const financeViewer: AuthState = {
   status: 'authenticated',
@@ -167,12 +184,15 @@ function marginRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   mockListRevenue.mockResolvedValue([revenueRow()])
   mockListMargin.mockResolvedValue([marginRow()])
   mockGetMyUpdate.mockResolvedValue(null)
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
+  mockListNotifications.mockResolvedValue([])
+  mockLoadFailedChecks.mockResolvedValue([])
 })
 
 describe('AC-H01: finance viewer sees revenue + margin tiles, each drilling to /dashboard', () => {
@@ -328,5 +348,105 @@ describe('AC-H06: tasks tile links to /tasks and shows the open-task count', () 
     const link = tile.closest('a')
     expect(link).not.toBeNull()
     expect(link!.getAttribute('href')).toBe('/tasks')
+  })
+})
+
+describe('AC-512: default order = attention-first (Step 5)', () => {
+  it('renders #attention-brief before the personal-canvas region when nothing is stored', async () => {
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    const attentionRegion = document.getElementById('attention-brief')!
+    const personalCanvas = screen.getByTestId('personal-canvas')
+    // attentionRegion precedes personalCanvas in DOM order
+    const position = attentionRegion.compareDocumentPosition(personalCanvas)
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+})
+
+describe('AC-513: personal-first reorders + the header summary survives (Step 5)', () => {
+  it('renders personal-canvas before #attention-brief, plus a "Needs attention · N" header summary', async () => {
+    const personId = financeViewer.viewer.person.id
+    setRegionOrder(personId, 'personal-first')
+
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    const attentionRegion = document.getElementById('attention-brief')!
+    const personalCanvas = screen.getByTestId('personal-canvas')
+    // personalCanvas precedes attentionRegion in DOM order
+    const position = personalCanvas.compareDocumentPosition(attentionRegion)
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    const summaryLink = screen.getByRole('link', { name: /needs attention · \d+/i })
+    expect(summaryLink.getAttribute('href')).toBe('#attention-brief')
+  })
+})
+
+describe('AC-514: the order toggle persists (Step 5)', () => {
+  it('reorders the regions and persists personal-first when "My canvas first" is clicked', async () => {
+    const personId = financeViewer.viewer.person.id
+    const user = userEvent.setup()
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    await act(async () => {
+      await user.click(screen.getByRole('tab', { name: /my canvas first/i }))
+    })
+
+    const attentionRegion = document.getElementById('attention-brief')!
+    const personalCanvas = screen.getByTestId('personal-canvas')
+    const position = personalCanvas.compareDocumentPosition(attentionRegion)
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(resolveRegionOrder(personId)).toBe('personal-first')
+  })
+})
+
+describe('AC-515: region order is width-independent, no CSS reflow (Step 5)', () => {
+  async function renderAtWidth(width: number) {
+    let utils!: ReturnType<typeof render>
+    await act(async () => {
+      utils = render(
+        createElement(
+          MemoryRouter,
+          null,
+          createElement(
+            I18nProvider,
+            null,
+            createElement('div', { style: { width } }, createElement(HomePage)),
+          ),
+        ),
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    return utils
+  }
+
+  it('keeps personal-canvas before #attention-brief at both 390px and desktop, with no CSS order override', async () => {
+    const personId = financeViewer.viewer.person.id
+    setRegionOrder(personId, 'personal-first')
+    mockUseAuth.mockReturnValue(financeViewer)
+
+    for (const width of [390, 1280]) {
+      const utils = await renderAtWidth(width)
+      await waitFor(() =>
+        expect(within(utils.container).getByRole('region', { name: 'Needs attention' })).toBeInTheDocument(),
+      )
+
+      const wrapperEl = utils.container.querySelector('.home-regions') as HTMLElement
+      expect(wrapperEl.getAttribute('data-region-order')).toBe('personal-first')
+
+      const attentionEl = utils.container.querySelector('#attention-brief') as HTMLElement
+      const personalEl = within(utils.container).getByTestId('personal-canvas')
+      const position = personalEl.compareDocumentPosition(attentionEl)
+      expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+      // DOM-driven, not flex-`order`-driven — neither region node carries an inline `order` style.
+      expect(attentionEl.style.order).toBe('')
+      expect(personalEl.style.order).toBe('')
+
+      utils.unmount()
+    }
   })
 })
