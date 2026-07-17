@@ -3,10 +3,14 @@
 -- AC-607 (FR-607): a materialized Task carries the owning Team's BU, the process A as Supervisor,
 --   status Open, its provenance links, and due_date = scheduled_date + offset.
 -- AC-608 (FR-608/OD-12): a def's checklist steps become the Task's checklist items — no extra Task.
+-- SECURITY LOW-1 (Step 6 fix wave): process_run_id / generated_from_task_def_id are RPC-only
+--   provenance — a direct authenticated INSERT/UPDATE stamping either column is rejected (42501);
+--   the spawn/resolve RPC paths above (which stamp them from inside a SECURITY DEFINER function)
+--   keep working undisturbed.
 -- Fixture: 20260716000015_mos_process_test_seed.sql. Starter = Boss (…f004) acting as admin.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(17);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -69,6 +73,37 @@ select is((select count(*)::int from mos.task_checklist_items ci
           2, 'AC-608: the two checklist steps materialize as the Task''s checklist items');
 select is((select count(*)::int from mos.tasks t where t.generated_from_task_def_id='00000000-0000-0000-0000-00000000d001'),
           1, 'AC-608: checklist steps stay inside one Task — no extra Task spawned');
+
+-- SECURITY LOW-1: a member cannot forge provenance onto a direct INSERT — neither column is a
+-- direct-app write, even when the id points at a real, same-org run/def (still active as
+-- authenticated/f004, an ordinary org member for RLS purposes).
+select throws_ok($$
+  insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by, process_run_id)
+  values ('Forged provenance', '00000000-0000-0000-0000-0000000000a2',
+          '00000000-0000-0000-0000-00000000f004', '00000000-0000-0000-0000-00000000f004',
+          '00000000-0000-0000-0000-00000000f004',
+          (select id from mos.process_runs where work_line_id = '00000000-0000-0000-0000-00000000c001' limit 1))
+$$, '42501', null, 'LOW-1: a member cannot INSERT a Task stamped with a real process_run_id (RPC-only provenance)');
+
+select throws_ok($$
+  insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by, generated_from_task_def_id)
+  values ('Forged def link', '00000000-0000-0000-0000-0000000000a2',
+          '00000000-0000-0000-0000-00000000f004', '00000000-0000-0000-0000-00000000f004',
+          '00000000-0000-0000-0000-00000000f004', '00000000-0000-0000-0000-00000000d001')
+$$, '42501', null, 'LOW-1: a member cannot INSERT a Task stamped with a real generated_from_task_def_id (RPC-only provenance)');
+
+-- ...and cannot attach one after the fact via UPDATE on an ordinary ad-hoc Task they can edit.
+select lives_ok($$
+  insert into mos.tasks (id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+  values ('00000000-0000-0000-0000-00000000ff01', 'Ad-hoc Task', '00000000-0000-0000-0000-0000000000a2',
+          '00000000-0000-0000-0000-00000000f004', '00000000-0000-0000-0000-00000000f004',
+          '00000000-0000-0000-0000-00000000f004')
+$$, 'LOW-1 setup: an ordinary ad-hoc Task (no provenance) inserts fine');
+select throws_ok($$
+  update mos.tasks set process_run_id =
+    (select id from mos.process_runs where work_line_id = '00000000-0000-0000-0000-00000000c001' limit 1)
+  where id = '00000000-0000-0000-0000-00000000ff01'
+$$, '42501', null, 'LOW-1: a member cannot UPDATE an ad-hoc Task to attach a process_run_id after the fact');
 
 select * from finish();
 rollback;
