@@ -444,6 +444,10 @@ export const messages = {
     'signals.composer.visibleToNotify': 'Visible to ${team} · notify ${count}',
     'signals.composer.postTo': 'Post to ${team} · ${attention} · notify ${count}',
     'signals.composer.siteHint': "Location derives from the owning Team (Site is never a mention target).",
+    'signals.retracted': 'This Signal was retracted.',
+    'signals.record.addCategory': 'Add category',
+    'signals.record.createTask': 'Create Task',
+    'signals.record.categoryPickerLabel': 'Choose a category',
   },
   id: {
     'dest.home': 'Beranda',
@@ -879,6 +883,10 @@ export const messages = {
     'signals.composer.visibleToNotify': 'Terlihat oleh ${team} · beri tahu ${count}',
     'signals.composer.postTo': 'Kirim ke ${team} · ${attention} · beri tahu ${count}',
     'signals.composer.siteHint': 'Lokasi berasal dari Tim pemilik (Site tidak pernah menjadi sasaran sebutan).',
+    'signals.retracted': 'Sinyal ini telah ditarik kembali.',
+    'signals.record.addCategory': 'Tambah kategori',
+    'signals.record.createTask': 'Buat Tugas',
+    'signals.record.categoryPickerLabel': 'Pilih kategori',
   },
 } as const
 
