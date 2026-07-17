@@ -43,8 +43,7 @@ import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embe
 import { StartRunControl } from '@/components/processes/start-run-control'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
-import { listRunRollups, listPendingTasks } from '@/lib/db/processes'
-import type { ProcessRunRollup, PendingTaskRow } from '@/lib/db/processes.types'
+import { useOccurrenceGroups } from './use-occurrence-groups'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'all'
@@ -215,44 +214,12 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     setOverdueOnly(savedView.overdueOnly)
   }, [savedView])
 
-  // ── Occurrence group-by (Step 6, C1) — derived roll-ups for the runs actually in view ────────
-  const [runRollups, setRunRollups] = useState<Map<string, ProcessRunRollup>>(new Map())
-  const [assignRunId, setAssignRunId] = useState<string | null>(null)
-  const [pendingForAssign, setPendingForAssign] = useState<PendingTaskRow[]>([])
-  const [pendingLoading, setPendingLoading] = useState(false)
-  const [pendingError, setPendingError] = useState(false)
-
-  const loadRunRollups = useCallback((runIds: string[]) => {
-    if (runIds.length === 0) { setRunRollups(new Map()); return }
-    listRunRollups(runIds)
-      .then(rows => setRunRollups(new Map(rows.map(r => [r.process_run_id, r]))))
-      .catch(() => { /* keep the previous rollups; the header falls back to the plain count/overdue grammar */ })
-  }, [])
-
-  useEffect(() => {
-    if (groupBy !== 'occurrence') return
-    const runIds = Array.from(new Set(
-      allTasks.map(row => row.process_run_id).filter((id): id is string => Boolean(id)),
-    )).sort()
-    loadRunRollups(runIds)
-  }, [groupBy, allTasks, loadRunRollups])
-
-  const openAssignPending = useCallback((runId: string) => {
-    setAssignRunId(runId)
-    setPendingLoading(true)
-    setPendingError(false)
-    listPendingTasks(runId)
-      .then(rows => { setPendingForAssign(rows); setPendingLoading(false) })
-      .catch(() => { setPendingError(true); setPendingLoading(false) })
-  }, [])
-
-  const handlePendingResolved = useCallback((_taskId: string, pendingId: string) => {
-    setPendingForAssign(prev => prev.filter(p => p.id !== pendingId))
-    load() // refetch so the newly-materialized Task appears in the group
-    loadRunRollups(Array.from(new Set(
-      allTasks.map(row => row.process_run_id).filter((id): id is string => Boolean(id)),
-    )).sort()) // pendingUnresolved just dropped — refresh the roll-up counts too
-  }, [load, loadRunRollups, allTasks])
+  // ── Occurrence group-by (Step 6, C1) — derived roll-ups + the assign-dialog host state, both
+  // owned by useOccurrenceGroups (CQ IMPORTANT-2 decomposition, extracted verbatim). ────────────
+  const {
+    runRollups, assignRunId, pendingForAssign, pendingLoading, pendingError,
+    openAssignPending, handlePendingResolved, closeAssign,
+  } = useOccurrenceGroups(allTasks, groupBy, load)
 
   // ── Apply optimistic status overrides from the open drawer ────────────────
   const tasksWithOverrides = useMemo(() => {
@@ -828,7 +795,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           error={pendingError}
           onRetry={() => openAssignPending(assignRunId)}
           onResolved={handlePendingResolved}
-          onClose={() => setAssignRunId(null)}
+          onClose={closeAssign}
         />
       )}
     </>
