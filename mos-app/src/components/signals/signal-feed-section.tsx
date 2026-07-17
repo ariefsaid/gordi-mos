@@ -16,7 +16,7 @@ type FetchState = 'loading' | 'ready' | 'error'
 
 export function SignalFeedSection() {
   const navigate = useNavigate()
-  const { open: openSignalComposer } = useSignalComposer()
+  const { open: openSignalComposer, postCount } = useSignalComposer()
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [authorNamesById, setAuthorNamesById] = useState<Record<string, string>>({})
   const [teamNamesById, setTeamNamesById] = useState<Record<string, string>>({})
@@ -37,7 +37,9 @@ export function SignalFeedSection() {
     return () => { cancelled = true }
   }, [])
 
-  useEffect(() => load(), [load])
+  // Reload on mount and after every successful Share (postCount bump) so a freshly posted Signal
+  // appears at the top of the ambient feed without a manual refresh (AC-430 / FR-414).
+  useEffect(() => load(), [load, postCount])
 
   function openRecord(signalId: string) {
     navigate(`/work/signals?record=${signalId}`)

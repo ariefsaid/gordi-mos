@@ -15,6 +15,9 @@ import { SignalComposer } from '@/components/signals/signal-composer'
 
 export interface SignalComposerContextValue {
   open: () => void
+  /** Increments on each successful Share — feed/archive surfaces watch it to reload so a freshly
+   * posted Signal appears without a manual refresh (AC-430). */
+  postCount: number
 }
 
 const SignalComposerContext = createContext<SignalComposerContextValue | null>(null)
@@ -31,11 +34,14 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const t = useT()
   const [isOpen, setIsOpen] = useState(false)
+  const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
   const panelRef = useRef<HTMLDivElement>(null)
 
   const close = useCallback(() => setIsOpen(false), [])
   const open = useCallback(() => setIsOpen(true), [])
+  // On a successful Share: bump the post counter (watched by the feed/archive) then close.
+  const handleShared = useCallback(() => { setPostCount((n) => n + 1); setIsOpen(false) }, [])
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
@@ -64,7 +70,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const accessRoles = viewer?.accessRoles ?? []
 
   return (
-    <SignalComposerContext.Provider value={{ open }}>
+    <SignalComposerContext.Provider value={{ open, postCount }}>
       {children}
       {isOpen && viewer && (
         <div className="signal-composer-host-root">
@@ -86,7 +92,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}
-              onShared={close}
+              onShared={handleShared}
             />
           </aside>
         </div>

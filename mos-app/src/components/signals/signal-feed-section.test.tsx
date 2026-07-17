@@ -24,7 +24,8 @@ const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetPeople = vi.mocked(getPeople)
 
 const openSignalComposer = vi.fn()
-vi.mock('@/shell/signal-composer-host', () => ({ useSignalComposer: () => ({ open: openSignalComposer }) }))
+const composerState = { postCount: 0 }
+vi.mock('@/shell/signal-composer-host', () => ({ useSignalComposer: () => ({ open: openSignalComposer, postCount: composerState.postCount }) }))
 
 import { SignalFeedSection } from './signal-feed-section'
 
@@ -60,12 +61,37 @@ function renderSection() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  composerState.postCount = 0
   mockListReadableSignals.mockResolvedValue([row()])
   mockGetPeople.mockResolvedValue([{ id: 'person-cahya', full_name: 'Cahya Cafe' }])
   mockListAllTeams.mockResolvedValue([{ id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false }])
 })
 
 describe('SignalFeedSection — Home ambient feed wiring (AC-426/FR-414)', () => {
+  it('reloads the feed when a Signal is posted (postCount bump) so it appears without a refresh (AC-430)', async () => {
+    mockListReadableSignals.mockResolvedValueOnce([row()])
+    const { rerender } = renderSection()
+    await screen.findByText('The freezer alarm went off')
+    expect(mockListReadableSignals).toHaveBeenCalledTimes(1)
+
+    // A successful Share bumps postCount → the section re-fetches and shows the new Signal at top.
+    mockListReadableSignals.mockResolvedValueOnce([row({ id: 'signal-2', body: 'A freshly posted Signal' }), row()])
+    composerState.postCount = 1
+    rerender(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <LocationProbe />
+          <Routes>
+            <Route path="/" element={<SignalFeedSection />} />
+            <Route path="/work/signals" element={<SignalFeedSection />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await screen.findByText('A freshly posted Signal')
+    expect(mockListReadableSignals).toHaveBeenCalledTimes(2)
+  })
+
   it('fetches and renders readable Signals with resolved author/Team names', async () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())

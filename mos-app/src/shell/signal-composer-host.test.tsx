@@ -36,8 +36,13 @@ const mockSignalComposer = vi.mocked(SignalComposer)
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 
 function Opener() {
-  const { open } = useSignalComposer()
-  return <button type="button" onClick={open}>open-composer</button>
+  const { open, postCount } = useSignalComposer()
+  return (
+    <>
+      <button type="button" onClick={open}>open-composer</button>
+      <span data-testid="post-count">{postCount}</span>
+    </>
+  )
 }
 
 function renderHost(auth: AuthState) {
@@ -95,6 +100,19 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
     await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
     expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
+  it('increments postCount on each successful share so feed/archive surfaces reload (AC-430)', async () => {
+    renderHost(authedViewer)
+    expect(screen.getByTestId('post-count')).toHaveTextContent('0')
+
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.getByTestId('post-count')).toHaveTextContent('1')
+
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.getByTestId('post-count')).toHaveTextContent('2')
   })
 
   it('wires the real viewer as authorId/authorName, and derives capabilities from accessRoles', async () => {
