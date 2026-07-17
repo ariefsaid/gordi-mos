@@ -75,6 +75,21 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 const mockGetBUs = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 
+// Step 5 — attention brief data sources. Mentions lane (Inbox's own DAL).
+vi.mock('../lib/db/notifications', () => ({
+  listNotifications: vi.fn(),
+  notificationRoute: () => null,
+}))
+import { listNotifications } from '@/lib/db/notifications'
+const mockListNotifications = vi.mocked(listNotifications)
+
+// Step 5 — failed-checks adapter (café rejected logs, RATIFY-3).
+vi.mock('../lib/db/home-attention-data', () => ({
+  loadFailedChecksForViewer: vi.fn(),
+}))
+import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
+const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
+
 // Signal ambient feed (Step 4 C3, AC-426/FR-414) — SignalFeedSection's own DAL fetch, mocked so
 // the Home tests stay isolated (component tests mock the DAL, never a live one).
 vi.mock('../lib/db/signals', async (importOriginal) => {
@@ -167,12 +182,15 @@ function marginRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   mockListRevenue.mockResolvedValue([revenueRow()])
   mockListMargin.mockResolvedValue([marginRow()])
   mockGetMyUpdate.mockResolvedValue(null)
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
+  mockListNotifications.mockResolvedValue([])
+  mockLoadFailedChecks.mockResolvedValue([])
 })
 
 describe('AC-H01: finance viewer sees revenue + margin tiles, each drilling to /dashboard', () => {
@@ -328,5 +346,18 @@ describe('AC-H06: tasks tile links to /tasks and shows the open-task count', () 
     const link = tile.closest('a')
     expect(link).not.toBeNull()
     expect(link!.getAttribute('href')).toBe('/tasks')
+  })
+})
+
+describe('AC-512: default order = attention-first (Step 5)', () => {
+  it('renders #attention-brief before the personal-canvas region when nothing is stored', async () => {
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    const attentionRegion = document.getElementById('attention-brief')!
+    const personalCanvas = screen.getByTestId('personal-canvas')
+    // attentionRegion precedes personalCanvas in DOM order
+    const position = attentionRegion.compareDocumentPosition(personalCanvas)
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 })
