@@ -295,3 +295,23 @@ and never mentions the binding redesign stack. [Misleads-reviews-NOW — the umb
 ### Finding counts per group
 A = 3 · B = 4 · C = 3 (incl. 1 positive/no-collision) · D = 2 risks (+1 counter-example) · E = 3 · F = 5.
 Misleads-reviews-NOW: A1, A2, B1, E1, E2, F1, F2, F4, F5 (and the F-umbrella). The rest are Latent/Cosmetic.
+
+---
+
+## Director disposition on the "owner must settle" items (2026-07-17, verbatim-verified)
+
+The owner directed a re-check of the provenance extracts; all three items are already answered there:
+
+- **O1 (brand identity) — SETTLED, not open.** Owner decision verbatim (03-frustration §~1331): "leaving the
+  app/doc brand divergence alone. Logging it as a one-liner so it's not lost, not acting on it." Buildout
+  proceeds on the E7 identity; doc/app brand alignment is a logged later-item outside this leg. Do not
+  re-raise it in reviews.
+- **O2 (Q1 Signal-on-Home) — direction answered; final look reserved.** Provisionally approved by the owner
+  after flow F1 (CONVERGENCE-AUDIT: one of two owner calls, recommend-approve → OD-REDESIGN-59). Final
+  ratification intentionally sits in the post-step-11 owner review. Build as specified; keep the single
+  RATIFY line; not a confusion.
+- **O3 (table density) — SETTLED as convention.** The steps-1–3 design review classified decision-column
+  clipping as "an implementation choice, not an owner fork"; Option A (e7 priority columns, optional columns
+  to the drawer) shipped in wave 2c. Standing convention for all redesign tables: decision-relevant columns
+  never clip at ≥1280px. Codification as an Experience-Contract clause is proposed at step 11 (Director
+  housekeeping).
