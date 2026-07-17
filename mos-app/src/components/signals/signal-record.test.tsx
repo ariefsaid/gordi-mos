@@ -81,6 +81,17 @@ describe('SignalRecord — core content', () => {
     expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
   })
 
+  it('opens the 8-family category picker and calls onCategorize with the chosen family', async () => {
+    const onCategorize = vi.fn()
+    renderRecord({ onCategorize })
+    await userEvent.click(screen.getByRole('button', { name: /add category/i }))
+    const picker = screen.getByRole('listbox', { name: /categor/i })
+    await userEvent.click(within(picker).getByRole('option', { name: 'Quality' }))
+
+    expect(onCategorize).toHaveBeenCalledWith('Quality')
+    expect(screen.queryByRole('listbox', { name: /categor/i })).not.toBeInTheDocument()
+  })
+
   it('renders rendered mentions and the shield line', () => {
     renderRecord({ mentions: [{ kind: 'person', label: 'Peer Person' }], shieldLine: 'Visible to HQ Operations · notify 1' })
     expect(screen.getByText('@Peer Person')).toBeInTheDocument()
