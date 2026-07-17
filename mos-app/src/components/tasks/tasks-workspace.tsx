@@ -36,6 +36,13 @@ import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
 import { useT } from '@/i18n/use-t'
+// Step 6 (ADR-0051, Track C wiring — C1/C2): the occurrence group-by + its Start-run control +
+// its pending-PIC-resolution host. Reuses the shipped Tasks DB-view (Rule 11) — no parallel UI.
+import { StartRunControl } from '@/components/processes/start-run-control'
+import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
+import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
+import { listRunRollups, listPendingTasks } from '@/lib/db/processes'
+import type { ProcessRunRollup, PendingTaskRow } from '@/lib/db/processes.types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'all'
@@ -206,6 +213,45 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     setOverdueOnly(savedView.overdueOnly)
   }, [savedView])
 
+  // ── Occurrence group-by (Step 6, C1) — derived roll-ups for the runs actually in view ────────
+  const [runRollups, setRunRollups] = useState<Map<string, ProcessRunRollup>>(new Map())
+  const [assignRunId, setAssignRunId] = useState<string | null>(null)
+  const [pendingForAssign, setPendingForAssign] = useState<PendingTaskRow[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [pendingError, setPendingError] = useState(false)
+
+  const loadRunRollups = useCallback((runIds: string[]) => {
+    if (runIds.length === 0) { setRunRollups(new Map()); return }
+    listRunRollups(runIds)
+      .then(rows => setRunRollups(new Map(rows.map(r => [r.process_run_id, r]))))
+      .catch(() => { /* keep the previous rollups; the header falls back to the plain count/overdue grammar */ })
+  }, [])
+
+  useEffect(() => {
+    if (groupBy !== 'occurrence') return
+    const runIds = Array.from(new Set(
+      allTasks.map(row => row.process_run_id).filter((id): id is string => Boolean(id)),
+    )).sort()
+    loadRunRollups(runIds)
+  }, [groupBy, allTasks, loadRunRollups])
+
+  const openAssignPending = useCallback((runId: string) => {
+    setAssignRunId(runId)
+    setPendingLoading(true)
+    setPendingError(false)
+    listPendingTasks(runId)
+      .then(rows => { setPendingForAssign(rows); setPendingLoading(false) })
+      .catch(() => { setPendingError(true); setPendingLoading(false) })
+  }, [])
+
+  const handlePendingResolved = useCallback((_taskId: string, pendingId: string) => {
+    setPendingForAssign(prev => prev.filter(p => p.id !== pendingId))
+    load() // refetch so the newly-materialized Task appears in the group
+    loadRunRollups(Array.from(new Set(
+      allTasks.map(row => row.process_run_id).filter((id): id is string => Boolean(id)),
+    )).sort()) // pendingUnresolved just dropped — refresh the roll-up counts too
+  }, [load, loadRunRollups, allTasks])
+
   // ── Apply optimistic status overrides from the open drawer ────────────────
   const tasksWithOverrides = useMemo(() => {
     if (!statusOverrides || statusOverrides.size === 0) return allTasks
@@ -318,6 +364,42 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       const overdue = sortedTasks.filter(t => isOverdue(t, now)).length
       return [{ key: '__flat__', label: '', rows: sortedTasks, overdue, prefillParam: '' }]
     }
+    // Step 6 (ADR-0051, C1/AC-622): occurrence-caption grouping. A dedicated branch (not the
+    // keyFor partition below) — grouping is by run id via the shared groupTasksByOccurrence
+    // helper (B5, Rule 11), captioned from the derived roll-up, never by a single Task field.
+    if (groupBy === 'occurrence') {
+      const captionByRunId: Record<string, string> = {}
+      for (const [runId, rollup] of runRollups) captionByRunId[runId] = rollup.caption
+      // Normalize process_run_id to string|null (TaskListRow's is optional) — the typing seam
+      // this satisfies with no `as` cast (mos-app/src/lib/db/tasks.types.test.ts).
+      const groupable = sortedTasks.map(row => ({ ...row, process_run_id: row.process_run_id ?? null }))
+      const { groups: occGroups, ungrouped } = groupTasksByOccurrence(groupable, captionByRunId)
+      const named: RenderGroup[] = occGroups.map(g => {
+        const rollup = runRollups.get(g.runId)
+        return {
+          key: g.runId,
+          label: g.caption,
+          rows: g.tasks,
+          overdue: rollup?.overdue ?? g.tasks.filter(row => isOverdue(row, now)).length,
+          prefillParam: '',
+          occurrenceRollup: rollup
+            ? { total: rollup.total, done: rollup.done, overdue: rollup.overdue, pendingUnresolved: rollup.pending_unresolved }
+            : undefined,
+        }
+      })
+      // Ad-hoc Tasks (no process_run_id) never get forced under an occurrence caption (B5) — they
+      // stay visible in a trailing catch-all group instead of silently disappearing (OD-P3-6).
+      if (ungrouped.length > 0) {
+        named.push({
+          key: '__no_occurrence__',
+          label: t('tasks.group.noOccurrence'),
+          rows: ungrouped,
+          overdue: ungrouped.filter(row => isOverdue(row, now)).length,
+          prefillParam: '',
+        })
+      }
+      return named
+    }
     const byKey = new Map<string, TaskListRow[]>()
     const keyFor = (t: TaskListRow): string =>
       groupBy === 'status' ? t.status
@@ -362,7 +444,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     }
     // bu
     return busDirectory.map(b => mk(b.id, b.name, `bu=${b.id}`))
-  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter, statusLabel, t])
+  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter, statusLabel, t, runRollups])
 
   // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
   // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
@@ -565,6 +647,8 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         prefill={group.prefillParam}
         controlsId={`grp-rows-${group.key}`}
         workLineType={group.workLineType}
+        occurrenceRollup={group.occurrenceRollup}
+        onAssignPending={group.occurrenceRollup ? () => openAssignPending(group.key) : undefined}
         onToggle={() => toggleCollapsed(group.key)}
         onAddTask={() => openAddTask(group.prefillParam)}
         onOverdueFilter={() => setOverdueOnly(true)}
@@ -671,6 +755,10 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             </div>
           ) : tasksToolbar}
 
+          {/* Step 6 (ADR-0051, C1): the Start-run control over due occurrences — self-contained,
+              renders nothing for a viewer without process.start (RLS remains the real gate). */}
+          <StartRunControl onStarted={() => load()} />
+
           {savedView?.reserved === 'followups' ? (
             <div className="empty-state empty-state--quiet" role="region" aria-label={t('tasks.saved.followups')}>
               <div className="empty-state-frame">
@@ -721,6 +809,20 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         </section>
         {drawerOpen && drawerSlot}
       </div>
+
+      {/* Step 6 (ADR-0051, C2): the pending-PIC resolution host, opened from an occurrence group
+          header's "N to assign" affordance. */}
+      {assignRunId && (
+        <OccurrenceAssignDialog
+          pending={pendingForAssign}
+          people={peopleDirectory}
+          loading={pendingLoading}
+          error={pendingError}
+          onRetry={() => openAssignPending(assignRunId)}
+          onResolved={handlePendingResolved}
+          onClose={() => setAssignRunId(null)}
+        />
+      )}
     </>
   )
 }
