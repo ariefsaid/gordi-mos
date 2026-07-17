@@ -188,6 +188,29 @@ describe('MobileGroupedCards', () => {
       renderCards({ onAssignPending: vi.fn() }) // BASE_PROPS groups carry no occurrenceRollup
       expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
     })
+
+    // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role>" line
+    // on the phone card, same data source (provenanceByTaskDefId) as the desktop TaskRow.
+    it('renders "via <role name>" on the card when the task carries a resolvable generated_from_task_def_id', () => {
+      const group = {
+        ...OCC_GROUP,
+        rows: [makeTask({ id: 'gen-1', title: 'Open the café', generated_from_task_def_id: 'def-1' })],
+      }
+      renderCards({
+        groups: [group],
+        provenanceByTaskDefId: new Map([['def-1', 'Cafe Ops Lead']]),
+      })
+      expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument()
+    })
+
+    it('renders no provenance line when the task\'s def has no resolvable role name', () => {
+      const group = {
+        ...OCC_GROUP,
+        rows: [makeTask({ id: 'gen-1', title: 'Open the café', generated_from_task_def_id: 'def-2' })],
+      }
+      renderCards({ groups: [group], provenanceByTaskDefId: new Map() })
+      expect(screen.queryByText(/^via /)).not.toBeInTheDocument()
+    })
   })
 
   it('task-card open link preserves ?view=overdue', () => {

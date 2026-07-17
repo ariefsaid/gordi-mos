@@ -10,7 +10,8 @@
  * the host's own task-list refetch, invoked after a pending item resolves.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { listRunRollups, listPendingTasks } from '@/lib/db/processes'
+import { listRunRollups, listPendingTasks, listTaskDefs } from '@/lib/db/processes'
+import { listRoleNames } from '@/lib/db/directory'
 import type { ProcessRunRollup, PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { TasksGroupBy } from './use-tasks-view-pref'
@@ -24,6 +25,14 @@ export interface UseOccurrenceGroupsResult {
   openAssignPending: (runId: string) => void
   handlePendingResolved: (taskId: string, pendingId: string) => void
   closeAssign: () => void
+  /**
+   * Design fix wave item 4 (OD-65 mockup regression) — task_def_id → the def's binding pic_role
+   * NAME, for every generated_from_task_def_id in view whose def binds a Role (never a
+   * person-bound def, and never a def whose role name couldn't be resolved). Backs the
+   * "via <role name>" generated-ownership provenance line beside the PIC on occurrence-grouped
+   * rows (desktop TaskRow + phone TaskCard).
+   */
+  provenanceByTaskDefId: Map<string, string>
 }
 
 export function useOccurrenceGroups(
@@ -85,8 +94,50 @@ export function useOccurrenceGroups(
 
   const closeAssign = useCallback(() => setAssignRunId(null), [])
 
+  // ── Design fix wave item 4 — the "via <role name>" provenance line ────────────────────────────
+  const [provenanceByTaskDefId, setProvenanceByTaskDefId] = useState<Map<string, string>>(new Map())
+
+  // The deduped set of generated_from_task_def_id values actually in view (ad-hoc Tasks, whose
+  // field is null, are excluded — mirrors visibleRunIds' filter-and-dedupe shape above).
+  const visibleTaskDefIds = useMemo(
+    () => Array.from(new Set(
+      allTasks.map(row => row.generated_from_task_def_id).filter((id): id is string => Boolean(id)),
+    )).sort(),
+    [allTasks],
+  )
+
+  const loadProvenance = useCallback((defIds: string[]) => {
+    if (defIds.length === 0) { setProvenanceByTaskDefId(new Map()); return }
+    listTaskDefs(defIds)
+      .then((defs) => {
+        const roleIds = Array.from(new Set(
+          defs.map(def => def.pic_role_id).filter((id): id is string => Boolean(id)),
+        ))
+        if (roleIds.length === 0) { setProvenanceByTaskDefId(new Map()); return }
+        return listRoleNames(roleIds).then((roles) => {
+          const nameByRoleId = new Map(roles.map(role => [role.id, role.name]))
+          const next = new Map<string, string>()
+          for (const def of defs) {
+            const name = def.pic_role_id ? nameByRoleId.get(def.pic_role_id) : undefined
+            if (name) next.set(def.id, name)
+          }
+          setProvenanceByTaskDefId(next)
+        })
+      })
+      .catch(() => {
+        // Mirrors the roll-up fetch's CQ minor-1 pattern: the provenance line is a nice-to-have
+        // annotation, never a blocker — keep the previous map and trace the failure.
+        console.warn('[useOccurrenceGroups] provenance fetch failed — keeping previous provenance')
+      })
+  }, [])
+
+  useEffect(() => {
+    if (groupBy !== 'occurrence') return
+    loadProvenance(visibleTaskDefIds)
+  }, [groupBy, visibleTaskDefIds, loadProvenance])
+
   return {
     runRollups, assignRunId, pendingForAssign, pendingLoading, pendingError,
-    openAssignPending, handlePendingResolved, closeAssign,
+    openAssignPending, handlePendingResolved, closeAssign, provenanceByTaskDefId,
   }
 }

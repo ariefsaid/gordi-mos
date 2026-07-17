@@ -154,6 +154,20 @@ describe('TaskRow — stopPropagation regression (checkbox + ⋯ must NOT fire r
   })
 })
 
+// Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role name>"
+// line, threaded through to OwnerCell (Rule 11 reuse — no second PIC-cell rendering).
+describe('TaskRow — provenance ("via <role name>", item 4)', () => {
+  it('threads provenanceRoleName through to the owner cell as "via <role>"', () => {
+    renderRow({ ownerName: 'Cahya Cafe', provenanceRoleName: 'Cafe Ops Lead' })
+    expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument()
+  })
+
+  it('renders no provenance text when provenanceRoleName is omitted (no regression)', () => {
+    renderRow({ ownerName: 'Cahya Cafe' })
+    expect(screen.queryByText(/^via /)).not.toBeInTheDocument()
+  })
+})
+
 describe('TaskRow — AC-T04 row hover/selected styling (CSS lock)', () => {
   it('AC-T04: hover uses the secondary-background token; selected uses a neutral (non-blue) fill', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')

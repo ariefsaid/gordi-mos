@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { getBusinessUnits, getPeople } from './directory'
+import { getBusinessUnits, getPeople, listRoleNames } from './directory'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -14,7 +14,7 @@ const schemaMock = vi.mocked(supabase.schema)
 // ── Chainable mock builder ────────────────────────────────────────────────────
 function makeSharedSchema(
   responses: Record<string, { data: unknown; error: unknown }>,
-  rec?: { isCalls: Array<[string, unknown]> },
+  rec?: { isCalls: Array<[string, unknown]>; inCalls?: Array<[string, unknown]> },
 ) {
   const fromImpl = (table: string) => {
     const result = responses[table] ?? { data: null, error: null }
@@ -22,6 +22,10 @@ function makeSharedSchema(
     builder.select = vi.fn(() => builder)
     builder.is = vi.fn((col: string, val: unknown) => {
       rec?.isCalls.push([col, val])
+      return builder
+    })
+    builder.in = vi.fn((col: string, val: unknown) => {
+      rec?.inCalls?.push([col, val])
       return builder
     })
     builder.order = vi.fn(() => builder)
@@ -105,5 +109,37 @@ describe('getPeople', () => {
     schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
     const result = await getPeople()
     expect(result).toEqual([])
+  })
+})
+
+// ── listRoleNames (design fix wave item 4 — batched role-name lookup by id; backs the
+// Occurrence group-by's "via <role name>" provenance line, mirrors team.ts's role-name pattern) ──
+describe('listRoleNames', () => {
+  it('reads shared.roles filtered by id IN the given role ids, returning id+name pairs', async () => {
+    const rec = { isCalls: [] as Array<[string, unknown]>, inCalls: [] as Array<[string, unknown]> }
+    const data = [
+      { id: 'role-1', name: 'Cafe Ops Lead' },
+      { id: 'role-2', name: 'Café Opener (demo)' },
+    ]
+    schemaMock.mockReturnValue(makeSharedSchema({ roles: { data, error: null } }, rec) as never)
+
+    const result = await listRoleNames(['role-1', 'role-2'])
+
+    expect(result).toEqual(data)
+    expect(schemaMock).toHaveBeenCalledWith('shared')
+    expect(rec.inCalls).toContainEqual(['id', ['role-1', 'role-2']])
+  })
+
+  it('returns [] without a read when given an empty role-id list (no needless network call)', async () => {
+    const result = await listRoleNames([])
+    expect(result).toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+  })
+
+  it('throws on PostgREST error', async () => {
+    schemaMock.mockReturnValue(
+      makeSharedSchema({ roles: { data: null, error: { message: 'roles unreachable' } } }) as never,
+    )
+    await expect(listRoleNames(['role-1'])).rejects.toThrow(/roles unreachable/)
   })
 })

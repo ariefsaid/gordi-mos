@@ -53,6 +53,14 @@ export interface ProcessRunRollup {
   completion_pct: number
 }
 
+/** A batched `mos.process_task_defs` lookup row (design fix wave items 2/4, Rule 11 — shared by
+ * listPendingTasks' title resolution and the Occurrence group-by's "via <role>" provenance line). */
+export interface TaskDefLookup {
+  id: string
+  title: string
+  pic_role_id: string | null
+}
+
 /** A row from `mos.process_run_pending_tasks` — the ambiguity human-choice queue (OD-41). */
 export interface PendingTaskRow {
   id: string

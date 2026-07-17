@@ -107,6 +107,9 @@ export type TasksTableBodyProps = {
    * affordance (Rule 9 parity with desktop's GroupHeaderRow). Undefined when the viewer cannot
    * resolve pending items. */
   onAssignPending?: (runId: string) => void
+  /** Design fix wave item 4 — threaded through to MobileGroupedCards' "via <role name>"
+   * generated-ownership line. */
+  provenanceByTaskDefId?: Map<string, string>
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
@@ -119,7 +122,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
-    workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending,
+    workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
   } = props
 
   if (loading) {
@@ -183,6 +186,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         workLineMap={workLineMap}
         objectiveMap={objectiveMap}
         onAssignPending={onAssignPending}
+        provenanceByTaskDefId={provenanceByTaskDefId}
       />
     )
   }

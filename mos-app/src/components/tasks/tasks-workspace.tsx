@@ -242,7 +242,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   // owned by useOccurrenceGroups (CQ IMPORTANT-2 decomposition, extracted verbatim). ────────────
   const {
     runRollups, assignRunId, pendingForAssign, pendingLoading, pendingError,
-    openAssignPending, handlePendingResolved, closeAssign,
+    openAssignPending, handlePendingResolved, closeAssign, provenanceByTaskDefId,
   } = useOccurrenceGroups(allTasks, groupBy, load)
 
   // Design fix wave item 1: ONE due-runs hook instance shared by the compact trigger (rendered
@@ -627,6 +627,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         onCheck={() => toggleSelected(task.id)}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={currentSearch}
+        provenanceRoleName={task.generated_from_task_def_id ? provenanceByTaskDefId.get(task.generated_from_task_def_id) : undefined}
       />
     )
   }
@@ -811,6 +812,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             workloadSummary={workloadSummary}
             createHref={{ pathname: '/work/tasks/new', search: currentSearch }}
             onAssignPending={canResolvePending ? openAssignPending : undefined}
+            provenanceByTaskDefId={provenanceByTaskDefId}
           />)}
 
           {/* Design fix wave item 1b: the due-runs row list — mounted AFTER the Tasks table (never

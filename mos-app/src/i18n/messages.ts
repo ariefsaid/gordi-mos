@@ -157,6 +157,9 @@ export const messages = {
     'tasks.ownership': 'Task ownership',
     'tasks.team': 'Team',
     'tasks.pic': 'PIC',
+    // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership source, shown
+    // beside the PIC on occurrence-grouped rows whose generating def binds a Role.
+    'tasks.pic.via': 'via ${role}',
     'tasks.supervisor': 'Supervisor',
     'tasks.reassignPic': 'Reassign PIC',
     'tasks.openFullPage': 'Open full page',
@@ -687,6 +690,7 @@ export const messages = {
     'tasks.ownership': 'Kepemilikan tugas',
     'tasks.team': 'Tim',
     'tasks.pic': 'PIC',
+    'tasks.pic.via': 'melalui ${role}',
     'tasks.supervisor': 'Supervisor',
     'tasks.reassignPic': 'Tetapkan ulang PIC',
     'tasks.openFullPage': 'Buka halaman penuh',

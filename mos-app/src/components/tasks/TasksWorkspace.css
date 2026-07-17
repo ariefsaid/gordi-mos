@@ -340,6 +340,15 @@ tr:focus-within .row-menu { visibility: visible; }
   color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
 }
 .own-name { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role name>"
+   line stacks below the PIC name (never widens the compact owner cell). */
+.owner-name-stack { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
+.owner-name-stack .own-name { line-height: 1.2; }
+.owner-provenance {
+  font-size: 11px; color: var(--muted-foreground); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.assembly.condensed .td-owner .owner-provenance { display: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
 .td-bu { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

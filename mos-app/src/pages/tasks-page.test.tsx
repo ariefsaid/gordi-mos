@@ -16,6 +16,8 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
+  listRoleNames: vi.fn(),
 }))
 // Design fix wave item 1a: the due-runs membership-scoping loader (reused from signals.ts).
 vi.mock('../lib/db/signals', () => ({
@@ -28,12 +30,14 @@ vi.mock('../lib/db/processes', () => ({
   listRunRollups: vi.fn(),
   listPendingTasks: vi.fn(),
   resolvePendingTask: vi.fn(),
+  // Design fix wave items 2/4 — batched process_task_defs lookup by id.
+  listTaskDefs: vi.fn(),
 }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import { listAuthorTeams } from '@/lib/db/signals'
-import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask } from '@/lib/db/processes'
+import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
 // behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
@@ -47,6 +51,8 @@ const mockListDueRuns = vi.mocked(listDueRuns)
 const mockStartRun = vi.mocked(startRun)
 const mockListRunRollups = vi.mocked(listRunRollups)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
+const mockListTaskDefs = vi.mocked(listTaskDefs)
+const mockListRoleNames = vi.mocked(listRoleNames)
 const mockResolvePendingTask = vi.mocked(resolvePendingTask)
 
 // ── Stub matchMedia for useIsDesktop (desktop path by default) ──────────────
@@ -194,6 +200,10 @@ beforeEach(() => {
   mockListDueRuns.mockResolvedValue([])
   mockListRunRollups.mockResolvedValue([])
   mockListPendingTasks.mockResolvedValue([])
+  // Design fix wave item 4: quiet defaults — no generated_from_task_def_id rows in the base
+  // fixtures, so this stays a silent no-op unless a test opts in.
+  mockListTaskDefs.mockResolvedValue([])
+  mockListRoleNames.mockResolvedValue([])
   // Design fix wave item 1a: zero memberships (the default fixture has none seeded) keeps every
   // due row — the "pure admin/capability grant" branch of the scoping rule. Tests that need
   // membership SCOPING set this explicitly.
@@ -950,6 +960,33 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     expect(mockListRunRollups).toHaveBeenCalledWith(['run-1'])
     // FR-611 — the internal-only string never leaks into the DOM anywhere on this page.
     expect(document.body.textContent).not.toMatch(/Process Run/)
+  })
+
+  // Design fix wave item 4 (OD-65 mockup regression) — full-stack: an occurrence-grouped row whose
+  // generating def binds a pic_role shows "via <role name>" beside the PIC.
+  it('item 4: an occurrence-grouped row generated from a Role-bound def shows "via <role name>" beside the PIC', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café',
+      process_run_id: 'run-1', generated_from_task_def_id: 'def-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 0, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+    mockListTaskDefs.mockResolvedValue([{ id: 'def-1', title: 'Open the café', pic_role_id: 'role-1' }])
+    mockListRoleNames.mockResolvedValue([{ id: 'role-1', name: 'Cafe Ops Lead' }])
+
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => expect(mockListTaskDefs).toHaveBeenCalledWith(['def-1']))
+    await waitFor(() => expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument())
   })
 
   it('AC-622: an ad-hoc Task (no process_run_id) is never forced under an occurrence caption', async () => {

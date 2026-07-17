@@ -4,13 +4,19 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PendingTaskRow, ProcessRunRollup } from '@/lib/db/processes.types'
 
 // CQ IMPORTANT-2: component tests mock the DAL, never a live DB.
-vi.mock('@/lib/db/processes', () => ({ listRunRollups: vi.fn(), listPendingTasks: vi.fn() }))
-import { listRunRollups, listPendingTasks } from '@/lib/db/processes'
+vi.mock('@/lib/db/processes', () => ({ listRunRollups: vi.fn(), listPendingTasks: vi.fn(), listTaskDefs: vi.fn() }))
+import { listRunRollups, listPendingTasks, listTaskDefs } from '@/lib/db/processes'
+
+// Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
+vi.mock('@/lib/db/directory', () => ({ listRoleNames: vi.fn() }))
+import { listRoleNames } from '@/lib/db/directory'
 
 import { useOccurrenceGroups } from './use-occurrence-groups'
 
 const mockListRunRollups = vi.mocked(listRunRollups)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
+const mockListTaskDefs = vi.mocked(listTaskDefs)
+const mockListRoleNames = vi.mocked(listRoleNames)
 
 function task(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -40,6 +46,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockListRunRollups.mockResolvedValue([])
   mockListPendingTasks.mockResolvedValue([])
+  mockListTaskDefs.mockResolvedValue([])
+  mockListRoleNames.mockResolvedValue([])
 })
 
 describe('useOccurrenceGroups (CQ IMPORTANT-2 decomposition)', () => {
@@ -138,5 +146,55 @@ describe('useOccurrenceGroups (CQ IMPORTANT-2 decomposition)', () => {
 
     await waitFor(() => expect(warn).toHaveBeenCalled())
     warn.mockRestore()
+  })
+
+  // Design fix wave item 4 (OD-65 mockup regression) — occurrence-grouped rows must show the
+  // generated-ownership source ("via <role name>") beside the PIC when the task carries
+  // generated_from_task_def_id and the def binds a pic_role.
+  describe('provenanceByTaskDefId (item 4)', () => {
+    it('does not fetch task-defs/roles when groupBy is not "occurrence"', () => {
+      const tasks = [task({ id: 't1', generated_from_task_def_id: 'def-1' })]
+      renderHook(() => useOccurrenceGroups(tasks, 'status', vi.fn()))
+      expect(mockListTaskDefs).not.toHaveBeenCalled()
+    })
+
+    it('resolves a role-bound def to "via <role name>" for the deduped set of generated_from_task_def_id values in view', async () => {
+      const tasks = [
+        task({ id: 't1', process_run_id: 'run-1', generated_from_task_def_id: 'def-1' }),
+        task({ id: 't2', process_run_id: 'run-1', generated_from_task_def_id: 'def-1' }), // dup — deduped
+        task({ id: 't3', process_run_id: 'run-1', generated_from_task_def_id: null }), // none — excluded
+      ]
+      mockListTaskDefs.mockResolvedValue([{ id: 'def-1', title: 'Unlock and prep the floor', pic_role_id: 'role-1' }])
+      mockListRoleNames.mockResolvedValue([{ id: 'role-1', name: 'Cafe Ops Lead' }])
+
+      const { result } = renderHook(() => useOccurrenceGroups(tasks, 'occurrence', vi.fn()))
+
+      await waitFor(() => expect(mockListTaskDefs).toHaveBeenCalledWith(['def-1']))
+      await waitFor(() => expect(mockListRoleNames).toHaveBeenCalledWith(['role-1']))
+      await waitFor(() => expect(result.current.provenanceByTaskDefId.get('def-1')).toBe('Cafe Ops Lead'))
+    })
+
+    it('a person-bound def (no pic_role_id) never fetches role names and gets no provenance entry', async () => {
+      const tasks = [task({ id: 't1', process_run_id: 'run-1', generated_from_task_def_id: 'def-2' })]
+      mockListTaskDefs.mockResolvedValue([{ id: 'def-2', title: 'Bakery handover', pic_role_id: null }])
+
+      const { result } = renderHook(() => useOccurrenceGroups(tasks, 'occurrence', vi.fn()))
+
+      await waitFor(() => expect(mockListTaskDefs).toHaveBeenCalled())
+      expect(mockListRoleNames).not.toHaveBeenCalled()
+      expect(result.current.provenanceByTaskDefId.has('def-2')).toBe(false)
+    })
+
+    it('a task-defs/role-names fetch failure is swallowed with a console.warn and never blocks the group render', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockListTaskDefs.mockRejectedValue(new Error('defs fetch failed'))
+      const tasks = [task({ id: 't1', process_run_id: 'run-1', generated_from_task_def_id: 'def-1' })]
+
+      const { result } = renderHook(() => useOccurrenceGroups(tasks, 'occurrence', vi.fn()))
+
+      await waitFor(() => expect(warn).toHaveBeenCalled())
+      expect(result.current.provenanceByTaskDefId.size).toBe(0)
+      warn.mockRestore()
+    })
   })
 })

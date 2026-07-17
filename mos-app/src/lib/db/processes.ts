@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow, SpawnResult } from './processes.types'
+import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
@@ -32,12 +32,27 @@ export async function listDueRuns(): Promise<DueProcessRun[]> {
   return (data ?? []) as DueProcessRun[]
 }
 
+// ── listTaskDefs (design fix wave items 2/4 — Rule 11 shared batching helper) ───────────────────
+
+/** Batched lookup of `mos.process_task_defs` by id — title + pic_role_id. Shared by
+ * listPendingTasks' title resolution (item 2) and the Occurrence group-by's "via <role name>"
+ * generated-ownership provenance line (item 4, use-occurrence-groups.ts). Returns `[]` (no network
+ * call) for an empty id list. */
+export async function listTaskDefs(defIds: string[]): Promise<TaskDefLookup[]> {
+  if (defIds.length === 0) return []
+  const { data, error } = await mos()
+    .from('process_task_defs')
+    .select('id,title,pic_role_id')
+    .in('id', defIds)
+  if (error) throw new Error(`listTaskDefs failed — ${error.message}`)
+  return (data ?? []) as unknown as TaskDefLookup[]
+}
+
 // ── listPendingTasks / resolvePendingTask (B3, AC-621 backing) ──────────────
 
 /** List a run's unresolved ambiguity human-choice rows (OD-41, FR-605). Design fix wave item 2:
  * the assign surface must NAME the step (never a bare "two people could own this" with no
- * subject) — a second batched query on `process_task_defs` resolves each row's task-def TITLE (no
- * schema change; mirrors the listRunRollups batching idiom). */
+ * subject) — listTaskDefs resolves each row's task-def TITLE (no schema change). */
 export async function listPendingTasks(runId: string): Promise<PendingTaskRow[]> {
   const { data, error } = await mos()
     .from('process_run_pending_tasks')
@@ -49,14 +64,8 @@ export async function listPendingTasks(runId: string): Promise<PendingTaskRow[]>
   if (rows.length === 0) return []
 
   const defIds = Array.from(new Set(rows.map((row) => row.task_def_id)))
-  const { data: defs, error: defErr } = await mos()
-    .from('process_task_defs')
-    .select('id,title')
-    .in('id', defIds)
-  if (defErr) throw new Error(`listPendingTasks (task-def titles) failed — ${defErr.message}`)
-  const titleById = new Map(
-    ((defs ?? []) as { id: string; title: string }[]).map((def) => [def.id, def.title]),
-  )
+  const defs = await listTaskDefs(defIds)
+  const titleById = new Map(defs.map((def) => [def.id, def.title]))
 
   return rows.map((row) => ({ ...row, title: titleById.get(row.task_def_id) ?? '' }))
 }

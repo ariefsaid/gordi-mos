@@ -70,6 +70,9 @@ export type MobileGroupedCardsProps = {
    * affordance never renders without it (mirrors the desktop gating).
    */
   onAssignPending?: (runId: string) => void
+  /** Design fix wave item 4 — task_def_id → pic_role NAME (from useOccurrenceGroups), backing each
+   * card's "via <role name>" generated-ownership line. Undefined outside occurrence grouping. */
+  provenanceByTaskDefId?: Map<string, string>
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
@@ -83,9 +86,12 @@ type TaskCardProps = {
   supervisorName: string
   sourceName: string
   recordSearch?: string
+  /** Design fix wave item 4 — the generated-ownership source ("via <role name>"), Rule 11 reuse of
+   * OwnerCell's provenance rendering. */
+  provenanceRoleName?: string
 }
 
-function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '' }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '', provenanceRoleName }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -115,7 +121,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
         <dl className="task-card-meta">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
-            <dd><OwnerCell fullName={rName} /></dd>
+            <dd><OwnerCell fullName={rName} provenance={provenanceRoleName} /></dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>
@@ -162,9 +168,13 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
 export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
-  workLineMap, objectiveMap, onAssignPending,
+  workLineMap, objectiveMap, onAssignPending, provenanceByTaskDefId,
 }: MobileGroupedCardsProps) {
   const t = useT()
+  const provenanceFor = (task: TaskListRow): string | undefined =>
+    task.generated_from_task_def_id
+      ? provenanceByTaskDefId?.get(task.generated_from_task_def_id)
+      : undefined
   // Flat default (mockup): the single implicit group renders as a plain card list
   // with NO group-header chrome (no caret / label / count / add).
   const isFlat = groups.length === 1 && groups[0].key === '__flat__'
@@ -187,6 +197,7 @@ export function MobileGroupedCards({
                 t('tasks.adHoc'),
               )}
               recordSearch={recordSearch}
+              provenanceRoleName={provenanceFor(task)}
             />
           </div>
         ))}
@@ -272,6 +283,7 @@ export function MobileGroupedCards({
                   t('tasks.adHoc'),
                 )}
                 recordSearch={recordSearch}
+                provenanceRoleName={provenanceFor(task)}
               />
             </div>
           ))}

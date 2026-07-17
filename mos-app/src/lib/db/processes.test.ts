@@ -9,7 +9,7 @@ vi.mock('../supabase', () => {
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
-  getRunRollup, listRunTasks, completeRun, listRunRollups,
+  getRunRollup, listRunTasks, completeRun, listRunRollups, listTaskDefs,
 } from './processes'
 import { supabase } from '@/lib/supabase'
 import type { DueProcessRun, ProcessRunRollup, ProcessRunRow } from './processes.types'
@@ -205,6 +205,40 @@ describe('listPendingTasks', () => {
     }, rec)
 
     await expect(listPendingTasks(RUN_ID)).rejects.toThrow(/defs unreachable/)
+  })
+})
+
+// ── listTaskDefs (design fix wave items 2/4 — batched process_task_defs lookup by id) ───────────
+describe('listTaskDefs', () => {
+  it('reads mos.process_task_defs filtered by id IN the given def ids, returning title + pic_role_id', async () => {
+    const rec = freshRec()
+    const defs = [
+      { id: 'def-1', title: 'Unlock and prep the floor', pic_role_id: 'role-1' },
+      { id: 'def-2', title: 'Bakery handover', pic_role_id: null },
+    ]
+    mockSupabase({ 'mos.process_task_defs': [{ data: defs, error: null }] }, rec)
+
+    const rows = await listTaskDefs(['def-1', 'def-2'])
+
+    expect(rec.fromTables).toContain('mos.process_task_defs')
+    expect(rec.ins).toContainEqual(['id', ['def-1', 'def-2']])
+    expect(rows).toEqual(defs)
+  })
+
+  it('returns [] without a read when given an empty def-id list (no needless network call)', async () => {
+    const rec = freshRec()
+    mockSupabase({}, rec)
+
+    const rows = await listTaskDefs([])
+    expect(rows).toEqual([])
+    expect(rec.fromTables).toEqual([])
+  })
+
+  it('re-throws when the read errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_task_defs': [{ data: null, error: { message: 'defs unreachable' } }] }, rec)
+
+    await expect(listTaskDefs(['def-1'])).rejects.toThrow(/defs unreachable/)
   })
 })
 

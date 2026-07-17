@@ -41,12 +41,18 @@ export type TaskRowProps = {
   supervisorName?: string
   /** Active location.search to preserve the saved view on every record-open path. */
   recordSearch?: string
+  /**
+   * Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership source: the pic_role
+   * NAME the task's generating def bound the PIC through. Only given for occurrence-grouped rows
+   * whose def binds a Role (Rule 11 — threaded straight into OwnerCell, no second PIC rendering).
+   */
+  provenanceRoleName?: string
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
   ownerName, onOpen, checked, onCheck,
-  supervisorName = '', recordSearch = '',
+  supervisorName = '', recordSearch = '', provenanceRoleName,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -99,7 +105,7 @@ export function TaskRow({
       </td>
       <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
       <td className="td-cell td-owner">
-        <OwnerCell fullName={ownerName} />
+        <OwnerCell fullName={ownerName} provenance={provenanceRoleName} />
       </td>
       {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
           the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).
