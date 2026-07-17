@@ -88,10 +88,11 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
 })
 
 test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are not 404s', async ({ page }) => {
+  // Step 4 (C3): /work/signals is the real archive/search page now (SliceStubPage retired here).
   await page.goto('work/signals')
   await expect(page).toHaveURL(/\/work\/signals$/)
   await expect(page.getByRole('heading', { name: 'Signals' })).toBeVisible()
-  await expect(page.getByText(/not in this slice/i)).toBeVisible()
+  await expect(page.getByRole('searchbox', { name: /search signals/i })).toBeVisible()
 
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe\/log$/)
