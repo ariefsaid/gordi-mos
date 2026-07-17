@@ -92,8 +92,11 @@ full Rules 1–12 checklist:
      Accepted: PASS SHIP FIX-THEN-SHIP   Blocking: REWORK FAIL STILL-FAILING
      Required always: spec, code-quality. Required (UI changed): design. Required (schema/RLS changed): security. -->
 
-- spec:
-- code-quality:
+- spec: APPROVE — spec-reviewer (opus), 2026-07-17. Completeness + preservation verified in BOTH
+  directions (nothing retired remains; every deliberate survivor intact, justifications independently
+  checked); all 5 e2e deletions endorsed against the owning specs; DB preservation law honored.
+- code-quality: APPROVE — same reviewer. Deletion hygiene clean; one LOW nit (orphaned vi.mock keys
+  in 4 live test files) FIXED by the Director post-review (commit 83facfe, 65 tests green).
 - design: N/A — no `.tsx`/`.css` behavior change (deletions + a `StatePill` import-path fix only;
   `home-page.css` comment-only edit). Owner's final visual/regression pass (per the master plan's
   "owner gate: final visual/regression pass" for this step) still applies at the Director level.
