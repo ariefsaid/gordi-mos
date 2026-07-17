@@ -40,12 +40,16 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — 5 screens re-homed from /kitchen/* to /cafe/* (OD-15).
- * Role visibility (Review + Pushes: ops_lead/admin only) is enforced in the rail;
- * all 5 are in this list for breadcrumb resolution regardless of role. Every label
- * flows through the i18n catalog (FR-440) via its labelKey.
+ * Café Module sections — Opening (Step 7, RATIFY-7D — the "Start today's opening" home at the
+ * exact /cafe path) + 5 screens re-homed from /kitchen/* to /cafe/* (OD-15). Role visibility
+ * (Review + Pushes: ops_lead/admin only) is enforced in the rail; all 6 are in this list for
+ * breadcrumb resolution regardless of role. Every label flows through the i18n catalog (FR-440)
+ * via its labelKey. sectionForPath resolves the exact /cafe path to Opening (not the generic
+ * SECTIONS "Café" root entry — CAFE_SECTIONS is scanned first) and picks the most specific
+ * (longest) prefix match for any /cafe/* sub-route, so Opening never shadows Log/Plan/etc.
  */
 export const CAFE_SECTIONS: Section[] = [
+  { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: CafeIcon },
   { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: CafeIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: CafeIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: CafeIcon },
@@ -63,17 +67,25 @@ export const ADMIN_SECTIONS: Section[] = [
  * Scans the most-specific registries first (CAFE_SECTIONS, ADMIN_SECTIONS) so an
  * exact sub-route like `/cafe/review` wins over the `/cafe` prefix in SECTIONS.
  * '/' matches exactly; other paths match exactly or by prefix.
+ *
+ * Order-independent by construction (Step 7, RATIFY-7D): an EXACT match always wins outright
+ * (so CAFE_SECTIONS' `/cafe` "Opening" leaf can sit anywhere in its own array without a more
+ * specific `/cafe/log`-style entry accidentally losing to it); failing that, the MOST SPECIFIC
+ * (longest-path) prefix match wins, so `/cafe` never shadows `/cafe/plan/anything` regardless of
+ * array position.
  */
 export function sectionForPath(pathname: string): Section | null {
   const allSections = [...CAFE_SECTIONS, ...ADMIN_SECTIONS, ...SECTIONS]
+  const exact = allSections.find((section) =>
+    section.path === '/' ? pathname === '/' : pathname === section.path,
+  )
+  if (exact) return exact
+  let best: Section | null = null
   for (const section of allSections) {
-    if (section.path === '/') {
-      if (pathname === '/') return section
-    } else {
-      if (pathname === section.path || pathname.startsWith(section.path + '/')) {
-        return section
-      }
+    if (section.path === '/') continue
+    if (pathname.startsWith(section.path + '/') && (!best || section.path.length > best.path.length)) {
+      best = section
     }
   }
-  return null
+  return best
 }

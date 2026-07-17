@@ -99,8 +99,24 @@ describe('useOccurrenceGroups (CQ IMPORTANT-2 decomposition)', () => {
     act(() => { result.current.handlePendingResolved('task-9', 'pending-1') })
 
     expect(result.current.pendingForAssign).toEqual([{ ...pending, id: 'pending-2' }])
+    // Other pending rows remain → the dialog stays open for them.
+    expect(result.current.assignRunId).toBe('run-1')
     expect(load).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(mockListRunRollups).toHaveBeenCalledTimes(2))
+  })
+
+  it('handlePendingResolved auto-closes the dialog when the LAST pending row resolves (AC-630 journey — no dead-end Close click)', async () => {
+    const tasks = [task({ id: 't1', process_run_id: 'run-1' })]
+    mockListPendingTasks.mockResolvedValue([pending])
+    const { result } = renderHook(() => useOccurrenceGroups(tasks, 'occurrence', vi.fn()))
+
+    act(() => { result.current.openAssignPending('run-1') })
+    await waitFor(() => expect(result.current.pendingForAssign).toHaveLength(1))
+
+    act(() => { result.current.handlePendingResolved('task-9', 'pending-1') })
+
+    expect(result.current.pendingForAssign).toEqual([])
+    expect(result.current.assignRunId).toBeNull()
   })
 
   it('closeAssign clears the open assign-dialog run id', async () => {

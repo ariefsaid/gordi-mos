@@ -72,7 +72,13 @@ export function useOccurrenceGroups(
   }, [])
 
   const handlePendingResolved = useCallback((_taskId: string, pendingId: string) => {
-    setPendingForAssign(prev => prev.filter(p => p.id !== pendingId))
+    setPendingForAssign(prev => {
+      const next = prev.filter(p => p.id !== pendingId)
+      // Resolving the LAST pending row completes the user's job here — auto-close instead of
+      // leaving an empty modal that needs a dead-end Close click (AC-630 journey).
+      if (next.length === 0) setAssignRunId(null)
+      return next
+    })
     load() // refetch so the newly-materialized Task appears in the group
     loadRunRollups(visibleRunIds) // pendingUnresolved just dropped — refresh the roll-up counts too
   }, [load, loadRunRollups, visibleRunIds])

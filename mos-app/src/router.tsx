@@ -12,6 +12,7 @@ import { TasksLayout } from './pages/tasks-layout'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { InboxPage } from './pages/inbox-page'
+import { CafeOpeningPage } from './pages/cafe-opening-page'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
@@ -50,6 +51,7 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 //     /ecommerce /roastery /profile → SliceStubPage (later steps)
 //     /money/*                 → DashboardPage/Budget/Pricing (RequireAccessRole finance/admin)
 //     /inbox                   → InboxPage (always live)
+//     /cafe                    → CafeOpeningPage (Step 7 — "Start today's opening" home, RATIFY-7D)
 //     /cafe/*                  → Kitchen* pages (re-homed from /kitchen/*)
 //     /admin/people            → AdminUsersPage (AdminRoute)
 //     + redirect map from every old route (§7)
@@ -135,8 +137,8 @@ export const routeConfig: RouteObject[] = [
           },
           { path: 'inbox', element: <InboxPage /> },
 
-          // ── Café (Kitchen re-homed, OD-15) ──
-          { path: 'cafe', element: <Navigate to="/cafe/log" replace /> },
+          // ── Café (Kitchen re-homed, OD-15; Step 7 RATIFY-7D — /cafe hosts the opening home) ──
+          { path: 'cafe', element: <CafeOpeningPage /> },
           { path: 'cafe/log', element: <KitchenLogPage /> },
           { path: 'cafe/plan', element: <KitchenPlanPage /> },
           { path: 'cafe/stock', element: <KitchenStockPage /> },

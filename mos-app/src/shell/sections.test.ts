@@ -22,8 +22,11 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 })
 
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  it('exports exactly 5 café sections on /cafe/* paths in canonical order', () => {
+  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
+  // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
+  it('exports Opening + the 5 café sections in canonical order', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
+      '/cafe',
       '/cafe/log',
       '/cafe/plan',
       '/cafe/stock',
@@ -47,8 +50,12 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
 
-  it('sectionForPath resolves /cafe/plan/anything by prefix', () => {
+  it('sectionForPath resolves /cafe/plan/anything by prefix (the specific leaf, not the /cafe root)', () => {
     expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
+  })
+
+  it('RATIFY-7D: sectionForPath resolves the exact /cafe path to Opening (not a sub-route)', () => {
+    expect(sectionForPath('/cafe')!.label).toBe('Opening')
   })
 })
 

@@ -374,6 +374,7 @@ export const messages = {
     'nav.events': 'Events',
     'nav.money': 'Money',
     'nav.cafe': 'Café',
+    'nav.cafe.opening': 'Opening',
     'nav.cafe.log': 'Log',
     'nav.cafe.plan': 'Plan',
     'nav.cafe.stock': 'Stock',
@@ -518,6 +519,14 @@ export const messages = {
     // seams: choosing a PIC (already-resolved / not-authorized / lost race) and starting a run.
     'processes.pending.resolveError': "Couldn't assign — try again.",
     'processes.due.startError': "Couldn't start this run — try again.",
+    // Step 7 — Café retrofit "Start today's opening" surface (cafe-retrofit.spec.md §4/§6.2).
+    // Reuses processes.rollup.summary for the roll-up line (Rule 11 — no café-only duplicate copy).
+    'cafe.opening.start': "Start today's opening",
+    'cafe.opening.notStartedLead': "Not started yet — start today's opening.",
+    'cafe.opening.notStartedMember': "Not started yet — your shift lead starts today's opening.",
+    'cafe.opening.viewTasks': 'View opening tasks',
+    'cafe.opening.noProcess': 'No café opening is configured for this org yet.',
+    'cafe.opening.noTeam': "You're not on a café branch Team yet — ask your admin to add you.",
   },
   id: {
     'dest.home': 'Beranda',
@@ -884,6 +893,7 @@ export const messages = {
     'nav.events': 'Acara',
     'nav.money': 'Keuangan',
     'nav.cafe': 'Kafe',
+    'nav.cafe.opening': 'Pembukaan',
     'nav.cafe.log': 'Log',
     'nav.cafe.plan': 'Rencana',
     'nav.cafe.stock': 'Stok',
@@ -1013,6 +1023,13 @@ export const messages = {
     // CQ IMPORTANT-1 (Step 6 fix wave) — inline write-failure states.
     'processes.pending.resolveError': 'Gagal menetapkan — coba lagi.',
     'processes.due.startError': 'Gagal memulai proses ini — coba lagi.',
+    // Step 7 — Café retrofit "Start today's opening" surface (cafe-retrofit.spec.md §4/§6.2).
+    'cafe.opening.start': 'Mulai pembukaan hari ini',
+    'cafe.opening.notStartedLead': 'Belum dimulai — mulai pembukaan hari ini.',
+    'cafe.opening.notStartedMember': 'Belum dimulai — pemimpin shift memulai pembukaan hari ini.',
+    'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
+    'cafe.opening.noProcess': 'Belum ada pembukaan kafe yang dikonfigurasi untuk org ini.',
+    'cafe.opening.noTeam': 'Anda belum tergabung di Tim cabang kafe — hubungi admin untuk ditambahkan.',
   },
 } as const
 
