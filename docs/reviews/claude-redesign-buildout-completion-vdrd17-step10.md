@@ -58,7 +58,7 @@ characterization).
 
 - spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-1001..1004 owned+green; Rule-10 proof verified (destinations/job-sentences/breadcrumb untouched per git history); i18n parity confirmed.
 - code-quality: APPROVE — code-quality-reviewer (opus), 2026-07-17. Nothing material; InboxPage-anatomy fidelity confirmed.
-- design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (required — `.tsx` changed: `events-page.tsx`, `router.tsx`)
+- design: APPROVE — design-reviewer (opus), 2026-07-17. Job sentence + quiet EmptyState + zero fake CTA + Rule-10 proof all verified live en+id. Minor Rule-12 copy nit: sub-copy's 'collection…connected' jargon — plain-language rewrite routed to the step-11 sweep (owner-ratify copy).
 - security: N/A — no auth/RLS/schema path touched (NFR-1001: no new schema/table/RLS/DAL this step).
 
 ## Gates (fresh, this pass)

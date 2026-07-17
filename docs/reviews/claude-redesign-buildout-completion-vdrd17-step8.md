@@ -75,7 +75,7 @@ capability-holder persona) finds ⌘K insufficiently discoverable.
 
 - spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-801..808 all owned+green; RATIFY-8A (⌘K-only Option A) confirmed accurate; mobile-drawer untouched per git history.
 - code-quality: APPROVE — code-quality-reviewer (opus), 2026-07-17. 0 Critical/Important; one minor doc-comment suggestion (dual gating mechanisms in command-menu Navigate list).
-- design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (command-menu.tsx is
+- design: APPROVE — design-reviewer (opus), 2026-07-17, rendered 4-lens, 3 personas × 2 breakpoints. Capability matrix exact; query-preserving redirects verified live; palette = e7 modal + convergence contents, no cross-version regression. RATIFY-8A: reviewer explicitly recommends Option A (⌘K-only); non-blocking enhancement: phone launcher affordance reads as search-only.
   `*.tsx` — 4-lens review required)
 - security: N/A — no auth/RLS/schema path changed (NFR-801, buildout row 8 DB/RLS: no).
 
