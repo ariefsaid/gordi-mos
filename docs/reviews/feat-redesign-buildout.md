@@ -825,3 +825,73 @@ rail footer not top-right = intended (OD-57); "Ask deputy" in ⌘K = owner frame
 1. Assert tasks-table container scrollWidth==clientWidth at 1280/1024 (extend AC-W2C).
 2. Keep the shell-level sign-out mount tests as the LOW-1 guard (already landed).
 3. Curated assertion: exactly one aria-current="page" across /work/tasks, /work/tasks/<id>, /.
+
+---
+
+## Step 5 — Home proper (scope card)
+
+**Spec:** `docs/specs/home-proper.spec.md` (AC-501..515). **Plan:** `docs/plans/2026-07-16-home-proper.md`
+(19 tasks, P1–P6/D1/C1–C4/H1–H4/S1–S4 — all landed on this branch's tip). Built in an isolated worktree
+against a base that turned out to be behind Step 4 (`claude/redesign-buildout-completion-vdrd17`); the
+worktree branch was fast-forwarded onto that branch's tip (`054ea7b`) before starting so Step-4's
+`SignalFeedSection`/i18n/etc. were present — no Step-4 code was authored or altered by this step.
+
+**IN** (this step delivers):
+- The **AttentionBrief** surface (`src/components/home/attention-brief.tsx`) — four lanes (overdue /
+  due-today / failed-checks / mentions), each `loading|ready|error`, composed from pure selectors
+  (`src/lib/home-attention.ts`) over the existing `listTasks`/`listNotifications` reads + a new
+  `loadFailedChecksForViewer` adapter (`src/lib/db/home-attention-data.ts`).
+- **OD-REDESIGN-18 region order**: `resolveRegionOrder`/`setRegionOrder`
+  (`src/lib/home-region-order.ts`, v1 `localStorage`), an inline Home order toggle (reuses the shared
+  `ViewTabs` primitive), the DOM-ordered two-region layout, and the persistent
+  "Needs attention · N" header summary + `#attention-brief` jump target when personal-first.
+- **Home re-composition** into two top-level regions (Attention · Personal canvas) around the
+  existing personal tiles (finance KPI row, tasks tile, `MyWeekPanel`) **and** the Step-4
+  `SignalFeedSection` — all reused, none rebuilt (Rule 11).
+
+**DEFERRED** (explicitly out of scope for this step — do NOT fail these in review):
+- Signal composer/feed/archive/record internals → Step 4 (this step only repositions the already-
+  mounted `SignalFeedSection`).
+- A generic Check/Exception domain object + Process-occurrence roll-ups → Step 6 (OD-58). v1
+  failed-checks source is the café rejected-log adapter only.
+- Server-side/cross-device region-order persistence + a Personal-Profile home for the toggle →
+  Admin/Profile step (OD-52).
+- Deputy-arranged personal-canvas widgets (OD-18) → deputy stack.
+- Additional attention lanes (approvals, AR/money exceptions, etc.) → later; the lane model is
+  extensible (Rule 10) but v1 ships exactly the four named in master-plan row 5.
+- Café retrofit (occurrence-as-tasks) → Step 7.
+- No new e2e journey — the cross-stack overdue-work read is covered by the existing curated **F3**
+  (find-overdue-work, Step 3); Home now also surfaces it, so F3 must not regress (RATIFY-4). No
+  assertion was added to F3 this step — Playwright was not run as part of this implementer pass
+  (see Gates below); flagging for the design/QA review to confirm F3 still passes against Home's
+  new attention read before merge.
+
+**KNOWN-ACCEPTED** (conscious v1 trade-offs, not defects):
+- Failed-checks sourced from café rejected `ops.kitchen_logs` (RATIFY-3) — the RLS-readable set (a
+  reviewer sees logs they rejected too), not "logs I submitted".
+- Region order lives in `localStorage`, keyed per person id, not server-side (RATIFY-1) — per-device
+  until the Profile column lands.
+- The order toggle is inline on Home, not Personal Profile (RATIFY-2) — Profile isn't built yet.
+
+**Contract-rule focuses for this step** (Rules per `docs/experience-contract.md`):
+- **Rule 1 (Home job)** — Home now visibly answers "what needs my attention right now?" via the
+  non-removable attention brief, not just a KPI/tile page.
+- **Rule 8/9 (capture-first + order parity)** — AttentionBrief carries zero configuration controls
+  (locked by AC-511/C4); the chosen region order is identical in DOM at 390px and desktop, never via
+  CSS `order` (locked by AC-515/H4, `src/pages/home-page.css` has no `order`/`flex-direction` reflow
+  rule on `.home-regions`).
+- **Rule 11 (component reuse)** — `AttentionBrief` composes `<Link>` + the shared `EmptyState`/
+  `ErrorState`/`SkeletonRows` (StateKit) + the shared `ViewTabs` primitive for the order toggle; no new
+  record/list component was introduced. `raciOwner`, `notificationRoute`, `listTasks`, `listNotifications`
+  are reused verbatim (no re-implementation).
+- **Rule 12 (cold-start/plain language)** — failed-checks items read "Opening prep · 2026-07-16" /
+  "Closing check · 2026-07-15" (action_type · log_date), never "Rejected kitchen_log" or a raw status
+  code.
+
+**Gates run by this implementer pass** (see the report for exact numbers): `npm run typecheck` (0
+errors), `npm run lint -- --max-warnings=0` (0), `npm run build` (CSS compiles), `npm test` (full
+suite green + `--coverage` on the five changed files). **Not run by this pass**: `npx playwright test`
+and `bash scripts/pre-merge-check.sh` — out of this implementer task's scope per the Director's
+explicit FINISH criteria; both remain required before merge per this repo's binding review-battery
+gate (spec/code-quality/design reviews + the ledger verdicts above are also still outstanding for
+this step's diff and must be recorded before merge-to-main, same as Wave 2c above).
