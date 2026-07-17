@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { createTask, type CreateTaskInput } from './tasks'
 import type {
-  SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
+  Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
 } from './signals.types'
 
 // Data layer for mos.signals + the Signal child tables (Step 4 / ADR-0050). Reads/writes mos via
@@ -228,4 +228,18 @@ export function dedupeRecipients(
     else if (mention.kind === 'bu') for (const id of buMembers[mention.targetId] ?? []) ids.add(id)
   }
   return ids.size
+}
+
+// ── orderSignalsForFeed (B13, AC-426) ─────────────────────────────────────────
+
+const ATTENTION_WEIGHT: Record<Attention, number> = { Urgent: 2, 'Needs attention': 1, FYI: 0 }
+
+/** Home ambient feed order (FR-414): Urgent/Needs-attention float above FYI (attention tier takes
+ * precedence); newest-first within the same tier. Pure — returns a new array, never mutates. */
+export function orderSignalsForFeed(rows: SignalRow[]): SignalRow[] {
+  return [...rows].sort((a, b) => {
+    const tierDelta = ATTENTION_WEIGHT[b.attention] - ATTENTION_WEIGHT[a.attention]
+    if (tierDelta !== 0) return tierDelta
+    return new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+  })
 }

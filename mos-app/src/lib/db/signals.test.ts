@@ -15,7 +15,7 @@ vi.mock('./tasks', () => ({ createTask: vi.fn() }))
 import {
   listReadableSignals, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask, createFollowUpTask,
-  listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients,
+  listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
 } from './signals'
 import * as tasksDal from './tasks'
 import { supabase } from '@/lib/supabase'
@@ -442,5 +442,41 @@ describe('dedupeRecipients', () => {
 
   it('returns 0 for no staged mentions', () => {
     expect(dedupeRecipients([], {}, {})).toBe(0)
+  })
+})
+
+// ── orderSignalsForFeed (B13, AC-426) — pure sorter ───────────────────────────
+describe('orderSignalsForFeed', () => {
+  function row(id: string, attention: SignalRow['attention'], occurredAt: string): SignalRow {
+    return { ...sampleSignal, id, attention, occurred_at: occurredAt }
+  }
+
+  it('floats Urgent/Needs-attention above FYI even when FYI is more recent', () => {
+    const fyiNewer = row('fyi', 'FYI', '2026-07-16T10:00:00Z')
+    const urgentOlder = row('urgent', 'Urgent', '2026-07-16T02:00:00Z')
+    const out = orderSignalsForFeed([fyiNewer, urgentOlder])
+    expect(out.map((r) => r.id)).toEqual(['urgent', 'fyi'])
+  })
+
+  it('orders newest-first within the same attention tier', () => {
+    const older = row('older', 'Needs attention', '2026-07-16T02:00:00Z')
+    const newer = row('newer', 'Needs attention', '2026-07-16T09:00:00Z')
+    const out = orderSignalsForFeed([older, newer])
+    expect(out.map((r) => r.id)).toEqual(['newer', 'older'])
+  })
+
+  it('orders Urgent > Needs attention > FYI as the tier precedence', () => {
+    const fyi = row('fyi', 'FYI', '2026-07-16T09:00:00Z')
+    const needs = row('needs', 'Needs attention', '2026-07-16T08:00:00Z')
+    const urgent = row('urgent', 'Urgent', '2026-07-16T07:00:00Z')
+    const out = orderSignalsForFeed([fyi, needs, urgent])
+    expect(out.map((r) => r.id)).toEqual(['urgent', 'needs', 'fyi'])
+  })
+
+  it('does not mutate the input array', () => {
+    const rows = [row('a', 'FYI', '2026-07-16T01:00:00Z'), row('b', 'Urgent', '2026-07-16T02:00:00Z')]
+    const copy = [...rows]
+    orderSignalsForFeed(rows)
+    expect(rows).toEqual(copy)
   })
 })

@@ -448,6 +448,9 @@ export const messages = {
     'signals.record.addCategory': 'Add category',
     'signals.record.createTask': 'Create Task',
     'signals.record.categoryPickerLabel': 'Choose a category',
+    'signals.feed.shareRow': 'Share a Signal',
+    'signals.feed.empty': 'No Signals yet. Share the first one above.',
+    'signals.card.unknownAuthor': 'Someone',
   },
   id: {
     'dest.home': 'Beranda',
@@ -887,6 +890,9 @@ export const messages = {
     'signals.record.addCategory': 'Tambah kategori',
     'signals.record.createTask': 'Buat Tugas',
     'signals.record.categoryPickerLabel': 'Pilih kategori',
+    'signals.feed.shareRow': 'Bagikan Sinyal',
+    'signals.feed.empty': 'Belum ada Sinyal. Bagikan yang pertama di atas.',
+    'signals.card.unknownAuthor': 'Seseorang',
   },
 } as const
 
