@@ -26,3 +26,10 @@ export function overdueTasks(tasks: TaskListRow[], viewerId: string, today: stri
     .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date != null && t.due_date < today)
     .map(toTaskItem)
 }
+
+/** Owned (R/A), non-Done tasks due exactly `today` (YYYY-MM-DD WIB) — FR-503. */
+export function dueTodayTasks(tasks: TaskListRow[], viewerId: string, today: string): AttentionItem[] {
+  return tasks
+    .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date === today)
+    .map(toTaskItem)
+}

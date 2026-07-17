@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { overdueTasks, wibToday } from './home-attention'
+import { overdueTasks, dueTodayTasks, wibToday } from './home-attention'
 
 const VIEWER = '40000000-0000-0000-0000-000000000001'
 const OTHER = '40000000-0000-0000-0000-000000000002'
@@ -53,6 +53,21 @@ describe('AC-501: overdueTasks — owned, non-Done, strictly-before-today tasks'
 
     expect(result).toEqual([
       { id: 'overdue-owned', title: 'Task 1', meta: '2026-07-10', route: '/work/tasks/overdue-owned' },
+    ])
+  })
+})
+
+describe('AC-502: dueTodayTasks — owned, non-Done tasks due exactly today', () => {
+  it('returns only the owned due-today task, excluding the overdue one', () => {
+    const overdueOwned = task({ id: 'overdue-owned', due_date: '2026-07-10', status: 'In Progress' })
+    const dueTodayOwned = task({ id: 'due-today-owned', due_date: TODAY, status: 'In Progress' })
+    const dueTodayDone = task({ id: 'due-today-done', due_date: TODAY, status: 'Done' })
+    const tasks = [overdueOwned, dueTodayOwned, dueTodayDone]
+
+    const result = dueTodayTasks(tasks, VIEWER, TODAY)
+
+    expect(result).toEqual([
+      { id: 'due-today-owned', title: 'Task 1', meta: TODAY, route: '/work/tasks/due-today-owned' },
     ])
   })
 })
