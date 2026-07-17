@@ -481,7 +481,13 @@ describe('RI-IXD-7: no brand-orange outside the logo, active view-tab underline,
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit', () => {
   const sharedTableTargets = [
-    'pages/follow-ups-page.tsx',
+    // Money-inbox-alignment (Step 9, FR-905): follow-ups-page.tsx's table/state-kit
+    // usage was extracted into FollowUpQueueTable so the canonical page + both
+    // Follow-up queue doors (Money, Work Tasks) compose ONE renderer (Rule 11).
+    // The goal this guard protects — the retrofit target stays on the shared table
+    // + state kit, never a private list grammar — still holds; it just now lives
+    // one hop away via the extracted component.
+    'components/follow-ups/follow-up-queue-table.tsx',
     'pages/sales-dashboard-page.tsx',
     'pages/kitchen-stock-page.tsx',
     'pages/kitchen-pushes-page.tsx',
