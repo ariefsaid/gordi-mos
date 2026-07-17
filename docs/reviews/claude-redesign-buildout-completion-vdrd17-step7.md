@@ -96,7 +96,7 @@ This branch carries other concurrent steps (4/5/6/8/9/10 — see other commits i
 
 - spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-701..720 all owned+green on independent re-run (café pgTAP 27, full suite 100/727, unit 30/30, wiring 64/64); AC-720/F2 live-green in the Director's full run (52/52). Both flagged deviations approved (sectionForPath rewrite = correctness fix; global-setup ops_lead grant = contained, dedicated-persona follow-up recommended).
 - code-quality: APPROVE — same reviewer, 2026-07-17. 0 Critical/Important; minors: unused teamName prop, stale 20260717000004 references in pgTAP headers post merge-rename to ..000006, ?occurrence= persists groupBy (routed to design review), shared-persona grant follow-up.
-- design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (4-lens review — `*.tsx`/`*.css` changed this step; incl. mockup-fidelity vs the convergence F2 "Start today's opening" flow, SALVAGE-INVENTORY, and cross-version regression)
+- design: APPROVE — design-reviewer (opus), 2026-07-17 rendered 4-lens, both personas × both breakpoints. Rules 1-12 all PASS; Rule-12 cold-start PASS both fronts (manager 8/10, barista 8.5/10); zero mockup regressions on the café surface. Minors routed to the shared fix wave: not-started member state uses a ✓ glyph (contradicts 'not started'), phone capture links weak tap affordance, member sees non-actionable '1 to assign', shared assign-step naming (step-6 item).
 - security: **NOT TRIGGERED BY SCOPE** — no new auth/RLS/schema/RPC path this step (spec §7); the privileged spawn seam is Step 6's, already audited there. Becomes mandatory only if a RATIFY above (7A/7B) is resolved toward a schema/capability/RPC change.
 
 ## Gates (Track C pass, this branch/worktree)
