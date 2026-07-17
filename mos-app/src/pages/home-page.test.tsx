@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -106,7 +107,7 @@ vi.mock('../shell/signal-composer-host', () => ({
 }))
 
 import { HomePage } from './home-page'
-import { setRegionOrder } from '@/lib/home-region-order'
+import { setRegionOrder, resolveRegionOrder } from '@/lib/home-region-order'
 
 const financeViewer: AuthState = {
   status: 'authenticated',
@@ -379,5 +380,24 @@ describe('AC-513: personal-first reorders + the header summary survives (Step 5)
 
     const summaryLink = screen.getByRole('link', { name: /needs attention · \d+/i })
     expect(summaryLink.getAttribute('href')).toBe('#attention-brief')
+  })
+})
+
+describe('AC-514: the order toggle persists (Step 5)', () => {
+  it('reorders the regions and persists personal-first when "My canvas first" is clicked', async () => {
+    const personId = financeViewer.viewer.person.id
+    const user = userEvent.setup()
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    await act(async () => {
+      await user.click(screen.getByRole('tab', { name: /my canvas first/i }))
+    })
+
+    const attentionRegion = document.getElementById('attention-brief')!
+    const personalCanvas = screen.getByTestId('personal-canvas')
+    const position = personalCanvas.compareDocumentPosition(attentionRegion)
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(resolveRegionOrder(personId)).toBe('personal-first')
   })
 })
