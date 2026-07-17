@@ -2,9 +2,12 @@
 -- business table, the run idempotency UNIQUE and the process_task_defs PIC-binding CHECK hold, the
 -- tasks provenance columns exist, and no new table grants DELETE to authenticated.
 -- Fixture: 20260716000015_mos_process_test_seed.sql (+ the signal + role trees it extends).
+-- SECURITY LOW-3 (Step 6 fix wave): PUBLIC has no EXECUTE on the process helper functions —
+--   they take an org/team/role uuid and are meant to be called from inside a policy/RPC as the
+--   authenticated app role, not probed anonymously.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(19);
 
 -- LOW-3: the TEST-ONLY fixture refuses to run unless app.allow_test_seeds='on' (fail-closed in prod).
 select throws_ok($$ select mos._test_seed_process_tree() $$, '42501', null,
@@ -55,6 +58,21 @@ select ok(not has_table_privilege('authenticated','mos.process_runs','DELETE'),
   'AC-601: authenticated has no DELETE on mos.process_runs');
 select ok(not has_table_privilege('authenticated','mos.process_run_pending_tasks','DELETE'),
   'AC-601: authenticated has no DELETE on mos.process_run_pending_tasks');
+
+-- SECURITY LOW-3: PUBLIC has no EXECUTE on the process helpers; authenticated does (the RLS
+-- policies / RPCs that call them run as authenticated).
+select ok(not has_function_privilege('public','mos._function_holders(uuid,uuid,uuid)','execute'),
+  'LOW-3: PUBLIC has no EXECUTE on mos._function_holders');
+select ok(has_function_privilege('authenticated','mos._function_holders(uuid,uuid,uuid)','execute'),
+  'LOW-3: authenticated has EXECUTE on mos._function_holders');
+select ok(not has_function_privilege('public','mos.can_start_process_for_team(uuid)','execute'),
+  'LOW-3: PUBLIC has no EXECUTE on mos.can_start_process_for_team');
+select ok(has_function_privilege('authenticated','mos.can_start_process_for_team(uuid)','execute'),
+  'LOW-3: authenticated has EXECUTE on mos.can_start_process_for_team');
+select ok(not has_function_privilege('public','mos.due_process_runs()','execute'),
+  'LOW-3: PUBLIC has no EXECUTE on mos.due_process_runs');
+select ok(has_function_privilege('authenticated','mos.due_process_runs()','execute'),
+  'LOW-3: authenticated has EXECUTE on mos.due_process_runs');
 
 select * from finish();
 rollback;

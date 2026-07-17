@@ -116,5 +116,22 @@ comment on function mos.spawn_process_run(uuid,uuid,date) is
 revoke execute on function mos.spawn_process_run(uuid,uuid,date) from public, anon, authenticated;
 grant  execute on function mos.spawn_process_run(uuid,uuid,date) to authenticated;
 
--- DOWN: create or replace mos.spawn_process_run with the 20260716000013 body (separate cross-org
---   check after the type check, distinct '...outside your org' / 42501 message).
+-- SECURITY LOW-3 (Step 6 fix wave) — the process helper functions (mos._function_holders,
+-- mos.can_start_process_for_team, mos.due_process_runs) never had an explicit revoke/grant, so
+-- PUBLIC carried Postgres' default EXECUTE-to-PUBLIC on every one of them. They take an org/
+-- role/team uuid and are meant to be called from inside a policy/RPC as the authenticated app
+-- role (mos.due_process_runs also reads mos.work_lines/process_cadences through RLS as the
+-- caller) — PUBLIC/anon execute was never an intended surface. Revoke from public, keep granted
+-- to authenticated (both the RPCs above and the app's direct call sites need it).
+revoke execute on function mos._function_holders(uuid,uuid,uuid) from public;
+grant  execute on function mos._function_holders(uuid,uuid,uuid) to authenticated;
+revoke execute on function mos.can_start_process_for_team(uuid) from public;
+grant  execute on function mos.can_start_process_for_team(uuid) to authenticated;
+revoke execute on function mos.due_process_runs() from public;
+grant  execute on function mos.due_process_runs() to authenticated;
+
+-- DOWN: grant execute on function mos.due_process_runs() to public;
+--       grant execute on function mos.can_start_process_for_team(uuid) to public;
+--       grant execute on function mos._function_holders(uuid,uuid,uuid) to public;
+--       create or replace mos.spawn_process_run with the 20260716000013 body (separate cross-org
+--         check after the type check, distinct '...outside your org' / 42501 message).
