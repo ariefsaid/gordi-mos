@@ -975,3 +975,54 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     expect(screen.getByText('Open the café')).toBeInTheDocument()
   })
 })
+
+// ── Step 7 (Track C, C2) — the Café panel's ?occurrence=<runId> link is honored on arrival ──────
+// (docs/plans/2026-07-17-cafe-retrofit.md C2; cafe-retrofit.spec.md FR-704). Reuses the SAME
+// Step-6 occurrence grouping (Rule 11) — visiting /work/tasks?occurrence=<runId> simply switches the
+// view to the occurrence group-by so the caption for that run is in view; no new grouping mechanism.
+describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence grouping (C2)', () => {
+  function renderWithOccurrenceParam(runId: string) {
+    function Harness() {
+      const [savedView, setSavedView] = useState(makeSavedView())
+      return (
+        <>
+          <TasksWorkspace
+            savedView={savedView}
+            onSavedViewChange={(next) => setSavedView(makeSavedView(next === 'mine' || next === 'team' || next === 'overdue' || next === 'followups' ? next : 'all'))}
+          />
+          <LocationCapture />
+        </>
+      )
+    }
+    return render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={[`/work/tasks?occurrence=${runId}`]}>
+          <Harness />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+  }
+
+  it('AC: arriving with ?occurrence=<runId> groups the Tasks page by Occurrence — the run\'s caption is in view; "Process Run" never appears', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café floor', process_run_id: 'run-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 0, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+
+    renderWithOccurrenceParam('run-1')
+
+    // No manual "Group" toggle needed — the query param alone lands on the Occurrence grouping.
+    await waitFor(() => {
+      expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText(/^group$/i)).toHaveValue('occurrence')
+    expect(document.body.textContent).not.toMatch(/Process Run/)
+  })
+})

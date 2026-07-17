@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 import type { SortingState, FilterFn } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { listTasks } from '@/lib/db/tasks'
@@ -118,6 +118,16 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
 
   // ── Persistence (FR-125) ──────────────────────────────────────────────────
   const { groupBy, setGroupBy, isCollapsed, toggleCollapsed, collapsedGroups } = useTasksViewPref()
+
+  // Step 7 (cafe-retrofit.spec.md FR-704, C2): a host link (e.g. the Café panel's "View opening
+  // tasks") can arrive with ?occurrence=<runId> to land directly on the Occurrence grouping — REUSES
+  // the Step-6 occurrence group-by (Rule 11), no new grouping/scoping mechanism. One-shot on mount
+  // (a later manual Group change is never fought back to Occurrence).
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.has('occurrence')) setGroupBy('occurrence')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot on the param's initial presence
+  }, [])
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [businessUnitId, setBusinessUnitId] = useState<string>('')
