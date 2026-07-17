@@ -16,6 +16,8 @@ declare
   sig3 uuid := 'd1000000-0000-0000-0000-000000000003';
   sig4 uuid := 'd1000000-0000-0000-0000-000000000004';
   sig5 uuid := 'd1000000-0000-0000-0000-000000000005';
+  sig6 uuid := 'd1000000-0000-0000-0000-000000000006';
+  sig7 uuid := 'd1000000-0000-0000-0000-000000000007';
 begin
   if exists (select 1 from mos.signals limit 1) then
     raise notice 'seed.dev-signals: mos.signals not empty — skipping';
@@ -54,11 +56,35 @@ begin
        'FYI', null),
     (sig5, v_org, p_cahya, t_radiant, now() - interval '5 hours',
        'Regular wholesale customer asked about a standing weekly bean order — worth a follow-up.',
-       'Needs attention', 'Customer');
+       'Needs attention', 'Customer'),
+    (sig6, v_org, p_krishna, t_roastery, now() - interval '4 days',
+       'Duplicate of the freezer-alarm report above — filed twice by mistake.',
+       'FYI', null),
+    (sig7, v_org, p_dewi, t_hq, now() - interval '6 hours',
+       'HQ bar espresso volumes are down about 10% this week versus last week.',
+       'Needs attention', 'Quality');
 
   -- One @Person mention (grant + fan-out audit): sig1 mentions Cahya.
   insert into mos.signal_mentions (org_id, signal_id, mention_kind, target_person_id) values
     (v_org, sig1, 'person', p_cahya);
 
-  raise notice 'seed.dev-signals: inserted 3 memberships + 5 signals + 1 mention';
+  -- One retracted Signal (design-review step-4 IMPORTANT-6) — a tombstone reviewable via the
+  -- /work/signals "Show retracted" toggle without needing to file+retract one by hand.
+  update mos.signals
+    set retracted_at = now() - interval '3 days', retract_reason = 'Filed in error — see the other report.'
+    where id = sig6;
+
+  -- One corrected Signal (design-review step-4) — carries an edited_at + a body revision row so
+  -- the record drawer's "Edited" affordance + revision history are reviewable live.
+  update mos.signals
+    set body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.',
+        edited_at = now() - interval '2 hours'
+    where id = sig7;
+  insert into mos.signal_revisions (org_id, signal_id, actor_id, field, old_value, new_value, created_at) values
+    (v_org, sig7, p_dewi, 'body',
+       'HQ bar espresso volumes are down about 10% this week versus last week.',
+       'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.',
+       now() - interval '2 hours');
+
+  raise notice 'seed.dev-signals: inserted 3 memberships + 7 signals (1 retracted, 1 corrected) + 1 mention';
 end $$;

@@ -1,0 +1,65 @@
+/* SignalsArchivePage — Work → Signals search/archive list (design-review step-4 CRITICAL-1).
+   A styled search field (PORT convergence .searchbar grammar), the "Show retracted" toggle
+   row, and bounded archive rows with a hairline between them. */
+.signals-archive-toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+
+.signals-searchbar {
+  flex: 1; min-width: 220px; display: flex; align-items: center;
+  height: 36px; padding: 0 12px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.signals-searchbar:focus-within { border-color: var(--ring); }
+.signals-searchbar input {
+  width: 100%; border: none; background: transparent; outline: none;
+  font: inherit; font-size: 14px; color: var(--foreground);
+}
+.signals-searchbar input::placeholder { color: var(--text-light); }
+
+.signals-archive-retracted-toggle {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  font-size: 13px; color: var(--muted-foreground);
+}
+
+.signals-archive-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--card); overflow: hidden;
+}
+.signal-row {
+  display: flex; align-items: center; gap: 12px; min-height: 52px;
+  padding: 10px 16px; text-decoration: none; color: inherit;
+  border-bottom: 1px solid var(--border);
+}
+.signals-archive-list > :last-child { border-bottom: none; }
+.signal-row:hover { background: var(--secondary); }
+.signal-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+.signal-row-body {
+  flex: 1; min-width: 0; font-size: 14px; color: var(--foreground);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.signal-row-meta {
+  flex: none; font-size: 12px; color: var(--muted-foreground);
+  max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.signal-row-attention {
+  flex: none; display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.signal-row-attention--urgent {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--status-lost-text);
+}
+.signal-row-attention--needs-attention {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+.signal-row-attention--fyi { background: var(--secondary); color: var(--muted-foreground); }
+
+.signal-row--retracted {
+  color: var(--muted-foreground); font-style: italic; font-size: 13px; gap: 8px;
+}

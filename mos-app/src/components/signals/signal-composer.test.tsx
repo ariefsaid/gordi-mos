@@ -81,7 +81,7 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     const occurred = screen.getByLabelText(/occurred/i)
     // 4. Author (read-only line, not a form control)
     expect(screen.getByText(/Cahya Cafe/)).toBeInTheDocument()
-    expect(screen.getByText(/implicit/i)).toBeInTheDocument()
+    expect(screen.getByText(/posted by/i)).toBeInTheDocument()
 
     // No category or attention control at initial paint (capture-minimal, Rule 8).
     expect(screen.queryByRole('combobox', { name: /categor/i })).not.toBeInTheDocument()

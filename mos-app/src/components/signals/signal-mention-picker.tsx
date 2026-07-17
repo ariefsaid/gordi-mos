@@ -1,6 +1,7 @@
 import { filterMentionCandidates, type MentionCandidate } from '@/lib/comments/mentions'
 import type { MentionKind } from '@/lib/db/signals.types'
 import { useT } from '@/i18n/use-t'
+import './signal-mention-picker.css'
 
 // Grouped `@` mention popover — Person / Team / BU, each with a type badge (AC-421/OD-59). Extends
 // the shared mention grammar (lib/comments/mentions.ts, Rule 11) rather than re-implementing fuzzy

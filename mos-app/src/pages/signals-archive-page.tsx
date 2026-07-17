@@ -5,11 +5,13 @@ import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { Toggle } from '@/components/ui/toggle'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
+import './signals-archive-page.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
 
@@ -27,6 +29,10 @@ export function SignalsArchivePage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const recordId = params.get('record')
+  // IMPORTANT-6 (design-review step-4): retracted Signals are tombstones, not the common
+  // case — hidden by default, one compact toggle away. State lives in the URL (?retracted=1)
+  // like every other archive filter (Rule 4), so it round-trips through Back/refresh/new-tab.
+  const showRetracted = params.get('retracted') === '1'
 
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [authorNamesById, setAuthorNamesById] = useState<Record<string, string>>({})
@@ -58,18 +64,26 @@ export function SignalsArchivePage() {
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase()
-    if (!term) return signals
     return signals.filter((signal) => {
+      if (!showRetracted && signal.retracted_at) return false
+      if (!term) return true
       const author = authorNamesById[signal.author_id] ?? ''
       const team = teamNamesById[signal.owning_team_id] ?? ''
       return `${signal.body} ${author} ${team}`.toLowerCase().includes(term)
     })
-  }, [signals, q, authorNamesById, teamNamesById])
+  }, [signals, q, showRetracted, authorNamesById, teamNamesById])
 
   function updateSearch(next: string) {
     const nextParams = new URLSearchParams(params)
     if (next) nextParams.set('q', next)
     else nextParams.delete('q')
+    setParams(nextParams, { replace: true })
+  }
+
+  function toggleRetracted(next: boolean) {
+    const nextParams = new URLSearchParams(params)
+    if (next) nextParams.set('retracted', '1')
+    else nextParams.delete('retracted')
     setParams(nextParams, { replace: true })
   }
 
@@ -88,15 +102,26 @@ export function SignalsArchivePage() {
         count={state === 'ready' ? filtered.length : null}
       />
 
-      <div className="signals-searchbar">
-        <input
-          type="search"
-          role="searchbox"
-          aria-label={t('signals.archive.searchLabel')}
-          placeholder={t('signals.archive.searchPlaceholder')}
-          value={q}
-          onChange={(e) => updateSearch(e.target.value)}
-        />
+      <div className="signals-archive-toolbar">
+        <div className="signals-searchbar">
+          <input
+            type="search"
+            role="searchbox"
+            aria-label={t('signals.archive.searchLabel')}
+            placeholder={t('signals.archive.searchPlaceholder')}
+            value={q}
+            onChange={(e) => updateSearch(e.target.value)}
+          />
+        </div>
+        <div className="signals-archive-retracted-toggle">
+          <Toggle
+            size="small"
+            value={showRetracted}
+            onChange={toggleRetracted}
+            aria-label={t('signals.archive.showRetracted')}
+          />
+          <span aria-hidden="true">{t('signals.archive.showRetracted')}</span>
+        </div>
       </div>
 
       {state === 'loading' && <SkeletonRows count={5} />}
@@ -138,7 +163,7 @@ export function SignalsArchivePage() {
       {/* ?record=<id> opens the record drawer beside the list (Rule 4/6) — the SAME URL for an
           in-list click, a direct load, a refresh, or a new tab (C3). */}
       {recordId && (
-        <div className="signal-record-drawer-root">
+        <div className="drawer-modal-root signal-record-drawer-root">
           <div className="drawer-scrim" aria-hidden="true" onClick={closeRecord} />
           <aside className="drawer drawer-modal drawer-sheet" role="complementary" aria-label={t('signals.record.title')}>
             <SignalRecordHost signalId={recordId} onClose={closeRecord} />

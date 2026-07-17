@@ -27,7 +27,7 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
   }
 
   return (
-    <>
+    <span className="signal-category-picker-anchor">
       <Button variant="ghost" onClick={() => setOpen((v) => !v)}>
         {t('signals.record.addCategory')}
       </Button>
@@ -47,6 +47,6 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
           ))}
         </div>
       )}
-    </>
+    </span>
   )
 }

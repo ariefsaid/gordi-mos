@@ -115,12 +115,29 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toHaveValue('espresso')
   })
 
-  it('dims retracted rows as a tombstone', async () => {
+  it('hides retracted rows by default, and reveals them as tombstones via "Show retracted" (IMPORTANT-6)', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
     ])
     renderPage()
-    await waitFor(() => expect(screen.getByText(/retracted/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument())
+    expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
+    await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
+    expect(screen.getByText('Duplicate')).toBeInTheDocument()
+  })
+
+  it('restores "Show retracted" from the URL (?retracted=1) on load — round-trips through Back/refresh/new-tab', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
+    ])
+    renderPage('/work/signals?retracted=1')
+    await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
+    expect(screen.getByRole('switch', { name: /show retracted/i })).toHaveAttribute('aria-checked', 'true')
+
+    await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
+    await waitFor(() => expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument())
   })
 })
 

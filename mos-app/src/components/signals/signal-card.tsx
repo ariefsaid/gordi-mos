@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
+import './signal-card.css'
 
 // Posted Signal card (PORT convergence `sigCard` — Rule 11). FB grammar: avatar+name+occurred-at+
 // attention pill; body; Site/time meta; the visibility/shield line; "Add category" (until set); and

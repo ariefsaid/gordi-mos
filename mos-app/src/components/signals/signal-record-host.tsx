@@ -16,6 +16,7 @@ import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { SignalRecord, type SignalMentionView } from './signal-record'
+import './signal-record-host.css'
 
 // C3 (KNOWN GAP 2): signal-record.tsx (B15) is a fully presentational renderer — this host is
 // the fetch+mutate layer the archive page's ?record=<id> drawer mounts. Reuses the record-panel

@@ -1,0 +1,19 @@
+/* SignalComposerHost — the Share-Signal drawer chrome around <SignalComposer>. The
+   surrounding .drawer/.drawer-modal/.drawer-sheet shell comes from styles/drawer.css
+   (global); this file owns only the host-local head bar (title + Close). */
+.signal-composer-host-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 12px 0 16px; flex: none;
+}
+.signal-composer-host-title {
+  flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--foreground);
+  margin: 0;
+}
+.signal-composer-host-head button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex: none;
+  border: none; border-radius: var(--radius-sm); background: none;
+  font-size: 18px; line-height: 1; color: var(--muted-foreground); cursor: pointer;
+}
+.signal-composer-host-head button:hover { background: var(--secondary); color: var(--foreground); }
+.signal-composer-host-head button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
