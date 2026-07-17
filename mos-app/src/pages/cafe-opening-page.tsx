@@ -15,6 +15,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib/db/cafe-opening'
 import { listAuthorTeams } from '@/lib/db/signals'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
+import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'error' | 'no-process' | 'no-team'
 
@@ -81,9 +82,11 @@ export function CafeOpeningPage() {
       {state === 'ready' && processId && team && (
         <>
           <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.name} />
-          <nav aria-label={t('nav.cafe')} style={{ display: 'flex', gap: 16, marginTop: 24, flexWrap: 'wrap' }}>
+          {/* Step 7 minor (item 7b): real button-styled links (btn-outline), full-width tap
+              targets at ≤390px (cafe-opening-page.css). */}
+          <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
             {CAPTURE_LINKS.map((link) => (
-              <Link key={link.to} to={link.to} className="btn btn-ghost">
+              <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">
                 {t(link.key)}
               </Link>
             ))}

@@ -109,7 +109,10 @@ export function CafeOpeningPanel({ processId, teamId }: CafeOpeningPanelProps) {
             </Button>
           </EmptyState>
         ) : (
-          <EmptyState variant="quiet" title={t('cafe.opening.notStartedMember')} />
+          // Step 7 minor (item 7a): "awaiting" — never "quiet"'s ✓ glyph, which misreads as
+          // "already done" for a state that's actually waiting on the shift lead's action
+          // (mirrors kitchen-review-page.tsx's "nothing yet, pull again" usage).
+          <EmptyState variant="awaiting" title={t('cafe.opening.notStartedMember')} />
         )}
       </div>
     )

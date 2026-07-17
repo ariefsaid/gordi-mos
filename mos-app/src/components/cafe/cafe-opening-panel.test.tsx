@@ -107,6 +107,21 @@ describe('AC-713 — non-capable viewer (member), opening not started', () => {
     // Never a disabled/dead Start button either (Rule 12).
     expect(document.querySelector('button:disabled')).toBeNull()
   })
+
+  // Step 7 minors (item 7a) — the ✓ (quiet/"done") glyph misread as "already handled" for a
+  // state that's actually waiting on someone else's action. "awaiting" is the existing state-kit
+  // variant built for exactly this ("nothing yet, pull again" — kitchen-review-page.tsx) —
+  // smallest change: swap the variant, no new state-kit option needed.
+  it('item 7a: uses the "awaiting" EmptyState variant (never the ✓ "done"-reading glyph) for the not-started member state', async () => {
+    setAuthAs(['member'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
+
+    renderPanel()
+
+    await waitFor(() => screen.getByTestId('empty-state'))
+    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
+  })
 })
 
 // ── AC-714: started → caption + roll-up + link into /work/tasks ─────────────

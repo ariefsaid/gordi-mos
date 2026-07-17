@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -87,6 +89,21 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
     expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
     expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
+
+    // Step 7 minor (item 7b) — real button-styled links (btn-outline: visible border/background),
+    // never plain unstyled text.
+    const logLink = screen.getByRole('link', { name: /log/i })
+    expect(logLink).toHaveClass('btn', 'btn-outline')
+  })
+
+  // Step 7 minor (item 7b) — full-width tap targets at ≤390px (CSS lock, mirrors task-row.test.tsx's
+  // pattern of asserting the rule exists in the owning stylesheet).
+  it('item 7b: the capture links stack full-width at ≤390px (CSS lock)', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-opening-page.css'), 'utf8')
+    expect(css).toMatch(/@media\s*\(max-width:\s*390px\)/)
+    const mediaBlock = css.slice(css.indexOf('@media (max-width: 390px)'))
+    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*width:\s*100%/)
+    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*min-height:\s*44px/)
   })
 
   it("falls back to the viewer's own Team when today's opening is already started (not in the due list)", async () => {

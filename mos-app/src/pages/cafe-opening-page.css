@@ -1,0 +1,20 @@
+/* CafeOpeningPage — the capture-links row (Log/Plan/Stock/Review, FR-708). Step 7 minor (item
+   7b): real button-styled links (btn-outline — visible border/background, never plain unstyled
+   text) that stack to full-width ≥44px tap targets at ≤390px. Token-only (DESIGN.md); mirrors the
+   .btn hierarchy (Button.css) — this file only owns the layout wrapper. */
+.cafe-capture-links {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px;
+}
+.cafe-capture-link {
+  flex: 1 1 140px; justify-content: center;
+}
+
+@media (max-width: 390px) {
+  .cafe-capture-links {
+    flex-direction: column;
+  }
+  .cafe-capture-link {
+    width: 100%;
+    min-height: 44px;
+  }
+}
