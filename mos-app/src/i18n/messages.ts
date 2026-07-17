@@ -508,6 +508,9 @@ export const messages = {
     'processes.pending.choose': 'Choose PIC',
     'processes.rollup.summary': '${done}/${total} done · ${overdue} overdue · ${pending} to assign',
     'processes.due.empty': 'No recurring work due to start.',
+    // Design fix wave item 1b — the collapsed-by-default due-runs summary affordance (never a
+    // full-width flood of Start-run rows burying the Tasks table, design-review step-6 CRITICAL).
+    'processes.due.summary': '${count} due to start',
     // Track C wiring (C1/C2): the Occurrence group-by option + its ad-hoc-tasks catch-all label,
     // and the "N to assign" affordance + its host dialog copy.
     'tasks.filter.occurrence': 'Occurrence',
@@ -1015,6 +1018,7 @@ export const messages = {
     'processes.pending.choose': 'Pilih PIC',
     'processes.rollup.summary': '${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan',
     'processes.due.empty': 'Tidak ada pekerjaan rutin yang perlu dimulai.',
+    'processes.due.summary': '${count} perlu dimulai',
     'tasks.filter.occurrence': 'Kejadian',
     'tasks.group.noOccurrence': 'Bukan bagian dari kejadian berulang',
     'processes.pending.assignCount': '${count} perlu ditetapkan',

@@ -40,7 +40,12 @@ import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 // Step 6 (ADR-0051, Track C wiring — C1/C2): the occurrence group-by + its Start-run control +
 // its pending-PIC-resolution host. Reuses the shipped Tasks DB-view (Rule 11) — no parallel UI.
-import { StartRunControl } from '@/components/processes/start-run-control'
+// Design fix wave item 1: the due-runs surface is split into a compact trigger (near the toolbar,
+// before the table) and its row list (mounted AFTER the table) sharing one useDueRuns() hook — the
+// table stays the first substantive content regardless of collapse state (step-6 CRITICAL).
+import { useDueRuns } from '@/components/processes/use-due-runs'
+import { DueRunsTrigger } from '@/components/processes/due-runs-trigger'
+import { DueRunsList } from '@/components/processes/due-runs-list'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
 import { useOccurrenceGroups } from './use-occurrence-groups'
@@ -230,6 +235,11 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     runRollups, assignRunId, pendingForAssign, pendingLoading, pendingError,
     openAssignPending, handlePendingResolved, closeAssign,
   } = useOccurrenceGroups(allTasks, groupBy, load)
+
+  // Design fix wave item 1: ONE due-runs hook instance shared by the compact trigger (rendered
+  // near the toolbar) and its row list (rendered after the table) — see the import comment above.
+  // onStarted refreshes THIS page's own task list (a newly-spawned run's Tasks must appear here).
+  const dueRuns = useDueRuns(() => load())
 
   // ── Apply optimistic status overrides from the open drawer ────────────────
   const tasksWithOverrides = useMemo(() => {
@@ -734,9 +744,10 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             </div>
           ) : tasksToolbar}
 
-          {/* Step 6 (ADR-0051, C1): the Start-run control over due occurrences — self-contained,
-              renders nothing for a viewer without process.start (RLS remains the real gate). */}
-          <StartRunControl onStarted={() => load()} />
+          {/* Design fix wave item 1b: the compact due-runs summary — collapsed by default, near
+              the toolbar, renders nothing for a viewer without process.start OR with no due work
+              (RLS remains the real gate on the underlying spawn RPC). */}
+          <DueRunsTrigger due={dueRuns.due} expanded={dueRuns.expanded} onToggle={dueRuns.toggleExpanded} />
 
           {savedView?.reserved === 'followups' ? (
             SHOW_FOLLOWUPS ? (
@@ -791,6 +802,17 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             workloadSummary={workloadSummary}
             createHref={{ pathname: '/work/tasks/new', search: currentSearch }}
           />)}
+
+          {/* Design fix wave item 1b: the due-runs row list — mounted AFTER the Tasks table (never
+              between the toolbar and the table) so the table is always the first substantive
+              content, collapsed or expanded (design-review step-6 CRITICAL). */}
+          <DueRunsList
+            due={dueRuns.due}
+            expanded={dueRuns.expanded}
+            startingKey={dueRuns.startingKey}
+            startError={dueRuns.startError}
+            onStart={dueRuns.handleStart}
+          />
         </section>
         {drawerOpen && drawerSlot}
       </div>

@@ -82,7 +82,12 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
 
-  const dueRow = page.locator('li.start-run-row')
+  // Design fix wave item 1b: the due-runs list is collapsed by default behind a compact "N due to
+  // start" trigger (near the toolbar) — the flood of full-width Start-run rows that used to bury
+  // the Tasks table (design-review step-6 CRITICAL) no longer renders until expanded on demand.
+  await page.getByRole('button', { name: /due to start/i }).click()
+
+  const dueRow = page.locator('li.due-runs-row')
     .filter({ hasText: 'Café HQ daily opening' })
     .filter({ hasText: teamName ?? 'HQ Operations' })
   await expect(dueRow).toBeVisible({ timeout: 15_000 })

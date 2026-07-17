@@ -17,6 +17,10 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+// Design fix wave item 1a: the due-runs membership-scoping loader (reused from signals.ts).
+vi.mock('../lib/db/signals', () => ({
+  listAuthorTeams: vi.fn(),
+}))
 // Step 6 (Track C wiring, C1/C2): mocked at the DAL boundary, never a live DB.
 vi.mock('../lib/db/processes', () => ({
   listDueRuns: vi.fn(),
@@ -28,6 +32,7 @@ vi.mock('../lib/db/processes', () => ({
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listAuthorTeams } from '@/lib/db/signals'
 import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
@@ -37,6 +42,7 @@ import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 const mockListTasks = vi.mocked(listTasks)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListDueRuns = vi.mocked(listDueRuns)
 const mockStartRun = vi.mocked(startRun)
 const mockListRunRollups = vi.mocked(listRunRollups)
@@ -188,6 +194,10 @@ beforeEach(() => {
   mockListDueRuns.mockResolvedValue([])
   mockListRunRollups.mockResolvedValue([])
   mockListPendingTasks.mockResolvedValue([])
+  // Design fix wave item 1a: zero memberships (the default fixture has none seeded) keeps every
+  // due row — the "pure admin/capability grant" branch of the scoping rule. Tests that need
+  // membership SCOPING set this explicitly.
+  mockListAuthorTeams.mockResolvedValue([])
 })
 
 // ── T-030: AC-067 — loading / error / empty states ─────────────────────────
@@ -838,9 +848,12 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
   })
 })
 
-// ── Step 6 (Track C, C1) — StartRunControl mounted in the toolbar; occurrence group-by ─────────
-// (docs/plans/2026-07-16-occurrence-as-tasks.md C1; docs/specs/occurrence-as-tasks.spec.md §5).
-// "Process Run" must NEVER appear as UI vocabulary anywhere in this page (FR-611).
+// ── Step 6 (Track C, C1) — the due-runs disclosure (trigger + list) mounted near the toolbar / after
+// the table; occurrence group-by (docs/plans/2026-07-16-occurrence-as-tasks.md C1;
+// docs/specs/occurrence-as-tasks.spec.md §5). "Process Run" must NEVER appear as UI vocabulary
+// anywhere in this page (FR-611). Design fix wave item 1: the row list is COLLAPSED BY DEFAULT
+// (design-review step-6 CRITICAL — a full-width due-row flood buried the Tasks table) — every test
+// below expands it via the "N due to start" trigger before interacting with a row.
 describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   const CAPABLE_AUTH: AuthState = {
     ...authedState,
@@ -852,21 +865,44 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     period_key: '2026-07-17', scheduled_date: '2026-07-17',
   }
 
-  it('renders the Start-run control in the toolbar for a process.start-capable viewer', async () => {
+  async function expandDueRuns() {
+    const trigger = await screen.findByRole('button', { name: /due to start/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(trigger)
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
+  }
+
+  it('renders the due-runs trigger collapsed by default, and expanding reveals the Start-run row for a process.start-capable viewer', async () => {
     mockListTasks.mockResolvedValue([])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
+    const trigger = await screen.findByRole('button', { name: '1 due to start' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
+
+    await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
     expect(screen.getByRole('button', { name: 'Start run' })).toBeInTheDocument()
   })
 
-  it('the Start-run control is absent for a viewer without process.start', async () => {
+  it('the due-runs trigger is absent for a viewer without process.start', async () => {
     mockListTasks.mockResolvedValue([])
     renderPage() // default authedState: accessRoles: []
     await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument()
     expect(mockListDueRuns).not.toHaveBeenCalled()
+  })
+
+  it('1a: a due row for a Team the viewer is NOT an active member of is scoped out', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    mockListAuthorTeams.mockResolvedValue([{ id: 'some-other-team', name: 'Not Mine', business_unit_id: 'bu-1', site_id: null, is_primary: true }])
+    renderPage(CAPABLE_AUTH)
+
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })
 
   it('clicking Start run calls startRun and refreshes the task list', async () => {
@@ -876,6 +912,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     mockStartRun.mockResolvedValue(spawnResult)
     renderPage(CAPABLE_AUTH)
 
+    await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
     const before = mockListTasks.mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: 'Start run' }))
