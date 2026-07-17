@@ -217,6 +217,21 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
   })
 })
 
+// AC-1004 (events-stub, Step 10): Rule 5 still holds for /events now that it renders EventsPage,
+// not the generic SliceStubPage — the rail's aria-current resolution never depended on which
+// component the route mounts.
+describe('AC-1004: aria-current — at /events, the Events link is the sole "page"', () => {
+  it('AC-1004: at /events, Events link has aria-current=page and is the only one', () => {
+    renderRailNav('/events')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav)
+      .getAllByRole('link')
+      .filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(within(nav).getByRole('link', { name: 'Events' })).toHaveAttribute('aria-current', 'page')
+  })
+})
+
 // AC-015: every nav SVG is aria-hidden
 describe('AC-015: Nav icon semantics', () => {
   it('all SVGs inside the nav have aria-hidden=true', () => {
