@@ -496,6 +496,14 @@ export const messages = {
     // RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px compact disclosure that folds the
     // order radiogroup so it's never the lead, full-width element on a phone.
     'home.order.viewOptions': 'View options',
+    // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9). "Process Run"
+    // never appears (FR-611) — these strings speak in "run"/"assign" verbs+objects (Rule 7), never
+    // a bare "Create".
+    'processes.action.startRun': 'Start run',
+    'processes.pending.title': 'Assign — two people could own this',
+    'processes.pending.choose': 'Choose PIC',
+    'processes.rollup.summary': '${done}/${total} done · ${overdue} overdue · ${pending} to assign',
+    'processes.due.empty': 'No recurring work due to start.',
   },
   id: {
     'dest.home': 'Beranda',
@@ -974,6 +982,12 @@ export const messages = {
     'home.order.attentionFirst': 'Perhatian dulu',
     'home.order.personalFirst': 'Item saya dulu',
     'home.order.viewOptions': 'Opsi tampilan',
+    // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9).
+    'processes.action.startRun': 'Mulai proses',
+    'processes.pending.title': 'Tetapkan — dua orang bisa memegang ini',
+    'processes.pending.choose': 'Pilih PIC',
+    'processes.rollup.summary': '${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan',
+    'processes.due.empty': 'Tidak ada pekerjaan rutin yang perlu dimulai.',
   },
 } as const
 

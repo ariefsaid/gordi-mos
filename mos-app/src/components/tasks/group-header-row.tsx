@@ -37,6 +37,14 @@ type GroupHeaderRowProps = {
    * screen readers). Pass nothing or omit.
    */
   controlsId?: string
+  /**
+   * Step 6 (B8, AC-622 render / OD-P3-6): when this group is an occurrence group, its derived
+   * `mos.process_run_rollup` counts. Presence supersedes the generic plain `count`/overdue-subtotal
+   * display with the occurrence summary grammar ("${done}/${total} done · N overdue · N to
+   * assign") — reuses this SAME header row, never a second/divergent header component. `label`
+   * carries the run's caption (never the internal-only string "Process Run", FR-611).
+   */
+  occurrenceRollup?: { total: number; done: number; overdue: number; pendingUnresolved: number }
 }
 
 /**
@@ -75,7 +83,7 @@ function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
  */
 export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
-  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly,
+  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly, occurrenceRollup,
 }: GroupHeaderRowProps) {
   const t = useT()
   return (
@@ -97,8 +105,17 @@ export function GroupHeaderRow({
           {workLineType != null && (
             <WorkLineTypeTag type={workLineType} />
           )}
-          <span className="gcount tabular-nums">{count}</span>
-          {overdue > 0 && (
+          {occurrenceRollup ? (
+            <span className="gcount tabular-nums">
+              {t('processes.rollup.summary', {
+                done: occurrenceRollup.done, total: occurrenceRollup.total,
+                overdue: occurrenceRollup.overdue, pending: occurrenceRollup.pendingUnresolved,
+              })}
+            </span>
+          ) : (
+            <span className="gcount tabular-nums">{count}</span>
+          )}
+          {!occurrenceRollup && overdue > 0 && (
             readOnly
               ? <span>· {t('tasks.filter.overdueCount', { count: overdue })}</span>
               : (

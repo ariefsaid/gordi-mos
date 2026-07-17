@@ -61,4 +61,35 @@ describe('GroupHeaderRow', () => {
     expect(screen.queryByRole('button', { name: /filter to 2 overdue tasks/i })).toBeNull()
     expect(screen.getByText(/2 overdue/i).tagName).toBe('SPAN')
   })
+
+  // Step 6 (B8, AC-622 render / FR-611): when grouped by occurrence, the run's CAPTION is the
+  // label (never the internal-only string "Process Run") and the roll-up summary (done/total ·
+  // overdue · N to assign) reuses this SAME header grammar — no new/divergent header component.
+  describe('occurrence group rendering (B8)', () => {
+    it('renders the run caption as the label plus the process_run_rollup summary', () => {
+      renderRow({
+        label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
+        occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
+      })
+      expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+      expect(screen.getByText('1/1 done · 0 overdue · 2 to assign')).toBeInTheDocument()
+      expect(screen.queryByText('Process Run')).not.toBeInTheDocument()
+    })
+
+    it('does not render the generic plain count when an occurrence roll-up is present', () => {
+      renderRow({
+        label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
+        occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
+      })
+      // the bare count ("1") is superseded by the rollup summary — asserts no divergent/duplicate
+      // count display was introduced alongside it.
+      expect(screen.queryByText('1', { selector: '.gcount' })).not.toBeInTheDocument()
+    })
+
+    it('without occurrenceRollup, the plain count/overdue grammar is unchanged (no regression)', () => {
+      renderRow({ label: 'Blocked', count: 3, overdue: 2 })
+      expect(screen.getByText('3')).toBeInTheDocument()
+      expect(screen.getByText(/2 overdue/i)).toBeInTheDocument()
+    })
+  })
 })

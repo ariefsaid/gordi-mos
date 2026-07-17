@@ -54,3 +54,14 @@ describe('can — Signal capabilities (Step 4)', () => {
     expect(can(['member'], 'signal.retract')).toBe(false)
   })
 })
+
+// Step 6 (ADR-0051 §3 / spec §6): process.start is default-deny beyond ops_lead + admin — no
+// member grant in v1 (RATIFY-5).
+describe('can — process.start (Step 6)', () => {
+  it('grants ops_lead and admin process.start; denies finance and member', () => {
+    expect(can(['ops_lead'], 'process.start')).toBe(true)
+    expect(can(['admin'], 'process.start')).toBe(true)
+    expect(can(['finance'], 'process.start')).toBe(false)
+    expect(can(['member'], 'process.start')).toBe(false)
+  })
+})
