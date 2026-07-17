@@ -7,6 +7,7 @@ import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
 import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import { SignalComposer } from '@/components/signals/signal-composer'
+import './signal-composer-host.css'
 
 // C1 (AC-428 backing / FR-417): "one command, many entry points." Every Share-Signal entry point
 // (⌘K, the mobile Action Launcher, the Home feed's "Share a Signal" row) dispatches the SAME
@@ -73,7 +74,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
     <SignalComposerContext.Provider value={{ open, postCount }}>
       {children}
       {isOpen && viewer && (
-        <div className="signal-composer-host-root">
+        <div className="drawer-modal-root signal-composer-host-root">
           <div className="drawer-scrim" aria-hidden="true" onClick={close} />
           <aside
             ref={panelRef}
@@ -83,6 +84,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
             aria-label={t('signals.action.share')}
           >
             <div className="signal-composer-host-head">
+              <h2 className="signal-composer-host-title">{t('signals.action.share')}</h2>
               <button type="button" aria-label={t('signals.composer.close')} onClick={close}>×</button>
             </div>
             <SignalComposer

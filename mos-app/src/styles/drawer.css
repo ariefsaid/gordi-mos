@@ -1,0 +1,59 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Shared drawer/overlay chrome — the modal-regime primitives every overlay
+   panel host (Task drawer, Signal composer, Signal record) shares: a
+   fixed-position root, a scrim, and the right-side sheet / full-screen
+   surface variants. Extracted from TasksWorkspace.css (PR-B) and loaded
+   globally (main.tsx) — TasksWorkspace.css only loads on /work/tasks routes,
+   so the Signal composer/record hosts (mounted at the shell root) never had
+   this CSS available at all (design-review step-4 CRITICAL-1: markup without
+   skin). Task-only extensions (.dw-*) stay in TasksWorkspace.css.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Drawer surface (the card-styled pane — split-view pane OR modal sheet) ── */
+.drawer {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+  box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+  overflow: hidden; min-width: 0;
+}
+.drawer.expanded { border: 0; background: transparent; }
+
+/* ── Modal regime (overlay 920–1100 + mobile <768, AC-110, design-plan §4/§5) ──
+   Below the split threshold the squashed table is too cramped to keep live, so
+   the drawer floats over it with a scrim (focus-trap + Esc handled by the host).
+   Scrim matches the existing .confirm-overlay elevation (consistent overlay token). */
+.drawer-modal-root { position: fixed; inset: 0; z-index: 90; }
+.drawer-scrim {
+  position: absolute; inset: 0; background: var(--scrim);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-scrim { animation: scrim-in 150ms ease; }
+  @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+}
+/* Right-side sheet (desktop / narrow-laptop band). */
+.drawer-modal.drawer-sheet {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: clamp(360px, 50vw, 520px); border-radius: 0;
+  border: 0; border-left: 1px solid var(--border);
+  box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+  display: flex; flex-direction: column;
+}
+/* Full-screen surface (<768px mobile). */
+.drawer-modal.drawer-fullscreen {
+  position: absolute; inset: 0; width: auto; border-radius: 0; border: 0;
+  display: flex; flex-direction: column;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-modal.drawer-sheet { animation: sheet-in 180ms ease; }
+  @keyframes sheet-in { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+}
+/* Phone (<768px): the sheet variant collapses to a full-height opaque sheet too —
+   hosts that never toggle a dedicated fullscreen class (the Signal composer/record
+   drawers) still render as a full-height page-covering sheet instead of a half-width
+   column with the page bleeding through beside it (design-review step-4 IMPORTANT-4).
+   `.drawer`'s own solid --card background already makes the sheet opaque. */
+@media (max-width: 767px) {
+  .drawer-modal.drawer-sheet {
+    top: 0; right: 0; bottom: 0; left: 0; width: auto; border-left: 0;
+  }
+}

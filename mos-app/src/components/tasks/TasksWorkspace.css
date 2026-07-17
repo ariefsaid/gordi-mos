@@ -63,44 +63,12 @@
   overflow: hidden; min-width: 0;
 }
 
-/* ── Drawer pane (the aside hosting TaskSurface, OD-P3-10/11) ── */
-.drawer {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
-  box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
-  overflow: hidden; min-width: 0;
-}
-.drawer.expanded { border: 0; background: transparent; }
-
-/* ── Modal regime (overlay 920–1100 + mobile <768, AC-110, design-plan §4/§5) ──
-   Below the split threshold the squashed table is too cramped to keep live, so
-   the drawer floats over it with a scrim (focus-trap + Esc handled in TaskDrawer).
-   Scrim matches the existing .confirm-overlay elevation (consistent overlay token). */
-.drawer-modal-root { position: fixed; inset: 0; z-index: 90; }
-.drawer-scrim {
-  position: absolute; inset: 0; background: var(--scrim);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .drawer-scrim { animation: scrim-in 150ms ease; }
-  @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
-}
-/* Right-side sheet (920–1100 narrow-laptop band). */
-.drawer-modal.drawer-sheet {
-  position: absolute; top: 0; right: 0; bottom: 0;
-  width: clamp(360px, 50vw, 520px); border-radius: 0;
-  border: 0; border-left: 1px solid var(--border);
-  box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
-  display: flex; flex-direction: column;
-}
-/* Full-screen surface (<768px mobile). */
-.drawer-modal.drawer-fullscreen {
-  position: absolute; inset: 0; width: auto; border-radius: 0; border: 0;
-  display: flex; flex-direction: column;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .drawer-modal.drawer-sheet { animation: sheet-in 180ms ease; }
-  @keyframes sheet-in { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
-}
+/* ── Drawer pane (the aside hosting TaskSurface, OD-P3-10/11) ──
+   The generic .drawer / .drawer-modal-root / .drawer-scrim / .drawer-modal.drawer-sheet /
+   .drawer-modal.drawer-fullscreen chrome now lives in styles/drawer.css (loaded globally
+   in main.tsx) — the Signal composer/record hosts are mounted at the shell root, outside
+   this route-scoped stylesheet, and need the same chrome. Only Task-specific extensions
+   (the .dw-* selectors below) stay here. */
 /* The modal drawer fills its sheet/fullscreen container (pinned head + scroll body + foot). */
 .drawer-modal .dw-surface { flex: 1; min-height: 0; border: 0; border-radius: 0; }
 /* Mobile (<768px): ≥44px touch targets + a horizontally-scrollable tab strip. */

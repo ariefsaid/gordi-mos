@@ -138,7 +138,7 @@ export function SignalsArchivePage() {
       {/* ?record=<id> opens the record drawer beside the list (Rule 4/6) — the SAME URL for an
           in-list click, a direct load, a refresh, or a new tab (C3). */}
       {recordId && (
-        <div className="signal-record-drawer-root">
+        <div className="drawer-modal-root signal-record-drawer-root">
           <div className="drawer-scrim" aria-hidden="true" onClick={closeRecord} />
           <aside className="drawer drawer-modal drawer-sheet" role="complementary" aria-label={t('signals.record.title')}>
             <SignalRecordHost signalId={recordId} onClose={closeRecord} />

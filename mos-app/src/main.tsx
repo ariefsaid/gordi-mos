@@ -14,6 +14,10 @@ import './index.css'
 // <Link>/<a> resolve (not just the <Button>/<Pill> component imports). Vite dedupes.
 import './components/ui/Button.css'
 import './components/ui/Pill.css'
+// Shared overlay/drawer chrome — every modal-regime overlay host (Task drawer,
+// Signal composer/record) shares this, and several are mounted at the shell
+// root outside any route-scoped stylesheet (see styles/drawer.css banner).
+import './styles/drawer.css'
 import { App } from './app.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { registerServiceWorker } from './sw-register'
