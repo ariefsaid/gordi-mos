@@ -4,6 +4,8 @@
 // already uses (Rule 11/NFR-504).
 
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { NotificationRow } from '@/lib/db/notifications'
+import { notificationRoute } from '@/lib/db/notifications'
 import { raciOwner } from '@/lib/raci-member'
 
 export type AttentionLaneKind = 'overdue' | 'due-today' | 'mentions' | 'failed-checks'
@@ -32,4 +34,11 @@ export function dueTodayTasks(tasks: TaskListRow[], viewerId: string, today: str
   return tasks
     .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date === today)
     .map(toTaskItem)
+}
+
+/** Unread notifications routed via the safe notificationRoute allow-list, else /inbox — FR-504. */
+export function unreadMentions(notifications: NotificationRow[]): AttentionItem[] {
+  return notifications
+    .filter(n => n.read_at == null)
+    .map(n => ({ id: n.id, title: n.title, meta: n.body ?? undefined, route: notificationRoute(n) ?? '/inbox' }))
 }
