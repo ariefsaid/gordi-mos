@@ -115,6 +115,31 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
   })
 })
 
+describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', () => {
+  it('keeps the typed body and re-enables Share Signal when the post fails, then a retry succeeds', async () => {
+    // The post is now one atomic RPC: a failure commits nothing, so retrying cannot double-post.
+    mockCreateSignal.mockRejectedValueOnce(new Error('fan-out exceeds cap of 50 recipients'))
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    const shareButton = screen.getByRole('button', { name: /share signal/i })
+    await userEvent.click(shareButton)
+
+    // The error surfaces, the body is preserved, and Share is enabled again (retry is safe).
+    expect(await screen.findByRole('alert')).toHaveTextContent(/fan-out exceeds cap/i)
+    expect(body).toHaveValue('The freezer alarm went off')
+    expect(shareButton).toBeEnabled()
+
+    // Retry — the second attempt resolves; createSignal is called exactly twice (no duplicate first post).
+    mockCreateSignal.mockResolvedValueOnce('signal-new')
+    await userEvent.click(shareButton)
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(body).toHaveValue(''))
+  })
+})
+
 describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
   it('opens a grouped Person/Team/BU popover on "@" with a type badge per option', async () => {
     renderComposer()

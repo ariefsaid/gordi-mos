@@ -154,14 +154,12 @@ describe('getSignal', () => {
 })
 
 // ── createSignal (B3, AC-430 backing / FR-406) ───────────────────────────────
+// Post is ONE transactional RPC (mos.create_signal_with_mentions) — atomic signal+mentions+fan-out
+// (CQ IMPORTANT-1 / SECURITY LOW-1/LOW-2). No separate insert calls to leave a committed Signal.
 describe('createSignal', () => {
-  it('inserts the signal (no org_id/author_id sent), bulk-inserts staged mentions, fans out, returns the id', async () => {
+  it('posts via the one transactional RPC (no org_id/author_id sent), passing staged mentions, returns the id', async () => {
     const rec = freshRec()
-    mockSupabase({
-      'mos.signals': [{ data: { id: SIGNAL_ID }, error: null }],
-      'mos.signal_mentions': [{ data: null, error: null }],
-      'rpc.fan_out_signal_mention': [{ data: 1, error: null }],
-    }, rec)
+    mockSupabase({ 'rpc.create_signal_with_mentions': [{ data: SIGNAL_ID, error: null }] }, rec)
 
     const id = await createSignal({
       body: 'Freezer alarm went off @Peer',
@@ -171,42 +169,41 @@ describe('createSignal', () => {
     })
 
     expect(id).toBe(SIGNAL_ID)
-    const signalInsert = rec.inserts[0] as Record<string, unknown>
-    expect(signalInsert.body).toBe('Freezer alarm went off @Peer')
-    expect(signalInsert.owning_team_id).toBe(TEAM_ID)
-    expect(signalInsert.occurred_at).toBe('2026-07-16T02:00:00Z')
-    expect(Object.keys(signalInsert)).not.toContain('org_id')
-    expect(Object.keys(signalInsert)).not.toContain('author_id')
-
-    const mentionInsert = rec.inserts[1] as Array<Record<string, unknown>>
-    expect(mentionInsert).toEqual([
-      { signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null },
-    ])
-
-    expect(rec.rpcs).toEqual([['fan_out_signal_mention', { p_signal_id: SIGNAL_ID }]])
+    // Exactly one RPC call — no standalone signal/mention inserts that a retry could double-post.
+    expect(rec.inserts).toEqual([])
+    expect(rec.rpcs).toEqual([[
+      'create_signal_with_mentions',
+      {
+        p_body: 'Freezer alarm went off @Peer',
+        p_owning_team_id: TEAM_ID,
+        p_occurred_at: '2026-07-16T02:00:00Z',
+        p_mentions: [{ kind: 'person', targetId: 'person-peer' }],
+      },
+    ]])
   })
 
-  it('skips the fan-out RPC when no mentions are staged', async () => {
+  it('passes an empty mentions array when none are staged (still one RPC call)', async () => {
     const rec = freshRec()
-    mockSupabase({ 'mos.signals': [{ data: { id: SIGNAL_ID }, error: null }] }, rec)
+    mockSupabase({ 'rpc.create_signal_with_mentions': [{ data: SIGNAL_ID, error: null }] }, rec)
 
     await createSignal({ body: 'No mentions here', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] })
-    expect(rec.rpcs).toEqual([])
+    expect(rec.rpcs).toEqual([[
+      'create_signal_with_mentions',
+      { p_body: 'No mentions here', p_owning_team_id: TEAM_ID, p_occurred_at: '2026-07-16T02:00:00Z', p_mentions: [] },
+    ]])
   })
 
-  it('throws on a signal insert error', async () => {
+  it('throws on an RPC error (nothing committed — the composer may safely retry)', async () => {
     const rec = freshRec()
-    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'insert failed' } }] }, rec)
+    mockSupabase({ 'rpc.create_signal_with_mentions': [{ data: null, error: { message: 'insert failed' } }] }, rec)
     await expect(createSignal({ body: 'X', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] }))
       .rejects.toThrow(/insert failed/)
   })
 
-  it('surfaces a fan-out RPC error (so the composer can show the confirm-above-cap message)', async () => {
+  it('surfaces an above-cap RPC error (the whole post rolled back, no unnotified Signal left)', async () => {
     const rec = freshRec()
     mockSupabase({
-      'mos.signals': [{ data: { id: SIGNAL_ID }, error: null }],
-      'mos.signal_mentions': [{ data: null, error: null }],
-      'rpc.fan_out_signal_mention': [{ data: null, error: { message: 'fan-out exceeds cap of 50 recipients' } }],
+      'rpc.create_signal_with_mentions': [{ data: null, error: { message: 'fan-out exceeds cap of 50 recipients' } }],
     }, rec)
 
     await expect(createSignal({

@@ -76,36 +76,20 @@ export async function getSignal(id: string): Promise<SignalDetail> {
 
 // ── createSignal (B3, AC-430 backing / FR-406) ───────────────────────────────
 
-/** Insert a Signal (org_id/author_id stamped by DB defaults), bulk-insert its staged mentions,
- * then fan out notifications via the SECURITY DEFINER RPC. A fan-out error (e.g. above the
- * recipient cap) is re-thrown — the composer surfaces it as a confirm-above-cap message rather
- * than silently posting an unnotified Signal. Returns the new Signal id. */
+/** Post a Signal + its staged mentions + notification fan-out in ONE transactional RPC
+ * (mos.create_signal_with_mentions). Atomic: a failure anywhere (bad mention target, above the
+ * recipient cap) rolls the whole post back — nothing is committed, so the composer may safely retry
+ * without double-posting. org_id/author_id are stamped by DB defaults (never sent). Returns the new
+ * Signal id. */
 export async function createSignal(input: CreateSignalInput): Promise<string> {
-  const { data, error } = await mos().from('signals').insert({
-    body: input.body,
-    owning_team_id: input.owningTeamId,
-    occurred_at: input.occurredAt,
-  }).select('id').single()
+  const { data, error } = await mos().rpc('create_signal_with_mentions', {
+    p_body: input.body,
+    p_owning_team_id: input.owningTeamId,
+    p_occurred_at: input.occurredAt,
+    p_mentions: input.mentions.map((m) => ({ kind: m.kind, targetId: m.targetId })),
+  })
   if (error) throw new Error(`createSignal failed — ${error.message}`)
-  const id = (data as { id: string }).id
-
-  if (input.mentions.length === 0) return id
-
-  const { error: mErr } = await mos().from('signal_mentions').insert(
-    input.mentions.map((m) => ({
-      signal_id: id,
-      mention_kind: m.kind,
-      target_person_id: m.kind === 'person' ? m.targetId : null,
-      target_team_id: m.kind === 'team' ? m.targetId : null,
-      target_bu_id: m.kind === 'bu' ? m.targetId : null,
-    })),
-  )
-  if (mErr) throw new Error(`createSignal mentions failed — ${mErr.message}`)
-
-  const { error: fanErr } = await mos().rpc('fan_out_signal_mention', { p_signal_id: id })
-  if (fanErr) throw new Error(`createSignal fan-out failed — ${fanErr.message}`)
-
-  return id
+  return data as string
 }
 
 // ── correctSignal / retractSignal (B4, FR-410/411) ───────────────────────────
