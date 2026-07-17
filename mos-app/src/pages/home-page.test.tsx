@@ -75,6 +75,21 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 const mockGetBUs = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 
+// Signal ambient feed (Step 4 C3, AC-426/FR-414) — SignalFeedSection's own DAL fetch, mocked so
+// the Home tests stay isolated (component tests mock the DAL, never a live one).
+vi.mock('../lib/db/signals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/signals')>()
+  return {
+    ...actual,
+    listReadableSignals: vi.fn().mockResolvedValue([]),
+    correctSignal: vi.fn(),
+    listAllTeams: vi.fn().mockResolvedValue([]),
+  }
+})
+vi.mock('../shell/signal-composer-host', () => ({
+  useSignalComposer: () => ({ open: vi.fn() }),
+}))
+
 import { HomePage } from './home-page'
 
 const financeViewer: AuthState = {

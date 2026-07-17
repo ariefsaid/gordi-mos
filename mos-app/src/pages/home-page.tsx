@@ -24,6 +24,7 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { openTaskCount } from '@/lib/home-kpis'
+import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import './home-page.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
@@ -119,6 +120,11 @@ export function HomePage() {
       {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
           successors are real; the direct My Week route remains available. */}
       <MyWeekPanel hideLegacyCadenceCards />
+
+      {/* Signal ambient feed (Step 4, Q1/OD-59 — provisional, RATIFY-7): below the attention
+          region (still today's placeholder — Step 5 wires the real attention brief). Never
+          touches the attention region above; this is purely additive (FR-414). */}
+      <SignalFeedSection />
     </PageFrame>
   )
 }
