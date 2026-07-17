@@ -7,6 +7,8 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { notificationRoute } from '@/lib/db/notifications'
 import { raciOwner } from '@/lib/raci-member'
+import { formatDate } from '@/components/tasks/task-formatters'
+import type { Locale } from '@/i18n/messages'
 
 export type AttentionLaneKind = 'overdue' | 'due-today' | 'mentions' | 'failed-checks'
 export type LaneState = 'loading' | 'ready' | 'error'
@@ -19,21 +21,24 @@ export function wibToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(now)
 }
 
-const toTaskItem = (t: TaskListRow): AttentionItem =>
-  ({ id: t.id, title: t.title, meta: t.due_date ?? undefined, route: `/work/tasks/${t.id}` })
+// RI-3 (design fix wave) — reuses the app's ONE shared humanized date formatter (the My-tasks
+// table's "Thu, 16 Jul" convention, task-formatters' `formatDate`), locale-aware. Never a raw
+// ISO string — that read is fine in a data table but unreadable as bare prose in a brief.
+const toTaskItem = (t: TaskListRow, locale: Locale): AttentionItem =>
+  ({ id: t.id, title: t.title, meta: t.due_date ? formatDate(t.due_date, locale) : undefined, route: `/work/tasks/${t.id}` })
 
 /** Owned (R/A), non-Done tasks due strictly before `today` (YYYY-MM-DD WIB) — FR-502/512. */
-export function overdueTasks(tasks: TaskListRow[], viewerId: string, today: string): AttentionItem[] {
+export function overdueTasks(tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en'): AttentionItem[] {
   return tasks
     .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date != null && t.due_date < today)
-    .map(toTaskItem)
+    .map(t => toTaskItem(t, locale))
 }
 
 /** Owned (R/A), non-Done tasks due exactly `today` (YYYY-MM-DD WIB) — FR-503. */
-export function dueTodayTasks(tasks: TaskListRow[], viewerId: string, today: string): AttentionItem[] {
+export function dueTodayTasks(tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en'): AttentionItem[] {
   return tasks
     .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date === today)
-    .map(toTaskItem)
+    .map(t => toTaskItem(t, locale))
 }
 
 /** Unread notifications routed via the safe notificationRoute allow-list, else /inbox — FR-504. */

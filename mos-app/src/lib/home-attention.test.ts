@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { NotificationRow } from '@/lib/db/notifications'
+import { formatDate } from '@/components/tasks/task-formatters'
 import { overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday } from './home-attention'
 
 const VIEWER = '40000000-0000-0000-0000-000000000001'
@@ -53,8 +54,22 @@ describe('AC-501: overdueTasks — owned, non-Done, strictly-before-today tasks'
     const result = overdueTasks(tasks, VIEWER, TODAY)
 
     expect(result).toEqual([
-      { id: 'overdue-owned', title: 'Task 1', meta: '2026-07-10', route: '/work/tasks/overdue-owned' },
+      { id: 'overdue-owned', title: 'Task 1', meta: formatDate('2026-07-10'), route: '/work/tasks/overdue-owned' },
     ])
+  })
+
+  // RI-3 (design fix wave) — the item meta must use the app's shared humanized date format
+  // (the My-tasks table's "Thu, 16 Jul" convention, `formatDate` in task-formatters), never
+  // a raw ISO string — and it must be locale-aware, exactly like every other formatDate call site.
+  it('RI-3: meta is the shared humanized date, not a raw ISO string, and is locale-aware', () => {
+    const overdueOwned = task({ id: 'overdue-owned', due_date: '2026-07-10', status: 'In Progress' })
+
+    const en = overdueTasks([overdueOwned], VIEWER, TODAY, 'en')
+    const id = overdueTasks([overdueOwned], VIEWER, TODAY, 'id')
+
+    expect(en[0].meta).toBe(formatDate('2026-07-10', 'en'))
+    expect(en[0].meta).not.toBe('2026-07-10')
+    expect(id[0].meta).toBe(formatDate('2026-07-10', 'id'))
   })
 })
 
@@ -68,7 +83,7 @@ describe('AC-502: dueTodayTasks — owned, non-Done tasks due exactly today', ()
     const result = dueTodayTasks(tasks, VIEWER, TODAY)
 
     expect(result).toEqual([
-      { id: 'due-today-owned', title: 'Task 1', meta: TODAY, route: '/work/tasks/due-today-owned' },
+      { id: 'due-today-owned', title: 'Task 1', meta: formatDate(TODAY), route: '/work/tasks/due-today-owned' },
     ])
   })
 })

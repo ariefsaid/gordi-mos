@@ -24,6 +24,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -55,6 +56,7 @@ type FetchState = 'loading' | 'ready' | 'error'
 export function HomePage() {
   useDocumentTitle('Home — Gordi MOS')
   const t = useT()
+  const { locale } = useI18n()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const personId = viewer?.person?.id ?? null
@@ -138,12 +140,12 @@ export function HomePage() {
   const lanes: AttentionLane[] = useMemo(() => {
     if (!personId) return []
     return [
-      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today) : [] },
-      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today) : [] },
+      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today, locale) : [] },
+      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today, locale) : [] },
       { kind: 'failed-checks', state: failedChecksState, items: failedChecksState === 'ready' ? failedChecks : [] },
       { kind: 'mentions', state: notificationsState, items: notificationsState === 'ready' ? unreadMentions(notifications) : [] },
     ]
-  }, [personId, taskState, tasks, today, failedChecksState, failedChecks, notificationsState, notifications])
+  }, [personId, taskState, tasks, today, locale, failedChecksState, failedChecks, notificationsState, notifications])
 
   // ── Region order (OD-REDESIGN-18, Step 5) — per-user, default attention-first ──
   const [order, setOrder] = useState<HomeRegionOrder>('attention-first')
