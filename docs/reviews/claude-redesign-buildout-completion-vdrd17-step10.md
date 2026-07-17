@@ -61,6 +61,11 @@ characterization).
 - design: APPROVE — design-reviewer (opus), 2026-07-17. Job sentence + quiet EmptyState + zero fake CTA + Rule-10 proof all verified live en+id. Minor Rule-12 copy nit: sub-copy's 'collection…connected' jargon — plain-language rewrite routed to the step-11 sweep (owner-ratify copy).
 - security: N/A — no auth/RLS/schema path touched (NFR-1001: no new schema/table/RLS/DAL this step).
 
+**Step-10 design minor fixed in the step-6 design fix wave** (2026-07-17, commit `092e6d3`): the
+"collection…connected" copy jargon flagged above was rewritten in `events.empty.copy` (en/id) — see
+`docs/reviews/claude-redesign-buildout-completion-vdrd17-step6.md`'s "Design fix wave" section
+(item 8). Final wording is still owner-ratify, not a locked string.
+
 ## Gates (fresh, this pass)
 
 | Gate | Status |

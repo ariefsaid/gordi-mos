@@ -99,6 +99,12 @@ This branch carries other concurrent steps (4/5/6/8/9/10 — see other commits i
 - design: APPROVE — design-reviewer (opus), 2026-07-17 rendered 4-lens, both personas × both breakpoints. Rules 1-12 all PASS; Rule-12 cold-start PASS both fronts (manager 8/10, barista 8.5/10); zero mockup regressions on the café surface. Minors routed to the shared fix wave: not-started member state uses a ✓ glyph (contradicts 'not started'), phone capture links weak tap affordance, member sees non-actionable '1 to assign', shared assign-step naming (step-6 item).
 - security: **NOT TRIGGERED BY SCOPE** — no new auth/RLS/schema/RPC path this step (spec §7); the privileged spawn seam is Step 6's, already audited there. Becomes mandatory only if a RATIFY above (7A/7B) is resolved toward a schema/capability/RPC change.
 
+**Step-7 design minors fixed in the step-6 design fix wave** (2026-07-17): the not-started member's
+✓ glyph and the phone capture links' weak tap affordance (commit `55b4da0`), and the member's
+non-actionable "1 to assign" (commit `c9e9435`) — see
+`docs/reviews/claude-redesign-buildout-completion-vdrd17-step6.md`'s "Design fix wave" section for
+full evidence.
+
 ## Gates (Track C pass, this branch/worktree)
 
 | Gate | Status |
