@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import {
   listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
@@ -151,18 +152,15 @@ export function SignalComposer({
       </div>
 
       <div className="signal-composer-row">
-        <label>
-          {t('signals.composer.teamLabel')}
-          <select
-            aria-label={t('signals.composer.teamLabel')}
-            value={teamId}
-            onChange={(e) => setTeamId(e.target.value)}
-          >
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>{team.name}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label={t('signals.composer.teamLabel')}
+          value={teamId}
+          onChange={(e) => setTeamId(e.target.value)}
+        >
+          {teams.map((team) => (
+            <option key={team.id} value={team.id}>{team.name}</option>
+          ))}
+        </Select>
 
         <label>
           {t('signals.composer.occurredLabel')}
