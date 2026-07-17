@@ -2,8 +2,8 @@
 // conversational agent anywhere in the path. Natural journey: an authenticated viewer opens the
 // dev harness, pastes/keeps the seeded sample spec, saves it, reopens it from the saved-views
 // list, and sees the panel render. Author-only per plan Task J3 — the dev harness is DEV +
-// SHOW_USER_VIEWS flag gated (default false); this spec skips while the flag is off, mirroring
-// the ops-log-add.spec.ts / weekly-update-submit.spec.ts convention.
+// SHOW_USER_VIEWS flag gated (default false); this spec skips while the flag is off, the same
+// feature-flag-skip convention used by other flag-gated e2e specs (e.g. AC-PB-012, inbox-replay).
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
