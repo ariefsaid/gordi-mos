@@ -12,7 +12,8 @@
 // Layout: GlobalToolbar (cut + window + freshness) → ViewTabs (Summary/Detail) → pane.
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { SHOW_FOLLOWUPS } from '@/config/features'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -444,6 +445,11 @@ function DashboardChrome(props: DashboardChromeProps) {
         onChange={props.onTab}
         trailing={props.trailing}
       />
+      {SHOW_FOLLOWUPS && (
+        <div className="dash-queue-entry">
+          <Link to="/money/follow-ups" className="btn btn-outline">Follow-up queue</Link>
+        </div>
+      )}
     </>
   )
 }
