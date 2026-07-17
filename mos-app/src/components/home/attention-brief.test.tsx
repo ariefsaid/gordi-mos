@@ -40,3 +40,22 @@ describe('AC-508: lanes with items render as drill-links', () => {
     }
   })
 })
+
+describe('AC-509: all-clear empty state, no misleading zeros', () => {
+  it('shows the all-caught-up state and renders no lane at all when every lane is ready and empty', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'overdue', state: 'ready', items: [] },
+      { kind: 'due-today', state: 'ready', items: [] },
+      { kind: 'mentions', state: 'ready', items: [] },
+      { kind: 'failed-checks', state: 'ready', items: [] },
+    ]
+    renderBrief(lanes)
+
+    expect(screen.getByText("You're all caught up")).toBeInTheDocument()
+    // No lane renders at all (never a misleading "0 overdue" tile).
+    expect(screen.queryByText('Overdue')).toBeNull()
+    expect(screen.queryByText('Due today')).toBeNull()
+    expect(screen.queryByText('Mentions')).toBeNull()
+    expect(screen.queryByText('Failed checks')).toBeNull()
+  })
+})
