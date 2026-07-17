@@ -6,13 +6,16 @@
 // Step 4 (ADR-0050 D7 / A2 seed) adds the Signal capabilities: signal.create_for_team,
 // signal.mention_bu, signal.retract — all default-deny, granted per the A2 migration seed
 // (member/ops_lead/finance/admin get signal.create implicitly — no client gate needed for it).
+// Step 6 (ADR-0051 §3 / spec §6) adds process.start — ops_lead + admin only, no member grant in
+// v1 (RATIFY-5); process.adopt is reserved (admin-only, unwired in v1).
 export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
     'objective.manage', 'workline.manage', 'followup.confirm',
     'signal.create_for_team', 'signal.mention_bu', 'signal.retract',
+    'process.start', 'process.adopt',
   ],
   finance: ['followup.confirm', 'signal.mention_bu', 'signal.retract'],
-  ops_lead: ['workline.manage', 'signal.create_for_team', 'signal.mention_bu', 'signal.retract'],
+  ops_lead: ['workline.manage', 'signal.create_for_team', 'signal.mention_bu', 'signal.retract', 'process.start'],
 }
 
 /** True iff any of the viewer's accessRoles is granted `capability` (v1 seed). */

@@ -1,0 +1,13 @@
+/* StartRunControl (Step 6 / AC-623) — a thin due-occurrence list over the DS tokens (DESIGN.md). */
+.start-run-control-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+}
+.start-run-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.start-run-row:last-child { border-bottom: none; }
+.start-run-row-labels { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.start-run-row-process { font-size: 15px; font-weight: 600; color: var(--foreground); }
+.start-run-row-team { font-size: 13px; color: var(--muted-foreground); }
