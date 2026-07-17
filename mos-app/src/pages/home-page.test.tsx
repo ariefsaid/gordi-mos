@@ -106,6 +106,7 @@ vi.mock('../shell/signal-composer-host', () => ({
 }))
 
 import { HomePage } from './home-page'
+import { setRegionOrder } from '@/lib/home-region-order'
 
 const financeViewer: AuthState = {
   status: 'authenticated',
@@ -359,5 +360,24 @@ describe('AC-512: default order = attention-first (Step 5)', () => {
     // attentionRegion precedes personalCanvas in DOM order
     const position = attentionRegion.compareDocumentPosition(personalCanvas)
     expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+})
+
+describe('AC-513: personal-first reorders + the header summary survives (Step 5)', () => {
+  it('renders personal-canvas before #attention-brief, plus a "Needs attention · N" header summary', async () => {
+    const personId = financeViewer.viewer.person.id
+    setRegionOrder(personId, 'personal-first')
+
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    const attentionRegion = document.getElementById('attention-brief')!
+    const personalCanvas = screen.getByTestId('personal-canvas')
+    // personalCanvas precedes attentionRegion in DOM order
+    const position = personalCanvas.compareDocumentPosition(attentionRegion)
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    const summaryLink = screen.getByRole('link', { name: /needs attention · \d+/i })
+    expect(summaryLink.getAttribute('href')).toBe('#attention-brief')
   })
 })
