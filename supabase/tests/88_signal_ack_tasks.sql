@@ -5,6 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(6);
 
+select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 
 -- Signal owned by OwnTeam (author ...0d1) + a same-org Task to link (both seeded as postgres).

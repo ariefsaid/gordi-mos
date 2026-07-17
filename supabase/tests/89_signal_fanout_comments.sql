@@ -5,6 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(5);
 
+select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 
 -- ── AC-414: dedup fan-out ─────────────────────────────────────────────────────────────────────

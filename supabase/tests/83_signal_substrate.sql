@@ -3,8 +3,14 @@
 -- Fixture tree documented in 20260716000006_mos_signal_test_seed.sql (+ 20260612000003 role tree).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
+-- SECURITY LOW-3: the TEST-ONLY fixture refuses to run unless app.allow_test_seeds='on' (fail-closed
+-- in prod, where the GUC is never set). Prove the guard fires before opting in for the rest of this file.
+select throws_ok($$ select mos._test_seed_signal_tree() $$, '42501', null,
+  'LOW-3: _test_seed_signal_tree refuses to run without app.allow_test_seeds=on (fail-closed in prod)');
+
+select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 
 -- A same-org Signal owned by OwnTeam (seeded as postgres → RLS bypassed) so the mention CHECK below has
