@@ -128,6 +128,7 @@ export const routeConfig: RouteObject[] = [
               { path: 'money/detail', element: <DashboardPage defaultTab="detail" /> },
               { path: 'money/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace /> },
               { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace /> },
+              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
             ],
           },
           { path: 'inbox', element: <InboxPage /> },
