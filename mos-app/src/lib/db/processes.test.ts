@@ -7,9 +7,9 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { startRun, listDueRuns } from './processes'
+import { startRun, listDueRuns, listPendingTasks, resolvePendingTask } from './processes'
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun } from './processes.types'
+import type { DueProcessRun, PendingTaskRow } from './processes.types'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -115,5 +115,57 @@ describe('listDueRuns', () => {
     mockSupabase({ 'rpc.due_process_runs': [{ data: null, error: { message: 'boom' } }] }, rec)
 
     await expect(listDueRuns()).rejects.toThrow(/boom/)
+  })
+})
+
+// ── listPendingTasks / resolvePendingTask (B3, AC-621) ───────────────────────
+const RUN_ID = '00000000-0000-0000-0000-00000000r001'
+const PENDING_ID = '00000000-0000-0000-0000-00000000p001'
+const PIC_ID = '00000000-0000-0000-0000-00000000f002'
+
+describe('listPendingTasks', () => {
+  it('AC-621: selects unresolved process_run_pending_tasks for the run', async () => {
+    const rec = freshRec()
+    const pendingRow: PendingTaskRow = {
+      id: PENDING_ID, process_run_id: RUN_ID, task_def_id: 'def-1',
+      candidate_person_ids: [PIC_ID, 'f003'], reason: 'multiple', resolved_at: null,
+    }
+    mockSupabase({ 'mos.process_run_pending_tasks': [{ data: [pendingRow], error: null }] }, rec)
+
+    const rows = await listPendingTasks(RUN_ID)
+
+    expect(rec.fromTables).toContain('mos.process_run_pending_tasks')
+    expect(rec.eqs).toContainEqual(['resolved_at', null])
+    expect(rec.eqs).toContainEqual(['process_run_id', RUN_ID])
+    expect(rows).toEqual([pendingRow])
+  })
+
+  it('re-throws when the read errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_run_pending_tasks': [{ data: null, error: { message: 'read failed' } }] }, rec)
+
+    await expect(listPendingTasks(RUN_ID)).rejects.toThrow(/read failed/)
+  })
+})
+
+describe('resolvePendingTask', () => {
+  it('AC-621: calls mos.resolve_pending_task with the RPC args and returns the new task id', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.resolve_pending_task': [{ data: 'task-9', error: null }] }, rec)
+
+    const taskId = await resolvePendingTask(PENDING_ID, PIC_ID)
+
+    expect(rec.rpcs).toContainEqual([
+      'resolve_pending_task',
+      { p_pending_id: PENDING_ID, p_pic_person_id: PIC_ID },
+    ])
+    expect(taskId).toBe('task-9')
+  })
+
+  it('re-throws when the RPC returns an error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.resolve_pending_task': [{ data: null, error: { message: 'already resolved' } }] }, rec)
+
+    await expect(resolvePendingTask(PENDING_ID, PIC_ID)).rejects.toThrow(/already resolved/)
   })
 })

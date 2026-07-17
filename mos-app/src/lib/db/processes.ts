@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, SpawnResult } from './processes.types'
+import type { DueProcessRun, PendingTaskRow, SpawnResult } from './processes.types'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
 // supabase.schema('mos') on the existing client — same client, RLS is the authority (mirrors
@@ -29,4 +29,28 @@ export async function listDueRuns(): Promise<DueProcessRun[]> {
   const { data, error } = await mos().rpc('due_process_runs')
   if (error) throw new Error(`listDueRuns failed — ${error.message}`)
   return (data ?? []) as DueProcessRun[]
+}
+
+// ── listPendingTasks / resolvePendingTask (B3, AC-621 backing) ──────────────
+
+/** List a run's unresolved ambiguity human-choice rows (OD-41, FR-605). */
+export async function listPendingTasks(runId: string): Promise<PendingTaskRow[]> {
+  const { data, error } = await mos()
+    .from('process_run_pending_tasks')
+    .select('*')
+    .eq('process_run_id', runId)
+    .is('resolved_at', null)
+  if (error) throw new Error(`listPendingTasks failed — ${error.message}`)
+  return (data ?? []) as unknown as PendingTaskRow[]
+}
+
+/** Resolve a pending item to a chosen PIC via `mos.resolve_pending_task`, which materializes
+ * the Task and marks the item resolved (FR-606/AC-621). Returns the new Task id. */
+export async function resolvePendingTask(pendingId: string, picPersonId: string): Promise<string> {
+  const { data, error } = await mos().rpc('resolve_pending_task', {
+    p_pending_id: pendingId,
+    p_pic_person_id: picPersonId,
+  })
+  if (error) throw new Error(`resolvePendingTask failed — ${error.message}`)
+  return data as string
 }
