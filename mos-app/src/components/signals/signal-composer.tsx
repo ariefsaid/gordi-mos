@@ -12,8 +12,8 @@ import { SignalMentionPicker } from './signal-mention-picker'
 
 // FB-style Signal composer (PORT convergence `sigComposer` — Rule 11). Capture-minimal (Rule 8 /
 // OD-42 / D28): exactly four capture fields at initial paint — content, owning Team, occurrence
-// time, and the implicit read-only author line. Every enrichment (mentions, Site pill, category,
-// attention) is layered on in later tasks (B9–B11) without adding to this required set.
+// time, and the implicit read-only author line. Every enrichment (the `@` mention picker, the
+// visibility/fan-out preview line, and the derived Site pill) never blocks Share Signal.
 
 export interface SignalComposerProps {
   authorId: string
