@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
@@ -122,9 +122,9 @@ describe('AC-006: Work canonical routes + redirects', () => {
     expect(gate.children!.find((r) => r.path === 'work/objectives')!.element).toEqual(<ObjectivesPage />)
   })
 
-  it('AC-006: /work/projects-processes redirects to /work/projects (replace)', () => {
+  it('Step 8/AC-803: /work/projects-processes redirects to /work/projects via SearchRedirect (query preserved)', () => {
     expect(shellChildren().find((r) => r.path === 'work/projects-processes')!.element).toEqual(
-      <Navigate to="/work/projects" replace />,
+      <SearchRedirect to="/work/projects" />,
     )
   })
 
@@ -178,13 +178,48 @@ describe('AC-006: Money canonical routes + redirects', () => {
     expect(shellChildren().find((r) => r.path === 'sales')!.element).toEqual(<SearchRedirect to="/money" />)
   })
 
-  it('AC-006: /objectives + /projects-processes redirect to their Work children', () => {
+  it('Step 8/AC-801/802: /objectives + /projects-processes redirect to their Work children via SearchRedirect (query preserved)', () => {
     expect(shellChildren().find((r) => r.path === 'objectives')!.element).toEqual(
-      <Navigate to="/work/objectives" replace />,
+      <SearchRedirect to="/work/objectives" />,
     )
     expect(shellChildren().find((r) => r.path === 'projects-processes')!.element).toEqual(
-      <Navigate to="/work/projects" replace />,
+      <SearchRedirect to="/work/projects" />,
     )
+  })
+
+  // Step 8 (catalog re-home) — AC-801/802/803: SearchRedirect actually preserves the query
+  // string end-to-end for the 3 legacy catalog routes (not just wired to the helper).
+  describe('Step 8/AC-801/802/803: legacy catalog routes preserve deep-link query strings', () => {
+    function LocationProbe() {
+      const loc = useLocation()
+      return <div data-testid="location">{loc.pathname + loc.search}</div>
+    }
+
+    function renderRedirect(from: string, path: string, to: string) {
+      return render(
+        <MemoryRouter initialEntries={[from]}>
+          <Routes>
+            <Route path={path} element={<SearchRedirect to={to} />} />
+            <Route path={to} element={<LocationProbe />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+    }
+
+    it('AC-801: /objectives?foo=bar redirects to /work/objectives?foo=bar', () => {
+      renderRedirect('/objectives?foo=bar', '/objectives', '/work/objectives')
+      expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives?foo=bar')
+    })
+
+    it('AC-802: /projects-processes?foo=bar redirects to /work/projects?foo=bar', () => {
+      renderRedirect('/projects-processes?foo=bar', '/projects-processes', '/work/projects')
+      expect(screen.getByTestId('location')).toHaveTextContent('/work/projects?foo=bar')
+    })
+
+    it('AC-803: /work/projects-processes?foo=bar redirects to /work/projects?foo=bar', () => {
+      renderRedirect('/work/projects-processes?foo=bar', '/work/projects-processes', '/work/projects')
+      expect(screen.getByTestId('location')).toHaveTextContent('/work/projects?foo=bar')
+    })
   })
 
   it('AC-006: /plan/budget + /plan/pricing redirect to /money/budget + /money/pricing (preserve query)', () => {
