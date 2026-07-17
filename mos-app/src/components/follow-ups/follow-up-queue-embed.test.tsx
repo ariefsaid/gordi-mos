@@ -52,6 +52,23 @@ function renderEmbed() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Force desktop (matches follow-ups-page.test.tsx's applyViewport(true) / T-C3's own
+  // matchMedia stub) so DataTable renders its <table> branch, not the phone-card list —
+  // AC-904 asserts the table renders; jsdom's global default stub is matches:false.
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(min-width: 768px)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
   mockGetBusinessUnits.mockResolvedValue([{ id: 'bu-sales', name: 'B2B Sales', code: 'b2b_sales' }])
   mockListFollowUps.mockResolvedValue([row])
 })
