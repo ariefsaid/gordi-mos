@@ -1,10 +1,20 @@
 // HomePage — the index route (/) replacement for MyWeek (ADR-0019 D2/D3, Task 4.4).
-// Home v1 — the default composition behind SHOW_HOME_STACKED=false. Slot composition: each slot =
-// one read-model/DAL query + one existing kit primitive. Finance KPI row (revenue + margin) is
-// role-guarded — a member never issues the reporting query, so the row is simply absent (RLS-empty
-// handling, never a misleading zero). Tasks row renders for everyone. Legacy cadence cards stay
-// hidden on Home until their successors are real; MyWeekPanel still supplies the personal task card.
-// renders below (demoted from route, ADR-0019 D2 "component survives"). Every tile is a drill-target
+// Home v1 — the default composition behind SHOW_HOME_STACKED=false.
+//
+// Step 5 (docs/specs/home-proper.spec.md, OD-REDESIGN-18/59/64) recomposed Home into TWO top-level
+// regions, rendered in the user's chosen order (default attention-first):
+//   - Attention  — <AttentionBrief lanes={lanes}/>: overdue/due-today/failed-checks/mentions, built
+//     from the pure selectors in lib/home-attention.ts over the existing tasks/notifications reads
+//     + the new loadFailedChecksForViewer adapter. Non-removable (OD-18) — only its position moves.
+//   - Personal canvas — the finance KPI row (role-guarded), the tasks tile, MyWeekPanel, and the
+//     Step-4 SignalFeedSection (all reused, none rebuilt — Rule 11).
+// The order is per-user (resolveRegionOrder/setRegionOrder, v1 localStorage — RATIFY-1) and is
+// ALWAYS emitted via DOM order, never CSS `order` (Rule 9/AC-515). When personal-first, PageHead
+// carries a "Needs attention · N" summary linking to #attention-brief so the brief is never lost.
+//
+// Slot composition below Step 5's regions: each slot = one read-model/DAL query + one existing kit
+// primitive. Finance KPI row is role-guarded — a member never issues the reporting query, so the row
+// is simply absent (RLS-empty handling, never a misleading zero). Every tile is a drill-target
 // <Link> — KPITile itself stays presentation-only (never learns router or "revenue").
 //
 // When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
