@@ -38,6 +38,8 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { ViewTabs } from '@/components/ui/view-tabs'
+import { useIsPhone } from '@/shell/use-is-phone'
+import { Chevron } from '@/shell/icons'
 import { openTaskCount } from '@/lib/home-kpis'
 import {
   overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday,
@@ -58,6 +60,12 @@ export function HomePage() {
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
   const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
+
+  // RI-2 (Q2/Rule 8, ratified Option B) — at ≤390px the order toggle folds behind a single
+  // compact disclosure so it's never the lead, full-width element ahead of the attention
+  // brief; desktop/tablet keep the inline radiogroup unchanged.
+  const isPhone = useIsPhone()
+  const [orderPanelOpen, setOrderPanelOpen] = useState(false)
 
   // ── Finance reporting fetch (role-guarded — a member never issues this query) ──
   const fin = useCompanyFinanceKpis(canSeeFinance)
@@ -214,6 +222,20 @@ export function HomePage() {
 
   const n = attentionCount(lanes)
 
+  const orderLabel = order === 'attention-first' ? t('home.order.attentionFirst') : t('home.order.personalFirst')
+  const orderToggle = (
+    <ViewTabs
+      mode="radiogroup"
+      ariaLabel={t('home.order.toggle')}
+      tabs={[
+        { id: 'attention-first', label: t('home.order.attentionFirst') },
+        { id: 'personal-first', label: t('home.order.personalFirst') },
+      ]}
+      active={order}
+      onChange={id => handleOrderChange(id as HomeRegionOrder)}
+    />
+  )
+
   return (
     <PageFrame surfaceWash>
       <PageHead
@@ -227,18 +249,33 @@ export function HomePage() {
       />
 
       {/* Home order toggle (OD-REDESIGN-18, RATIFY-2) — user-only; not rendered until a viewer
-          is resolved (FR-508). Never removes the attention region, only reorders it. */}
+          is resolved (FR-508). Never removes the attention region, only reorders it. At ≤390px
+          (RI-2, Q2/Rule 8, ratified Option B) it folds behind a single compact "View options"
+          disclosure so it's never the lead, full-width element ahead of the attention brief;
+          desktop/tablet keep the inline radiogroup exactly as before. */}
       {personId && (
-        <ViewTabs
-          mode="radiogroup"
-          ariaLabel={t('home.order.toggle')}
-          tabs={[
-            { id: 'attention-first', label: t('home.order.attentionFirst') },
-            { id: 'personal-first', label: t('home.order.personalFirst') },
-          ]}
-          active={order}
-          onChange={id => handleOrderChange(id as HomeRegionOrder)}
-        />
+        isPhone ? (
+          <div className="home-order-disclosure">
+            <button
+              type="button"
+              className="home-order-trigger"
+              aria-expanded={orderPanelOpen}
+              aria-controls="home-order-panel"
+              onClick={() => setOrderPanelOpen(open => !open)}
+            >
+              <span>{t('home.order.viewOptions')}</span>
+              <span className="home-order-summary" aria-hidden="true">{orderLabel}</span>
+              <Chevron
+                className={`home-order-chevron${orderPanelOpen ? ' home-order-chevron--open' : ''}`}
+              />
+            </button>
+            {orderPanelOpen && (
+              <div id="home-order-panel" className="home-order-panel">
+                {orderToggle}
+              </div>
+            )}
+          </div>
+        ) : orderToggle
       )}
 
       {/* Two top-level regions (Attention · Personal canvas), emitted in DOM in the chosen

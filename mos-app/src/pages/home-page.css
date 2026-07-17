@@ -44,3 +44,64 @@
   display: flex;
   flex-direction: column;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px order-toggle disclosure.
+   Mirrors TasksWorkspace.css's `.mobile-task-options` disclosure grammar (same
+   44px+ trigger, chevron rotation, panel-below layout) but compact + right-
+   aligned (not a full-width toolbar row) — the toggle must never be the lead
+   element ahead of the attention brief on a phone. Token-only (DESIGN.md).
+   ════════════════════════════════════════════════════════════════════════════ */
+.home-order-disclosure {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.home-order-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.home-order-trigger:hover {
+  background: var(--secondary);
+}
+.home-order-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.home-order-summary {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.home-order-chevron {
+  color: var(--muted-foreground);
+  transition: transform 150ms ease;
+}
+.home-order-chevron--open {
+  transform: rotate(180deg);
+}
+.home-order-panel {
+  margin-top: 8px;
+}
+/* The panel hosts the radiogroup inline (not the sticky full-width strip
+   placement) — reset that chrome, mirroring the toolbar's `.view-tabs` reset. */
+.home-order-panel .view-tabs {
+  position: static;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+  justify-content: flex-end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-order-chevron { transition: none; }
+}

@@ -4,7 +4,7 @@
 // zero — RLS-empty handling), an everyone-row (tasks + ops), the MyWeekPanel, and a
 // FreshnessLabel. Every KPI tile is a drill-target <Link>.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -411,6 +411,63 @@ describe('RI-1 (Q1, ratified Option B): the order control is a radiogroup, not a
     expect(screen.getByRole('radio', { name: /attention first/i })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /my canvas first/i })).toBeInTheDocument()
     expect(screen.queryByRole('tab')).toBeNull()
+  })
+})
+
+// RI-2 (Q2/Rule 8, ratified Option B) — mirrors tasks-workspace.test.tsx's stubMatchMedia:
+// a query-aware matchMedia stub so useIsPhone()/useIsDesktop() resolve deterministically.
+function stubMatchMedia(overrides: Record<string, boolean>) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => {
+      let matches = false
+      for (const [needle, value] of Object.entries(overrides)) {
+        if (query.includes(needle)) { matches = value; break }
+      }
+      return {
+        matches, media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }
+    },
+  })
+}
+
+describe('RI-2 (Q2/Rule 8, ratified Option B): the order toggle folds behind a disclosure at ≤390px', () => {
+  // Restore the file's default matchMedia stub (matches: false for every query) so this
+  // block's overrides never leak into later describes (e.g. AC-515).
+  afterEach(() => stubMatchMedia({}))
+
+  it('at ≤390px, the radiogroup is collapsed behind a single compact "View options" trigger — not the lead element', async () => {
+    stubMatchMedia({ '390': true, '768': false })
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    expect(screen.queryByRole('radiogroup')).toBeNull()
+    const trigger = screen.getByRole('button', { name: /view options/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('expanding the trigger reveals the radiogroup order control', async () => {
+    stubMatchMedia({ '390': true, '768': false })
+    const user = userEvent.setup()
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /view options/i }))
+    })
+
+    expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /attention first/i })).toBeInTheDocument()
+  })
+
+  it('above ≤390px, the radiogroup renders inline — no disclosure trigger (desktop unchanged)', async () => {
+    stubMatchMedia({ '390': false, '768': true })
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /view options/i })).toBeNull()
   })
 })
 

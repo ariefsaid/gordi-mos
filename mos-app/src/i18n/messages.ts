@@ -485,6 +485,9 @@ export const messages = {
     'home.order.toggle': 'Home order',
     'home.order.attentionFirst': 'Attention first',
     'home.order.personalFirst': 'My canvas first',
+    // RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px compact disclosure that folds the
+    // order radiogroup so it's never the lead, full-width element on a phone.
+    'home.order.viewOptions': 'View options',
   },
   id: {
     'dest.home': 'Beranda',
@@ -961,6 +964,7 @@ export const messages = {
     'home.order.toggle': 'Urutan Beranda',
     'home.order.attentionFirst': 'Perhatian dulu',
     'home.order.personalFirst': 'Kanvas saya dulu',
+    'home.order.viewOptions': 'Opsi tampilan',
   },
 } as const
 
