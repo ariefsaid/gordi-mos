@@ -55,7 +55,11 @@ test('AC-430: post a Signal, @-mention a teammate, Inbox delivery, Add category 
   await page.goto('inbox')
   await page.waitForURL(/\/inbox$/)
 
-  const notificationRow = page.getByRole('button', { name: /You were mentioned in a Signal \(unread\)/i })
+  // Scoped by THIS run's unique body — repeated suite runs accumulate unread mention
+  // notifications (each run posts a fresh Signal), so the generic aria-label alone is ambiguous.
+  const notificationRow = page
+    .getByRole('button', { name: /You were mentioned in a Signal \(unread\)/i })
+    .filter({ hasText: body })
   await expect(notificationRow).toBeVisible({ timeout: 15_000 })
   await notificationRow.click()
 
