@@ -118,3 +118,12 @@ through `test(signals): C5` on this branch). This branch carries other concurren
        canonical Task composer on the same panel stack" literally. Recommend design-architect/
        eng-planner assess whether the minimal capture is acceptable for v1 or whether a follow-up
        task should embed the full Task composer.
+
+## Deferred / tracked debt
+
+- **CQ IMPORTANT-2 — `listReadableSignals` is unbounded.** `listReadableSignals` (and the Home feed +
+  `/work/signals` archive that consume it) reads every readable Signal row with no pagination and
+  filters client-side. Fine at Gordi's ~15–30-person scale for v1; deliberately NOT built now (YAGNI).
+  Intended fix before Signal volume grows: server-side search (push the `?q=` filter into a PostgREST
+  `.or(...)`/RPC) + range pagination (`.range(from,to)` with an infinite-scroll or pager), so the feed
+  never loads the full table. Track alongside the RATIFY-6 async-fan-out sequel.
