@@ -36,6 +36,8 @@ import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
 import { useT } from '@/i18n/use-t'
+import { SHOW_FOLLOWUPS } from '@/config/features'
+import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Segment = 'mine' | 'all'
@@ -672,14 +674,20 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           ) : tasksToolbar}
 
           {savedView?.reserved === 'followups' ? (
-            <div className="empty-state empty-state--quiet" role="region" aria-label={t('tasks.saved.followups')}>
-              <div className="empty-state-frame">
-                <div className="empty-state-body">
-                  <h3 className="empty-title">{t('tasks.followups.title')}</h3>
-                  <p className="empty-copy">{t('tasks.followups.copy')}</p>
+            SHOW_FOLLOWUPS ? (
+              <div className="follow-ups-embed" role="region" aria-label={t('tasks.saved.followups')}>
+                <FollowUpQueueEmbed />
+              </div>
+            ) : (
+              <div className="empty-state empty-state--quiet" role="region" aria-label={t('tasks.saved.followups')}>
+                <div className="empty-state-frame">
+                  <div className="empty-state-body">
+                    <h3 className="empty-title">{t('tasks.followups.title')}</h3>
+                    <p className="empty-copy">{t('tasks.followups.copy')}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )
           ) : (
           <TasksTableBody
             loading={loading}
