@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TeamOption } from '@/lib/db/signals.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 
 // ── Mock the DAL (component tests mock the DAL, never a live DB) ────────────
-vi.mock('@/lib/db/signals', () => ({
-  listAuthorTeams: vi.fn(),
-  listAllTeams: vi.fn(),
-  getTeamSite: vi.fn(),
-  createSignal: vi.fn(),
-  dedupeRecipients: vi.fn(() => 0),
-}))
+vi.mock('@/lib/db/signals', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/signals')>('@/lib/db/signals')
+  return {
+    listAuthorTeams: vi.fn(),
+    listAllTeams: vi.fn(),
+    getTeamSite: vi.fn(),
+    createSignal: vi.fn(),
+    dedupeRecipients: actual.dedupeRecipients, // real (pure) implementation — the point under test
+  }
+})
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
@@ -37,6 +40,13 @@ const TEAMS: TeamOption[] = [
 ]
 const BUS: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 const PEOPLE: PersonOption[] = [{ id: AUTHOR_ID, full_name: 'Cahya Cafe' }, { id: 'person-peer', full_name: 'Peer Person' }]
+
+/** The mention popover's option role collides with the native <select> team options that share
+ * the same team name — scope the query to the popover listbox. */
+async function findMentionOption(name: RegExp) {
+  const listbox = await screen.findByRole('listbox', { name: /mention/i })
+  return within(listbox).findByRole('option', { name })
+}
 
 function renderComposer(props: Partial<React.ComponentProps<typeof SignalComposer>> = {}) {
   return render(
@@ -154,5 +164,41 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([
       { kind: 'person', targetId: 'person-peer', label: 'Peer Person' },
     ])
+  })
+})
+
+describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () => {
+  it('shows "Visible to <Team>" with the deduplicated notify count for overlapping mentions', async () => {
+    renderComposer({ teamMembers: { 'team-hq': ['person-peer', 'person-other'] } })
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+
+    // Stage a @Team mention (2 members) AND an overlapping @Person mention (person-peer, already
+    // a team-hq member) — the notify count must NOT double-count person-peer.
+    await userEvent.type(body, 'Heads up @HQ')
+    await userEvent.click(await findMentionOption(/HQ Operations/i))
+    await userEvent.type(body, ' cc @Pe')
+    await userEvent.click(await findMentionOption(/Peer Person/i))
+
+    expect(screen.getByText('Visible to HQ Operations · notify 2')).toBeInTheDocument()
+  })
+
+  it('shows "Visible to <Team>" with no notify suffix when no mentions are staged', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    expect(await screen.findByText('Visible to HQ Operations')).toBeInTheDocument()
+  })
+
+  it('shows a cross-Team destination preview "Post to <Team> · <attention> · notify N" when the author changes the owning Team', async () => {
+    renderComposer({ canCreateForTeam: true, teamMembers: { 'team-radiant': ['person-peer'] } })
+    await waitFor(() => expect(mockListAllTeams).toHaveBeenCalled())
+
+    const teamSelect = await screen.findByRole('combobox', { name: /team/i })
+    await userEvent.selectOptions(teamSelect, 'team-radiant')
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, '@Pe')
+    await userEvent.click(await findMentionOption(/Peer Person/i))
+
+    expect(screen.getByText('Post to Radiant Operations · FYI · notify 1')).toBeInTheDocument()
   })
 })

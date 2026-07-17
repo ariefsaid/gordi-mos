@@ -440,6 +440,9 @@ export const messages = {
     'signals.mention.group.person': 'Person',
     'signals.mention.group.team': 'Team',
     'signals.mention.group.bu': 'BU',
+    'signals.composer.visibleTo': 'Visible to ${team}',
+    'signals.composer.visibleToNotify': 'Visible to ${team} · notify ${count}',
+    'signals.composer.postTo': 'Post to ${team} · ${attention} · notify ${count}',
   },
   id: {
     'dest.home': 'Beranda',
@@ -871,6 +874,9 @@ export const messages = {
     'signals.mention.group.person': 'Orang',
     'signals.mention.group.team': 'Tim',
     'signals.mention.group.bu': 'BU',
+    'signals.composer.visibleTo': 'Terlihat oleh ${team}',
+    'signals.composer.visibleToNotify': 'Terlihat oleh ${team} · beri tahu ${count}',
+    'signals.composer.postTo': 'Kirim ke ${team} · ${attention} · beri tahu ${count}',
   },
 } as const
 

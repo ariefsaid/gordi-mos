@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { listAuthorTeams, listAllTeams, createSignal } from '@/lib/db/signals'
+import { listAuthorTeams, listAllTeams, createSignal, dedupeRecipients, type MemberLookup } from '@/lib/db/signals'
 import type { TeamOption, StagedMention, MentionKind } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
@@ -20,6 +20,10 @@ export interface SignalComposerProps {
   canCreateForTeam?: boolean
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
+  /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
+   * caller from a directory cache — the composer never queries a full org roster on its own. */
+  teamMembers?: MemberLookup
+  buMembers?: MemberLookup
   onShared?: (id: string) => void
 }
 
@@ -29,11 +33,13 @@ function toDatetimeLocalValue(date: Date): string {
 }
 
 export function SignalComposer({
-  authorId, authorName, canCreateForTeam = false, canMentionBu = false, onShared,
+  authorId, authorName, canCreateForTeam = false, canMentionBu = false,
+  teamMembers = {}, buMembers = {}, onShared,
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [teamId, setTeamId] = useState('')
+  const [primaryTeamId, setPrimaryTeamId] = useState('')
   const [people, setPeople] = useState<MentionCandidate[]>([])
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState('')
@@ -51,7 +57,7 @@ export function SignalComposer({
       if (cancelled) return
       setTeams(teamOptions)
       const primary = teamOptions.find((o) => o.is_primary) ?? teamOptions[0]
-      if (primary) setTeamId(primary.id)
+      if (primary) { setTeamId(primary.id); setPrimaryTeamId(primary.id) }
       setPeople(peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })))
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
@@ -59,6 +65,14 @@ export function SignalComposer({
   }, [authorId, canCreateForTeam])
 
   const teamCandidates: MentionCandidate[] = teams.map((team) => ({ id: team.id, label: team.name }))
+  const selectedTeam = teams.find((team) => team.id === teamId) ?? null
+  const isCrossTeam = !!primaryTeamId && teamId !== primaryTeamId
+  const notifyCount = dedupeRecipients(mentions, teamMembers, buMembers)
+  const shieldLine = !selectedTeam ? '' : isCrossTeam
+    ? t('signals.composer.postTo', { team: selectedTeam.name, attention: 'FYI', count: notifyCount })
+    : notifyCount > 0
+      ? t('signals.composer.visibleToNotify', { team: selectedTeam.name, count: notifyCount })
+      : t('signals.composer.visibleTo', { team: selectedTeam.name })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value
@@ -148,6 +162,8 @@ export function SignalComposer({
       </div>
 
       <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>
+
+      {shieldLine && <p className="signal-composer-vis">{shieldLine}</p>}
 
       {error && <p role="alert">{error}</p>}
 

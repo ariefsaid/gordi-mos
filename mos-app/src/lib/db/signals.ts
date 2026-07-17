@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { createTask, type CreateTaskInput } from './tasks'
-import type { SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption } from './signals.types'
+import type {
+  SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
+} from './signals.types'
 
 // Data layer for mos.signals + the Signal child tables (Step 4 / ADR-0050). Reads/writes mos via
 // supabase.schema('mos') and shared substrate (teams/sites/team_memberships) via
@@ -205,4 +207,25 @@ export async function getTeamSite(teamId: string): Promise<SiteOption | null> {
     .from('sites').select('id,name').eq('id', siteId).maybeSingle()
   if (sErr) throw new Error(`getTeamSite site failed — ${sErr.message}`)
   return (site as SiteOption | null) ?? null
+}
+
+// ── dedupeRecipients (B10, AC-422 / FR-408) ───────────────────────────────────
+
+/** Team/BU id → the person ids in its roster (the composer/page supplies these from a directory
+ * cache; a Signal never queries a full org roster of its own accord). */
+export type MemberLookup = Record<string, string[]>
+
+/** Deduplicated recipient count across staged mentions (the composer's fan-out preview, before
+ * post — D24). @Person contributes one id; @Team/@BU expand via the supplied roster lookups. A
+ * pure function — no supabase involved — so it is unit-testable in isolation. */
+export function dedupeRecipients(
+  mentions: StagedMention[], teamMembers: MemberLookup, buMembers: MemberLookup,
+): number {
+  const ids = new Set<string>()
+  for (const mention of mentions) {
+    if (mention.kind === 'person') ids.add(mention.targetId)
+    else if (mention.kind === 'team') for (const id of teamMembers[mention.targetId] ?? []) ids.add(id)
+    else if (mention.kind === 'bu') for (const id of buMembers[mention.targetId] ?? []) ids.add(id)
+  }
+  return ids.size
 }

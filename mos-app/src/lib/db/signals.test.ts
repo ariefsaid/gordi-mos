@@ -15,7 +15,7 @@ vi.mock('./tasks', () => ({ createTask: vi.fn() }))
 import {
   listReadableSignals, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask, createFollowUpTask,
-  listAuthorTeams, listAllTeams, getTeamSite,
+  listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients,
 } from './signals'
 import * as tasksDal from './tasks'
 import { supabase } from '@/lib/supabase'
@@ -400,5 +400,47 @@ describe('getTeamSite', () => {
     const rec = freshRec()
     mockSupabase({ 'shared.teams': [{ data: null, error: { message: 'boom' } }] }, rec)
     await expect(getTeamSite(TEAM_ID)).rejects.toThrow(/boom/)
+  })
+})
+
+// ── dedupeRecipients (B10, AC-422 / FR-408) — pure helper, no supabase involved ──
+describe('dedupeRecipients', () => {
+  it('counts a @Person mention as exactly one recipient', () => {
+    const n = dedupeRecipients([{ kind: 'person', targetId: 'p1', label: 'P1' }], {}, {})
+    expect(n).toBe(1)
+  })
+
+  it('expands a @Team mention to its active member roster', () => {
+    const n = dedupeRecipients(
+      [{ kind: 'team', targetId: 'team-a', label: 'Team A' }],
+      { 'team-a': ['p1', 'p2', 'p3'] },
+      {},
+    )
+    expect(n).toBe(3)
+  })
+
+  it('expands a @BU mention to its member roster', () => {
+    const n = dedupeRecipients(
+      [{ kind: 'bu', targetId: 'bu-1', label: 'BU 1' }],
+      {},
+      { 'bu-1': ['p1', 'p2'] },
+    )
+    expect(n).toBe(2)
+  })
+
+  it('deduplicates overlapping recipients across mentions (the anti-double-count invariant)', () => {
+    const n = dedupeRecipients(
+      [
+        { kind: 'team', targetId: 'team-a', label: 'Team A' },
+        { kind: 'person', targetId: 'p2', label: 'P2' }, // already a Team A member
+      ],
+      { 'team-a': ['p1', 'p2', 'p3'] },
+      {},
+    )
+    expect(n).toBe(3)
+  })
+
+  it('returns 0 for no staged mentions', () => {
+    expect(dedupeRecipients([], {}, {})).toBe(0)
   })
 })
