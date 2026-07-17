@@ -28,7 +28,7 @@
 
 /* Jump-affordance fix — the PageHead "Needs attention · N →" summary (personal-first order,
    AC-513) must READ as a link, not just behave like one. Same underline+color grammar as the
-   other inline text-links in the app (mirrors cascade-page.css's `.cascade-task-link`). */
+   other inline text-links in the app. */
 .home-attention-jump {
   color: var(--primary);
   font-weight: 600;

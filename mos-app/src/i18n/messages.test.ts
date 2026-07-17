@@ -69,8 +69,6 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
     'nav.tasks',
     'nav.home',
     'nav.inbox',
-    'nav.updates',
-    'nav.dailyLog',
     'nav.sales',
     'nav.objectives',
     'nav.projectsProcesses',
@@ -151,45 +149,3 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
   })
 })
 
-describe('cascade i18n (AC-304)', () => {
-  const CASCADE_KEYS = [
-    'cascade.title',
-    'cascade.subtitle',
-    'cascade.link',
-    'cascade.mine',
-    'cascade.all',
-    'cascade.unlinked',
-    'cascade.noWorkLine',
-    'cascade.manage.objectives',
-    'cascade.manage.projects',
-    'cascade.empty.title',
-    'cascade.empty.body',
-    'cascade.mine.empty.title',
-    'cascade.mine.empty.body',
-    'cascade.error.title',
-    'cascade.error.retry',
-    'cascade.loading',
-    'cascade.card.owner',
-    'cascade.card.due',
-    'cascade.overdue',
-    'cascade.untitledObjective',
-    'cascade.untitledWorkLine',
-  ] as const
-
-  it('every cascade.* key is present in both en and id', () => {
-    for (const key of CASCADE_KEYS) {
-      expect(messages.en[key], `en missing ${key}`).toBeDefined()
-      expect(messages.id[key], `id missing ${key}`).toBeDefined()
-    }
-  })
-
-  it('under locale:id, every cascade.* key resolves to a localized string, not the key itself', () => {
-    localStorage.setItem('mos.locale', 'id')
-    const { result } = renderHook(() => useT(), { wrapper })
-    for (const key of CASCADE_KEYS) {
-      const resolved = result.current(key)
-      expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
-      expect(resolved.length).toBeGreaterThan(0)
-    }
-  })
-})
