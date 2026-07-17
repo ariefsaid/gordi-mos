@@ -22,7 +22,19 @@ begin
   end if;
   return new;
 end $$;
--- signal is org-scoped-AND-grant-scoped (can_read_signal): a same-org non-reader is blocked here too (invisible
--- → NULL → raise). That is the tighten AC-416 asserts at the comment-read layer.
+-- The guard above blocks a same-org NON-reader from INSERT/UPDATE of a signal comment (its can_read_signal
+-- lookup returns NULL → raise). But the guard does NOT run on SELECT, and the base comments_select policy
+-- is same-org — so without the tighten below a same-org non-reader could READ a signal's comments. AC-416
+-- asserts read-gating, so comments_select is extended: signal-type comments are additionally gated by
+-- can_read_signal(entity_id); the four legacy entity types keep their unchanged same-org read posture.
+-- (can_read_signal is defined in 20260716000003, which precedes this migration.)
+drop policy if exists comments_select on mos.comments;
+create policy comments_select on mos.comments
+  for select to authenticated
+  using (
+    org_id = shared.current_org_id()
+    and (entity_type <> 'signal' or mos.can_read_signal(entity_id))
+  );
 
--- DOWN: restore the CHECK to (task,weekly_update,daily_log,follow_up) and drop the 'signal' CASE branch.
+-- DOWN: restore the CHECK to (task,weekly_update,daily_log,follow_up), drop the 'signal' CASE branch, and
+--       restore comments_select to `using (org_id = shared.current_org_id())`.
