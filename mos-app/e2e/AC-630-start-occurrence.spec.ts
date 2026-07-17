@@ -93,7 +93,9 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
   await page.getByRole('button', { name: 'Team work', exact: true }).click()
   await page.getByLabel('Group').selectOption('occurrence')
 
-  const captionHeader = page.getByText(/Café HQ daily opening/)
+  // Scope to the grouped table's header row (.grp .glabel) — the due-list rows for the OTHER
+  // startable teams also carry the process name, so a bare getByText is ambiguous by design.
+  const captionHeader = page.locator('tr.grp .glabel').filter({ hasText: 'Café HQ daily opening' })
   await expect(captionHeader).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Unlock and prep the floor')).toBeVisible({ timeout: 10_000 })
   // FR-611 — "Process Run" is internal-only vocabulary; it must never render as UI text.
