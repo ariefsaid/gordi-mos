@@ -15,3 +15,12 @@ export function resolveRegionOrder(personId: string): HomeRegionOrder {
     return DEFAULT
   }
 }
+
+/** Persist the order for a person. Silently no-ops on quota/private-mode throws. */
+export function setRegionOrder(personId: string, order: HomeRegionOrder): void {
+  try {
+    window.localStorage.setItem(key(personId), order)
+  } catch {
+    /* ignore quota / private-mode */
+  }
+}
