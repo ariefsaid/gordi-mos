@@ -969,3 +969,15 @@ were re-run and are unaffected.
 Not yet re-rendered against the live app by a design-reviewer pass — this section records the
 fix-wave commits and test evidence; the BLOCK is not cleared until a design re-review confirms the
 rendered result and the three RATIFY items above are resolved by the owner.
+
+## Design RE-review — Step 5 Home proper (rendered, 4-lens, 2026-07-17): **APPROVE — BLOCK cleared**
+
+design-reviewer (opus), driven live at both breakpoints, three personas. All prior findings verified
+FIXED with rendered evidence: Rule-8 phone fold ("View options" compact disclosure, attention leads
+in first viewport), Q1 radiogroup semantics (role=radiogroup/radio + aria-checked), humanized dates
+(shared formatDate), visible "Needs attention" h2 (aria-labelledby, not aria-label-only), link-styled
+jump summary with chevron, "My items first" wording, per-lane counts. Rules 1–12 all PASS; Rule-12
+cold-start PASS both fronts; both-fronts strong. Remaining: dev-seed noise observations only (not
+built-surface defects). Two low-risk minors (all-clear compact state, error-lane title) verified via
+the fix wave's RTL tests. Step 5's full battery is now spec APPROVE · code-quality APPROVE · design
+BLOCK→fix→APPROVE.

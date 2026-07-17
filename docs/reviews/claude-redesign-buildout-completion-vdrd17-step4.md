@@ -65,7 +65,7 @@ through `test(signals): C5` on this branch). This branch carries other concurren
   (non-transactional createSignal / double-post) FIXED via `mos.create_signal_with_mentions` RPC
   (20260717000002); IMPORTANT-2 (unbounded list) deferred + tracked in §Deferred debt. Minors fixed
   (category-picker extraction, attention-slug helper, date formatting, parallel reads).
-- design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (4-lens review in flight)
+- design: BLOCK (2026-07-17, unstyled surfaces) → styling fix wave → RE-REVIEW APPROVE — design-reviewer (opus), 2026-07-17. All findings C1/C2/C3/I4/I5/I6 + minors verified FIXED with rendered evidence at both breakpoints; four mockup-regression surfaces restored to convergence/e7 grammar; A1/A2/A3 clean; Rules 1-12 all PASS; Rule-12 cold-start PASS both fronts.
 - security: APPROVE — security-auditor (opus), 2026-07-17 re-audit after BLOCK (2026-07-17 initial).
   HIGH-1 (retract-holder content rewrite) + LOW-1 (mention org-validation) + LOW-2 (fan-out
   idempotency) + LOW-3 (test-seed env guard) all empirically CLEARED on the live stack; new RPC
