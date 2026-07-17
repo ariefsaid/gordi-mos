@@ -138,6 +138,20 @@ export default async function globalSetup() {
   )
   console.log('[global-setup] ensured + linked all *.dev personas (dev login self-healed)')
 
+  // ── 1b. Step 7 (café retrofit, AC-720/F2): grant VIEWER (Cahya, org Role "Cafe Ops Lead", member
+  // of radiant_operations) the `ops_lead` ACCESS role so she carries process.start — the café
+  // shift-lead fixture the F2 "Start today's opening" journey needs. Additive/idempotent (ON
+  // CONFLICT DO NOTHING); she keeps her existing `member` access role too (union semantics,
+  // mos-app/src/lib/capabilities.ts) — no dev persona is mutated destructively.
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
+     VALUES ('${ORG}', '40000000-0000-0000-0000-000000000001', 'ops_lead')
+     ON CONFLICT (person_id, access_role) DO NOTHING`,
+  )
+  console.log('[global-setup] granted VIEWER (Cahya) ops_lead access role (Step 7 café shift-lead fixture)')
+
   // ── 2. ORPHAN (dedicated e2e user, NO people link → orphan screen) ─────────────────────────────
   await deleteUserByEmail(adminClient, ORPHAN.email)
   const { error: orphanErr } = await adminClient.auth.admin.createUser({

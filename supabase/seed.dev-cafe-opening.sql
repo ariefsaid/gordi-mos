@@ -49,15 +49,18 @@ begin
   on conflict (id) do nothing;
 
   -- Three task-defs mirroring A1's fixture shape: checklist opening steps → one Task; an
-  -- independently-owned production-log step → its own Task; an ambiguous barista step → pending.
+  -- independently-owned production-log step → its own Task (FR-708 deep-link, carried into the
+  -- spawned Task's description — spawn_process_run copies td.description verbatim); an ambiguous
+  -- barista step → pending.
   insert into mos.process_task_defs
-    (id, org_id, work_line_id, title, position, due_offset_days, checklist_items, pic_role_id) values
-    ('e3000000-0000-0000-0000-0000000000d1', v_org, wl, 'Open the café floor', 0, 0,
+    (id, org_id, work_line_id, title, description, position, due_offset_days, checklist_items, pic_role_id) values
+    ('e3000000-0000-0000-0000-0000000000d1', v_org, wl, 'Open the café floor', null, 0, 0,
      '["Unlock the door","Turn on the espresso machine","Check pastry stock","Wipe the bar"]'::jsonb,
      r_cafe_lead),
-    ('e3000000-0000-0000-0000-0000000000d2', v_org, wl, 'Log today''s production', 1, 0, '[]'::jsonb,
+    ('e3000000-0000-0000-0000-0000000000d2', v_org, wl, 'Log today''s production',
+     'Capture today''s production in the Café Log screen: /cafe/log', 1, 0, '[]'::jsonb,
      r_cafe_lead),
-    ('e3000000-0000-0000-0000-0000000000d3', v_org, wl, 'Brew station handover', 2, 0, '[]'::jsonb,
+    ('e3000000-0000-0000-0000-0000000000d3', v_org, wl, 'Brew station handover', null, 2, 0, '[]'::jsonb,
      r_opener)
   on conflict (id) do nothing;
 end $$;
