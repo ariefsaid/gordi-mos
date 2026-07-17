@@ -1,0 +1,7 @@
+/* PendingResolution (Step 6 / AC-624) — a thin candidate-choice panel over the DS tokens. */
+.pending-resolution-title {
+  font-size: 15px; font-weight: 600; color: var(--foreground); margin: 0 0 8px;
+}
+.pending-resolution-candidates {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
