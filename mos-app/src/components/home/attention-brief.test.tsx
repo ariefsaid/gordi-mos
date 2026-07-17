@@ -3,7 +3,7 @@
 // MemoryRouter + I18nProvider wrapper.
 
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -82,5 +82,23 @@ describe('AC-510: per-lane error is fail-soft', () => {
     const region = screen.getByRole('region', { name: 'Needs attention' })
     expect(region.querySelector('[aria-busy="true"]')).not.toBeNull()
     expect(screen.getByText('A mention').closest('a')).not.toBeNull()
+  })
+})
+
+describe('AC-511: ≤390px first content is attention, not config', () => {
+  it('shows the attention item first and renders no configuration control inside the region', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'overdue', state: 'ready', items: [{ id: 'o1', title: 'Overdue task', route: '/work/tasks/o1' }] },
+    ]
+    render(
+      createElement('div', { style: { width: 390 } }, createElement(AttentionBrief, { lanes })),
+      { wrapper },
+    )
+
+    const region = screen.getByRole('region', { name: 'Needs attention' })
+    const firstLink = within(region).getAllByRole('link')[0]
+    expect(firstLink.textContent).toContain('Overdue task')
+    expect(within(region).queryByRole('combobox')).toBeNull()
+    expect(within(region).queryByTestId('home-order-toggle')).toBeNull()
   })
 })
