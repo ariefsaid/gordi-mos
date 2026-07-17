@@ -163,6 +163,15 @@ describe('DashboardPage — states', () => {
   })
 })
 
+describe('DashboardPage — Follow-up queue door (Step 9, AC-903)', () => {
+  it('AC-903: hides the Follow-up queue link while SHOW_FOLLOWUPS is dark-launched off', () => {
+    mockRev.mockReturnValue(new Promise(() => {}))
+    mockMarg.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    expect(screen.queryByRole('link', { name: 'Follow-up queue' })).not.toBeInTheDocument()
+  })
+})
+
 describe('DashboardPage — populated (desktop, Summary tab)', () => {
   beforeEach(() => {
     setDesktop()

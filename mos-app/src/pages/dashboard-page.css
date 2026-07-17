@@ -85,3 +85,13 @@
     padding: 10px 14px;
   }
 }
+
+.dash-queue-entry {
+  padding: 0 24px;
+  margin-top: 4px;
+}
+@media (max-width: 767px) {
+  .dash-queue-entry {
+    padding: 0 14px;
+  }
+}
