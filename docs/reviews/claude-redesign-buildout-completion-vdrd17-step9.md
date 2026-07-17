@@ -76,8 +76,8 @@ AC-900..909).
      Accepted: PASS SHIP FIX-THEN-SHIP   Blocking: REWORK FAIL STILL-FAILING
      Required always: spec, code-quality. Required (UI changed): design. Required (schema/RLS changed): security. -->
 
-- spec: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
-- code-quality: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
+- spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-900..909 owned+green; regression oracles (follow-ups-page.test, AC-311, /inbox) verified UNMODIFIED via git history; both deviations (RI-IXD-8 repoint, matchMedia stub) judged legitimate, not weakenings; SHOW_FOLLOWUPS still false. Non-blocking note: AC-907/908 owner is follow-up-queue-embed.test.tsx (lower layer than spec §8 literal naming).
+- code-quality: APPROVE — code-quality-reviewer (opus), 2026-07-17. Extraction verified behavior-preserving vs pre-step git state; 2 minors (unmemoized detailRow carryover; viewport-stub duplication across test files).
 - design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (required — `.tsx`/`.css` changed: `dashboard-page.tsx`/`.css`, `follow-up-queue-embed.tsx`, `follow-up-queue-table.tsx`, `follow-ups-page.tsx`, `tasks-workspace.tsx`, `router.tsx`)
 - security: N/A — no auth/RLS/schema path touched (NFR-901: no new schema/table/RLS/migration this step; the existing `follow_ups_select` RLS + `mos.transition_follow_up` SECURITY DEFINER RPC are reused as-is and already pgTAP-proven).
 

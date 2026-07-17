@@ -73,8 +73,8 @@ capability-holder persona) finds ⌘K insufficiently discoverable.
      Accepted: PASS SHIP FIX-THEN-SHIP   Blocking: REWORK FAIL STILL-FAILING
      Required always: spec, code-quality. Required (UI changed): design. Required (schema/RLS changed): security. -->
 
-- spec: <!-- APPROVE|REWORK|FAIL --> — <reviewer, date, notes>
-- code-quality: <!-- APPROVE|REWORK|FAIL --> — <reviewer, date, notes>
+- spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-801..808 all owned+green; RATIFY-8A (⌘K-only Option A) confirmed accurate; mobile-drawer untouched per git history.
+- code-quality: APPROVE — code-quality-reviewer (opus), 2026-07-17. 0 Critical/Important; one minor doc-comment suggestion (dual gating mechanisms in command-menu Navigate list).
 - design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (command-menu.tsx is
   `*.tsx` — 4-lens review required)
 - security: N/A — no auth/RLS/schema path changed (NFR-801, buildout row 8 DB/RLS: no).

@@ -80,8 +80,8 @@ occurrence-caption render in `group-header-row.tsx`), Track C (this pass — wir
      Accepted: PASS SHIP FIX-THEN-SHIP   Blocking: REWORK FAIL STILL-FAILING
      Required always: spec, code-quality. Required (UI changed): design. Required (schema/RLS changed): security. -->
 
-- spec: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
-- code-quality: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
+- spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-601..630 all owned at correct layer; pgTAP 95/689 live-verified; FR-611 + OD-41 fail-closed positively asserted; ratify list accurate. Security pass + live AC-630 noted as Director-owned merge gates.
+- code-quality: APPROVE (fix-then-ship) — code-quality-reviewer (opus), 2026-07-17. 0 Critical. IMPORTANT-1 silent resolve/start mutation failures — FIX WAVE PENDING; IMPORTANT-2 tasks-workspace at 836 lines → useOccurrenceGroups extraction directed; minors: rollup silent-catch warn, PersonPicker onClose, due_process_runs scale note.
 - design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (4-lens review — `*.tsx`/`*.css` changed this step)
 - security: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (**MANDATORY**, spec §7 — spawn RPC privilege/injection, `_function_holders` tenancy, RLS seams, `org_id` on generated Tasks, resolve/complete gates, capability grants; any Critical/High blocks merge)
 
