@@ -124,7 +124,10 @@ test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group
   await expect(page.getByText(/Café Opening/)).toHaveCount(1) // one caption group, not two
 
   // ── ASSERT: "Log today's production" deep-links to /cafe/log via its description (FR-708) ───────
+  // The description lives in the record feed's Notes pane (ADR-0013 D3) — open the task, then
+  // the Notes tab, where every Task's description is read app-wide.
   await page.getByText('Log today\'s production').click()
+  await page.getByRole('tab', { name: 'Notes' }).click()
   await expect(page.getByText('/cafe/log')).toBeVisible({ timeout: 10_000 })
 
   // ── CLEANUP: leave no e2e-created state behind for the next run ─────────────────────────────────

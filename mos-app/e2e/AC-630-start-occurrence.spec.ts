@@ -114,7 +114,9 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
 
   // ── ASSERT: the resolved step now appears as a Task in the SAME occurrence group ────────────────
   await expect(page.getByText('Bakery handover')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Café HQ daily opening/)).toHaveCount(1) // one caption group, not two
+  // Scoped to the group-header labels — the due-list rows for other startable teams also carry
+  // the process name (same ambiguity as the caption assertion above).
+  await expect(page.locator('tr.grp .glabel').filter({ hasText: 'Café HQ daily opening' })).toHaveCount(1) // one caption group, not two
 
   // ── CLEANUP: leave no e2e-created state behind for the next run ─────────────────────────────────
   await sql(`

@@ -17,7 +17,10 @@ const redirectCases = [
   { oldPath: 'ops', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
   { oldPath: 'ops/new', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
   { oldPath: 'ops/legacy/edit', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
-  { oldPath: 'kitchen', finalPath: /\/cafe\/log$/, needsAdmin: false },
+  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home now (opening panel), no longer a
+  // redirect to /cafe/log — so legacy bare /kitchen lands on the Café home. Deep sub-routes below
+  // keep their exact 1:1 mapping.
+  { oldPath: 'kitchen', finalPath: /\/cafe$/, needsAdmin: false },
   { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, needsAdmin: false },
   { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, needsAdmin: false },
   { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, needsAdmin: false },
@@ -94,9 +97,11 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await expect(page.getByRole('heading', { name: 'Signals' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: /search signals/i })).toBeVisible()
 
+  // Step 7 (RATIFY-7D): /cafe resolves to the Café Operations home (opening panel host), not a
+  // redirect — the log table lives one link away at /cafe/log, still asserted by AC-001's mapping.
   await page.goto('cafe')
-  await expect(page).toHaveURL(/\/cafe\/log$/)
-  await expect(page.getByRole('table', { name: /kitchen production log/i })).toBeVisible({ timeout: 15_000 })
+  await expect(page).toHaveURL(/\/cafe$/)
+  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Café' })).toBeVisible({ timeout: 15_000 })
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
