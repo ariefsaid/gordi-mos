@@ -58,10 +58,19 @@ through `test(signals): C5` on this branch). This branch carries other concurren
      Accepted: PASS SHIP FIX-THEN-SHIP   Blocking: REWORK FAIL STILL-FAILING
      Required always: spec, code-quality. Required (UI changed): design. Required (schema/RLS changed): security. -->
 
-- spec: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
-- code-quality: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
-- design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
-- security: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
+- spec: APPROVE — spec-reviewer (opus), 2026-07-17. All AC-401..430 owned by real tests asserting the
+  spec goal; all 3 minors fixed in the fix wave (author-only guard = security HIGH-1; sandbox seed
+  parity; record page-mode recorded as deferred). AC coverage table in §Spec review below.
+- code-quality: APPROVE — code-quality-reviewer (opus), 2026-07-17. 0 Critical. IMPORTANT-1
+  (non-transactional createSignal / double-post) FIXED via `mos.create_signal_with_mentions` RPC
+  (20260717000002); IMPORTANT-2 (unbounded list) deferred + tracked in §Deferred debt. Minors fixed
+  (category-picker extraction, attention-slug helper, date formatting, parallel reads).
+- design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (4-lens review in flight)
+- security: APPROVE — security-auditor (opus), 2026-07-17 re-audit after BLOCK (2026-07-17 initial).
+  HIGH-1 (retract-holder content rewrite) + LOW-1 (mention org-validation) + LOW-2 (fan-out
+  idempotency) + LOW-3 (test-seed env guard) all empirically CLEARED on the live stack; new RPC
+  surface audited clean (INVOKER, no gate weakened, atomic, no injection). pgTAP 90 files / 632
+  tests PASS. Informational: fan-out concurrent-uncommitted race noted as deferred debt (non-v1).
 
 ## Gates (C7, this pass — see the Director's session report for exact numbers)
 
