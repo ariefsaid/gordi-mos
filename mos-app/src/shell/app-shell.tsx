@@ -12,11 +12,13 @@ import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
+import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 
 function ShellContent() {
   const isNarrow = useIsNarrow()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
+  const { open: openSignalComposer } = useSignalComposer()
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
 
   return (
@@ -85,8 +87,9 @@ function ShellContent() {
         focusOpener={() => focusHamburgerRef.current?.()}
       />
 
-      {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4) */}
-      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). Share
+          Signal (AC-428/FR-417) dispatches to the shared composer host (C1), never a route. */}
+      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} onShareSignal={openSignalComposer} />
 
       {/* Deputy assistant (ADR-0018 P2) — the panel is mounted once at the shell root, behind
           SHOW_ASSISTANT (keep-mounted; self-gates visibility on `open`). The launcher is a neutral
@@ -98,12 +101,24 @@ function ShellContent() {
 }
 
 export function AppShell() {
+  // SignalComposerHost mounts once at the shell root (C1 — "one command, many entry points"):
+  // ⌘K, the mobile Action Launcher (which itself opens ⌘K), and the Home feed's Share-a-Signal
+  // row all consume the SAME useSignalComposer().open() (AC-428/FR-417).
+  //
   // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
   // Flag-off skips the provider entirely so no assistant context/state mounts.
-  if (!SHOW_ASSISTANT) return <ShellContent />
+  if (!SHOW_ASSISTANT) {
+    return (
+      <SignalComposerHost>
+        <ShellContent />
+      </SignalComposerHost>
+    )
+  }
   return (
     <AgentRuntimeProvider>
-      <ShellContent />
+      <SignalComposerHost>
+        <ShellContent />
+      </SignalComposerHost>
     </AgentRuntimeProvider>
   )
 }

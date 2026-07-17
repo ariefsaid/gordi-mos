@@ -29,19 +29,19 @@ function LocationProbe() {
   return <div data-testid="location">{loc.pathname + loc.search}</div>
 }
 
-function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en') {
+function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal = vi.fn()) {
   localStorage.setItem('mos.locale', locale)
   const utils = render(
     <I18nProvider>
       <MemoryRouter initialEntries={['/']}>
         <LocationProbe />
         <Routes>
-          <Route path="*" element={<CommandMenu open onClose={onClose} />} />
+          <Route path="*" element={<CommandMenu open onClose={onClose} onShareSignal={onShareSignal} />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
   )
-  return { ...utils, onClose }
+  return { ...utils, onClose, onShareSignal }
 }
 
 beforeEach(() => {
@@ -145,6 +145,21 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
     const { onClose } = renderMenu()
     fireEvent.click(screen.getByRole('option', { name: /Create Task/i }))
     expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/new')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  // AC-428 (C2 — FR-417): Share Signal opens the composer, never navigates to a route. Every
+  // entry point (⌘K, the mobile Action Launcher which itself opens ⌘K, the Home feed row)
+  // dispatches the SAME command — command-menu's job here is just: call it, don't navigate.
+  it('AC-428: Share Signal calls onShareSignal, does NOT navigate, and closes the palette', () => {
+    const before = '/'
+    const { onClose, onShareSignal } = renderMenu()
+    expect(screen.getByTestId('location')).toHaveTextContent(before)
+
+    fireEvent.click(screen.getByRole('option', { name: /Share Signal/i }))
+
+    expect(onShareSignal).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('location')).toHaveTextContent(before) // no route change
     expect(onClose).toHaveBeenCalled()
   })
 })

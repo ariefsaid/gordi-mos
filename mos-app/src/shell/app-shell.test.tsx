@@ -5,6 +5,25 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 
+// SignalComposerHost (C1) mounts at the shell root and — once open — renders the real
+// SignalComposer, which reads Team/mention options via the DAL. Mock every network-hitting export
+// so no real request happens under jsdom (component tests mock the DAL); keep the pure helpers real.
+vi.mock('@/lib/db/signals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/signals')>()
+  return {
+    ...actual,
+    loadMentionRosters: vi.fn().mockResolvedValue({ teamMembers: {}, buMembers: {} }),
+    listAuthorTeams: vi.fn().mockResolvedValue([]),
+    listAllTeams: vi.fn().mockResolvedValue([]),
+    getTeamSite: vi.fn().mockResolvedValue(null),
+    createSignal: vi.fn(),
+  }
+})
+vi.mock('@/lib/db/directory', () => ({
+  getBusinessUnits: vi.fn().mockResolvedValue([]),
+  getPeople: vi.fn().mockResolvedValue([]),
+}))
+
 // The TopBar NotificationBell (live now that SHOW_INBOX=true) fires useUnreadCount → countUnread.
 // Mock it so the bell's async read resolves cleanly instead of racing the test teardown
 // (flag-staleness fallout from the SHOW_INBOX ungate — same root cause as the bell-stub tests).
@@ -199,6 +218,17 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     renderShell()
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+  })
+
+  // C1/C2 (AC-428/FR-417): the palette's Share Signal action is wired to the shell-mounted
+  // SignalComposerHost — activating it opens the composer dialog and closes the palette.
+  it('AC-428: Share Signal in the palette opens the shared Signal composer host', () => {
+    renderShell()
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    fireEvent.click(screen.getByRole('option', { name: /Share Signal/i }))
+
+    expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: /share signal/i })).toBeInTheDocument()
   })
 })
 

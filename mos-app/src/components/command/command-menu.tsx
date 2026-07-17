@@ -10,6 +10,9 @@ import './command-menu.css'
 export type CommandMenuProps = {
   open: boolean
   onClose: () => void
+  /** Opens the Signal composer (C1's useSignalComposer().open(), passed down by app-shell so the
+   * palette stays a pure presentational consumer — AC-428/FR-417: never a route navigation). */
+  onShareSignal: () => void
 }
 
 // A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
@@ -38,8 +41,8 @@ type RecordsState =
   | { status: 'error' }
 
 // Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
-// Ask Deputy opens the AssistantPanel; Share Signal dispatches to the composer-opening
-// target (navigate Home — full composer lands Step 4); Create Task navigates /work/tasks/new.
+// Ask Deputy opens the AssistantPanel; Share Signal calls onShareSignal (opens the shared Signal
+// composer host, C1 — never a route navigation, AC-428/FR-417); Create Task navigates /work/tasks/new.
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 function matches(label: string, q: string): boolean {
@@ -49,7 +52,7 @@ function matches(label: string, q: string): boolean {
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
 // presentation); contents = universal actions + Navigate + Recent + async record
 // search. a11y: role=dialog + aria-modal + focus trap + Esc (returns focus).
-export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Element | null {
+export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -72,10 +75,10 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
   const universalActions = useMemo<CommandItem[]>(
     () => [
       { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), glyph: '✦', kind: 'action', run: () => openPanel() },
-      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), glyph: '➤', kind: 'action', run: () => navigate('/') },
+      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), glyph: '➤', kind: 'action', run: onShareSignal },
       { id: 'a-task', label: t('commandMenu.action.createTask'), glyph: '＋', kind: 'action', to: '/work/tasks/new' },
     ],
-    [navigate, openPanel, t],
+    [openPanel, onShareSignal, t],
   )
 
   const navigateItems = useMemo<CommandItem[]>(
