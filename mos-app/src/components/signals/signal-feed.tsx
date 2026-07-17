@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/ui/state-kit'
 import { orderSignalsForFeed } from '@/lib/db/signals'
 import type { SignalCategory, SignalRow } from '@/lib/db/signals.types'
 import { SignalCard } from './signal-card'
+import './signal-feed.css'
 
 // Home ambient feed (Q1, OD-59, provisional — RATIFY-7): the region below the (Step-5) attention
 // brief. Renders the "Share a Signal" composer-entry row, then Signal cards the viewer can read,
