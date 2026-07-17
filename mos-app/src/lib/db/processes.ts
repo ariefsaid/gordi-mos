@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, PendingTaskRow, SpawnResult } from './processes.types'
+import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow, SpawnResult } from './processes.types'
+import type { TaskListRow } from './tasks.types'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
 // supabase.schema('mos') on the existing client — same client, RLS is the authority (mirrors
@@ -53,4 +54,36 @@ export async function resolvePendingTask(pendingId: string, picPersonId: string)
   })
   if (error) throw new Error(`resolvePendingTask failed — ${error.message}`)
   return data as string
+}
+
+// ── getRunRollup / listRunTasks / completeRun (B4) ───────────────────────────
+
+/** Read a run's derived progress roll-up (no stored counts — ADR D9). */
+export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
+  const { data, error } = await mos()
+    .from('process_run_rollup')
+    .select('*')
+    .eq('process_run_id', runId)
+    .single()
+  if (error) throw new Error(`getRunRollup failed — ${error.message}`)
+  return data as unknown as ProcessRunRollup
+}
+
+/** List a run's generated Tasks. Reuses the canonical task shape (TaskListRow, Rule 11 — never
+ * re-implement task fetching); the DB stamps `process_run_id` on spawn/resolve (ADR D10). */
+export async function listRunTasks(runId: string): Promise<TaskListRow[]> {
+  const { data, error } = await mos()
+    .from('tasks')
+    .select('*')
+    .eq('process_run_id', runId)
+  if (error) throw new Error(`listRunTasks failed — ${error.message}`)
+  return (data ?? []) as unknown as TaskListRow[]
+}
+
+/** Mark a run complete via `mos.complete_process_run` — a deliberate human act; the run's Tasks
+ * persist unchanged (FR-610). Returns the updated run row. */
+export async function completeRun(runId: string): Promise<ProcessRunRow> {
+  const { data, error } = await mos().rpc('complete_process_run', { p_run_id: runId })
+  if (error) throw new Error(`completeRun failed — ${error.message}`)
+  return data as unknown as ProcessRunRow
 }

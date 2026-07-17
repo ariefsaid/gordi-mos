@@ -7,9 +7,13 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { startRun, listDueRuns, listPendingTasks, resolvePendingTask } from './processes'
+import {
+  startRun, listDueRuns, listPendingTasks, resolvePendingTask,
+  getRunRollup, listRunTasks, completeRun,
+} from './processes'
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, PendingTaskRow } from './processes.types'
+import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow } from './processes.types'
+import type { TaskListRow } from './tasks.types'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -167,5 +171,76 @@ describe('resolvePendingTask', () => {
     mockSupabase({ 'rpc.resolve_pending_task': [{ data: null, error: { message: 'already resolved' } }] }, rec)
 
     await expect(resolvePendingTask(PENDING_ID, PIC_ID)).rejects.toThrow(/already resolved/)
+  })
+})
+
+// ── getRunRollup / listRunTasks / completeRun (B4) ───────────────────────────
+describe('getRunRollup', () => {
+  it('reads mos.process_run_rollup filtered by process_run_id', async () => {
+    const rec = freshRec()
+    const rollup: ProcessRunRollup = {
+      process_run_id: RUN_ID, caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 2, completion_pct: 0,
+    }
+    mockSupabase({ 'mos.process_run_rollup': [{ data: rollup, error: null }] }, rec)
+
+    const result = await getRunRollup(RUN_ID)
+
+    expect(rec.fromTables).toContain('mos.process_run_rollup')
+    expect(rec.eqs).toContainEqual(['process_run_id', RUN_ID])
+    expect(result).toEqual(rollup)
+  })
+
+  it('re-throws when the read errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_run_rollup': [{ data: null, error: { message: 'not found' } }] }, rec)
+
+    await expect(getRunRollup(RUN_ID)).rejects.toThrow(/not found/)
+  })
+})
+
+describe('listRunTasks', () => {
+  it('reads mos.tasks filtered by process_run_id (reuses TaskListRow, no re-implemented fetch)', async () => {
+    const rec = freshRec()
+    const taskRow = { id: 'task-1', title: 'Open the café' } as unknown as TaskListRow
+    mockSupabase({ 'mos.tasks': [{ data: [taskRow], error: null }] }, rec)
+
+    const rows = await listRunTasks(RUN_ID)
+
+    expect(rec.fromTables).toContain('mos.tasks')
+    expect(rec.eqs).toContainEqual(['process_run_id', RUN_ID])
+    expect(rows).toEqual([taskRow])
+  })
+
+  it('re-throws when the read errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.tasks': [{ data: null, error: { message: 'read failed' } }] }, rec)
+
+    await expect(listRunTasks(RUN_ID)).rejects.toThrow(/read failed/)
+  })
+})
+
+describe('completeRun', () => {
+  it('calls mos.complete_process_run and returns the updated run', async () => {
+    const rec = freshRec()
+    const runRow: ProcessRunRow = {
+      id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
+      caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'completed',
+      definition_version: 1,
+    }
+    mockSupabase({ 'rpc.complete_process_run': [{ data: runRow, error: null }] }, rec)
+
+    const result = await completeRun(RUN_ID)
+
+    expect(rec.rpcs).toContainEqual(['complete_process_run', { p_run_id: RUN_ID }])
+    expect(result).toEqual(runRow)
+  })
+
+  it('re-throws when the RPC returns an error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.complete_process_run': [{ data: null, error: { message: 'not authorized' } }] }, rec)
+
+    await expect(completeRun(RUN_ID)).rejects.toThrow(/not authorized/)
   })
 })
