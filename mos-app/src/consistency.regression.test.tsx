@@ -17,11 +17,6 @@ vi.mock('./lib/db/tasks', () => ({
   getTaskTitlesByIds: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('./lib/db/ops-log', () => ({
-  listLogEntries: vi.fn(() => new Promise(() => {})),
-  archiveLogEntry: vi.fn(),
-  unarchiveLogEntry: vi.fn(),
-  addLogEntry: vi.fn(),
-  editLogEntry: vi.fn(),
   getTodayOpsSummary: vi.fn(() => new Promise(() => {})),
 }))
 vi.mock('./lib/db/directory', () => ({
@@ -30,19 +25,11 @@ vi.mock('./lib/db/directory', () => ({
 }))
 vi.mock('./lib/db/weekly-updates', () => ({
   getMyUpdate: vi.fn(() => new Promise(() => {})),
-  upsertDraft: vi.fn(),
-  submit: vi.fn(),
-  reopen: vi.fn(),
-  addLine: vi.fn(),
-  updateLine: vi.fn(),
-  removeLine: vi.fn(),
   listTeamUpdates: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 
 import { MyWeek } from './pages/my-week'
-import { UpdatesPage } from './pages/updates-page'
-import { OpsPage } from './pages/ops-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
 
@@ -62,8 +49,7 @@ const authedState: AuthState = {
 }
 
 function withAuth(node: React.ReactNode) {
-  // I18nProvider so pages whose subtrees call useT() (e.g. UpdatesPage → WeeklyUpdateWritePane)
-  // render without throwing outside a provider.
+  // I18nProvider so pages whose subtrees call useT() render without throwing outside a provider.
   return render(
     <I18nProvider>
       <AuthContext.Provider value={authedState}>{node}</AuthContext.Provider>
@@ -133,14 +119,6 @@ describe('RI-VIS-1: no avatar gradient contains the violet token', () => {
     }
   })
 
-  it('WeeklyUpdateReviewPane.css avatar gradient (.wup-review-avatar) uses navy→primary, never violet', () => {
-    const css = readSrc('components/weekly/WeeklyUpdateReviewPane.css')
-    const all = gradientsIn(css)
-    expect(all.length).toBeGreaterThan(0)
-    for (const g of all) {
-      expect(g).not.toMatch(/262 83% 58%|var\(--violet\)/)
-    }
-  })
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -148,16 +126,6 @@ describe('RI-VIS-1: no avatar gradient contains the violet token', () => {
 // as the text color. (Field outline + required asterisk may stay --destructive.)
 // ══════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-2: error text classes use --status-lost-text, not base --destructive', () => {
-  it('OpsAddForm inline .tc-field-error / .tc-submit-error text color is --status-lost-text', () => {
-    const src = readSrc('pages/ops-add-form.tsx')
-    for (const sel of ['.tc-field-error', '.tc-submit-error']) {
-      const body = ruleBody(src, sel)
-      // ADR-0009: tokens are now resolved color(display-p3 …) consumed as var(--token); hsl() wrapper retired.
-      expect(body).toMatch(/color:\s*var\(--status-lost-text\)/)
-      expect(body).not.toMatch(/color:\s*var\(--destructive\)\s*;/)
-    }
-  })
-
   it('LoginPage error text (form alert + inline email error) uses --status-lost-text, not --destructive', () => {
     const src = readSrc('pages/login-page.tsx')
     // Error TEXT color is the AA token (used for both the form alert and the email error)
@@ -208,18 +176,6 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     expect(container.querySelector('[class*="page-title"]')).toBeNull()
   })
 
-  it('/updates (UpdatesPage) renders the shared PageHead and no bespoke page-title element', () => {
-    const { container } = withAuth(<MemoryRouter><UpdatesPage /></MemoryRouter>)
-    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
-    expect(container.querySelector('[class*="page-title"]')).toBeNull()
-  })
-
-  it('/ops (OpsPage) renders the shared PageHead and no bespoke page-title element', () => {
-    const { container } = withAuth(<MemoryRouter><OpsPage /></MemoryRouter>)
-    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
-    expect(container.querySelector('[class*="page-title"]')).toBeNull()
-  })
-
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
     const { container } = withAuth(
       <MemoryRouter initialEntries={['/tasks']}><TasksLayout /></MemoryRouter>,
@@ -235,7 +191,6 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'pages/sales-dashboard-page.tsx',
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
-    'pages/updates-page.tsx',
     'pages/inbox-page.tsx',
     'components/catalog/catalog-manager.tsx',
   ]
