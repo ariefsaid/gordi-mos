@@ -1,8 +1,8 @@
 /* SignalCard — the posted-Signal card (PORT convergence `sigCard` @ the e7 visual bar,
    design-review step-4 CRITICAL-1/2). Card boundary + padding + rhythm: avatar chip · name ·
    time · attention pill; body; meta pills; visibility line; the action row. Every color/radius/
-   shadow resolves to a DESIGN.md --ds-*/--brand-*/--status-* token — no --e7-* names, no raw hex
-   (docs/reviews/design-authority-audit-2026-07-17.md). */
+   shadow resolves to a DESIGN.md --ds-*, --brand-*, or --status-* token — no --e7-* names, no
+   raw hex (docs/reviews/design-authority-audit-2026-07-17.md). */
 
 .signal-card {
   padding: 16px;
