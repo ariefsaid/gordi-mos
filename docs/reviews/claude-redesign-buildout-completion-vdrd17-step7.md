@@ -94,8 +94,8 @@ This branch carries other concurrent steps (4/5/6/8/9/10 — see other commits i
      Accepted: PASS SHIP FIX-THEN-SHIP   Blocking: REWORK FAIL STILL-FAILING
      Required always: spec, code-quality. Required (UI changed): design. Required (schema/RLS changed): security. -->
 
-- spec: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
-- code-quality: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes>
+- spec: APPROVE — spec-reviewer (opus), 2026-07-17. AC-701..720 all owned+green on independent re-run (café pgTAP 27, full suite 100/727, unit 30/30, wiring 64/64); AC-720/F2 live-green in the Director's full run (52/52). Both flagged deviations approved (sectionForPath rewrite = correctness fix; global-setup ops_lead grant = contained, dedicated-persona follow-up recommended).
+- code-quality: APPROVE — same reviewer, 2026-07-17. 0 Critical/Important; minors: unused teamName prop, stale 20260717000004 references in pgTAP headers post merge-rename to ..000006, ?occurrence= persists groupBy (routed to design review), shared-persona grant follow-up.
 - design: <!-- PASS|SHIP|FIX-THEN-SHIP|REWORK|FAIL --> — <reviewer, date, notes> (4-lens review — `*.tsx`/`*.css` changed this step; incl. mockup-fidelity vs the convergence F2 "Start today's opening" flow, SALVAGE-INVENTORY, and cross-version regression)
 - security: **NOT TRIGGERED BY SCOPE** — no new auth/RLS/schema/RPC path this step (spec §7); the privileged spawn seam is Step 6's, already audited there. Becomes mandatory only if a RATIFY above (7A/7B) is resolved toward a schema/capability/RPC change.
 
@@ -103,7 +103,7 @@ This branch carries other concurrent steps (4/5/6/8/9/10 — see other commits i
 
 | Gate | Status |
 |---|---|
-| `bash scripts/sandbox-pg.sh` then `pg_prove supabase/tests/*.sql` | PASS — 100 files / 716 tests (was 95 files / 689 tests before this step; +5 files / +27 tests, no regression on the pre-existing suite incl. Step-6 90–95 and signals 83–90) |
+| `bash scripts/sandbox-pg.sh` then `pg_prove supabase/tests/*.sql` | PASS — 100 files / 727 tests at the merged tip (worktree-time count 716 was stale; was 95 files / 689 tests before this step; +5 files / +27 tests, no regression on the pre-existing suite incl. Step-6 90–95 and signals 83–90) |
 | `cd mos-app && npm run typecheck` | PASS — 0 errors |
 | `cd mos-app && npm run lint -- --max-warnings=0` | PASS — 0 (eslint + stylelint) |
 | `cd mos-app && npm test` (Vitest) | PASS — 279 files / 2899 tests (full suite, incl. this step's new/extended tests) |
