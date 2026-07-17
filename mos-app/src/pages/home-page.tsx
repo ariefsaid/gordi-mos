@@ -230,6 +230,7 @@ export function HomePage() {
           is resolved (FR-508). Never removes the attention region, only reorders it. */}
       {personId && (
         <ViewTabs
+          mode="radiogroup"
           ariaLabel={t('home.order.toggle')}
           tabs={[
             { id: 'attention-first', label: t('home.order.attentionFirst') },

@@ -33,9 +33,18 @@ export interface ViewTabsProps {
   trailing?: ReactNode
   /** accessible name for the tablist (e.g. "View", "Dashboard view") */
   ariaLabel?: string
+  /**
+   * 'tablist' (default) — the content-view-switch grammar (role=tablist/tab,
+   * aria-selected). 'radiogroup' — the SAME segmented visual grammar, but ARIA
+   * radiogroup/radio (aria-checked) semantics for a mutually-exclusive SETTING
+   * that isn't a view switch (RI-1, Q1 ratified Option B — e.g. Home's region-
+   * order control). Keyboard contract is identical either way: roving tabindex
+   * + Arrow/Home/End across enabled options, plus Space to select the focused one.
+   */
+  mode?: 'tablist' | 'radiogroup'
 }
 
-export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTabsProps) {
+export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel, mode = 'tablist' }: ViewTabsProps) {
   // Keyboard nav roves across ENABLED tabs only — soon/disabled stubs are skipped.
   const enabledOrder = tabs
     .map((tab, index) => ({ tab, index }))
@@ -58,11 +67,25 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
     if (nextPos !== null) {
       e.preventDefault()
       onChange(tabs[enabledOrder[nextPos]].id)
+      return
+    }
+    // Space selects the currently-focused (enabled) option — mainly meaningful for the
+    // radiogroup variant, where a viewer can Tab in and confirm the roving-tabindex choice
+    // explicitly rather than relying only on arrow auto-activation.
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      const tab = tabs[index]
+      if (!tab.soon && !tab.disabled) {
+        e.preventDefault()
+        onChange(tab.id)
+      }
     }
   }
 
+  const containerRole = mode === 'radiogroup' ? 'radiogroup' : 'tablist'
+  const itemRole = mode === 'radiogroup' ? 'radio' : 'tab'
+
   return (
-    <div role="tablist" aria-label={ariaLabel} className="view-tabs">
+    <div role={containerRole} aria-label={ariaLabel} className="view-tabs">
       {tabs.map((tab, index) => {
         const isActive = tab.id === active
         const inert = tab.soon || tab.disabled
@@ -77,8 +100,9 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
           <button
             key={tab.id}
             type="button"
-            role="tab"
-            aria-selected={isActive}
+            role={itemRole}
+            aria-selected={mode === 'tablist' ? isActive : undefined}
+            aria-checked={mode === 'radiogroup' ? isActive : undefined}
             aria-disabled={inert ? 'true' : undefined}
             disabled={inert}
             title={tab.soon ? 'Coming soon' : undefined}

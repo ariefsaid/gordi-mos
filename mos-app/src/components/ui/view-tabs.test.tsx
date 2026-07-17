@@ -152,4 +152,62 @@ describe('ViewTabs', () => {
     )
     expect(screen.getByText('Applies to both tabs')).toBeInTheDocument()
   })
+
+  // RI-1 (Q1, ratified Option B) — a `mode="radiogroup"` variant for a mutually-exclusive
+  // SETTING (Home's region-order control), distinct from the default tablist (a content-view
+  // switch). Same visual grammar (view-tabs__tab classes untouched); different ARIA semantics.
+  describe('mode="radiogroup" variant (RI-1)', () => {
+    const ORDER_TABS: ViewTab[] = [
+      { id: 'attention-first', label: 'Attention first' },
+      { id: 'personal-first', label: 'My items first' },
+    ]
+
+    it('exposes role=radiogroup on the container and role=radio on each option (not tablist/tab)', () => {
+      render(<ViewTabs mode="radiogroup" ariaLabel="Home order" tabs={ORDER_TABS} active="attention-first" onChange={vi.fn()} />)
+      expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: /attention first/i })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: /my items first/i })).toBeInTheDocument()
+      expect(screen.queryByRole('tablist')).toBeNull()
+      expect(screen.queryByRole('tab')).toBeNull()
+    })
+
+    it('marks the active option aria-checked=true, the other aria-checked=false (no aria-selected)', () => {
+      render(<ViewTabs mode="radiogroup" tabs={ORDER_TABS} active="personal-first" onChange={vi.fn()} />)
+      const active = screen.getByRole('radio', { name: /my items first/i })
+      const inactive = screen.getByRole('radio', { name: /attention first/i })
+      expect(active).toHaveAttribute('aria-checked', 'true')
+      expect(inactive).toHaveAttribute('aria-checked', 'false')
+      expect(active).not.toHaveAttribute('aria-selected')
+      expect(inactive).not.toHaveAttribute('aria-selected')
+    })
+
+    it('carries the same active-underline class as the tablist grammar (visually identical)', () => {
+      render(<ViewTabs mode="radiogroup" tabs={ORDER_TABS} active="attention-first" onChange={vi.fn()} />)
+      expect(screen.getByRole('radio', { name: /attention first/i })).toHaveClass('view-tabs__tab--active')
+    })
+
+    it('roving tabindex: only the active radio is tabindex=0', () => {
+      render(<ViewTabs mode="radiogroup" tabs={ORDER_TABS} active="attention-first" onChange={vi.fn()} />)
+      expect(screen.getByRole('radio', { name: /attention first/i })).toHaveAttribute('tabindex', '0')
+      expect(screen.getByRole('radio', { name: /my items first/i })).toHaveAttribute('tabindex', '-1')
+    })
+
+    it('ArrowRight moves selection to the next option', () => {
+      const onChange = vi.fn()
+      render(<ViewTabs mode="radiogroup" tabs={ORDER_TABS} active="attention-first" onChange={onChange} />)
+      const first = screen.getByRole('radio', { name: /attention first/i })
+      first.focus()
+      fireEvent.keyDown(first, { key: 'ArrowRight' })
+      expect(onChange).toHaveBeenCalledWith('personal-first')
+    })
+
+    it('Space selects the currently-focused option', () => {
+      const onChange = vi.fn()
+      render(<ViewTabs mode="radiogroup" tabs={ORDER_TABS} active="attention-first" onChange={onChange} />)
+      const second = screen.getByRole('radio', { name: /my items first/i })
+      second.focus()
+      fireEvent.keyDown(second, { key: ' ' })
+      expect(onChange).toHaveBeenCalledWith('personal-first')
+    })
+  })
 })
