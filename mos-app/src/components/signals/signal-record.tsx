@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { CommentThread, type TaskComment } from '@/components/tasks/CommentThread'
+import { formatWibDateTime } from '@/lib/wib-time'
 import type { PersonOption } from '@/lib/db/directory'
-import { SIGNAL_CATEGORIES, type MentionKind, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { attentionSlug, type MentionKind, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { SignalCategoryPicker } from './signal-category-picker'
 
 // Signal record surface (Rule 6 anatomy; reuses the record-panel host pattern — mode
 // "panel"|"page", OD-63/Rule 4). A presentational renderer: all data (the resolved Signal +
@@ -66,7 +68,6 @@ export function SignalRecord({
   linkedTasksSummary, onCreateFollowUpTask, onLinkExistingTask,
 }: SignalRecordProps) {
   const t = useT()
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [revisionsOpen, setRevisionsOpen] = useState(false)
 
   if (signal.retracted_at) {
@@ -79,11 +80,6 @@ export function SignalRecord({
     )
   }
 
-  function pickCategory(category: SignalCategory) {
-    onCategorize?.(category)
-    setCategoryPickerOpen(false)
-  }
-
   return (
     <article className="signal-record" data-mode={mode} data-signal-id={signal.id} aria-label={t('signals.record.title')}>
       <header className="signal-record-head">
@@ -91,8 +87,8 @@ export function SignalRecord({
         <span className="signal-record-team">{teamName}</span>
         {businessUnitName && <span className="signal-record-bu">{businessUnitName}</span>}
         {siteName && <span className="signal-record-site">{siteName}</span>}
-        <span className="signal-record-occurred">{signal.occurred_at}</span>
-        <span className={`signal-attention signal-attention--${signal.attention.replace(/\s+/g, '-').toLowerCase()}`}>
+        <span className="signal-record-occurred">{formatWibDateTime(signal.occurred_at)}</span>
+        <span className={`signal-attention signal-attention--${attentionSlug(signal.attention)}`}>
           {signal.attention}
         </span>
       </header>
@@ -110,26 +106,7 @@ export function SignalRecord({
       {shieldLine && <p className="signal-record-vis">{shieldLine}</p>}
 
       <div className="signal-record-category">
-        {signal.category ? (
-          <span className="signal-category-pill">{signal.category}</span>
-        ) : (
-          <Button variant="ghost" onClick={() => setCategoryPickerOpen((open) => !open)}>
-            {t('signals.record.addCategory')}
-          </Button>
-        )}
-        {categoryPickerOpen && (
-          <div role="listbox" aria-label={t('signals.record.categoryPickerLabel')} className="signal-category-picker">
-            {SIGNAL_CATEGORIES.map((category) => (
-              <button
-                type="button" key={category} role="option"
-                aria-selected={signal.category === category}
-                onClick={() => pickCategory(category)}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        )}
+        <SignalCategoryPicker category={signal.category} onCategorize={onCategorize} />
       </div>
 
       {signal.edited_at && (

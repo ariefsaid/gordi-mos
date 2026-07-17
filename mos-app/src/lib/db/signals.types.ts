@@ -1,4 +1,10 @@
 export type Attention = 'FYI' | 'Needs attention' | 'Urgent'
+
+/** CSS-slug for an attention level (e.g. "Needs attention" → "needs-attention"), for the
+ * `signal-attention--<slug>` / `signal-row-attention--<slug>` modifier classes. */
+export function attentionSlug(attention: Attention): string {
+  return attention.replace(/\s+/g, '-').toLowerCase()
+}
 export const SIGNAL_CATEGORIES = ['Supply/vendor','Equipment/facility','Inventory/availability',
   'Quality','Customer','People','Process','Other'] as const
 export type SignalCategory = typeof SIGNAL_CATEGORIES[number]

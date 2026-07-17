@@ -9,6 +9,7 @@ import type { TeamOption, SiteOption, StagedMention, MentionKind } from '@/lib/d
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
 import { SignalMentionPicker } from './signal-mention-picker'
+import './signal-composer.css'
 
 // FB-style Signal composer (PORT convergence `sigComposer` — Rule 11). Capture-minimal (Rule 8 /
 // OD-42 / D28): exactly four capture fields at initial paint — content, owning Team, occurrence
@@ -130,7 +131,7 @@ export function SignalComposer({
 
   return (
     <div className="signal-composer" data-testid="signal-composer">
-      <div style={{ position: 'relative' }}>
+      <div className="signal-composer-mention-anchor">
         <textarea
           ref={textareaRef}
           aria-label={t('signals.composer.placeholder')}

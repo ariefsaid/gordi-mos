@@ -1,7 +1,8 @@
-import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { SIGNAL_CATEGORIES, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { formatWibDateTime } from '@/lib/wib-time'
+import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { SignalCategoryPicker } from './signal-category-picker'
 
 // Posted Signal card (PORT convergence `sigCard` — Rule 11). FB grammar: avatar+name+occurred-at+
 // attention pill; body; Site/time meta; the visibility/shield line; "Add category" (until set); and
@@ -27,7 +28,6 @@ export function SignalCard({
   signal, authorName, teamName, siteName, shieldLine, onCategorize, onCreateTask, onOpen,
 }: SignalCardProps) {
   const t = useT()
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
 
   if (signal.retracted_at) {
     return (
@@ -39,18 +39,13 @@ export function SignalCard({
     )
   }
 
-  function pickCategory(category: SignalCategory) {
-    onCategorize?.(category)
-    setCategoryPickerOpen(false)
-  }
-
   return (
     <div className="signal-card" data-signal-id={signal.id}>
       <div className="signal-head">
         <span className="signal-avatar" aria-hidden="true">{initials(authorName)}</span>
         <span className="signal-who">{authorName}</span>
-        <span className="signal-when">{signal.occurred_at}</span>
-        <span className={`signal-attention signal-attention--${signal.attention.replace(/\s+/g, '-').toLowerCase()}`}>
+        <span className="signal-when">{formatWibDateTime(signal.occurred_at)}</span>
+        <span className={`signal-attention signal-attention--${attentionSlug(signal.attention)}`}>
           {signal.attention}
         </span>
       </div>
@@ -71,13 +66,7 @@ export function SignalCard({
       {shieldLine && <div className="signal-vis">{shieldLine}</div>}
 
       <div className="signal-actions">
-        {signal.category ? (
-          <span className="signal-category-pill">{signal.category}</span>
-        ) : (
-          <Button variant="ghost" onClick={() => setCategoryPickerOpen((open) => !open)}>
-            {t('signals.record.addCategory')}
-          </Button>
-        )}
+        <SignalCategoryPicker category={signal.category} onCategorize={onCategorize} />
         <span className="signal-actions-spacer" />
         {onCreateTask && (
           <Button variant="outline" onClick={onCreateTask}>
@@ -85,23 +74,6 @@ export function SignalCard({
           </Button>
         )}
       </div>
-
-      {categoryPickerOpen && (
-        <div role="listbox" aria-label={t('signals.record.categoryPickerLabel')} className="signal-category-picker">
-          {SIGNAL_CATEGORIES.map((category) => (
-            <button
-              type="button"
-              key={category}
-              role="option"
-              aria-selected={signal.category === category}
-              className="signal-category-option"
-              onClick={() => pickCategory(category)}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

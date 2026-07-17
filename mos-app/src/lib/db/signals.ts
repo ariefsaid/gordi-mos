@@ -54,16 +54,19 @@ export async function getSignal(id: string): Promise<SignalDetail> {
   const { data: signal, error: sErr } = await mos().from('signals').select('*').eq('id', id).single()
   if (sErr) throw new Error(`getSignal failed — ${sErr.message}`)
 
-  const { data: mentions, error: mErr } = await mos()
-    .from('signal_mentions').select('*').eq('signal_id', id)
+  // The three child reads are independent — fetch them in parallel (the parent row must resolve
+  // first only because a missing Signal should surface as `getSignal failed`, not a child error).
+  const [
+    { data: mentions, error: mErr },
+    { data: acks, error: aErr },
+    { data: tasks, error: tErr },
+  ] = await Promise.all([
+    mos().from('signal_mentions').select('*').eq('signal_id', id),
+    mos().from('signal_acknowledgements').select('*').eq('signal_id', id),
+    mos().from('signal_tasks').select('*').eq('signal_id', id),
+  ])
   if (mErr) throw new Error(`getSignal mentions failed — ${mErr.message}`)
-
-  const { data: acks, error: aErr } = await mos()
-    .from('signal_acknowledgements').select('*').eq('signal_id', id)
   if (aErr) throw new Error(`getSignal acknowledgements failed — ${aErr.message}`)
-
-  const { data: tasks, error: tErr } = await mos()
-    .from('signal_tasks').select('*').eq('signal_id', id)
   if (tErr) throw new Error(`getSignal tasks failed — ${tErr.message}`)
 
   return {

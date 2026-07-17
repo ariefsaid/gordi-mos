@@ -1,0 +1,6 @@
+/* The composer's mention popover anchors to the textarea, so the wrapper is the positioning
+   context for the absolutely-positioned SignalMentionPicker (replaces an inline style — house
+   pattern is a class in a co-located stylesheet). */
+.signal-composer-mention-anchor {
+  position: relative;
+}

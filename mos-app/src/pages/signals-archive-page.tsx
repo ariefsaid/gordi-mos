@@ -7,13 +7,14 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
-import type { SignalRow } from '@/lib/db/signals.types'
+import { formatWibDateTime } from '@/lib/wib-time'
+import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
 
 type FetchState = 'loading' | 'ready' | 'error'
 
 function attentionClass(attention: SignalRow['attention']): string {
-  return `signal-row-attention signal-row-attention--${attention.replace(/\s+/g, '-').toLowerCase()}`
+  return `signal-row-attention signal-row-attention--${attentionSlug(attention)}`
 }
 
 // Work → Signals archive/search (Rule 4 canonical route, replaces the SliceStubPage at
@@ -125,7 +126,7 @@ export function SignalsArchivePage() {
                   {' · '}
                   {teamNamesById[signal.owning_team_id] ?? ''}
                   {' · '}
-                  {signal.occurred_at}
+                  {formatWibDateTime(signal.occurred_at)}
                 </span>
                 <span className={attentionClass(signal.attention)}>{signal.attention}</span>
               </Link>
