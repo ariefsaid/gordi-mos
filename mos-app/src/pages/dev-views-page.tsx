@@ -30,7 +30,7 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
   useDocumentTitle('User Views (dev) — Gordi MOS')
   const auth = useAuth()
   // Route-mounted usage (router.tsx /dev/views/:viewId) supplies no prop — read the param
-  // directly (mirrors TaskDrawer/OpsAddForm's own useParams() convention). Tests render the
+  // directly (mirrors TaskDrawer's own useParams() convention). Tests render the
   // page standalone and pass viewId as a prop, which takes precedence when given.
   const params = useParams<{ viewId?: string }>()
   const viewId = viewIdProp ?? params.viewId
