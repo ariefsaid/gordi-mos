@@ -232,6 +232,30 @@ describe('AC-1004: aria-current — at /events, the Events link is the sole "pag
   })
 })
 
+// Step 8 (catalog re-home) — AC-807/808: aria-current uniqueness locked explicitly at the two
+// re-homed catalog routes (previously only proven generically / at /work/signals + via e2e).
+describe('Step 8/AC-807/808: aria-current uniqueness at /work/projects and /work/objectives', () => {
+  it('AC-807: at /work/projects, Projects & Processes carries page, Work parent carries location, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/projects')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Projects & Processes')
+    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+  })
+
+  it('AC-808: at /work/objectives, Objectives carries page, Work parent carries location, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/objectives')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Objectives')
+    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+  })
+})
+
 // AC-015: every nav SVG is aria-hidden
 describe('AC-015: Nav icon semantics', () => {
   it('all SVGs inside the nav have aria-hidden=true', () => {

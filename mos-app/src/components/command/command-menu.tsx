@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { useAuth } from '@/auth/use-auth'
+import { can } from '@/lib/capabilities'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
@@ -67,6 +68,11 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const moneyAuthorized = accessRoles.includes('finance') || accessRoles.includes('admin')
+  // Step 8 (catalog re-home, FR-802/803): the Work manage-mode screens are capability-gated
+  // (90%-employee-first) and were only reachable from the desktop rail. Mirrors the existing
+  // Signals entry below — a Work child reachable via ⌘K, not the phone More menu.
+  const projectsAuthorized = can(accessRoles, 'workline.manage')
+  const objectivesAuthorized = can(accessRoles, 'objective.manage')
 
   const trimmed = query.trim()
   const isSearching = trimmed.length > 0
@@ -81,18 +87,26 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     [openPanel, onShareSignal, t],
   )
 
-  const navigateItems = useMemo<CommandItem[]>(
-    () => [
+  const navigateItems = useMemo<CommandItem[]>(() => {
+    const items: CommandItem[] = [
       { id: 'n-home', label: t('dest.home'), glyph: '⌂', kind: 'navigate', to: '/' },
       { id: 'n-work', label: t('dest.work'), glyph: '▦', kind: 'navigate', to: '/work/tasks' },
       { id: 'n-signals', label: t('nav.signals'), glyph: '✦', kind: 'navigate', to: '/work/signals' },
+    ]
+    if (projectsAuthorized) {
+      items.push({ id: 'n-projects', label: t('nav.work.projects'), glyph: '▥', kind: 'navigate', to: '/work/projects' })
+    }
+    if (objectivesAuthorized) {
+      items.push({ id: 'n-objectives', label: t('nav.work.objectives'), glyph: '◎', kind: 'navigate', to: '/work/objectives' })
+    }
+    items.push(
       { id: 'n-events', label: t('dest.events'), glyph: '▤', kind: 'navigate', to: '/events' },
       { id: 'n-money', label: t('dest.money'), glyph: '$', kind: 'navigate', to: '/money', gated: true },
       { id: 'n-inbox', label: t('dest.inbox'), glyph: '📥', kind: 'navigate', to: '/inbox' },
       { id: 'n-cafe', label: t('dest.cafe'), glyph: '☕', kind: 'navigate', to: '/cafe' },
-    ],
-    [t],
-  )
+    )
+    return items
+  }, [t, projectsAuthorized, objectivesAuthorized])
 
   const visibleNavigate = useMemo(
     () => navigateItems.filter((i) => !i.gated || moneyAuthorized),

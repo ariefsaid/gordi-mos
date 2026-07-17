@@ -108,7 +108,7 @@ export const routeConfig: RouteObject[] = [
             ],
           },
           { path: 'work/signals', element: <SignalsArchivePage /> },
-          { path: 'work/projects-processes', element: <Navigate to="/work/projects" replace /> },
+          { path: 'work/projects-processes', element: <SearchRedirect to="/work/projects" /> },
           {
             element: <RequireCapability capability="workline.manage" />,
             children: [{ path: 'work/projects', element: <ProjectsProcessesPage /> }],
@@ -183,8 +183,8 @@ export const routeConfig: RouteObject[] = [
           { path: 'kitchen/stock', element: <SearchRedirect to="/cafe/stock" /> },
           { path: 'kitchen/review', element: <SearchRedirect to="/cafe/review" /> },
           { path: 'kitchen/pushes', element: <SearchRedirect to="/cafe/pushes" /> },
-          { path: 'objectives', element: <Navigate to="/work/objectives" replace /> },
-          { path: 'projects-processes', element: <Navigate to="/work/projects" replace /> },
+          { path: 'objectives', element: <SearchRedirect to="/work/objectives" /> },
+          { path: 'projects-processes', element: <SearchRedirect to="/work/projects" /> },
           { path: 'dashboard', element: <SearchRedirect to="/money" /> },
           { path: 'dashboard/detail', element: <SearchRedirect to="/money/detail" /> },
           // /sales → /money directly (no chained redirect via /dashboard — spec §16).

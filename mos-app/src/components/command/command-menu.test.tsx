@@ -201,6 +201,48 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
   })
 })
 
+// ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group is capability-gated ─────────────
+describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per capability', () => {
+  it('AC-804: admin sees both Projects & Processes and Objectives; activating each navigates and closes', () => {
+    setAuth(['admin'])
+    const { onClose } = renderMenu()
+    expect(screen.getByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: /^Projects & Processes$/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/projects')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('AC-804: activating Objectives navigates to /work/objectives and closes', () => {
+    setAuth(['admin'])
+    const { onClose } = renderMenu()
+    fireEvent.click(screen.getByRole('option', { name: /^Objectives$/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('AC-805: ops_lead (workline.manage only) sees Projects & Processes but not Objectives', () => {
+    setAuth(['ops_lead'])
+    renderMenu()
+    expect(screen.getByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Objectives$/i })).toBeNull()
+  })
+
+  it('AC-806: a plain member sees neither, and the pre-existing Navigate items are unaffected', () => {
+    setAuth([])
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
+    expect(screen.queryByRole('option', { name: /^Objectives$/i })).toBeNull()
+    expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Events$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+  })
+})
+
 // ── default groups ──────────────────────────────────────────────────────────
 describe('default groups (empty query): Recent + Actions + Navigate', () => {
   it('shows the Actions + Navigate groups when the query is empty', () => {
