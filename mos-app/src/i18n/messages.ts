@@ -521,6 +521,8 @@ export const messages = {
     'cafe.opening.notStartedLead': "Not started yet — start today's opening.",
     'cafe.opening.notStartedMember': "Not started yet — your shift lead starts today's opening.",
     'cafe.opening.viewTasks': 'View opening tasks',
+    'cafe.opening.noProcess': 'No café opening is configured for this org yet.',
+    'cafe.opening.noTeam': "You're not on a café branch Team yet — ask your admin to add you.",
   },
   id: {
     'dest.home': 'Beranda',
@@ -1019,6 +1021,8 @@ export const messages = {
     'cafe.opening.notStartedLead': 'Belum dimulai — mulai pembukaan hari ini.',
     'cafe.opening.notStartedMember': 'Belum dimulai — pemimpin shift memulai pembukaan hari ini.',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
+    'cafe.opening.noProcess': 'Belum ada pembukaan kafe yang dikonfigurasi untuk org ini.',
+    'cafe.opening.noTeam': 'Anda belum tergabung di Tim cabang kafe — hubungi admin untuk ditambahkan.',
   },
 } as const
 
