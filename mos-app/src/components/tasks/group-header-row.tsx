@@ -116,10 +116,22 @@ export function GroupHeaderRow({
           )}
           {occurrenceRollup ? (
             <span className="gcount tabular-nums">
-              {t('processes.rollup.summary', {
-                done: occurrenceRollup.done, total: occurrenceRollup.total,
-                overdue: occurrenceRollup.overdue, pending: occurrenceRollup.pendingUnresolved,
-              })}
+              {/* Design fix wave item 6 (MINOR — "1 to assign" stutter): when the "N to assign"
+                  button ALSO renders just below, the summary drops the pending clause entirely
+                  (the button already carries the count); a non-capable viewer (no button) keeps
+                  a clause, but neutral "N unassigned" wording — never actionable-sounding text
+                  with nothing to click. */}
+              {t(
+                occurrenceRollup.pendingUnresolved === 0
+                  ? 'processes.rollup.summary'
+                  : onAssignPending
+                    ? 'processes.rollup.summaryNoAssign'
+                    : 'processes.rollup.summaryUnassigned',
+                {
+                  done: occurrenceRollup.done, total: occurrenceRollup.total,
+                  overdue: occurrenceRollup.overdue, pending: occurrenceRollup.pendingUnresolved,
+                },
+              )}
             </span>
           ) : (
             <span className="gcount tabular-nums">{count}</span>

@@ -160,9 +160,12 @@ describe('MobileGroupedCards', () => {
       occurrenceRollup: { total: 2, done: 1, overdue: 0, pendingUnresolved: 1 },
     }
 
-    it('renders the roll-up summary (not the plain count) for an occurrence group', () => {
+    // Design fix wave item 6 (MINOR — "1 to assign" stutter): no onAssignPending handler here
+    // (the viewer cannot act) — neutral "N unassigned" wording, never actionable-sounding text
+    // with nothing to click (mirrors GroupHeaderRow).
+    it('renders the roll-up summary (not the plain count) for an occurrence group, "N unassigned" with no assign handler', () => {
       renderCards({ groups: [OCC_GROUP] })
-      expect(screen.getByText('1/2 done · 0 overdue · 1 to assign')).toBeInTheDocument()
+      expect(screen.getByText('1/2 done · 0 overdue · 1 unassigned')).toBeInTheDocument()
     })
 
     it('renders the "N to assign" affordance when pendingUnresolved > 0 and a handler is given, firing it with the run id', () => {
@@ -171,6 +174,12 @@ describe('MobileGroupedCards', () => {
       const assignBtn = screen.getByRole('button', { name: '1 to assign' })
       fireEvent.click(assignBtn)
       expect(onAssignPending).toHaveBeenCalledWith('run-1')
+    })
+
+    it('item 6: drops the pending clause from the summary when the "N to assign" button ALSO renders (no stutter)', () => {
+      renderCards({ groups: [OCC_GROUP], onAssignPending: vi.fn() })
+      expect(screen.getByText('1/2 done · 0 overdue')).toBeInTheDocument()
+      expect(screen.queryByText('1 to assign', { selector: '.mgc-count' })).not.toBeInTheDocument()
     })
 
     it('never renders the assign affordance when no handler is given (viewer cannot resolve)', () => {

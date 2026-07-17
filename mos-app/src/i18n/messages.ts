@@ -519,6 +519,14 @@ export const messages = {
     'processes.pending.stepSubtitle': 'two people could own this',
     'processes.pending.choose': 'Choose PIC',
     'processes.rollup.summary': '${done}/${total} done · ${overdue} overdue · ${pending} to assign',
+    // Design fix wave item 6 (MINOR — "1 to assign" stutter) — when a SEPARATE "N to assign"
+    // button also renders (GroupHeaderRow/MobileGroupedCards), the summary drops the pending
+    // clause entirely so the count isn't said twice in one row.
+    'processes.rollup.summaryNoAssign': '${done}/${total} done · ${overdue} overdue',
+    // A non-capable viewer has no assign control at all (no button, no editor below) — neutral
+    // "N unassigned" wording never implies an action they can't take (also fixes the café member
+    // dead-end minor: "N to assign" read like an instruction with nothing to click).
+    'processes.rollup.summaryUnassigned': '${done}/${total} done · ${overdue} overdue · ${pending} unassigned',
     'processes.due.empty': 'No recurring work due to start.',
     // Design fix wave item 1b — the collapsed-by-default due-runs summary affordance (never a
     // full-width flood of Start-run rows burying the Tasks table, design-review step-6 CRITICAL).
@@ -1031,6 +1039,8 @@ export const messages = {
     'processes.pending.stepSubtitle': 'dua orang bisa memegang ini',
     'processes.pending.choose': 'Pilih PIC',
     'processes.rollup.summary': '${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan',
+    'processes.rollup.summaryNoAssign': '${done}/${total} selesai · ${overdue} terlambat',
+    'processes.rollup.summaryUnassigned': '${done}/${total} selesai · ${overdue} terlambat · ${pending} belum ditetapkan',
     'processes.due.empty': 'Tidak ada pekerjaan rutin yang perlu dimulai.',
     'processes.due.summary': '${count} perlu dimulai',
     'tasks.filter.occurrence': 'Kejadian',

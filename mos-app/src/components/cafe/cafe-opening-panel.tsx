@@ -122,9 +122,16 @@ export function CafeOpeningPanel({ processId, teamId }: CafeOpeningPanelProps) {
     <div className="cafe-opening-panel cafe-opening-panel--started">
       <h2 className="cafe-opening-caption">{rollup.caption}</h2>
       <p className="cafe-opening-rollup tabular-nums">
-        {t('processes.rollup.summary', {
-          done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved,
-        })}
+        {/* Design fix wave item 6 — the café member dead-end minor: a non-capable member has no
+            resolve editor below (canStart-gated), so "N to assign" read like an instruction with
+            nothing to click. Neutral "N unassigned" wording for that viewer only — a capable
+            viewer keeps "to assign" (the editor is right below, no stutter risk here). */}
+        {t(
+          rollup.pending_unresolved === 0 || canStart
+            ? 'processes.rollup.summary'
+            : 'processes.rollup.summaryUnassigned',
+          { done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved },
+        )}
       </p>
       <Link to={`/work/tasks?occurrence=${runId}`} className="btn btn-outline">
         {t('cafe.opening.viewTasks')}

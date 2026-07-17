@@ -64,16 +64,33 @@ describe('GroupHeaderRow', () => {
 
   // Step 6 (B8, AC-622 render / FR-611): when grouped by occurrence, the run's CAPTION is the
   // label (never the internal-only string "Process Run") and the roll-up summary (done/total ·
-  // overdue · N to assign) reuses this SAME header grammar — no new/divergent header component.
+  // overdue [· N to assign/unassigned]) reuses this SAME header grammar — no new/divergent header
+  // component.
   describe('occurrence group rendering (B8)', () => {
-    it('renders the run caption as the label plus the process_run_rollup summary', () => {
+    // Design fix wave item 6 (MINOR — "1 to assign" stutter): when NO onAssignPending handler is
+    // given (the viewer cannot act), the summary uses neutral "N unassigned" wording — never an
+    // actionable-sounding phrase with nothing to click.
+    it('renders the run caption as the label plus the process_run_rollup summary, "N unassigned" when the viewer has no assign handler', () => {
       renderRow({
         label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
         occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
       })
       expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
-      expect(screen.getByText('1/1 done · 0 overdue · 2 to assign')).toBeInTheDocument()
+      expect(screen.getByText('1/1 done · 0 overdue · 2 unassigned')).toBeInTheDocument()
       expect(screen.queryByText('Process Run')).not.toBeInTheDocument()
+    })
+
+    it('item 6: drops the pending clause from the summary when the "N to assign" button ALSO renders (no stutter)', () => {
+      renderRow({
+        label: 'Café Opening · 17 Jul 2026', count: 1, overdue: 0,
+        occurrenceRollup: { total: 1, done: 1, overdue: 0, pendingUnresolved: 2 },
+        onAssignPending: vi.fn(),
+      })
+      expect(screen.getByText('1/1 done · 0 overdue')).toBeInTheDocument()
+      expect(screen.queryByText(/2 unassigned/)).not.toBeInTheDocument()
+      expect(screen.queryByText('2 to assign', { selector: '.gcount' })).not.toBeInTheDocument()
+      // ...the button still carries the count on its own.
+      expect(screen.getByRole('button', { name: '2 to assign' })).toBeInTheDocument()
     })
 
     it('does not render the generic plain count when an occurrence roll-up is present', () => {

@@ -228,13 +228,22 @@ export function MobileGroupedCards({
               <MobileWorkLineTypeTag type={group.workLineType} />
             )}
             {/* Design fix wave item 3 — occurrence groups supersede the plain count with the
-                roll-up summary, mirroring desktop's GroupHeaderRow (Rule 9 parity). */}
+                roll-up summary, mirroring desktop's GroupHeaderRow (Rule 9 parity). Design fix
+                wave item 6 (MINOR — "1 to assign" stutter): the same drop-clause-when-a-button-
+                also-renders / neutral-"unassigned"-otherwise logic as GroupHeaderRow. */}
             {group.occurrenceRollup ? (
               <span className="mgc-count tabular-nums">
-                {t('processes.rollup.summary', {
-                  done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
-                  overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
-                })}
+                {t(
+                  group.occurrenceRollup.pendingUnresolved === 0
+                    ? 'processes.rollup.summary'
+                    : onAssignPending
+                      ? 'processes.rollup.summaryNoAssign'
+                      : 'processes.rollup.summaryUnassigned',
+                  {
+                    done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
+                    overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
+                  },
+                )}
               </span>
             ) : (
               <span className="mgc-count tabular-nums">{group.rows.length}</span>

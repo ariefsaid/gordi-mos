@@ -133,6 +133,28 @@ describe('AC-714 — opening started: caption, roll-up, and the /work/tasks link
     expect(link).toHaveAttribute('href', expect.stringContaining('/work/tasks'))
     expect(document.body.textContent).not.toContain('Process Run')
   })
+
+  // Design fix wave item 6 — the café member dead-end minor: a non-capable member saw "1 to
+  // assign" with nothing below it to click (the resolve editor only mounts for a capable
+  // viewer) — that read like an instruction with no way to act. Neutral "N unassigned" wording
+  // never implies an action the viewer can't take.
+  it('item 6: a non-capable member sees "N unassigned" (never "N to assign") since they have no way to resolve it', async () => {
+    setAuthAs(['member'])
+    mockGetTodayOpeningForTeam.mockResolvedValue({
+      started: true, runId: RUN_ID,
+      rollup: {
+        process_run_id: RUN_ID, caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+        status: 'open', total: 5, open: 2, in_progress: 0, blocked: 0, done: 2,
+        overdue: 1, pending_unresolved: 1, completion_pct: 40,
+      },
+    })
+
+    renderPanel()
+
+    await screen.findByText('Café Opening · 17 Jul 2026')
+    expect(screen.getByText(/1 unassigned/)).toBeInTheDocument()
+    expect(screen.queryByText(/1 to assign/)).not.toBeInTheDocument()
+  })
 })
 
 // ── AC-715: pending "to assign" resolution, gated on process.start ──────────
