@@ -163,8 +163,8 @@ export function SignalComposer({
           ))}
         </Select>
 
-        <label>
-          {t('signals.composer.occurredLabel')}
+        <label className="signal-composer-datetime">
+          <span className="signal-composer-field-label">{t('signals.composer.occurredLabel')}</span>
           <input
             type="datetime-local"
             aria-label={t('signals.composer.occurredLabel')}
