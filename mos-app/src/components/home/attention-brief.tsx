@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { EmptyState } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import type { AttentionLane, AttentionLaneKind } from '@/lib/home-attention'
 import type { MessageKey } from '@/i18n/messages'
 import './attention-brief.css'
@@ -37,8 +37,24 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
         <EmptyState title={t('home.attention.allClear')} variant="quiet" />
       ) : (
         ordered.map(lane => {
+          if (lane.state === 'loading') {
+            return (
+              <div key={lane.kind} className="attention-lane" aria-busy="true">
+                <SkeletonRows count={2} />
+              </div>
+            )
+          }
+
+          if (lane.state === 'error') {
+            return (
+              <div key={lane.kind} className="attention-lane">
+                <ErrorState message={t('home.attention.laneError')} />
+              </div>
+            )
+          }
+
           // ready + 0 items → the lane is omitted (no "0" tile — never a misleading zero).
-          if (lane.state !== 'ready' || lane.items.length === 0) return null
+          if (lane.items.length === 0) return null
 
           return (
             <div key={lane.kind} className="attention-lane">

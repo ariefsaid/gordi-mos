@@ -59,3 +59,28 @@ describe('AC-509: all-clear empty state, no misleading zeros', () => {
     expect(screen.queryByText('Failed checks')).toBeNull()
   })
 })
+
+describe('AC-510: per-lane error is fail-soft', () => {
+  it('shows the error affordance for the errored lane while the ready lane still renders its items', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'overdue', state: 'ready', items: [{ id: 'o1', title: 'Overdue task', route: '/work/tasks/o1' }] },
+      { kind: 'mentions', state: 'error', items: [] },
+    ]
+    renderBrief(lanes)
+
+    expect(screen.getByText("Couldn't load this list. Refresh to try again.")).toBeInTheDocument()
+    expect(screen.getByText('Overdue task').closest('a')).not.toBeNull()
+  })
+
+  it('a loading lane shows an aria-busy skeleton without blocking a ready sibling', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'overdue', state: 'loading', items: [] },
+      { kind: 'mentions', state: 'ready', items: [{ id: 'm1', title: 'A mention', route: '/inbox' }] },
+    ]
+    renderBrief(lanes)
+
+    const region = screen.getByRole('region', { name: 'Needs attention' })
+    expect(region.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(screen.getByText('A mention').closest('a')).not.toBeNull()
+  })
+})
