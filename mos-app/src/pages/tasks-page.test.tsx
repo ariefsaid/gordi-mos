@@ -896,7 +896,9 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
 
     await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
-    expect(screen.getByRole('button', { name: 'Start run' })).toBeInTheDocument()
+    // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
+    // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
+    expect(screen.getByRole('button', { name: 'Start · Café HQ daily opening' })).toBeInTheDocument()
   })
 
   it('the due-runs trigger is absent for a viewer without process.start', async () => {
@@ -904,7 +906,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     renderPage() // default authedState: accessRoles: []
     await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Start ·/ })).not.toBeInTheDocument()
     expect(mockListDueRuns).not.toHaveBeenCalled()
   })
 
@@ -918,7 +920,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })
 
-  it('clicking Start run calls startRun and refreshes the task list', async () => {
+  it('clicking Start · <process name> calls startRun and refreshes the task list', async () => {
     mockListTasks.mockResolvedValue([])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     const spawnResult: SpawnResult = { run_id: 'run-1', created: 1, pending: 1, idempotent: false }
@@ -928,7 +930,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
     const before = mockListTasks.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Start run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start · Café HQ daily opening' }))
 
     await waitFor(() => expect(mockStartRun).toHaveBeenCalledWith('wl-1', 'team-1', '2026-07-17'))
     await waitFor(() => expect(mockListTasks.mock.calls.length).toBeGreaterThan(before))

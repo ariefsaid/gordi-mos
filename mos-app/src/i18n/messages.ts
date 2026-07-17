@@ -506,7 +506,10 @@ export const messages = {
     // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9). "Process Run"
     // never appears (FR-611) — these strings speak in "run"/"assign" verbs+objects (Rule 7), never
     // a bare "Create".
-    'processes.action.startRun': 'Start run',
+    // Design fix wave item 5 (Rule 7/12, OD-58) FINAL DECISION — the visible button text composes
+    // "Start · <process name>" so the object is the REAL job, never the generic bare "Start"/
+    // repeated "run" (CSS clamps a long name — due-runs.css .due-runs-start-label).
+    'processes.action.startComposed': 'Start · ${name}',
     'processes.pending.title': 'Assign — two people could own this',
     // Design fix wave item 2 — the assign surface must NAME the step (no dead-language stutter).
     // The dialog/section-level label keeps processes.pending.title as-is (job-sentence, generic);
@@ -1023,7 +1026,7 @@ export const messages = {
     'home.order.personalFirst': 'Item saya dulu',
     'home.order.viewOptions': 'Opsi tampilan',
     // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9).
-    'processes.action.startRun': 'Mulai proses',
+    'processes.action.startComposed': 'Mulai · ${name}',
     'processes.pending.title': 'Tetapkan — dua orang bisa memegang ini',
     'processes.pending.stepSubtitle': 'dua orang bisa memegang ini',
     'processes.pending.choose': 'Pilih PIC',

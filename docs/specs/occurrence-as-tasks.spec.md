@@ -397,9 +397,10 @@ not locally. Tag each assertion's title with its `AC-###` so `grep -r AC-6## sup
   invokes `.rpc('resolve_pending_task', …)`; `listPendingTasks(runId)` reads the unresolved rows (FR-606).
 - **AC-622** (unit): Given generated Tasks carrying a `process_run_id`, when the Tasks list renders, then they
   are grouped under the run **caption** and the label string "Process Run" is **never** rendered (FR-611).
-- **AC-623** (unit): Given the Start-run control, when the viewer is `process.start`-capable, then due
-  occurrences render with a **"Start run"** action (no bare "Create"); when not capable, the control is absent
-  (FR-612 / Rule 7).
+- **AC-623** (unit): Given the due-runs disclosure, when the viewer is `process.start`-capable, then due
+  occurrences render with a **"Start · &lt;process name&gt;"** composed action (verb+object, the real job — no
+  bare "Start"/"Create"); when not capable, the disclosure is absent (FR-612 / Rule 7). Design fix wave item 5
+  (Rule 7/12, OD-58): the composed label replaced the earlier generic "Start run" text.
 - **AC-624** (unit): Given the pending-PIC resolution surface, when it renders a `reason='multiple'` item, then
   its candidate people are listed and selecting one calls `resolvePendingTask` (FR-606 / OD-41).
 

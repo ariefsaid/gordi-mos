@@ -91,7 +91,9 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
     .filter({ hasText: 'Café HQ daily opening' })
     .filter({ hasText: teamName ?? 'HQ Operations' })
   await expect(dueRow).toBeVisible({ timeout: 15_000 })
-  await dueRow.getByRole('button', { name: 'Start run' }).click()
+  // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
+  // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
+  await dueRow.getByRole('button', { name: 'Start · Café HQ daily opening' }).click()
   await expect(dueRow).not.toBeVisible({ timeout: 10_000 })
 
   // ── ASSERT: switch to Occurrence grouping — the single-holder Task groups under the caption ────

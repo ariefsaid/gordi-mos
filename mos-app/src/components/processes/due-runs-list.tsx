@@ -37,17 +37,21 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart }:
                 <span className="due-runs-row-process">{row.process_name}</span>
                 <span className="due-runs-row-team">{row.team_name}</span>
               </div>
-              {/* Visible/accessible NAME stays the short verb+object "Start run" (Rule 7); the
-                  process+Team context is attached via aria-describedby so screen-reader users
-                  still get it (WCAG AA) without duplicating "Start run" repeats into distinct
-                  button names across a multi-row due list. */}
+              {/* Design fix wave item 5 (Rule 7/12, OD-58) FINAL DECISION — the visible/accessible
+                  NAME composes "Start · <process name>" (verb+object, the REAL job — never a bare
+                  "Start"/"Create"); a long name clamps via CSS (due-runs-start-label). The Team
+                  context still rides aria-describedby (WCAG AA) since it's not in the visible
+                  label. */}
               <Button
                 variant="primary"
+                className="due-runs-start-btn"
                 disabled={startingKey === key}
                 aria-describedby={labelsId}
                 onClick={() => { void onStart(row) }}
               >
-                {t('processes.action.startRun')}
+                <span className="due-runs-start-label">
+                  {t('processes.action.startComposed', { name: row.process_name })}
+                </span>
               </Button>
             </li>
           )
