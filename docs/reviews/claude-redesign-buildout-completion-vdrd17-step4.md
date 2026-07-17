@@ -127,3 +127,48 @@ through `test(signals): C5` on this branch). This branch carries other concurren
   Intended fix before Signal volume grows: server-side search (push the `?q=` filter into a PostgREST
   `.or(...)`/RPC) + range pagination (`.range(from,to)` with an infinite-scroll or pager), so the feed
   never loads the full table. Track alongside the RATIFY-6 async-fan-out sequel.
+- **SPEC minor-3 — record surface `mode="page"` branch unbuilt (panel-only v1).** The `SignalRecord`
+  renderer accepts `mode="panel"|"page"` (OD-63/Rule 4) but only the panel/drawer host
+  (`SignalRecordHost` behind `?record=<id>`) is wired; there is no full canonical-page route mounting
+  the record in `mode="page"`. In-list/drawer + direct-URL-to-drawer both work; a dedicated
+  `/work/signals/:id` page is deferred (the renderer already supports it — only a route + host mount
+  are missing). Not a fail for v1 (AC-416's drawer path is covered); track for the page-anatomy pass.
+
+## Fix wave (post-review) — 2026-07-17
+
+Consolidated review findings closed on branch `claude/redesign-buildout-completion-vdrd17`
+(security BLOCK 1 High/3 Low, code-quality APPROVE-with-Importants, spec APPROVE-with-minors). One
+commit per finding; strict TDD (failing test first where a test owns the behavior).
+
+| # | Finding | Commit | How verified |
+|---|---|---|---|
+| 1 | SECURITY HIGH-1 — a `signal.retract` holder could rewrite another author's content | `3e96961` | pgTAP `87_signal_correction_retraction` (plan 9→12): a non-author retract-holder is denied a body rewrite (42501), may still retract, body stays unchanged. Full suite green. |
+| 2 | CQ IMPORTANT-1 + SECURITY LOW-1 + LOW-2 — non-atomic 3-call post; unvalidated mention targets; non-idempotent fan-out | `414524e` | pgTAP `90_signal_create_rpc` (plan 8): atomic rollback on bad target, org-target rejection, idempotent double fan-out. DAL `createSignal` → RPC; composer retry-safe (unit). |
+| 3 | SECURITY LOW-3 — `_test_seed_signal_tree` unguarded in prod | `7efc084` | New migration guards on `app.allow_test_seeds`; `83` asserts it fires without the GUC; all 7 signal files opt in. `supabase test db` 90 files / 632 tests PASS. |
+| 4 | CQ minors — dup category picker, attention slug, date format, parallel reads, inline style | `2f4e61f` | `SignalCategoryPicker` + `attentionSlug` + `formatWibDateTime` reused; `getSignal` Promise.all; `.signal-composer-mention-anchor` class. Card/record/archive/category-picker unit tests green. |
+| 5 | CQ IMPORTANT-2 — unbounded `listReadableSignals` (defer + document) | `4f7e0d0` | Recorded in Deferred / tracked debt above (server-side search + range pagination). Not built (YAGNI). |
+| 6 | SPEC minor-1 — `sandbox-pg.sh` omitted `seed.dev-signals.sql` | `56adbbb` | Added in config.toml `[db.seed]` order (after dev-tasks, before dev-auth); `bash -n` clean. |
+| — | Supporting: Home feed did not refresh after a Share (surfaced by AC-430 once the post path was fixed) | `455bc80` | `postCount` on the composer context; feed watches it. Composer-host + feed-section unit tests; AC-430 e2e passes. |
+| 7 | Ledger update (this section) | this commit | — |
+
+**Final gates (fresh, 2026-07-17):**
+
+| Gate | Result |
+|---|---|
+| `supabase test db` (pgTAP) | PASS — 90 files / 632 tests |
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run lint -- --max-warnings=0` | PASS — 0 (eslint + stylelint) |
+| `npm test` (Vitest) | PASS — 262 files / 2755 tests |
+| `npx playwright test AC-430-post-a-signal` (live stack) | PASS (7.3s) |
+
+**Decisions recorded in the fix wave:**
+- `mos.create_signal_with_mentions` is **SECURITY INVOKER** (not DEFINER): it inserts into
+  `mos.signals` + `mos.signal_mentions`, both already fail-closed RLS-gated, so the invoker's policies
+  stay the authority; it calls the existing DEFINER `fan_out_signal_mention` internally. The Signal id
+  is generated in-function (not via `RETURNING`) because an `INSERT...RETURNING` re-applies the SELECT
+  policy whose DEFINER self-query cannot see the just-inserted row within the same command — a latent
+  trap the old 3-call DAL shared (never caught: AC-430 was never run pre-review).
+- LOW-3 guard mechanism: an **opt-in GUC `app.allow_test_seeds`** (fail-closed — prod never sets it;
+  the pgTAP harness sets it per-transaction). Chosen because the repo has no reliable prod-vs-local DB
+  marker (`current_database()` is `postgres` in both; no `app.settings.environment`); mirrors the
+  existing `app.esb_target_env` GUC pattern.
