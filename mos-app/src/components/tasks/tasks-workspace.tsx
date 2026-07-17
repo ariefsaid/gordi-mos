@@ -13,6 +13,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { can } from '@/lib/capabilities'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
@@ -119,6 +120,14 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
   const isManager = auth.status === 'authenticated' && auth.viewer.isManager
   const captureFirstMobile = !isDesktop && !isManager
   const t = useT()
+  // Design fix wave item 3 — the occurrence-group "N to assign" affordance (desktop + mobile) only
+  // renders for a viewer who can actually resolve a pending step; RLS remains the real gate on the
+  // resolve_pending_task RPC itself (mirrors the process.start capability checks elsewhere on this
+  // page).
+  const canResolvePending = can(
+    auth.status === 'authenticated' ? auth.viewer.accessRoles : [],
+    'process.start',
+  )
 
   // ── Persistence (FR-125) ──────────────────────────────────────────────────
   const { groupBy, setGroupBy, isCollapsed, toggleCollapsed, collapsedGroups } = useTasksViewPref()
@@ -637,7 +646,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
         controlsId={`grp-rows-${group.key}`}
         workLineType={group.workLineType}
         occurrenceRollup={group.occurrenceRollup}
-        onAssignPending={group.occurrenceRollup ? () => openAssignPending(group.key) : undefined}
+        onAssignPending={group.occurrenceRollup && canResolvePending ? () => openAssignPending(group.key) : undefined}
         onToggle={() => toggleCollapsed(group.key)}
         onAddTask={() => openAddTask(group.prefillParam)}
         onOverdueFilter={() => setOverdueOnly(true)}
@@ -801,6 +810,7 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
             objectiveMap={objectiveMap}
             workloadSummary={workloadSummary}
             createHref={{ pathname: '/work/tasks/new', search: currentSearch }}
+            onAssignPending={canResolvePending ? openAssignPending : undefined}
           />)}
 
           {/* Design fix wave item 1b: the due-runs row list — mounted AFTER the Tasks table (never

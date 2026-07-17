@@ -23,6 +23,12 @@ export type MobileRenderGroup = {
    * Text label is always present (never color-only) — WCAG 1.4.1.
    */
   workLineType?: 'project' | 'process' | null
+  /**
+   * Design fix wave item 3 (Rule 9 occurrence group parity) — mirrors RenderGroup's
+   * occurrenceRollup (tasks-grouping.ts). Present only for an occurrence group; supersedes the
+   * plain count/overdue grammar with the roll-up summary, same as desktop's GroupHeaderRow.
+   */
+  occurrenceRollup?: { total: number; done: number; overdue: number; pendingUnresolved: number }
 }
 
 // ── Work-line type label tag (mirrors desktop WorkLineTypeTag in group-header-row) ──
@@ -57,6 +63,13 @@ export type MobileGroupedCardsProps = {
   workLineMap: Map<string, string>
   /** FR-234: resolved objective names (id → name). */
   objectiveMap: Map<string, string>
+  /**
+   * Design fix wave item 3 — opens the pending-PIC resolution surface for an occurrence group,
+   * keyed by the group's run id. Same handler contract as desktop's GroupHeaderRow
+   * onAssignPending. Omitted (undefined) when the viewer cannot resolve pending items — the
+   * affordance never renders without it (mirrors the desktop gating).
+   */
+  onAssignPending?: (runId: string) => void
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
@@ -149,7 +162,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
 export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
-  workLineMap, objectiveMap,
+  workLineMap, objectiveMap, onAssignPending,
 }: MobileGroupedCardsProps) {
   const t = useT()
   // Flat default (mockup): the single implicit group renders as a plain card list
@@ -203,8 +216,28 @@ export function MobileGroupedCards({
             {group.workLineType != null && (
               <MobileWorkLineTypeTag type={group.workLineType} />
             )}
-            <span className="mgc-count tabular-nums">{group.rows.length}</span>
-            {group.overdue > 0 && (
+            {/* Design fix wave item 3 — occurrence groups supersede the plain count with the
+                roll-up summary, mirroring desktop's GroupHeaderRow (Rule 9 parity). */}
+            {group.occurrenceRollup ? (
+              <span className="mgc-count tabular-nums">
+                {t('processes.rollup.summary', {
+                  done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
+                  overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
+                })}
+              </span>
+            ) : (
+              <span className="mgc-count tabular-nums">{group.rows.length}</span>
+            )}
+            {group.occurrenceRollup && group.occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+              <button
+                type="button"
+                className="mgc-sub mgc-sub-pending"
+                onClick={() => onAssignPending(group.key)}
+              >
+                {t('processes.pending.assignCount', { count: group.occurrenceRollup.pendingUnresolved })}
+              </button>
+            )}
+            {!group.occurrenceRollup && group.overdue > 0 && (
               <button
                 type="button"
                 className="mgc-sub"

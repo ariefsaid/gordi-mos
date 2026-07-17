@@ -103,6 +103,10 @@ export type TasksTableBodyProps = {
   /** FR-236: workload summary for the caption (workline groupBy + single person). */
   workloadSummary: WorkloadSummary | null
   createHref: To
+  /** Design fix wave item 3 — threaded through to MobileGroupedCards' occurrence-group assign
+   * affordance (Rule 9 parity with desktop's GroupHeaderRow). Undefined when the viewer cannot
+   * resolve pending items. */
+  onAssignPending?: (runId: string) => void
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
@@ -115,7 +119,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
-    workLineMap, objectiveMap, workloadSummary, createHref,
+    workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending,
   } = props
 
   if (loading) {
@@ -178,6 +182,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         setOverdueOnly={setOverdueOnly}
         workLineMap={workLineMap}
         objectiveMap={objectiveMap}
+        onAssignPending={onAssignPending}
       />
     )
   }

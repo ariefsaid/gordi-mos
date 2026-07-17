@@ -848,6 +848,13 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
   })
 })
 
+// process.start-capable fixture — shared by the Step 6 C1 (due-runs) and C2 (assign) describes
+// below; design fix wave item 3 also gates the "N to assign" affordance on this same capability.
+const CAPABLE_AUTH: AuthState = {
+  ...authedState,
+  viewer: { ...authedState.viewer, accessRoles: ['ops_lead'] },
+}
+
 // ── Step 6 (Track C, C1) — the due-runs disclosure (trigger + list) mounted near the toolbar / after
 // the table; occurrence group-by (docs/plans/2026-07-16-occurrence-as-tasks.md C1;
 // docs/specs/occurrence-as-tasks.spec.md §5). "Process Run" must NEVER appear as UI vocabulary
@@ -855,10 +862,6 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
 // (design-review step-6 CRITICAL — a full-width due-row flood buried the Tasks table) — every test
 // below expands it via the "N due to start" trigger before interacting with a row.
 describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
-  const CAPABLE_AUTH: AuthState = {
-    ...authedState,
-    viewer: { ...authedState.viewer, accessRoles: ['ops_lead'] },
-  }
   const DUE_ROW: DueProcessRun = {
     work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
     owning_team_id: 'team-1', team_name: 'HQ Operations',
@@ -987,7 +990,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     mockListPendingTasks.mockResolvedValue([pending])
     mockResolvePendingTask.mockResolvedValue('task-new')
 
-    renderPage()
+    renderPage(CAPABLE_AUTH)
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
     fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
@@ -1011,6 +1014,32 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     await waitFor(() => screen.getByText('Bakery handover'))
     expect(screen.getAllByText('Café HQ daily opening · 17 Jul 2026')).toHaveLength(1)
     expect(screen.getByText('Open the café')).toBeInTheDocument()
+  })
+
+  // Design fix wave item 3 — the affordance is capability-gated (RLS remains the real gate on the
+  // underlying resolve_pending_task RPC; the UI simply never shows an action a viewer can't take).
+  it('item 3: a viewer without process.start sees the roll-up summary but never the "N to assign" affordance', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 0, in_progress: 0, blocked: 0, done: 1,
+      overdue: 0, pending_unresolved: 1, completion_pct: 100,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+
+    renderPage() // default authedState: accessRoles: []
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
+    expect(screen.getByText(/1\/1 done/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    expect(mockListPendingTasks).not.toHaveBeenCalled()
   })
 })
 

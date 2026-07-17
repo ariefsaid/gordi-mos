@@ -145,6 +145,51 @@ describe('MobileGroupedCards', () => {
     expect(cards.length).toBe(2)
   })
 
+  // Design fix wave item 3 (Rule 9 — occurrence group parity, phone width). Desktop's
+  // GroupHeaderRow renders the process_run_rollup summary + a capability-gated "N to assign"
+  // affordance for occurrence groups; the phone card list previously fell back to the plain
+  // count/overdue grammar with no rollup and no way to resolve a pending step — this closes
+  // that gap using the SAME handler contract (onAssignPending(runId)) the desktop path gets.
+  describe('occurrence group parity (item 3)', () => {
+    const OCC_GROUP = {
+      key: 'run-1',
+      label: 'Café Opening · 17 Jul 2026',
+      rows: [makeTask({ id: 'gen-1', title: 'Open the café' })],
+      overdue: 0,
+      prefillParam: '',
+      occurrenceRollup: { total: 2, done: 1, overdue: 0, pendingUnresolved: 1 },
+    }
+
+    it('renders the roll-up summary (not the plain count) for an occurrence group', () => {
+      renderCards({ groups: [OCC_GROUP] })
+      expect(screen.getByText('1/2 done · 0 overdue · 1 to assign')).toBeInTheDocument()
+    })
+
+    it('renders the "N to assign" affordance when pendingUnresolved > 0 and a handler is given, firing it with the run id', () => {
+      const onAssignPending = vi.fn()
+      renderCards({ groups: [OCC_GROUP], onAssignPending })
+      const assignBtn = screen.getByRole('button', { name: '1 to assign' })
+      fireEvent.click(assignBtn)
+      expect(onAssignPending).toHaveBeenCalledWith('run-1')
+    })
+
+    it('never renders the assign affordance when no handler is given (viewer cannot resolve)', () => {
+      renderCards({ groups: [OCC_GROUP] })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('never renders the assign affordance when pendingUnresolved is 0, even with a handler', () => {
+      const zeroGroup = { ...OCC_GROUP, occurrenceRollup: { ...OCC_GROUP.occurrenceRollup, pendingUnresolved: 0 } }
+      renderCards({ groups: [zeroGroup], onAssignPending: vi.fn() })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('a non-occurrence group is unaffected (plain count grammar, no assign affordance)', () => {
+      renderCards({ onAssignPending: vi.fn() }) // BASE_PROPS groups carry no occurrenceRollup
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+  })
+
   it('task-card open link preserves ?view=overdue', () => {
     renderCards({
       recordSearch: '?view=overdue',
