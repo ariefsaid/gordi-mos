@@ -3,10 +3,12 @@
 -- AC-605 (FR-605/OD-41): a def whose function has zero or many holders creates NO Task and a pending
 --   human-choice row (reason none / multiple, candidates listed) — never a guess.
 -- AC-612 (NFR-603/FR-614): a cross-org caller is rejected, and an out-of-org Role resolves no holder.
+-- SECURITY LOW-2 (Step 6 fix wave): a cross-org id and a genuinely nonexistent id raise the
+--   IDENTICAL 'process not found' / P0002 — no existence oracle for a foreign org's processes.
 -- Fixture: 20260716000015_mos_process_test_seed.sql. Starter = Boss (…f004) acting as admin, org WU-A.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -45,12 +47,20 @@ select ok((select p.candidate_person_ids @> array['00000000-0000-0000-0000-00000
              where p.task_def_id='00000000-0000-0000-0000-00000000d003'),
           'AC-605: the pending row lists both candidate holders');
 
--- AC-612 (cross-org): a caller whose org is WU-B cannot spawn an org WU-A process/team.
+-- AC-612/LOW-2 (cross-org, oracle-uniform): a caller whose org is WU-B cannot spawn an org WU-A
+-- process/team, AND the error is now indistinguishable from a nonexistent work_line_id — the org
+-- check moved to immediately after the work_line lookup and raises the SAME 'process not found' /
+-- P0002 either way (previously a distinct '...outside your org' / 42501 was itself an existence
+-- oracle: a caller could tell "exists in another org" from "doesn't exist at all").
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
 select throws_ok($$
   select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                                '00000000-0000-0000-0000-000000005b01', current_date)
-$$, '42501', null, 'AC-612: a cross-org caller cannot start an org WU-A process (fails closed)');
+$$, 'P0002', 'process not found', 'AC-612/LOW-2: a cross-org caller gets the same "process not found" as a nonexistent id (no existence oracle)');
+select throws_ok($$
+  select mos.spawn_process_run('00000000-0000-0000-0000-00000000ffff',
+                               '00000000-0000-0000-0000-000000005b01', current_date)
+$$, 'P0002', 'process not found', 'LOW-2: a genuinely nonexistent work_line_id raises the identical message/code');
 
 -- AC-612 (org-walled resolver): the vacant Role resolves ZERO holders — the resolver never invents a PIC.
 reset role;
