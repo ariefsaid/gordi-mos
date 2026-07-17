@@ -1,3 +1,6 @@
+// Context files intentionally mix a Provider component with a reader hook —
+// the react-refresh rule is suppressed per the established pattern (breadcrumb-title.tsx).
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
