@@ -70,21 +70,27 @@ begin
 
   -- One retracted Signal (design-review step-4 IMPORTANT-6) — a tombstone reviewable via the
   -- /work/signals "Show retracted" toggle without needing to file+retract one by hand.
+  -- The 20260717000001 guard makes retraction/correction author-gated even for superuser seeds
+  -- (current_person_id() is NULL without claims), so impersonate each author for its own UPDATE —
+  -- same request.jwt.claims mechanism the pgTAP suite uses.
+  perform set_config('request.jwt.claims',
+    json_build_object('org_id', v_org, 'person_id', p_krishna, 'access_roles', json_build_array('member'))::text,
+    true);
   update mos.signals
     set retracted_at = now() - interval '3 days', retract_reason = 'Filed in error — see the other report.'
     where id = sig6;
 
   -- One corrected Signal (design-review step-4) — carries an edited_at + a body revision row so
   -- the record drawer's "Edited" affordance + revision history are reviewable live.
+  perform set_config('request.jwt.claims',
+    json_build_object('org_id', v_org, 'person_id', p_dewi, 'access_roles', json_build_array('member'))::text,
+    true);
+  -- The guard trigger auto-appends the body revision row (actor = the impersonated author) and
+  -- stamps edited_at itself — no manual signal_revisions insert (it would duplicate the trigger's).
   update mos.signals
-    set body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.',
-        edited_at = now() - interval '2 hours'
+    set body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.'
     where id = sig7;
-  insert into mos.signal_revisions (org_id, signal_id, actor_id, field, old_value, new_value, created_at) values
-    (v_org, sig7, p_dewi, 'body',
-       'HQ bar espresso volumes are down about 10% this week versus last week.',
-       'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.',
-       now() - interval '2 hours');
+  perform set_config('request.jwt.claims', null, true);
 
   raise notice 'seed.dev-signals: inserted 3 memberships + 7 signals (1 retracted, 1 corrected) + 1 mention';
 end $$;
