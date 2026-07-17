@@ -6,6 +6,8 @@ import { formatWibDateTime } from '@/lib/wib-time'
 import type { PersonOption } from '@/lib/db/directory'
 import { attentionSlug, type MentionKind, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
+import './signal-card.css'
+import './signal-record.css'
 
 // Signal record surface (Rule 6 anatomy; reuses the record-panel host pattern — mode
 // "panel"|"page", OD-63/Rule 4). A presentational renderer: all data (the resolved Signal +

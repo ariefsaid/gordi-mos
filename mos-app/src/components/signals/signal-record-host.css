@@ -1,0 +1,29 @@
+/* SignalRecordHost — the fetch+mutate wrapper mounted inside the drawer/page shell (design-
+   review step-4 CRITICAL-1). Owns only the Close affordance + the follow-up/link inline forms;
+   the record itself is styled by signal-record.css. */
+.signal-record-host { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow-y: auto; }
+
+.signal-record-host-close {
+  display: inline-flex; align-items: center; align-self: flex-start;
+  margin: 12px 16px 0; padding: 6px 10px;
+  border: none; background: none; border-radius: var(--radius-sm);
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--muted-foreground);
+  cursor: pointer;
+}
+.signal-record-host-close:hover { background: var(--secondary); color: var(--foreground); }
+.signal-record-host-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.signal-record-followup-form,
+.signal-record-link-form {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 0 16px 16px; padding: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--secondary);
+}
+.signal-record-followup-form input {
+  display: block; width: 100%; height: 32px; padding: 0 10px; box-sizing: border-box;
+  border: 1px solid var(--input); border-radius: var(--radius-sm);
+  background: var(--background); font: inherit; font-size: 15px; color: var(--foreground);
+}
+.signal-record-followup-form input:focus-visible,
+.signal-record-link-form select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
