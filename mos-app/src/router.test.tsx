@@ -191,6 +191,17 @@ describe('AC-006: Money canonical routes + redirects', () => {
     expect(shellChildren().find((r) => r.path === 'plan/budget')!.element).toEqual(<SearchRedirect to="/money/budget" />)
     expect(shellChildren().find((r) => r.path === 'plan/pricing')!.element).toEqual(<SearchRedirect to="/money/pricing" />)
   })
+
+  it('AC-900: /money/follow-ups sits under RequireAccessRole anyOf={finance,admin} and stays gated by SHOW_FOLLOWUPS', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/follow-ups'),
+    )!
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    const route = gate.children!.find((r) => r.path === 'money/follow-ups')!
+    // flag-off branch redirects to /; the route is present either way (mirrors the existing
+    // /work/follow-ups/:id D-2 deep-link contract test above).
+    expect([<FollowUpsPage />, <Navigate to="/" replace />]).toContainEqual(route.element)
+  })
 })
 
 // AC-006: Café re-home (kitchen → cafe) + stubs + admin.
