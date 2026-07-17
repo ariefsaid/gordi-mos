@@ -15,12 +15,6 @@ vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: true, SHOW_DAILY_LOG
 // Mock weeklyUpdates data layer for strip wiring (AC-050, AC-051) + team module (RI-CROSS)
 vi.mock('../lib/db/weekly-updates', () => ({
   getMyUpdate:     vi.fn(),
-  upsertDraft:     vi.fn(),
-  submit:          vi.fn(),
-  reopen:          vi.fn(),
-  addLine:         vi.fn(),
-  updateLine:      vi.fn(),
-  removeLine:      vi.fn(),
   listTeamUpdates: vi.fn(),
 }))
 import { getMyUpdate, listTeamUpdates } from '@/lib/db/weekly-updates'
@@ -37,11 +31,6 @@ const mockGetTeamForManager = vi.mocked(getTeamForManager)
 // Mock opsLog data layer for ops-strip wiring (AC-080, AC-081, AC-082)
 vi.mock('../lib/db/ops-log', () => ({
   getTodayOpsSummary: vi.fn(),
-  listLogEntries: vi.fn(),
-  addLogEntry: vi.fn(),
-  editLogEntry: vi.fn(),
-  archiveLogEntry: vi.fn(),
-  unarchiveLogEntry: vi.fn(),
 }))
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
 const mockGetTodayOpsSummary = vi.mocked(getTodayOpsSummary)

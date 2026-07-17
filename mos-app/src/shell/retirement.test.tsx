@@ -23,8 +23,7 @@ vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn().mockResolvedValue
 vi.mock('@/lib/db/reporting', () => ({ listSalesDailyRevenue: vi.fn().mockResolvedValue([]), latestSnapshotAsOf: vi.fn(), latestReportingDate: vi.fn() }))
 vi.mock('@/lib/db/reporting-margin', () => ({ listSalesMarginDaily: vi.fn().mockResolvedValue([]), latestMarginSnapshotAsOf: vi.fn(), latestMarginReportingDate: vi.fn() }))
 vi.mock('@/lib/db/weekly-updates', () => ({
-  getMyUpdate: vi.fn().mockResolvedValue(null), upsertDraft: vi.fn(), submit: vi.fn(), reopen: vi.fn(),
-  addLine: vi.fn(), updateLine: vi.fn(), removeLine: vi.fn(), listTeamUpdates: vi.fn(),
+  getMyUpdate: vi.fn().mockResolvedValue(null), listTeamUpdates: vi.fn(),
 }))
 vi.mock('@/lib/db/team', () => ({ getTeamForManager: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn().mockResolvedValue([]), getPeople: vi.fn().mockResolvedValue([]) }))

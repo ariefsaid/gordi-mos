@@ -47,7 +47,6 @@ const mockListMargin = vi.mocked(listSalesMarginDaily)
 // listTasks directly for the tasks-count tile.
 vi.mock('../lib/db/weekly-updates', () => ({
   getMyUpdate: vi.fn(),
-  upsertDraft: vi.fn(),
   submit: vi.fn(),
   reopen: vi.fn(),
   addLine: vi.fn(),
