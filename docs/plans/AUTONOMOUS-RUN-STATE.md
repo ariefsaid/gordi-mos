@@ -38,7 +38,35 @@ written. **The AFK window is closed; the owner is present.** Those sign-offs are
 "pending" is accurate, only the reason changed. Steps 1–3 need: the Wave-2c design APPROVE, then the
 owner's visual sign-off + the step-2 walkthrough.
 
-## Where the work stands
+## Where the work stands — RUN COMPLETE (2026-07-17, steps 4–11 all shipped)
+
+**▶ THE AUTONOMOUS RUN IS DONE.** All of steps 4–11 are built, reviewed (full battery per step:
+spec · code-quality · design 4-lens rendered · security where schema/RLS changed), every BLOCK
+fixed and re-verified, and `bash scripts/pre-merge-check.sh` exits **0** on
+`claude/redesign-buildout-completion-vdrd17`. What remains is the OWNER's single post-step-11
+review: ratify the consolidated list, then merge and deploy (owner's calls, per OD-REDESIGN-67).
+
+| Step | Built | Battery | Status |
+|---|---|---|---|
+| 4 Signal v1 | ✅ | spec ✅ · CQ ✅ · design BLOCK→fix→✅ · security BLOCK→fix→✅ | **Done** |
+| 5 Home proper | ✅ | spec ✅ · CQ ✅ · design BLOCK→fix→✅ | **Done** |
+| 6 Occurrence-as-tasks | ✅ | spec ✅ · CQ ✅ (fix-then-ship items fixed) · security ✅ (Lows hardened) · design BLOCK→fix→✅ | **Done** |
+| 7 Café retrofit | ✅ | spec ✅ · CQ ✅ · design ✅ | **Done** |
+| 8 Catalog re-home | ✅ | spec ✅ · CQ ✅ · design ✅ | **Done** |
+| 9 Money+Inbox (flag-gated) | ✅ | spec ✅ · CQ ✅ · design ✅ | **Done** |
+| 10 Events stub | ✅ | spec ✅ · CQ ✅ · design ✅ | **Done** |
+| 11 Decommission sweep | ✅ | spec ✅ · CQ ✅ · holistic design pass SHIP | **Done** |
+
+**Branch tip gates:** typecheck 0 · lint 0 · Vitest 273/2760 · pgTAP 100/727 · live e2e 52 passed
+(F1/F2/F3/AC-630/AC-720 green) · pre-merge-check exit 0.
+
+**Evidence of record:** `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` (branch ledger:
+consolidated verdicts, gates, the owner's 15-item ratify list, deferred debt) + one ledger per step.
+**Owner's next action:** review the ratify list there, walk the app, then merge/deploy.
+
+*(Historical per-step live-state entries below this point are superseded by the table above.)*
+
+## (superseded) Where the work stood
 
 | Step | Built | Code review | Design review | Status |
 |---|---|---|---|---|

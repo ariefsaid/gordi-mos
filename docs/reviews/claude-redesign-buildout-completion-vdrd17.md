@@ -31,9 +31,12 @@ after step 11).
   APPROVE with AC-by-AC coverage tables in the step ledgers; every AC owned by one test at its layer.
 - code-quality: APPROVE — per-step code-quality reviews (opus): steps 4–11 all APPROVE; step-6
   fix-then-ship items (silent write failures, useOccurrenceGroups extraction) FIXED and verified.
-- design: PENDING-RE-REVIEW — steps 4, 5, 7, 8, 9, 10 APPROVE (4 and 5 after BLOCK→fix→re-review);
-  step 6 BLOCK→fix-wave complete→re-review IN FLIGHT; the holistic cross-module pass runs with it.
-  This line is updated when that verdict lands.
+- design: APPROVE — all eight steps. Steps 4, 5, 6 each BLOCK→fix→re-review APPROVE with rendered
+  evidence (step 6's manager front re-scored 4/10→8.5/10); steps 7, 8, 9, 10 first-pass APPROVE.
+  HOLISTIC cross-module pass (final visual/regression, 3 personas × 2 breakpoints): SHIP — one
+  grammar confirmed, retired surfaces absent everywhere (rail/⌘K/routes), F1/F2/F3 frictionless at
+  390px, table-density convention holds. Its 2 Important + 2 copy minors fixed in 785cdf3 (Deputy
+  retired-noun chip, catalog Add composes its noun, Money H1, NotFound link).
 - security: APPROVE — security-auditor (opus): step 4 BLOCK (HIGH-1 + 3 Low) → all empirically
   CLEARED; step 6 APPROVE (0 Critical/High; Low-1/2/3 hardened in the fix wave, re-verified by
   pgTAP). Steps 5/7/8/9/10/11 carry no new auth/RLS/schema surface beyond those audits' scope.
@@ -47,7 +50,7 @@ after step 11).
 | `npm test` (Vitest) | PASS — 273 files / 2760 tests (post-sweep tree) |
 | `supabase test db` (pgTAP) | PASS — 100 files / 727 tests |
 | `npx playwright test` (full live e2e) | PASS — 52 passed / 2 intentional skips (F1, F2, F3, AC-630, AC-720 all green) |
-| `bash scripts/pre-merge-check.sh` | run after the design re-review verdict lands |
+| `bash scripts/pre-merge-check.sh` | **PASS — exit 0** (all required reviews cleared; run 2026-07-17 at branch close) |
 
 ## Ratify before merge (consolidated — the owner's one post-step-11 list)
 
