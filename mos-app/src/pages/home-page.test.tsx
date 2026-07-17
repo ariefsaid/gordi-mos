@@ -400,14 +400,14 @@ describe('AC-513: personal-first reorders + the header summary survives (Step 5)
 })
 
 describe('AC-514: the order toggle persists (Step 5)', () => {
-  it('reorders the regions and persists personal-first when "My canvas first" is clicked', async () => {
+  it('reorders the regions and persists personal-first when "My items first" is clicked', async () => {
     const personId = financeViewer.viewer.person.id
     const user = userEvent.setup()
     await renderHome(financeViewer)
     await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
 
     await act(async () => {
-      await user.click(screen.getByRole('radio', { name: /my canvas first/i }))
+      await user.click(screen.getByRole('radio', { name: /my items first/i }))
     })
 
     const attentionRegion = document.getElementById('attention-brief')!
@@ -425,7 +425,7 @@ describe('RI-1 (Q1, ratified Option B): the order control is a radiogroup, not a
 
     expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /attention first/i })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /my canvas first/i })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /my items first/i })).toBeInTheDocument()
     expect(screen.queryByRole('tab')).toBeNull()
   })
 })

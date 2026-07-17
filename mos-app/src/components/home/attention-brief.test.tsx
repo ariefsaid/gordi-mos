@@ -57,6 +57,11 @@ describe('AC-509: all-clear empty state, no misleading zeros', () => {
     expect(screen.queryByText('Due today')).toBeNull()
     expect(screen.queryByText('Mentions')).toBeNull()
     expect(screen.queryByText('Failed checks')).toBeNull()
+
+    // Minor (a) — a compact, left-aligned calm affirmation, not the centered checkmark
+    // floating in a void (manager-02-afterlogin.png). Same EmptyState primitive, adjusted
+    // usage/CSS only.
+    expect(screen.getByTestId('empty-state')).toHaveClass('attention-all-clear')
   })
 })
 
@@ -70,6 +75,8 @@ describe('AC-510: per-lane error is fail-soft', () => {
 
     expect(screen.getByText("Couldn't load this list. Refresh to try again.")).toBeInTheDocument()
     expect(screen.getByText('Overdue task').closest('a')).not.toBeNull()
+    // Minor (b) — the errored lane keeps its title visible ("which list failed?").
+    expect(screen.getByRole('heading', { name: 'Mentions', level: 3 })).toBeInTheDocument()
   })
 
   it('a loading lane shows an aria-busy skeleton without blocking a ready sibling', () => {
@@ -82,6 +89,26 @@ describe('AC-510: per-lane error is fail-soft', () => {
     const region = screen.getByRole('region', { name: 'Needs attention' })
     expect(region.querySelector('[aria-busy="true"]')).not.toBeNull()
     expect(screen.getByText('A mention').closest('a')).not.toBeNull()
+    // Minor (b) — the loading lane keeps its title visible too (which list is loading).
+    expect(screen.getByRole('heading', { name: 'Overdue', level: 3 })).toBeInTheDocument()
+  })
+})
+
+describe('Minors — per-lane item count in the lane title (RI-6d)', () => {
+  it('appends the item count to a ready lane\'s title ("Overdue · 2")', () => {
+    const lanes: AttentionLane[] = [
+      {
+        kind: 'overdue',
+        state: 'ready',
+        items: [
+          { id: 'o1', title: 'Task A', route: '/work/tasks/o1' },
+          { id: 'o2', title: 'Task B', route: '/work/tasks/o2' },
+        ],
+      },
+    ]
+    renderBrief(lanes)
+
+    expect(screen.getByRole('heading', { name: 'Overdue · 2', level: 3 })).toBeInTheDocument()
   })
 })
 

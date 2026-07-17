@@ -481,12 +481,18 @@ export const messages = {
     'home.attention.lane.mentions': 'Mentions',
     'home.attention.lane.failedChecks': 'Failed checks',
     'home.attention.laneError': "Couldn't load this list. Refresh to try again.",
+    // Minor (d) — per-lane item count in the lane title ("Overdue · 2"). Punctuation-only
+    // template, en/id share the same shape by design.
+    'home.attention.laneTitleCount': '${title} · ${count}',
     // Jump-affordance fix — trailing "→" per the app's link-cue convention ("All tasks →",
     // "Open the Daily Log →" — tasks.all / my-week-panel).
     'home.attention.summary': 'Needs attention · ${n} →',
     'home.order.toggle': 'Home order',
     'home.order.attentionFirst': 'Attention first',
-    'home.order.personalFirst': 'My canvas first',
+    // Minor (c), RATIFY-BEFORE-MERGE — "My canvas first" renamed to plain language ("canvas"
+    // is implementation jargon, not how Gordi people talk about their work). "My items first"
+    // is this fix wave's recommendation; owner sign-off on the final wording is still pending.
+    'home.order.personalFirst': 'My items first',
     // RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px compact disclosure that folds the
     // order radiogroup so it's never the lead, full-width element on a phone.
     'home.order.viewOptions': 'View options',
@@ -962,10 +968,11 @@ export const messages = {
     'home.attention.lane.mentions': 'Sebutan',
     'home.attention.lane.failedChecks': 'Pemeriksaan gagal',
     'home.attention.laneError': 'Gagal memuat. Muat ulang untuk mencoba lagi.',
+    'home.attention.laneTitleCount': '${title} · ${count}',
     'home.attention.summary': 'Perlu perhatian · ${n} →',
     'home.order.toggle': 'Urutan Beranda',
     'home.order.attentionFirst': 'Perhatian dulu',
-    'home.order.personalFirst': 'Kanvas saya dulu',
+    'home.order.personalFirst': 'Item saya dulu',
     'home.order.viewOptions': 'Opsi tampilan',
   },
 } as const

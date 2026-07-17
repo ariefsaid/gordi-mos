@@ -40,12 +40,18 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
           "Needs attention" from — never a double announcement. */}
       <h2 id={titleId} className="attention-brief-title">{t('home.attention.title')}</h2>
       {allClear ? (
-        <EmptyState title={t('home.attention.allClear')} variant="quiet" />
+        // Minor (a) — compact, left-aligned calm affirmation (not the centered checkmark
+        // floating in a void). Same EmptyState primitive; usage/CSS adjusted via className.
+        <EmptyState title={t('home.attention.allClear')} variant="quiet" className="attention-all-clear" />
       ) : (
         ordered.map(lane => {
+          // Minor (b) — loading/error lanes keep their title visible ("which list failed?").
+          const laneTitle = t(LANE_TITLE_KEY[lane.kind])
+
           if (lane.state === 'loading') {
             return (
               <div key={lane.kind} className="attention-lane" aria-busy="true">
+                <h3 className="attention-lane-title">{laneTitle}</h3>
                 <SkeletonRows count={2} />
               </div>
             )
@@ -54,6 +60,7 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
           if (lane.state === 'error') {
             return (
               <div key={lane.kind} className="attention-lane">
+                <h3 className="attention-lane-title">{laneTitle}</h3>
                 <ErrorState message={t('home.attention.laneError')} />
               </div>
             )
@@ -64,7 +71,11 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
 
           return (
             <div key={lane.kind} className="attention-lane">
-              <h3 className="attention-lane-title">{t(LANE_TITLE_KEY[lane.kind])}</h3>
+              {/* Minor (d) — per-lane count in the title ("Overdue · 2"); only ready lanes with
+                  items reach here, so the count is always meaningful (never "· 0"). */}
+              <h3 className="attention-lane-title">
+                {t('home.attention.laneTitleCount', { title: laneTitle, count: lane.items.length })}
+              </h3>
               <ul className="attention-lane-list">
                 {lane.items.map(item => (
                   <li key={item.id} className="attention-lane-item">

@@ -74,3 +74,31 @@
   font-size: 13px;
   color: var(--muted-foreground);
 }
+
+/* Minor (a) — compact, left-aligned calm affirmation for the all-clear state (not the
+   centered checkmark floating in a void, CardHead.css's default `.empty-state` chrome).
+   Same StateKit primitive; this overrides only its centering/sizing inside the brief. */
+.attention-brief .empty-state.attention-all-clear {
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 0;
+  padding: 4px;
+}
+.attention-all-clear .empty-state-frame {
+  flex-direction: row;
+  align-items: center;
+  text-align: left;
+  gap: 10px;
+  width: auto;
+}
+.attention-all-clear .empty-state-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+.attention-all-clear .empty-state-glyph {
+  font-size: 13px;
+}
+.attention-all-clear .empty-title {
+  font-size: 15px;
+}
