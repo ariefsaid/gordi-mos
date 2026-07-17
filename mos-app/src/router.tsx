@@ -24,6 +24,7 @@ import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { SliceStubPage } from './pages/slice-stub-page'
+import { EventsPage } from './pages/events-page'
 import { SignalsArchivePage } from './pages/signals-archive-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
@@ -45,7 +46,8 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 //     /work/signals             → SignalsArchivePage (Signals archive/search — Step 4 C3; ?record=<id> opens the record drawer)
 //     /work/projects           → ProjectsProcessesPage (RequireCapability workline.manage)
 //     /work/objectives         → ObjectivesPage (RequireCapability objective.manage)
-//     /events /ecommerce /roastery /profile → SliceStubPage (later steps)
+//     /events                   → EventsPage (Step 10 — job sentence + sanctioned empty state)
+//     /ecommerce /roastery /profile → SliceStubPage (later steps)
 //     /money/*                 → DashboardPage/Budget/Pricing (RequireAccessRole finance/admin)
 //     /inbox                   → InboxPage (always live)
 //     /cafe/*                  → Kitchen* pages (re-homed from /kitchen/*)
@@ -120,7 +122,7 @@ export const routeConfig: RouteObject[] = [
           { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
 
           // ── Events / Money / Inbox (canonical) ──
-          { path: 'events', element: <SliceStubPage jobKey="job.events" nameKey="dest.events" /> },
+          { path: 'events', element: <EventsPage /> },
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
             children: [
