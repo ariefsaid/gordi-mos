@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { PersonPicker } from '@/components/tasks/person-picker'
+import { ErrorState } from '@/components/ui/state-kit'
 import type { PersonOption } from '@/lib/db/directory'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import { resolvePendingTask } from '@/lib/db/processes'
@@ -25,12 +26,18 @@ function personName(people: PersonOption[], id: string): string {
 export function PendingResolution({ pending, people, onResolved }: PendingResolutionProps) {
   const t = useT()
   const [resolving, setResolving] = useState(false)
+  // CQ IMPORTANT-1: an RPC rejection (already-resolved / not-authorized / lost race) must never
+  // vanish silently — surface it inline and re-enable the candidates so the viewer can retry.
+  const [error, setError] = useState(false)
 
   async function choose(personId: string) {
     setResolving(true)
+    setError(false)
     try {
       const taskId = await resolvePendingTask(pending.id, personId)
       onResolved?.(taskId)
+    } catch {
+      setError(true)
     } finally {
       setResolving(false)
     }
@@ -60,6 +67,7 @@ export function PendingResolution({ pending, people, onResolved }: PendingResolu
           onClose={() => {}}
         />
       )}
+      {error && <ErrorState message={t('processes.pending.resolveError')} className="pending-resolution-error" />}
     </div>
   )
 }

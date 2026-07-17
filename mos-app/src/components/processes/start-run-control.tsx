@@ -34,6 +34,10 @@ export function StartRunControl({ onStarted }: StartRunControlProps = {}) {
   const [due, setDue] = useState<DueProcessRun[]>([])
   const [state, setState] = useState<FetchState>('loading')
   const [startingKey, setStartingKey] = useState<string | null>(null)
+  // CQ IMPORTANT-1: a spawn rejection (already-started / not-authorized / lost race) must never
+  // vanish silently — surface it inline, distinct from the due-list fetch error above, and
+  // re-enable the row's button so the viewer can retry.
+  const [startError, setStartError] = useState<string | null>(null)
 
   const load = useCallback(() => {
     if (!capable) return
@@ -52,10 +56,13 @@ export function StartRunControl({ onStarted }: StartRunControlProps = {}) {
   async function handleStart(row: DueProcessRun) {
     const key = dueKey(row)
     setStartingKey(key)
+    setStartError(null)
     try {
       const result = await startRun(row.work_line_id, row.owning_team_id, row.scheduled_date)
       onStarted?.({ ...result, workLineId: row.work_line_id, teamId: row.owning_team_id })
       load()
+    } catch {
+      setStartError(t('processes.due.startError'))
     } finally {
       setStartingKey(null)
     }
@@ -63,6 +70,7 @@ export function StartRunControl({ onStarted }: StartRunControlProps = {}) {
 
   return (
     <div className="start-run-control">
+      {startError && <ErrorState message={startError} />}
       {state === 'loading' && <SkeletonRows count={2} />}
       {state === 'error' && <ErrorState message={t('home.attention.laneError')} onRetry={load} />}
       {state === 'ready' && due.length === 0 && (

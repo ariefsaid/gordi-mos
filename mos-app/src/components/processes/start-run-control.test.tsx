@@ -97,4 +97,32 @@ describe('StartRunControl (AC-623)', () => {
 
     await waitFor(() => expect(screen.getByText('No recurring work due to start.')).toBeInTheDocument())
   })
+
+  it('CQ IMPORTANT-1: a rejected startRun shows an inline error and re-enables Start run', async () => {
+    setAuthAs(['ops_lead'])
+    mockStartRun.mockRejectedValue(new Error('lost race'))
+    renderControl()
+
+    await waitFor(() => expect(screen.getByText('Café Opening')).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'Start run' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start this run — try again.")
+    expect(screen.getByRole('button', { name: 'Start run' })).not.toBeDisabled()
+  })
+
+  it('CQ IMPORTANT-1: a retried start that succeeds clears the earlier inline error', async () => {
+    setAuthAs(['ops_lead'])
+    const result: SpawnResult = { run_id: 'run-2', created: 1, pending: 0, idempotent: false }
+    mockStartRun.mockRejectedValueOnce(new Error('lost race'))
+    mockStartRun.mockResolvedValueOnce(result)
+    renderControl()
+
+    await waitFor(() => expect(screen.getByText('Café Opening')).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'Start run' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start run' }))
+    await waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

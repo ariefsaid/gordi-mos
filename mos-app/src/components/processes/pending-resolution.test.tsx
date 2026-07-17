@@ -90,4 +90,30 @@ describe('PendingResolution (AC-624)', () => {
     renderPending(ambiguousPending())
     expect(screen.getByText('Assign — two people could own this')).toBeInTheDocument()
   })
+
+  it('CQ IMPORTANT-1: a rejected resolvePendingTask shows an inline error and re-enables the candidate buttons', async () => {
+    const onResolved = vi.fn()
+    mockResolvePendingTask.mockRejectedValue(new Error('already resolved'))
+    renderPending(ambiguousPending(), onResolved)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Twin B' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't assign — try again.")
+    expect(onResolved).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Twin B' })).not.toBeDisabled()
+  })
+
+  it('CQ IMPORTANT-1: a retried resolve that succeeds clears the earlier inline error', async () => {
+    const onResolved = vi.fn()
+    mockResolvePendingTask.mockRejectedValueOnce(new Error('lost race'))
+    mockResolvePendingTask.mockResolvedValueOnce('task-11')
+    renderPending(ambiguousPending(), onResolved)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Twin B' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Twin B' }))
+    await waitFor(() => expect(onResolved).toHaveBeenCalledWith('task-11'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

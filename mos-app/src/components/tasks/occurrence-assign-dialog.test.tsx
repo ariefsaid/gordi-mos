@@ -93,4 +93,22 @@ describe('OccurrenceAssignDialog (C2 — the pending-resolution host mounted fro
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('CQ IMPORTANT-1: a resolution failure surfaces its own inline error, distinct from the dialog fetch-error banner', async () => {
+    const { resolvePendingTask } = await import('@/lib/db/processes')
+    vi.mocked(resolvePendingTask).mockRejectedValue(new Error('already resolved'))
+    const onRetry = vi.fn()
+    renderDialog({ loading: false, error: false, onRetry })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Twin B' }))
+
+    // The resolution error appears inline (PendingResolution's own alert)...
+    expect(await screen.findByText("Couldn't assign — try again.")).toBeInTheDocument()
+    // ...while the dialog's fetch-error banner (Retry affordance, "Couldn't load tasks" copy) never renders —
+    // a resolution failure never masquerades as a load failure.
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
+    expect(onRetry).not.toHaveBeenCalled()
+    // The pending list stays mounted — the candidate is still there to retry.
+    expect(screen.getByRole('button', { name: 'Twin B' })).toBeInTheDocument()
+  })
 })

@@ -514,6 +514,10 @@ export const messages = {
     'processes.pending.assignCount': '${count} to assign',
     'processes.pending.close': 'Close',
     'processes.pending.empty': 'Everything for this occurrence is assigned.',
+    // CQ IMPORTANT-1 (Step 6 fix wave) — inline write-failure states for the two silent-swallow
+    // seams: choosing a PIC (already-resolved / not-authorized / lost race) and starting a run.
+    'processes.pending.resolveError': "Couldn't assign — try again.",
+    'processes.due.startError': "Couldn't start this run — try again.",
   },
   id: {
     'dest.home': 'Beranda',
@@ -1006,6 +1010,9 @@ export const messages = {
     'processes.pending.assignCount': '${count} perlu ditetapkan',
     'processes.pending.close': 'Tutup',
     'processes.pending.empty': 'Semua untuk kejadian ini sudah ditetapkan.',
+    // CQ IMPORTANT-1 (Step 6 fix wave) — inline write-failure states.
+    'processes.pending.resolveError': 'Gagal menetapkan — coba lagi.',
+    'processes.due.startError': 'Gagal memulai proses ini — coba lagi.',
   },
 } as const
 
