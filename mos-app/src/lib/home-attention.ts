@@ -42,3 +42,8 @@ export function unreadMentions(notifications: NotificationRow[]): AttentionItem[
     .filter(n => n.read_at == null)
     .map(n => ({ id: n.id, title: n.title, meta: n.body ?? undefined, route: notificationRoute(n) ?? '/inbox' }))
 }
+
+/** Summed item count across lanes — the "Needs attention · N" header summary source (FR-509). */
+export function attentionCount(lanes: { items: AttentionItem[] }[]): number {
+  return lanes.reduce((sum, l) => sum + l.items.length, 0)
+}

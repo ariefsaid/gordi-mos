@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { NotificationRow } from '@/lib/db/notifications'
-import { overdueTasks, dueTodayTasks, unreadMentions, wibToday } from './home-attention'
+import { overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday } from './home-attention'
 
 const VIEWER = '40000000-0000-0000-0000-000000000001'
 const OTHER = '40000000-0000-0000-0000-000000000002'
@@ -103,6 +103,19 @@ describe('AC-503: unreadMentions — unread notifications, safe route or /inbox 
       { id: 'n-route', title: 'Mentioned on a Signal', meta: undefined, route: '/work/signals?record=abc' },
       { id: 'n-noroute', title: 'Mentioned somewhere', meta: undefined, route: '/inbox' },
     ])
+  })
+})
+
+describe('AC-504: attentionCount — summed item count across lanes', () => {
+  it('sums items across four lanes', () => {
+    const a = { id: 'a', title: 'a', route: '/x' }
+    const b = { id: 'b', title: 'b', route: '/x' }
+    const c = { id: 'c', title: 'c', route: '/x' }
+    const d = { id: 'd', title: 'd', route: '/x' }
+
+    const total = attentionCount([{ items: [a, b] }, { items: [c] }, { items: [] }, { items: [d] }])
+
+    expect(total).toBe(4)
   })
 })
 
