@@ -43,9 +43,16 @@ export function PendingResolution({ pending, people, onResolved }: PendingResolu
     }
   }
 
+  // Design fix wave item 2 — the assign surface must NAME the step: each row's own heading is
+  // "<step title> — two people could own this" rather than a repeated, unlabeled generic phrase
+  // (falls back to the plain job-sentence title if the step title couldn't be resolved).
+  const heading = pending.title
+    ? `${pending.title} — ${t('processes.pending.stepSubtitle')}`
+    : t('processes.pending.title')
+
   return (
     <div className="pending-resolution">
-      <h3 className="pending-resolution-title">{t('processes.pending.title')}</h3>
+      <h3 className="pending-resolution-title">{heading}</h3>
       {pending.reason === 'multiple' ? (
         <div role="group" aria-label={t('processes.pending.choose')} className="pending-resolution-candidates">
           {pending.candidate_person_ids.map((id) => (

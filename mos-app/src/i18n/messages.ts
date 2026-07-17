@@ -505,6 +505,12 @@ export const messages = {
     // a bare "Create".
     'processes.action.startRun': 'Start run',
     'processes.pending.title': 'Assign — two people could own this',
+    // Design fix wave item 2 — the assign surface must NAME the step (no dead-language stutter).
+    // The dialog/section-level label keeps processes.pending.title as-is (job-sentence, generic);
+    // each PendingResolution row's OWN heading becomes "${title} — ${stepSubtitle}" (e.g. "Brew
+    // station handover — two people could own this") so multiple pending rows in one dialog read
+    // as distinct steps, never a repeated generic phrase.
+    'processes.pending.stepSubtitle': 'two people could own this',
     'processes.pending.choose': 'Choose PIC',
     'processes.rollup.summary': '${done}/${total} done · ${overdue} overdue · ${pending} to assign',
     'processes.due.empty': 'No recurring work due to start.',
@@ -1015,6 +1021,7 @@ export const messages = {
     // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9).
     'processes.action.startRun': 'Mulai proses',
     'processes.pending.title': 'Tetapkan — dua orang bisa memegang ini',
+    'processes.pending.stepSubtitle': 'dua orang bisa memegang ini',
     'processes.pending.choose': 'Pilih PIC',
     'processes.rollup.summary': '${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan',
     'processes.due.empty': 'Tidak ada pekerjaan rutin yang perlu dimulai.',

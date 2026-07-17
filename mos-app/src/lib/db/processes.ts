@@ -34,7 +34,10 @@ export async function listDueRuns(): Promise<DueProcessRun[]> {
 
 // ── listPendingTasks / resolvePendingTask (B3, AC-621 backing) ──────────────
 
-/** List a run's unresolved ambiguity human-choice rows (OD-41, FR-605). */
+/** List a run's unresolved ambiguity human-choice rows (OD-41, FR-605). Design fix wave item 2:
+ * the assign surface must NAME the step (never a bare "two people could own this" with no
+ * subject) — a second batched query on `process_task_defs` resolves each row's task-def TITLE (no
+ * schema change; mirrors the listRunRollups batching idiom). */
 export async function listPendingTasks(runId: string): Promise<PendingTaskRow[]> {
   const { data, error } = await mos()
     .from('process_run_pending_tasks')
@@ -42,7 +45,20 @@ export async function listPendingTasks(runId: string): Promise<PendingTaskRow[]>
     .eq('process_run_id', runId)
     .is('resolved_at', null)
   if (error) throw new Error(`listPendingTasks failed — ${error.message}`)
-  return (data ?? []) as unknown as PendingTaskRow[]
+  const rows = (data ?? []) as unknown as Omit<PendingTaskRow, 'title'>[]
+  if (rows.length === 0) return []
+
+  const defIds = Array.from(new Set(rows.map((row) => row.task_def_id)))
+  const { data: defs, error: defErr } = await mos()
+    .from('process_task_defs')
+    .select('id,title')
+    .in('id', defIds)
+  if (defErr) throw new Error(`listPendingTasks (task-def titles) failed — ${defErr.message}`)
+  const titleById = new Map(
+    ((defs ?? []) as { id: string; title: string }[]).map((def) => [def.id, def.title]),
+  )
+
+  return rows.map((row) => ({ ...row, title: titleById.get(row.task_def_id) ?? '' }))
 }
 
 /** Resolve a pending item to a chosen PIC via `mos.resolve_pending_task`, which materializes

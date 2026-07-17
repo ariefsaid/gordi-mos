@@ -12,7 +12,7 @@ import {
   getRunRollup, listRunTasks, completeRun, listRunRollups,
 } from './processes'
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow } from './processes.types'
+import type { DueProcessRun, ProcessRunRollup, ProcessRunRow } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -132,18 +132,61 @@ const PIC_ID = '00000000-0000-0000-0000-00000000f002'
 describe('listPendingTasks', () => {
   it('AC-621: selects unresolved process_run_pending_tasks for the run', async () => {
     const rec = freshRec()
-    const pendingRow: PendingTaskRow = {
+    const pendingRow = {
       id: PENDING_ID, process_run_id: RUN_ID, task_def_id: 'def-1',
       candidate_person_ids: [PIC_ID, 'f003'], reason: 'multiple', resolved_at: null,
     }
-    mockSupabase({ 'mos.process_run_pending_tasks': [{ data: [pendingRow], error: null }] }, rec)
+    mockSupabase({
+      'mos.process_run_pending_tasks': [{ data: [pendingRow], error: null }],
+      'mos.process_task_defs': [{ data: [{ id: 'def-1', title: 'Bakery handover' }], error: null }],
+    }, rec)
 
     const rows = await listPendingTasks(RUN_ID)
 
     expect(rec.fromTables).toContain('mos.process_run_pending_tasks')
     expect(rec.eqs).toContainEqual(['resolved_at', null])
     expect(rec.eqs).toContainEqual(['process_run_id', RUN_ID])
-    expect(rows).toEqual([pendingRow])
+    expect(rows).toEqual([{ ...pendingRow, title: 'Bakery handover' }])
+  })
+
+  it('item 2: batches the task-def title lookup (one .in() query, deduped ids) and resolves each row\'s title', async () => {
+    const rec = freshRec()
+    const rowA = { id: 'p-a', process_run_id: RUN_ID, task_def_id: 'def-1', candidate_person_ids: ['f1'], reason: 'multiple' as const, resolved_at: null }
+    const rowB = { id: 'p-b', process_run_id: RUN_ID, task_def_id: 'def-1', candidate_person_ids: ['f1'], reason: 'multiple' as const, resolved_at: null }
+    mockSupabase({
+      'mos.process_run_pending_tasks': [{ data: [rowA, rowB], error: null }],
+      'mos.process_task_defs': [{ data: [{ id: 'def-1', title: 'Unlock and prep the floor' }], error: null }],
+    }, rec)
+
+    const rows = await listPendingTasks(RUN_ID)
+
+    expect(rec.fromTables).toContain('mos.process_task_defs')
+    expect(rec.ins).toContainEqual(['id', ['def-1']]) // deduped — one id shared by both rows
+    expect(rows).toEqual([
+      { ...rowA, title: 'Unlock and prep the floor' },
+      { ...rowB, title: 'Unlock and prep the floor' },
+    ])
+  })
+
+  it('item 2: resolves to an empty title (never blocks) when a def id has no matching row', async () => {
+    const rec = freshRec()
+    const row = { id: PENDING_ID, process_run_id: RUN_ID, task_def_id: 'def-missing', candidate_person_ids: [PIC_ID], reason: 'none' as const, resolved_at: null }
+    mockSupabase({
+      'mos.process_run_pending_tasks': [{ data: [row], error: null }],
+      'mos.process_task_defs': [{ data: [], error: null }],
+    }, rec)
+
+    const rows = await listPendingTasks(RUN_ID)
+    expect(rows).toEqual([{ ...row, title: '' }])
+  })
+
+  it('returns [] without a title lookup when there are no pending rows (no needless network call)', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_run_pending_tasks': [{ data: [], error: null }] }, rec)
+
+    const rows = await listPendingTasks(RUN_ID)
+    expect(rows).toEqual([])
+    expect(rec.fromTables).not.toContain('mos.process_task_defs')
   })
 
   it('re-throws when the read errors', async () => {
@@ -151,6 +194,17 @@ describe('listPendingTasks', () => {
     mockSupabase({ 'mos.process_run_pending_tasks': [{ data: null, error: { message: 'read failed' } }] }, rec)
 
     await expect(listPendingTasks(RUN_ID)).rejects.toThrow(/read failed/)
+  })
+
+  it('re-throws when the task-def title lookup errors', async () => {
+    const rec = freshRec()
+    const row = { id: PENDING_ID, process_run_id: RUN_ID, task_def_id: 'def-1', candidate_person_ids: [PIC_ID], reason: 'multiple' as const, resolved_at: null }
+    mockSupabase({
+      'mos.process_run_pending_tasks': [{ data: [row], error: null }],
+      'mos.process_task_defs': [{ data: null, error: { message: 'defs unreachable' } }],
+    }, rec)
+
+    await expect(listPendingTasks(RUN_ID)).rejects.toThrow(/defs unreachable/)
   })
 })
 

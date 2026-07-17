@@ -139,6 +139,7 @@ describe('AC-714 — opening started: caption, roll-up, and the /work/tasks link
 const PENDING_ROW: PendingTaskRow = {
   id: 'pending-1', process_run_id: RUN_ID, task_def_id: 'def-ca03',
   candidate_person_ids: ['f002', 'f003'], reason: 'multiple', resolved_at: null,
+  title: 'Brew station handover',
 }
 const PEOPLE: PersonOption[] = [
   { id: 'f002', full_name: 'Twin A' },

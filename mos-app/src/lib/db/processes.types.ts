@@ -61,4 +61,9 @@ export interface PendingTaskRow {
   candidate_person_ids: string[]
   reason: PendingReason
   resolved_at: string | null
+  /** Design fix wave item 2 — the pending step's task-def TITLE (mos.process_task_defs.title),
+   * resolved via a second batched query in listPendingTasks (no schema change). The assign
+   * surface must name the step, never just "two people could own this" with no subject. Empty
+   * string if the def's title couldn't be resolved (defensive — never blocks resolution). */
+  title: string
 }

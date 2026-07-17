@@ -19,6 +19,7 @@ function ambiguousPending(overrides: Partial<PendingTaskRow> = {}): PendingTaskR
   return {
     id: 'pending-1', process_run_id: 'run-1', task_def_id: 'def-1',
     candidate_person_ids: ['person-a', 'person-b'], reason: 'multiple', resolved_at: null,
+    title: 'Bakery handover',
     ...overrides,
   }
 }

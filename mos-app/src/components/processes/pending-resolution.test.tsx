@@ -23,6 +23,7 @@ function ambiguousPending(overrides: Partial<PendingTaskRow> = {}): PendingTaskR
   return {
     id: 'pending-1', process_run_id: 'run-1', task_def_id: 'def-1',
     candidate_person_ids: ['person-a', 'person-b'], reason: 'multiple', resolved_at: null,
+    title: 'Brew station handover',
     ...overrides,
   }
 }
@@ -31,6 +32,7 @@ function vacantPending(overrides: Partial<PendingTaskRow> = {}): PendingTaskRow 
   return {
     id: 'pending-2', process_run_id: 'run-1', task_def_id: 'def-2',
     candidate_person_ids: [], reason: 'none', resolved_at: null,
+    title: 'Bakery handover',
     ...overrides,
   }
 }
@@ -86,8 +88,16 @@ describe('PendingResolution (AC-624)', () => {
     await waitFor(() => expect(onResolved).toHaveBeenCalledWith('task-10'))
   })
 
-  it('shows the "Two people could own this" job-sentence title', () => {
-    renderPending(ambiguousPending())
+  // Design fix wave item 2 — the assign surface must NAME the step. A generic, unlabeled "two
+  // people could own this" repeated across every pending row in a dialog was the reported defect;
+  // the heading now composes the step's own title with the job-sentence phrase.
+  it('item 2: names the step in its own heading ("<step title> — two people could own this")', () => {
+    renderPending(ambiguousPending({ title: 'Brew station handover' }))
+    expect(screen.getByText('Brew station handover — two people could own this')).toBeInTheDocument()
+  })
+
+  it('item 2: falls back to the generic job-sentence title when the step title could not be resolved', () => {
+    renderPending(ambiguousPending({ title: '' }))
     expect(screen.getByText('Assign — two people could own this')).toBeInTheDocument()
   })
 

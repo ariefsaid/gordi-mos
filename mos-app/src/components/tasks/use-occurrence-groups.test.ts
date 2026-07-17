@@ -33,6 +33,7 @@ function rollup(runId: string, overrides: Partial<ProcessRunRollup> = {}): Proce
 const pending: PendingTaskRow = {
   id: 'pending-1', process_run_id: 'run-1', task_def_id: 'def-1',
   candidate_person_ids: ['p-a', 'p-b'], reason: 'multiple', resolved_at: null,
+  title: 'Bakery handover',
 }
 
 beforeEach(() => {

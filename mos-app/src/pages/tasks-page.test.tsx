@@ -982,6 +982,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     const pending: PendingTaskRow = {
       id: 'pending-1', process_run_id: 'run-1', task_def_id: 'def-2',
       candidate_person_ids: [VIEWER_ID, OTHER_ID], reason: 'multiple', resolved_at: null,
+      title: 'Bakery handover',
     }
     mockListPendingTasks.mockResolvedValue([pending])
     mockResolvePendingTask.mockResolvedValue('task-new')
