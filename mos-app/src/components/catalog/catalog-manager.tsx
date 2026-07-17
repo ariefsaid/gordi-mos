@@ -191,7 +191,7 @@ export function CatalogManager({
           </div>
         )}
         <Button type="submit" variant="primary" disabled={adding} aria-busy={adding}>
-          {adding ? 'Adding…' : 'Add'}
+          {adding ? 'Adding…' : `Add ${noun.replace(/\b\p{L}/gu, (c) => c.toUpperCase())}`}
         </Button>
         {addError && (
           <p id={`${nameInputId}-err`} role="alert" className="w-full text-xs"

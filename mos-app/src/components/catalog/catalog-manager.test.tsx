@@ -48,7 +48,7 @@ describe('CatalogManager', () => {
     const user = userEvent.setup()
     const { create } = setup()
     await screen.findByText('No objectives yet')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: /^Add /}))
     expect(await screen.findByText('Name is required')).toBeInTheDocument()
     expect(create).not.toHaveBeenCalled()
   })
@@ -58,7 +58,7 @@ describe('CatalogManager', () => {
     const { create, load } = setup()
     await screen.findByText('No objectives yet')
     await user.type(screen.getByLabelText('Name'), '  Q4 Push  ')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: /^Add /}))
     await waitFor(() => expect(create).toHaveBeenCalledWith('Q4 Push', undefined))
     expect(load).toHaveBeenCalledTimes(2) // mount + after-create refresh
   })
@@ -127,7 +127,7 @@ describe('CatalogManager', () => {
     expect(opts).toEqual(['Project', 'Process'])
     await user.type(screen.getByLabelText('Name'), 'New Line')
     await user.selectOptions(typeSelect, 'process')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: /^Add /}))
     await waitFor(() => expect(create).toHaveBeenCalledWith('New Line', 'process'))
   })
 

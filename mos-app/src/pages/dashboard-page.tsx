@@ -175,7 +175,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
     return (
       <PageFrame variant="data">
         <div className="dash-head">
-          <PageHead variant="content" title="Dashboard" count={null} />
+          <PageHead variant="content" title="Money" count={null} />
         </div>
         <DashboardChrome
           cut={cut} onCut={setCut}
@@ -200,7 +200,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
     return (
       <PageFrame variant="data">
         <div className="dash-head">
-          <PageHead variant="content" title="Dashboard" count={null} />
+          <PageHead variant="content" title="Money" count={null} />
         </div>
         <DashboardChrome
           cut={cut} onCut={setCut}
@@ -221,7 +221,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
     return (
       <PageFrame variant="data">
         <div className="dash-head">
-          <PageHead variant="content" title="Dashboard" count={0} />
+          <PageHead variant="content" title="Money" count={0} />
         </div>
         <DashboardChrome
           cut={cut} onCut={setCut}
@@ -256,7 +256,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       <div className="dash-head">
         <PageHead
           variant="content"
-          title="Dashboard"
+          title="Money"
           count={cutRows.length}
           meta={snapshotAsOf ? <span className="dash-fresh">as of {snapshotAsOf}</span> : undefined}
         />

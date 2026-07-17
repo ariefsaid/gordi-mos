@@ -14,7 +14,7 @@ export function NotFoundPage() {
         Page not found.
       </h1>
       <Link to="/" className="text-primary no-underline font-semibold" style={{ fontSize: 16 }}>
-        Back to My Week
+        Back to Home
       </Link>
     </PageFrame>
   )

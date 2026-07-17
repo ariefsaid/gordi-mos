@@ -295,7 +295,7 @@ describe('AssistantPanel (T27)', () => {
   it('empty state: shows the three suggestion chips when the transcript is empty', () => {
     renderPanel({ narrow: false, open: true })
     expect(screen.getByText("What's on my plate this week?")).toBeInTheDocument()
-    expect(screen.getByText('Draft my weekly update')).toBeInTheDocument()
+    expect(screen.getByText('Summarize my week')).toBeInTheDocument()
     expect(screen.getByText("Show last week's revenue")).toBeInTheDocument()
   })
 

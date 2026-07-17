@@ -98,7 +98,7 @@ describe('Catalog-Manage archetype conformance (Wave 2: W2-1, W2-2)', () => {
     expect(pill).toBeTruthy()
     expect(pill!.textContent).toBe('2') // two active objectives in the fixture
     // inline create bar still renders its Add submit
-    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add Objective' })).toBeInTheDocument()
   })
 
   it('W2-2: exactly ONE create affordance in the ready state — the inline Add form (head carries no action)', async () => {
@@ -106,7 +106,7 @@ describe('Catalog-Manage archetype conformance (Wave 2: W2-1, W2-2)', () => {
     await screen.findByText('Grow revenue')
     // head carries NO action slot → no duplicate create CTA (State-Kit Rule)
     expect(container.querySelector('.ch-action')).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Add Objective' })).toHaveLength(1)
   })
 
   it('W2-2: in the empty state the create affordance is the SAME inline form, not a second CTA', async () => {
@@ -115,7 +115,7 @@ describe('Catalog-Manage archetype conformance (Wave 2: W2-1, W2-2)', () => {
     const { container } = renderPage()
     await screen.findByText('No objectives yet')
     // empty state owns no action of its own; the inline Add form is the sole create surface
-    expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Add Objective' })).toHaveLength(1)
     expect(container.querySelector('.ch-action')).toBeNull()
   })
 })
