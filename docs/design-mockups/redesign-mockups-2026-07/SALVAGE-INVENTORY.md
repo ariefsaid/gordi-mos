@@ -28,6 +28,10 @@ convergence flows `python3 convergence-flows/serve-flows.py` → :8134.
 - **Money surfaces, Inbox (page + quick panel), authorization/persona demonstrations, deputy
   presence, fixtures** (the scenario dataset), and the **visual system**: `--e7-*` tokens, type
   scale, chrome, card/pill/table primitives (all three reviews agreed the visual system is consistent).
+  **Token-authority clarifier:** e7's `--e7-*` tokens are the *visual decisions* — app surfaces
+  implement those decisions via `DESIGN.md`'s `--ds-*`/`--brand-*`/`--status-*` tokens, whose
+  *values* OD-P3-13 already aligned to e7. `--e7-*` names are mockup-internal and must never
+  appear in app CSS (there is an active no-leak guard).
 - Scenario/journey coverage breadth (the J/Scenario matrix pages).
 
 ### convergence flows (`convergence-flows/`) OWNS:
