@@ -92,8 +92,8 @@ echo "applied ${#migrations[@]} migrations"
 
 # ── 5. Seeds, same order as supabase/config.toml's [db.seed] sql_paths ──────────────
 if [ "$SEED" = "1" ]; then
-  say "Applying seeds (seed.sql, seed.dev-tasks.sql, seed.dev-auth.sql)"
-  for f in seed.sql seed.dev-tasks.sql seed.dev-auth.sql; do
+  say "Applying seeds (seed.sql, seed.dev-tasks.sql, seed.dev-signals.sql, seed.dev-auth.sql)"
+  for f in seed.sql seed.dev-tasks.sql seed.dev-signals.sql seed.dev-auth.sql; do
     path="$REPO/supabase/$f"
     [ -f "$path" ] || die "expected seed file missing: $path"
     echo "  -> $f"
