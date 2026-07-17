@@ -34,6 +34,7 @@ import { InboxPage } from './pages/inbox-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 import { SignalsArchivePage } from './pages/signals-archive-page'
+import { EventsPage } from './pages/events-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>
@@ -207,10 +208,7 @@ describe('AC-006: Café re-home + stub routes + admin', () => {
     expect(gate.children!.find((r) => r.path === 'cafe/review')!.element).toEqual(<KitchenReviewPage />)
   })
 
-  it('AC-006: /events, /ecommerce, /roastery, /profile render SliceStubPage', () => {
-    expect(shellChildren().find((r) => r.path === 'events')!.element).toEqual(
-      <SliceStubPage jobKey="job.events" nameKey="dest.events" />,
-    )
+  it('AC-006: /ecommerce, /roastery, /profile render SliceStubPage', () => {
     expect(shellChildren().find((r) => r.path === 'ecommerce')!.element).toEqual(
       <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" />,
     )
@@ -220,6 +218,10 @@ describe('AC-006: Café re-home + stub routes + admin', () => {
     expect(shellChildren().find((r) => r.path === 'profile')!.element).toEqual(
       <SliceStubPage jobKey="job.profile" nameKey="dest.profile" />,
     )
+  })
+
+  it('AC-1001 (events-stub, Step 10): /events renders EventsPage (no longer SliceStubPage)', () => {
+    expect(shellChildren().find((r) => r.path === 'events')!.element).toEqual(<EventsPage />)
   })
 
   it('AC-006: /admin redirects to /admin/people; /admin/people under AdminRoute renders AdminUsersPage', () => {
