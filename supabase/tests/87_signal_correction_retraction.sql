@@ -11,13 +11,15 @@
 -- retract-gate raise IS still exercised — by the guard trigger — for a caller who passes USING.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(12);
 
 select mos._test_seed_signal_tree();
 
 insert into mos.signals (id, org_id, author_id, owning_team_id, occurred_at, body) values
   ('d0000000-0000-0000-0000-000000000040','00000000-0000-0000-0000-0000000000a1',
-   '00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-000000005b01', now(), 'observation v1');
+   '00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-000000005b01', now(), 'observation v1'),
+  ('d0000000-0000-0000-0000-000000000041','00000000-0000-0000-0000-0000000000a1',
+   '00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-000000005b01', now(), 'holder-target v1');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
@@ -39,6 +41,28 @@ $$, '42501', null, 'AC-411: owning_team_id is immutable');
 select throws_ok($$
   update mos.signals set author_id='00000000-0000-0000-0000-0000000000d4' where id='d0000000-0000-0000-0000-000000000040'
 $$, '42501', null, 'AC-411: author_id is immutable');
+
+-- ── SECURITY HIGH-1: a signal.retract holder who is NOT the author may ONLY retract ───────────────
+-- Spec §3: UPDATE is "author-only (or signal.retract for retraction)". A non-author retract-holder
+-- passes the signals UPDATE policy USING clause (can('signal.retract')) and holds the table UPDATE
+-- grant, so without a content guard they could rewrite another author's body/occurred_at/category/
+-- attention. The guard trigger must reject any content change by a non-author (42501), while still
+-- permitting the retract-holder to transition retracted_at/retract_reason. DirectMgr(...0d2) is a
+-- non-author reader (R2: holds a role over the owning BU) acting as admin (the admin bundle holds
+-- signal.retract per 20260716000001) — a non-author retract-holder who CAN reach the signal.
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["admin"]}';
+select throws_ok($$
+  update mos.signals set body='holder rewrote your words' where id='d0000000-0000-0000-0000-000000000041'
+$$, '42501', null, 'HIGH-1: a signal.retract holder who is NOT the author cannot rewrite content');
+-- The retract-holder MAY still retract (only retracted_at/retract_reason transition).
+select lives_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'retracted by an authorized holder'
+    where id='d0000000-0000-0000-0000-000000000041'
+$$, 'HIGH-1: a signal.retract holder may still retract (content untouched)');
+select is((select body from mos.signals where id='d0000000-0000-0000-0000-000000000041'),
+  'holder-target v1', 'HIGH-1: the body is unchanged after the holder retracted (content stayed author-only)');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 
 -- AC-412 (non-author denied — silent no-op; see NOTE): Peer attempts to retract.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
