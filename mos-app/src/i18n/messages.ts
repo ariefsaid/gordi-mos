@@ -466,6 +466,13 @@ export const messages = {
     'signals.record.linkedWorkSummary': '${total} Tasks · ${open} open',
     'signals.record.linkExistingTask': 'Link existing Task',
     'signals.record.createFollowUpTask': 'Create follow-up Task',
+    'signals.record.close': 'Close',
+    'signals.record.followUpTitleLabel': 'Task title',
+    'signals.record.followUpSave': 'Save',
+    'signals.record.existingTaskLabel': 'Existing Task',
+    'signals.record.existingTaskPlaceholder': 'Choose a Task…',
+    'signals.record.noLinkableTasks': 'No other Tasks to link yet.',
+    'signals.record.linkSave': 'Link',
   },
   id: {
     'dest.home': 'Beranda',
@@ -923,6 +930,13 @@ export const messages = {
     'signals.record.linkedWorkSummary': '${total} Tugas · ${open} terbuka',
     'signals.record.linkExistingTask': 'Tautkan Tugas yang ada',
     'signals.record.createFollowUpTask': 'Buat Tugas tindak lanjut',
+    'signals.record.close': 'Tutup',
+    'signals.record.followUpTitleLabel': 'Judul Tugas',
+    'signals.record.followUpSave': 'Simpan',
+    'signals.record.existingTaskLabel': 'Tugas yang ada',
+    'signals.record.existingTaskPlaceholder': 'Pilih Tugas…',
+    'signals.record.noLinkableTasks': 'Belum ada Tugas lain untuk ditautkan.',
+    'signals.record.linkSave': 'Tautkan',
   },
 } as const
 

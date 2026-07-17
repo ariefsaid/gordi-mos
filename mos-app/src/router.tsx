@@ -24,6 +24,7 @@ import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { SliceStubPage } from './pages/slice-stub-page'
+import { SignalsArchivePage } from './pages/signals-archive-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -41,7 +42,7 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 //     /work/tasks              → TasksLayout (split-view shell — persistent table + <Outlet> drawer)
 //       /work/tasks/new        → TaskDrawer (create mode)
 //       /work/tasks/:taskId    → TaskDrawer (view mode)
-//     /work/signals            → SliceStubPage (Signals archive — Step 4)
+//     /work/signals             → SignalsArchivePage (Signals archive/search — Step 4 C3; ?record=<id> opens the record drawer)
 //     /work/projects           → ProjectsProcessesPage (RequireCapability workline.manage)
 //     /work/objectives         → ObjectivesPage (RequireCapability objective.manage)
 //     /events /ecommerce /roastery /profile → SliceStubPage (later steps)
@@ -104,7 +105,7 @@ export const routeConfig: RouteObject[] = [
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
-          { path: 'work/signals', element: <SliceStubPage jobKey="job.signals" nameKey="nav.signals" /> },
+          { path: 'work/signals', element: <SignalsArchivePage /> },
           { path: 'work/projects-processes', element: <Navigate to="/work/projects" replace /> },
           {
             element: <RequireCapability capability="workline.manage" />,

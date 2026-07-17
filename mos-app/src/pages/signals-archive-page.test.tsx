@@ -14,6 +14,17 @@ vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
+// The ?record=<id> drawer is SignalRecordHost's own job (signal-record-host.test.tsx covers its
+// fetch/mutate wiring in full) — mock it here so this page's test only asserts the URL-state
+// wiring: which id it's given, and that closing it clears ?record=.
+vi.mock('@/components/signals/signal-record-host', () => ({
+  SignalRecordHost: vi.fn(({ signalId, onClose }: { signalId: string; onClose: () => void }) => (
+    <div data-testid="signal-record-host-stub" data-signal-id={signalId}>
+      <button type="button" onClick={onClose}>stub-close</button>
+    </div>
+  )),
+}))
+
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import { SignalsArchivePage } from './signals-archive-page'
@@ -110,5 +121,39 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     ])
     renderPage()
     await waitFor(() => expect(screen.getByText(/retracted/i)).toBeInTheDocument())
+  })
+})
+
+// C3: ?record=<id> opens the record drawer (Rule 4 — canonical URL, Back/refresh/new-tab all
+// land on the same list+drawer view since it's one URL, not a separate route).
+describe('SignalsArchivePage — ?record=<id> opens the record drawer (C3)', () => {
+  it('renders the record drawer for the id in the URL on direct load', async () => {
+    renderPage('/work/signals?record=signal-1')
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+    expect(screen.getByTestId('signal-record-host-stub')).toHaveAttribute('data-signal-id', 'signal-1')
+  })
+
+  it('does not render the drawer when no ?record= is present', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument()
+  })
+
+  it('clicking a row opens the drawer without a full navigation away from the list', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await userEvent.click(screen.getByText('The freezer alarm went off'))
+
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toHaveAttribute('data-signal-id', 'signal-1'))
+    // The list is still present — this is a drawer alongside the list, not a route swap (Rule 6).
+    expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
+  })
+
+  it('closing the drawer clears ?record= from the URL', async () => {
+    renderPage('/work/signals?record=signal-1')
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'stub-close' }))
+    await waitFor(() => expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument())
   })
 })

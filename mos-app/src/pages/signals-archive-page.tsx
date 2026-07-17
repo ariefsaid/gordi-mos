@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import type { SignalRow } from '@/lib/db/signals.types'
+import { SignalRecordHost } from '@/components/signals/signal-record-host'
 
 type FetchState = 'loading' | 'ready' | 'error'
 
@@ -24,6 +25,7 @@ export function SignalsArchivePage() {
   const t = useT()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
+  const recordId = params.get('record')
 
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [authorNamesById, setAuthorNamesById] = useState<Record<string, string>>({})
@@ -67,6 +69,12 @@ export function SignalsArchivePage() {
     const nextParams = new URLSearchParams(params)
     if (next) nextParams.set('q', next)
     else nextParams.delete('q')
+    setParams(nextParams, { replace: true })
+  }
+
+  function closeRecord() {
+    const nextParams = new URLSearchParams(params)
+    nextParams.delete('record')
     setParams(nextParams, { replace: true })
   }
 
@@ -123,6 +131,17 @@ export function SignalsArchivePage() {
               </Link>
             )
           })}
+        </div>
+      )}
+
+      {/* ?record=<id> opens the record drawer beside the list (Rule 4/6) — the SAME URL for an
+          in-list click, a direct load, a refresh, or a new tab (C3). */}
+      {recordId && (
+        <div className="signal-record-drawer-root">
+          <div className="drawer-scrim" aria-hidden="true" onClick={closeRecord} />
+          <aside className="drawer drawer-modal drawer-sheet" role="complementary" aria-label={t('signals.record.title')}>
+            <SignalRecordHost signalId={recordId} onClose={closeRecord} />
+          </aside>
         </div>
       )}
     </PageFrame>

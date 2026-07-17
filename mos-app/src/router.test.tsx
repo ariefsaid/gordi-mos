@@ -33,6 +33,7 @@ import { AdminUsersPage } from './pages/admin-users-page'
 import { InboxPage } from './pages/inbox-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { SliceStubPage } from './pages/slice-stub-page'
+import { SignalsArchivePage } from './pages/signals-archive-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>
@@ -145,9 +146,9 @@ describe('AC-006: Work canonical routes + redirects', () => {
     )
   })
 
-  it('AC-006: /work/signals renders SliceStubPage (Signals archive — Step 4)', () => {
+  it('C3: /work/signals renders the real SignalsArchivePage (Signals archive — Step 4)', () => {
     expect(shellChildren().find((r) => r.path === 'work/signals')!.element).toEqual(
-      <SliceStubPage jobKey="job.signals" nameKey="nav.signals" />,
+      <SignalsArchivePage />,
     )
   })
 })
