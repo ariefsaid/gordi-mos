@@ -35,6 +35,7 @@ import { FollowUpsPage } from './pages/follow-ups-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 import { SignalsArchivePage } from './pages/signals-archive-page'
 import { EventsPage } from './pages/events-page'
+import { CafeOpeningPage } from './pages/cafe-opening-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>
@@ -244,6 +245,12 @@ describe('AC-006: Money canonical routes + redirects', () => {
 describe('AC-006: Café re-home + stub routes + admin', () => {
   it('AC-006: /cafe/log renders KitchenLogPage (re-homed)', () => {
     expect(shellChildren().find((r) => r.path === 'cafe/log')!.element).toEqual(<KitchenLogPage />)
+  })
+
+  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe hosts the Café Operations home (the
+  // "Start today's opening" surface) — NOT an immediate redirect to /cafe/log. Sub-routes unchanged.
+  it('RATIFY-7D: /cafe renders CafeOpeningPage (Café Operations home), not a redirect', () => {
+    expect(shellChildren().find((r) => r.path === 'cafe')!.element).toEqual(<CafeOpeningPage />)
   })
 
   it('AC-006: /cafe/review sits under RequireAccessRole anyOf={ops_lead,admin}', () => {
