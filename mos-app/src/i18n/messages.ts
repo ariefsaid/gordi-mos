@@ -451,6 +451,10 @@ export const messages = {
     'signals.feed.shareRow': 'Share a Signal',
     'signals.feed.empty': 'No Signals yet. Share the first one above.',
     'signals.card.unknownAuthor': 'Someone',
+    'signals.archive.searchLabel': 'Search Signals',
+    'signals.archive.searchPlaceholder': 'Search Signals by text, author, team…',
+    'signals.archive.empty': 'No Signals match "${query}".',
+    'signals.archive.error': "Couldn't load Signals.",
   },
   id: {
     'dest.home': 'Beranda',
@@ -893,6 +897,10 @@ export const messages = {
     'signals.feed.shareRow': 'Bagikan Sinyal',
     'signals.feed.empty': 'Belum ada Sinyal. Bagikan yang pertama di atas.',
     'signals.card.unknownAuthor': 'Seseorang',
+    'signals.archive.searchLabel': 'Cari Sinyal',
+    'signals.archive.searchPlaceholder': 'Cari Sinyal berdasarkan teks, penulis, tim…',
+    'signals.archive.empty': 'Tidak ada Sinyal yang cocok dengan "${query}".',
+    'signals.archive.error': 'Tidak dapat memuat Sinyal.',
   },
 } as const
 
