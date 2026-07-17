@@ -1,0 +1,15 @@
+/* CafeOpeningPanel (Step 7 / cafe-retrofit.spec.md §4) — a thin "Start today's opening" surface
+   over the DS tokens (DESIGN.md --ds-*/--brand-*/--status-* aliases only, no --e7-*). */
+.cafe-opening-panel {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cafe-opening-caption {
+  font-size: 16px; font-weight: 600; color: var(--foreground); margin: 0;
+}
+.cafe-opening-rollup {
+  font-size: 13px; color: var(--muted-foreground); margin: 0;
+}
+.cafe-opening-pending {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
