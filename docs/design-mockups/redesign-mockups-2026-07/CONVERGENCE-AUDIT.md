@@ -18,6 +18,13 @@ Each item is placed in exactly one bucket:
 - **(c) Genuine amendment** — conflicts with or extends a locked OD/D and needs owner ratification. **Hard cap: 3.**
   Where more seemed to qualify, the least-damaging reading that keeps the item in (a)/(b) is argued explicitly.
 
+> **SUPERSEDED (2026-07-17, design-authority audit).** The caveat below was true when this audit was
+> written (2026-07-13) but is now stale: `docs/decisions.md` contains OD-REDESIGN-1…67 as full headed
+> sections (`decisions.md:1030` OD-REDESIGN-1 … `:1753` OD-REDESIGN-67, 85+ `OD-REDESIGN-` matches). The
+> gap was filled after this audit was authored. Do not conclude redesign authority #1 (the OD-REDESIGN-#
+> text) is absent from `decisions.md` — it is present. The original caveat text is preserved below,
+> unedited, for provenance; treat it as historical, not current.
+>
 > **Verification caveat (read before relying on any citation below).** The index names
 > `docs/decisions.md` § OD-REDESIGN-1…55 as authority #1, but **that section is absent from the current
 > `docs/decisions.md`** (the file ends at OD-DASH-6 and contains zero `REDESIGN` matches; see §"Deviations
@@ -268,7 +275,10 @@ deferred Process/Run schema ADR (OD-REDESIGN-11), not in this sprint.
 
 ## Deviations and verification
 
-1. **`docs/decisions.md` is missing the OD-REDESIGN-1…55 section.** The index names it as authority #1,
+1. **`docs/decisions.md` is missing the OD-REDESIGN-1…55 section.** [**SUPERSEDED 2026-07-17,
+   design-authority audit:** this is RESOLVED. `docs/decisions.md` now contains OD-REDESIGN-1…67 as full
+   headed sections. The action item below was completed after this audit was authored; the original text
+   is kept unedited for provenance.] The index names it as authority #1,
    but the file contains zero `REDESIGN` matches and ends at OD-DASH-6. Every OD-REDESIGN-# citation above
    was therefore verified against `docs/redesign-decision-index.md` (the thematic map) **and** the ADR-0025
    D# it maps to. **Action for the Director:** the locked OD-REDESIGN-1…55 text should be written into
