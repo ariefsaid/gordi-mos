@@ -412,7 +412,9 @@ export const messages = {
     'stub.notInSlice': 'Not in this slice',
     'stub.comingLater': '${name} lands in a later build step.',
     'events.empty.title': 'Nothing scheduled yet',
-    'events.empty.copy': 'Outlet events — cuppings, workshops, bookings — will show up here once this collection is connected.',
+    // Design fix wave item 8 (events copy nit) — dropped the "collection…connected"
+    // implementation jargon; wording is owner-ratify (docs/reviews ledger note).
+    'events.empty.copy': 'Outlet events — cuppings, workshops, bookings — will appear here once events are turned on.',
     'breadcrumb.detail': 'Detail',
     'topBar.openNavigation': 'Open navigation',
     'topBar.search': 'Search',
@@ -952,7 +954,7 @@ export const messages = {
     'stub.notInSlice': 'Belum ada di tahap ini',
     'stub.comingLater': '${name} hadir pada langkah build berikutnya.',
     'events.empty.title': 'Belum ada acara terjadwal',
-    'events.empty.copy': 'Acara outlet — cupping, workshop, booking — akan muncul di sini setelah koleksi ini terhubung.',
+    'events.empty.copy': 'Acara outlet — cupping, workshop, pemesanan — akan muncul di sini setelah fitur acara diaktifkan.',
     'breadcrumb.detail': 'Detail',
     'topBar.openNavigation': 'Buka navigasi',
     'topBar.search': 'Cari',

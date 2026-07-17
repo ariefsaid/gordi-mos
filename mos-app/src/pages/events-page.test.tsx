@@ -47,12 +47,18 @@ describe('AC-1003 (events-stub): sanctioned quiet EmptyState, no fake action', (
     expect(empty).toHaveAttribute('role', 'region')
   })
 
+  // Design fix wave item 8 (events copy nit) — the "collection…connected" phrase was
+  // implementation jargon (Gordi people don't talk about a "collection"); the copy now names the
+  // real job (cuppings, workshops, bookings) in plain product language. Wording is owner-ratify
+  // (see docs/reviews ledger note) — the assertion covers the goal (plain-language empty copy,
+  // no fake CTA), not a locked final string.
   it('shows the empty-state title + copy, and renders no action button (Rule 7 — no fake CTA)', () => {
     renderEvents()
     expect(screen.getByText('Nothing scheduled yet')).toBeInTheDocument()
     expect(
-      screen.getByText(/will show up here once this collection is connected/i),
+      screen.getByText(/cuppings, workshops, bookings.*will appear here once events are turned on/i),
     ).toBeInTheDocument()
+    expect(screen.queryByText(/collection/i)).not.toBeInTheDocument()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 })
