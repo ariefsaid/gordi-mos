@@ -230,6 +230,92 @@ export function dedupeRecipients(
   return ids.size
 }
 
+// ── listSignalRevisions (C3 — the record host's revision history, FR-410) ────
+
+export interface SignalRevisionRow {
+  id: string
+  signal_id: string
+  actor_id: string
+  field: 'body' | 'occurred_at' | 'category' | 'attention'
+  old_value: string | null
+  new_value: string | null
+  created_at: string
+}
+
+/** Read a Signal's revision audit trail, oldest-first (matches the signal_revisions_signal_idx
+ * (signal_id, created_at) index). Trigger-written only — this is a read-only reader. */
+export async function listSignalRevisions(signalId: string): Promise<SignalRevisionRow[]> {
+  const { data, error } = await mos()
+    .from('signal_revisions').select('*').eq('signal_id', signalId).order('created_at', { ascending: true })
+  if (error) throw new Error(`listSignalRevisions failed — ${error.message}`)
+  return (data ?? []) as unknown as SignalRevisionRow[]
+}
+
+// ── loadMentionRosters (C1 — the composer's fan-out preview needs real rosters) ──
+
+export interface MentionRosters { teamMembers: MemberLookup; buMembers: MemberLookup }
+
+/** Build the composer's fan-out-preview rosters. teamMembers: Team id → active member person ids.
+ * buMembers: BU id → the active members of that BU's Teams UNION the holders of a Role scoped to
+ * that BU (mirrors the fan_out_signal_mention RPC's @BU recipient union, client-side, for the
+ * preview count only — the RPC itself is the authoritative count at post time, D24/AC-422). Loads
+ * the whole org's substrate once (small at Gordi's ~30-person scale, same pattern as getPeople()). */
+export async function loadMentionRosters(): Promise<MentionRosters> {
+  const [teamsRes, membershipsRes, rolesRes, personRolesRes] = await Promise.all([
+    shared().from('teams').select('id,business_unit_id').is('archived_at', null),
+    shared().from('team_memberships').select('team_id,person_id').is('effective_to', null),
+    shared().from('roles').select('id,business_unit_id'),
+    shared().from('person_roles').select('person_id,role_id'),
+  ])
+  if (teamsRes.error) throw new Error(`loadMentionRosters teams failed — ${teamsRes.error.message}`)
+  if (membershipsRes.error) throw new Error(`loadMentionRosters memberships failed — ${membershipsRes.error.message}`)
+  if (rolesRes.error) throw new Error(`loadMentionRosters roles failed — ${rolesRes.error.message}`)
+  if (personRolesRes.error) throw new Error(`loadMentionRosters person_roles failed — ${personRolesRes.error.message}`)
+
+  const teamMembers: MemberLookup = {}
+  for (const m of (membershipsRes.data ?? []) as { team_id: string; person_id: string }[]) {
+    (teamMembers[m.team_id] ??= []).push(m.person_id)
+  }
+
+  const buOfTeam = new Map(
+    ((teamsRes.data ?? []) as { id: string; business_unit_id: string }[]).map((t) => [t.id, t.business_unit_id]),
+  )
+  const buOfRole = new Map(
+    ((rolesRes.data ?? []) as { id: string; business_unit_id: string }[]).map((r) => [r.id, r.business_unit_id]),
+  )
+
+  const buMembers: MemberLookup = {}
+  for (const [teamId, personIds] of Object.entries(teamMembers)) {
+    const buId = buOfTeam.get(teamId)
+    if (!buId) continue
+    (buMembers[buId] ??= []).push(...personIds)
+  }
+  for (const pr of (personRolesRes.data ?? []) as { person_id: string; role_id: string }[]) {
+    const buId = buOfRole.get(pr.role_id)
+    if (!buId) continue
+    (buMembers[buId] ??= []).push(pr.person_id)
+  }
+
+  return { teamMembers, buMembers }
+}
+
+// ── summarizeLinkedTasks (C3 — the "N Tasks · M open" linked-work summary, FR-413) ──
+
+export interface LinkedTasksSummaryCount { total: number; open: number }
+
+/** Pure: count total signal_tasks links and how many resolve to a non-Done Task status. An
+ * unresolved task id (not present in statusById — e.g. archived or not yet loaded) counts toward
+ * the total but never toward "open" (fail-quiet, never a misleading open count). */
+export function summarizeLinkedTasks(
+  links: SignalTaskLinkRow[], statusById: Record<string, string>,
+): LinkedTasksSummaryCount {
+  const open = links.filter((link) => {
+    const status = statusById[link.task_id]
+    return status !== undefined && status !== 'Done'
+  }).length
+  return { total: links.length, open }
+}
+
 // ── orderSignalsForFeed (B13, AC-426) ─────────────────────────────────────────
 
 const ATTENTION_WEIGHT: Record<Attention, number> = { Urgent: 2, 'Needs attention': 1, FYI: 0 }

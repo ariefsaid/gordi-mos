@@ -16,6 +16,7 @@ import {
   listReadableSignals, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask, createFollowUpTask,
   listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
+  listSignalRevisions, loadMentionRosters, summarizeLinkedTasks,
 } from './signals'
 import * as tasksDal from './tasks'
 import { supabase } from '@/lib/supabase'
@@ -478,5 +479,79 @@ describe('orderSignalsForFeed', () => {
     const copy = [...rows]
     orderSignalsForFeed(rows)
     expect(rows).toEqual(copy)
+  })
+})
+
+// ── listSignalRevisions (C3 record-host gap #2 — the record surface's revision history) ──────
+describe('listSignalRevisions', () => {
+  it('reads mos.signal_revisions for the Signal, ordered oldest-first', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.signal_revisions': [{
+        data: [{ id: 'rev-1', signal_id: SIGNAL_ID, actor_id: AUTHOR_ID, field: 'body', old_value: 'a', new_value: 'b', created_at: '2026-07-16T03:00:00Z' }],
+        error: null,
+      }],
+    }, rec)
+
+    const revisions = await listSignalRevisions(SIGNAL_ID)
+    expect(revisions).toEqual([
+      { id: 'rev-1', signal_id: SIGNAL_ID, actor_id: AUTHOR_ID, field: 'body', old_value: 'a', new_value: 'b', created_at: '2026-07-16T03:00:00Z' },
+    ])
+    expect(rec.eqs).toContainEqual(['signal_id', SIGNAL_ID])
+    expect(rec.orders[0]).toEqual(['created_at', { ascending: true }])
+  })
+
+  it('throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_revisions': [{ data: null, error: { message: 'boom' } }] }, rec)
+    await expect(listSignalRevisions(SIGNAL_ID)).rejects.toThrow(/boom/)
+  })
+})
+
+// ── loadMentionRosters (C1 gap #1 — the composer's fan-out preview needs real rosters) ────────
+describe('loadMentionRosters', () => {
+  it('builds teamMembers (team → active member ids) and buMembers (Team-derived ∪ BU-scoped-Role holders)', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.teams': [{ data: [{ id: 'team-a', business_unit_id: 'bu-1' }, { id: 'team-b', business_unit_id: 'bu-2' }], error: null }],
+      'shared.team_memberships': [{ data: [{ team_id: 'team-a', person_id: 'p1' }, { team_id: 'team-a', person_id: 'p2' }, { team_id: 'team-b', person_id: 'p3' }], error: null }],
+      'shared.roles': [{ data: [{ id: 'role-1', business_unit_id: 'bu-1' }], error: null }],
+      'shared.person_roles': [{ data: [{ person_id: 'p4', role_id: 'role-1' }], error: null }],
+    }, rec)
+
+    const { teamMembers, buMembers } = await loadMentionRosters()
+    expect(teamMembers).toEqual({ 'team-a': ['p1', 'p2'], 'team-b': ['p3'] })
+    // bu-1 = team-a's members (p1,p2) UNION role-1 holder (p4, since role-1.business_unit_id=bu-1)
+    expect(buMembers['bu-1']).toEqual(expect.arrayContaining(['p1', 'p2', 'p4']))
+    expect(buMembers['bu-1']).toHaveLength(3)
+    expect(buMembers['bu-2']).toEqual(['p3'])
+  })
+
+  it('throws on a non-null PostgREST error from any of the four reads', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.teams': [{ data: null, error: { message: 'boom' } }] }, rec)
+    await expect(loadMentionRosters()).rejects.toThrow(/boom/)
+  })
+})
+
+// ── summarizeLinkedTasks (C3 record-host gap #2 — the "N Tasks · M open" summary, FR-413) ─────
+describe('summarizeLinkedTasks', () => {
+  it('counts total links and how many resolve to a non-Done task status', () => {
+    const links = [
+      { id: 'st1', signal_id: SIGNAL_ID, task_id: 'task-1', created_by: AUTHOR_ID },
+      { id: 'st2', signal_id: SIGNAL_ID, task_id: 'task-2', created_by: AUTHOR_ID },
+      { id: 'st3', signal_id: SIGNAL_ID, task_id: 'task-3', created_by: AUTHOR_ID },
+    ]
+    const statusById: Record<string, string> = { 'task-1': 'Open', 'task-2': 'Done', 'task-3': 'In Progress' }
+    expect(summarizeLinkedTasks(links, statusById)).toEqual({ total: 3, open: 2 })
+  })
+
+  it('treats an unresolved task id (e.g. archived/not-yet-loaded) as not-open', () => {
+    const links = [{ id: 'st1', signal_id: SIGNAL_ID, task_id: 'task-missing', created_by: AUTHOR_ID }]
+    expect(summarizeLinkedTasks(links, {})).toEqual({ total: 1, open: 0 })
+  })
+
+  it('returns {total:0, open:0} for no links', () => {
+    expect(summarizeLinkedTasks([], {})).toEqual({ total: 0, open: 0 })
   })
 })
