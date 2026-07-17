@@ -39,7 +39,7 @@ test('AC-430: post a Signal, @-mention a teammate, Inbox delivery, Add category 
   await expect(composer.getByRole('listbox', { name: /mention/i })).toBeVisible()
   await composer.getByRole('option', { name: /Dewi Director/i }).click()
 
-  await composer.getByRole('button', { name: 'Share Signal' }).click()
+  await composer.getByRole('button', { name: 'Share Signal', exact: true }).click()
   await expect(composer).not.toBeVisible({ timeout: 10_000 })
 
   // ── ASSERT: the Signal appears at the top of the Home feed ─────────────────────────────────
