@@ -158,7 +158,7 @@ export function SignalRecord({
           disabled={hasAcknowledged || !onAcknowledge}
           onClick={onAcknowledge}
         >
-          {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.action.acknowledge')}
+          {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.record.acknowledge')}
         </Button>
         {acknowledgements.length > 0 && (
           <ul className="signal-ack-list">
