@@ -381,6 +381,22 @@ describe('AC-513: personal-first reorders + the header summary survives (Step 5)
     const summaryLink = screen.getByRole('link', { name: /needs attention · \d+/i })
     expect(summaryLink.getAttribute('href')).toBe('#attention-brief')
   })
+
+  // Jump-affordance fix — the header summary is a real link (already true), but must also
+  // READ as one (styled affordance + a jump cue), not plain prose that happens to be clickable.
+  it('the header summary is styled as a link affordance with a jump cue', async () => {
+    const personId = financeViewer.viewer.person.id
+    setRegionOrder(personId, 'personal-first')
+
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Needs attention' })).toBeInTheDocument())
+
+    const summaryLink = screen.getByRole('link', { name: /needs attention · \d+/i })
+    expect(summaryLink).toHaveClass('home-attention-jump')
+    // Convention placement (mirrors "All tasks →", "Open the Daily Log →") — a trailing
+    // arrow glyph signals "this jumps you somewhere", not just "this is styled".
+    expect(summaryLink.textContent).toMatch(/→\s*$/)
+  })
 })
 
 describe('AC-514: the order toggle persists (Step 5)', () => {

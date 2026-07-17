@@ -26,6 +26,23 @@
   min-width: 0;
 }
 
+/* Jump-affordance fix — the PageHead "Needs attention · N →" summary (personal-first order,
+   AC-513) must READ as a link, not just behave like one. Same underline+color grammar as the
+   other inline text-links in the app (mirrors cascade-page.css's `.cascade-task-link`). */
+.home-attention-jump {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.home-attention-jump:hover {
+  color: var(--brand-navy-text);
+}
+.home-attention-jump:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    Home two-region wrapper (Step 5, OD-REDESIGN-18, AC-515). The Attention brief
    and the Personal canvas are emitted in DOM in the user-chosen order — this

@@ -245,7 +245,7 @@ export function HomePage() {
         subtitle={t('home.subtitle')}
         meta={
           order === 'personal-first' && personId ? (
-            <a href="#attention-brief">{t('home.attention.summary', { n })}</a>
+            <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n })}</a>
           ) : undefined
         }
       />
