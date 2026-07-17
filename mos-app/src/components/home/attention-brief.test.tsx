@@ -102,3 +102,21 @@ describe('AC-511: ≤390px first content is attention, not config', () => {
     expect(within(region).queryByTestId('home-order-toggle')).toBeNull()
   })
 })
+
+describe('RI-4: the attention region carries a real visible heading, coherent with its aria name', () => {
+  it('renders "Needs attention" as a visible heading element, and the region name comes from it (no double source)', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'overdue', state: 'ready', items: [{ id: 'o1', title: 'Overdue task', route: '/work/tasks/o1' }] },
+    ]
+    renderBrief(lanes)
+
+    const heading = screen.getByRole('heading', { name: 'Needs attention' })
+    expect(heading).toBeVisible()
+
+    const region = screen.getByRole('region', { name: 'Needs attention' })
+    // The region's accessible name is sourced from the visible heading (aria-labelledby),
+    // never a parallel aria-label string — one source of truth, no double-announcement.
+    expect(region).not.toHaveAttribute('aria-label')
+    expect(region.getAttribute('aria-labelledby')).toBe(heading.id)
+  })
+})

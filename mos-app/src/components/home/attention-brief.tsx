@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
@@ -25,6 +26,7 @@ const LANE_TITLE_KEY: Record<AttentionLaneKind, MessageKey> = {
 
 export function AttentionBrief({ lanes }: AttentionBriefProps) {
   const t = useT()
+  const titleId = useId()
   const byKind = new Map(lanes.map(l => [l.kind, l]))
   const ordered = LANE_ORDER.map(kind => byKind.get(kind)).filter((l): l is AttentionLane => l != null)
 
@@ -32,7 +34,11 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
   const allClear = ordered.length > 0 && ordered.every(l => l.state === 'ready' && l.items.length === 0)
 
   return (
-    <section role="region" aria-label={t('home.attention.title')} id="attention-brief" className="attention-brief">
+    <section role="region" aria-labelledby={titleId} id="attention-brief" className="attention-brief">
+      {/* RI-4 — a real visible heading (not aria-label only); the region's accessible name is
+          sourced from it (aria-labelledby), so there's exactly one place a screen reader gets
+          "Needs attention" from — never a double announcement. */}
+      <h2 id={titleId} className="attention-brief-title">{t('home.attention.title')}</h2>
       {allClear ? (
         <EmptyState title={t('home.attention.allClear')} variant="quiet" />
       ) : (
