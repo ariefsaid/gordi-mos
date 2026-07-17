@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, SpawnResult } from '@/lib/db/processes.types'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -15,9 +17,18 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+// Step 6 (Track C wiring, C1/C2): mocked at the DAL boundary, never a live DB.
+vi.mock('../lib/db/processes', () => ({
+  listDueRuns: vi.fn(),
+  startRun: vi.fn(),
+  listRunRollups: vi.fn(),
+  listPendingTasks: vi.fn(),
+  resolvePendingTask: vi.fn(),
+}))
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
 // behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
@@ -26,6 +37,11 @@ import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 const mockListTasks = vi.mocked(listTasks)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListDueRuns = vi.mocked(listDueRuns)
+const mockStartRun = vi.mocked(startRun)
+const mockListRunRollups = vi.mocked(listRunRollups)
+const mockListPendingTasks = vi.mocked(listPendingTasks)
+const mockResolvePendingTask = vi.mocked(resolvePendingTask)
 
 // ── Stub matchMedia for useIsDesktop (desktop path by default) ──────────────
 function stubMatchMedia(matches: boolean) {
@@ -167,6 +183,11 @@ beforeEach(() => {
   stubMatchMedia(true) // desktop by default
   mockGetBusinessUnits.mockResolvedValue(DEFAULT_BUS)
   mockGetPeople.mockResolvedValue(DEFAULT_PEOPLE)
+  // Step 6 (Track C wiring): quiet defaults so pre-existing tests (accessRoles: [], no occurrence
+  // groupBy) never see the Start-run control or an occurrence fetch.
+  mockListDueRuns.mockResolvedValue([])
+  mockListRunRollups.mockResolvedValue([])
+  mockListPendingTasks.mockResolvedValue([])
 })
 
 // ── T-030: AC-067 — loading / error / empty states ─────────────────────────
@@ -814,5 +835,143 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
     expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+  })
+})
+
+// ── Step 6 (Track C, C1) — StartRunControl mounted in the toolbar; occurrence group-by ─────────
+// (docs/plans/2026-07-16-occurrence-as-tasks.md C1; docs/specs/occurrence-as-tasks.spec.md §5).
+// "Process Run" must NEVER appear as UI vocabulary anywhere in this page (FR-611).
+describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
+  const CAPABLE_AUTH: AuthState = {
+    ...authedState,
+    viewer: { ...authedState.viewer, accessRoles: ['ops_lead'] },
+  }
+  const DUE_ROW: DueProcessRun = {
+    work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
+    owning_team_id: 'team-1', team_name: 'HQ Operations',
+    period_key: '2026-07-17', scheduled_date: '2026-07-17',
+  }
+
+  it('renders the Start-run control in the toolbar for a process.start-capable viewer', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    renderPage(CAPABLE_AUTH)
+
+    await waitFor(() => screen.getByText('Café HQ daily opening'))
+    expect(screen.getByRole('button', { name: 'Start run' })).toBeInTheDocument()
+  })
+
+  it('the Start-run control is absent for a viewer without process.start', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderPage() // default authedState: accessRoles: []
+    await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
+    expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument()
+    expect(mockListDueRuns).not.toHaveBeenCalled()
+  })
+
+  it('clicking Start run calls startRun and refreshes the task list', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    const spawnResult: SpawnResult = { run_id: 'run-1', created: 1, pending: 1, idempotent: false }
+    mockStartRun.mockResolvedValue(spawnResult)
+    renderPage(CAPABLE_AUTH)
+
+    await waitFor(() => screen.getByText('Café HQ daily opening'))
+    const before = mockListTasks.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Start run' }))
+
+    await waitFor(() => expect(mockStartRun).toHaveBeenCalledWith('wl-1', 'team-1', '2026-07-17'))
+    await waitFor(() => expect(mockListTasks.mock.calls.length).toBeGreaterThan(before))
+  })
+
+  it('AC-622/FR-611: the Occurrence group-by groups generated Tasks under the run caption — "Process Run" never appears', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café',
+      process_run_id: 'run-1', generated_from_task_def_id: 'def-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 1, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Café HQ daily opening · 17 Jul 2026')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Open the café')).toBeInTheDocument()
+    expect(mockListRunRollups).toHaveBeenCalledWith(['run-1'])
+    // FR-611 — the internal-only string never leaks into the DOM anywhere on this page.
+    expect(document.body.textContent).not.toMatch(/Process Run/)
+  })
+
+  it('AC-622: an ad-hoc Task (no process_run_id) is never forced under an occurrence caption', async () => {
+    const adhoc = makeTask({ id: 'adhoc-1', title: 'Ad-hoc task', process_run_id: null })
+    mockListTasks.mockResolvedValue([adhoc])
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Ad-hoc task'))
+
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Not part of a recurring occurrence')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Ad-hoc task')).toBeInTheDocument()
+  })
+})
+
+// ── Step 6 (Track C, C2) — the "N to assign" affordance opens PendingResolution ────────────────
+describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
+  it('clicking "N to assign" opens the pending-resolution surface; resolving materializes the Task in the same group', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValueOnce([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 1, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+    const pending: PendingTaskRow = {
+      id: 'pending-1', process_run_id: 'run-1', task_def_id: 'def-2',
+      candidate_person_ids: [VIEWER_ID, OTHER_ID], reason: 'multiple', resolved_at: null,
+    }
+    mockListPendingTasks.mockResolvedValue([pending])
+    mockResolvePendingTask.mockResolvedValue('task-new')
+
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
+
+    fireEvent.click(screen.getByRole('button', { name: '1 to assign' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Assign — two people could own this' })
+    expect(mockListPendingTasks).toHaveBeenCalledWith('run-1')
+
+    const nextTask = makeTask({
+      id: 'gen-2', title: 'Bakery handover', process_run_id: 'run-1', responsible_person_id: VIEWER_ID,
+    })
+    mockListTasks.mockResolvedValueOnce([genTask, nextTask])
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Arief Said' }))
+
+    await waitFor(() => expect(mockResolvePendingTask).toHaveBeenCalledWith('pending-1', VIEWER_ID))
+    // The newly-resolved Task appears alongside the single-holder Task, still under the ONE
+    // occurrence caption for this run (no second/divergent group was introduced).
+    await waitFor(() => screen.getByText('Bakery handover'))
+    expect(screen.getAllByText('Café HQ daily opening · 17 Jul 2026')).toHaveLength(1)
+    expect(screen.getByText('Open the café')).toBeInTheDocument()
   })
 })

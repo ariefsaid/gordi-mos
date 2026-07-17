@@ -58,12 +58,14 @@ const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress
   { value: 'Done', key: 'done' },
 ]
 
-const GROUP_VALUES: { value: TasksGroupBy; key: 'none' | 'status' | 'owner' | 'businessUnit' | 'projectProcess' }[] = [
+const GROUP_VALUES: { value: TasksGroupBy; key: 'none' | 'status' | 'owner' | 'businessUnit' | 'projectProcess' | 'occurrence' }[] = [
   { value: 'none', key: 'none' },
   { value: 'status', key: 'status' },
   { value: 'owner', key: 'owner' },
   { value: 'bu', key: 'businessUnit' },
   { value: 'workline', key: 'projectProcess' },
+  // Step 6 (ADR-0051, C1): occurrence-caption grouping for generated Tasks (FR-611).
+  { value: 'occurrence', key: 'occurrence' },
 ]
 
 export function TasksToolbar({
@@ -85,7 +87,8 @@ export function TasksToolbar({
     if (key === 'status') return t('tasks.filter.status')
     if (key === 'owner') return t('tasks.pic')
     if (key === 'businessUnit') return t('tasks.filter.businessUnit')
-    return t('tasks.filter.projectProcess')
+    if (key === 'projectProcess') return t('tasks.filter.projectProcess')
+    return t('tasks.filter.occurrence')
   }
   const viewTabs: ViewTab[] = VIEW_TAB_IDS.map(id => ({
     id,

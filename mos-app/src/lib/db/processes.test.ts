@@ -9,7 +9,7 @@ vi.mock('../supabase', () => {
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
-  getRunRollup, listRunTasks, completeRun,
+  getRunRollup, listRunTasks, completeRun, listRunRollups,
 } from './processes'
 import { supabase } from '@/lib/supabase'
 import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow } from './processes.types'
@@ -22,13 +22,14 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  ins: Array<[string, unknown]>
   rpcs: Array<[string, unknown]>
 }
 
 type Result = { data: unknown; error: unknown }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], rpcs: [] }
+  return { fromTables: [], selects: [], eqs: [], ins: [], rpcs: [] }
 }
 
 function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
@@ -46,6 +47,7 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.in = vi.fn((c: string, v: unknown) => { rec.ins.push([c, v]); return builder })
     builder.order = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.maybeSingle = vi.fn(() => Promise.resolve(nextResult(key)))
@@ -218,6 +220,52 @@ describe('listRunTasks', () => {
     mockSupabase({ 'mos.tasks': [{ data: null, error: { message: 'read failed' } }] }, rec)
 
     await expect(listRunTasks(RUN_ID)).rejects.toThrow(/read failed/)
+  })
+})
+
+// ── listRunRollups (Track C wiring — batched roll-up read backing the Occurrence
+// group-by in /work/tasks, C1). Reuses mos.process_run_rollup (ADR D9); a single
+// `.in('process_run_id', runIds)` read instead of N getRunRollup calls per group. ─
+describe('listRunRollups', () => {
+  it('reads mos.process_run_rollup filtered by process_run_id IN the given run ids', async () => {
+    const rec = freshRec()
+    const runId2 = '00000000-0000-0000-0000-00000000r002'
+    const rollups: ProcessRunRollup[] = [
+      {
+        process_run_id: RUN_ID, caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+        status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+        overdue: 0, pending_unresolved: 2, completion_pct: 0,
+      },
+      {
+        process_run_id: runId2, caption: 'Café Closing · 17 Jul 2026', scheduled_date: '2026-07-17',
+        status: 'open', total: 2, open: 1, in_progress: 0, blocked: 0, done: 1,
+        overdue: 0, pending_unresolved: 0, completion_pct: 50,
+      },
+    ]
+    mockSupabase({ 'mos.process_run_rollup': [{ data: rollups, error: null }] }, rec)
+
+    const rows = await listRunRollups([RUN_ID, runId2])
+
+    expect(rec.fromTables).toContain('mos.process_run_rollup')
+    expect(rec.ins).toContainEqual(['process_run_id', [RUN_ID, runId2]])
+    expect(rows).toEqual(rollups)
+  })
+
+  it('returns [] without a read when given an empty run-id list (no needless network call)', async () => {
+    const rec = freshRec()
+    mockSupabase({}, rec)
+
+    const rows = await listRunRollups([])
+
+    expect(rec.fromTables).toEqual([])
+    expect(rows).toEqual([])
+  })
+
+  it('re-throws when the read errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_run_rollup': [{ data: null, error: { message: 'read failed' } }] }, rec)
+
+    await expect(listRunRollups([RUN_ID])).rejects.toThrow(/read failed/)
   })
 })
 

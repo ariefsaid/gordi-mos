@@ -1,0 +1,15 @@
+/* OccurrenceAssignDialog (Step 6 / C2) — a thin overlay hosting PendingResolution items.
+   Mirrors .confirm-overlay/.confirm-box (TaskSurface.css) rather than a new modal system. */
+.occ-assign-overlay {
+  position: fixed; inset: 0; background: color-mix(in srgb, var(--foreground) 45%, transparent);
+  display: grid; place-items: center; z-index: 100;
+}
+.occ-assign-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); /* 12px — modal/overlay, OD-P3-10 */
+  padding: 20px 24px; max-width: 420px; width: 92%; max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+.occ-assign-head { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.occ-assign-empty { font-size: 14px; color: var(--muted-foreground); margin: 0; }
+.occ-assign-list { display: flex; flex-direction: column; gap: 16px; }
