@@ -78,6 +78,28 @@ Every conservative default taken while the owner was absent, with its home ledge
     hideLegacyCadenceCards per OD-33/48/64); ratify whether `SHOW_WEEKLY_UPDATES` should flip to
     false globally now that no redesign surface consumes the write flow. (steps 5/11; audit twist #1)
 
+## Final fidelity audits (2026-07-18, owner-requested)
+
+Two adversarial audits of the finished build vs the owner's history, the redesign intent, and ALL
+mockup generations (`final-intent-fidelity-audit-2026-07-18.md` · `final-mockup-fidelity-audit-2026-07-18.md`):
+- **Intent: FAITHFUL-WITH-DRIFTS** — no owner directive silently inverted across specs→builds→fix
+  waves; fix waves compound, never fork. Its one genuine twist (retired Weekly-Update roster leaking
+  onto Home) FIXED in `beca0dc`; its 3 ratify omissions lifted into items 16–18 above.
+- **Mockups: MINOR-LOSSES, no quicksand** — every high-stakes fork confirmed as a conscious
+  supersession by consulting the INTERMEDIATE generations. Residue, routed as fast-follows below +
+  ratify item 19.
+
+19. **"Create" vs "New/Add" action-verb family** — the ⌘K palette says "Create Task"; buttons say
+    "+ New task" / "Add Objective". Two reviewers pulled opposite directions (Rule-7 bare-verb fix vs
+    mockup verb fidelity) — an owner taste call; pick one family and it gets locked as a convention.
+
+**Design fast-follows (from the fidelity audits — small, each wants its own mini loop, not a
+close-out slip-in):** (a) LG-1 restore e7's Inbox All/Unread/Handled triage filter (owning-mockup
+answer, never superseded); (b) LG-2 implement KPITile's declared-but-unimplemented `empty` state and
+use it for Home's money glance instead of bare "—" (the original-teardown disease; currently
+mitigated by the B-iii next-sync provenance line); (c) LG-3 re-verify Money drill labels/provenance
+once real snapshot data exists.
+
 ## Deferred debt (tracked, non-blocking)
 
 - Signals feed/archive pagination before volume grows (step 4 CQ). Fan-out concurrent-uncommitted
