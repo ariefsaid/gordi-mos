@@ -115,9 +115,32 @@ the goal fails silently. **Method fixed:** a MANDATORY computed-style parity ste
 `design-reviewer.md` Lens (a) and `docs/design-workflow.md` §2 — measure the composed result vs the
 owning mockup, never infer fidelity from tokens-present or a screenshot glance.
 
-**Also owed:** re-run the parity step across the OTHER load-bearing surfaces (cards, table rows,
-buttons, badges, ⌘K) — the rail is the first thing the new check would catch, not necessarily the only
-treatment gap. Track each divergence found as its own fidelity finding.
+**DESIGN-FIDELITY-1 — RESOLVED 2026-07-18** (`mos-app/src/shell/rail-nav.tsx`, `itemBase`). Root cause
+confirmed at token level: active `bg-accent` → `--surface-secondary` = `p3(.984,.976,.957)`, the SAME
+warm-grey as the rail panel bg → zero-contrast selection. Fix ports e7's treatment into the app's token
+system (Rule-11, not a reinvention): active bg → `--ds-color-blue3` light-blue tint; label + icon → The
+One Blue (`text-primary`); weight → `font-semibold` (600); height `h-9` (36); padding `px-2.5` (10).
+Parity re-verified by measurement (the now-mandatory step), same elements both renders:
+
+| Property | e7 | app before | app after |
+|---|---|---|---|
+| Selected bg | blue wash | warm-grey (= panel, invisible) | `p3(.933,.948,.992)` blue tint ✓ |
+| Selected text | blue | near-black | `p3(.276,.384,.837)` The One Blue ✓ |
+| Selected weight | 600 | 500 | 600 ✓ |
+| Item height | 36 | 28 | 36 ✓ |
+| Padding | 0 10px | 0 8px | 0 10px ✓ |
+| Font-size | 13.5px | 14px | 14px (0.5px, sub-perceptual — Minor) |
+
+Verified: typecheck 0; rail-nav + brand-tokens tests 24/24 pass; screenshot confirms the rail reads as
+selected. **Correction to the original finding:** the "transparent rail panel" row above was a
+measurement error — the `<aside>` carries `bg-secondary` + a right border; the panel exists (warm
+`p3(.984,.976,.957)`, distinct from the cream canvas — the correct warm port of e7's cooler rail, not a
+defect). The genuine gaps were the selected-state, height, and padding, all now closed.
+
+**Still owed before design → APPROVE:** run the parity step across the OTHER load-bearing surfaces
+(cards, table rows, buttons, badges, ⌘K palette) — the rail was the first thing the new check caught,
+not provably the only treatment gap. Design stays **BLOCK** until that sweep is clean; one fixed surface
+is not the battery.
 
 ## Final fidelity audits (2026-07-18, owner-requested)
 

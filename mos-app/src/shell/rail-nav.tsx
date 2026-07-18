@@ -11,11 +11,16 @@ type RailNavProps = {
   onNavigate?: () => void
 }
 
+// Rail item chrome. Active state ports e7's selected treatment (DESIGN-FIDELITY-1, 2026-07-18):
+// e7 selected = blue wash + blue text + weight 600, ~36px tall, 10px inline padding. The old
+// `bg-accent` resolved to --surface-secondary — the SAME warm-grey as the rail panel bg, so the
+// selection was invisible (zero contrast). Now a blue tint (--ds-color-blue3) on the panel + The
+// One Blue text. itemBase owns the active color so inner label spans don't re-set text-foreground.
 const itemBase = (isActive: boolean) =>
   [
-    'flex items-center gap-[10px] rounded-sm px-2 no-underline text-sm',
+    'flex items-center gap-[10px] h-9 rounded-sm px-2.5 no-underline text-sm',
     isActive
-      ? 'bg-accent font-medium text-foreground'
+      ? 'bg-[color:var(--ds-color-blue3)] font-semibold text-primary'
       : 'font-normal text-muted-foreground hover:bg-accent/60',
   ].join(' ')
 
@@ -30,14 +35,13 @@ function DestLink({ d, onNavigate }: { d: Destination; onNavigate?: () => void }
       end={to === '/'}
       onClick={onNavigate}
       className={({ isActive }) => itemBase(isActive)}
-      style={{ height: 28 }}
     >
       {({ isActive }) => (
         <>
           <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
             <d.Icon />
           </span>
-          <span className={isActive ? 'text-foreground' : undefined}>{t(d.labelKey)}</span>
+          <span>{t(d.labelKey)}</span>
         </>
       )}
     </NavLink>
@@ -52,14 +56,13 @@ function WorkChild({ section, onNavigate }: { section: Section; onNavigate?: () 
       to={section.path}
       onClick={onNavigate}
       className={({ isActive }) => itemBase(isActive)}
-      style={{ height: 28 }}
     >
       {({ isActive }) => (
         <>
           <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
             <section.Icon />
           </span>
-          <span className={isActive ? 'text-foreground' : undefined}>
+          <span>
             {section.labelKey ? t(section.labelKey) : section.label}
           </span>
         </>
@@ -113,14 +116,13 @@ export function RailNav({ onNavigate }: RailNavProps) {
                     aria-current="location"
                     onClick={onNavigate}
                     className={({ isActive }) => itemBase(isActive)}
-                    style={{ height: 28 }}
                   >
                     {({ isActive }) => (
                       <>
                         <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
                           <d.Icon />
                         </span>
-                        <span className={isActive ? 'text-foreground' : undefined}>{t(d.labelKey)}</span>
+                        <span>{t(d.labelKey)}</span>
                       </>
                     )}
                   </NavLink>
