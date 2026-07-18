@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
+import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -246,6 +247,22 @@ describe('AC-013: Team module manager-conditional', () => {
     // No team overline at all
     const matches = screen.queryAllByText(/Your team/i)
     expect(matches).toHaveLength(0)
+  })
+
+  // OD-33/48/64 (redesign, intent-fidelity audit 2026-07-18): the weekly-update review roster is a
+  // RETIRED surface — a host that passes hideLegacyCadenceCards (the redesign Home) must never
+  // render it, even for a manager. Signal supersedes the Weekly-Update cadence.
+  it('(c) hideLegacyCadenceCards suppresses the team module even for a manager', async () => {
+    mockUseAuth.mockReturnValue(managerViewer)
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <MyWeekPanel hideLegacyCadenceCards />
+        </MemoryRouter>,
+      )
+    })
+    expect(screen.queryAllByText(/Your team/i)).toHaveLength(0)
+    expect(listTeamUpdates).not.toHaveBeenCalled()
   })
 })
 

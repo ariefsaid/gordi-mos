@@ -70,6 +70,13 @@ Every conservative default taken while the owner was absent, with its home ledge
 13. **Events placeholder copy** (rewritten post-review — final wording yours) + quiet archetype. (step 10)
 14. **Modules stay in the rail** — Director default; override window open until merge. (inherited)
 15. **AC-013 footer wording** amendment (security HIGH-1 era). (inherited from base)
+16. **Signal Retract has no UI** (DB gate only) — author/deputy cannot retract from the app; decide
+    defer vs follow-up. (step 4; lifted by the intent-fidelity audit)
+17. **Signal "Create follow-up Task" is a minimal title-only capture** (auto R=A=viewer), not the
+    canonical Task composer prefilled — confirm or upgrade. (step 4; lifted by the audit)
+18. **Weekly-Update team roster on Home** — FIXED post-audit (TeamModule now suppressed by
+    hideLegacyCadenceCards per OD-33/48/64); ratify whether `SHOW_WEEKLY_UPDATES` should flip to
+    false globally now that no redesign surface consumes the write flow. (steps 5/11; audit twist #1)
 
 ## Deferred debt (tracked, non-blocking)
 

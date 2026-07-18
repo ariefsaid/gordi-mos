@@ -213,7 +213,7 @@ export function HomePage() {
       )}
 
       {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
-          successors are real; the direct My Week route remains available. */}
+          successors are real; the MyWeekPanel component itself survives (ADR-0019 D2). */}
       <MyWeekPanel hideLegacyCadenceCards />
 
       {/* Signal ambient feed (Step 4, Q1/OD-59 — provisional, RATIFY-7): the ambient region

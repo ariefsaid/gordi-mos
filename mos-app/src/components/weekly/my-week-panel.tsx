@@ -105,9 +105,9 @@ export function MyWeekPanel({ hideLegacyCadenceCards = false }: MyWeekPanelProps
   }, [isManager, weekStart, JSON.stringify(viewerRoleIds)])
 
   useEffect(() => {
-    if (!isManager) return
+    if (!isManager || hideLegacyCadenceCards) return
     loadTeam()
-  }, [isManager, loadTeam])
+  }, [isManager, loadTeam, hideLegacyCadenceCards])
 
   return (
     <>
@@ -136,8 +136,11 @@ export function MyWeekPanel({ hideLegacyCadenceCards = false }: MyWeekPanelProps
         />
       )}
 
-      {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) — weekly-update review, flag-hidden ===== */}
-      {SHOW_WEEKLY_UPDATES && isManager && (
+      {/* ===== Role-conditional: manager team module (FR-017, OD-P0-8) — weekly-update review roster.
+           Retired by the redesign (OD-33/48/64: Signal supersedes the Weekly-Update cadence, OD-48
+           kills the review roster) — hidden wherever the host passes hideLegacyCadenceCards, i.e.
+           the redesign Home. Kept for any legacy host that still opts in (none currently routes). */}
+      {SHOW_WEEKLY_UPDATES && !hideLegacyCadenceCards && isManager && (
         <>
           <p
             className="text-muted-foreground font-semibold uppercase"
