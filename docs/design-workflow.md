@@ -59,7 +59,12 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
    go to `docs/backlog.md`).
    - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste`
      AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA,
-     interaction perf, vs `DESIGN.md` + the design-plan + the Phase-0 mockup.
+     interaction perf, vs `DESIGN.md` + the design-plan + the owning mockup. **Includes the MANDATORY
+     computed-style parity step** (see `design-reviewer.md` Lens (a)): render the owning mockup AND the
+     app, `getComputedStyle`-diff the same element on each load-bearing surface (rail incl.
+     **selected-state** + panel bg, cards, rows, buttons, badges, ⌘K). "Tokens in-palette" is a proxy
+     that passes on the WRONG token — measure the composed result, don't eyeball screenshots. This is the
+     check that let the rail's washed-out active-state ship past every stage (2026-07-18, owner-caught).
    - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load +
      persona walkthrough)* — for each role's REAL tasks (a manager triaging attention, an operator
      completing a Process Run or sharing a Signal, Arief scanning ownership), walk the journey and flag

@@ -31,12 +31,14 @@ after step 11).
   APPROVE with AC-by-AC coverage tables in the step ledgers; every AC owned by one test at its layer.
 - code-quality: APPROVE — per-step code-quality reviews (opus): steps 4–11 all APPROVE; step-6
   fix-then-ship items (silent write failures, useOccurrenceGroups extraction) FIXED and verified.
-- design: APPROVE — all eight steps. Steps 4, 5, 6 each BLOCK→fix→re-review APPROVE with rendered
-  evidence (step 6's manager front re-scored 4/10→8.5/10); steps 7, 8, 9, 10 first-pass APPROVE.
-  HOLISTIC cross-module pass (final visual/regression, 3 personas × 2 breakpoints): SHIP — one
-  grammar confirmed, retired surfaces absent everywhere (rail/⌘K/routes), F1/F2/F3 frictionless at
-  390px, table-density convention holds. Its 2 Important + 2 copy minors fixed in 785cdf3 (Deputy
-  retired-noun chip, catalog Add composes its noun, Money H1, NotFound link).
+- design: BLOCK — reopened 2026-07-18 by owner-caught fidelity finding **DESIGN-FIDELITY-1 (rail
+  selected-state + panel bg not ported from e7)** — see § "Design fidelity — reopened" below. The prior
+  per-step + holistic APPROVEs stand for structure/flow/a11y, but ALL of them (and the mockup-fidelity
+  audit) measured proxies for visual fidelity, never computed-style parity vs the owning mockup, so a
+  visible rail regression passed every stage. Verdict returns to APPROVE only after DESIGN-FIDELITY-1 is
+  fixed AND re-verified with the now-mandatory computed-style parity step (`design-reviewer.md` Lens a).
+  *(Prior state, retained: steps 4/5/6 BLOCK→fix→APPROVE with rendered evidence; 7–10 first-pass
+  APPROVE; holistic 3-persona×2-breakpoint pass SHIP for structure; 785cdf3 fixed 2 Important + 2 copy.)*
 - security: APPROVE — security-auditor (opus): step 4 BLOCK (HIGH-1 + 3 Low) → all empirically
   CLEARED; step 6 APPROVE (0 Critical/High; Low-1/2/3 hardened in the fix wave, re-verified by
   pgTAP). Steps 5/7/8/9/10/11 carry no new auth/RLS/schema surface beyond those audits' scope.
@@ -77,6 +79,45 @@ Every conservative default taken while the owner was absent, with its home ledge
 18. **Weekly-Update team roster on Home** — FIXED post-audit (TeamModule now suppressed by
     hideLegacyCadenceCards per OD-33/48/64); ratify whether `SHOW_WEEKLY_UPDATES` should flip to
     false globally now that no redesign surface consumes the write flow. (steps 5/11; audit twist #1)
+
+## Design fidelity — reopened (2026-07-18, owner-caught, BLOCKING)
+
+**DESIGN-FIDELITY-1 — the rail's treatment was never ported from e7; only the color tokens were.**
+The step-1 styling pass warmed the token *values* (background/navy/blue — genuinely applied) but did
+not wire e7's rail *treatment*: which elements use which token, at what metric/state. Measured
+`getComputedStyle`, same elements, both rendered (`d92f63d` app :5173 vs e7 :8766):
+
+| Property | e7 (owning mockup) | app | |
+|---|---|---|---|
+| **Selected bg** | `rgba(54,97,226,0.1)` blue wash | `p3(.984,.976,.957)` — warm-grey ~1.5% off page bg | ❌ washed out |
+| **Selected text** | `rgb(29,72,201)` blue | near-black | ❌ no color cue |
+| **Selected weight** | 600 | 500 | ❌ |
+| **Rail bg** | `rgb(253,253,252)` panel | transparent | ❌ no rail surface |
+| Nav-item height | 36px | 28px | ❌ tighter |
+| Item padding | 0 10px | 0 8px | ❌ |
+| Font-size | 13.5px | 14px | ❌ |
+
+**Severity: Important / blocking.** It is the first surface seen and the selected-state is the
+primary "where am I" cue; washed to ~invisible, the whole rail reads as unstyled — the owner's exact
+report. **Fix location:** `mos-app/src/shell/rail-nav.tsx`, the nav-item active-branch `className`
+(currently `bg-accent font-medium` → resolves to the near-invisible warm-grey) + the rail container
+needs a panel background. Port e7's values above. This is a Rule-11 / SALVAGE fidelity port ("e7 OWNS
+the visual system"), not a redesign of it — use e7's exact values, do not invent.
+
+**Why every prior stage missed it (process finding, fixed).** Lens (a) checked *"token fidelity — no
+off-palette values"*, which PASSES on the wrong token at the wrong metric (the app is 100% on-palette
+and still wrong). No review — per-step, holistic, or the mockup cross-version audit — did a
+computed-style diff of the same surface in both e7 and the app; the mockup audit was tuned for
+*structural forks* (same rail structure = "FAITHFUL") and treatment gaps inside a faithful structure
+fell through. Same shape as this project's recurring silent-proxy failures (grep-crash secret scan,
+git-fail merge gate, storage-wipe auth test): the pass condition stands in for the goal, passes, and
+the goal fails silently. **Method fixed:** a MANDATORY computed-style parity step is now in
+`design-reviewer.md` Lens (a) and `docs/design-workflow.md` §2 — measure the composed result vs the
+owning mockup, never infer fidelity from tokens-present or a screenshot glance.
+
+**Also owed:** re-run the parity step across the OTHER load-bearing surfaces (cards, table rows,
+buttons, badges, ⌘K) — the rail is the first thing the new check would catch, not necessarily the only
+treatment gap. Track each divergence found as its own fidelity finding.
 
 ## Final fidelity audits (2026-07-18, owner-requested)
 
