@@ -130,6 +130,9 @@ Work parent and active Work child both announce `page`.*
 **Pass if:** a DOM query for `[aria-current="page"]` returns exactly one element on every route, desktop
 and phone. **Fail if:** it returns zero or more than one.
 
+*Operationalized by `docs/interaction-contract.md` (BINDING, 2026-07-19): one behavior per
+interaction class, conformance table per surface, driven — not judged — at review.*
+
 ## Rule 6 — One page anatomy per route
 
 Every route renders the same four-region anatomy: **(1) header → (2) context row → (3) content region →

@@ -1,0 +1,56 @@
+# Interaction Contract — ONE behavior per interaction class (BINDING)
+
+**Why this exists (owner, 2026-07-19):** "always be aware of the interaction layer.. i keep pounding
+on UX and IxD… inbox drawer opens on top, task drawer open on the side. still not seeing any cohesion
+in the design implementation grammar." Three audit generations measured statics (tokens, structure,
+words) and treated behavior as residual — styling, then the sketch, then interaction each "fell
+through a layer." The layer WAS the product. This contract makes behavior first-class: every
+interaction class has ONE grammar, a conformance row per surface, and a measured check — the
+behavioral sibling of the computed-style parity rule.
+
+**Enforcement:** design review Lens (b) MUST run the conformance table below against every surface a
+change touches — by DRIVING the interaction (click/keyboard, both regimes), never by reading code or
+judging screenshots. A surface may deviate only via a `RATIFY-BEFORE-MERGE:` line naming this file.
+New surfaces add a row before merge. The table's "Proof" column names the locking test; an empty
+Proof cell is a defect, not a gap.
+
+## The grammar classes
+
+| # | Class | THE one behavior | Primitive |
+|---|---|---|---|
+| I1 | **Open a record** | In-list click → the shared side panel (page stays live, ≥1100px inline split / <1100px modal). Direct URL / refresh / new-tab → full canonical page. Same renderer, `mode` switch. | `RecordPanelHost` (spec `record-panel-host.spec.md`) |
+| I2 | **Close / Back** | ✕ and Esc → underlying page, focus returned to opener. Browser Back → where you came from. In-panel stack Back → pops one. Never a dead end. | host |
+| I3 | **Menu / popover** | Trigger click → menu; focus enters first item; Arrow/Home/End cycle ALL `menuitem*` roles; Esc + outside-click close + return focus. | `useMenuPopover` |
+| I4 | **Modal / launcher** | Centered dialog, `aria-modal`, focus trap, Esc closes + returns focus. (⌘K, composer, confirm dialogs.) | CommandMenu pattern |
+| I5 | **Inline edit** | Enter / Tab / click-outside COMMITS; **Escape DISCARDS and restores the saved value** (OD-REDESIGN-22 — owner-locked, currently UNBUILT: shipping selects commit eagerly on change, provenance finding C2). One field-edit primitive owns this. | to build — the next cohesion slice after the host |
+| I6 | **Async action** | Control disabled while pending (`aria-busy`); optimistic update with rollback + `role=status` announcement on failure. | exists on Tasks — generalize, never re-implement |
+| I7 | **Navigate** | Exactly one `aria-current="page"` (rail owns it; breadcrumb leaf when the viewer has no rail entry). Redirects preserve query. View state in query params survives refresh/share. | rail + breadcrumb + router |
+| I8 | **List select vs activate** | Single click activates (opens I1); selection is explicit (checkbox), never click-ambiguity. | tasks table pattern |
+| I9 | **Notify / bell** | Bell → quick-triage panel in the shared host (list → push record → Back → Close). Rail Inbox → full page. One read/handled state. (OD-20 — host Phase 3.) | host P3 |
+| I10 | **Form submit** | Labeled fields, `aria-required`, field + submit errors as `role=alert`, double-submit disabled. | create-task pattern |
+
+## Conformance (2026-07-19 — honest state, not aspiration)
+
+| Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
+|---|---|---|---|---|---|---|---|---|
+| Task record | ✅ | ✅ | ✅ (row menu) | — | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites |
+| Signal record | 🔨 host P2 (was: bespoke overlay, no page mode) | 🔨 | — | — | ❌ | partial | ✅ | AC-RPH-2/3 (in build) |
+| Inbox | ❌ no panel door (bell navigates away) | n/a | — | — | — | — | ✅ | host P3 → AC-RPH-4/6 |
+| Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
+| User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
+| Admin people menu | — | ❓ | ❌ not on `useMenuPopover` | — | — | — | — | to adopt |
+| ⌘K / composer | — | ✅ | — | ✅ | — | — | — | command-menu suite |
+| Record details fields | — | — | — | — | ❌ eager-commit, no Esc-discard | ❓ | — | I5 slice |
+| Kitchen/Café qty cells | — | — | — | — | ❌ same | ✅ | — | I5 slice |
+
+## Sequence to full conformance (the cohesion program, in flight)
+
+1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — building now.
+2. **Host P3** Inbox two-door (I9) · **P4** Deputy chrome (I1 col).
+3. **I5 slice** — the one inline-edit primitive (OD-22), retrofit details-panel + qty cells.
+4. **I3 completion** — admin people menu onto `useMenuPopover`.
+5. **Lens (b) measured step** — reviewer drives I1/I2/I3 on every touched surface pair and asserts
+   identical outcomes; recorded per review like the computed-style table.
+
+Referenced by: `docs/experience-contract.md` (Rule 6 operationalization), `docs/design-workflow.md`
+§2.3(b), `.claude/agents/design-reviewer.md` Lens (b).
