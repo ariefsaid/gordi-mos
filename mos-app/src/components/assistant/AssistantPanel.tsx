@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, useCallback, type FormEvent, type Keyboard
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion, type AssistantRating } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
+import { CloseIcon } from '@/shell/icons'
 import { useIsNarrow } from '@/shell/use-is-narrow'
 import { EmptyState } from '@/components/ui/state-kit'
 import { ThreadList } from './ThreadList'
@@ -217,7 +218,7 @@ export function AssistantPanel() {
             title={t('assistant.close')}
             onClick={closePanel}
           >
-            <CloseIcon />
+            <CloseIcon size={18} />
           </button>
         </header>
 
@@ -670,14 +671,6 @@ function Composer({
 
 // ── Icons (16px, stroke-2, aria-hidden) ───────────────────────────────────────
 
-function CloseIcon() {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  )
-}
 function PlusIcon() {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">

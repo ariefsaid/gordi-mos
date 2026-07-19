@@ -26,6 +26,7 @@ import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
 import type { TabKey } from './use-tab-memory'
 import { useT } from '@/i18n/use-t'
+import { CloseIcon } from '@/shell/icons'
 
 // Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
 // persistence). The two stores name the same three panes differently, so map
@@ -525,9 +526,7 @@ function ViewSurface({
               title={t('tasks.close')}
               onClick={() => onClose()}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
+              <CloseIcon />
             </button>
           )}
         </div>
@@ -769,9 +768,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
       title={t('tasks.close')}
       onClick={closeToCollection}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M18 6 6 18M6 6l12 12" />
-      </svg>
+      <CloseIcon />
     </button>
   )
   const chromeBar = (

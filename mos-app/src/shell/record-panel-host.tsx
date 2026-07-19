@@ -2,6 +2,7 @@ import './record-panel-host.css'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useIsSplitWidth } from './use-is-split-width'
 import { useIsDesktop } from './use-is-desktop'
+import { CloseIcon } from './icons'
 import { useT } from '@/i18n/use-t'
 
 // ONE overlay grammar for records (spec docs/specs/record-panel-host.spec.md, FR-1). Every
@@ -40,13 +41,6 @@ function OpenPageIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-    </svg>
-  )
-}
-function CloseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M18 6 6 18M6 6l12 12" />
     </svg>
   )
 }

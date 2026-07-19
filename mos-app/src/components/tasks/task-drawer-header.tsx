@@ -6,6 +6,7 @@ import { formatAge, formatDate } from './task-formatters'
 import { dueStatus } from '@/lib/due-status'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
+import { CloseIcon } from '@/shell/icons'
 
 export type TaskDrawerHeaderProps = {
   task: TaskListRow
@@ -33,12 +34,6 @@ const CollapseIcon = () => (
     <path d="M9 3H3v6M21 15v6h-6M3 3l7 7M21 21l-7-7" />
   </svg>
 )
-const CloseIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-    <path d="M18 6 6 18M6 6l12 12" />
-  </svg>
-)
-
 /**
  * The PINNED action header of the task drawer (Variant B, design-plan §1.2):
  * utility bar (expand + close), title + unit/due, inline Status trigger, and

@@ -17,6 +17,7 @@ import { useState, useEffect, useId, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { CloseIcon } from '@/shell/icons'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
@@ -188,7 +189,7 @@ export function RoleEditor({
             style={{ color: 'var(--muted-foreground)' }}
             onClick={onClose}
           >
-            ✕
+            <CloseIcon />
           </button>
         </div>
         <div style={{ borderTop: '1px solid var(--border)' }} />

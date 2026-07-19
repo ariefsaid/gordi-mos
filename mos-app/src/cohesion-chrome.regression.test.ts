@@ -4,13 +4,27 @@
 // normalization. Mirrors the source-scan/CSS-lock pattern of consistency.regression.test.tsx
 // (RI-* invariants). AC-ids as CHROME-* so `grep -r CHROME-XXX` finds the proof.
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { resolve, join } from 'node:path'
 
 const SRC = resolve(process.cwd(), 'src')
 
 function readSrc(rel: string): string {
   return readFileSync(resolve(SRC, rel), 'utf8')
+}
+
+/** Recursively list non-test source files under `dir` matching any of `exts`. */
+function listSource(dir: string, exts: string[], acc: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) listSource(full, exts, acc)
+    else if (exts.some((e) => full.endsWith(e)) && !/\.test\.(ts|tsx)$/.test(full)) acc.push(full)
+  }
+  return acc
+}
+
+function srcRel(path: string): string {
+  return path.slice(SRC.length + 1).replaceAll('\\', '/')
 }
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -119,5 +133,56 @@ describe('CHROME-SCRIM: one scrim token + utility', () => {
     for (const f of ['shell/mobile-drawer.tsx', 'components/assistant/AssistantPanel.tsx']) {
       expect(readSrc(f), `${f} must use the .scrim utility, not bg-foreground/40`).not.toMatch(/bg-foreground\/40/)
     }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-CLOSE: ONE CloseIcon (cohesion-debt item #2). Four close glyphs (raw ×,
+// raw ✕, 16px SVG, 18px SVG) collapse onto a single CloseIcon in shell/icons.tsx,
+// consumed via an accessible-name'd button. The delete-× in the checklist ▲▼×
+// micro-cluster is NOT a dismiss and stays a raw glyph (documented exception).
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-CLOSE: one CloseIcon', () => {
+  it('CHROME-CLOSE: shell/icons.tsx exports a CloseIcon with the canonical close path', () => {
+    const icons = readSrc('shell/icons.tsx')
+    expect(icons).toMatch(/export function CloseIcon/)
+    expect(icons, 'canonical X path').toMatch(/M18 6 6 18M6 6l12 12/)
+  })
+
+  it('CHROME-CLOSE: no non-test .tsx (besides shell/icons.tsx) declares a local CloseIcon or inline close-X SVG', () => {
+    const offenders: string[] = []
+    for (const f of listSource(SRC, ['.tsx'])) {
+      const rel = srcRel(f)
+      if (rel === 'shell/icons.tsx') continue
+      const body = readFileSync(f, 'utf8')
+      // a locally-declared CloseIcon component, or either inline close-X glyph form
+      if (/function CloseIcon\b/.test(body)) offenders.push(`${rel} (local CloseIcon)`)
+      else if (/M18 6 6 18M6 6l12 12/.test(body)) offenders.push(`${rel} (inline close-X path)`)
+      else if (/<line x1="18" y1="6" x2="6" y2="18"/.test(body)) offenders.push(`${rel} (inline close-X lines)`)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('CHROME-CLOSE: the migrated close buttons render the shared CloseIcon', () => {
+    for (const f of [
+      'shell/signal-composer-host.tsx',
+      'shell/mobile-drawer.tsx',
+      'components/tasks/task-drawer-header.tsx',
+      'components/tasks/task-surface.tsx',
+      'components/assistant/AssistantPanel.tsx',
+      'components/admin/role-editor.tsx',
+    ]) {
+      const body = readSrc(f)
+      // imports the shared CloseIcon from the shell/icons module (absolute or shell-relative)
+      expect(body, `${f} imports the shared CloseIcon from shell/icons`).toMatch(
+        /import\s*\{[^}]*\bCloseIcon\b[^}]*\}\s*from\s*'(?:@\/shell\/icons|\.\/icons)'/,
+      )
+    }
+  })
+
+  it('CHROME-CLOSE: the migrated standalone dismiss buttons no longer render a raw ×/✕ glyph', () => {
+    // signal-composer-host + role-editor were raw-text glyphs; now icon buttons.
+    expect(readSrc('shell/signal-composer-host.tsx')).not.toMatch(/>×<\/button>/)
+    expect(readSrc('components/admin/role-editor.tsx')).not.toMatch(/✕/)
   })
 })

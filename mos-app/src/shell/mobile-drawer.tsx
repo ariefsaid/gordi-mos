@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { DESTINATIONS, UTILITY, isLive, modulesForRoles, primaryModuleForViewer, type Destination } from './destinations'
 import { UserChip } from './user-chip'
+import { CloseIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
@@ -116,7 +117,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             style={{ width: 32, height: 32 }}
             onClick={closeAndReturn}
           >
-            ✕
+            <CloseIcon />
           </button>
         </div>
 
