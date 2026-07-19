@@ -196,8 +196,8 @@ describe('AC-HS12: BU-head (no finance) sees only own-BU — no whole-company ti
   })
 })
 
-describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops, cascade → /work/cascade', () => {
-  it('owner-cockpit money tiles link to /dashboard, ops-KPI to /ops, cascade to /work/cascade', async () => {
+describe('AC-HS13: drills — revenue/margin → /money, ops-KPI → /ops, cascade → /work/cascade', () => {
+  it('owner-cockpit money tiles link to /money, ops-KPI to /ops, cascade to /work/cascade', async () => {
     mockListRevenue.mockResolvedValue([
       { revenue_date: '2026-07-06', channel: 'POS', esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', transactions: 80, clean_revenue: 12_000_000, snapshot_as_of: '2026-07-07T00:00:00Z', source_contract_version: 'v1' },
     ])
@@ -209,11 +209,12 @@ describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops, c
     )
     await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
 
-    // Revenue + margin tiles drill to /dashboard
+    // Revenue + margin tiles drill to /money (the canonical Money noun; /dashboard is a
+    // redirect alias — OD-REDESIGN identity cleanup).
     const revenueTile = screen.getByRole('group', { name: /revenue/i })
-    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/money')
     const marginTile = screen.getByRole('group', { name: /gross margin/i })
-    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/money')
 
     // Ops-KPI placeholder drills to /ops
     const opsDrill = screen.getByRole('link', { name: /See today's floor activity/i })

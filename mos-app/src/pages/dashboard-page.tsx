@@ -1,6 +1,7 @@
-// DashboardPage — /mos/dashboard, finance/admin only (route-gated in router.tsx via
-// RequireAccessRole anyOf={['finance','admin']}, FR-002/AC-002/003). The analytical
-// KPI hub composition (Variant B Tabs) replacing the sales-only dashboard. Reads BOTH
+// DashboardPage — the Money page at /mos/money, finance/admin only (route-gated in router.tsx
+// via RequireAccessRole anyOf={['finance','admin']}, FR-002/AC-002/003). /dashboard is a legacy
+// redirect alias only (SearchRedirect → /money). The analytical KPI hub composition (Variant B
+// Tabs) replacing the sales-only dashboard. Reads BOTH
 // reporting.sales_daily_revenue + reporting.sales_margin_daily via the reporting DAL
 // (FR-003/AC-004); RLS is the security boundary. Never queries the warehouse directly.
 //
@@ -68,11 +69,11 @@ interface DashboardTableRow {
 }
 
 export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summary' | 'detail' }) {
-  useDocumentTitle('Dashboard — Gordi MOS')
+  useDocumentTitle('Money — Gordi MOS')
   const isDesktop = useIsDesktop()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // ?tab= wins; the /dashboard/detail route passes defaultTab="detail" (AC-017) so a
+  // ?tab= wins; the /money/detail route passes defaultTab="detail" (AC-017) so a
   // bare visit there opens the Detail tab even without a query string (AC-015).
   const tabParam = searchParams.get('tab')
   const tab = tabParam === 'detail' || tabParam === 'summary'
@@ -437,7 +438,7 @@ function DashboardChrome(props: DashboardChromeProps) {
         snapshotAsOf={props.snapshotAsOf}
       />
       <ViewTabs
-        ariaLabel="Dashboard view"
+        ariaLabel="Money view"
         tabs={[
           { id: 'summary', label: 'Summary' },
           { id: 'detail', label: 'Detail' },
