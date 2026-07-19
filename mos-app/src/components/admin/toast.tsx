@@ -17,8 +17,8 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       aria-atomic="true"
       // role="status" is the accessible equivalent to polite live region
       role="status"
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-      style={{ minWidth: 280, maxWidth: 420 }}
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 pointer-events-none"
+      style={{ minWidth: 280, maxWidth: 420, zIndex: 'var(--z-toast)' }}
     >
       {toast && (
         <div

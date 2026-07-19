@@ -56,6 +56,19 @@
   --assistant-w: 400px; /* ADR-0018 P2: deputy slide-over drawer width (desktop right drawer) */
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
+  /* ── Z-index tier scale (cohesion-debt 2026-07-19, item #3). ONE documented
+     ladder replaces the ad-hoc 20/31/40/50/90/100/9999 heap. The tier ORDER is
+     the contract: a modal/confirm always outranks a drawer, so a confirm launched
+     from inside a drawer is never hidden (the bug: an admin confirm at z-50 opened
+     BEHIND the drawer root at z-90). Local micro-stacking within a component's own
+     stacking context (sticky table headers, tab strips: z-1/z-2) is NOT an app tier
+     and stays inline — these vars are for overlays that float over the page. */
+  --z-sticky:  10;   /* pinned in-flow chrome floating over content (FAB, sticky nav) */
+  --z-popover: 20;   /* menus, pickers, dropdowns anchored to a trigger */
+  --z-drawer:  30;   /* side sheets / slide-overs + their scrim (Task drawer, More, Assistant) */
+  --z-modal:   40;   /* centered dialogs, confirms, ⌘K launcher — ABOVE any drawer */
+  --z-toast:   50;   /* transient status toasts — above everything */
+
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
      P3 form: brand-navy channel @ low alpha. No-Pure-Black-Shadow Rule preserved. */
   --shadow-rest:

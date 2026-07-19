@@ -5,7 +5,7 @@
    uses the app's global *:focus-visible ring (index.css) — .mention-row is a real <button>, so
    Tab/Escape and the visible ring both work without any extra wiring (CRITICAL-3). */
 .mention-pop {
-  position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 50;
+  position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: var(--z-popover);
   width: 320px; max-width: calc(100vw - 24px); max-height: 280px; overflow-y: auto;
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay);

@@ -35,7 +35,7 @@
    Below the split threshold the squashed table is too cramped to keep live, so
    the drawer floats over it with a scrim (focus-trap + Esc handled by the host).
    Scrim matches the existing .confirm-overlay elevation (consistent overlay token). */
-.drawer-modal-root { position: fixed; inset: 0; z-index: 90; }
+.drawer-modal-root { position: fixed; inset: 0; z-index: var(--z-drawer); }
 .drawer-scrim {
   position: absolute; inset: 0; background: var(--scrim);
 }

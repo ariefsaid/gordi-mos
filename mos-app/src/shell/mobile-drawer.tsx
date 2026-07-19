@@ -98,14 +98,14 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   return (
     <>
-      <div className="fixed inset-0 bg-foreground/40 z-40" aria-hidden="true" onClick={closeAndReturn} />
+      <div className="fixed inset-0 bg-foreground/40" style={{ zIndex: 'var(--z-drawer)' }} aria-hidden="true" onClick={closeAndReturn} />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="More"
-        className="fixed inset-y-0 right-0 bg-secondary flex flex-col z-50 overflow-auto"
-        style={{ width: 'min(320px, 80vw)' }}
+        className="fixed inset-y-0 right-0 bg-secondary flex flex-col overflow-auto"
+        style={{ width: 'min(320px, 80vw)', zIndex: 'var(--z-drawer)' }}
       >
         <div className="flex items-center justify-between px-4" style={{ height: 'var(--header-h)' }}>
           <span className="font-semibold text-foreground">{t('nav.more')}</span>

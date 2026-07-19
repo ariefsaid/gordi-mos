@@ -184,7 +184,7 @@
 .status-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .trigger-chev { color: var(--muted-foreground); font-size: 10px; }
 .status-popover {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: var(--z-popover);
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   padding: 4px; min-width: 140px;
@@ -308,7 +308,7 @@
 
 /* ── Person picker ── */
 .person-picker {
-  position: absolute; z-index: 50; background: var(--card);
+  position: absolute; z-index: var(--z-popover); background: var(--card);
   border: 1px solid var(--border); border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   padding: 4px;
   min-width: 200px; max-height: 200px; overflow-y: auto;

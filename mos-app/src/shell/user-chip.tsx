@@ -106,10 +106,11 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           className={
             (isFullWidth ? 'absolute left-0 ' : 'absolute right-0 ') +
             (menuOpensUp ? 'bottom-full mb-1 ' : 'top-full mt-1 ') +
-            'bg-popover border border-border rounded-lg p-[5px] z-50'
+            'bg-popover border border-border rounded-lg p-[5px]'
           }
           style={{
             minWidth: isFullWidth ? 200 : 140,
+            zIndex: 'var(--z-popover)',
             boxShadow:
               '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
           }}

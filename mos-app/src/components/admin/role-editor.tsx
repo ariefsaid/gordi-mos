@@ -146,8 +146,8 @@ export function RoleEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'var(--scrim)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'var(--scrim)', zIndex: 'var(--z-modal)' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}

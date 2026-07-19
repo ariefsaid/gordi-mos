@@ -304,7 +304,7 @@ tr:focus-within .row-checkbox { visibility: visible; }
 .row-menu:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
 .row-menu-wrap { position: relative; display: inline-flex; }
 .row-menu-pop {
-  position: absolute; right: 0; top: calc(100% + 2px); z-index: 20; min-width: 120px;
+  position: absolute; right: 0; top: calc(100% + 2px); z-index: var(--z-popover); min-width: 120px;
   background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-sm);
   box-shadow: var(--shadow-rest); padding: 4px; display: flex; flex-direction: column;
 }

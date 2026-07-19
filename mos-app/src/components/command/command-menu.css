@@ -4,7 +4,7 @@
 .cm-root {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-modal); /* ⌘K is an I4 launcher — modal tier (cohesion-debt item #3) */
 }
 
 .cm-scrim {

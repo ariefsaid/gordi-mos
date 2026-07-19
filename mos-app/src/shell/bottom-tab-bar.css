@@ -52,7 +52,7 @@
   position: fixed;
   right: 8px;
   bottom: calc(4px + env(safe-area-inset-bottom));
-  z-index: 31;
+  z-index: var(--z-sticky);
   width: 56px;
   height: 56px;
   min-width: 44px;

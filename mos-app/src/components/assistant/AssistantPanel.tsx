@@ -148,7 +148,7 @@ export function AssistantPanel() {
       {isNarrow && open && (
         <div
           className="fixed inset-0 bg-foreground/40"
-          style={{ zIndex: 40 }}
+          style={{ zIndex: 'var(--z-drawer)' }}
           aria-hidden="true"
           onClick={closePanel}
         />
@@ -170,7 +170,7 @@ export function AssistantPanel() {
           borderLeftWidth: isNarrow ? 0 : 1,
           borderLeftStyle: 'solid',
           boxShadow: 'var(--shadow-strong)',
-          zIndex: 50,
+          zIndex: 'var(--z-drawer)',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 180ms ease-out',
           pointerEvents: open ? 'auto' : 'none',
