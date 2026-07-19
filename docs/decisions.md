@@ -1805,3 +1805,11 @@ rail, per the frame sketch — the shipped icons were a builder default parked i
 with the kit's tighter 2/4/8 values. Override removed; `index.css` is the single radius authority.
 (iv) The e7 table-header grammar (600/h38) supersedes the pre-redesign OD-P4-10 weight-400 overline
 for the redesign skin, per SALVAGE e7 table-grammar ownership.
+
+### OD-REDESIGN-70 — Language selection lives in Personal Profile (owner 2026-07-18)
+
+"Place the language settings in the personal profile as selection." /profile graduates from its
+stub to a real page following the e7 profile card grammar: Identity (read-only Person/Role, managed
+by Admin) + Language (the ADR-0021 locale seam as a Select). The rail-footer LocaleToggle is
+removed — the rail is navigation, not settings. Future profile cards (Home region order per
+OD-18/26, notifications) land with their own slices.

@@ -33,6 +33,7 @@ import { AdminUsersPage } from './pages/admin-users-page'
 import { InboxPage } from './pages/inbox-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { SliceStubPage } from './pages/slice-stub-page'
+import { ProfilePage } from './pages/profile-page'
 import { SignalsArchivePage } from './pages/signals-archive-page'
 import { EventsPage } from './pages/events-page'
 import { CafeOpeningPage } from './pages/cafe-opening-page'
@@ -261,16 +262,15 @@ describe('AC-006: Café re-home + stub routes + admin', () => {
     expect(gate.children!.find((r) => r.path === 'cafe/review')!.element).toEqual(<KitchenReviewPage />)
   })
 
-  it('AC-006: /ecommerce, /roastery, /profile render SliceStubPage', () => {
+  it('AC-006: /ecommerce, /roastery render SliceStubPage; /profile is the real ProfilePage (OD-70)', () => {
     expect(shellChildren().find((r) => r.path === 'ecommerce')!.element).toEqual(
       <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" />,
     )
     expect(shellChildren().find((r) => r.path === 'roastery')!.element).toEqual(
       <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" />,
     )
-    expect(shellChildren().find((r) => r.path === 'profile')!.element).toEqual(
-      <SliceStubPage jobKey="job.profile" nameKey="dest.profile" />,
-    )
+    // OD-70 (2026-07-18): /profile graduated from the stub — language selection lives there.
+    expect(shellChildren().find((r) => r.path === 'profile')!.element).toEqual(<ProfilePage />)
   })
 
   it('AC-1001 (events-stub, Step 10): /events renders EventsPage (no longer SliceStubPage)', () => {

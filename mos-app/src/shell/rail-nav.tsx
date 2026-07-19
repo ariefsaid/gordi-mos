@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, UTILITY, isLive, modulesForRoles, type Destination } from './destinations'
 import type { Section } from './sections'
-import { LocaleToggle } from './locale-toggle'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -158,8 +157,6 @@ export function RailNav({ onNavigate }: RailNavProps) {
           <UserChip variant="rail" />
         </div>
       )}
-
-      <LocaleToggle />
     </>
   )
 }

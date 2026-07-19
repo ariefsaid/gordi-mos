@@ -234,6 +234,10 @@ export const messages = {
     'tasks.myEmpty': "No tasks where you're PIC or Supervisor this week — you're clear.",
     'tasks.all': 'All tasks →',
     'locale.toggle.label': 'Language',
+    'profile.identity': 'Identity',
+    'profile.person': 'Person',
+    'profile.role': 'Role',
+    'profile.managedByAdmin': 'Managed by Admin — ask an admin to correct your name or role.',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
     // ADR-0018 P1 — view-composition substrate (user views). Dev-gated harness + renderer.
@@ -754,6 +758,10 @@ export const messages = {
     'tasks.myEmpty': 'Minggu ini tidak ada tugas saat Anda menjadi PIC atau Supervisor — semuanya aman.',
     'tasks.all': 'Semua tugas →',
     'locale.toggle.label': 'Bahasa',
+    'profile.identity': 'Identitas',
+    'profile.person': 'Orang',
+    'profile.role': 'Peran',
+    'profile.managedByAdmin': 'Dikelola Admin — hubungi admin untuk memperbaiki nama atau peran Anda.',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
     // ADR-0018 P1 — view-composition substrate (user views). Dev-gated harness + renderer.

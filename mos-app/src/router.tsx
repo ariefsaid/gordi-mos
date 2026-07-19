@@ -25,6 +25,7 @@ import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { SliceStubPage } from './pages/slice-stub-page'
+import { ProfilePage } from '@/pages/profile-page'
 import { EventsPage } from './pages/events-page'
 import { SignalsArchivePage } from './pages/signals-archive-page'
 import { NotFoundPage } from './pages/not-found-page'
@@ -153,7 +154,7 @@ export const routeConfig: RouteObject[] = [
           // ── Ecommerce / Roastery / Profile (stubs) ──
           { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" /> },
           { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" /> },
-          { path: 'profile', element: <SliceStubPage jobKey="job.profile" nameKey="dest.profile" /> },
+          { path: 'profile', element: <ProfilePage /> }, // OD-70: real page (language selection lives here)
 
           // ── Admin (canonical; /admin → /admin/people) ──
           { path: 'admin', element: <Navigate to="/admin/people" replace /> },

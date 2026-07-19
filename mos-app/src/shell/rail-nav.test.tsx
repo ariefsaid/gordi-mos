@@ -324,11 +324,11 @@ describe('AC-005/HIGH-1: sign-out affordance is mounted in the rail footer and i
   })
 })
 
-// Locale toggle preserved in the rail footer (ADR-0021).
-describe('Locale toggle (ADR-0021)', () => {
-  it('renders the LocaleToggle in the rail footer', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/work/tasks')
-    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument()
+// OD-70 (2026-07-18): language selection moved to /profile — the rail is navigation, not settings.
+describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
+  it('OD-70: the rail carries NO language toggle', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/')
+    expect(screen.queryByRole('group', { name: /language|bahasa/i })).toBeNull()
   })
 })
