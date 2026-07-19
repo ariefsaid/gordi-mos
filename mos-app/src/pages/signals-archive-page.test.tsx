@@ -14,20 +14,21 @@ vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-// The ?record=<id> drawer is SignalRecordHost's own job (signal-record-host.test.tsx covers its
+// The ?record=<id> record is SignalRecordHost's own job (signal-record-host.test.tsx covers its
 // fetch/mutate wiring in full) — mock it here so this page's test only asserts the URL-state
-// wiring: which id it's given, and that closing it clears ?record=.
+// wiring: which id it's given, and that closing it clears ?record=. Chrome (✕ Close / Open full
+// page) now belongs to the shared RecordPanelHost that wraps it (spec FR-3), NOT to this stub.
 vi.mock('@/components/signals/signal-record-host', () => ({
-  SignalRecordHost: vi.fn(({ signalId, onClose }: { signalId: string; onClose: () => void }) => (
-    <div data-testid="signal-record-host-stub" data-signal-id={signalId}>
-      <button type="button" onClick={onClose}>stub-close</button>
+  SignalRecordHost: vi.fn(({ signalId, mode }: { signalId: string; mode?: string }) => (
+    <div data-testid="signal-record-host-stub" data-signal-id={signalId} data-mode={mode}>
+      Signal record content
     </div>
   )),
 }))
 
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
-import { SignalsArchivePage } from './signals-archive-page'
+import { SignalsArchivePage, SignalRecordPage } from './signals-archive-page'
 
 const mockListReadableSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
@@ -141,36 +142,86 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
   })
 })
 
-// C3: ?record=<id> opens the record drawer (Rule 4 — canonical URL, Back/refresh/new-tab all
-// land on the same list+drawer view since it's one URL, not a separate route).
-describe('SignalsArchivePage — ?record=<id> opens the record drawer (C3)', () => {
-  it('renders the record drawer for the id in the URL on direct load', async () => {
+// AC-RPH-2/3 (spec record-panel-host.spec.md, FR-3 — closes OD-63): ?record=<id> mounts the
+// Signal record inside the SHARED RecordPanelHost (same side/width/chrome as a Task), NOT a
+// bespoke route-local aside. In jsdom there is no PerformanceNavigationTiming, so a ?record=
+// "direct load" stays in the drawer (mirrors task-page-mode); the real-browser hard-load
+// redirect to /work/signals/:id is proven by the e2e. Deliberate grammar change from the old C3
+// bespoke-overlay grammar — the close control is now the host's ✕ chrome, not a stub button.
+describe('SignalsArchivePage — ?record=<id> mounts the Signal in the shared host (AC-RPH-2/3)', () => {
+  it('AC-RPH-3: mounts the Signal record (mode="panel") in the host for the id in the URL', async () => {
     renderPage('/work/signals?record=signal-1')
     await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
     expect(screen.getByTestId('signal-record-host-stub')).toHaveAttribute('data-signal-id', 'signal-1')
+    expect(screen.getByTestId('signal-record-host-stub')).toHaveAttribute('data-mode', 'panel')
   })
 
-  it('does not render the drawer when no ?record= is present', async () => {
+  it('AC-RPH-2: the Signal panel carries the SAME .drawer shell class as a Task drawer', async () => {
+    renderPage('/work/signals?record=signal-1')
+    // The RecordPanelHost renders the record inside a `.drawer` surface (width/border/shadow
+    // parity with the Task drawer) — the cohesion the owner asked for, not a bespoke sheet.
+    await waitFor(() => expect(document.querySelector('.drawer')).toBeTruthy())
+    const panel = document.querySelector('.drawer')!
+    expect(panel).toContainElement(screen.getByTestId('signal-record-host-stub'))
+    // Host chrome (title zone · Open full page · ✕ Close) — the one shared header grammar.
+    expect(document.querySelector('.record-panel-chrome')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
+  })
+
+  it('does not mount the record when no ?record= is present', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
     expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument()
+    expect(document.querySelector('.record-panel-chrome')).toBeNull()
   })
 
-  it('clicking a row opens the drawer without a full navigation away from the list', async () => {
+  it('clicking a row opens the record without navigating away from the list', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
     await userEvent.click(screen.getByText('The freezer alarm went off'))
 
     await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toHaveAttribute('data-signal-id', 'signal-1'))
-    // The list is still present — this is a drawer alongside the list, not a route swap (Rule 6).
+    // The list is still present — the record opens alongside the list, not a route swap (Rule 6).
     expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
   })
 
-  it('closing the drawer clears ?record= from the URL', async () => {
+  it('the host ✕ Close clears ?record= from the URL', async () => {
     renderPage('/work/signals?record=signal-1')
     await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
 
-    await userEvent.click(screen.getByRole('button', { name: 'stub-close' }))
+    await userEvent.click(screen.getByRole('button', { name: /^close$/i }))
     await waitFor(() => expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument())
+  })
+
+  it('the host "Open full page" escalates to the canonical /work/signals/:id page', async () => {
+    renderPage('/work/signals?record=signal-1')
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: /open full page/i }))
+    // The canonical page route is not registered in this page-only harness, so the record host
+    // unmounts (route left the archive). The escalation navigated away from the list+drawer.
+    await waitFor(() => expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument())
+    expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
+  })
+})
+
+// AC-RPH-3: the canonical /work/signals/:id route renders the SAME SignalRecordHost renderer at
+// mode="page" — no list shell, no drawer chrome (spec FR-3, mirror of the Task's TaskRecordPage).
+describe('SignalRecordPage — canonical full page (AC-RPH-3)', () => {
+  it('renders the Signal record as a full page (mode="page"), with no drawer chrome', async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals/signal-1']}>
+          <Routes>
+            <Route path="/work/signals/:signalId" element={<SignalRecordPage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+    expect(screen.getByTestId('signal-record-host-stub')).toHaveAttribute('data-mode', 'page')
+    // Same renderer, page mode — no split-drawer shell/chrome around it.
+    expect(document.querySelector('.record-panel-chrome')).toBeNull()
+    expect(document.querySelector('.drawer')).toBeNull()
   })
 })

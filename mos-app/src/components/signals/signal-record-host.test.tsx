@@ -85,7 +85,7 @@ function authedViewer(personId = VIEWER_ID): AuthState {
 function renderHost(props: Partial<React.ComponentProps<typeof SignalRecordHost>> = {}) {
   return render(
     <I18nProvider>
-      <SignalRecordHost signalId={SIGNAL_ID} onClose={vi.fn()} {...props} />
+      <SignalRecordHost signalId={SIGNAL_ID} {...props} />
     </I18nProvider>,
   )
 }
@@ -269,12 +269,21 @@ describe('SignalRecordHost — Linked-work summary (summarizeLinkedTasks, FR-413
   })
 })
 
-describe('SignalRecordHost — close control', () => {
-  it('calls onClose from the drawer close control', async () => {
-    const onClose = vi.fn()
-    renderHost({ onClose })
+// Close control moved OUT of SignalRecordHost into the shared RecordPanelHost chrome
+// (spec record-panel-host.spec.md, FR-3: "signal-record-host.tsx becomes the panel's content,
+// not its chrome"). The ✕ Close is now the host's job — proven by record-panel-host.test.tsx
+// (chrome close → onClose) and signals-archive-page.test.tsx (Close clears ?record=). This host
+// no longer renders a bespoke close button, so there is nothing to assert here.
+describe('SignalRecordHost — renders as chrome-free content (FR-3)', () => {
+  it('does not render its own close control (the host owns ✕ Close)', async () => {
+    renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    await userEvent.click(screen.getByRole('button', { name: /^close$/i }))
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /^close$/i })).toBeNull()
+  })
+
+  it('forwards mode="page" to the canonical page renderer', async () => {
+    renderHost({ mode: 'page' })
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(document.querySelector('.signal-record[data-mode="page"]')).toBeTruthy()
   })
 })

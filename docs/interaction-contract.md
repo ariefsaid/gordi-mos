@@ -34,7 +34,7 @@ Proof cell is a defect, not a gap.
 | Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
 |---|---|---|---|---|---|---|---|---|
 | Task record | ✅ | ✅ | ✅ (row menu) | — | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites |
-| Signal record | 🔨 host P2 (was: bespoke overlay, no page mode) | 🔨 | — | — | ❌ | partial | ✅ | AC-RPH-2/3 (in build) |
+| Signal record | ✅ shared host (in-list `?record=` → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ❌ | partial | ✅ | AC-RPH-2/3 · record-panel-host + signals-archive suites |
 | Inbox | ❌ no panel door (bell navigates away) | n/a | — | — | — | — | ✅ | host P3 → AC-RPH-4/6 |
 | Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
@@ -45,7 +45,8 @@ Proof cell is a defect, not a gap.
 
 ## Sequence to full conformance (the cohesion program, in flight)
 
-1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — building now.
+1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — ✅ DONE (RecordPanelHost;
+   Task drawer + Signal record + `/work/signals/:id` all on the one overlay grammar).
 2. **Host P3** Inbox two-door (I9) · **P4** Deputy chrome (I1 col).
 3. **I5 slice** — the one inline-edit primitive (OD-22), retrofit details-panel + qty cells.
 4. ~~**I3 completion** — admin people menu onto `useMenuPopover`.~~ DONE (user-table I3 suite).
