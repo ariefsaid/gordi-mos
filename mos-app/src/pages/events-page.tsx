@@ -9,7 +9,6 @@
  */
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
-import { EventsIcon } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState } from '@/components/ui/state-kit'
@@ -21,7 +20,9 @@ export function EventsPage() {
 
   return (
     <PageFrame variant="data">
-      <PageHead variant="content" title={title} icon={<EventsIcon />} />
+      {/* Cohesion-debt 2026-07-19, item #5 (owner call): no surface-title glyph
+          (consistent = none — the "several apps" title-icon tell). */}
+      <PageHead variant="content" title={title} />
       <EmptyState
         variant="blank"
         title={t('events.empty.title')}

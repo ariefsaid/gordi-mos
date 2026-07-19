@@ -59,11 +59,13 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
     expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
   })
 
-  it('renders the content-header chrome row (.content-header)', () => {
+  it('renders the content-header chrome row (.content-header) with NO surface-title glyph', () => {
     const { container } = render(<PageHead variant="content" title="Tasks" count={5} />)
     expect(container.querySelector('.content-header')).toBeTruthy()
-    // entity icon slot is present (decorative, aria-hidden)
-    expect(container.querySelector('.ch-icon')).toBeTruthy()
+    // Cohesion-debt 2026-07-19, item #5 (owner call): consistent = none. The
+    // decorative entity glyph slot is removed — the breadcrumb + job-sentence name
+    // the surface; inconsistent title icons were the "several apps" tell.
+    expect(container.querySelector('.ch-icon')).toBeNull()
   })
 
   it('uses the shared 24px page-title scale for .ch-title', () => {

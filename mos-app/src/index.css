@@ -239,6 +239,11 @@
   }
 }
 
+/* PageHead prose-variant title-adjacent meta — one muted-text token so the
+   count-badge / date slot reads the same across surfaces, never dark body text
+   competing with the title (cohesion-debt 2026-07-19, item #5). */
+.page-head-meta { color: var(--muted-foreground); }
+
 /* ════════════════════════════════════════════════════════════════════════════
    Skeleton shimmer — ONE shared keyframe (cohesion-debt 2026-07-19, item #3).
    Formerly defined 3×: `sk-pulse` in TaskSurface.css + TasksWorkspace.css and
