@@ -184,6 +184,12 @@ long form.*
 initial fields are exactly the four capture-minimal fields. **Fail if:** any phone screen leads with
 configuration, or the composer demands category/attention before it will accept a post.
 
+**Rule 8-desktop (codified 2026-07-19 per design-authority O3 + Wave 2c):** at ≥1280px a
+collection's DECISION columns (the owning mockup's priority set — for Tasks: Title · PIC ·
+Supervisor · Status · Due) render with **no horizontal clip**; optional columns yield to the drawer
+first. Scored pass/fail like every rule: a dense surface that clips a decision column at 1280 is a
+blocking defect, not a density trade-off. (Recurred as a defect before codification — Wave 2c.)
+
 ## Rule 9 — Responsive disclosure order (desktop mirrors mobile in meaning, not in density)
 
 Desktop supports dense review (multi-column tables, board/timeline, inline cell editing, persistent
