@@ -31,9 +31,20 @@ Proof cell is a defect, not a gap.
 
 ## Conformance (2026-07-19 — honest state, not aspiration)
 
+> **I4/I7 update (2026-07-20, branch `cohesion/chrome`).** The overlay-chrome cohesion
+> pass hardened two classes: **I4** — centered confirms now compose ONE primitive
+> (`components/ui/confirm-dialog.tsx`: aria-modal · focus-trap · Esc-returns-focus · shared
+> `--scrim`/`--z-modal`); ConfirmArchive folded onto it (was a trap-less overlay). The
+> z-index tier scale guarantees a modal always outranks a drawer (was: an admin confirm at
+> z-50 hidden behind a drawer at z-90). **I7** — Task rows emitted `aria-current="true"`
+> alongside the rail's `page`; the row's open/cursor state is now `aria-selected`, so
+> **exactly one** `aria-current` holds. Proof: `docs/reviews/cohesion-debt-2026-07-19.md`
+> overlay-half table. *(OccurrenceAssignDialog + CreatePersonDialog are still hand-rolled
+> overlays — a `ModalShell` follow-up, not yet I4-unified.)*
+
 | Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
 |---|---|---|---|---|---|---|---|---|
-| Task record | ✅ | ✅ | ✅ (row menu) | — | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites |
+| Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `task-row.test` "I7 open/cursor is aria-selected" |
 | Signal record | ✅ shared host (in-list `?record=` → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ❌ | partial | ✅ | AC-RPH-2/3 · record-panel-host + signals-archive suites |
 | Inbox | ❌ no panel door (bell navigates away) | n/a | — | — | — | — | ✅ | host P3 → AC-RPH-4/6 |
 | Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |

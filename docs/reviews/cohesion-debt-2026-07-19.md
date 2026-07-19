@@ -87,3 +87,25 @@ non-loading elements (banners, forbidden blocks) — kept them, deleted only the
 
 Referenced from `docs/backlog.md` (standing cohesion program) and
 `docs/interaction-contract.md` (the behavioural half of the same problem).
+
+## Overlay / dialog-chrome half — DONE (branch `cohesion/chrome`, 2026-07-20)
+
+The overlay-chrome half (scrim · close glyph · z-index · modal · duration · focus)
+shipped, TDD, one commit per item, on `cohesion/chrome`. Gates per commit:
+`typecheck` 0 · ESLint `--max-warnings=0` on touched files · full `vitest run` green
+(2868 tests, the one intermittent kitchen-plan flake #29 aside). Locking tests live in
+`src/cohesion-chrome.regression.test.ts` (CHROME-* ids) + component suites.
+
+| # | Item | Commit | Notes |
+|---|---|---|---|
+| 3 | **z-index tier scale** (fixes confirm-behind-drawer) | `44c4e48` | one ladder in index.css: `--z-sticky/popover/drawer/modal/toast` (10/20/30/40/50). Modal (40) > drawer (30) so a confirm launched from a drawer is never hidden. Ported drawer/⌘K/admin-dialogs/toast/user-chip/pickers/bottom-tab + capped the 9999 admin-portal → `--z-popover`. Local micro-stacking (sticky headers z-1/2) left inline. |
+| 1 | **one scrim token + `.scrim` utility** | `2cc2dec` | four scrims (72% / 32% / foreground-45% / Tailwind 40%) reconciled to ONE `--scrim` = 45% brand-navy (a real dim). ⌘K folded onto it (no 72% one-off). New `.scrim` utility (background only). Deliberate test update: token-values 32%→45%. |
+| 2 | **one CloseIcon** | `83cc0d7` | five close glyphs (× ×2, ✕ ×2, 16px SVG ×3, 18px SVG) → one `CloseIcon` in `shell/icons.tsx`. Deviations (documented in-commit): the checklist delete-× is a delete affordance in a ▲▼× cluster, NOT a dismiss — left as-is; cluster/ref-bound close buttons (`.dw-iconbtn` beside expand, Assistant row, role-editor focus-ref) keep their wrapper and render the shared glyph rather than fracturing onto `IconButton`. |
+| 5 | **transition-duration tokens** | `1a7cd09` | the kit's `--ds-animation-duration-*` are authored unitless (seconds) → unusable in a shorthand without calc; added a directly-usable ms scale (`--dur-fast/med/slow` 120/150/180) and pointed all 18 files' hard-codes at it; the 160ms Toggle oddball folds onto `--dur-med`. |
+| 6 | **focus-visible normalization** | `c15df42` | normalized to +2 where there's room (`.rf-tab` · `.status-option` · `.person-picker-option` · `.task-card-link`); fixed inbox-row's banned token swap (`--primary`→`--accent`); kept −2 inset ONLY on documented dense row/cell affordances (`.task-row-link` · `.th-sort-btn` · `.signal-row` · `.inbox-row__button` · `.mobile-task-options-trigger`), each commented. Lock allowlists the inset exceptions. |
+| I7 | **task-row `aria-current`→`aria-selected`** | `f53c103` | rows emitted `aria-current="true"` alongside the rail's `page`, violating I7 "exactly one". Open/cursor state is a SELECTION → `aria-selected`; `aria-current` reserved for rail/breadcrumb. Deliberate journey updates: j/k cursor + AC-101 open-row (attribute changed, goal intact). Flips `interaction-contract.md` I7. |
+| 4 | **modal consolidation** (PARTIAL) | `d7671b9` | admin `ConfirmDialog` promoted to `components/ui/confirm-dialog.tsx` (the one centered-modal confirm, i18n-parameterized, on `--scrim`+`--z-modal`); `admin/confirm-dialog.tsx` re-exports it; **ConfirmArchive folded onto it** (gaining Esc + focus-trap) and its bespoke `.confirm-*` CSS deleted. **ESCALATED:** OccurrenceAssignDialog (a list host) + CreatePersonDialog (a multi-phase form with an alertdialog password-reveal + NFR-003 backdrop-lock) are structurally *not* confirms — folding them needs a separate `ModalShell` primitive extraction (real behavioral coupling). Recommended follow-up. |
+
+Follow-up (from item #4): extract a `components/ui/modal-shell.tsx` (scrim + centered box
++ focus-trap + Esc + return-focus + `role` + `dismissable` + `--z-modal`) and migrate
+OccurrenceAssignDialog + CreatePersonDialog onto it — then delete their hand-rolled overlays.
