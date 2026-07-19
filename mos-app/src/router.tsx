@@ -50,7 +50,8 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 //     /work/objectives         → ObjectivesPage (RequireCapability objective.manage)
 //     /events                   → EventsPage (Step 10 — job sentence + sanctioned empty state)
 //     /ecommerce /roastery /profile → SliceStubPage (later steps)
-//     /money/*                 → DashboardPage/Budget/Pricing (RequireAccessRole finance/admin)
+//     /money/*                 → Money page (DashboardPage)/Budget/Pricing (RequireAccessRole finance/admin);
+//                                /dashboard + /sales are legacy redirect aliases → /money
 //     /inbox                   → InboxPage (always live)
 //     /cafe                    → CafeOpeningPage (Step 7 — "Start today's opening" home, RATIFY-7D)
 //     /cafe/*                  → Kitchen* pages (re-homed from /kitchen/*)

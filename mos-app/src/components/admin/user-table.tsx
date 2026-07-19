@@ -10,9 +10,10 @@
 // PeopleToolbar (§2.1): search-mini + segmented status filter. Filter is client-side.
 // No-match empty state (§4.1): distinct from org-empty "Just you so far".
 
-import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { shouldFlipUp } from './menu-position'
+import { useMenuPopover } from '@/lib/use-menu-popover'
 import { Pill } from '@/components/ui/pill'
 import type { PillTone } from '@/components/ui/pill'
 import { Tag } from '@/components/ui/tag'
@@ -101,7 +102,9 @@ function isLastActiveAdmin(person: AdminPersonRow, people: AdminPersonRow[]): bo
 
 // ── PersonActionMenu — shared between desktop ⋯ and mobile action sheet ──────
 // Renders a role="menu" list of per-person actions, gated by person state.
-// Keyboard: arrow keys move focus, Esc closes.
+// The dismissal + keyboard contract (focus-enter, Arrow/Home/End, Esc, outside-click)
+// is owned by the shared useMenuPopover hook on the HOST (desktop portal / mobile sheet),
+// per interaction-contract.md I3 — this component is pure presentation of the items.
 
 interface PersonActionMenuProps {
   person: AdminPersonRow
@@ -119,29 +122,7 @@ function PersonActionMenu({
   onClose,
   labelledById,
 }: PersonActionMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null)
   const lastAdmin = isLastActiveAdmin(person, people)
-
-  // Arrow-key navigation within the menu (item 8)
-  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const menu = menuRef.current
-    if (!menu) return
-    const items = Array.from(
-      menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')
-    )
-    const idx = items.indexOf(document.activeElement as HTMLElement)
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      items[(idx + 1) % items.length]?.focus()
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      items[(idx - 1 + items.length) % items.length]?.focus()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-    }
-  }, [onClose])
 
   function dispatch(action: PersonAction) {
     onClose()
@@ -150,7 +131,6 @@ function PersonActionMenu({
 
   return (
     <div
-      ref={menuRef}
       role="menu"
       aria-labelledby={labelledById}
       className="rounded-lg py-1"
@@ -159,7 +139,6 @@ function PersonActionMenu({
         border: '1px solid var(--border)',
         boxShadow: 'var(--shadow-overlay)',
       }}
-      onKeyDown={handleMenuKeyDown}
     >
       <button
         role="menuitem"
@@ -277,82 +256,60 @@ interface MenuPosition {
 const MENU_MIN_WIDTH = 160
 const MENU_SIDE_MARGIN = 8
 
+const ESTIMATED_MENU_HEIGHT = 200
+
 function PersonActions({ person, people, onAction }: PersonActionsProps) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuContainerRef = useRef<HTMLDivElement>(null)
   const btnId = useId()
+  const close = useCallback(() => setOpen(false), [])
 
-  // Compute fixed position from trigger's bounding rect when the menu opens.
-  // Menu height is estimated; after mount a ResizeObserver would be ideal, but
-  // for this use-case an estimate of ~200px is safe — actual flip recalculates on
-  // open, and scroll/resize closes the menu so drift is never visible.
-  const ESTIMATED_MENU_HEIGHT = 200
-
-  function computePosition() {
+  // Compute fixed position from trigger's bounding rect. Menu height is estimated;
+  // an estimate of ~200px is safe — flip recalculates on open, and scroll/resize
+  // closes the menu so drift is never visible.
+  const computePosition = useCallback(() => {
     const trigger = triggerRef.current
     if (!trigger) return
     const rect = trigger.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-
     // Right-align to the trigger's right edge; clamp so it doesn't overflow left.
     const right = vw - rect.right
     const clampedRight = Math.max(MENU_SIDE_MARGIN, Math.min(right, vw - MENU_MIN_WIDTH - MENU_SIDE_MARGIN))
-
     if (shouldFlipUp(rect, ESTIMATED_MENU_HEIGHT, vh)) {
-      // Position above: anchor bottom of menu to top of trigger
       setPosition({ bottom: vh - rect.top, right: clampedRight })
     } else {
-      // Position below: anchor top of menu to bottom of trigger
       setPosition({ top: rect.bottom, right: clampedRight })
     }
-  }
+  }, [])
 
-  // Outside-click close + Esc close + scroll/resize close (item 8)
+  // Measure synchronously when the menu opens so the portal mounts positioned (and so
+  // the container ref is available for useMenuPopover's focus-enter on the same commit).
+  useLayoutEffect(() => {
+    if (open) computePosition()
+    else setPosition(null)
+  }, [open, computePosition])
+
+  // I3: the shared menu/popover contract — focus-enter, Arrow/Home/End, Esc, outside-click.
+  useMenuPopover(open, close, menuContainerRef, triggerRef)
+
+  // Position-only concern (not part of I3): dismiss on scroll/resize to avoid drift.
   useEffect(() => {
     if (!open) return
-
-    computePosition()
-
-    function onPointerDown(e: PointerEvent) {
-      if (
-        menuContainerRef.current &&
-        !menuContainerRef.current.contains(e.target as Node) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false)
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setOpen(false)
-      }
-    }
-    function onScrollOrResize() {
-      setOpen(false)
-    }
-
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKey)
+    const onScrollOrResize = () => setOpen(false)
     window.addEventListener('scroll', onScrollOrResize, { capture: true })
     window.addEventListener('resize', onScrollOrResize)
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScrollOrResize, { capture: true })
       window.removeEventListener('resize', onScrollOrResize)
     }
   }, [open])
 
-  // Return focus to trigger on close
+  // Return focus to the trigger when the menu closes (Esc / outside-click / select).
   useEffect(() => {
-    if (!open) {
-      triggerRef.current?.focus()
-    }
+    if (!open) triggerRef.current?.focus()
   }, [open])
 
   return (
@@ -370,23 +327,25 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
       >
         ⋯
       </button>
-      {open && position && createPortal(
+      {open && createPortal(
         <div
           ref={menuContainerRef}
           style={{
             position: 'fixed',
             zIndex: 9999,
             minWidth: MENU_MIN_WIDTH,
-            top: position.top !== undefined ? position.top : undefined,
-            bottom: position.bottom !== undefined ? position.bottom : undefined,
-            right: position.right,
+            top: position?.top,
+            bottom: position?.bottom,
+            right: position?.right,
+            // Hidden for the single synchronous frame before useLayoutEffect measures.
+            visibility: position ? 'visible' : 'hidden',
           }}
         >
           <PersonActionMenu
             person={person}
             people={people}
             onAction={onAction}
-            onClose={() => setOpen(false)}
+            onClose={close}
             labelledById={btnId}
           />
         </div>,
@@ -408,28 +367,13 @@ function MobileManageSheet({ person, people, onAction }: MobileManageSheetProps)
   const [open, setOpen] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const close = useCallback(() => setOpen(false), [])
 
-  // Outside-click and Esc close
-  useEffect(() => {
-    if (!open) return
-    function onPointerDown(e: PointerEvent) {
-      if (sheetRef.current && !sheetRef.current.contains(e.target as Node) &&
-        triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); setOpen(false) }
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  // I3: the same shared menu/popover contract as the desktop ⋯ (focus-enter, Arrow/
+  // Home/End, Esc, outside-click) — the sheet IS the menu container here.
+  useMenuPopover(open, close, sheetRef, triggerRef)
 
-  // Return focus on close
+  // Return focus to the trigger on close
   useEffect(() => {
     if (!open) triggerRef.current?.focus()
   }, [open])

@@ -4,7 +4,7 @@
 // Design-plan §4.6, FR-041, AC-040.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
@@ -200,6 +200,59 @@ describe('UserTable — desktop ⋯ menu', () => {
     await user.click(screen.getByRole('menuitem', { name: /archive/i }))
 
     expect(onAction).toHaveBeenCalledWith('archive', ACTIVE_MEMBER)
+  })
+})
+
+// ── I3 conformance: the shared useMenuPopover contract (interaction-contract.md) ──
+// The admin people ⋯ menu adopts the ONE menu/popover grammar: focus enters the first
+// item on open; Arrow/Home/End cycle every menuitem; Esc + outside-click close and return
+// focus to the trigger. Mirrors the RowMenu / UserChip conformance suites.
+describe('UserTable — I3 menu contract (useMenuPopover)', () => {
+  it('focus enters the first menuitem on open', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: /manage roles/i })).toHaveFocus(),
+    )
+  })
+
+  it('ArrowDown/ArrowUp cycle across all menuitems (wrapping)', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage roles/i })).toHaveFocus())
+
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: /reset password/i })).toHaveFocus()
+
+    // ArrowUp from the first item wraps to the last (Archive).
+    await user.keyboard('{ArrowUp}{ArrowUp}')
+    expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
+  })
+
+  it('Home/End jump to the first/last menuitem', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage roles/i })).toHaveFocus())
+
+    await user.keyboard('{End}')
+    expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(screen.getByRole('menuitem', { name: /manage roles/i })).toHaveFocus()
+  })
+
+  it('closes on outside pointerdown and returns focus to the trigger', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const trigger = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    await user.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(trigger).toHaveFocus()
   })
 })
 

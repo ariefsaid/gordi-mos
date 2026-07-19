@@ -140,6 +140,16 @@ export function modulesForRoles(roleNames: string[], accessRoles: string[]): Des
   )
 }
 
+/**
+ * OD-REDESIGN-68: the single module promoted to the phone bottom-nav's role-scoped slot
+ * (and thus excluded from the More menu) — the viewer's FIRST affiliated module, or null
+ * for an org-wide role that has no module. Shared by the bottom tab bar + the More drawer
+ * so exactly one surface owns the module (never both). Any additional modules stay in More.
+ */
+export function primaryModuleForViewer(roleNames: string[], accessRoles: string[]): Destination | null {
+  return modulesForRoles(roleNames, accessRoles)[0] ?? null
+}
+
 export const UTILITY: Destination[] = [
   {
     id: 'admin',

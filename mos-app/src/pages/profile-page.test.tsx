@@ -53,14 +53,30 @@ beforeEach(() => {
 })
 
 describe('ProfilePage (OD-70)', () => {
-  it('renders read-only Identity — Person and Role, managed by Admin', () => {
+  it('renders read-only Identity — Person and Roles as plain text rows (not input-look), managed by Admin', () => {
     renderPage()
-    expect(screen.getByLabelText('Person')).toHaveValue('Cahya Cafe')
-    expect(screen.getByLabelText('Person')).toHaveAttribute('readonly')
+    // Read-only identity reads as plain labelled text, NOT an editable/input-styled field
+    // (profile polish): the Person and Roles values are static terms in a definition list.
+    const personTerm = screen.getByText('Person')
+    expect(personTerm.tagName).toBe('DT')
+    expect(screen.getByText('Cahya Cafe').tagName).toBe('DD')
     // ALL roles — the domain permits several and the real fixture is dual-hatted (audit F7).
-    expect(screen.getByLabelText('Roles')).toHaveValue('Cafe Ops Lead · Sales Lead')
-    expect(screen.getByLabelText('Roles')).toHaveAttribute('readonly')
+    expect(screen.getByText('Roles').tagName).toBe('DT')
+    expect(screen.getByText('Cafe Ops Lead · Sales Lead').tagName).toBe('DD')
+    // No input-look: identity is never rendered as a form control.
+    expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.getByText(/Managed by Admin/)).toBeInTheDocument()
+  })
+
+  it('shows the Language field label exactly once (card heading only; the select label is sr-only)', () => {
+    renderPage()
+    // The visible "Language" is the card heading; the select keeps an accessible name via an
+    // sr-only label, so getByLabelText still resolves — but there is no duplicate VISIBLE label.
+    const languageTexts = screen.getAllByText('Language')
+    const visible = languageTexts.filter((el) => !el.classList.contains('sr-only'))
+    expect(visible).toHaveLength(1)
+    expect(visible[0].tagName).toBe('H2')
+    expect(screen.getByLabelText('Language').tagName).toBe('SELECT')
   })
 
   it('OD-70 goal (page-scope: this harness mounts ProfilePage only — the shell flip is rendered evidence in the ledger): selecting Bahasa re-renders in Indonesian and persists across remount', async () => {

@@ -30,7 +30,7 @@ import { useCascadeCatalogs } from './use-cascade-catalogs'
 import { GroupHeaderRow } from './group-header-row'
 import { PageHead } from '@/shell/page-head'
 import { TasksToolbar } from './tasks-toolbar'
-import { Chevron } from '@/shell/icons'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { TasksTableBody } from './tasks-table-body'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
@@ -730,28 +730,23 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       <div className={splitClass}>
         <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           {captureFirstMobile ? (
-            <div className="mobile-task-options">
-              <button
-                type="button"
-                className="mobile-task-options-trigger"
-                aria-expanded={mobileOptionsOpen}
-                aria-controls="mobile-task-options-panel"
-                onClick={() => setMobileOptionsOpen(open => !open)}
-              >
-                <span>{t('tasks.viewOptions')}</span>
-                <span className="mobile-task-options-summary" aria-hidden="true">
-                  {t('tasks.viewSummary', { view: mobileViewLabel })}
-                </span>
-                <Chevron
-                  className={`mobile-task-options-chevron${mobileOptionsOpen ? ' mobile-task-options-chevron--open' : ''}`}
-                />
-              </button>
-              {mobileOptionsOpen && (
-                <div id="mobile-task-options-panel" className="mobile-task-options-panel">
-                  {tasksToolbar}
-                </div>
-              )}
-            </div>
+            // Rule 8 capture-first · Rule 11 reuse: the SAME "View options" disclosure
+            // primitive Home uses, skinned to the Tasks full-width header. The member
+            // phone filter stack folds behind it so work leads (OD-REDESIGN-61).
+            <ViewOptionsDisclosure
+              open={mobileOptionsOpen}
+              onToggle={() => setMobileOptionsOpen(open => !open)}
+              label={t('tasks.viewOptions')}
+              summary={t('tasks.viewSummary', { view: mobileViewLabel })}
+              panelId="mobile-task-options-panel"
+              className="mobile-task-options"
+              triggerClassName="mobile-task-options-trigger"
+              summaryClassName="mobile-task-options-summary"
+              chevronClassName="mobile-task-options-chevron"
+              panelClassName="mobile-task-options-panel"
+            >
+              {tasksToolbar}
+            </ViewOptionsDisclosure>
           ) : tasksToolbar}
 
           {/* Design fix wave item 1b: the compact due-runs summary — collapsed by default, near

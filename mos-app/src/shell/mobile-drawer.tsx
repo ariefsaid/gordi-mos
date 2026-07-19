@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { DESTINATIONS, UTILITY, isLive, modulesForRoles, type Destination } from './destinations'
+import { DESTINATIONS, UTILITY, isLive, modulesForRoles, primaryModuleForViewer, type Destination } from './destinations'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -12,20 +12,26 @@ interface MobileDrawerProps {
   focusOpener?: () => void
 }
 
-// The 4 primary destinations live in the bottom-nav; the More menu owns every
-// authorized NON-primary destination (Events, Money, Ecommerce, Roastery, Admin,
-// Profile) so exactly-one aria-current holds on phone for every route (Rule 5/9).
-const PRIMARY_IDS = new Set(['home', 'work', 'cafe', 'inbox'])
+// The bottom-nav owns the primary slots; the More menu owns every authorized NON-primary
+// destination (Events, Money, Ecommerce, Roastery, Admin, Profile) so exactly-one
+// aria-current holds on phone for every route (Rule 5/9). The primary slots are Home ·
+// Work · Inbox plus the viewer's role-scoped module (OD-REDESIGN-68) — so the module the
+// bottom-nav promotes is NOT also listed in More.
+const FIXED_PRIMARY_IDS = ['home', 'work', 'inbox']
 
 function moreDestinations(accessRoles: string[], roleNames: string[]): Destination[] {
   // OD-REDESIGN-68: modules appear only when they're the viewer's work (same rule as the
-  // rail) — the More menu stops carrying the org chart for unaffiliated roles.
+  // rail) — the More menu stops carrying the org chart for unaffiliated roles. The one
+  // module promoted to the bottom-nav slot is excluded here so it lives on exactly one
+  // surface (any additional modules still surface in More).
+  const primaryModule = primaryModuleForViewer(roleNames, accessRoles)
+  const primaryIds = new Set(primaryModule ? [...FIXED_PRIMARY_IDS, primaryModule.id] : FIXED_PRIMARY_IDS)
   const all = [
     ...DESTINATIONS,
     ...modulesForRoles(roleNames, accessRoles),
     ...UTILITY,
   ]
-  return all.filter((d) => !PRIMARY_IDS.has(d.id) && isLive(d, accessRoles))
+  return all.filter((d) => !primaryIds.has(d.id) && isLive(d, accessRoles))
 }
 
 /**

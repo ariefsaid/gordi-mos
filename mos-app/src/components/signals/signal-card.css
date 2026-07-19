@@ -76,6 +76,26 @@
 }
 .signal-actions-spacer { flex: 1; }
 
+/* ── Phone (≤480px): stack the message ABOVE a compact metadata line ──────────────
+   On a narrow feed the author · time · attention row competed with the body and
+   clipped both the name and the message. Here the message (.signal-body) leads and
+   the head becomes a compact metadata line beneath it that WRAPS instead of
+   truncating. Scoped to .signal-card only — the record host uses .signal-record-*
+   grammar and is untouched. Token-only (DESIGN.md). */
+@media (max-width: 480px) {
+  .signal-card { display: flex; flex-direction: column; }
+  .signal-body { order: 0; overflow-wrap: anywhere; }
+  .signal-head {
+    order: 1; flex-wrap: wrap; row-gap: 4px;
+    margin-top: 10px; margin-bottom: 0;
+  }
+  /* Name shrinks gracefully (ellipsis) rather than hard-clipping the row. */
+  .signal-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .signal-meta { order: 2; }
+  .signal-vis { order: 3; }
+  .signal-actions { order: 4; }
+}
+
 /* ── The shared category picker anchor + popover (also used from signal-record.tsx) ── */
 .signal-category-picker-anchor { position: relative; display: inline-flex; }
 .signal-category-pill {

@@ -68,6 +68,27 @@ describe('SignalCard — posted-card grammar (AC-424)', () => {
   })
 })
 
+describe('SignalCard — phone stacking contract (≤480px: message above a compact metadata line)', () => {
+  // jsdom can't evaluate the ≤480px media query (computed order is design-reviewer-verified),
+  // but the CSS stack depends on this DOM contract: the message body and the author/time
+  // metadata line are distinct, direct-sibling blocks of the card, and the full message is
+  // present in the DOM (never truncated at the source).
+  it('renders the message body and metadata line as sibling blocks, with the full message text', () => {
+    const longBody =
+      'The espresso machine group head is leaking and the morning queue is backing up fast — we need maintenance before the lunch rush or we lose covers'
+    const { container } = renderCard({ signal: baseSignal({ body: longBody }) })
+
+    const card = container.querySelector('.signal-card') as HTMLElement
+    const head = card.querySelector('.signal-head') as HTMLElement
+    const body = card.querySelector('.signal-body') as HTMLElement
+    expect(head.parentElement).toBe(card)
+    expect(body.parentElement).toBe(card)
+    // The full message is in the DOM (the phone layout stacks it above the metadata line,
+    // rather than letting the author/time row squeeze or truncate it).
+    expect(body.textContent).toContain(longBody)
+  })
+})
+
 describe('SignalCard — retraction tombstone (AC-425)', () => {
   it('renders only the tombstone + reason, no body/actions, for a retracted Signal', () => {
     renderCard({

@@ -29,20 +29,28 @@ function ProfileCard({ title, children }: { title: string; children: React.React
   )
 }
 
-function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+function FieldLabel({ htmlFor, children, srOnly }: { htmlFor: string; children: React.ReactNode; srOnly?: boolean }) {
   return (
     <label
       htmlFor={htmlFor}
-      className="block text-muted-foreground font-medium"
-      style={{ fontSize: 12, marginBottom: 4 }}
+      className={srOnly ? 'sr-only' : 'block text-muted-foreground font-medium'}
+      style={srOnly ? undefined : { fontSize: 12, marginBottom: 4 }}
     >
       {children}
     </label>
   )
 }
 
-const fieldClass =
-  'w-full bg-secondary border border-border text-foreground px-3'
+// Read-only identity reads as plain labelled text, never an editable/input-styled field
+// (profile polish): a <dl> of quiet term/value rows, not form controls.
+function ReadonlyRow({ term, value }: { term: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-muted-foreground font-medium" style={{ fontSize: 12, marginBottom: 2 }}>{term}</dt>
+      <dd className="text-foreground" style={{ fontSize: 14, margin: 0 }}>{value}</dd>
+    </div>
+  )
+}
 
 export function ProfilePage() {
   const t = useT()
@@ -61,26 +69,13 @@ export function ProfilePage() {
         {viewer && (
           <ProfileCard title={t('profile.identity')}>
             <div className="flex flex-col" style={{ gap: 12 }}>
-              <div>
-                <FieldLabel htmlFor="profile-person">{t('profile.person')}</FieldLabel>
-                <input
-                  id="profile-person"
-                  className={fieldClass}
-                  style={{ height: 34, borderRadius: 'var(--radius-sm)', fontSize: 14 }}
-                  value={viewer.person.full_name}
-                  readOnly
-                />
-              </div>
-              <div>
-                <FieldLabel htmlFor="profile-role">{viewer.roles.length > 1 ? t('profile.roles') : t('profile.role')}</FieldLabel>
-                <input
-                  id="profile-role"
-                  className={fieldClass}
-                  style={{ height: 34, borderRadius: 'var(--radius-sm)', fontSize: 14 }}
+              <dl className="flex flex-col" style={{ gap: 12, margin: 0 }}>
+                <ReadonlyRow term={t('profile.person')} value={viewer.person.full_name} />
+                <ReadonlyRow
+                  term={viewer.roles.length > 1 ? t('profile.roles') : t('profile.role')}
                   value={viewer.roles.map((r) => r.name).join(' · ') || '—'}
-                  readOnly
                 />
-              </div>
+              </dl>
               <p className="text-muted-foreground" style={{ fontSize: 12, margin: 0 }}>
                 {t('profile.managedByAdmin')}
               </p>
@@ -89,7 +84,9 @@ export function ProfilePage() {
         )}
 
         <ProfileCard title={t('locale.toggle.label')}>
-          <FieldLabel htmlFor="profile-language">{t('locale.toggle.label')}</FieldLabel>
+          {/* The card heading is the visible "Language" label; the select keeps its accessible
+              name via an sr-only label so there is no duplicate visible field label. */}
+          <FieldLabel htmlFor="profile-language" srOnly>{t('locale.toggle.label')}</FieldLabel>
           <Select
             id="profile-language"
             fullWidth

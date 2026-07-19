@@ -6,20 +6,19 @@
 //   - Attention  — <AttentionBrief lanes={lanes}/>: overdue/due-today/failed-checks/mentions, built
 //     from the pure selectors in lib/home-attention.ts over the existing tasks/notifications reads
 //     + the new loadFailedChecksForViewer adapter. Non-removable (OD-18) — only its position moves.
-//   - Personal canvas — the finance KPI row (role-guarded), the tasks tile, MyWeekPanel, and the
-//     Step-4 SignalFeedSection (all reused, none rebuilt — Rule 11).
+//   - Personal canvas — the tasks tile, MyWeekPanel, and the Step-4 SignalFeedSection
+//     (all reused, none rebuilt — Rule 11).
 // The order is per-user (resolveRegionOrder/setRegionOrder, v1 localStorage — RATIFY-1) and is
 // ALWAYS emitted via DOM order, never CSS `order` (Rule 9/AC-515). When personal-first, PageHead
 // carries a "Needs attention · N" summary linking to #attention-brief so the brief is never lost.
 //
-// Slot composition below Step 5's regions: each slot = one read-model/DAL query + one existing kit
-// primitive. Finance KPI row is role-guarded — a member never issues the reporting query, so the row
-// is simply absent (RLS-empty handling, never a misleading zero). Every tile is a drill-target
-// <Link> — KPITile itself stays presentation-only (never learns router or "revenue").
+// OD-REDESIGN-17 (owner critique "why dashboard AND home"): Home no longer duplicates the Money
+// dashboard's revenue/margin KPI tiles. Financial *exceptions* surface via the attention brief;
+// routine finance KPIs live on /dashboard, which owns them. The tasks tile is a drill-target
+// <Link> — KPITile itself stays presentation-only.
 //
 // When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
-// documented default (docs/specs/home-v1.spec.md). The revenue/margin fetch+derive lives in the shared
-// useCompanyFinanceKpis hook so the stacked money-position section renders the SAME tiles (reuse).
+// documented default (docs/specs/home-v1.spec.md).
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
@@ -28,8 +27,6 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { formatIDRCompact } from '@/lib/sales-dashboard'
-import { useCompanyFinanceKpis } from '@/lib/use-company-finance-kpis'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listNotifications } from '@/lib/db/notifications'
@@ -37,10 +34,9 @@ import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
-import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { useIsPhone } from '@/shell/use-is-phone'
-import { Chevron } from '@/shell/icons'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { openTaskCount } from '@/lib/home-kpis'
 import {
   overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday,
@@ -65,18 +61,12 @@ export function HomePage() {
     return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
-  const accessRoles = viewer?.accessRoles ?? []
-  const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
 
   // RI-2 (Q2/Rule 8, ratified Option B) — at ≤390px the order toggle folds behind a single
   // compact disclosure so it's never the lead, full-width element ahead of the attention
   // brief; desktop/tablet keep the inline radiogroup unchanged.
   const isPhone = useIsPhone()
   const [orderPanelOpen, setOrderPanelOpen] = useState(false)
-
-  // ── Finance reporting fetch (role-guarded — a member never issues this query) ──
-  const fin = useCompanyFinanceKpis(canSeeFinance)
-  const { revenueWindow, revenueDelta, revenueState, marginDisplay, marginState, snapshotAsOf } = fin
 
   // ── Tasks (everyone) — the tasks-count tile AND the overdue/due-today attention lanes ──
   const [tasks, setTasks] = useState<TaskListRow[]>([])
@@ -166,37 +156,9 @@ export function HomePage() {
   const attentionRegion = <AttentionBrief key="attention" lanes={lanes} />
   const personalCanvasRegion = (
     <section key="personal-canvas" data-testid="personal-canvas" className="home-personal-canvas">
-      {/* Finance row — role-guarded; a member never issues the reporting fetch, so
-          this row is simply absent (never a misleading zero). */}
-      {canSeeFinance && (
-        <div className="home-kpi-grid" role="group" aria-label="Sales KPIs">
-          <Link to="/dashboard" className="home-kpi-link">
-            <KPITile
-              label={t('home.kpi.revenue')}
-              value={revenueState === 'ready' && revenueWindow ? formatIDRCompact(revenueWindow.current) : '—'}
-              delta={
-                revenueState === 'ready' && revenueDelta
-                  ? { text: revenueDelta.text, tone: revenueDelta.tone }
-                  : undefined
-              }
-              state={revenueState === 'loading' ? 'loading' : 'ready'}
-            />
-          </Link>
-          <Link to="/dashboard" className="home-kpi-link">
-            <KPITile
-              label={t('home.kpi.margin')}
-              value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}
-              delta={
-                marginState === 'ready' && marginDisplay
-                  ? { text: marginDisplay.delta.text, tone: marginDisplay.delta.tone }
-                  : undefined
-              }
-              sub={marginState === 'ready' && marginDisplay ? marginDisplay.pctSub : undefined}
-              state={marginState === 'loading' ? 'loading' : 'ready'}
-            />
-          </Link>
-        </div>
-      )}
+      {/* OD-REDESIGN-17 ("why dashboard AND home"): Home no longer duplicates the Money
+          dashboard's revenue/margin KPI tiles. Financial *exceptions* surface via the
+          attention brief; routine finance KPIs live on /dashboard, which owns them. */}
 
       {/* Everyone row — tasks (always). */}
       <div className="home-kpi-grid">
@@ -208,14 +170,6 @@ export function HomePage() {
           />
         </Link>
       </div>
-
-      {canSeeFinance && (snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
-        <DataProvenanceNote
-          kind="snapshot"
-          hasData={Boolean(revenueWindow || marginDisplay)}
-          asOf={snapshotAsOf}
-        />
-      )}
 
       {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
           successors are real; the MyWeekPanel component itself survives (ADR-0019 D2). */}
@@ -268,26 +222,20 @@ export function HomePage() {
           desktop/tablet keep the inline radiogroup exactly as before. */}
       {personId && (
         isPhone ? (
-          <div className="home-order-disclosure">
-            <button
-              type="button"
-              className="home-order-trigger"
-              aria-expanded={orderPanelOpen}
-              aria-controls="home-order-panel"
-              onClick={() => setOrderPanelOpen(open => !open)}
-            >
-              <span>{t('home.order.viewOptions')}</span>
-              <span className="home-order-summary" aria-hidden="true">{orderLabel}</span>
-              <Chevron
-                className={`home-order-chevron${orderPanelOpen ? ' home-order-chevron--open' : ''}`}
-              />
-            </button>
-            {orderPanelOpen && (
-              <div id="home-order-panel" className="home-order-panel">
-                {orderToggle}
-              </div>
-            )}
-          </div>
+          <ViewOptionsDisclosure
+            open={orderPanelOpen}
+            onToggle={() => setOrderPanelOpen(open => !open)}
+            label={t('home.order.viewOptions')}
+            summary={orderLabel}
+            panelId="home-order-panel"
+            className="home-order-disclosure"
+            triggerClassName="home-order-trigger"
+            summaryClassName="home-order-summary"
+            chevronClassName="home-order-chevron"
+            panelClassName="home-order-panel"
+          >
+            {orderToggle}
+          </ViewOptionsDisclosure>
         ) : orderToggle
       )}
 

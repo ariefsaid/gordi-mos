@@ -228,11 +228,18 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     expect(screen.getByText(/roastery yield/i)).toBeInTheDocument()
   })
 
+  it('sets the document title to the Money noun (page identity, not "Dashboard")', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    expect(document.title).toBe('Money — Gordi MOS')
+  })
+
   it('AC-011: renders the global toolbar above the tabs (cut + window + freshness)', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     expect(screen.getByRole('toolbar', { name: /dashboard filters/i })).toBeInTheDocument()
-    expect(screen.getByRole('tablist', { name: /dashboard view/i })).toBeInTheDocument()
+    // The view tablist carries the Money noun (page identity), not "Dashboard".
+    expect(screen.getByRole('tablist', { name: /money view/i })).toBeInTheDocument()
   })
 
   it('AC-016: clicking the 7-day revenue tile filters the window in-place (no page load)', async () => {
