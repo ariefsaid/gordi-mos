@@ -155,7 +155,7 @@
   color: var(--muted-foreground); cursor: pointer;
 }
 .rf-tab:hover { color: var(--foreground); }
-.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 4px; }
+.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; } /* item #6: normalized to +2 (tab has room) */
 .rf-tcount { font-size: 11px; color: var(--muted-foreground); margin-left: 5px; }
 /* Active tab: weight + a 2px primary underline (never color-alone) — AC-R03. */
 .rf-tab.on { color: var(--foreground); font-weight: 600; }
@@ -169,7 +169,7 @@
 }
 .rf-notes { min-width: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .rf-tab.on::after { transition: left 150ms ease, right 150ms ease; }
+  .rf-tab.on::after { transition: left var(--dur-med) ease, right var(--dur-med) ease; }
 }
 
 /* ── Status trigger ── */
@@ -184,7 +184,7 @@
 .status-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .trigger-chev { color: var(--muted-foreground); font-size: 10px; }
 .status-popover {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: var(--z-popover);
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   padding: 4px; min-width: 140px;
@@ -195,7 +195,7 @@
   display: flex; align-items: center;
 }
 .status-option:hover, .status-option:focus-visible { background: var(--accent); }
-.status-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.status-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 .status-option-active { background: var(--accent); }
 
 /* ── Btn styles ── */
@@ -219,20 +219,9 @@
 }
 
 /* ── Archive confirm ── */
-.confirm-overlay {
-  position: fixed; inset: 0; background: color-mix(in srgb, var(--foreground) 45%, transparent);
-  display: grid; place-items: center; z-index: 100;
-}
-.confirm-box {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 12px — modal/overlay, OD-P3-10 */
-  padding: 20px 24px; max-width: 360px; width: 90%;
-  box-shadow: 0 8px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
-}
-.confirm-msg { font-size: 16px; line-height: 1.5; margin-bottom: 16px; }
-.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-/* IXD-4 (PR-2): confirm buttons use the shared .btn .btn-outline / .btn .btn-destructive
-   from ui/Button.css. The bespoke .confirm-cancel / .btn-archive rules were removed. */
+/* The bespoke .confirm-overlay/.confirm-box/.confirm-msg/.confirm-actions modal was
+   deleted (cohesion-debt 2026-07-19, item #4): ConfirmArchive now composes the shared
+   ConfirmDialog primitive (components/ui/confirm-dialog.tsx). One centered modal, no copy. */
 
 /* ── Meta row ── */
 .meta-row { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
@@ -308,7 +297,7 @@
 
 /* ── Person picker ── */
 .person-picker {
-  position: absolute; z-index: 50; background: var(--card);
+  position: absolute; z-index: var(--z-popover); background: var(--card);
   border: 1px solid var(--border); border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
   padding: 4px;
   min-width: 200px; max-height: 200px; overflow-y: auto;
@@ -321,7 +310,7 @@
 .person-picker-option:hover, .person-picker-option:focus-visible {
   background: var(--accent);
 }
-.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 
 /* ── Checklist ── */
 .checklist-count { font-size: 15px; font-weight: 400; color: var(--muted-foreground); }

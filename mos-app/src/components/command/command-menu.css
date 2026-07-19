@@ -4,13 +4,13 @@
 .cm-root {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-modal); /* ⌘K is an I4 launcher — modal tier (cohesion-debt item #3) */
 }
 
 .cm-scrim {
   position: absolute;
   inset: 0;
-  background: var(--surface-overlay); /* --ds-background-overlay-primary */
+  background: var(--scrim); /* ONE scrim token (cohesion-debt item #1) */
 }
 
 .cm-panel {

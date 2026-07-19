@@ -332,7 +332,7 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
           ref={menuContainerRef}
           style={{
             position: 'fixed',
-            zIndex: 9999,
+            zIndex: 'var(--z-popover)',
             minWidth: MENU_MIN_WIDTH,
             top: position?.top,
             bottom: position?.bottom,

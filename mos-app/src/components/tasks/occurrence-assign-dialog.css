@@ -1,8 +1,8 @@
 /* OccurrenceAssignDialog (Step 6 / C2) — a thin overlay hosting PendingResolution items.
    Mirrors .confirm-overlay/.confirm-box (TaskSurface.css) rather than a new modal system. */
 .occ-assign-overlay {
-  position: fixed; inset: 0; background: color-mix(in srgb, var(--foreground) 45%, transparent);
-  display: grid; place-items: center; z-index: 100;
+  position: fixed; inset: 0; background: var(--scrim); /* ONE scrim token (cohesion-debt item #1) */
+  display: grid; place-items: center; z-index: var(--z-modal);
 }
 .occ-assign-box {
   background: var(--card); border: 1px solid var(--border);

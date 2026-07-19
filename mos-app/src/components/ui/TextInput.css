@@ -10,7 +10,7 @@
   height: 32px; padding: 0 10px;
   background: var(--background); border: 1px solid var(--input);
   border-radius: var(--radius-sm);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .mk-textinput__box:focus-within {
   border-color: var(--primary);

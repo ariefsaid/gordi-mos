@@ -37,7 +37,7 @@
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .view-tabs__tab:hover {
   color: var(--foreground);

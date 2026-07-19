@@ -198,8 +198,8 @@ export function CreatePersonDialog({
   return (
     // Overlay — standard confirm-overlay scrim
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'var(--scrim)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'var(--scrim)', zIndex: 'var(--z-modal)' }}
       // Backdrop click intentionally disabled during reveal (design-plan §4.4)
       onClick={
         isReveal

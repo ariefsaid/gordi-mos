@@ -74,8 +74,10 @@ export function TaskRow({
     <tr
       ref={isCursor ? cursorRowRef : undefined}
       className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}`}
-      // I1: expose cursor to AT via aria-current; isSelected keeps 'true' for the open drawer row.
-      aria-current={isSelected ? 'true' : (isCursor ? 'true' : undefined)}
+      // I7 (cohesion-debt 2026-07-19): the rail/breadcrumb own aria-current="page";
+      // a row's open/cursor state is a SELECTION, so expose aria-selected — never a
+      // second aria-current on the page (interaction-contract I7 "exactly one").
+      aria-selected={isSelected || isCursor ? true : undefined}
       data-leaf-index={leafIndex}
       onClick={() => onOpen(task.id)}
     >

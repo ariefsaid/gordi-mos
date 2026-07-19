@@ -56,6 +56,29 @@
   --assistant-w: 400px; /* ADR-0018 P2: deputy slide-over drawer width (desktop right drawer) */
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
+  /* ── Z-index tier scale (cohesion-debt 2026-07-19, item #3). ONE documented
+     ladder replaces the ad-hoc 20/31/40/50/90/100/9999 heap. The tier ORDER is
+     the contract: a modal/confirm always outranks a drawer, so a confirm launched
+     from inside a drawer is never hidden (the bug: an admin confirm at z-50 opened
+     BEHIND the drawer root at z-90). Local micro-stacking within a component's own
+     stacking context (sticky table headers, tab strips: z-1/z-2) is NOT an app tier
+     and stays inline — these vars are for overlays that float over the page. */
+  --z-sticky:  10;   /* pinned in-flow chrome floating over content (FAB, sticky nav) */
+  --z-popover: 20;   /* menus, pickers, dropdowns anchored to a trigger */
+  --z-drawer:  30;   /* side sheets / slide-overs + their scrim (Task drawer, More, Assistant) */
+  --z-modal:   40;   /* centered dialogs, confirms, ⌘K launcher — ABOVE any drawer */
+  --z-toast:   50;   /* transient status toasts — above everything */
+
+  /* ── Transition-duration scale (cohesion-debt 2026-07-19, item #5). The kit's
+     --ds-animation-duration-* tokens are authored UNITLESS (seconds: 0.075/0.15/
+     0.3/1.5) and so can't drop into a `transition`/`animation` shorthand without
+     calc(*1s); only 0.15s matched a value actually in use. So the app exposes a
+     directly-usable ms scale and every hard-coded 120/150/160/180ms references it.
+     The 160ms Toggle oddball folds onto --dur-med (150). */
+  --dur-fast: 120ms;  /* control state transitions — input/border/bg/color, toggles, icon buttons */
+  --dur-med:  150ms;  /* reveal / movement micro-interactions — chevron rotate, tab underline slide */
+  --dur-slow: 180ms;  /* overlay entrances — drawer sheet slide, deputy panel slide */
+
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
      P3 form: brand-navy channel @ low alpha. No-Pure-Black-Shadow Rule preserved. */
   --shadow-rest:
@@ -76,8 +99,16 @@
   );
 
   /* Scrim + popover shadow tokens — promote the raw literals the codemod replaces
-     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source. */
-  --scrim:           color-mix(in srgb, var(--brand-navy) 32%, transparent);
+     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source.
+     ── ONE scrim (cohesion-debt 2026-07-19, item #1). Four scrims existed:
+     --surface-overlay 72%, this --scrim 32%, a foreground-45% literal (confirm /
+     occurrence dialogs), and a Tailwind bg-foreground/40. Reconciled to ONE
+     deliberate value: 45% on brand-navy. 32% read as a weak wash under a modal;
+     45% is a real dim (matching the confirm-overlay value that was already the
+     modal scrim), navy-tinted to honour the No-Pure-Black Rule. ⌘K folds onto the
+     same token rather than keeping its heavier 72% one-off. Consumed via the
+     `.scrim` utility (below) or var(--scrim) directly. */
+  --scrim:           color-mix(in srgb, var(--brand-navy) 45%, transparent);
   --shadow-popover:  0 4px 16px color-mix(in srgb, var(--brand-navy) 10%, transparent);
   --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--brand-navy) 16%, transparent);
 
@@ -237,6 +268,11 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+
+  /* The ONE scrim utility (cohesion-debt 2026-07-19, item #1) — background only, so
+     each overlay keeps its own positioning (fixed inset-0 for a page-covering scrim,
+     absolute inset-0 inside a fixed overlay root). Pairs with --z-drawer/--z-modal. */
+  .scrim { background: var(--scrim); }
 }
 
 /* PageHead prose-variant title-adjacent meta — one muted-text token so the

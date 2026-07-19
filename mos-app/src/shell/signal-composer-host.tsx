@@ -7,6 +7,8 @@ import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
 import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import { SignalComposer } from '@/components/signals/signal-composer'
+import { IconButton } from '@/components/ui/icon-button'
+import { CloseIcon } from '@/shell/icons'
 import './signal-composer-host.css'
 
 // C1 (AC-428 backing / FR-417): "one command, many entry points." Every Share-Signal entry point
@@ -85,7 +87,9 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           >
             <div className="signal-composer-host-head">
               <h2 className="signal-composer-host-title">{t('signals.action.share')}</h2>
-              <button type="button" aria-label={t('signals.composer.close')} onClick={close}>×</button>
+              <IconButton variant="tertiary" ariaLabel={t('signals.composer.close')} onClick={close}>
+                <CloseIcon />
+              </IconButton>
             </div>
             <SignalComposer
               authorId={viewer.person.id}

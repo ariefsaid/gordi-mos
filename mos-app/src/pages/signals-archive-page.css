@@ -44,7 +44,7 @@
 }
 .signals-archive-list > :last-child { border-bottom: none; }
 .signal-row:hover { background: var(--secondary); }
-.signal-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.signal-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense feed row — inset ring (outward +2 collides with the adjacent row) */
 
 .signal-row-body {
   flex: 1; min-width: 0; font-size: 14px; color: var(--foreground);

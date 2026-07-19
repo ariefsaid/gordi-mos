@@ -27,6 +27,32 @@ export function Chevron({ className, size = 14 }: { className?: string; size?: n
   )
 }
 
+/**
+ * The ONE close/dismiss glyph (cohesion-debt 2026-07-19, item #2). Formerly a raw
+ * `×`, a raw `✕`, a 16px SVG, and an 18px SVG — four ways to draw the same X.
+ * Path `M18 6 6 18M6 6l12 12`, stroke-2, round caps, aria-hidden. The button that
+ * hosts it MUST carry an accessible name (aria-label). Default 16px; the deputy
+ * panel passes size={18}. Not for delete affordances — those keep their own glyph.
+ */
+export function CloseIcon({ className, size = 16 }: { className?: string; size?: number }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
 export function MyWeekIcon() {
   return (
     <svg

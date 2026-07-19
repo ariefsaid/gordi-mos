@@ -1,6 +1,11 @@
 import { useT } from '@/i18n/use-t'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 // ── Confirm-archive dialog ───────────────────────────────────────────────────
+// Thin preset over the shared ConfirmDialog primitive (cohesion-debt 2026-07-19,
+// item #4). Formerly a bespoke hand-rolled centered overlay; now composes the one
+// centered-modal primitive (gaining Esc-to-cancel + focus-trap it lacked).
+// Kept conditionally mounted by callers, so `open` is always true here.
 export type ConfirmArchiveProps = {
   onConfirm: () => void
   onCancel: () => void
@@ -9,14 +14,15 @@ export type ConfirmArchiveProps = {
 export function ConfirmArchive({ onConfirm, onCancel }: ConfirmArchiveProps) {
   const t = useT()
   return (
-    <div role="dialog" aria-modal="true" aria-label={t('tasks.archiveConfirmation')} className="confirm-overlay">
-      <div className="confirm-box">
-        <p className="confirm-msg">{t('tasks.archiveConfirmationCopy')}</p>
-        <div className="confirm-actions">
-          <button type="button" className="btn btn-outline" onClick={onCancel}>{t('tasks.cancel')}</button>
-          <button type="button" className="btn btn-destructive" onClick={onConfirm} aria-label={t('tasks.archiveConfirm')}>{t('tasks.archiveConfirm')}</button>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      open
+      title={t('tasks.archiveConfirmation')}
+      body={t('tasks.archiveConfirmationCopy')}
+      confirmLabel={t('tasks.archiveConfirm')}
+      cancelLabel={t('tasks.cancel')}
+      tone="destructive"
+      onConfirm={async () => { onConfirm() }}
+      onCancel={onCancel}
+    />
   )
 }

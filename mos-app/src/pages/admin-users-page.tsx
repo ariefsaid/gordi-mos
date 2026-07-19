@@ -20,7 +20,7 @@ import type { PersonAction } from '@/components/admin/user-table'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
 import { RoleEditor } from '@/components/admin/role-editor'
-import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import {
@@ -305,8 +305,8 @@ export function AdminUsersPage() {
           previously these were only on the inner wrapper div, not the alertdialog element. */}
       {reveal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'var(--scrim)' }}
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ background: 'var(--scrim)', zIndex: 'var(--z-modal)' }}
           // No backdrop dismiss on reveal — intentional (design-plan §4.4)
         >
           <div
