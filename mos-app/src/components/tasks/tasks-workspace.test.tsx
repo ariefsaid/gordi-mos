@@ -754,8 +754,10 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
     expect(document.querySelector('tr.task-row.kfocus')).toBeTruthy()
   })
 
-  // I1: aria-current exposes the keyboard cursor to AT
-  it('I1/OBS-121: j/k move aria-current="true" across leaf rows; group headers never receive it', async () => {
+  // I7 (cohesion-debt 2026-07-19): the keyboard cursor is a SELECTION → aria-selected.
+  // aria-current is reserved for the rail/breadcrumb ("exactly one aria-current" holds).
+  // The goal is unchanged: exactly one leaf row is marked as the cursor, never a header.
+  it('I1/I7/OBS-121: j/k move aria-selected across leaf rows; group headers never receive it', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'o1', title: 'Open one', status: 'Open' }),
       makeTask({ id: 'b1', title: 'Blocked one', status: 'Blocked' }),
@@ -765,27 +767,30 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
     await switchToAll()
     await waitFor(() => screen.getByText('Blocked one'))
 
-    // Before any j press: no aria-current=true on any task-row
-    expect(document.querySelector('tr.task-row[aria-current="true"]')).toBeNull()
+    // Before any j press: no row is marked as the cursor, and NO row emits aria-current
+    expect(document.querySelector('tr.task-row[aria-selected="true"]')).toBeNull()
+    expect(document.querySelector('tr.task-row[aria-current]')).toBeNull()
 
-    // First j: cursor lands on leaf index 0 → that row should have aria-current="true"
+    // First j: cursor lands on leaf index 0 → that row should be aria-selected
     fireEvent.keyDown(window, { key: 'j' })
     await waitFor(() => {
-      const currentRow = document.querySelector('tr.task-row[aria-current="true"]')
+      const currentRow = document.querySelector('tr.task-row[aria-selected="true"]')
       expect(currentRow).toBeTruthy()
       // Must be a task-row, not a group header
       expect(currentRow!.classList.contains('task-row')).toBe(true)
       expect(currentRow!.classList.contains('grp')).toBe(false)
     })
 
-    // j again: aria-current moves to next leaf row; previous row loses it
+    // j again: selection moves to next leaf row; previous row loses it
     fireEvent.keyDown(window, { key: 'j' })
     await waitFor(() => {
-      const currentRows = document.querySelectorAll('tr.task-row[aria-current="true"]')
-      // Exactly one row carries aria-current at a time
+      const currentRows = document.querySelectorAll('tr.task-row[aria-selected="true"]')
+      // Exactly one row carries the cursor at a time
       expect(currentRows.length).toBe(1)
       // And it is still a task-row, never a .grp
       expect(currentRows[0].classList.contains('grp')).toBe(false)
+      // aria-current stays reserved for the rail/breadcrumb — no row emits it
+      expect(document.querySelector('tr.task-row[aria-current]')).toBeNull()
     })
   })
 })

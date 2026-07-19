@@ -125,6 +125,32 @@ describe('TaskRow — AC-T02 row carries the reveal hooks for checkbox + menu', 
   })
 })
 
+// I7 "exactly one aria-current" (cohesion-debt 2026-07-19 + interaction-contract I7):
+// the rail/breadcrumb OWN aria-current="page". A task row's open/cursor state is a
+// SELECTION, so it must expose aria-selected — never a second aria-current on the page.
+describe('TaskRow — I7: open/cursor state is aria-selected, never aria-current', () => {
+  it('an open (selected) row exposes aria-selected="true" and NO aria-current', () => {
+    renderRow({ isSelected: true })
+    const row = document.querySelector('tr.task-row')!
+    expect(row.getAttribute('aria-selected')).toBe('true')
+    expect(row.getAttribute('aria-current')).toBeNull()
+  })
+
+  it('a keyboard-cursor row exposes aria-selected="true" and NO aria-current', () => {
+    renderRow({ isCursor: true })
+    const row = document.querySelector('tr.task-row')!
+    expect(row.getAttribute('aria-selected')).toBe('true')
+    expect(row.getAttribute('aria-current')).toBeNull()
+  })
+
+  it('a plain row exposes neither aria-selected nor aria-current', () => {
+    renderRow()
+    const row = document.querySelector('tr.task-row')!
+    expect(row.getAttribute('aria-selected')).toBeNull()
+    expect(row.getAttribute('aria-current')).toBeNull()
+  })
+})
+
 describe('TaskRow — stopPropagation regression (checkbox + ⋯ must NOT fire row onOpen)', () => {
   it('clicking the row checkbox does NOT call onOpen (stopPropagation)', () => {
     const onOpen = vi.fn()

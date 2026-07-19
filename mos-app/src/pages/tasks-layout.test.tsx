@@ -236,14 +236,17 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelector('.split.nodrawer')).toBeNull()
   })
 
-  it('AC-101: the open task row carries aria-current and the selected style', async () => {
+  // I7 (cohesion-debt 2026-07-19): the open row is a SELECTION → aria-selected;
+  // aria-current stays reserved for the rail/breadcrumb ("exactly one aria-current").
+  it('AC-101: the open task row carries aria-selected and the selected style (never aria-current)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' }), makeTask({ id: 'task-2', title: 'Other' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
     renderAt('/work/tasks/task-1')
     await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
     const selectedRow = document.querySelector('tr.task-row.row-selected')
     expect(selectedRow).toBeTruthy()
-    expect(selectedRow?.getAttribute('aria-current')).toBe('true')
+    expect(selectedRow?.getAttribute('aria-selected')).toBe('true')
+    expect(selectedRow?.getAttribute('aria-current')).toBeNull()
     expect(selectedRow?.textContent).toContain('Open one')
   })
 
