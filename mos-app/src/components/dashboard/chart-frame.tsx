@@ -3,6 +3,8 @@
 // tableFallback is MANDATORY (NFR-accessibility): the a11y table equivalent, and
 // doubles as the phone primary view when the chart is unreadable.
 import type { ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
+import { EmptyState } from '@/components/ui/state-kit'
 import './chart-frame.css'
 
 export interface ChartFrameProps {
@@ -27,6 +29,7 @@ export function ChartFrame({
   onRetry,
   ariaLabel,
 }: ChartFrameProps) {
+  const t = useT()
   return (
     <section className="chart-frame" role="region" aria-label={ariaLabel}>
       <div className="chart-frame-head">
@@ -40,10 +43,11 @@ export function ChartFrame({
         {state === 'loading' && (
           <div className="chart-frame-skeleton" aria-hidden="true" />
         )}
+        {/* Cohesion-debt 2026-07-19, item #2: the empty state was a hardcoded-English
+            `.chart-frame-empty` div — now the shared kit EmptyState (blank = empty by
+            design for this cut) + the i18n `chart.empty` key. */}
         {state === 'empty' && (
-          <div className="chart-frame-empty" role="status">
-            No data for this cut.
-          </div>
+          <EmptyState variant="blank" title={t('chart.empty')} />
         )}
         {state === 'error' && (
           <div className="chart-frame-error">

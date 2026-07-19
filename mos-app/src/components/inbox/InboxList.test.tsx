@@ -48,8 +48,13 @@ describe('InboxList (AC-P3-IB-002/003/006)', () => {
   })
 
   it('AC-P3-IB-006: empty state shows the caught-up message', () => {
+    // Cohesion-debt 2026-07-19, item #2: the all-clear now renders through the shared
+    // kit EmptyState (quiet variant) instead of a bespoke role="status" div — one
+    // empty-state grammar app-wide. The earned caught-up message is preserved.
     renderList([])
-    expect(screen.getByRole('status')).toHaveTextContent(/caught up/i)
+    const empty = screen.getByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'quiet')
+    expect(empty).toHaveTextContent(/caught up/i)
   })
 
   it('renders text-only content (no injected markup) — a title with markup stays inert text', () => {
