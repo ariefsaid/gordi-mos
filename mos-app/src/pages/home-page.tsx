@@ -36,7 +36,7 @@ import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { useIsPhone } from '@/shell/use-is-phone'
-import { Chevron } from '@/shell/icons'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { openTaskCount } from '@/lib/home-kpis'
 import {
   overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday,
@@ -222,26 +222,20 @@ export function HomePage() {
           desktop/tablet keep the inline radiogroup exactly as before. */}
       {personId && (
         isPhone ? (
-          <div className="home-order-disclosure">
-            <button
-              type="button"
-              className="home-order-trigger"
-              aria-expanded={orderPanelOpen}
-              aria-controls="home-order-panel"
-              onClick={() => setOrderPanelOpen(open => !open)}
-            >
-              <span>{t('home.order.viewOptions')}</span>
-              <span className="home-order-summary" aria-hidden="true">{orderLabel}</span>
-              <Chevron
-                className={`home-order-chevron${orderPanelOpen ? ' home-order-chevron--open' : ''}`}
-              />
-            </button>
-            {orderPanelOpen && (
-              <div id="home-order-panel" className="home-order-panel">
-                {orderToggle}
-              </div>
-            )}
-          </div>
+          <ViewOptionsDisclosure
+            open={orderPanelOpen}
+            onToggle={() => setOrderPanelOpen(open => !open)}
+            label={t('home.order.viewOptions')}
+            summary={orderLabel}
+            panelId="home-order-panel"
+            className="home-order-disclosure"
+            triggerClassName="home-order-trigger"
+            summaryClassName="home-order-summary"
+            chevronClassName="home-order-chevron"
+            panelClassName="home-order-panel"
+          >
+            {orderToggle}
+          </ViewOptionsDisclosure>
         ) : orderToggle
       )}
 

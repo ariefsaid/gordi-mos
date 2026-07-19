@@ -171,6 +171,32 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
   })
 
+  it('Rule 8/11: the whole filter stack collapses behind the single shared "View options" disclosure, and reveals on expand', async () => {
+    // The member phone filter stack (Group · Business unit · Status · Person + search)
+    // folds behind ONE affordance — the SAME ViewOptionsDisclosure primitive Home uses
+    // (Rule 11 reuse). Work leads; the configuration is one tap away, not the front wall.
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Phone work item' })])
+
+    renderTable()
+    await waitFor(() => screen.getByText('Phone work item'))
+
+    // Collapsed: every filter combobox is out of the DOM behind the disclosure.
+    for (const name of [/group/i, /business unit/i, /status/i, /person/i]) {
+      expect(screen.queryByRole('combobox', { name })).toBeNull()
+    }
+    const options = screen.getByRole('button', { name: /view options/i })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    expect(options).toHaveAttribute('aria-controls', 'mobile-task-options-panel')
+
+    // Expanding the ONE control reveals the full filter capability (no filter is lost).
+    fireEvent.click(options)
+    expect(options).toHaveAttribute('aria-expanded', 'true')
+    for (const name of [/group/i, /business unit/i, /status/i, /person/i]) {
+      expect(screen.getByRole('combobox', { name })).toBeInTheDocument()
+    }
+  })
+
   it('AC-W1-A: manager phone keeps the dense toolbar visible', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Manager mobile work item' })])
