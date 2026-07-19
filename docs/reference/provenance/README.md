@@ -18,6 +18,12 @@ original line breaks and structure preserved. Nothing of the owner's wording was
 | `02-the-50plus-qna-grill-2026-07-10_12.md` | Codex, 2026-07-10 → 07-12 (261 turns, from 28 MB raw) | **★ The 50+ QnA grill** that produced **OD-REDESIGN-1..55 + ADR-0025**. Open this to answer "why is OD-REDESIGN-N what it is?" |
 | `03-frustration-and-buildout-2026-07-13_16.md` | Claude, 2026-07-13 → 07-16 (392 turns, from 7.9 MB raw) | **★ Why the plan looks like it does now.** The owner's frustration in his own words (mockups "not happy enough, but passable"; the fork problem; "might as well reiterate when building rather than reiterating twice") → **OD-REDESIGN-56..66**, the Experience Contract, the 11-step buildout, steps 1–3. |
 
+**Composite oracle over these extracts:** [`owner-directives-index.md`](owner-directives-index.md) —
+the standing "what good looks like" index. NOT e7-fidelity: it resolves owner-word → lost-good (any
+generation) → owning-default, per surface, with status at branch tip. Governed by the owner correction
+"i dont want to look exactly like e7 … moving quicksand" (2026-07-19). Reviews score touched surfaces
+against it.
+
 ## Rules for using these
 
 1. **The docs are authority; these are evidence.** A transcript contains positions that were

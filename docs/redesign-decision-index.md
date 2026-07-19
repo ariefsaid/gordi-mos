@@ -151,6 +151,13 @@ mockups is authorized yet; environment resets and deploys remain owner-gated.
 > **📁 EXTRACTED IN-REPO → `docs/reference/provenance/`** — the owner↔assistant prose from the threads
 > below, **owner prompts byte-verbatim**, tool-noise/secrets stripped, secret-scanned. Start there; it
 > is version-controlled and cloud-reachable. The raw transcripts (paths below) are local + unversioned.
+>
+> **📌 Composite oracle → `docs/reference/provenance/owner-directives-index.md`** — the standing "what
+> good looks like" index over these extracts + every mockup generation. **The oracle is NOT e7** (owner
+> correction, 2026-07-19: *"i dont want to look exactly like e7 … moving quicksand"*); it resolves
+> **owner-word → lost-good (any generation) → owning-default** per surface, with status at branch tip,
+> importing the LOST-GOOD/SUPERSEDED classifications already made in the cross-version audits under
+> `docs/reviews/`. Use it to check a touched surface; use the threads below for the "why".
 
 The E7 redesign was decided in agent threads outside this repo. They are **the primary record** behind
 ADR-0025 + OD-REDESIGN-1..55; the docs here are their distillation. Cited so the reasoning is

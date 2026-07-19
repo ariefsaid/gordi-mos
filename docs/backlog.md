@@ -4,6 +4,12 @@
 > state + next action live in **`docs/plans/AUTONOMOUS-RUN-STATE.md`**. Redesign open/unratified items
 > live there too. The dated banners below are historical strata (newest first) — read them for
 > archaeology, not for what to do next.
+>
+> **Standing oracle — `docs/reference/provenance/owner-directives-index.md`** (composite: owner-word →
+> lost-good → owning-default, NOT e7-fidelity). Reviews check touched surfaces against it; transplants
+> use the composite checklist per surface. Its OPEN-UNTRACKED list (phone bottom-tab Café-for-all;
+> desktop no-clip column invariant; café capture-link default-active) and CONFLICT-needs-owner list
+> (action-verb family) are the redesign fix-queue + owner-A/B inputs.
 
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
