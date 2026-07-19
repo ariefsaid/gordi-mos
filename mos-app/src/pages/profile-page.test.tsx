@@ -4,7 +4,7 @@
  * (the rendered page re-labels), and the choice persists (ADR-0021 localStorage seam).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -23,7 +23,10 @@ function setViewer() {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
         email: 'cahya@gordi.id', archived_at: null, created_at: '', updated_at: '',
       },
-      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
+      roles: [
+        { id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
+        { id: 'r2', org_id: 'o1', business_unit_id: 'bu2', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
+      ],
       isManager: true,
       accessRoles: ['ops_lead'],
     },
@@ -54,12 +57,13 @@ describe('ProfilePage (OD-70)', () => {
     renderPage()
     expect(screen.getByLabelText('Person')).toHaveValue('Cahya Cafe')
     expect(screen.getByLabelText('Person')).toHaveAttribute('readonly')
-    expect(screen.getByLabelText('Role')).toHaveValue('Cafe Ops Lead')
-    expect(screen.getByLabelText('Role')).toHaveAttribute('readonly')
+    // ALL roles — the domain permits several and the real fixture is dual-hatted (audit F7).
+    expect(screen.getByLabelText('Roles')).toHaveValue('Cafe Ops Lead · Sales Lead')
+    expect(screen.getByLabelText('Roles')).toHaveAttribute('readonly')
     expect(screen.getByText(/Managed by Admin/)).toBeInTheDocument()
   })
 
-  it('OD-70 goal: selecting Bahasa Indonesia switches the app language and persists', async () => {
+  it('OD-70 goal (page-scope: this harness mounts ProfilePage only — the shell flip is rendered evidence in the ledger): selecting Bahasa re-renders in Indonesian and persists across remount', async () => {
     const user = userEvent.setup()
     renderPage()
     // English baseline
@@ -68,7 +72,10 @@ describe('ProfilePage (OD-70)', () => {
     // The page itself re-renders in Indonesian — the goal, not the mechanism
     expect(await screen.findByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
     expect(screen.getByLabelText('Bahasa')).toHaveValue('id')
-    // Persisted (ADR-0021 seam)
+    // Persisted (ADR-0021 seam) — and honored on a fresh mount, not just in memory.
     expect(localStorage.getItem('mos.locale')).toBe('id')
+    cleanup()
+    renderPage()
+    expect(screen.getByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
   })
 })

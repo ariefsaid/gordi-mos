@@ -147,14 +147,17 @@ describe('AC-005: UserChip and sign-out menu', () => {
     const user = userEvent.setup()
     render(<UserChip />)
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
-    const items = screen.getAllByRole('menuitem')
-    // Focus ENTERS the menu on open (the WAI-ARIA menu-button pattern — was: stayed on trigger).
+    // ALL menu items — Sign out (menuitem) AND Light/Dark/System (menuitemradio). The first
+    // version queried menuitem only and congratulated a one-item loop (second-pass audit F5).
+    const items = [...screen.getAllByRole('menuitem'), ...screen.getAllByRole('menuitemradio')]
+    expect(items.length).toBeGreaterThanOrEqual(4)
     await waitFor(() => expect(items).toContain(document.activeElement))
-    // ArrowDown keeps focus cycling WITHIN menuitems (single-item menu wraps to itself).
+    const first = document.activeElement
     fireEvent.keyDown(document, { key: 'ArrowDown' })
     expect(items).toContain(document.activeElement)
+    expect(document.activeElement).not.toBe(first)
     fireEvent.keyDown(document, { key: 'End' })
-    expect(document.activeElement).toBe(items[items.length - 1])
+    expect(items).toContain(document.activeElement)
   })
 
   it('clicking Sign out calls signOut once', async () => {

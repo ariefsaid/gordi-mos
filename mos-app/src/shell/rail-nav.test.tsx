@@ -10,7 +10,8 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
-function setAuthAs(accessRoles: string[] = [], roleName = 'Barista') {
+function setAuthAs(accessRoles: string[] = [], roleNames: string[] | string = 'Barista') {
+  const names = Array.isArray(roleNames) ? roleNames : [roleNames]
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -24,7 +25,7 @@ function setAuthAs(accessRoles: string[] = [], roleName = 'Barista') {
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: roleName, reports_to_role_id: null, created_at: '', updated_at: '' }],
+      roles: names.map((n, i) => ({ id: `r${i}`, org_id: 'o1', business_unit_id: 'bu-cafe', name: n, reports_to_role_id: null, created_at: '', updated_at: '' })),
       isManager: false,
       accessRoles,
     },
@@ -101,6 +102,15 @@ describe('AC-011: Rail structure — the owner sketch (OD-REDESIGN-68)', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
     expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+  })
+
+  it('AC-011d (audit F6): the REAL dual-hat fixture — Cafe Ops Lead + Sales Lead gets Café ONLY (Sales is b2b_sales, not Ecommerce)', () => {
+    setAuthAs(['ops_lead'], ['Cafe Ops Lead', 'Sales Lead'])
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
   })

@@ -28,7 +28,7 @@ export interface CafeOpeningPanelProps {
   teamName: string
 }
 
-export function CafeOpeningPanel({ processId, teamId }: CafeOpeningPanelProps) {
+export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPanelProps) {
   const t = useT()
   const auth = useAuth()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -102,6 +102,9 @@ export function CafeOpeningPanel({ processId, teamId }: CafeOpeningPanelProps) {
   if (!started) {
     return (
       <div className="cafe-opening-panel">
+        {/* Name the bound Team — the page auto-selects one (first due / first membership) and
+            hiding WHICH one it chose was audit finding F10. */}
+        <p className="text-muted-foreground" style={{ fontSize: 12, margin: '0 0 8px' }}>{teamName}</p>
         {canStart ? (
           <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
             <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>

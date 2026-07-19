@@ -20,8 +20,10 @@ test.describe('shell phone nav', () => {
     const more = page.getByRole('dialog', { name: 'More' })
     await expect(more.getByRole('link', { name: 'Events' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'Money' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'Ecommerce' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'Roastery' })).toBeVisible()
+    // OD-68: modules are NOT in an org-wide admin's More — the menu mirrors the rail
+    // ("your work, not the org chart"); module routes stay reachable via ⌘K/URL.
+    await expect(more.getByRole('link', { name: 'Ecommerce' })).not.toBeVisible()
+    await expect(more.getByRole('link', { name: 'Roastery' })).not.toBeVisible()
     await expect(more.getByRole('link', { name: 'Admin Settings' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'Personal Profile' })).toBeVisible()
   })

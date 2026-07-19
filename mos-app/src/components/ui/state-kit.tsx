@@ -29,7 +29,7 @@ export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }
   )
 }
 
-export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting'
+export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
 
 export interface EmptyStateProps {
   title: ReactNode
@@ -47,10 +47,12 @@ function defaultEmptyGlyph(variant: EmptyStateVariant) {
     case 'next-step':
       return '+'
     case 'awaiting':
-      return '↻'
+      return '↻' // a real data source exists and will fill this
+    case 'blank':
+      return '—' // empty BY DESIGN: no source, nothing pending — never ✓ (false success) nor ↻ (false pending)
     case 'quiet':
     default:
-      return '✓'
+      return '✓' // an EARNED all-clear ("you're all caught up") — not a generic empty
   }
 }
 

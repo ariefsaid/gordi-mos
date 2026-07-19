@@ -170,6 +170,13 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     expect(offenders).toEqual([])
   })
 
+  it('/profile renders the shared PageHead (audit F7 — Profile escaped this invariant at birth)', async () => {
+    const { ProfilePage } = await import('@/pages/profile-page')
+    const { container } = withAuth(<MemoryRouter><ProfilePage /></MemoryRouter>)
+    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
+    expect(container.querySelector('[class*="page-title"]')).toBeNull()
+  })
+
   it('/ (MyWeek) renders the shared PageHead and no bespoke page-title element', () => {
     const { container } = withAuth(<MemoryRouter><MyWeek /></MemoryRouter>)
     expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()

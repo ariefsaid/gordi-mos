@@ -63,3 +63,7 @@ supabase/seed.production.sql
 
 # AGPL firewall — upstream Twenty CRM reference, never commit
 /Twenty Design System/
+
+# audit/agent runtime residue — never tracked (swept in once by a git add -A; audit F11)
+.pi-subagents/
+e11/

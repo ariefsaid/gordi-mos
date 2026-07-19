@@ -40,10 +40,14 @@ describe('AC-1001 (events-stub): EventsPage renders the Events destination', () 
 })
 
 describe('AC-1003 (events-stub): sanctioned quiet EmptyState, no fake action', () => {
-  it('renders the house EmptyState system at the "awaiting" archetype (convention audit 2026-07-18: a success ✓ over missing data inverts system status — Nielsen #1)', () => {
+  it('goal-oracle: an empty-BY-DESIGN surface signals neither success nor pending (step-10 semantics + Nielsen #1 — second-pass audit F3)', () => {
     renderEvents()
     const empty = screen.getByTestId('empty-state')
-    expect(empty).toHaveAttribute('data-empty-variant', 'awaiting')
+    // Step 10 rejected 'awaiting' (no data source = nothing is pending); the convention audit
+    // rejected 'quiet' ✓ (false success). The kit's 'blank' archetype satisfies BOTH oracles.
+    expect(empty).toHaveAttribute('data-empty-variant', 'blank')
+    expect(empty.textContent).not.toContain('✓')
+    expect(empty.textContent).not.toContain('↻')
     expect(empty).toHaveAttribute('role', 'region')
   })
 

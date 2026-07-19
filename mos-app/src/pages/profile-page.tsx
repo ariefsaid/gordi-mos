@@ -15,6 +15,7 @@ import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { Select } from '@/components/ui/select'
 import { PageFrame } from '@/shell/page-frame'
+import { PageHead } from '@/shell/page-head'
 
 function ProfileCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -22,7 +23,7 @@ function ProfileCard({ title, children }: { title: string; children: React.React
       className="bg-card border border-border"
       style={{ borderRadius: 'var(--radius-sm)', padding: 16, maxWidth: 560 }}
     >
-      <h2 className="attention-brief-title" style={{ marginBottom: 12 }}>{title}</h2>
+      <h2 className="text-foreground font-semibold" style={{ fontSize: 15, margin: '0 0 12px' }}>{title}</h2>
       {children}
     </section>
   )
@@ -53,10 +54,8 @@ export function ProfilePage() {
 
   return (
     <PageFrame>
-      <h1 className="font-semibold text-foreground" style={{ fontSize: 26 }}>{t('dest.profile')}</h1>
-      <p className="text-muted-foreground" style={{ marginTop: 8, marginBottom: 20 }}>
-        <b>{t('job.profile')}</b>
-      </p>
+      {/* Shared page grammar (Rule 11 / RI-IA-1) — audit F7: no bespoke <h1>. */}
+      <PageHead title={t('dest.profile')} subtitle={t('job.profile')} />
 
       <div className="flex flex-col" style={{ gap: 16 }}>
         {viewer && (
@@ -73,12 +72,12 @@ export function ProfilePage() {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="profile-role">{t('profile.role')}</FieldLabel>
+                <FieldLabel htmlFor="profile-role">{viewer.roles.length > 1 ? t('profile.roles') : t('profile.role')}</FieldLabel>
                 <input
                   id="profile-role"
                   className={fieldClass}
                   style={{ height: 34, borderRadius: 'var(--radius-sm)', fontSize: 14 }}
-                  value={viewer.roles[0]?.name ?? '—'}
+                  value={viewer.roles.map((r) => r.name).join(' · ') || '—'}
                   readOnly
                 />
               </div>

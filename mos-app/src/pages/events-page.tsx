@@ -23,7 +23,7 @@ export function EventsPage() {
     <PageFrame variant="data">
       <PageHead variant="content" title={title} icon={<EventsIcon />} />
       <EmptyState
-        variant="awaiting"
+        variant="blank"
         title={t('events.empty.title')}
         copy={t('events.empty.copy')}
       />

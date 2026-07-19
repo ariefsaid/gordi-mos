@@ -128,7 +128,7 @@ mockups is authorized yet; environment resets and deploys remain owner-gated.
 
 - `docs/experience-contract.md` — **BINDING Rules 1–11** for the mos-app build (URL grammar, page
   anatomy, budgets, verb+object, capture-first, extension test, component reuse).
-- `docs/plans/2026-07-14-redesign-buildout.md` — the owner-approved 10-step build sequence, with
+- `docs/plans/2026-07-14-redesign-buildout.md` — the owner-approved 11-step build sequence, with
   per-step drill flags and owner gates (steps 2/4/6).
 - `docs/decisions.md` § OD-REDESIGN-56..60 — mockup phase closed · frame directives (Events root,
   Work children, header anatomy) · occurrences-as-Tasks + job-function assignment · Signal home ·

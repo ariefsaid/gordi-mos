@@ -47,12 +47,11 @@ after step 11).
 
 | Gate | Result |
 |---|---|
-| `npm run typecheck` | PASS — 0 errors |
-| `npm run lint -- --max-warnings=0` (eslint + stylelint) | PASS — 0 |
-| `npm test` (Vitest) | PASS — 273 files / 2760 tests (post-sweep tree) |
-| `supabase test db` (pgTAP) | PASS — 100 files / 727 tests |
-| `npx playwright test` (full live e2e) | PASS — 52 passed / 2 intentional skips (F1, F2, F3, AC-630, AC-720 all green) |
-| `bash scripts/pre-merge-check.sh` | **PASS — exit 0** (all required reviews cleared; run 2026-07-17 at branch close) |
+| `npm run typecheck` | PASS — 0 errors (tip, 2026-07-19) |
+| `npm test` (Vitest) | PASS — 273 files / **2767** tests (tip, 2026-07-19) |
+| `supabase test db` (pgTAP) | PASS — 100 files / 727 (2026-07-17; no schema change since) |
+| `npx playwright test` | **PASS — exit 0, 52 passed / 2 skipped = all 54 declared** (tip, 2026-07-19). ⚠ The two prior "green" runs were piped through `tail`, hiding a 6-failure block + masking the exit code — 5 stale oracles + 1 real Rule-5 regression fixed to get here honestly. |
+| `bash scripts/pre-merge-check.sh` | PASS — exit 0 (verdicts as recorded; Director-commit range awaits independent battery per the truthful boundary) |
 
 ## Ratify before merge (consolidated — the owner's one post-step-11 list)
 
@@ -177,3 +176,52 @@ once real snapshot data exists.
   (house overlay debt). Dedicated café-lead e2e persona (replaces the shared-persona grant).
   FR-708 deep-link as rendered link (currently description text). Step-10 phone ⌘K launcher
   affordance polish.
+
+## Second-pass audit (2026-07-19, owner-supplied independent auditor) — dispositions
+
+Verdict received: BLOCK / "do not ratify as complete" — 11 findings. Director verified each in code
+before acting. **The auditor's core thesis is CONFIRMED and was demonstrated on the Director's own
+evidence:** both prior tip e2e runs were piped through `tail`, which ate a **6-failed block** and
+masked Playwright's exit code with tail's 0 — "gates green" claims (the Director's AND the cloud
+run's post-785cdf3 claim) cited a truncated pipe. The corrected run exposed 6 real failures.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | Gate evidence stale (ledger describes older tip) | **CONFIRMED — this section + refreshed gates on tip are the correction.** Boundary below. |
+| 2 | Rule 12 asserted, not measured | **CONFIRMED.** Cold-start scores (e.g. "barista 8.5/10") are reviewer judgment; the provenance-promised steps/misclicks walkthrough was never run. Relabeled here; a real measured walkthrough is owner-schedulable, not retro-claimable. |
+| 3 | Events 'awaiting' = semantic quicksand; AC-1003 bent | **CONFIRMED + FIXED correctly:** the kit gained the missing **'blank' (—) archetype** — step-10's semantics (nothing pending) AND the no-false-success rule both hold; AC-1003 now asserts the dual goal-oracle (neither ✓ nor ↻). |
+| 4 | F1/F2/F3 "green" ≠ historical scenarios green | **CONFIRMED.** The e2e journeys prove partial paths (post+buttons-visible; start+resolve). Scenario-complete claims retracted; boundary below. |
+| 5 | useMenuPopover skips menuitemradio; vacuous test | **CONFIRMED + FIXED:** selector covers menuitem/radio/checkbox; test asserts ≥4 items incl. the theme radios, real movement. Admin user-table menu adoption: tracked follow-up. |
+| 6 | Sales→Ecommerce workMatch wrong (b2b_sales BU) | **CONFIRMED + FIXED:** mapping dropped; the REAL dual-hat fixture (Cafe Ops Lead + Sales Lead → Café only) is now the test. The Director's earlier "exactly the rule working" was a misread. |
+| 7 | Profile bespoke grammar + roles[0] only | **CONFIRMED + FIXED:** PageHead adopted; ALL roles rendered; /profile added to the RI-IA-1 invariant it had escaped. |
+| 8 | i18n test overclaims "whole app" | **CONFIRMED + FIXED:** test renamed to its true scope + remount-persistence assertion added; the shell flip remains rendered evidence only. |
+| 9 | Signal drawer bypasses modal contract | CONFIRMED — folded into the tracked "shared drawer host" ratify item with the a11y specifics (no focus entry/trap/Esc). |
+| 10 | Café hides which Team it auto-chose | **FIXED (surface):** bound Team name now rendered. Multi-Team journey remains unmeasured — tracked. |
+| 11 | Audit runtime residue committed (`git add -A`) | **CONFIRMED + FIXED:** `.pi-subagents/` + `e11/` untracked and gitignored. Process note: no more `add -A` in dirty worktrees. |
+
+**Also caught by this pass (not in the auditor's list):** 5 stale e2e oracles failing invisibly —
+2× "Dashboard" H1 (broken since 785cdf3), the AC-013 roster oracle (asserted a RETIRED surface as
+success), AC-021 phone More (pre-OD-68), AC-005 kitchen-title regexes (case-blind grep missed them)
+— all rewritten to current law with goals intact; **plus a REAL Rule-5 regression from OD-68**
+(railless module routes rendered zero `aria-current="page"`) — fixed: the breadcrumb leaf carries it
+exactly when the viewer has no rail entry for that module.
+
+## The truthful boundary (what is actually known, per the owner's standing ask)
+
+- **Implemented + measured:** the domain model (Signals/occurrences/RLS — pgTAP 727), computed-style
+  parity on the measured surfaces, the a11y/convention fixes above (live-verified + unit-locked),
+  unit suite 2767, e2e per the refreshed run recorded below.
+- **Implemented + judgment-only (NOT measured):** Rule-12 cold-start usability (reviewer scores, no
+  behavioral walkthrough); dark-mode + phone rendered parity for the 2026-07-18/19 fix batch
+  (tokens verified theme-aware; not re-measured rendered).
+- **Implemented + partial journey:** F1 Signal (post→buttons; no correct/retract/canonical-Task e2e),
+  F2 Café (start→resolve; no typed-check/evidence/exception e2e). S4–S6 unmeasured; Ecommerce/
+  Roastery stubs.
+- **Ratify-before-merge:** the standing 19-item list + OD-69 calls (image-attach slice, Home KPI
+  removal recommendation, tertiary-contrast token, phone bottom-tab Café, member-start 7A).
+- **Deferred (tracked):** shared drawer host + Signal full-page + canonical composer + Inbox triage +
+  attention control + pagination + admin-menu contract adoption + Rule-12 measured walkthrough.
+- **Independent-review boundary:** spec/CQ/design APPROVEs cover the cloud run through `d92f63d`.
+  Director commits after it (rail/OD-68/parity/profile/convention/second-pass batches) are
+  gate-clean, audit-remediated, and live-verified — but have had **no independent battery**; they are
+  part of what the owner's merge review covers.

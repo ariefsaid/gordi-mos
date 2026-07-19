@@ -21,7 +21,7 @@ export function useMenuPopover(
 
     const items = (): HTMLElement[] =>
       menuRef.current
-        ? Array.from(menuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        ? Array.from(menuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
         : []
 
     // WAI-ARIA menu button pattern: focus enters the menu on open.

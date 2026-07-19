@@ -56,7 +56,10 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
    directed** — a single generic "UX review" prompt reliably hits only the first and misses the others
    (this gap let real IxD/IA defects ship in PMO; PMO then added a fourth lens after intent-failures
    shipped past the first three). Findings write to `review/*.md` (gitignored scratch — durable findings
-   go to `docs/backlog.md`).
+   go to `docs/backlog.md`). **Every design-review dispatch carries a SCOPE CARD** (what this step
+   delivers vs what is deferred to later steps) — the owner's Fork-2 anti-pedantry directive
+   ("provide the context in full… so it doesnt gets too pedantic"): deferred future-step work is
+   not a defect.
    - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste`
      AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA,
      interaction perf, vs `DESIGN.md` + the design-plan + the owning mockup. **Includes the MANDATORY

@@ -109,7 +109,7 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
         workMatch: /caf[eé]|kitchen|\bbar\b|barista/i,
         links: [{ path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon }] },
       { id: 'ecommerce', zone: 'modules', labelKey: 'dest.ecommerce', Icon: EcommerceIcon, primaryPath: '/ecommerce',
-        workMatch: /ecommerce|sales|crm/i,
+        workMatch: /ecommerce/i, // NOT sales|crm — Sales is the b2b_sales BU (seed), no module yet (audit F6)
         links: [{ path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon }] },
     ],
   },

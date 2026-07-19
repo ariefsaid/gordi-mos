@@ -1,7 +1,8 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath } from './destinations'
+import { destinationForPath, modulesForRoles } from './destinations'
 import { useBreadcrumbTitle } from './breadcrumb-title'
+import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
 // Shell breadcrumb — Redesign Step 2 (§9). `·` separator, last segment bold, no brand
@@ -25,11 +26,22 @@ function viewLeaf(search: string): string | null {
 export function Breadcrumb() {
   const { pathname, search } = useLocation()
   const dynamicTitle = useBreadcrumbTitle()
+  const auth = useAuth()
   const t = useT()
 
   const destination = destinationForPath(pathname)
   // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
   if (!destination) return null
+
+  // Rule 5 under OD-REDESIGN-68: on a module route the viewer has NO rail entry for (an admin
+  // visiting /cafe), nothing in the rail can carry aria-current="page" — the breadcrumb leaf
+  // takes over so every route still renders exactly one. (Second-pass audit: e2e AC-007 caught
+  // the count dropping to zero on those routes.)
+  const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const leafCarriesCurrent =
+    destination.zone === 'modules' &&
+    viewer != null &&
+    !modulesForRoles(viewer.roles.map((r) => r.name), viewer.accessRoles).some((m) => m.id === destination.id)
 
   const destLabel = t(destination.labelKey)
   const crumbs: string[] = [destLabel]
@@ -65,7 +77,7 @@ export function Breadcrumb() {
   return (
     <span style={{ fontSize: 15 }}>
       {crumbs.length === 1 ? (
-        <b className="truncate text-foreground font-semibold" title={crumbs[0]}>
+        <b className="truncate text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
           {crumbs[0]}
         </b>
       ) : (
@@ -76,7 +88,7 @@ export function Breadcrumb() {
               <span className="mx-[7px]" aria-hidden="true">·</span>
             </span>
           ))}
-          <b className="truncate text-foreground font-semibold" title={crumbs[crumbs.length - 1]}>
+          <b className="truncate text-foreground font-semibold" title={crumbs[crumbs.length - 1]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
             {crumbs[crumbs.length - 1]}
           </b>
         </>

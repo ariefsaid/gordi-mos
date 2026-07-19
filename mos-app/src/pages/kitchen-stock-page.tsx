@@ -57,7 +57,7 @@ function stockColumns(t: ReturnType<typeof useT>): DataTableColumn<KitchenStockR
 }
 
 export function KitchenStockPage() {
-  useDocumentTitle('Kitchen Stock — Gordi MOS')
+  useDocumentTitle('Café Stock — Gordi MOS')
   const t = useT()
   const auth = useAuth()
 
@@ -112,7 +112,7 @@ export function KitchenStockPage() {
     <PageFrame variant="data">
       <PageHead
         variant="content"
-        title="Kitchen · Stock"
+        title="Café · Stock"
         count={load.kind === 'ready' ? rows.length : null}
         meta={<span className="ks-date tabular">{asOf}</span>}
       />

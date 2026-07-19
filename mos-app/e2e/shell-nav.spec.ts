@@ -52,10 +52,12 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 })
 
-test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page }) => {
+test('AC-013 (rewritten for OD-33/48 retirement, beca0dc): the Weekly-Update team roster is retired — absent for MANAGER and VIEWER alike', async ({ page }) => {
+  // Original oracle asserted the roster VISIBLE for managers — a retired surface as success
+  // condition (audit C finding #13 / second-pass F: stale oracle, failing hidden since beca0dc).
   await loginAs(page, MANAGER.email, MANAGER.password)
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('p').filter({ hasText: /^Your team —/ })).toBeVisible({ timeout: 5_000 })
+  await expect(page.locator('p').filter({ hasText: /^Your team —/ })).not.toBeVisible()
 
   await clearSession(page)
   await page.goto('login')

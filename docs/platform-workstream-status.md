@@ -33,7 +33,7 @@ TL;DR:
   uncommitted files sit in the main checkout — do NOT clobber). Lanes disjoint; reconcile at merge. Its OD-DASH-2
   ("Home = light landing + `/dashboard` cockpit") already answers the teardown's Home-identity question.
 - Gotcha: the lint gate is a **false-green on warnings** (npm eats `--max-warnings=0`) — fix the `package.json`
-  `lint` script. Delegation: background long pi dispatches; gpt-5.4 = vision, glm-5.2 = text-only.
+  `lint` script. Delegation: background long pi dispatches; gpt-5.6-luna = vision, glm-5.2 = text-only.
 
 *(History below: `dev` includes the UI-coherence merge, closure regression guards, and post-merge IA cleanup.)*
 
@@ -134,11 +134,11 @@ Home AR tile → E's money-position slot; GLM cross-family money-path review of 
 >
 > **Work-spine v1 — BUILT + FIXED + battery-green, HELD (unpushed) on `feat/work-spine` (`0bf7cdd`):**
 > - The first ADR-0019 D14-step-3 slice: `/work/cascade` everyone-read view + minimal `shared.can()` +
->   objectives/work_lines write policies migrated to `can()`. Built gpt-5.4 → reviewed gpt-5.4 cross-family
+>   objectives/work_lines write policies migrated to `can()`. Built gpt-5.6-luna → reviewed gpt-5.6-luna cross-family
 >   (FIX-THEN-SHIP, `can()` verified sound) → all 5 fixes applied glm-5.2 (phone split, i18n, **pgTAP
 >   plan(14)→plan(23) fully proving AC-310..315**, ladder resilience, e2e fixtures). Battery green:
 >   pgTAP 481 · vitest 2246 · typecheck/eslint/build · AC-305 e2e. Ledger: `docs/reviews/feat-work-spine.md`.
->   **Before merge:** (1) a **cross-family gpt-5.4 re-review of the pgTAP** (the fix was GLM-only; our own
+>   **Before merge:** (1) a **cross-family gpt-5.6-luna re-review of the pgTAP** (the fix was GLM-only; our own
 >   rule says security proofs don't merge on a single family), (2) **Director phone render-check** (visual
 >   lens), then push→CI→merge to `dev`. Spec `docs/specs/work-spine.spec.md` (OD-WS-1), plan
 >   `docs/plans/2026-07-06-work-spine.md`.
@@ -161,7 +161,7 @@ Home AR tile → E's money-position slot; GLM cross-family money-path review of 
 >    (drive off `docs/specs/agent-capability-expansion.md`) + the **roastery §6** 10 owner-decisions.
 > 3. **Design audit** — run the 4-lens design-review against the *refreshed* JTBD v0.3 (the whole point:
 >    the IA slices were only Director-eyeballed, never given the prescribed IA/IxD/UX battery).
-> 4. **Work-spine → merge:** cross-family gpt-5.4 pgTAP re-review + Director phone render → push→CI→merge.
+> 4. **Work-spine → merge:** cross-family gpt-5.6-luna pgTAP re-review + Director phone render → push→CI→merge.
 > 5. **Verify tomorrow AM:** the 03:05/03:30 cron populated `reporting.sales_margin_daily` on staging
 >    (GKID+GRI); if green, the margin tile lights up — consider un-gating margin display.
 > 6. **Owner-gated queue** (unchanged): `dev`→`main` promote (agent port), live-deputy `AGENT_MODEL_API_KEY`,
