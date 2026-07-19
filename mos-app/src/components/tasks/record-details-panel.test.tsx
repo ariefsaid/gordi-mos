@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption } from '@/lib/db/directory'
 import { RecordDetailsPanel } from './record-details-panel'
@@ -88,5 +88,44 @@ describe('RecordDetailsPanel (AC-R02/R04)', () => {
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
     expect(screen.queryByRole('button', { name: /change status/i })).toBeNull()
     expect(document.querySelector('.record-details-compact')).toBeTruthy()
+  })
+})
+
+// OD-REDESIGN-22 / docs/interaction-contract.md I5: the panel's only inline-editable
+// fields are native <select>s (work-line, objective) — there are NO free-typed text/
+// number fields here. Per the use-inline-commit primitive's documented reading, a
+// select's change IS the commit intent, so these correctly commit EAGERLY (they are not
+// routed through the draft/restore hook). This is the I5-conformant behavior for a
+// select, not a violation — proving the "Record details fields" contract row.
+describe('RecordDetailsPanel — I5 inline edits are eager selects (OD-REDESIGN-22)', () => {
+  const workLines = [
+    { id: 'wl-1', name: 'Daily prep', type: 'daily' as const },
+    { id: 'wl-2', name: 'Launch', type: 'project' as const },
+  ]
+  const objectives = [
+    { id: 'ob-1', name: 'Grow margin' },
+    { id: 'ob-2', name: 'Cut waste' },
+  ]
+
+  it('the work-line select commits eagerly on change (no Enter/blur needed)', () => {
+    const onWorkLineChange = vi.fn()
+    renderPanel({
+      workLines: workLines as never,
+      onWorkLineChange,
+    })
+    const select = screen.getByRole('combobox', { name: /project.*process|project \/ process/i })
+    fireEvent.change(select, { target: { value: 'wl-2' } })
+    expect(onWorkLineChange).toHaveBeenCalledWith('wl-2')
+  })
+
+  it('the objective select commits eagerly on change', () => {
+    const onObjectiveChange = vi.fn()
+    renderPanel({
+      objectives: objectives as never,
+      onObjectiveChange,
+    })
+    const select = screen.getByRole('combobox', { name: /objective/i })
+    fireEvent.change(select, { target: { value: 'ob-2' } })
+    expect(onObjectiveChange).toHaveBeenCalledWith('ob-2')
   })
 })

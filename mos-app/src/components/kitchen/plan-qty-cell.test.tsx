@@ -76,6 +76,39 @@ describe('PlanQtyCell — direct input commits on blur', () => {
   })
 })
 
+// OD-REDESIGN-22 / docs/interaction-contract.md I5 — routed through useInlineCommit:
+// PlanQtyCell already committed on blur/±; this closes the two I5 gaps (Escape-discard
+// restore + Enter-commit) via the shared primitive rather than a bespoke draft.
+describe('PlanQtyCell — I5 inline commit (OD-REDESIGN-22)', () => {
+  it('Escape discards the draft and restores the saved qty (never commits)', () => {
+    const onSave = vi.fn()
+    render(<PlanQtyCell itemName="Ayam Bakar" qty={5} saving={false} disabled={false} onSave={onSave} />)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '12' } })
+    expect(input).toHaveValue(12)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input).toHaveValue(5)
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('Enter commits the current draft', () => {
+    const onSave = vi.fn()
+    render(<PlanQtyCell itemName="Ayam Bakar" qty={3} saving={false} disabled={false} onSave={onSave} />)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '9' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onSave).toHaveBeenCalledWith(9)
+  })
+
+  it('typing does not commit until Enter/Tab/blur (draft only)', () => {
+    const onSave = vi.fn()
+    render(<PlanQtyCell itemName="Ayam Bakar" qty={5} saving={false} disabled={false} onSave={onSave} />)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '8' } })
+    expect(onSave).not.toHaveBeenCalled()
+  })
+})
+
 describe('PlanQtyCell — saving + disabled states', () => {
   it('renders an inline "Saving…" status while a save is in flight', () => {
     render(<PlanQtyCell itemName="Ayam Bakar" qty={5} saving disabled={false} onSave={() => {}} />)

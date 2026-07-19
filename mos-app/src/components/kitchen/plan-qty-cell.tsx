@@ -1,12 +1,17 @@
 // PlanQtyCell — the desktop inline-editable PLAN qty cell (OD-K-5 redesign §4.3).
 // Mirrors QtyCell minus the Log-capture gates (no capError, no actionType — the page
-// knows the action; the cell is qty-only). −/input/+; commits on blur/± → onSave(≥0).
+// knows the action; the cell is qty-only). −/input/+; commits on Enter/Tab/blur/± → onSave(≥0).
 // input role="spinbutton" min=0 + aria-label="Planned quantity for {dish}"; ± are real
 // <button>s; "Saving…" inline (role=status). One-Blue focus ring only.
 // Token-only (DESIGN.md); fresh .pqcell-* namespace (mirrors .qcell's look; qty-cell.css
 // owns .qcell — C1 guard). Spacing in px (sibling kitchen idiom).
+//
+// I5 inline-edit (OD-REDESIGN-22 / docs/interaction-contract.md): routed through the one
+// primitive (useInlineCommit) — Enter/Tab/blur COMMIT the draft; Escape DISCARDS and
+// restores the saved qty. The `saving` prop drives the visible in-flight state (parent-
+// owned optimistic save); `disabled` is offline. + / − commit the stepped draft (≥ 0).
 
-import { useState, useEffect } from 'react'
+import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import './plan-qty-cell.css'
 
 interface PlanQtyCellProps {
@@ -24,16 +29,11 @@ interface PlanQtyCellProps {
 }
 
 export function PlanQtyCell({ itemName, qty, saving, justSaved = false, disabled, onSave }: PlanQtyCellProps) {
-  const [draft, setDraft] = useState<number>(qty)
-  // Keep the draft in sync when the committed qty changes (e.g. after a confirmed save
-  // or when the action_type changes the visible qty).
-  useEffect(() => { setDraft(qty) }, [qty])
-
-  function commit(next: number) {
-    const clamped = Math.max(0, next)
-    setDraft(clamped)
-    onSave(clamped)
-  }
+  const { draft, setDraft, commit, onKeyDown, onBlur } = useInlineCommit<number>({
+    value: qty,
+    onCommit: onSave,
+    disabled,
+  })
 
   return (
     <div className="pqcell">
@@ -43,7 +43,7 @@ export function PlanQtyCell({ itemName, qty, saving, justSaved = false, disabled
           aria-label={`Decrease ${itemName} planned quantity`}
           className="pqcell-btn"
           disabled={disabled || draft <= 0}
-          onClick={() => commit(draft - 1)}
+          onClick={() => commit(Math.max(0, draft - 1))}
         >
           −
         </button>
@@ -60,12 +60,8 @@ export function PlanQtyCell({ itemName, qty, saving, justSaved = false, disabled
             const v = parseInt(e.target.value, 10)
             setDraft(Number.isNaN(v) ? 0 : Math.max(0, v))
           }}
-          onBlur={e => {
-            // Read e.target.value directly so the save uses the current DOM value,
-            // not a stale draft closure (mirrors the prior PlanRow onBlur rationale).
-            const v = parseInt(e.target.value, 10)
-            onSave(Number.isNaN(v) ? 0 : Math.max(0, v))
-          }}
+          onKeyDown={onKeyDown}
+          onBlur={onBlur}
         />
         <button
           type="button"
