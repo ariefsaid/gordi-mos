@@ -16,7 +16,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
@@ -95,7 +95,7 @@ export function KitchenStockPage() {
 
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingState /></PageFrame>
+    return <PageFrame><LoadingShell count={3} /></PageFrame>
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
@@ -129,7 +129,7 @@ export function KitchenStockPage() {
         </>
       )}
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -164,13 +164,5 @@ export function KitchenStockPage() {
         </div>
       )}
     </PageFrame>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="ks-block">
-      <SkeletonRows count={3} />
-    </div>
   )
 }

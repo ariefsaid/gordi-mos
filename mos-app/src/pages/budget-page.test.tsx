@@ -103,12 +103,14 @@ describe('BudgetPage — populated (fresh + certified)', () => {
   it('renders the budgeted COGS total (Σ qty × linked cost)', async () => {
     renderPage()
     // 0.18×18000 + 0.018×320000 = 3240 + 5760 = 9000
-    expect(await screen.findByText(/Rp 9,000/)).toBeInTheDocument()
+    // Cohesion-debt 2026-07-19, item #1: money now renders id-ID DOTS (Rp 9.000),
+    // not en-US commas — the one canonical formatIDR (lib/format/money).
+    expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
   })
 
   it('AC-PB-007: each BOM line shows a drill link to the linked cost line (link-never-copy)', async () => {
     renderPage()
-    await screen.findByText(/Rp 9,000/)
+    await screen.findByText(/Rp 9.000/)
     const drills = screen.getAllByTestId('drill-cost-line')
     expect(drills).toHaveLength(2)
     // The drill anchor resolves to the linked cost-line record by ingredient code.
@@ -117,7 +119,7 @@ describe('BudgetPage — populated (fresh + certified)', () => {
 
   it('AC-PB-007: the linked cost-line rows are present (the consumer reads the linked record, not a copy)', async () => {
     renderPage()
-    await screen.findByText(/Rp 9,000/)
+    await screen.findByText(/Rp 9.000/)
     const costRows = screen.getAllByTestId('cost-line-row')
     expect(costRows).toHaveLength(2)
     // The linked record's name renders in BOTH the BOM preview (resolved from the link) and the
@@ -127,7 +129,7 @@ describe('BudgetPage — populated (fresh + certified)', () => {
 
   it('AC-PB-006: a fresh + certified basis renders the healthy badge (no warning)', async () => {
     renderPage()
-    await screen.findByText(/Rp 9,000/)
+    await screen.findByText(/Rp 9.000/)
     expect(screen.getByText(/certified · fresh/i)).toBeInTheDocument()
     expect(screen.queryByText(/stale/i)).not.toBeInTheDocument()
   })
@@ -135,7 +137,7 @@ describe('BudgetPage — populated (fresh + certified)', () => {
   it('AC-PB-008: capture submits a budget with the linked shape (no unit cost on lines)', async () => {
     vi.mocked(captureBudget).mockResolvedValue('NEW-BUDGET')
     renderPage()
-    await screen.findByText(/Rp 9,000/)
+    await screen.findByText(/Rp 9.000/)
     fireEvent.click(screen.getByRole('button', { name: /capture budget/i }))
     await waitFor(() => expect(captureBudget).toHaveBeenCalledTimes(1))
     const arg = vi.mocked(captureBudget).mock.calls[0][0]

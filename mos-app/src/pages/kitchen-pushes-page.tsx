@@ -23,7 +23,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { Tag } from '@/components/ui/tag'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
@@ -191,7 +191,7 @@ export function KitchenPushesPage() {
   if (auth.status === 'loading') {
     return (
       <PageFrame>
-        <LoadingState />
+        <LoadingShell count={3} />
       </PageFrame>
     )
   }
@@ -231,7 +231,7 @@ export function KitchenPushesPage() {
         count={load.kind === 'ready' ? rows.length : null}
       />
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -271,11 +271,3 @@ export function KitchenPushesPage() {
 }
 
 // ── Loading skeleton ──────────────────────────────────────────────────────────
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kpu-block">
-      <SkeletonRows count={3} />
-    </div>
-  )
-}

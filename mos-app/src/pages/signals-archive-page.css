@@ -32,10 +32,15 @@
   border: 1px solid var(--border); border-radius: var(--radius-lg);
   background: var(--card); overflow: hidden;
 }
+/* Cohesion-debt 2026-07-19, item #4 (owner call: "proceed with all items"): the
+   Signals feed stays an activity stream (not forced into a table), but its rows
+   now share the ONE list-row rhythm — divider colour, padding scale, row height —
+   with the dense table (.dt-table) via the --row-* tokens, so the two list
+   grammars stop DISAGREEING. */
 .signal-row {
-  display: flex; align-items: center; gap: 12px; min-height: 52px;
-  padding: 10px 16px; text-decoration: none; color: inherit;
-  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; min-height: var(--row-min-h);
+  padding: var(--row-pad-y) var(--row-pad-x); text-decoration: none; color: inherit;
+  border-bottom: 1px solid var(--row-divider);
 }
 .signals-archive-list > :last-child { border-bottom: none; }
 .signal-row:hover { background: var(--secondary); }
@@ -46,7 +51,9 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .signal-row-meta {
-  flex: none; font-size: 12px; color: var(--muted-foreground);
+  /* Right-aligned meta — same treatment as the table's right-aligned meta column
+     (.dt-num), so a "list of records" reads the same way in both grammars (item #4). */
+  flex: none; font-size: 12px; color: var(--muted-foreground); text-align: right;
   max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 

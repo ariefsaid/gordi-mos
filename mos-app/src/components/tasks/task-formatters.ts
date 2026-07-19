@@ -1,5 +1,6 @@
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { Locale } from '@/i18n/messages'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 // OFF-TRACK-FIRST status order (OD-P3-6 / signed mockup): In Progress → Blocked → Open → Done.
 // Shared by the tasks workspace + the My Week mini-table so the two never drift.
@@ -27,11 +28,10 @@ export function formatAge(isoDate: string, now: Date): string {
   return `${days}d`
 }
 
-/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun". */
+/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun".
+ * Delegates to the canonical locale-aware date module (cohesion-debt 2026-07-19, item #1). */
 export function formatDate(d: string, locale: Locale = 'en'): string {
-  const [y, m, day] = d.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, day))
-  return dt.toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+  return formatWeekdayDayMonth(d, locale)
 }
 
 /** Resolve the human-facing provenance label for a Task row or record. */

@@ -14,7 +14,7 @@ import { useAuth } from '@/auth/use-auth'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { Button } from '@/components/ui/button'
-import { ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
 import type { PersonAction } from '@/components/admin/user-table'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
@@ -215,7 +215,9 @@ export function AdminUsersPage() {
                 Person
               </span>
             </div>
-            <SkeletonRows count={6} />
+            {/* Cohesion-debt 2026-07-19, item #3: one loading grammar — LoadingShell
+                (role=status) instead of a role-less bare SkeletonRows. */}
+            <LoadingShell count={6} />
           </>
         )}
 

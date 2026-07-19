@@ -74,8 +74,10 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     await screen.findByText(/budget scenario/i)
     fireEvent.change(screen.getByLabelText(/candidate price \(rp\)/i), { target: { value: '30000' } })
     // margin = 30000 - 9000 = 21000; margin% = 70%
+    // Cohesion-debt 2026-07-19, item #1: money renders id-ID DOTS (Rp 21.000) via
+    // the one canonical formatIDR (lib/format/money) — no more en-US commas.
     await waitFor(() => {
-      expect(screen.getByTestId('pricing-result')).toHaveTextContent('Rp 21,000')
+      expect(screen.getByTestId('pricing-result')).toHaveTextContent('Rp 21.000')
       expect(screen.getByTestId('pricing-result')).toHaveTextContent('70%')
     })
   })
@@ -91,7 +93,7 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
 
   it('shows the budgeted COGS + basis as-of the LINKED budget (the certified number)', async () => {
     renderPage()
-    expect(await screen.findByText(/Rp 9,000/)).toBeInTheDocument()
+    expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
     expect(screen.getByText(/basis as of/i)).toBeInTheDocument()
   })
 })

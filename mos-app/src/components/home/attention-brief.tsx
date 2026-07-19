@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import type { AttentionLane, AttentionLaneKind } from '@/lib/home-attention'
 import type { MessageKey } from '@/i18n/messages'
 import './attention-brief.css'
@@ -49,10 +49,12 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
           const laneTitle = t(LANE_TITLE_KEY[lane.kind])
 
           if (lane.state === 'loading') {
+            // Cohesion-debt 2026-07-19, item #3: one loading grammar — the shared
+            // LoadingShell (role=status). The lane title stays visible ("which list?").
             return (
-              <div key={lane.kind} className="attention-lane" aria-busy="true">
+              <div key={lane.kind} className="attention-lane">
                 <h3 className="attention-lane-title">{laneTitle}</h3>
-                <SkeletonRows count={2} />
+                <LoadingShell count={2} label={laneTitle} />
               </div>
             )
           }

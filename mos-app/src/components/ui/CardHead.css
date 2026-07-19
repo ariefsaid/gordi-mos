@@ -45,6 +45,14 @@
 .empty-copy { font-size: 15px; color: var(--muted-foreground); margin: 0; }
 .empty-note { font-size: 13px; color: var(--muted-foreground); margin: 0; }
 .empty-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+/* Pickable starter prompts (cohesion item #2 — the Assistant empty folds in here). */
+.empty-suggestions { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.empty-suggestion {
+  text-align: left; width: 100%; padding: 10px 12px; font-size: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-md, 8px);
+  background: var(--secondary); color: var(--foreground); cursor: pointer;
+}
+.empty-suggestion:hover { border-color: var(--muted-foreground); }
 .empty-state--next-step .empty-state-icon {
   background: color-mix(in srgb, var(--primary) 12%, var(--secondary));
   color: var(--primary);
@@ -52,6 +60,9 @@
 .empty-state--awaiting .empty-state-icon {
   background: color-mix(in srgb, var(--warning) 10%, var(--secondary));
 }
+
+/* LoadingShell — the one loading grammar (item #3): a busy status wrapping SkeletonRows. */
+.loading-shell { width: 100%; box-sizing: border-box; }
 
 /* Skeleton shimmer — shared pulse (reduced-motion aware) */
 .skeleton-rows { list-style: none; margin: 0; padding: 0; }
@@ -62,11 +73,11 @@
 .skeleton-row:last-child { border-bottom: 0; }
 .skeleton-bar {
   background: var(--secondary); border-radius: 6px; height: 12px;
-  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  /* Cohesion-debt 2026-07-19, item #3: shared `sk-pulse` keyframe (index.css). */
+  animation: sk-pulse 1.4s ease-in-out infinite;
 }
 .skeleton-bar--pill { height: 22px; width: 84px; border-radius: 6px; flex: none; }
 .skeleton-bar--line { flex: 1; }
-@keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) {
   .skeleton-bar { animation: none; }
 }

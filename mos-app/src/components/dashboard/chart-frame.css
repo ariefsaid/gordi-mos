@@ -53,14 +53,8 @@
   background: var(--secondary);
 }
 
-.chart-frame-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 160px;
-  color: var(--muted-foreground);
-  font-size: 13px;
-}
+/* Cohesion-debt 2026-07-19, item #2: `.chart-frame-empty` deleted — the empty
+   state renders through the shared kit EmptyState (one empty-state grammar). */
 
 .chart-frame-error {
   display: flex;

@@ -13,6 +13,9 @@ export const messages = {
     'dest.operate': 'Operate',
     'dest.plan': 'Plan',
     'dest.inbox': 'Inbox',
+    // Cohesion-debt 2026-07-19, item #3: the one shared loading label — every
+    // LoadingShell announces this (no more hardcoded "Loading" / "Loading…").
+    'common.loading': 'Loading',
     // Nav sub-item labels — every nav string flows through the catalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id shape-identical (AC-409).
     'nav.tasks': 'Tasks',
@@ -257,6 +260,9 @@ export const messages = {
     'views.stub.title': 'Planned primitive',
     'views.stub.body': '${name} is on the roadmap and not yet implemented.',
     'views.chart.pending': 'Chart binding lands with the builder.',
+    // Cohesion-debt 2026-07-19, item #2: ChartFrame's empty state was hardcoded English —
+    // now it routes through the kit EmptyState + this catalog key (i18n).
+    'chart.empty': 'No data for this cut.',
     'views.panel.truncated': 'Showing the first ${n} rows — there may be more. Narrow the filters or time range to see everything.',
     'dev.views.title': 'User Views',
     'dev.views.subtitle': 'Compose + render a user view by hand — no agent',
@@ -545,6 +551,7 @@ export const messages = {
     'dest.operate': 'Operasi',
     'dest.plan': 'Rencana',
     'dest.inbox': 'Kotak Masuk',
+    'common.loading': 'Memuat',
     // Label sub-nav — setiap string nav mengalir melalui katalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id bentuk-identik (AC-409).
     'nav.tasks': 'Tugas',
@@ -787,6 +794,7 @@ export const messages = {
     'views.stub.title': 'Primitif rencana',
     'views.stub.body': '${name} ada di peta jalan dan belum diimplementasikan.',
     'views.chart.pending': 'Pengikatan chart akan hadir bersama builder.',
+    'chart.empty': 'Tidak ada data untuk irisan ini.',
     'views.panel.truncated': 'Menampilkan ${n} baris pertama — mungkin ada lebih banyak. Persempit filter atau rentang waktu untuk melihat semuanya.',
     'dev.views.title': 'Tampilan Pengguna',
     'dev.views.subtitle': 'Susun + render tampilan pengguna secara manual — tanpa agen',

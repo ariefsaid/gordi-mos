@@ -6,6 +6,7 @@
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
 import { useId, type ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
 import { Button } from './button'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
@@ -31,12 +32,23 @@ export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }
 
 export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
 
+/** A pickable starter prompt (the Assistant's empty-state suggestions fold in here — item #2). */
+export interface EmptyStateSuggestion {
+  label: string
+  onSelect: () => void
+}
+
 export interface EmptyStateProps {
   title: ReactNode
   copy?: ReactNode
   note?: ReactNode
   variant?: EmptyStateVariant
   icon?: ReactNode
+  /** Pickable starter prompts, rendered as a stacked button list below the copy. */
+  suggestions?: EmptyStateSuggestion[]
+  /** Drop the region landmark when this sits inside an already-labelled landmark
+   * (e.g. the Assistant drawer) — avoids a redundant nested region. */
+  nested?: boolean
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
@@ -62,6 +74,8 @@ export function EmptyState({
   note,
   variant = 'quiet',
   icon,
+  suggestions,
+  nested = false,
   children,
   className,
 }: EmptyStateProps) {
@@ -69,8 +83,8 @@ export function EmptyState({
 
   return (
     <div
-      role="region"
-      aria-labelledby={titleId}
+      role={nested ? undefined : 'region'}
+      aria-labelledby={nested ? undefined : titleId}
       data-testid="empty-state"
       data-empty-variant={variant}
       className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}
@@ -84,6 +98,20 @@ export function EmptyState({
           {copy && <p className="empty-copy">{copy}</p>}
           {note && <p className="empty-note">{note}</p>}
         </div>
+        {suggestions && suggestions.length > 0 && (
+          <div className="empty-suggestions">
+            {suggestions.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                className="empty-suggestion"
+                onClick={s.onSelect}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
         {children && <div className="empty-actions">{children}</div>}
       </div>
     </div>
@@ -108,6 +136,36 @@ export function SkeletonRows({ count = 3, className, row }: SkeletonRowsProps) {
           </div>
         ),
       )}
+    </div>
+  )
+}
+
+export interface LoadingShellProps {
+  /** Number of skeleton rows to render. */
+  count?: number
+  /** Override the status announcement (defaults to the shared `common.loading`). */
+  label?: string
+  className?: string
+  /** Custom row renderer, forwarded to SkeletonRows for pane-specific shapes. */
+  row?: (i: number) => ReactNode
+}
+
+/**
+ * LoadingShell — THE one loading grammar (cohesion-debt 2026-07-19, item #3).
+ * A single busy status region (`role=status` + `aria-busy` + one localized
+ * label) wrapping the shared SkeletonRows. Replaces every bespoke loader idiom
+ * and banishes the literal "Loading…" text.
+ */
+export function LoadingShell({ count = 3, label, className, row }: LoadingShellProps) {
+  const t = useT()
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label ?? t('common.loading')}
+      className={`loading-shell${className ? ` ${className}` : ''}`}
+    >
+      <SkeletonRows count={count} row={row} />
     </div>
   )
 }

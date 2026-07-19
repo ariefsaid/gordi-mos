@@ -1,6 +1,7 @@
 import type { NotificationRow } from '@/lib/db/notifications'
 import { notificationRoute } from '@/lib/db/notifications'
 import { useT } from '@/i18n/use-t'
+import { EmptyState } from '@/components/ui/state-kit'
 import './inbox.css'
 
 export interface InboxListProps {
@@ -24,11 +25,10 @@ export function InboxList({ notifications, onOpen }: InboxListProps) {
   const t = useT()
 
   if (notifications.length === 0) {
-    return (
-      <div className="inbox-empty" role="status">
-        {t('inbox.empty')}
-      </div>
-    )
+    // Cohesion-debt 2026-07-19, item #2: the Inbox all-clear routes through THE kit
+    // EmptyState (quiet = the earned ✓ all-clear) — one empty-state grammar, no
+    // bespoke `.inbox-empty`.
+    return <EmptyState variant="quiet" title={t('inbox.empty')} copy={t('inbox.emptyCopy')} />
   }
 
   return (

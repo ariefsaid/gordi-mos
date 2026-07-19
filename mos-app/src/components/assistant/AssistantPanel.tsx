@@ -21,6 +21,7 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion, type AssistantRating } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
 import { useIsNarrow } from '@/shell/use-is-narrow'
+import { EmptyState } from '@/components/ui/state-kit'
 import { ThreadList } from './ThreadList'
 import { AssistantMarkdown } from './AssistantMarkdown'
 import { AssistantWidgetSlot } from './AssistantWidgetSlot'
@@ -231,11 +232,18 @@ export function AssistantPanel() {
               }}
             />
           ) : transcriptEmpty ? (
+            // Cohesion-debt 2026-07-19, item #2: the Assistant's empty state is THE
+            // kit EmptyState (next-step variant) with pickable suggestions — one
+            // empty-state grammar app-wide, no bespoke local copy.
             <EmptyState
+              nested
+              variant="next-step"
               title={t('assistant.empty.title')}
-              body={t('assistant.empty.body')}
-              suggestions={SUGGESTION_KEYS.map((k) => t(k))}
-              onPick={(s) => void submit(s)}
+              copy={t('assistant.empty.body')}
+              suggestions={SUGGESTION_KEYS.map((k) => {
+                const label = t(k)
+                return { label, onSelect: () => void submit(label) }
+              })}
             />
           ) : (
             <Transcript
@@ -383,37 +391,6 @@ function Transcript({
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-function EmptyState({
-  title, body, suggestions, onPick,
-}: {
-  title: string
-  body: string
-  suggestions: string[]
-  onPick: (s: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-4" style={{ padding: '1.5rem 0.25rem' }}>
-      <div>
-        <div className="text-foreground font-semibold" style={{ fontSize: 18 }}>{title}</div>
-        <p className="text-muted-foreground" style={{ fontSize: 14, marginTop: '0.25rem' }}>{body}</p>
-      </div>
-      <div className="flex flex-col gap-2">
-        {suggestions.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => onPick(s)}
-            className="text-left rounded-md border border-border bg-secondary text-foreground hover:border-muted-foreground/50"
-            style={{ padding: '0.625rem 0.75rem', fontSize: 14 }}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }

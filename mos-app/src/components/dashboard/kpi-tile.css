@@ -98,9 +98,8 @@ button.kpi-tile:hover {
   color: var(--text-tertiary);
 }
 
-.kpi-tile-skeleton-value {
-  display: block;
-}
+/* Cohesion-debt 2026-07-19, item #3: `.kpi-tile-skeleton-value` deleted — the
+   tile now loads via the shared LoadingShell + SkeletonRows. */
 
 /* Foot row: basis chip + DQ badge (FR-008/024) — GM/COGS tiles only. Stacks the
    qualifier(s) beneath the value/sub so every GM/COGS figure carries its basis. */

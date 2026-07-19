@@ -69,11 +69,13 @@
   border-top: 5px solid currentColor;
 }
 
-/* 50px dense body rows; divider = border/70% */
+/* Dense body rows — the SHARED list-row rhythm (cohesion item #4): row height,
+   padding scale, and divider colour come from the one --row-* token set so the
+   Signals archive rows (.signal-row) read at the same rhythm, not a rival one. */
 .dt-table tbody td {
-  height: 50px;
-  padding: 10px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  height: var(--row-min-h);
+  padding: var(--row-pad-y) var(--row-pad-x);
+  border-bottom: 1px solid var(--row-divider);
   color: var(--foreground);
   vertical-align: middle;
 }

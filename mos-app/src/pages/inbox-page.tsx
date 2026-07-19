@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
-import { InboxIcon } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import { useNotifications } from '@/hooks/useNotifications'
 import { InboxList } from '@/components/inbox/InboxList'
@@ -27,11 +26,12 @@ export function InboxPage() {
 
   return (
     <PageFrame variant="data">
+      {/* Cohesion-debt 2026-07-19, item #5 (owner call): no surface-title glyph —
+          the ✉ was part of the inconsistent "several apps" title-icon set. */}
       <PageHead
         variant="content"
         title={t('inbox.title')}
         count={count}
-        icon={<InboxIcon />}
       />
       {loading ? (
         <div role="status" aria-label="Loading" aria-busy="true">

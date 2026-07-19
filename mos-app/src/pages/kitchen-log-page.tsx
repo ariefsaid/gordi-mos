@@ -51,7 +51,7 @@ import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { Pill } from '@/components/ui/pill'
 import { kitchenStatus } from '@/lib/kitchen-status'
-import { EmptyState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -276,7 +276,7 @@ export function KitchenLogPage() {
       <PageFrame>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          <LoadingState />
+          <LoadingShell count={3} />
         </div>
       </PageFrame>
     )
@@ -299,7 +299,7 @@ export function KitchenLogPage() {
       <PageFrame variant="data">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          <LoadingState />
+          <LoadingShell count={3} />
         </div>
       </PageFrame>
     )
@@ -588,13 +588,5 @@ function SubmitButton({
           ? `Submit ${stagedCount} ${stagedCount === 1 ? 'entry' : 'entries'}`
           : 'Submit'}
     </button>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kl-block">
-      <SkeletonRows count={3} />
-    </div>
   )
 }

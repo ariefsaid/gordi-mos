@@ -32,34 +32,6 @@ type PageHeadProps = {
    * empty/error states can own their own create CTA.
    */
   action?: ReactNode
-  /**
-   * Content-variant only — the leading entity glyph (mockup `.ch-icon`). Defaults
-   * to the Tasks list glyph; decorative (aria-hidden).
-   */
-  icon?: ReactNode
-}
-
-/** Default entity glyph for the content header — the list/records mark (mockup `☰`). */
-function ListGlyph() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  )
 }
 
 /**
@@ -70,7 +42,7 @@ function ListGlyph() {
  */
 export function PageHead({
   title, subtitle, meta, maxWidth,
-  variant = 'prose', count, action, icon,
+  variant = 'prose', count, action,
 }: PageHeadProps) {
   if (variant === 'content') {
     return (
@@ -79,7 +51,11 @@ export function PageHead({
         className="content-header"
         style={maxWidth ? { maxWidth } : undefined}
       >
-        <span className="ch-icon" aria-hidden="true">{icon ?? <ListGlyph />}</span>
+        {/* Cohesion-debt 2026-07-19, item #5 (owner call: "proceed with all items"):
+            NO decorative surface-title glyph. The breadcrumb + job-sentence already
+            name the surface; inconsistent title icons (≡ on Tasks/Signals/Money, ✉
+            on Inbox, none on Home/Café) were the exact "several apps" tell.
+            Consistent = none. */}
         <h1 className="ch-title">{title}</h1>
         {count != null && <span className="ch-count tabular-nums">{count}</span>}
         {/* Overdue/blocked subtotals + clearable filter chips ride beside the pill */}
@@ -102,8 +78,12 @@ export function PageHead({
           {title}
         </h1>
         {/* Meta/count sits immediately after the title (Linear-style "Tasks · 11 tasks"),
-            NOT flung to the far edge — keeps the header anchored to the content. */}
-        {meta && <span>{meta}</span>}
+            NOT flung to the far edge — keeps the header anchored to the content.
+            Cohesion-debt 2026-07-19, item #5 (owner call): the title-adjacent slot
+            carries a count badge on some surfaces and a date on Café — both semantics
+            kept, but ONE muted-text token so the slot reads the same, never dark body
+            text competing with the title. */}
+        {meta && <span className="page-head-meta">{meta}</span>}
       </div>
       {subtitle && (
         <p className="text-muted-foreground mt-[6px]" style={{ fontSize: 14 }}>

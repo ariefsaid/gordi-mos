@@ -14,7 +14,7 @@ import type { TeamUpdateRow } from '@/lib/db/weekly-updates.types'
 import { getTeamForManager } from '@/lib/db/team'
 import { TimingChip } from '@/components/weekly/timing-chip'
 import { Pill, type PillTone } from '@/components/ui/pill'
-import { ErrorState } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StatePill } from '@/components/ui/state-pill'
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
 import type { TodayOpsSummary } from '@/lib/db/ops-log'
@@ -380,18 +380,11 @@ interface TeamModuleProps {
 
 function TeamModule({ loadState, rows, onRetry }: TeamModuleProps) {
   if (loadState === 'loading') {
+    // Cohesion-debt 2026-07-19, item #3: one loading grammar — the shared
+    // LoadingShell (role=status + SkeletonRows), not the literal "Loading…" text.
     return (
-      <div
-        className="bg-card border border-border rounded-lg shadow-rest"
-        aria-label="Team weekly updates"
-        aria-busy="true"
-      >
-        <div
-          className="flex items-center text-muted-foreground"
-          style={{ height: 46, padding: '0 20px', fontSize: 15 }}
-        >
-          Loading…
-        </div>
+      <div className="bg-card border border-border rounded-lg shadow-rest" style={{ padding: '8px 12px' }}>
+        <LoadingShell count={3} label="Team weekly updates" />
       </div>
     )
   }

@@ -15,7 +15,7 @@ import {
 } from '@/lib/db/kitchen-logs'
 import type { ReviewLogRow, KitchenActionType, PlanMap } from '@/lib/db/kitchen-logs.types'
 import { getPeople } from '@/lib/db/directory'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
 import { Tag } from '@/components/ui/tag'
 import { DataTable } from '@/components/dashboard/data-table'
@@ -524,7 +524,7 @@ export function KitchenReviewPage() {
   ]
 
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingState /></PageFrame>
+    return <PageFrame><LoadingShell count={3} /></PageFrame>
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
@@ -585,7 +585,7 @@ export function KitchenReviewPage() {
         </div>
       )}
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -621,13 +621,5 @@ export function KitchenReviewPage() {
         />
       )}
     </PageFrame>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kr-block">
-      <SkeletonRows count={3} />
-    </div>
   )
 }
