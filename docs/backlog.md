@@ -11,6 +11,13 @@
 > desktop no-clip column invariant; café capture-link default-active) and CONFLICT-needs-owner list
 > (action-verb family) are the redesign fix-queue + owner-A/B inputs.
 
+- **DONE (2026-07-19) — C2 / OD-REDESIGN-22 I5 inline-edit retrofit:** free-typed text/number qty cells
+  (`qty-cell.tsx`, `plan-qty-cell.tsx`) now route through the one `useInlineCommit` primitive —
+  Enter/Tab/blur commit, Escape restores the saved qty. Record-details inline edits are native selects
+  (eager commit is the correct I5 reading — no free-text field to defer). Contract rows flipped ❌→✅
+  (`docs/interaction-contract.md`). Follow-up (out of this slice): phone siblings `plan-qty-stepper.tsx` /
+  `wip-item-stepper.tsx` and the Task-record I5 row remain on the old model.
+
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
 bar itself moved (era timeline E1→E7): `docs/requirements-evolution.md`.

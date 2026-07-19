@@ -57,11 +57,50 @@ describe('QtyCell — −/+ behavior', () => {
     expect(screen.getByRole('button', { name: /decrease ayam bakar quantity/i })).toBeDisabled()
   })
 
-  it('direct numeric input calls onQtyChange with the typed value (≥0)', () => {
+  // OD-REDESIGN-22 / interaction-contract I5: typing is a DRAFT — the commit is
+  // deferred to Enter/Tab/blur. Updated from the prior eager-on-change expectation
+  // (the C2 provenance finding this retrofit closes).
+  it('direct numeric input commits the typed value (≥0) on blur, not on keystroke', () => {
     const onQtyChange = vi.fn()
     render(<QtyCell itemName="Ayam Bakar" line={line({ qty_porsi: 0 })} onQtyChange={onQtyChange} />)
-    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i }), { target: { value: '17' } })
+    const input = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '17' } })
+    expect(onQtyChange).not.toHaveBeenCalled() // draft only — no commit yet
+    fireEvent.blur(input)
     expect(onQtyChange).toHaveBeenCalledWith(17)
+  })
+})
+
+// OD-REDESIGN-22 / docs/interaction-contract.md I5 — the one inline-edit primitive:
+// Enter/Tab/blur COMMIT the draft; Escape DISCARDS and restores the saved qty; while a
+// commit is pending (disabled) the field is inert. Routed through useInlineCommit.
+describe('QtyCell — I5 inline commit (OD-REDESIGN-22)', () => {
+  it('Escape discards the draft and restores the saved qty (never commits)', () => {
+    const onQtyChange = vi.fn()
+    render(<QtyCell itemName="Ayam Bakar" line={line({ qty_porsi: 5 })} onQtyChange={onQtyChange} />)
+    const input = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '12' } })
+    expect(input).toHaveValue(12) // draft reflects typing
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input).toHaveValue(5) // restored to the saved qty
+    expect(onQtyChange).not.toHaveBeenCalled()
+  })
+
+  it('Enter commits the current draft', () => {
+    const onQtyChange = vi.fn()
+    render(<QtyCell itemName="Ayam Bakar" line={line({ qty_porsi: 3 })} onQtyChange={onQtyChange} />)
+    const input = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '9' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onQtyChange).toHaveBeenCalledWith(9)
+  })
+
+  it('does not commit while disabled (pending/offline inert)', () => {
+    const onQtyChange = vi.fn()
+    render(<QtyCell itemName="Ayam Bakar" line={line({ qty_porsi: 5 })} onQtyChange={onQtyChange} disabled />)
+    const input = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    fireEvent.blur(input)
+    expect(onQtyChange).not.toHaveBeenCalled()
   })
 })
 

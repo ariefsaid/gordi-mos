@@ -40,8 +40,8 @@ Proof cell is a defect, not a gap.
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
 | Admin people menu | — | ❓ | ❌ not on `useMenuPopover` | — | — | — | — | to adopt |
 | ⌘K / composer | — | ✅ | — | ✅ | — | — | — | command-menu suite |
-| Record details fields | — | — | — | — | ❌ eager-commit, no Esc-discard | ❓ | — | I5 slice |
-| Kitchen/Café qty cells | — | — | — | — | ❌ same | ✅ | — | I5 slice |
+| Record details fields | — | — | — | — | ✅ inline edits are native selects — eager commit is the correct I5 reading (no free-text field to defer) | ❓ | — | `record-details-panel.test.tsx` "I5 inline edits are eager selects (OD-REDESIGN-22)" |
+| Kitchen/Café qty cells | — | — | — | — | ✅ text/number qty routed through `useInlineCommit` (Enter/Tab/blur commit, Escape restores saved qty) | ✅ | — | `qty-cell.test.tsx` / `plan-qty-cell.test.tsx` "I5 inline commit (OD-REDESIGN-22)" |
 
 ## Sequence to full conformance (the cohesion program, in flight)
 
