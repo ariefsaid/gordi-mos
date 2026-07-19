@@ -313,7 +313,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
     // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
-    expect(screen.queryByRole('table', { name: /kitchen plan/i })).toBeNull()
+    expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
   })
 
   it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
@@ -330,7 +330,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
       }),
     })
     render(<KitchenPlanPage />)
-    expect(await screen.findByRole('table', { name: /kitchen plan/i })).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: /café plan/i })).toBeInTheDocument()
   })
 })
 

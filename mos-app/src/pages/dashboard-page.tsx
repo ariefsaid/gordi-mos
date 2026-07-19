@@ -230,6 +230,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           tab={tab} onTab={setTab}
         />
         <EmptyState
+          variant="awaiting"
           title="No sales snapshot data yet"
           copy="No sales snapshot rows are available yet. The next warehouse snapshot will populate this page."
         />

@@ -259,7 +259,7 @@ type LoadState =
   | { kind: 'ready' }
 
 export function KitchenReviewPage() {
-  useDocumentTitle('Kitchen Review — Gordi MOS')
+  useDocumentTitle('Café Review — Gordi MOS')
   const auth = useAuth()
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -540,7 +540,7 @@ export function KitchenReviewPage() {
   if (!allowed) {
     return (
       <PageFrame>
-        <PageHead variant="content" title="Kitchen · Review" count={null} />
+        <PageHead variant="content" title="Café · Review" count={null} />
         <div className="kr-block kr-forbidden" role="region" aria-label="Access restricted">
           <p className="kr-forbidden-title">Review is available to ops leads only.</p>
           <p className="kr-forbidden-msg">
@@ -558,7 +558,7 @@ export function KitchenReviewPage() {
     <PageFrame variant="data">
       <PageHead
         variant="content"
-        title="Kitchen · Review"
+        title="Café · Review"
         count={load.kind === 'ready' ? submittedCount : null}
         meta={<span className="kr-date tabular">{logDate}</span>}
       />

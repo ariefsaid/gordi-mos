@@ -56,7 +56,7 @@ function wibToday(): string {
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
 export function KitchenPlanPage() {
-  useDocumentTitle('Kitchen Plan — Gordi MOS')
+  useDocumentTitle('Café Plan — Gordi MOS')
   const auth = useAuth()
 
   // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
@@ -244,7 +244,7 @@ function PlanEditor() {
     <PageFrame variant="data">
       <PageHead
         variant="content"
-        title="Kitchen · Plan"
+        title="Café · Plan"
         count={load.kind === 'ready' ? items.length : null}
         meta={<span className="kp-date tabular">{logDate}</span>}
       />
@@ -308,7 +308,7 @@ function PlanEditor() {
             isDesktop={isDesktop}
             state={visible.length > 0 ? 'ready' : 'empty'}
             emptyLabel="No dishes match your filter."
-            caption="Kitchen plan — set planned quantity per dish"
+            caption="Café plan — set planned quantity per dish"
           />
         </div>
       )}
@@ -377,7 +377,7 @@ function PesananView() {
     <PageFrame variant="data">
       <PageHead
         variant="content"
-        title="Kitchen · Pesanan"
+        title="Café · Pesanan"
         count={load.kind === 'ready' ? rows.length : null}
         meta={<span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>}
       />

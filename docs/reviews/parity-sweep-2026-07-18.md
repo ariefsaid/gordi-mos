@@ -72,3 +72,37 @@ AC-T01 updated as a deliberate change) · A4 `--radius-sm/md/lg` now resolve 8/1
 `aliases.css` cascade override was the root cause and is removed ✓ · B2 Work children = 0 icons,
 plain labels per the sketch ✓ · B1 accepted as its own slice (OD-69i, backlog). Full Vitest
 2763/2763 · typecheck 0 · eslint clean.
+
+## Convention & best-practice audit (2026-07-18, the FOUNDING acceptance test)
+
+The owner's founding mandate (origin critique, 2026-07-08, verbatim): "ease of use by high schooler,
+intuitive and follows UI/UX best practice and industry conventions. use the impeccable, taste and
+ui-ux-pro-max skills as needed." This audit ran that mandate against the BUILT app for the first
+time (impeccable critique + audit, taste; both personas, both breakpoints, keyboard passes).
+Director-verified every Critical in code before acting.
+
+**Found → FIXED same day (all live-verified + locked by unit tests):**
+- **[Critical] Sort headers mouse-only (WCAG 2.1.1)** → real `<button>` inside each sortable th;
+  aria-sort flips by keyboard (verified none→ascending live). `tasks-table-body.tsx` + `.th-sort-btn`.
+- **[Critical] User menu stuck-open + not keyboard-operable** → new shared `useMenuPopover` contract
+  (outside-pointerdown close, Esc, focus-enters-menu, Arrow/Home/End) backs UserChip AND RowMenu —
+  the "four overlays, four contracts" class killed at the root. Live-verified: focus enters menu,
+  outside-click closes.
+- **[Important] Café pages titled "Kitchen"** — the owner's verbatim "kitchen + Bar should be Cafe"
+  was executed in nav but never in page titles (B-class partial drop). All six titles + body copy →
+  Café noun; tests updated as deliberate change.
+- **[Important] Success ✓ on "no data yet"** (Money, Events) → `variant="awaiting"` (↻); events test
+  updated to assert the awaiting archetype with the Nielsen-#1 rationale inline.
+- 5 locking tests added (sort-by-keyboard · menu outside-close · menu keys · row-menu Esc/outside ·
+  events awaiting-glyph).
+
+**Still open (Minor, tracked):** profile read-only fields styled as inputs · redundant Language
+labels + bold subtitle over-promise · phone Signal message truncation under metadata · "Project/Proces"
+label truncation · café-log boxed-active tab oddity · tertiary-text contrast ~3.4:1 (DESIGN.md token
+call — flagged for owner, used by KPI captions + ⌘K placeholder) · ⌘K listbox nesting nit +
+scrollIntoView.
+
+**Clean (checked, passing):** task-drawer focus regime (exemplary) · create-form aria wiring ·
+live-region announcements with optimistic rollback · double-submit protection · reduced-motion ·
+no color-alone meaning · monochrome icon set, no slop tells. The founding "AI slop" complaint is
+paid at component-craft level; the interaction-grammar layer is what lagged.

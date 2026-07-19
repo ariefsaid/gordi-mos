@@ -105,7 +105,7 @@ type PageStatus =
   | { kind: 'success'; count: number }
 
 export function KitchenLogPage() {
-  useDocumentTitle('Kitchen Log — Gordi MOS')
+  useDocumentTitle('Café Log — Gordi MOS')
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
@@ -286,7 +286,7 @@ export function KitchenLogPage() {
     return (
       <PageFrame>
         <div className="kl-page kl-unauth kl-block">
-          <p className="kl-unauth-msg">You need to sign in to use Kitchen Log.</p>
+          <p className="kl-unauth-msg">You need to sign in to use the Café Log.</p>
           <Link to="/login" className="btn btn-primary btn-touch kl-touch">Sign in</Link>
         </div>
       </PageFrame>
@@ -337,7 +337,7 @@ export function KitchenLogPage() {
           <OfflineBanner show={!isOnline} />
           <PageHead
             variant="content"
-            title="Kitchen · Log"
+            title="Café · Log"
             meta={<span className="kl-date tabular">{logDate}</span>}
           />
           <EmptyState
@@ -451,7 +451,7 @@ export function KitchenLogPage() {
 
         <PageHead
           variant="content"
-          title="Kitchen · Log"
+          title="Café · Log"
           meta={<span className="kl-date tabular">{logDate}</span>}
         />
 
@@ -488,7 +488,7 @@ export function KitchenLogPage() {
           id="kitchen-log-form"
           onSubmit={handleSubmit}
           noValidate
-          aria-label="Kitchen log capture"
+          aria-label="Café log capture"
           className="kl-form"
         >
           {/* Reflow (P-4): ONE branch in the DOM — the shared DataTable

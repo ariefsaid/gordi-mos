@@ -158,7 +158,7 @@ const pushColumns: DataTableColumn<EsbPushRow>[] = [
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function KitchenPushesPage() {
-  useDocumentTitle('Kitchen Pushes — Gordi MOS')
+  useDocumentTitle('Café Pushes — Gordi MOS')
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
@@ -211,7 +211,7 @@ export function KitchenPushesPage() {
   if (!allowed) {
     return (
       <PageFrame>
-        <PageHead variant="content" title="Kitchen · Pushes" count={null} />
+        <PageHead variant="content" title="Café · Pushes" count={null} />
         <div className="kpu-block kpu-forbidden" role="region" aria-label="Access restricted">
           <p className="kpu-forbidden-title">Pushes is available to ops leads only.</p>
           <p className="kpu-forbidden-msg">
@@ -227,7 +227,7 @@ export function KitchenPushesPage() {
     <PageFrame variant="data">
       <PageHead
         variant="content"
-        title="Kitchen · Pushes"
+        title="Café · Pushes"
         count={load.kind === 'ready' ? rows.length : null}
       />
 

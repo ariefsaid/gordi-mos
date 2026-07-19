@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useAuth } from '@/auth/use-auth'
+import { useMenuPopover } from '@/lib/use-menu-popover'
 import { AppearanceControl } from './appearance-control'
 
 interface UserChipProps {
@@ -38,18 +39,9 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
     chipRef.current?.focus()
   }, [])
 
-  // Close on Escape via keydown on the menu container
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        close()
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, close])
+  // ONE popover contract (convention audit 2026-07-18): outside-click close +
+  // Esc + WAI-ARIA menu keys (focus enters menu, arrows/Home/End cycle).
+  useMenuPopover(open, close, menuRef, chipRef)
 
   if (!viewer) return null
 

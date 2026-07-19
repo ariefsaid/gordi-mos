@@ -724,7 +724,7 @@ describe('I3: shared PageHead variant="content"', () => {
     expect(head).toHaveClass('content-header')
     // ONE accessible heading carrying the page title (RI-IA-1)
     const h1 = within(head).getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent('Kitchen · Log')
+    expect(h1).toHaveTextContent('Café · Log')
     // the log date rides in the meta slot (today, WIB) — a YYYY-MM-DD string
     expect(within(head).getByText(/^\d{4}-\d{2}-\d{2}$/)).toBeInTheDocument()
     // the bespoke hand-rolled header is gone

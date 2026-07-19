@@ -40,10 +40,10 @@ describe('AC-1001 (events-stub): EventsPage renders the Events destination', () 
 })
 
 describe('AC-1003 (events-stub): sanctioned quiet EmptyState, no fake action', () => {
-  it('renders the house EmptyState system at the "quiet" archetype', () => {
+  it('renders the house EmptyState system at the "awaiting" archetype (convention audit 2026-07-18: a success ✓ over missing data inverts system status — Nielsen #1)', () => {
     renderEvents()
     const empty = screen.getByTestId('empty-state')
-    expect(empty).toHaveAttribute('data-empty-variant', 'quiet')
+    expect(empty).toHaveAttribute('data-empty-variant', 'awaiting')
     expect(empty).toHaveAttribute('role', 'region')
   })
 

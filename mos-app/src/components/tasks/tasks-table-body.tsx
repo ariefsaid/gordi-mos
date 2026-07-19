@@ -209,25 +209,33 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                 label={t('tasks.selectAll')}
               />
             </th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('task')} onClick={() => onSort('task')}>
-              {t('tasks.label.task')}{sortIndicator('task')}
+            <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn" onClick={() => onSort('task')}>
+                {t('tasks.label.task')}{sortIndicator('task')}
+              </button>
             </th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('status')} onClick={() => onSort('status')}>
-              {t('tasks.filter.status')}{sortIndicator('status')}
+            <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn" onClick={() => onSort('status')}>
+                {t('tasks.filter.status')}{sortIndicator('status')}
+              </button>
             </th>
-            <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('owner')} onClick={() => onSort('owner')}>
-              {t('tasks.pic')}{sortIndicator('owner')}
+            <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`} aria-sort={ariaSort('owner')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn" onClick={() => onSort('owner')}>
+                {t('tasks.pic')}{sortIndicator('owner')}
+              </button>
             </th>
             <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
             {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
                 inside the first paint. Project/Process, Objective, Team, Source, Activity
                 moved to the drawer (OD-62). */}
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('due')} onClick={() => onSort('due')}>
-              {t('tasks.dueLabel')}{sortIndicator('due')}
+            <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn" onClick={() => onSort('due')}>
+                {t('tasks.dueLabel')}{sortIndicator('due')}
+              </button>
             </th>
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
             <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />

@@ -937,6 +937,18 @@ describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted �
     expect(th.className).toContain('th-cell')
   })
 
+  it('WCAG 2.1.1 (convention audit 2026-07-18): sort headers are real buttons, keyboard-operable', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Sortable task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Sortable task'))
+    const sortBtn = screen.getByRole('button', { name: /^Task/ })
+    expect(sortBtn.tagName).toBe('BUTTON')
+    const th = sortBtn.closest('th')!
+    const before = th.getAttribute('aria-sort')
+    fireEvent.click(sortBtn) // keyboard Enter/Space fire click on a real <button>
+    await waitFor(() => expect(th.getAttribute('aria-sort')).not.toBe(before))
+  })
+
   it('AC-T01: .th-cell rule is e7 table-header grammar — weight 600, h38, UPPERCASE, 0.06em, muted color', () => {
     const body = cssRuleBody('.th-cell')
     // Parity sweep A3 (2026-07-18): e7 owns the table grammar for the redesign skin (SALVAGE);

@@ -2,7 +2,8 @@
 // Stub popover: the only action this PR is "Open" → /tasks/:id (archive lives in
 // the surface). The reveal is owned by `.row-menu` CSS in TasksWorkspace.css.
 import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -45,5 +46,33 @@ describe('RowMenu — AC-T02 reveal + actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /row actions/i }))
     const openItem = screen.getByRole('menuitem', { name: /open/i })
     expect(openItem.getAttribute('href')).toBe('/work/tasks/task-7?view=overdue')
+  })
+})
+
+// Convention audit 2026-07-18: RowMenu joins the shared popover contract.
+function renderRowMenu() {
+  return render(
+    <MemoryRouter>
+      <RowMenu taskId="t-1" recordSearch="?view=overdue" />
+    </MemoryRouter>,
+  )
+}
+
+describe('RowMenu — dismissal (useMenuPopover)', () => {
+  it('Escape closes the menu', async () => {
+    const user = userEvent.setup()
+    renderRowMenu()
+    await user.click(screen.getByRole('button', { name: /row actions/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('outside mousedown closes the menu', async () => {
+    const user = userEvent.setup()
+    renderRowMenu()
+    await user.click(screen.getByRole('button', { name: /row actions/i }))
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
   })
 })

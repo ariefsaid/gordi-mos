@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 vi.mock('../auth/use-auth')
@@ -121,6 +121,40 @@ describe('AC-005: UserChip and sign-out menu', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(chip).toHaveFocus()
+  })
+
+  // Convention audit 2026-07-18 — the ONE popover contract (useMenuPopover):
+  it('closes on outside mousedown (was: stuck-open overlay)', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('WAI-ARIA menu keys: focus enters the menu on open; ArrowDown moves between items', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    const items = screen.getAllByRole('menuitem')
+    // Focus ENTERS the menu on open (the WAI-ARIA menu-button pattern — was: stayed on trigger).
+    await waitFor(() => expect(items).toContain(document.activeElement))
+    // ArrowDown keeps focus cycling WITHIN menuitems (single-item menu wraps to itself).
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(items).toContain(document.activeElement)
+    fireEvent.keyDown(document, { key: 'End' })
+    expect(document.activeElement).toBe(items[items.length - 1])
   })
 
   it('clicking Sign out calls signOut once', async () => {
