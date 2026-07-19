@@ -53,7 +53,7 @@ export function Breadcrumb() {
     const childLabel = child ? (child.labelKey ? t(child.labelKey) : child.label) : 'Tasks'
     crumbs.push(childLabel)
     if (pathname === '/work/tasks/new') {
-      crumbs.push('New task')
+      crumbs.push('Create task') // OD-71i verb family
     } else if (dynamicTitle) {
       crumbs.push(dynamicTitle)
     } else {

@@ -235,7 +235,7 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     mockListTasks.mockResolvedValue([])
     renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /\+ new task/i })).toBeTruthy()
+      expect(screen.getByRole('link', { name: /\+ create task/i })).toBeTruthy()
     })
   })
 
@@ -601,8 +601,8 @@ describe('a11y — aria roles and labels', () => {
   it('+ New task link is present with correct href', async () => {
     mockListTasks.mockResolvedValue([])
     renderPage()
-    await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
-    const link = screen.getByRole('link', { name: /\+ new task/i })
+    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
+    const link = screen.getByRole('link', { name: /\+ create task/i })
     expect(link.getAttribute('href')).toContain('/work/tasks/new')
   })
 })
@@ -904,7 +904,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   it('the due-runs trigger is absent for a viewer without process.start', async () => {
     mockListTasks.mockResolvedValue([])
     renderPage() // default authedState: accessRoles: []
-    await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
+    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Start ·/ })).not.toBeInTheDocument()
     expect(mockListDueRuns).not.toHaveBeenCalled()

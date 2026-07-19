@@ -2,7 +2,7 @@
  * MobileGroupedCards — unit tests (Fix 2, PR-3 review fix-up).
  * Verifies the extracted mobile group-header+card list component shares the same
  * semantics as desktop GroupHeaderRow: caret/aria-expanded, label/count,
- * overdue-gating, and the "+ Add task" wiring.
+ * overdue-gating, and the "+ Create task" wiring.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -122,13 +122,13 @@ describe('MobileGroupedCards', () => {
     expect(setOverdueOnly).toHaveBeenCalledWith(true)
   })
 
-  it('+ Add task button fires openAddTask with the group prefillParam', () => {
+  it('+ Create task button fires openAddTask with the group prefillParam', () => {
     const openAddTask = vi.fn()
     const groups = [
       { key: 'p1', label: 'Arief Said', rows: [], overdue: 0, prefillParam: 'r=person-1' },
     ]
     renderCards({ groups, openAddTask })
-    const addBtn = screen.getByRole('button', { name: /add task to arief said/i })
+    const addBtn = screen.getByRole('button', { name: /create task in arief said/i })
     fireEvent.click(addBtn)
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
   })

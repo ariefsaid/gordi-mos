@@ -594,7 +594,7 @@ describe('TaskSurface — create mode', () => {
     expect(err).toHaveClass('tc-field-error')
   })
 
-  it('AC-107 (create drawer): at drawer width renders a "New task" bar with no double card frame', async () => {
+  it('AC-107 (create drawer): at drawer width renders a "Create task" bar with no double card frame', async () => {
     render(
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks/new']}>
@@ -603,7 +603,7 @@ describe('TaskSurface — create mode', () => {
       </AuthContext.Provider>,
     )
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
-    expect(screen.getByText('New task')).toBeInTheDocument()
+    expect(screen.getAllByText('Create task').length).toBeGreaterThan(0)
     expect(document.querySelector('.tc-create-drawer')).toBeTruthy()
     expect(document.querySelector('.tc-card')).toBeNull()
     // create still works at drawer width
@@ -646,7 +646,7 @@ describe('TaskSurface — create mode', () => {
     )
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
     expect(screen.getByRole('button', { name: /collapse to split/i })).toBeInTheDocument()
-    expect(screen.getByText(/new task · full width/i)).toBeInTheDocument()
+    expect(screen.getByText(/create task · full width/i)).toBeInTheDocument()
     expect(document.querySelector('.dw-surface-expanded')).toBeTruthy()
   })
 
@@ -667,7 +667,7 @@ describe('TaskSurface — create mode', () => {
     await waitFor(() => expect(onTaskCreated).toHaveBeenCalledWith('new-task-id'))
   })
 
-  it('AC-081 (TaskSurface create): valid submit calls createTask and navigates to the new task', async () => {
+  it('AC-081 (TaskSurface create): valid submit calls createTask and navigates to the create task', async () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'New Task Alpha' } })

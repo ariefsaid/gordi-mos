@@ -6,7 +6,7 @@
  * 2. Breadcrumb render: on /tasks/:id with a title set, shows "Tasks › <name>".
  * 3. Breadcrumb render: on /tasks/:id with NO title (loading), shows "Tasks" only.
  * 4. Breadcrumb render: navigating away from /tasks/:id reverts the crumb to "Tasks".
- * 5. Existing /tasks/new still shows "Tasks › New task" (no regression).
+ * 5. Existing /tasks/new still shows "Tasks › Create task" (no regression).
  */
 import { describe, it, expect } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
@@ -158,10 +158,10 @@ describe('AC-S04b regression: existing static breadcrumb cases intact', () => {
     expect(separators).toHaveLength(1)
   })
 
-  it('renders "Work · Tasks · New task" on /work/tasks/new regardless of context', () => {
+  it('renders "Work · Tasks · Create task" on /work/tasks/new regardless of context', () => {
     const { container } = renderBreadcrumbAt('/work/tasks/new')
     expect(screen.getByText('Work')).toBeInTheDocument()
-    expect(screen.getByText('New task')).toBeInTheDocument()
+    expect(screen.getByText('Create task')).toBeInTheDocument()
     const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
       .filter((el) => el.textContent === '·')
     expect(separators).toHaveLength(2)

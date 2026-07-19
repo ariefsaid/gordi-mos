@@ -312,15 +312,15 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     renderAt('/work/tasks/new')
-    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
     expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
   })
 
   it('with the create drawer open, the header "+ New task" is not a second active primary', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     renderAt('/work/tasks/new')
-    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
-    expect(screen.queryByRole('link', { name: /\+ new task/i })).toBeNull()
+    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
+    expect(screen.queryByRole('link', { name: /\+ create task/i })).toBeNull()
   })
 
   // RI-1 (C1): the expand toggle must collapse the table live — the .split grid
@@ -365,7 +365,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-new', title: 'Freshly created' }), checklist: [], events: [] })
     mockCreateTask.mockResolvedValue('task-new')
     renderAt('/work/tasks/new')
-    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
     // Initially the table is empty. UI-fidelity rework: the count lives in the
     // content-header count pill (.ch-count) — read it there (was "N tasks" text).
     await waitFor(() => {
@@ -382,7 +382,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })
     expect(screen.getByText('Freshly created')).toBeInTheDocument()
     expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('1')
-    // and the new task's row is the selected one (we navigated to /tasks/task-new)
+    // and the create task's row is the selected one (we navigated to /tasks/task-new)
     await waitFor(() => {
       const sel = document.querySelector('tr.task-row.row-selected')
       expect(sel?.textContent).toContain('Freshly created')
@@ -417,7 +417,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks')
     await waitFor(() => screen.getByText('First row'))
     fireEvent.keyDown(window, { key: 'n' })
-    await waitFor(() => screen.getByRole('complementary', { name: /new task/i }))
+    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
   })
 
   it('AC-109: Esc closes the open drawer (back to /tasks, table full width)', async () => {
@@ -437,7 +437,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     search.focus()
     fireEvent.keyDown(window, { key: 'n' })
     // still on /tasks (no create drawer)
-    expect(screen.queryByRole('complementary', { name: /new task/i })).toBeNull()
+    expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
   })
 
   // AC-114: the table virtualizes at 50+ rows yet j/k cursor + aria-sort survive.

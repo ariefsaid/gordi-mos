@@ -1813,3 +1813,13 @@ stub to a real page following the e7 profile card grammar: Identity (read-only P
 by Admin) + Language (the ADR-0021 locale seam as a Select). The rail-footer LocaleToggle is
 removed — the rail is navigation, not settings. Future profile cards (Home region order per
 OD-18/26, notifications) land with their own slices.
+
+### OD-REDESIGN-71 — Four ratifications in one word (owner "agree all", 2026-07-19)
+
+(i) **Action-verb family = "Create"** app-wide ("Create task", "Create objective" — matches ⌘K, e7,
+convergence, the verb+object rule; closes ratify-19/TIF-2). (ii) **Tertiary text token darkens one
+step** to clear WCAG AA for its text roles (KPI captions, ⌘K placeholder); hairline/décor usage
+unaffected. (iii) **Café opening: members can start** — `process.start` extends to `member`
+(resolves RATIFY-7A toward the OD-66 zero-training front; deliberate owner-ratified access
+expansion). (iv) **`SHOW_WEEKLY_UPDATES` flips off globally** — no redesign surface consumes the
+write flow (resolves ratify-18).

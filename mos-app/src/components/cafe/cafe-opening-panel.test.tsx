@@ -93,15 +93,15 @@ describe('AC-712 — capable viewer, opening not started', () => {
 })
 
 // ── AC-713: viewer without process.start, not started → read-only ───────────
-describe('AC-713 — non-capable viewer (member), opening not started', () => {
-  it('renders no actionable Start control; shows the read-only shift-lead-starts-it copy', async () => {
-    setAuthAs(['member'])
+describe('AC-713 — non-capable viewer (finance — member now capable, OD-71iii), opening not started', () => {
+  it('renders no actionable Start control; shows the neutral read-only not-started copy (OD-71iii)', async () => {
+    setAuthAs(['finance'])
     mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
 
     renderPanel()
 
     await waitFor(() => {
-      expect(screen.getByText(/your shift lead starts today's opening/i)).toBeInTheDocument()
+      expect(screen.getByText(/no one has started today.s opening/i)).toBeInTheDocument()
     })
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
     // Never a disabled/dead Start button either (Rule 12).
@@ -112,8 +112,8 @@ describe('AC-713 — non-capable viewer (member), opening not started', () => {
   // state that's actually waiting on someone else's action. "awaiting" is the existing state-kit
   // variant built for exactly this ("nothing yet, pull again" — kitchen-review-page.tsx) —
   // smallest change: swap the variant, no new state-kit option needed.
-  it('item 7a: uses the "awaiting" EmptyState variant (never the ✓ "done"-reading glyph) for the not-started member state', async () => {
-    setAuthAs(['member'])
+  it('item 7a: uses the "awaiting" EmptyState variant (never the ✓ "done"-reading glyph) for the not-started non-capable (finance) state', async () => {
+    setAuthAs(['finance'])
     mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
 
     renderPanel()
@@ -153,8 +153,8 @@ describe('AC-714 — opening started: caption, roll-up, and the /work/tasks link
   // assign" with nothing below it to click (the resolve editor only mounts for a capable
   // viewer) — that read like an instruction with no way to act. Neutral "N unassigned" wording
   // never implies an action the viewer can't take.
-  it('item 6: a non-capable member sees "N unassigned" (never "N to assign") since they have no way to resolve it', async () => {
-    setAuthAs(['member'])
+  it('item 6: a non-capable viewer (finance) sees "N unassigned" (never "N to assign") since they have no way to resolve it', async () => {
+    setAuthAs(['finance'])
     mockGetTodayOpeningForTeam.mockResolvedValue({
       started: true, runId: RUN_ID,
       rollup: {
@@ -209,7 +209,7 @@ describe('AC-715 — pending "to assign" resolution', () => {
   })
 
   it('a viewer without process.start sees no resolve control', async () => {
-    setAuthAs(['member'])
+    setAuthAs(['finance'])
     mockGetTodayOpeningForTeam.mockResolvedValue({
       started: true, runId: RUN_ID,
       rollup: {

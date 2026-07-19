@@ -56,8 +56,8 @@ beforeEach(() => {
 })
 
 describe('useDueRuns (design fix wave item 1)', () => {
-  it('is not capable and never fetches when the viewer lacks process.start', async () => {
-    setAuthAs(['member'])
+  it('is not capable and never fetches when the viewer lacks process.start (finance — member now holds it, OD-71iii)', async () => {
+    setAuthAs(['finance'])
     const { result } = renderHook(() => useDueRuns())
     expect(result.current.capable).toBe(false)
     expect(result.current.due).toEqual([])

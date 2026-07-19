@@ -103,10 +103,10 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       )
     })
 
-    it('--ds-font-color-tertiary', () => {
+    it('--ds-font-color-tertiary (OD-71ii: darkened one step — the E7 source value measured ~3.4:1, below AA for its text roles: KPI captions, palette placeholder)', () => {
       assertColorClose(
         getToken('--ds-font-color-tertiary'),
-        'color(display-p3 0.541 0.533 0.518)',
+        'color(display-p3 0.44 0.432 0.418)',
         '--ds-font-color-tertiary'
       )
     })

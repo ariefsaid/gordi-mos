@@ -225,3 +225,16 @@ exactly when the viewer has no rail entry for that module.
   Director commits after it (rail/OD-68/parity/profile/convention/second-pass batches) are
   gate-clean, audit-remediated, and live-verified — but have had **no independent battery**; they are
   part of what the owner's merge review covers.
+
+## OD-71 (four owner ratifications, 2026-07-19) — verification
+
+- (i) verbs→"Create" app-wide: unit 2776 green (all task-creation strings + breadcrumb + assertions).
+- (ii) tertiary token darkened: **measured 4.96:1 on the rendered page** (was ~3.4, below AA); token test updated to the new value.
+- (iii) café member-start: migration `20260719000001_od71_member_process_start.sql` (reversible) +
+  client map + neutralized read-only copy. **pgTAP 727 green** incl. the rewritten `99_*` (member
+  CAN start) and `95_*` (finance = non-capable actor). **Security property:** the server double gate
+  (`can('process.start')` AND `can_start_process_for_team`) is UNCHANGED — a member can start only
+  their own Team's process; the grant only flips the capability half. Proven by pgTAP, NOT by a fresh
+  `security-auditor` pass — **flagged for the owner's security confirm** on the grant (it is a
+  role_capabilities change; low surface, but on the auth path).
+- (iv) `SHOW_WEEKLY_UPDATES=false`: flag flipped; no surface consumed it.

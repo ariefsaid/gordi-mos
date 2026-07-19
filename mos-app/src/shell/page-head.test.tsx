@@ -52,11 +52,11 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
 
   it('renders the right-aligned inline action node (.ch-action wrapper)', () => {
     const { container } = render(
-      <PageHead variant="content" title="Tasks" count={5} action={<a href="/x">+ New task</a>} />,
+      <PageHead variant="content" title="Tasks" count={5} action={<a href="/x">+ Create task</a>} />,
     )
     const action = container.querySelector('.ch-action')
     expect(action).toBeTruthy()
-    expect(screen.getByRole('link', { name: /\+ new task/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
   })
 
   it('renders the content-header chrome row (.content-header)', () => {

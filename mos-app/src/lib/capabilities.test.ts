@@ -55,13 +55,13 @@ describe('can — Signal capabilities (Step 4)', () => {
   })
 })
 
-// Step 6 (ADR-0051 §3 / spec §6): process.start is default-deny beyond ops_lead + admin — no
-// member grant in v1 (RATIFY-5).
-describe('can — process.start (Step 6)', () => {
-  it('grants ops_lead and admin process.start; denies finance and member', () => {
+// OD-REDESIGN-71iii (2026-07-19, reverses RATIFY-5): process.start now includes member (barista
+// starts their own café opening — server double-gates on Team membership). Finance still denied.
+describe('can — process.start (Step 6 + OD-71iii)', () => {
+  it('grants ops_lead, admin, AND member process.start; denies finance', () => {
     expect(can(['ops_lead'], 'process.start')).toBe(true)
     expect(can(['admin'], 'process.start')).toBe(true)
+    expect(can(['member'], 'process.start')).toBe(true)
     expect(can(['finance'], 'process.start')).toBe(false)
-    expect(can(['member'], 'process.start')).toBe(false)
   })
 })

@@ -50,8 +50,10 @@ set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f004","access_roles":["admin"]}';
 select mos.complete_process_run((select id from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and owning_team_id='00000000-0000-0000-0000-000000005b01'));
 
--- A member (…f001, own_team member but no process.start) cannot complete.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+-- A caller LACKING process.start (finance; f001 kept — a real own_team member — so the denial is
+-- the missing capability, not Team-auth. OD-71iii gave member process.start; finance is the
+-- remaining non-capable role).
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["finance"]}';
 select throws_ok($$
   select mos.complete_process_run((select id from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and owning_team_id='00000000-0000-0000-0000-000000005b01'))
 $$, '42501', null, 'AC-610: a caller without process.start cannot complete a run');
@@ -64,9 +66,9 @@ select ok((select completed_at is not null from mos.process_runs where work_line
 select ok((select count(*) > 0 from mos.tasks where process_run_id=(select id from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and owning_team_id='00000000-0000-0000-0000-000000005b01')),
           'AC-610: a completed run retains its Tasks');
 
--- ── AC-611: runs/pending are RPC-only; spawn needs process.start ──
+-- ── AC-611: runs/pending are RPC-only; spawn needs process.start (finance = non-capable, OD-71iii) ──
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["finance"]}';
 select throws_ok($$
   insert into mos.process_runs (org_id, work_line_id, owning_team_id, period_key, caption, scheduled_date, definition_version, spec_snapshot)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-000000005b01','2099-01-01','x','2099-01-01',1,'{}'::jsonb)

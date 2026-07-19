@@ -115,9 +115,9 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     await waitFor(() => expect(aside).toHaveTextContent('Fix the coffee machine'))
   })
 
-  it('create mode renders an aside labelled "New task"', async () => {
+  it('create mode renders an aside labelled "Create task"', async () => {
     renderAt('/work/tasks/new', 'create')
-    expect(await screen.findByRole('complementary', { name: /new task/i })).toBeInTheDocument()
+    expect(await screen.findByRole('complementary', { name: /create task/i })).toBeInTheDocument()
   })
 
   it('AC-104/105: when the expand pref is persisted true (@split), the surface renders the full-width two-column record page', async () => {
@@ -256,7 +256,7 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
 
   it('AC-309: create close from /work/tasks/new?view=mine returns to /work/tasks?view=mine', async () => {
     renderAt('/work/tasks/new?view=mine', 'create')
-    await screen.findByRole('complementary', { name: /new task/i })
+    await screen.findByRole('complementary', { name: /create task/i })
     fireEvent.click(screen.getByRole('button', { name: /close \(esc\)/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })

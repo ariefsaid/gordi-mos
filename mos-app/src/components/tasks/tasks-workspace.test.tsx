@@ -222,8 +222,8 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 // Restores the signed mockup's toolbar/header idiom (mock-shell-and-table.html):
 // view-tabs (Table active; Board/Calendar disabled "soon"), the My work/Team work
 // segmented pill, chip-style filter controls, the content-header (count + inline
-// New task), and a FLAT default list. Behavioral goal-oracles (filtering, segment
-// scope, overdue filter, New task) are unchanged — these assert the new chrome.
+// Create task), and a FLAT default list. Behavioral goal-oracles (filtering, segment
+// scope, overdue filter, Create task) are unchanged — these assert the new chrome.
 describe('UI-fidelity chrome — view tabs (mockup `.vtab`)', () => {
   it('renders Table / Board / Calendar view-tabs with Table active', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
@@ -455,16 +455,16 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 
-  it('AC-133: empty (no tasks, no active filter) shows segment-aware empty copy + New task CTA', async () => {
+  it('AC-133: empty (no tasks, no active filter) shows segment-aware empty copy + Create task CTA', async () => {
     mockListTasks.mockResolvedValue([])
     renderTable()
     await waitFor(() => {
       expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument()
     })
-    expect(screen.getByRole('link', { name: /\+ new task/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
   })
 
-  it('AC-133: no-results-after-filter shows distinct message + Clear filters + New task (not the empty-no-tasks copy)', async () => {
+  it('AC-133: no-results-after-filter shows distinct message + Clear filters + Create task (not the empty-no-tasks copy)', async () => {
     // Use search to create a no-results-after-filter state
     mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
     renderTable()
@@ -477,8 +477,8 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     })
     // Clear filters button present
     expect(screen.getByRole('button', { name: /clear filters/i })).toBeInTheDocument()
-    // + New task CTA present
-    expect(screen.getByRole('link', { name: /\+ new task/i })).toBeInTheDocument()
+    // + Create task CTA present
+    expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
     // Not showing the empty-no-tasks copy
     expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
   })
@@ -764,8 +764,8 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
   })
 })
 
-describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
-  it('AC-125: in an Owner-grouped view, a group "+ Add task" navigates to /tasks/new?r=<personId>', async () => {
+describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
+  it('AC-125: in an Owner-grouped view, a group "+ Create task" navigates to /tasks/new?r=<personId>', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
     // Capture navigation by rendering a route that echoes the URL
     const { container } = renderTable()
@@ -784,7 +784,7 @@ describe('Task 19 — "+ Add task" pre-fill (AC-125)', () => {
     expect(addBtn.getAttribute('data-prefill')).toBe(`r=${VIEWER_ID}`)
   })
 
-  it('AC-125 / FR-123 (refined): Status-group "+ Add task" has NO ?status= pre-fill (plain create link)', async () => {
+  it('AC-125 / FR-123 (refined): Status-group "+ Create task" has NO ?status= pre-fill (plain create link)', async () => {
     // CreateSurface has no status field — tasks always open as "Open". A ?status= param
     // would be silently dropped, so the Status group must emit an empty prefill (plain /tasks/new).
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task', status: 'Open' })])

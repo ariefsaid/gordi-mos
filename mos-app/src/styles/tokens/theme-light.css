@@ -160,7 +160,7 @@
     0px 24px 56px -16px color(display-p3 0 0 0 / 0.078);
   --ds-font-color-primary: color(display-p3 0.145 0.141 0.133);
   --ds-font-color-secondary: color(display-p3 0.388 0.380 0.365);
-  --ds-font-color-tertiary: color(display-p3 0.541 0.533 0.518);
+  --ds-font-color-tertiary: color(display-p3 0.44 0.432 0.418) /* OD-71ii: darkened one step — was 0.541… at ~3.4:1, below AA for its text roles */;
   --ds-font-color-light: color(display-p3 0.686 0.678 0.667);
   --ds-font-color-extra-light: color(display-p3 0.8 0.8 0.8);
   --ds-font-color-inverted: color(display-p3 1 1 1);
