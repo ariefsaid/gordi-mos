@@ -381,9 +381,9 @@
 .sk-block { margin-bottom: 16px; }
 .sk {
   background: var(--secondary); border-radius: 6px; display: block;
+  /* Cohesion-debt 2026-07-19, item #3: shared `sk-pulse` keyframe (index.css). */
   animation: sk-pulse 1.4s ease-in-out infinite;
 }
-@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 /* ── Utility ── */
 .sr-only {

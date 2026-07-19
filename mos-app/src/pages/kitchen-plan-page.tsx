@@ -30,7 +30,7 @@ import type {
 } from '@/lib/db/kitchen-logs.types'
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
@@ -64,7 +64,7 @@ export function KitchenPlanPage() {
   const canEdit = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingState /></PageFrame>
+    return <PageFrame><LoadingShell count={3} /></PageFrame>
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
@@ -274,7 +274,7 @@ function PlanEditor() {
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
       )}
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -382,7 +382,7 @@ function PesananView() {
         meta={<span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>}
       />
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -408,13 +408,5 @@ function PesananView() {
         />
       )}
     </PageFrame>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kp-block">
-      <SkeletonRows count={3} />
-    </div>
   )
 }

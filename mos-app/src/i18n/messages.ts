@@ -13,6 +13,9 @@ export const messages = {
     'dest.operate': 'Operate',
     'dest.plan': 'Plan',
     'dest.inbox': 'Inbox',
+    // Cohesion-debt 2026-07-19, item #3: the one shared loading label — every
+    // LoadingShell announces this (no more hardcoded "Loading" / "Loading…").
+    'common.loading': 'Loading',
     // Nav sub-item labels — every nav string flows through the catalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id shape-identical (AC-409).
     'nav.tasks': 'Tasks',
@@ -548,6 +551,7 @@ export const messages = {
     'dest.operate': 'Operasi',
     'dest.plan': 'Rencana',
     'dest.inbox': 'Kotak Masuk',
+    'common.loading': 'Memuat',
     // Label sub-nav — setiap string nav mengalir melalui katalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id bentuk-identik (AC-409).
     'nav.tasks': 'Tugas',

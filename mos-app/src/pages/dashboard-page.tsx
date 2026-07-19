@@ -184,8 +184,12 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           bounds={bounds} snapshotAsOf={snapshotAsOf}
           tab={tab} onTab={setTab}
         />
+        {/* The `.dash-loading` wrapper is THE single page-level loading status; the
+            placeholder tile grid + SkeletonRows are decorative skeletons, so they are
+            aria-hidden — otherwise each tile's own LoadingShell status (cohesion item
+            #3) would nest inside this one. */}
         <div role="status" aria-label="Loading" aria-busy="true" className="dash-loading">
-          <div className="dash-kpi-grid">
+          <div className="dash-kpi-grid" aria-hidden="true">
             {Array.from({ length: 5 }, (_, i) => (
               <KPITile key={`r${i}`} label="Loading" value="" state="loading" />
             ))}

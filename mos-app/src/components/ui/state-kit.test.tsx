@@ -1,6 +1,30 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { EmptyState } from './state-kit'
+import { EmptyState, LoadingShell } from './state-kit'
+
+// Cohesion-debt 2026-07-19, item #3: LoadingShell is THE loading grammar —
+// role=status + aria-busy + the shared SkeletonRows, one localized label. It
+// replaces the 5 copy-pasted kitchen LoadingState fns, kpi-tile's role=group
+// Pill-skeleton, my-week's "Loading…" text, and the role-less admin loader.
+describe('LoadingShell', () => {
+  it('is a busy status region wrapping skeleton rows', () => {
+    const { container } = render(<LoadingShell count={4} />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
+    expect(status).toHaveAttribute('aria-label', 'Loading') // t('common.loading') en default
+    expect(container.querySelectorAll('.skeleton-row')).toHaveLength(4)
+  })
+
+  it('never renders the literal word "Loading…" as visible text', () => {
+    render(<LoadingShell count={2} />)
+    expect(screen.queryByText('Loading…')).toBeNull()
+  })
+
+  it('accepts a label override for the status announcement', () => {
+    render(<LoadingShell count={1} label="Trailing 7-day revenue" />)
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Trailing 7-day revenue')
+  })
+})
 
 describe('EmptyState', () => {
   it('renders the quiet archetype with no action row', () => {

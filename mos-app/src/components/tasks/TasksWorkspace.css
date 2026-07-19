@@ -364,7 +364,7 @@ tr:focus-within .row-menu { visibility: visible; }
 .sk { background: var(--secondary); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: 999px; display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: 999px; display: block; }
-@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+/* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
 .skeleton-cards { padding: 8px 12px; }
 .sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 50px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); }
 

@@ -6,6 +6,7 @@
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
 import { useId, type ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
 import { Button } from './button'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
@@ -135,6 +136,36 @@ export function SkeletonRows({ count = 3, className, row }: SkeletonRowsProps) {
           </div>
         ),
       )}
+    </div>
+  )
+}
+
+export interface LoadingShellProps {
+  /** Number of skeleton rows to render. */
+  count?: number
+  /** Override the status announcement (defaults to the shared `common.loading`). */
+  label?: string
+  className?: string
+  /** Custom row renderer, forwarded to SkeletonRows for pane-specific shapes. */
+  row?: (i: number) => ReactNode
+}
+
+/**
+ * LoadingShell — THE one loading grammar (cohesion-debt 2026-07-19, item #3).
+ * A single busy status region (`role=status` + `aria-busy` + one localized
+ * label) wrapping the shared SkeletonRows. Replaces every bespoke loader idiom
+ * and banishes the literal "Loading…" text.
+ */
+export function LoadingShell({ count = 3, label, className, row }: LoadingShellProps) {
+  const t = useT()
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label ?? t('common.loading')}
+      className={`loading-shell${className ? ` ${className}` : ''}`}
+    >
+      <SkeletonRows count={count} row={row} />
     </div>
   )
 }

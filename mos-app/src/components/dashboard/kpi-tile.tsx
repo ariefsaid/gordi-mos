@@ -9,6 +9,7 @@
 // Back-compat: Home v1 + revenue tiles omit all four and render unchanged.
 import type { ReactNode } from 'react'
 import { Pill, type PillTone } from '@/components/ui/pill'
+import { LoadingShell } from '@/components/ui/state-kit'
 import { BasisChip } from './basis-chip'
 import { DQBadge, type DqState } from './dq-badge'
 import './kpi-tile.css'
@@ -57,12 +58,13 @@ export function KPITile({
   dq,
 }: KPITileProps) {
   if (state === 'loading') {
+    // Cohesion-debt 2026-07-19, item #3: one loading grammar — the shared
+    // LoadingShell (role=status + SkeletonRows), not a role=group Pill-skeleton.
+    // The KPI label stays visible AND names the busy status.
     return (
-      <div className="kpi-tile" role="group" aria-label={label} aria-busy="true">
+      <div className="kpi-tile">
         <span className="kpi-tile-label">{label}</span>
-        <Pill tone="skeleton" dot={false} className="kpi-tile-skeleton-value" style={{ width: '72px', height: '23px' }}>
-          &nbsp;
-        </Pill>
+        <LoadingShell count={1} label={label} />
       </div>
     )
   }

@@ -75,10 +75,16 @@ describe('KPITile — ready state', () => {
 })
 
 describe('KPITile — loading state', () => {
-  it('renders skeleton blocks, not the real value text', () => {
+  it('renders the shared LoadingShell (status + skeleton), not the real value text', () => {
+    // Cohesion-debt 2026-07-19, item #3: the tile now loads via the one loading
+    // grammar — role=status + shared SkeletonRows — instead of a role=group
+    // Pill-skeleton. Deliberate grammar change.
     const { container } = render(<KPITile label="Trailing 7-day revenue" value="Rp 128,4jt" state="loading" />)
     expect(screen.queryByText('Rp 128,4jt')).toBeNull()
-    expect(container.querySelector('.pill--skeleton')).toBeInTheDocument()
+    expect(container.querySelector('.pill--skeleton')).toBeNull()
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
+    expect(container.querySelector('.skeleton-row')).toBeInTheDocument()
   })
 })
 

@@ -227,3 +227,11 @@
     font-feature-settings: "tnum";
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Skeleton shimmer — ONE shared keyframe (cohesion-debt 2026-07-19, item #3).
+   Formerly defined 3×: `sk-pulse` in TaskSurface.css + TasksWorkspace.css and
+   `skeleton-pulse` in CardHead.css. Defined once here; the per-component
+   `.sk` / `.skeleton-bar` rules reference it (reduced-motion opt-outs stay local).
+   ════════════════════════════════════════════════════════════════════════════ */
+@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
