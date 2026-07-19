@@ -38,7 +38,7 @@ Proof cell is a defect, not a gap.
 | Inbox | ❌ no panel door (bell navigates away) | n/a | — | — | — | — | ✅ | host P3 → AC-RPH-4/6 |
 | Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
-| Admin people menu | — | ❓ | ❌ not on `useMenuPopover` | — | — | — | — | to adopt |
+| Admin people menu | — | ✅ | ✅ (⋯ + mobile sheet) | — | — | — | — | user-table I3 suite |
 | ⌘K / composer | — | ✅ | — | ✅ | — | — | — | command-menu suite |
 | Record details fields | — | — | — | — | ❌ eager-commit, no Esc-discard | ❓ | — | I5 slice |
 | Kitchen/Café qty cells | — | — | — | — | ❌ same | ✅ | — | I5 slice |
@@ -48,7 +48,7 @@ Proof cell is a defect, not a gap.
 1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — building now.
 2. **Host P3** Inbox two-door (I9) · **P4** Deputy chrome (I1 col).
 3. **I5 slice** — the one inline-edit primitive (OD-22), retrofit details-panel + qty cells.
-4. **I3 completion** — admin people menu onto `useMenuPopover`.
+4. ~~**I3 completion** — admin people menu onto `useMenuPopover`.~~ DONE (user-table I3 suite).
 5. **Lens (b) measured step** — reviewer drives I1/I2/I3 on every touched surface pair and asserts
    identical outcomes; recorded per review like the computed-style table.
 
