@@ -44,6 +44,8 @@ export interface Destination {
   /** primary route a bottom-tab / Work-parent taps (defaults to links[0].path) */
   primaryPath?: string
   zone: DestinationZone
+  /** modules only: renders in the rail iff a viewer JOB ROLE name matches (OD-REDESIGN-68) */
+  workMatch?: RegExp
 }
 
 export const DESTINATIONS: Destination[] = [
@@ -104,8 +106,10 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
     bu: 'rail.retailOps',
     items: [
       { id: 'cafe', zone: 'modules', labelKey: 'dest.cafe', Icon: CafeIcon, primaryPath: '/cafe',
+        workMatch: /caf[eé]|kitchen|\bbar\b|barista/i,
         links: [{ path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon }] },
       { id: 'ecommerce', zone: 'modules', labelKey: 'dest.ecommerce', Icon: EcommerceIcon, primaryPath: '/ecommerce',
+        workMatch: /ecommerce|sales|crm/i,
         links: [{ path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon }] },
     ],
   },
@@ -113,10 +117,28 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
     bu: 'rail.b2bOps',
     items: [
       { id: 'roastery', zone: 'modules', labelKey: 'dest.roastery', Icon: RoasteryIcon, primaryPath: '/roastery',
+        workMatch: /roast/i,
         links: [{ path: '/roastery', label: 'Roastery', labelKey: 'nav.roastery', Icon: RoasteryIcon }] },
     ],
   },
 ]
+
+/**
+ * OD-REDESIGN-68 (owner sketch 2026-07-14, confirmed 2026-07-18): the rail shows YOUR work,
+ * not the org chart. The owner's frame sketch has no module blocks — for org-wide roles
+ * (Managing Director, admin, finance) the rail is exactly the sketch: Home · Work(4) · Events ·
+ * Money · Inbox + utility. A module renders only for a viewer whose JOB ROLE belongs to that
+ * BU (the e7 Ayu pattern: a barista sees Café, flat, no BU heading). Everyone still reaches
+ * module routes via ⌘K / Home links / direct URL — this scopes the RAIL, not authorization.
+ * ponytail: name-keyword affiliation (role name → BU), same ceiling as RATIFY-7F name-based
+ * resolution; upgrade to team.business_unit when the viewer payload carries it.
+ */
+export function modulesForRoles(roleNames: string[], accessRoles: string[]): Destination[] {
+  const joined = roleNames.join(' ')
+  return MODULES.flatMap((g) => g.items).filter(
+    (m) => isLive(m, accessRoles) && m.workMatch != null && m.workMatch.test(joined),
+  )
+}
 
 export const UTILITY: Destination[] = [
   {

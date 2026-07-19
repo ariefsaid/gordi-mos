@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { DESTINATIONS, MODULES, UTILITY, isLive, type Destination } from './destinations'
+import { DESTINATIONS, UTILITY, isLive, modulesForRoles, type Destination } from './destinations'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -17,10 +17,12 @@ interface MobileDrawerProps {
 // Profile) so exactly-one aria-current holds on phone for every route (Rule 5/9).
 const PRIMARY_IDS = new Set(['home', 'work', 'cafe', 'inbox'])
 
-function moreDestinations(accessRoles: string[]): Destination[] {
+function moreDestinations(accessRoles: string[], roleNames: string[]): Destination[] {
+  // OD-REDESIGN-68: modules appear only when they're the viewer's work (same rule as the
+  // rail) — the More menu stops carrying the org chart for unaffiliated roles.
   const all = [
     ...DESTINATIONS,
-    ...MODULES.flatMap((g) => g.items),
+    ...modulesForRoles(roleNames, accessRoles),
     ...UTILITY,
   ]
   return all.filter((d) => !PRIMARY_IDS.has(d.id) && isLive(d, accessRoles))
@@ -85,7 +87,8 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   if (!open) return null
 
-  const items = moreDestinations(accessRoles)
+  const roleNames = auth.status === 'authenticated' ? auth.viewer.roles.map((r) => r.name) : []
+  const items = moreDestinations(accessRoles, roleNames)
 
   return (
     <>

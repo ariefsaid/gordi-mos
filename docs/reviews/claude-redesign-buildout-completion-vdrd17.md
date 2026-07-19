@@ -70,7 +70,11 @@ Every conservative default taken while the owner was absent, with its home ledge
 11. **RATIFY-8A ⌘K-only catalog access on phone** — Option A implemented and design-endorsed. (step 8)
 12. **SHOW_FOLLOWUPS stays false** (backup/restore go-live gate); Door-2 minimal link pending its flag-on design review. (step 9)
 13. **Events placeholder copy** (rewritten post-review — final wording yours) + quiet archetype. (step 10)
-14. **Modules stay in the rail** — Director default; override window open until merge. (inherited)
+14. ~~Modules stay in the rail~~ — **RESOLVED by OD-REDESIGN-68 (owner, 2026-07-18): the rail shows
+    your work.** Sketch rail for org-wide roles; role-affiliated modules (flat, no BU headings) for
+    floor/BU roles. Implemented + tested (AC-011/011b/011c, More-menu) same day. Open follow-up:
+    the phone bottom-tab bar still hardcodes Café as a primary tab for everyone — apply OD-68 there
+    or ratify the exception.
 15. **AC-013 footer wording** amendment (security HIGH-1 era). (inherited from base)
 16. **Signal Retract has no UI** (DB gate only) — author/deputy cannot retract from the app; decide
     defer vs follow-up. (step 4; lifted by the intent-fidelity audit)

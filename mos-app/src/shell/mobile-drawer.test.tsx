@@ -57,15 +57,15 @@ beforeEach(() => {
 })
 
 describe('AC-021: More menu lists every authorized non-primary destination (admin)', () => {
-  it('admin sees Events, Ecommerce, Roastery, Admin Settings, Profile', () => {
+  it('an org-wide admin sees Events, Admin Settings, Profile — and NO module links (OD-REDESIGN-68: More is not the org chart)', () => {
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(screen.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/events')
-    expect(screen.getByRole('link', { name: /Ecommerce/ })).toHaveAttribute('href', '/ecommerce')
-    expect(screen.getByRole('link', { name: /Roastery/ })).toHaveAttribute('href', '/roastery')
     expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
     expect(screen.getByRole('link', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
+    expect(screen.queryByRole('link', { name: /Ecommerce/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Roastery/ })).toBeNull()
   })
 
   it('admin also sees Money (finance/admin)', () => {

@@ -10,7 +10,7 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
-function setAuthAs(accessRoles: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], roleName = 'Barista') {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -24,7 +24,7 @@ function setAuthAs(accessRoles: string[] = []) {
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
+      roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: roleName, reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles,
     },
@@ -65,15 +65,15 @@ beforeEach(() => {
   setAuthAs([])
 })
 
-// AC-011: rail structure + order (Rule 1/3).
-describe('AC-011: Rail structure — Workspace · Modules · Utility (admin)', () => {
-  it('AC-011: admin sees Workspace overline + Home · Work (4 children) · Events · Money · Inbox · Retail Ops (Café · Ecommerce) · B2B Ops (Roastery) · Admin Settings · profile footer', () => {
-    setAuthAs(['admin'])
+// AC-011: rail structure + order — OD-REDESIGN-68 (the owner's frame sketch, confirmed
+// 2026-07-18): the rail shows YOUR work, not the org chart. An org-wide role gets exactly the
+// sketch rail (no overlines, no BU module blocks); a BU-affiliated role gets its module, flat.
+describe('AC-011: Rail structure — the owner sketch (OD-REDESIGN-68)', () => {
+  it('AC-011: an org-wide admin sees exactly the sketch rail — Home · Work (4 children) · Events · Money · Inbox · Admin Settings · profile — with NO module blocks and NO group overlines', () => {
+    setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // Workspace overline
-    expect(within(nav).getByText('Workspace')).toBeInTheDocument()
-    // Workspace destinations
+    // Sketch destinations
     expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
     // Work's 4 always-expanded children
@@ -84,14 +84,33 @@ describe('AC-011: Rail structure — Workspace · Modules · Utility (admin)', (
     expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Money' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
-    // Modules
-    expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
-    expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
+    // The sketch has no org-chart furniture: no overlines, no module blocks
+    expect(within(nav).queryByText('Workspace')).toBeNull()
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    expect(within(nav).queryByText('B2B Ops')).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
     // Utility
     expect(within(nav).getByRole('link', { name: /Admin Settings/ })).toBeInTheDocument()
+  })
+
+  it('AC-011b: a café-role viewer gets Café in the rail — flat, no BU heading (e7 Ayu pattern)', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+  })
+
+  it('AC-011c: a roastery-role viewer gets Roastery, not Café', () => {
+    setAuthAs([], 'Roastery Lead')
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
   })
 
   it('AC-004: Work has exactly 4 children, 0 family headings (always expanded)', () => {
@@ -289,7 +308,7 @@ describe('AC-005/HIGH-1: sign-out affordance is mounted in the rail footer and i
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
         },
-        roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
+        roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: ['admin'],
       },

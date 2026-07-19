@@ -1641,7 +1641,8 @@ Processes · Objectives** (supersedes the My work · Team work · Library conven
 saw it rendered); My/Team/Overdue become saved-view chips inside Tasks. (iii) **Events** joins the
 rail as a destination root — this amends OD-REDESIGN-1 / ADR-0025 D1 (rail = Home · Work · Events ·
 Money[gated] · Inbox + BU-grouped Modules). Modules remain in the rail (Director default; owner may
-override before buildout step 2 merges).
+override before buildout step 2 merges). **Superseded on the modules point by OD-REDESIGN-68** —
+the owner's sketch omitted them deliberately; the default is closed.
 
 ### OD-REDESIGN-58 — Process occurrences surface as Tasks; job-function assignment (owner 2026-07-13)
 
@@ -1774,3 +1775,19 @@ the agent's own sandbox against an **ephemeral** Supabase (`supabase start`, as 
 already does) — **never against the staging project, which holds real migrated data**. If the agent
 cannot render, it stops the step at **"built, review-pending"** rather than shipping on code review
 alone.
+
+### OD-REDESIGN-68 — The rail shows YOUR work, not the org chart (owner 2026-07-18)
+
+Closes the flag left open since the 2026-07-14 frame sketch ("your sketch shows no
+Café/Ecommerce/Roastery … keeping them unless you tell me") — the omission WAS the decision. The
+sketch rail is the rail for org-wide roles (Managing Director, admin, finance): Home · Work(4) ·
+Events · Money[gated] · Inbox + Admin Settings + Personal Profile, flat, no group overlines, no
+BU module blocks. A module renders only for a viewer whose job role belongs to that BU (the e7
+Ayu pattern: a barista sees Café, flat; a dual-hatted Cafe-Ops+Sales lead sees Café + Ecommerce).
+Everyone still reaches module routes via ⌘K / Home links / direct URL — this scopes the rail and
+the phone More menu, not authorization. Amends OD-REDESIGN-57(iii) and closes consolidated ratify
+item 14. Implementation: `modulesForRoles` (name-keyword role→BU affiliation, RATIFY-7F-class
+ceiling — upgrade to team.business_unit when the viewer payload carries it). Process lesson
+recorded in the vdrd17 ledger: an owner artifact's omission was routed around by a Director
+default, then OD-57's text enshrined the default and six audits verified the text — an owner's
+drawing outranks a transcription of it.

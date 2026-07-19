@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { DESTINATIONS, MODULES, UTILITY, isLive, type Destination } from './destinations'
+import { DESTINATIONS, UTILITY, isLive, modulesForRoles, type Destination } from './destinations'
 import type { Section } from './sections'
 import { LocaleToggle } from './locale-toggle'
 import { UserChip } from './user-chip'
@@ -71,17 +71,6 @@ function WorkChild({ section, onNavigate }: { section: Section; onNavigate?: () 
   )
 }
 
-function Overline({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="px-2 pb-1 pt-3 font-medium uppercase text-muted-foreground"
-      style={{ fontSize: 11, letterSpacing: '0.06em' }}
-    >
-      {children}
-    </div>
-  )
-}
-
 export function RailNav({ onNavigate }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
@@ -93,15 +82,16 @@ export function RailNav({ onNavigate }: RailNavProps) {
   // Profile (security audit fix — the footer below is the identity/sign-out chip, not a /profile
   // link, so /profile needs its own reachable rail entry to stay navigable, Rule 11).
   const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
-  const liveModules = MODULES.map((g) => ({
-    bu: g.bu,
-    items: g.items.filter((m) => isLive(m, accessRoles)),
-  })).filter((g) => g.items.length > 0)
+  // OD-REDESIGN-68: the rail shows YOUR work — modules render flat (no BU headings, no
+  // WORKSPACE overline; the owner's sketch is a flat list) and only for viewers whose job
+  // role belongs to that BU. Org-wide roles get exactly the sketch rail.
+  const myModules = viewer
+    ? modulesForRoles(viewer.roles.map((r) => r.name), accessRoles)
+    : []
 
   return (
     <>
-      <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
-        <Overline>{t('rail.workspace')}</Overline>
+      <nav aria-label="Primary" className="flex flex-1 flex-col px-2 pt-3">
         <div className="flex flex-col gap-[2px]">
           {liveDestinations.map((d) => {
             if (d.id === 'work') {
@@ -139,17 +129,15 @@ export function RailNav({ onNavigate }: RailNavProps) {
           })}
         </div>
 
-        {/* Modules (BU-grouped) */}
-        {liveModules.map((g) => (
-          <div key={g.bu} className="mt-1">
-            <Overline>{t(g.bu)}</Overline>
-            <div className="flex flex-col gap-[2px]">
-              {g.items.map((m) => (
-                <DestLink key={m.id} d={m} onNavigate={onNavigate} />
-              ))}
-            </div>
+        {/* Your-work modules (OD-REDESIGN-68): flat, no BU headings — only the modules whose
+            BU matches the viewer's job role (e7 Ayu pattern). Empty for org-wide roles. */}
+        {myModules.length > 0 && (
+          <div className="mt-1 flex flex-col gap-[2px]">
+            {myModules.map((m) => (
+              <DestLink key={m.id} d={m} onNavigate={onNavigate} />
+            ))}
           </div>
-        ))}
+        )}
 
         {/* Utility — Admin Settings (gated) and Personal Profile. The footer below is the
             identity/sign-out chip, not a nav link, so /profile needs its own entry here. */}
