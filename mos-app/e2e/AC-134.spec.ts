@@ -228,8 +228,8 @@ test(
   // Table (section[aria-label="Tasks"]) stays mounted — the split-view oracle.
   await expect(page.getByRole('region', { name: 'Tasks' })).toBeVisible()
 
-  // The opened row is marked current (aria-current="true").
-  const currentRow = page.locator('tr.task-row[aria-current="true"]')
+  // The opened row is marked selected (aria-selected="true") — I7: aria-current is rail-only.
+  const currentRow = page.locator('tr.task-row[aria-selected="true"]')
   await expect(currentRow).toBeVisible()
 
   // ─── Step 3: change status inline → row reflects it optimistically, no nav ─────────────

@@ -34,8 +34,8 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: rowText })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Tasks' })).toBeVisible() // table still there
-  // The open row is marked current.
-  const openRow = page.locator('tr.task-row[aria-current="true"]')
+  // The open row is marked selected (I7: aria-current is reserved for the rail/breadcrumb).
+  const openRow = page.locator('tr.task-row[aria-selected="true"]')
   await expect(openRow).toContainText(rowText)
 
   // Change status inline in the pinned header — no navigation.
@@ -99,6 +99,6 @@ test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in
   await expect(drawer.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
 
   // The new row is in the table beside it + marked current — no reload.
-  const openRow = page.locator('tr.task-row[aria-current="true"]')
+  const openRow = page.locator('tr.task-row[aria-selected="true"]')
   await expect(openRow).toContainText(title)
 })
