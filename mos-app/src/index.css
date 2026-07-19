@@ -188,6 +188,17 @@
   --input:                 var(--border-medium);
   --ring:                  var(--ds-color-blue);
   --violet:                var(--ds-color-violet);
+
+  /* ── Shared LIST-ROW rhythm (cohesion-debt 2026-07-19, item #4 — owner call:
+     "proceed with all items"). Record collections stay tabular-with-dividers
+     (Tasks/Home) and the Signals feed stays a legitimately different activity
+     stream — but their ROW TOKENS must not DISAGREE. One divider colour, one
+     row padding scale, one row-height rhythm, referenced by BOTH the dense-table
+     (.dt-table) and the Signals archive rows (.signal-row). ── */
+  --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
+  --row-pad-y:             10px;
+  --row-pad-x:             12px;
+  --row-min-h:             50px;
 }
 
 @layer base {
