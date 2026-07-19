@@ -18,7 +18,9 @@ const mockUseIsNarrow = vi.mocked(useIsNarrow)
 
 import { BottomTabBar } from './bottom-tab-bar'
 
-function setAuthAs(accessRoles: string[] = []) {
+// OD-REDESIGN-68: the module bottom-tab is role-scoped to the viewer's job role, so a viewer
+// needs a matching job-role NAME (not just an access role) to see e.g. the Café slot.
+function setAuthAs(accessRoles: string[] = [], roleNames: string[] = []) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -26,10 +28,20 @@ function setAuthAs(accessRoles: string[] = []) {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Test User',
         email: 't@gordi.id', archived_at: null, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles,
+      roles: roleNames.map((name, i) => ({
+        id: `r${i}`, org_id: 'o1', business_unit_id: `bu${i}`, name,
+        reports_to_role_id: null, created_at: '', updated_at: '',
+      })),
+      isManager: false, accessRoles,
     },
     signOut: vi.fn(),
   })
+}
+
+// A café-affiliated viewer (job role name matches the Café module's workMatch) — the
+// persona that OD-68 promotes the Café slot for.
+function setCafeViewer() {
+  setAuthAs([], ['Café Ops Lead'])
 }
 
 function renderTabBar(initialPath = '/', {
@@ -55,8 +67,9 @@ beforeEach(() => {
   setAuthAs([])
 })
 
-describe('AC-021: phone bottom-nav = Home · Work · Café · Inbox · More', () => {
-  it('renders exactly 4 primary links + a More button, in order', () => {
+describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role module> · Inbox · More', () => {
+  it('a café-affiliated viewer sees Home · Work · Café · Inbox + More, in order', () => {
+    setCafeViewer()
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
@@ -64,7 +77,27 @@ describe('AC-021: phone bottom-nav = Home · Work · Café · Inbox · More', ()
     expect(within(nav).getByRole('button', { name: /More/i })).toBeInTheDocument()
   })
 
-  it('primary tabs link to /, /work/tasks, /cafe, /inbox', () => {
+  it('an org-wide viewer with no module role omits the module slot (Home · Work · Inbox + More)', () => {
+    setAuthAs(['admin']) // org-wide role, no café/roastery job role → no module tab (OD-68)
+    renderTabBar('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const links = within(nav).getAllByRole('link')
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Inbox'])
+    expect(within(nav).queryByRole('link', { name: /Café/ })).toBeNull()
+    expect(within(nav).getByRole('button', { name: /More/i })).toBeInTheDocument()
+  })
+
+  it('the module slot follows the viewer role — a roastery viewer sees Roastery, not Café', () => {
+    setAuthAs([], ['Roastery Lead'])
+    renderTabBar('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const links = within(nav).getAllByRole('link')
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Roastery', 'Inbox'])
+    expect(within(nav).getByRole('link', { name: /Roastery/ })).toHaveAttribute('href', '/roastery')
+  })
+
+  it('primary tabs link to /, /work/tasks, /cafe, /inbox (café viewer)', () => {
+    setCafeViewer()
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: /Home/ })).toHaveAttribute('href', '/')
@@ -108,7 +141,8 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Work/)
   })
 
-  it('Café tab page at /cafe/log', () => {
+  it('Café tab page at /cafe/log (café viewer)', () => {
+    setCafeViewer()
     renderTabBar('/cafe/log')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
