@@ -556,9 +556,12 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       expect(val).not.toContain('hsl(240 10% 8%')
     })
 
-    it('--scrim: color-mix from --brand-navy @ 32%', () => {
+    it('--scrim: color-mix from --brand-navy @ 45% (cohesion-debt item #1 — one reconciled modal dim)', () => {
+      // Deliberate cohesion change (docs/reviews/cohesion-debt-2026-07-19.md item #1):
+      // the four scrims (--surface-overlay 72% · --scrim 32% · foreground-45% · Tailwind 40%)
+      // reconcile onto ONE value. 32% read as a weak wash under a modal; 45% is a real dim.
       const val = getToken('--scrim', 'indexCss')
-      expect(val).toContain('color-mix(in srgb, var(--brand-navy) 32%')
+      expect(val).toContain('color-mix(in srgb, var(--brand-navy) 45%')
     })
 
     it('--shadow-popover: color-mix from --brand-navy @ 10%', () => {

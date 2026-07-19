@@ -89,8 +89,16 @@
   );
 
   /* Scrim + popover shadow tokens — promote the raw literals the codemod replaces
-     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source. */
-  --scrim:           color-mix(in srgb, var(--brand-navy) 32%, transparent);
+     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source.
+     ── ONE scrim (cohesion-debt 2026-07-19, item #1). Four scrims existed:
+     --surface-overlay 72%, this --scrim 32%, a foreground-45% literal (confirm /
+     occurrence dialogs), and a Tailwind bg-foreground/40. Reconciled to ONE
+     deliberate value: 45% on brand-navy. 32% read as a weak wash under a modal;
+     45% is a real dim (matching the confirm-overlay value that was already the
+     modal scrim), navy-tinted to honour the No-Pure-Black Rule. ⌘K folds onto the
+     same token rather than keeping its heavier 72% one-off. Consumed via the
+     `.scrim` utility (below) or var(--scrim) directly. */
+  --scrim:           color-mix(in srgb, var(--brand-navy) 45%, transparent);
   --shadow-popover:  0 4px 16px color-mix(in srgb, var(--brand-navy) 10%, transparent);
   --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--brand-navy) 16%, transparent);
 
@@ -250,6 +258,11 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+
+  /* The ONE scrim utility (cohesion-debt 2026-07-19, item #1) — background only, so
+     each overlay keeps its own positioning (fixed inset-0 for a page-covering scrim,
+     absolute inset-0 inside a fixed overlay root). Pairs with --z-drawer/--z-modal. */
+  .scrim { background: var(--scrim); }
 }
 
 /* PageHead prose-variant title-adjacent meta — one muted-text token so the

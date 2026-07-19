@@ -147,7 +147,7 @@ export function AssistantPanel() {
     <>
       {isNarrow && open && (
         <div
-          className="fixed inset-0 bg-foreground/40"
+          className="scrim fixed inset-0"
           style={{ zIndex: 'var(--z-drawer)' }}
           aria-hidden="true"
           onClick={closePanel}

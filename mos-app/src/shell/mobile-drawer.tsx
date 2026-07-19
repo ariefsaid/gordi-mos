@@ -98,7 +98,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   return (
     <>
-      <div className="fixed inset-0 bg-foreground/40" style={{ zIndex: 'var(--z-drawer)' }} aria-hidden="true" onClick={closeAndReturn} />
+      <div className="scrim fixed inset-0" style={{ zIndex: 'var(--z-drawer)' }} aria-hidden="true" onClick={closeAndReturn} />
       <div
         ref={panelRef}
         role="dialog"

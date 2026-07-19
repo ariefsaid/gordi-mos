@@ -77,3 +77,47 @@ describe('CHROME-Z: z-index tier scale', () => {
     expect(body).toMatch(/var\(--z-popover\)/)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-SCRIM: ONE scrim token + ONE `.scrim` utility (cohesion-debt item #1).
+// Four scrims (--surface-overlay 72%, --scrim 32%, foreground 45%, Tailwind 40%)
+// reconcile onto a single deliberate modal dim that reads as a real dim.
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-SCRIM: one scrim token + utility', () => {
+  const index = stripComments(readSrc('index.css'))
+
+  it('CHROME-SCRIM: --scrim is defined once as a real navy dim (reconciled to 45%)', () => {
+    const defs = [...index.matchAll(/--scrim:\s*([^;]+);/g)]
+    expect(defs.length, 'exactly one --scrim definition').toBe(1)
+    const val = defs[0][1]
+    expect(val, '--scrim reads as a real dim on brand-navy').toMatch(/brand-navy/)
+    expect(val, '--scrim reconciled to a 45% dim').toMatch(/45%/)
+  })
+
+  it('CHROME-SCRIM: a `.scrim` utility exists and paints the token', () => {
+    const m = index.match(/\.scrim\s*\{([^}]*)\}/)
+    expect(m, '.scrim utility must be defined in index.css').toBeTruthy()
+    expect(m![1]).toMatch(/background:\s*var\(--scrim\)/)
+  })
+
+  it('CHROME-SCRIM: the ⌘K scrim uses the shared token, not the one-off --surface-overlay', () => {
+    const css = stripComments(readSrc('components/command/command-menu.css'))
+    const m = css.match(/\.cm-scrim\s*\{([^}]*)\}/)
+    expect(m).toBeTruthy()
+    expect(m![1]).toMatch(/background:\s*var\(--scrim\)/)
+    expect(m![1]).not.toMatch(/--surface-overlay/)
+  })
+
+  it('CHROME-SCRIM: no overlay hand-rolls a foreground-45% scrim (all on the token)', () => {
+    for (const f of ['components/tasks/TaskSurface.css', 'components/tasks/occurrence-assign-dialog.css']) {
+      const css = stripComments(readSrc(f))
+      expect(css, `${f} must not hard-roll a foreground-45% scrim`).not.toMatch(/foreground\)\s*45%/)
+    }
+  })
+
+  it('CHROME-SCRIM: no non-test overlay uses the Tailwind bg-foreground/40 scrim', () => {
+    for (const f of ['shell/mobile-drawer.tsx', 'components/assistant/AssistantPanel.tsx']) {
+      expect(readSrc(f), `${f} must use the .scrim utility, not bg-foreground/40`).not.toMatch(/bg-foreground\/40/)
+    }
+  })
+})

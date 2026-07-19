@@ -220,8 +220,8 @@
 
 /* ── Archive confirm ── */
 .confirm-overlay {
-  position: fixed; inset: 0; background: color-mix(in srgb, var(--foreground) 45%, transparent);
-  display: grid; place-items: center; z-index: 100;
+  position: fixed; inset: 0; background: var(--scrim); /* ONE scrim token (cohesion-debt item #1) */
+  display: grid; place-items: center; z-index: var(--z-modal);
 }
 .confirm-box {
   background: var(--card); border: 1px solid var(--border);
