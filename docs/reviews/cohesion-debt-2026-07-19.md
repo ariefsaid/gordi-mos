@@ -64,5 +64,26 @@ Highest pain-per-effort first; each is a small slice with a locking test:
 
 Items 5–6 are the only owner decisions here; 1–4 are settled-law cleanup.
 
+## Content / data-presentation half — DONE (branch `cohesion/content`, 2026-07-20)
+
+The content half of the program (format · empty-state · loading · list-row tokens ·
+surface-title identity) shipped, TDD, one commit per item. Owner call on the two
+decision items: "proceed with all items". Gates per commit: `typecheck` 0 · ESLint
+`--max-warnings=0` · full `vitest run` green (2836 tests). Overlay chrome (dialogs ·
+scrim · close glyphs · z-index · drawer/command-menu css) deliberately untouched —
+owned by the second (overlay) agent.
+
+| # | Item | Commit | Notes |
+|---|---|---|---|
+| 1 | **Format unification** (money + date) | `fd4368b` | one `lib/format/money.ts` (id-ID DOTS) + one locale-aware `lib/format/date.ts`; plan-budget / sales-dashboard / follow-ups / task-formatters / wib-time / page-local shortDates all delegate. Deliberate test changes: commas→dots. |
+| 2 | **Empty-state primitive** (kill 3 locals) | `9908717` | kit `EmptyState` is the one; InboxList `.inbox-empty`, chart-frame `.chart-frame-empty` (+ new i18n `chart.empty`), Assistant's local all routed through it; kit gained a `suggestions` slot + a `nested` landmark flag. |
+| 3 | **Loading primitive** (`LoadingShell`) | `7270c90` | one `role=status` + `aria-busy` + `common.loading` label wrapping SkeletonRows; 5 kitchen `LoadingState` fns + kpi-tile + my-week + attention-brief + admin loaders routed through it; "Loading…" banished; skeleton keyframe deduped to one `sk-pulse` in index.css. |
+| 4 | **List-row token alignment** (owner call) | `43980b5` | Signals feed stays an activity stream (NOT forced into a table); shared `--row-*` tokens (divider · padding · row-height) referenced by both `.dt-table` and `.signal-row`; Signals meta right-aligned to match. |
+| 5 | **Surface-title identity** (owner call) | `45d2b20` | removed the ≡/✉ title glyphs from the content PageHead (consistent = none); Home eyebrow kept; title-adjacent count-vs-date slot unified on one muted-text token (`.page-head-meta`). |
+
+Deviation (item #3, recorded): the task said to delete the kitchen `.k*-block` CSS
+with the `LoadingState` fns; those classes are shared full-width containers used by
+non-loading elements (banners, forbidden blocks) — kept them, deleted only the fns.
+
 Referenced from `docs/backlog.md` (standing cohesion program) and
 `docs/interaction-contract.md` (the behavioural half of the same problem).
