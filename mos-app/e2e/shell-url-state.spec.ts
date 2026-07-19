@@ -4,7 +4,7 @@ import { VIEWER } from './fixtures/users'
 
 async function createOverdueTask(page: Page, title: string) {
   await page.goto('work/tasks?view=mine')
-  await page.getByRole('link', { name: /new task/i }).first().click()
+  await page.getByRole('link', { name: /create task/i }).first().click()
   await expect(page).toHaveURL(/\/work\/tasks\/new\?view=mine$/)
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
@@ -29,7 +29,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await expect(page.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
 
   await page.goto('work/tasks?view=mine')
-  await page.getByRole('link', { name: /new task/i }).first().click()
+  await page.getByRole('link', { name: /create task/i }).first().click()
   await expect(page).toHaveURL(/\/work\/tasks\/new\?view=mine$/)
   const mineForm = page.getByRole('form', { name: /create task form/i })
   await mineForm.getByLabel('Title').fill(mineTitle)
@@ -40,7 +40,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await createOverdueTask(page, overdueTitle)
 
   await page.goto('work/tasks?view=mine')
-  await page.getByRole('link', { name: /new task/i }).first().click()
+  await page.getByRole('link', { name: /create task/i }).first().click()
   const futureForm = page.getByRole('form', { name: /create task form/i })
   await futureForm.getByLabel('Title').fill(futureTitle)
   await futureForm.getByLabel('Due date').fill('2030-12-31')

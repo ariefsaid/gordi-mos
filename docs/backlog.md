@@ -446,3 +446,4 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
   step; owner reviews ONCE after step 11. Open items it must surface, not decide: Q1 Signal-on-Home
   (provisional), Modules-in-rail window, and every `RATIFY-BEFORE-MERGE:` conservative default it takes
   on the step 4 & 6 schema/RLS work.
+- **Cohesion program (standing)** — `docs/reviews/cohesion-debt-2026-07-19.md`: the mechanical sources of the owner's "several apps thrown together" (4 modals · 4 scrims · 4 close glyphs · 2 money formats · 3 empty-state grammars · 2 list grammars · z-index tiers). Sequenced 1–6; items 5–6 need owner calls. Paired with `docs/interaction-contract.md` (behavioural half).

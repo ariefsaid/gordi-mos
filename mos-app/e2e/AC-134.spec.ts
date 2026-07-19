@@ -270,7 +270,7 @@ test(
   const ramaHeader = page.locator('tr.grp').filter({ hasText: 'Rama Roastery' })
   await expect(ramaHeader).toBeVisible()
 
-  const addTaskBtn = ramaHeader.getByRole('button', { name: /add task to Rama Roastery/i })
+  const addTaskBtn = ramaHeader.getByRole('button', { name: /create task in Rama Roastery/i })
   await expect(addTaskBtn).toBeVisible()
   await addTaskBtn.click()
 

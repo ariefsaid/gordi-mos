@@ -47,7 +47,7 @@ test.describe('mobile', () => {
     expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(844)
 
     // The existing page action remains reachable while filters stay disclosed.
-    await expect(page.getByRole('link', { name: /new task/i }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: /create task/i }).first()).toBeVisible()
 
     await options.click()
     await expect(options).toHaveAttribute('aria-expanded', 'true')
@@ -110,5 +110,5 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await page.getByRole('heading', { name: 'Tasks' }).click()
   await page.keyboard.press('n')
   await page.waitForURL(/\/work\/tasks\/new(\?.*)?$/)
-  await expect(page.getByRole('complementary', { name: /new task/i })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: /create task/i })).toBeVisible()
 })

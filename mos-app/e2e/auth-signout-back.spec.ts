@@ -16,7 +16,7 @@ test('AC-002: sign-out and back-button guard', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
 
   // Wait for home — Home page heading confirms successful auth (FR-013)
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening),/ })).toBeVisible({ timeout: 10_000 })
 
   // Drive the real sign-out affordance — the rail-footer identity chip → "Sign out" menuitem.
   await signOutViaUi(page, VIEWER.fullName)

@@ -53,5 +53,8 @@ Proof cell is a defect, not a gap.
 5. **Lens (b) measured step** — reviewer drives I1/I2/I3 on every touched surface pair and asserts
    identical outcomes; recorded per review like the computed-style table.
 
+Its VISUAL sibling — the same cohesion problem in styling/component duplication — is
+`docs/reviews/cohesion-debt-2026-07-19.md` (glm code hunt + minimax multimodal cross-surface read).
+
 Referenced by: `docs/experience-contract.md` (Rule 6 operationalization), `docs/design-workflow.md`
 §2.3(b), `.claude/agents/design-reviewer.md` Lens (b).

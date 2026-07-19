@@ -24,7 +24,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   await loginAs(page, VIEWER.email, VIEWER.password)
 
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening),/ })).toBeVisible({ timeout: 10_000 })
   await expect(page).toHaveURL(/\/$|\/mos\/?$/)
   await expect(page).toHaveTitle('Home — Gordi MOS')
   await expect(page.getByRole('banner').getByText('Gordi MOS')).toBeVisible()
@@ -56,7 +56,7 @@ test('AC-013 (rewritten for OD-33/48 retirement, beca0dc): the Weekly-Update tea
   // Original oracle asserted the roster VISIBLE for managers — a retired surface as success
   // condition (audit C finding #13 / second-pass F: stale oracle, failing hidden since beca0dc).
   await loginAs(page, MANAGER.email, MANAGER.password)
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening),/ })).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('p').filter({ hasText: /^Your team —/ })).not.toBeVisible()
 
   await clearSession(page)
@@ -64,6 +64,6 @@ test('AC-013 (rewritten for OD-33/48 retirement, beca0dc): the Weekly-Update tea
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
 
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening),/ })).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('p').filter({ hasText: /^Your team —/ })).not.toBeVisible()
 })

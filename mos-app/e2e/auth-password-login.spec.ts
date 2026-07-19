@@ -21,6 +21,6 @@ test('AC-001: password login journey', async ({ page }) => {
   // accessible name proves FR-006 — resolveViewer returned THIS person — at the e2e layer).
   // Scoped to the chip (not getByText) — the Home dashboard also lists Cahya as a task owner
   // in table cells, which would make an unscoped text match ambiguous.
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening),/ })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('button', { name: VIEWER.fullName, exact: true })).toBeVisible({ timeout: 10_000 })
 })

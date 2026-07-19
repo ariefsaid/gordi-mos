@@ -193,22 +193,41 @@ fi
 
 
 # ── Orphan-doc check (owner directive, 4x in the week of 2026-07-13..19: "no orphan md file,
-# any new md gets referenced accordingly"). NEW docs must arrive referenced; the gate enforces it
-# so reminding stops. Scope: docs ADDED vs merge-base only (pre-existing orphans are tracked debt).
-NEW_DOCS="$(git diff --name-only --diff-filter=A "${MERGE_BASE}..HEAD" -- 'docs/*.md' 'docs/**/*.md' || true)"
-ORPHANS=()
-for f in $NEW_DOCS; do
+# any new md gets referenced accordingly"). NEW docs must arrive referenced. Scope: docs ADDED vs
+# merge-base only (pre-existing orphans are tracked debt, not this gate's job).
+# Plain counter + temp file — no bash-4-only array expansions, no `[ ] && arr+=()` (that returns
+# non-zero under `set -e` and silently killed this script: the very "error quieter than the pass"
+# bug this gate exists to prevent).
+ORPHAN_LIST="$(mktemp)"
+ORPHAN_COUNT=0
+for f in $(git diff --name-only --diff-filter=A "${MERGE_BASE}..HEAD" -- 'docs/*.md' 'docs/**/*.md' || true); do
   b="$(basename "$f")"
-  refs="$(grep -rl --include='*.md' -F "$b" docs CLAUDE.md AGENTS.md CONTEXT.md 2>/dev/null | grep -v "^$f$" | wc -l | tr -d ' ')"
-  [ "$refs" = "0" ] && ORPHANS+=("$f")
+  # A doc inside a directory that IS referenced as a directory counts as wired: per-dispatch
+  # briefs / superpowers plans are working artifacts, not authority — the convention references
+  # the FOLDER (see AUTONOMOUS-RUN-STATE "docs/plans/briefs/"). Named docs still need own refs.
+  d="$(dirname "$f")/"
+  if grep -rq --include='*.md' -F "$d" docs CLAUDE.md AGENTS.md CONTEXT.md 2>/dev/null; then continue; fi
+  # `|| true` guards BOTH greps: grep exits 1 when it finds nothing, and under
+  # `set -e` + `pipefail` that killed this script at exactly the moment an orphan was
+  # detected — a check that dies on success. (Same "error quieter than the pass" class
+  # this gate exists to catch; fixed 2026-07-19.)
+  refs="$(grep -rl --include='*.md' -F "$b" docs CLAUDE.md AGENTS.md CONTEXT.md 2>/dev/null || true)"
+  refs="$(printf '%s\n' "$refs" | grep -v "^$f$" || true)"
+  refs="$(printf '%s' "$refs" | grep -c . || true)"
+  if [ "$refs" = "0" ]; then
+    echo "  - $f" >> "$ORPHAN_LIST"
+    ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+  fi
 done
-if [ "${#ORPHANS[@]:-0}" -gt 0 ]; then
+if [ "$ORPHAN_COUNT" -gt 0 ]; then
   echo ""
-  echo "FAIL: orphan doc(s) added by this branch (no inbound reference from any other doc):"
-  for f in "${ORPHANS[@]}"; do echo "  - $f"; done
+  echo "FAIL: $ORPHAN_COUNT orphan doc(s) added by this branch (no inbound reference from any other doc):"
+  cat "$ORPHAN_LIST"
   echo "  Wire each into the convention (backlog / decisions / index / owning plan) and re-run."
+  rm -f "$ORPHAN_LIST"
   exit 1
 fi
+rm -f "$ORPHAN_LIST"
 
 echo "PASS: all required reviews cleared. Safe to merge."
 echo ""

@@ -84,7 +84,7 @@ test('AC-104 (J2): expand toggle keeps the URL, goes full width, and persists', 
 
 test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in the table', async ({ page }) => {
   const title = `J3 Created ${Date.now()}`
-  await page.getByRole('link', { name: /new task/i }).first().click()
+  await page.getByRole('link', { name: /create task/i }).first().click()
   await page.waitForURL(/\/work\/tasks\/new(\?.*)?$/)
 
   // The create drawer renders beside the table (no second editor).

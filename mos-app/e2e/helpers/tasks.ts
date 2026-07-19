@@ -10,8 +10,9 @@ export async function createTaskViaUI(
   page: Page,
   title: string,
 ): Promise<string> {
-  // Click "+ New task" link from the toolbar or empty state
-  const newTaskLink = page.getByRole('link', { name: /new task/i }).first()
+  // Click the create-task link from the toolbar or empty state.
+  // OD-REDESIGN-71(i): the verb family is "Create" app-wide (was "+ New task").
+  const newTaskLink = page.getByRole('link', { name: /create task/i }).first()
   await newTaskLink.click()
   await page.waitForURL(/\/work\/tasks\/new(\?.*)?$/)
 
