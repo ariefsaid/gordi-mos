@@ -221,3 +221,69 @@ describe('CHROME-DUR: transition-duration tokens', () => {
     expect(body).toMatch(/var\(--dur-slow\)/)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-FOCUS: focus-visible normalization (cohesion-debt item #6). The global
+// rule is +2px outline in --accent; 7 components overrode to a NEGATIVE -2px and
+// one (inbox-row) SWAPPED the token to --primary. Normalize to +2 where there's
+// cell room; keep -2 (inset) ONLY on documented dense row/cell affordances where an
+// outward ring clips at the container edge or collides with the adjacent row; never
+// swap the focus token off --accent/--ring (the One Blue).
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-FOCUS: focus-visible normalization', () => {
+  // Dense row/cell affordances that legitimately keep an inset (-2px) ring.
+  const DENSE_INSET_ALLOWLIST = new Set([
+    '.task-row-link',
+    '.th-sort-btn',
+    '.signal-row',
+    '.inbox-row__button',
+    '.mobile-task-options-trigger',
+  ])
+
+  function focusRules(): { file: string; selector: string; body: string }[] {
+    const out: { file: string; selector: string; body: string }[] = []
+    for (const f of listSource(SRC, ['.css'])) {
+      const css = stripComments(readFileSync(f, 'utf8'))
+      for (const m of css.matchAll(/([.#][\w-]+)\s*:focus-visible\s*\{([^}]*)\}/g)) {
+        out.push({ file: srcRel(f), selector: m[1], body: m[2] })
+      }
+    }
+    return out
+  }
+
+  it('CHROME-FOCUS: no focus-visible rule swaps the token to --primary', () => {
+    const offenders = focusRules()
+      .filter((r) => /outline:[^;]*var\(--primary\)/.test(r.body))
+      .map((r) => `${r.file} ${r.selector}`)
+    expect(offenders, 'focus ring must stay --accent/--ring, never --primary').toEqual([])
+  })
+
+  it('CHROME-FOCUS: inbox-row focus ring is on --accent, not --primary', () => {
+    const css = stripComments(readSrc('components/inbox/inbox.css'))
+    const m = css.match(/\.inbox-row__button:focus-visible\s*\{([^}]*)\}/)
+    expect(m).toBeTruthy()
+    expect(m![1]).not.toMatch(/--primary/)
+    expect(m![1]).toMatch(/var\(--accent\)/)
+  })
+
+  it('CHROME-FOCUS: an inset (-2px) ring only appears on documented dense row/cell selectors', () => {
+    const offenders = focusRules()
+      .filter((r) => /outline-offset:\s*-2px/.test(r.body))
+      .filter((r) => !DENSE_INSET_ALLOWLIST.has(r.selector))
+      .map((r) => `${r.file} ${r.selector}`)
+    expect(offenders, 'these should normalize to +2 (they have cell room)').toEqual([])
+  })
+
+  it('CHROME-FOCUS: the roomy controls are normalized to +2 (no inset override left)', () => {
+    const roomy: Record<string, string> = {
+      'components/tasks/TaskSurface.css': '.rf-tab',
+      'components/tasks/TasksWorkspace.css': '.task-card-link',
+    }
+    for (const [file, sel] of Object.entries(roomy)) {
+      const css = stripComments(readSrc(file))
+      const m = css.match(new RegExp(`\\${sel}:focus-visible\\s*\\{([^}]*)\\}`))
+      expect(m, `${sel} focus rule in ${file}`).toBeTruthy()
+      expect(m![1], `${sel} must not keep an inset ring`).not.toMatch(/outline-offset:\s*-2px/)
+    }
+  })
+})

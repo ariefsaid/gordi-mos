@@ -155,7 +155,7 @@
   color: var(--muted-foreground); cursor: pointer;
 }
 .rf-tab:hover { color: var(--foreground); }
-.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 4px; }
+.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; } /* item #6: normalized to +2 (tab has room) */
 .rf-tcount { font-size: 11px; color: var(--muted-foreground); margin-left: 5px; }
 /* Active tab: weight + a 2px primary underline (never color-alone) — AC-R03. */
 .rf-tab.on { color: var(--foreground); font-weight: 600; }
@@ -195,7 +195,7 @@
   display: flex; align-items: center;
 }
 .status-option:hover, .status-option:focus-visible { background: var(--accent); }
-.status-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.status-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 .status-option-active { background: var(--accent); }
 
 /* ── Btn styles ── */
@@ -321,7 +321,7 @@
 .person-picker-option:hover, .person-picker-option:focus-visible {
   background: var(--accent);
 }
-.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 
 /* ── Checklist ── */
 .checklist-count { font-size: 15px; font-weight: 400; color: var(--muted-foreground); }
