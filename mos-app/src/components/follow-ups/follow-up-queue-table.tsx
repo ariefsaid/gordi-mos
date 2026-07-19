@@ -12,9 +12,8 @@ import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 import { isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
+import { formatIDR } from '@/lib/format/money'
 import type { FollowUpQueueState } from './use-follow-up-queue'
-
-const money = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 
 function nextActions(row: FollowUpRow, canConfirm: boolean, canChase: boolean): FollowUpTransition[] {
   if (row.state === 'settled') return canConfirm ? ['confirm'] : []
@@ -100,13 +99,13 @@ export function FollowUpQueueTable({ queue }: { queue: FollowUpQueueState }) {
       key: 'original_amount',
       header: t('followUps.amount'),
       numeric: true,
-      render: (row) => money.format(row.original_amount),
+      render: (row) => formatIDR(row.original_amount),
     },
     {
       key: 'running_balance',
       header: t('followUps.balance'),
       numeric: true,
-      render: (row) => money.format(row.running_balance),
+      render: (row) => formatIDR(row.running_balance),
     },
     {
       key: 'state',
@@ -176,7 +175,7 @@ export function FollowUpQueueTable({ queue }: { queue: FollowUpQueueState }) {
               <StatusPill status={followUpStatusTone(detailRow.state)} label={detailRow.state} />
             </dd>
             <dt style={{ color: 'var(--muted-foreground)' }}>Running balance</dt>
-            <dd className="tabular" style={{ margin: 0 }}>{money.format(detailRow.running_balance)}</dd>
+            <dd className="tabular" style={{ margin: 0 }}>{formatIDR(detailRow.running_balance)}</dd>
           </dl>
           {active?.id === detailRow.id && renderTransitionForm(detailRow, active.verb)}
         </aside>

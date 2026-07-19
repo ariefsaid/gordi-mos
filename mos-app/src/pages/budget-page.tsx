@@ -11,6 +11,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { formatDayMonthYear } from '@/lib/format/date'
 import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import {
   listIngredientCostLines,
@@ -397,8 +398,6 @@ export function BudgetPage() {
   )
 }
 
-function shortDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+// Cohesion-debt 2026-07-19, item #1: the basis date routes through the ONE
+// canonical locale-aware date module — no per-page en-GB copy.
+const shortDate = formatDayMonthYear
