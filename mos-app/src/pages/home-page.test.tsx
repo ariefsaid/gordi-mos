@@ -194,67 +194,31 @@ beforeEach(() => {
   mockLoadFailedChecks.mockResolvedValue([])
 })
 
-describe('AC-H01: finance viewer sees revenue + margin tiles, each drilling to /dashboard', () => {
-  it('renders revenue + margin KPI tiles as links to /dashboard', async () => {
+// OD-REDESIGN-17 (owner critique "why dashboard AND home"): Home no longer duplicates the
+// Money dashboard's revenue/margin KPI tiles. The finance KPI row + its snapshot provenance
+// were removed from Home; financial *exceptions* surface only via the attention brief. These
+// describe blocks are updated as a DELIBERATE removal per OD-17 (the goal-oracle for the old
+// finance tiles moved to the dashboard, which owns them).
+describe('AC-H01/OD-17: Home never renders the revenue/margin KPI tiles (dashboard owns them)', () => {
+  it('does not render revenue or margin tiles even for a finance viewer', async () => {
     await renderHome(financeViewer)
-    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
-
-    const revenueTile = screen.getByRole('group', { name: /revenue/i })
-    const revenueLink = revenueTile.closest('a')
-    expect(revenueLink).not.toBeNull()
-    expect(revenueLink!.getAttribute('href')).toBe('/dashboard')
-
-    const marginTile = screen.getByRole('group', { name: /gross margin/i })
-    const marginLink = marginTile.closest('a')
-    expect(marginLink).not.toBeNull()
-    expect(marginLink!.getAttribute('href')).toBe('/dashboard')
-  })
-
-  it('shows snapshot provenance in fixed WIB time when finance data is populated', async () => {
-    await renderHome(financeViewer)
-    await waitFor(() => expect(mockListMargin).toHaveBeenCalled())
-
-    expect(screen.getByText(/as of/i)).toBeInTheDocument()
-    expect(screen.getByText('01 Jul 2026, 09:00 WIB')).toBeInTheDocument()
-  })
-
-  it('AC-H07: margin tile shows the formatted margin value, a delta, and the "(interim)" label', async () => {
-    await renderHome(financeViewer)
-    await waitFor(() => expect(mockListMargin).toHaveBeenCalled())
-    const marginTile = screen.getByRole('group', { name: /gross margin \(interim\)/i })
-    expect(marginTile.textContent).toMatch(/Rp/)
-  })
-})
-
-describe('AC-H05: reporting fetch errors — finance tiles degrade, tasks/My-Week still render', () => {
-  it('does not crash and the tasks/My-Week tiles still render', async () => {
-    mockListRevenue.mockRejectedValue(new Error('reporting down'))
-    mockListMargin.mockRejectedValue(new Error('reporting down'))
-    await renderHome(financeViewer)
-
     await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
-    // No crash — the finance tiles degrade to a placeholder ("—"), never a stale/
-    // misleading ready value, and are no longer stuck in the loading (aria-busy) state.
-    const revenueTile = screen.getByRole('group', { name: /revenue/i })
-    expect(revenueTile.getAttribute('aria-busy')).toBeNull()
-    expect(revenueTile.textContent).toContain('—')
 
-    const marginTile = screen.getByRole('group', { name: /gross margin/i })
-    expect(marginTile.getAttribute('aria-busy')).toBeNull()
-    expect(marginTile.textContent).toContain('—')
+    expect(screen.queryByRole('group', { name: /revenue/i })).toBeNull()
+    expect(screen.queryByRole('group', { name: /gross margin/i })).toBeNull()
+    // No finance snapshot provenance line on Home anymore.
+    expect(screen.queryByText(/as of/i)).toBeNull()
   })
 
-  it('explains finance blanks with the next sync time instead of a bare dash', async () => {
-    mockListRevenue.mockResolvedValue([])
-    mockListMargin.mockResolvedValue([])
+  it('does not issue the finance reporting query from Home for any viewer (OD-17)', async () => {
     await renderHome(financeViewer)
-
-    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
-    expect(screen.getByText('No snapshot yet · next sync 03:30 WIB')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    expect(mockListRevenue).not.toHaveBeenCalled()
+    expect(mockListMargin).not.toHaveBeenCalled()
   })
 })
 
-describe('AC-H02: member-only viewer never sees finance tiles (RLS-empty handling, never blank)', () => {
+describe('AC-H02/OD-17: member-only viewer sees the tasks tile + My Week panel (never blank)', () => {
   it('does not render revenue/margin tiles and never calls the finance DAL', async () => {
     await renderHome(memberViewer)
     expect(mockListRevenue).not.toHaveBeenCalled()
@@ -274,41 +238,6 @@ describe('AC-H03: the My Week panel (MyTasksCard) is present for any viewer', ()
   it('renders MyTasksCard head', async () => {
     await renderHome(financeViewer)
     await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
-  })
-})
-
-describe('AC-H04: loading state — finance tiles show skeleton, tasks/My-Week render independently', () => {
-  it('finance tiles show state=loading (aria-busy) while the reporting fetch is in flight', async () => {
-    mockListRevenue.mockImplementation(() => new Promise(() => {}))
-    mockListMargin.mockImplementation(() => new Promise(() => {}))
-    mockUseAuth.mockReturnValue(financeViewer)
-    render(createElement(HomePage), { wrapper })
-
-    await waitFor(() => {
-      const tile = screen.getByRole('group', { name: /revenue/i })
-      expect(tile.getAttribute('aria-busy')).toBe('true')
-    })
-    // Tasks tile + My Week panel still render, unaffected
-    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
-  })
-})
-
-describe('AC-H05: reporting fetch errors — finance tiles degrade, tasks/My-Week still render', () => {
-  it('does not crash and the tasks/My-Week tiles still render', async () => {
-    mockListRevenue.mockRejectedValue(new Error('reporting down'))
-    mockListMargin.mockRejectedValue(new Error('reporting down'))
-    await renderHome(financeViewer)
-
-    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
-    // No crash — the finance tiles degrade to a placeholder ("—"), never a stale/
-    // misleading ready value, and are no longer stuck in the loading (aria-busy) state.
-    const revenueTile = screen.getByRole('group', { name: /revenue/i })
-    expect(revenueTile.getAttribute('aria-busy')).toBeNull()
-    expect(revenueTile.textContent).toContain('—')
-
-    const marginTile = screen.getByRole('group', { name: /gross margin/i })
-    expect(marginTile.getAttribute('aria-busy')).toBeNull()
-    expect(marginTile.textContent).toContain('—')
   })
 })
 
