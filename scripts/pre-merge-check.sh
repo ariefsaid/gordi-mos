@@ -191,6 +191,25 @@ if [[ "${#FAILURES[@]}" -gt 0 ]]; then
   exit 1
 fi
 
+
+# ── Orphan-doc check (owner directive, 4x in the week of 2026-07-13..19: "no orphan md file,
+# any new md gets referenced accordingly"). NEW docs must arrive referenced; the gate enforces it
+# so reminding stops. Scope: docs ADDED vs merge-base only (pre-existing orphans are tracked debt).
+NEW_DOCS="$(git diff --name-only --diff-filter=A "${MERGE_BASE}..HEAD" -- 'docs/*.md' 'docs/**/*.md' || true)"
+ORPHANS=()
+for f in $NEW_DOCS; do
+  b="$(basename "$f")"
+  refs="$(grep -rl --include='*.md' -F "$b" docs CLAUDE.md AGENTS.md CONTEXT.md 2>/dev/null | grep -v "^$f$" | wc -l | tr -d ' ')"
+  [ "$refs" = "0" ] && ORPHANS+=("$f")
+done
+if [ "${#ORPHANS[@]:-0}" -gt 0 ]; then
+  echo ""
+  echo "FAIL: orphan doc(s) added by this branch (no inbound reference from any other doc):"
+  for f in "${ORPHANS[@]}"; do echo "  - $f"; done
+  echo "  Wire each into the convention (backlog / decisions / index / owning plan) and re-run."
+  exit 1
+fi
+
 echo "PASS: all required reviews cleared. Safe to merge."
 echo ""
 exit 0
