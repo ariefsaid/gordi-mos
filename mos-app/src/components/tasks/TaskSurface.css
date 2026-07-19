@@ -169,7 +169,7 @@
 }
 .rf-notes { min-width: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .rf-tab.on::after { transition: left 150ms ease, right 150ms ease; }
+  .rf-tab.on::after { transition: left var(--dur-med) ease, right var(--dur-med) ease; }
 }
 
 /* ── Status trigger ── */

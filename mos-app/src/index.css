@@ -69,6 +69,16 @@
   --z-modal:   40;   /* centered dialogs, confirms, ⌘K launcher — ABOVE any drawer */
   --z-toast:   50;   /* transient status toasts — above everything */
 
+  /* ── Transition-duration scale (cohesion-debt 2026-07-19, item #5). The kit's
+     --ds-animation-duration-* tokens are authored UNITLESS (seconds: 0.075/0.15/
+     0.3/1.5) and so can't drop into a `transition`/`animation` shorthand without
+     calc(*1s); only 0.15s matched a value actually in use. So the app exposes a
+     directly-usable ms scale and every hard-coded 120/150/160/180ms references it.
+     The 160ms Toggle oddball folds onto --dur-med (150). */
+  --dur-fast: 120ms;  /* control state transitions — input/border/bg/color, toggles, icon buttons */
+  --dur-med:  150ms;  /* reveal / movement micro-interactions — chevron rotate, tab underline slide */
+  --dur-slow: 180ms;  /* overlay entrances — drawer sheet slide, deputy panel slide */
+
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
      P3 form: brand-navy channel @ low alpha. No-Pure-Black-Shadow Rule preserved. */
   --shadow-rest:

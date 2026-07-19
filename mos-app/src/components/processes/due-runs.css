@@ -15,7 +15,7 @@
 }
 .due-runs-trigger:hover { background: var(--accent); }
 .due-runs-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.due-runs-chev { color: var(--muted-foreground); transition: transform 150ms ease; }
+.due-runs-chev { color: var(--muted-foreground); transition: transform var(--dur-med) ease; }
 /* IXD-1: the ONE shared Chevron, rotated −90° when collapsed (down = expanded) — mirrors the
    group-header caret convention (group-header-row.tsx). */
 .due-runs-chev-collapsed { transform: rotate(-90deg); }

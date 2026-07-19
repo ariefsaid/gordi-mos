@@ -102,7 +102,7 @@
 }
 .home-order-chevron {
   color: var(--muted-foreground);
-  transition: transform 150ms ease;
+  transition: transform var(--dur-med) ease;
 }
 .home-order-chevron--open {
   transform: rotate(180deg);

@@ -173,7 +173,7 @@ export function AssistantPanel() {
           boxShadow: 'var(--shadow-strong)',
           zIndex: 'var(--z-drawer)',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 180ms ease-out',
+          transition: 'transform var(--dur-slow) ease-out',
           pointerEvents: open ? 'auto' : 'none',
         }}
       >

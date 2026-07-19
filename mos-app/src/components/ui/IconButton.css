@@ -8,7 +8,7 @@
   width: 32px; height: 32px; padding: 0;
   border-radius: var(--radius-sm); /* 8px control */
   border: 0; cursor: pointer; background: transparent; color: var(--foreground);
-  transition: background-color 120ms ease;
+  transition: background-color var(--dur-fast) ease;
 }
 .mk-iconbtn--small { width: 24px; height: 24px; }
 .mk-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

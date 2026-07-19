@@ -102,7 +102,7 @@
 .mobile-task-options-summary { margin-left: 4px; color: var(--muted-foreground); font-weight: 500; }
 .mobile-task-options-chevron {
   display: block; margin-left: auto; color: var(--muted-foreground);
-  transition: transform 150ms ease;
+  transition: transform var(--dur-med) ease;
 }
 .mobile-task-options-chevron--open { transform: rotate(180deg); }
 .mobile-task-options-panel .toolbar { border-bottom: 0; }
@@ -515,7 +515,7 @@ tr.grp td { padding: 0; }
 }
 .gbar .caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 /* IXD-1: the group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
-.gbar .caret .grp-chev { transition: transform 150ms ease; display: block; }
+.gbar .caret .grp-chev { transition: transform var(--dur-med) ease; display: block; }
 .gbar .caret .grp-chev.grp-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .gbar .caret .grp-chev { transition: none; }
@@ -547,7 +547,7 @@ tr.grp td { padding: 0; }
 }
 .mgc-caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
 /* IXD-1: the mobile group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
-.mgc-caret .mgc-chev { transition: transform 150ms ease; display: block; }
+.mgc-caret .mgc-chev { transition: transform var(--dur-med) ease; display: block; }
 .mgc-caret .mgc-chev.mgc-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .mgc-caret .mgc-chev { transition: none; }

@@ -27,7 +27,7 @@
 button.kpi-tile {
   cursor: pointer;
   width: 100%;
-  transition: border-color 120ms ease;
+  transition: border-color var(--dur-fast) ease;
 }
 button.kpi-tile:hover {
   border-color: var(--primary);

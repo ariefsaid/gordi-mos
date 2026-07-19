@@ -4,7 +4,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   border: 1.5px solid var(--border); background: var(--background);
   border-radius: var(--radius-xs); cursor: pointer; flex-shrink: 0;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
 }
 .mk-checkbox--medium { width: 16px; height: 16px; }
 .mk-checkbox--small { width: 14px; height: 14px; }

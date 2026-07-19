@@ -186,3 +186,38 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
     expect(readSrc('components/admin/role-editor.tsx')).not.toMatch(/✕/)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-DUR: transition-duration tokens (cohesion-debt item #5). Duration tokens
+// existed but NOTHING used them; hard-coded 120/150/160/180ms sprawled (a drawer's
+// scrim 150 vs its own sheet 180). Collapse onto a 3-tier app scale (--dur-fast /
+// --dur-med / --dur-slow); the 160 oddball folds onto 150.
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-DUR: transition-duration tokens', () => {
+  const index = stripComments(readSrc('index.css'))
+
+  it('CHROME-DUR: index.css defines a --dur-* scale in ms', () => {
+    for (const t of ['dur-fast', 'dur-med', 'dur-slow']) {
+      expect(index, `--${t} must be defined in ms`).toMatch(new RegExp(`--${t}:\\s*[0-9]+ms`))
+    }
+  })
+
+  it('CHROME-DUR: no non-test .css hard-codes a 120/150/160/180ms duration', () => {
+    const offenders: string[] = []
+    for (const f of listSource(SRC, ['.css'])) {
+      const rel = srcRel(f)
+      // index.css is the ONE definition home for the --dur-* scale (the ms literals live there).
+      if (rel === 'index.css') continue
+      const css = stripComments(readFileSync(f, 'utf8'))
+      const m = css.match(/\b(?:120|150|160|180)ms\b/)
+      if (m) offenders.push(`${rel} — ${m[0]}`)
+    }
+    expect(offenders, 'these durations must reference var(--dur-*)').toEqual([])
+  })
+
+  it('CHROME-DUR: the AssistantPanel slide uses the token, not a raw 180ms', () => {
+    const body = readSrc('components/assistant/AssistantPanel.tsx')
+    expect(body).not.toMatch(/transform 180ms/)
+    expect(body).toMatch(/var\(--dur-slow\)/)
+  })
+})

@@ -40,7 +40,7 @@
   position: absolute; inset: 0; background: var(--scrim);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .drawer-scrim { animation: scrim-in 150ms ease; }
+  .drawer-scrim { animation: scrim-in var(--dur-med) ease; }
   @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
 }
 /* Right-side sheet (desktop / narrow-laptop band). */
@@ -57,7 +57,7 @@
   display: flex; flex-direction: column;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .drawer-modal.drawer-sheet { animation: sheet-in 180ms ease; }
+  .drawer-modal.drawer-sheet { animation: sheet-in var(--dur-slow) ease; }
   @keyframes sheet-in { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
 }
 /* Phone (<768px): the sheet variant collapses to a full-height opaque sheet too —

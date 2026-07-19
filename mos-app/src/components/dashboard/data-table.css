@@ -240,7 +240,7 @@
 .dt-group-toggle:hover { color: var(--foreground); }
 
 /* shared <Chevron>: down = expanded, rotated -90° (right) = collapsed */
-.dt-group-chev { transition: transform 120ms ease; }
+.dt-group-chev { transition: transform var(--dur-fast) ease; }
 .dt-group-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .dt-group-chev { transition: none; }
@@ -292,7 +292,7 @@
   border-radius: var(--radius-sm);
 }
 .dt-cards-group-toggle:hover { color: var(--foreground); }
-.dt-cards-group-chev { transition: transform 120ms ease; }
+.dt-cards-group-chev { transition: transform var(--dur-fast) ease; }
 .dt-cards-group-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .dt-cards-group-chev { transition: none; }
