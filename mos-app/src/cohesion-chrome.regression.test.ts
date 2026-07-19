@@ -78,7 +78,8 @@ describe('CHROME-Z: z-index tier scale', () => {
   })
 
   it('CHROME-Z: admin confirm/create/role dialogs use the modal tier, not a bare z-50', () => {
-    for (const f of ['components/admin/confirm-dialog.tsx', 'components/admin/create-person-dialog.tsx', 'components/admin/role-editor.tsx']) {
+    // The confirm primitive moved to components/ui (item #4); create/role dialogs stay in admin.
+    for (const f of ['components/ui/confirm-dialog.tsx', 'components/admin/create-person-dialog.tsx', 'components/admin/role-editor.tsx']) {
       const body = readSrc(f)
       expect(body, `${f} must not ship the bare Tailwind z-50 overlay`).not.toMatch(/className="fixed inset-0 z-50/)
       expect(body, `${f} must reference the --z-modal tier`).toMatch(/var\(--z-modal\)/)
@@ -285,5 +286,40 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
       expect(m, `${sel} focus rule in ${file}`).toBeTruthy()
       expect(m![1], `${sel} must not keep an inset ring`).not.toMatch(/outline-offset:\s*-2px/)
     }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-MODAL: modal consolidation (cohesion-debt item #4). The admin ConfirmDialog
+// is promoted to the shared components/ui path; ConfirmArchive folds onto it and its
+// bespoke .confirm-* overlay CSS is deleted. (OccurrenceAssignDialog + CreatePersonDialog
+// are structurally different — a list host / a multi-phase form with an alertdialog
+// reveal — and are escalated for a ModalShell follow-up, not folded onto a confirm.)
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-MODAL: modal consolidation', () => {
+  it('CHROME-MODAL: the shared ConfirmDialog primitive lives at components/ui and uses --scrim + --z-modal', () => {
+    const body = readSrc('components/ui/confirm-dialog.tsx')
+    expect(body).toMatch(/export function ConfirmDialog/)
+    expect(body).toMatch(/className="scrim/)
+    expect(body).toMatch(/var\(--z-modal\)/)
+  })
+
+  it('CHROME-MODAL: the admin ConfirmDialog module re-exports the shared primitive (no second copy)', () => {
+    const body = readSrc('components/admin/confirm-dialog.tsx')
+    expect(body).toMatch(/export \{ ConfirmDialog \} from '@\/components\/ui\/confirm-dialog'/)
+    // the full component impl no longer lives here
+    expect(body).not.toMatch(/function ConfirmDialog/)
+  })
+
+  it('CHROME-MODAL: ConfirmArchive composes the shared ConfirmDialog, not a bespoke overlay', () => {
+    const body = readSrc('components/tasks/confirm-archive.tsx')
+    expect(body).toMatch(/from '@\/components\/ui\/confirm-dialog'/)
+    expect(body, 'no hand-rolled overlay markup').not.toMatch(/confirm-overlay|confirm-box/)
+  })
+
+  it('CHROME-MODAL: the bespoke .confirm-* overlay CSS is deleted from TaskSurface.css', () => {
+    const css = stripComments(readSrc('components/tasks/TaskSurface.css'))
+    expect(css).not.toMatch(/\.confirm-overlay\s*\{/)
+    expect(css).not.toMatch(/\.confirm-box\s*\{/)
   })
 })

@@ -20,7 +20,7 @@ import type { PersonAction } from '@/components/admin/user-table'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
 import { RoleEditor } from '@/components/admin/role-editor'
-import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import {

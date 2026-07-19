@@ -219,20 +219,9 @@
 }
 
 /* ── Archive confirm ── */
-.confirm-overlay {
-  position: fixed; inset: 0; background: var(--scrim); /* ONE scrim token (cohesion-debt item #1) */
-  display: grid; place-items: center; z-index: var(--z-modal);
-}
-.confirm-box {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 12px — modal/overlay, OD-P3-10 */
-  padding: 20px 24px; max-width: 360px; width: 90%;
-  box-shadow: 0 8px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
-}
-.confirm-msg { font-size: 16px; line-height: 1.5; margin-bottom: 16px; }
-.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-/* IXD-4 (PR-2): confirm buttons use the shared .btn .btn-outline / .btn .btn-destructive
-   from ui/Button.css. The bespoke .confirm-cancel / .btn-archive rules were removed. */
+/* The bespoke .confirm-overlay/.confirm-box/.confirm-msg/.confirm-actions modal was
+   deleted (cohesion-debt 2026-07-19, item #4): ConfirmArchive now composes the shared
+   ConfirmDialog primitive (components/ui/confirm-dialog.tsx). One centered modal, no copy. */
 
 /* ── Meta row ── */
 .meta-row { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
