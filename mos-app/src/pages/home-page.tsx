@@ -59,6 +59,11 @@ export function HomePage() {
   const { locale } = useI18n()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  // WIB day-parts per e7's greeting grammar: pagi <11, siang 11-15, sore 15+ (id conventions).
+  const greetingKey = () => {
+    const h = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date()))
+    return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
+  }
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
   const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
@@ -240,9 +245,15 @@ export function HomePage() {
 
   return (
     <PageFrame surfaceWash>
+      {/* e7 TRANSPLANT (e7-views.js:143, ported not re-interpreted): head = personal greeting,
+          subtitle = role identity — the warmth the build lost (parity finding R1). Only
+          adaptation: a live clock picks the greeting (WIB); e7's static mock froze "morning".
+          Falls back to the generic head when unauthenticated (e7 has no such state). */}
       <PageHead
-        title={t('home.title')}
-        subtitle={t('home.subtitle')}
+        title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
+        subtitle={viewer && viewer.roles.length > 0
+          ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
+          : t('home.subtitle')}
         meta={
           order === 'personal-first' && personId ? (
             <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n })}</a>
