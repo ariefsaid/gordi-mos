@@ -1,6 +1,10 @@
 /* SignalsArchivePage — Work → Signals search/archive list (design-review step-4 CRITICAL-1).
    A styled search field (PORT convergence .searchbar grammar), the "Show retracted" toggle
    row, and bounded archive rows with a hairline between them. */
+/* The list column of the split (list | record). min-width:0 lets it squash cleanly beside the
+   record panel at >=1100px (the .record-split grid track lives in styles/drawer.css). */
+.signals-archive-main { min-width: 0; }
+
 .signals-archive-toolbar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
 }

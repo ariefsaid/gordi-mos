@@ -27,7 +27,7 @@ import { PricingPage } from './pages/pricing-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 import { ProfilePage } from '@/pages/profile-page'
 import { EventsPage } from './pages/events-page'
-import { SignalsArchivePage } from './pages/signals-archive-page'
+import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
 import { RecoveryPage } from './pages/recovery-page'
@@ -45,7 +45,8 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 //     /work/tasks              → TasksLayout (split-view shell — persistent table + <Outlet> drawer)
 //       /work/tasks/new        → TaskDrawer (create mode)
 //       /work/tasks/:taskId    → TaskDrawer (view mode)
-//     /work/signals             → SignalsArchivePage (Signals archive/search — Step 4 C3; ?record=<id> opens the record drawer)
+//     /work/signals             → SignalsArchivePage (Signals archive/search; ?record=<id> opens the shared RecordPanelHost drawer)
+//       /work/signals/:signalId → SignalRecordPage (full canonical record page — OD-63; ?record= hard-loads redirect here)
 //     /work/projects           → ProjectsProcessesPage (RequireCapability workline.manage)
 //     /work/objectives         → ObjectivesPage (RequireCapability objective.manage)
 //     /events                   → EventsPage (Step 10 — job sentence + sanctioned empty state)
@@ -111,6 +112,7 @@ export const routeConfig: RouteObject[] = [
             ],
           },
           { path: 'work/signals', element: <SignalsArchivePage /> },
+          { path: 'work/signals/:signalId', element: <SignalRecordPage /> },
           { path: 'work/projects-processes', element: <SearchRedirect to="/work/projects" /> },
           {
             element: <RequireCapability capability="workline.manage" />,

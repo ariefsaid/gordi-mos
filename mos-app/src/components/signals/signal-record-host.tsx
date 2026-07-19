@@ -19,13 +19,15 @@ import { SignalRecord, type SignalMentionView } from './signal-record'
 import './signal-record-host.css'
 
 // C3 (KNOWN GAP 2): signal-record.tsx (B15) is a fully presentational renderer — this host is
-// the fetch+mutate layer the archive page's ?record=<id> drawer mounts. Reuses the record-panel
-// host pattern (mode="panel", Rule 4/6): the surrounding SignalsArchivePage list stays visible,
-// this host owns only the Signal's own data + actions.
+// the fetch+mutate layer for the Signal record. It is the CONTENT of the shared RecordPanelHost
+// (spec record-panel-host.spec.md, FR-3) — chrome-free: the host owns the ✕ Close / "Open full
+// page" / modal regime, this host owns only the Signal's own data + actions. `mode` mirrors the
+// Task renderer: "panel" (the in-list split drawer) or "page" (the full canonical record page).
 
 export interface SignalRecordHostProps {
   signalId: string
-  onClose: () => void
+  /** panel = in-list split drawer content; page = standalone canonical record page (OD-63/Rule 4). */
+  mode?: 'panel' | 'page'
 }
 
 type FetchState = 'loading' | 'ready' | 'error'
@@ -34,7 +36,7 @@ function personName(people: PersonOption[], id: string, fallback: string): strin
   return people.find((p) => p.id === id)?.full_name ?? fallback
 }
 
-export function SignalRecordHost({ signalId, onClose }: SignalRecordHostProps) {
+export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostProps) {
   const t = useT()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -172,12 +174,8 @@ export function SignalRecordHost({ signalId, onClose }: SignalRecordHostProps) {
 
   return (
     <div className="signal-record-host">
-      <button type="button" className="signal-record-host-close" onClick={onClose}>
-        {t('signals.record.close')}
-      </button>
-
       <SignalRecord
-        mode="panel"
+        mode={mode}
         signal={signal}
         authorName={personName(people, signal.author_id, t('signals.card.unknownAuthor'))}
         teamName={teamName}

@@ -9,6 +9,19 @@
    skin). Task-only extensions (.dw-*) stay in TasksWorkspace.css.
    ════════════════════════════════════════════════════════════════════════════ */
 
+/* ── Shared split track (list | record) ───────────────────────────────────────
+   The generic push/squash grid any RecordPanelHost tenant page (Signals archive,
+   …) uses so its list squashes and the non-modal <aside> record panel sits BESIDE
+   it at >=1100px — identical side/width to the Task drawer's split (spec FR-3).
+   Same drawer-width clamp as the Tasks .split grid (Rule 11 — reuse, one width).
+   Below 1100px the host renders its own modal overlay, so pages drop this class
+   and the list runs full-width underneath. */
+.record-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 33vw, 480px);
+  align-items: start; gap: 12px;
+}
+
 /* ── Drawer surface (the card-styled pane — split-view pane OR modal sheet) ── */
 .drawer {
   background: var(--card); border: 1px solid var(--border);

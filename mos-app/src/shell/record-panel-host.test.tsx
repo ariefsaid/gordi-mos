@@ -135,6 +135,23 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
   })
 })
 
+describe('RecordPanelHost — shell parity across tenants (AC-RPH-2)', () => {
+  it('the .drawer shell (width/border/shadow) is identical whether or not the tenant uses host chrome', () => {
+    // A Task drawer keeps its own header (no host chrome); a Signal panel uses the host chrome.
+    // Either way the OUTER .drawer surface — which carries width/border/shadow — is the same, so
+    // both records "open the same way, same side, same width" (the owner's cohesion ask).
+    const { unmount } = renderHost({ label: 'Task', children: <div>task body</div> })
+    const taskShell = screen.getByRole('complementary', { name: 'Task' }).className
+    unmount()
+
+    renderHost({ label: 'Signal', title: 'Signal', onOpenPage: vi.fn() })
+    const signalShell = screen.getByRole('complementary', { name: 'Signal' }).className
+
+    expect(signalShell).toBe(taskShell) // identical shell classes → identical width/border/shadow
+    expect(signalShell.split(/\s+/)).toContain('drawer')
+  })
+})
+
 describe('RecordPanelHost — focus contract (FR-1)', () => {
   it('moves focus into the panel on open, and returns it to the opener on close', () => {
     const opener = document.createElement('button')
