@@ -57,15 +57,14 @@ function WorkChild({ section, onNavigate }: { section: Section; onNavigate?: () 
       onClick={onNavigate}
       className={({ isActive }) => itemBase(isActive)}
     >
-      {({ isActive }) => (
-        <>
-          <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
-            <section.Icon />
-          </span>
-          <span>
-            {section.labelKey ? t(section.labelKey) : section.label}
-          </span>
-        </>
+      {() => (
+        /* B2 (owner sketch, ratified 2026-07-18): Work children are PLAIN indented labels —
+           the sketch showed no icons; the icons were a builder default parked in a scorecard
+           footnote (parity-sweep axis-2 finding B2). Icon stays in the Section data for the
+           bottom-nav/⌘K; the rail child renders label-only. */
+        <span>
+          {section.labelKey ? t(section.labelKey) : section.label}
+        </span>
       )}
     </NavLink>
   )

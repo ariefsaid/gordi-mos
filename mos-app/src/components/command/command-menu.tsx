@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
+import {
+  HomeIcon, WorkIcon, SignalsIcon, TasksIcon, WorkLineIcon, ObjectiveIcon,
+  EventsIcon, MoneyIcon, InboxIcon, CafeIcon,
+} from '@/shell/icons'
+import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
@@ -24,7 +29,8 @@ export type CommandMenuProps = {
 type CommandItem = {
   id: string
   label: string
-  glyph: string
+  /** SVG icon from the app icon system (parity A1 — the palette is one monochrome set, never emoji) */
+  Icon: React.ComponentType
   kind: 'action' | 'navigate' | 'record'
   to?: string
   run?: () => void
@@ -80,30 +86,30 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
   const universalActions = useMemo<CommandItem[]>(
     () => [
-      { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), glyph: '✦', kind: 'action', run: () => openPanel() },
-      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), glyph: '➤', kind: 'action', run: onShareSignal },
-      { id: 'a-task', label: t('commandMenu.action.createTask'), glyph: '＋', kind: 'action', to: '/work/tasks/new' },
+      { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
+      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
+      { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks/new' },
     ],
     [openPanel, onShareSignal, t],
   )
 
   const navigateItems = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [
-      { id: 'n-home', label: t('dest.home'), glyph: '⌂', kind: 'navigate', to: '/' },
-      { id: 'n-work', label: t('dest.work'), glyph: '▦', kind: 'navigate', to: '/work/tasks' },
-      { id: 'n-signals', label: t('nav.signals'), glyph: '✦', kind: 'navigate', to: '/work/signals' },
+      { id: 'n-home', label: t('dest.home'), Icon: HomeIcon, kind: 'navigate', to: '/' },
+      { id: 'n-work', label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: '/work/tasks' },
+      { id: 'n-signals', label: t('nav.signals'), Icon: SignalsIcon, kind: 'navigate', to: '/work/signals' },
     ]
     if (projectsAuthorized) {
-      items.push({ id: 'n-projects', label: t('nav.work.projects'), glyph: '▥', kind: 'navigate', to: '/work/projects' })
+      items.push({ id: 'n-projects', label: t('nav.work.projects'), Icon: WorkLineIcon, kind: 'navigate', to: '/work/projects' })
     }
     if (objectivesAuthorized) {
-      items.push({ id: 'n-objectives', label: t('nav.work.objectives'), glyph: '◎', kind: 'navigate', to: '/work/objectives' })
+      items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
     }
     items.push(
-      { id: 'n-events', label: t('dest.events'), glyph: '▤', kind: 'navigate', to: '/events' },
-      { id: 'n-money', label: t('dest.money'), glyph: '$', kind: 'navigate', to: '/money', gated: true },
-      { id: 'n-inbox', label: t('dest.inbox'), glyph: '📥', kind: 'navigate', to: '/inbox' },
-      { id: 'n-cafe', label: t('dest.cafe'), glyph: '☕', kind: 'navigate', to: '/cafe' },
+      { id: 'n-events', label: t('dest.events'), Icon: EventsIcon, kind: 'navigate', to: '/events' },
+      { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
+      { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
+      { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },
     )
     return items
   }, [t, projectsAuthorized, objectivesAuthorized])
@@ -132,7 +138,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     const out: ItemGroup[] = []
     if (!isSearching) {
       const recent = readRecentTasks().map<CommandItem>((r) => ({
-        id: `recent-${r.id}`, label: r.title, glyph: '⊞', kind: 'record',
+        id: `recent-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
       if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
@@ -143,7 +149,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     const actions = universalActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
     const recordItems = recordRows.map<CommandItem>((r) => ({
-      id: `record-${r.id}`, label: r.title, glyph: '⊞', kind: 'record',
+      id: `record-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
       to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
     }))
     if (records.status === 'ready' && recordItems.length) {
@@ -247,7 +253,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
           )}
           {isSearching && records.status === 'loading' && (
             <li className="cm-item" data-testid="cm-records-skeleton" aria-hidden="true">
-              <span className="cm-item-glyph">⊞</span>
+              <span className="cm-item-glyph" aria-hidden="true"><TasksIcon /></span>
               <span className="cm-skeleton" />
             </li>
           )}
@@ -274,7 +280,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
                         if (idx >= 0) setActive(idx)
                       }}
                     >
-                      <span className="cm-item-glyph" aria-hidden="true">{item.glyph}</span>
+                      <span className="cm-item-glyph" aria-hidden="true"><item.Icon /></span>
                       <span className="cm-item-label truncate" title={item.label}>{item.label}</span>
                       {item.meta && <span className="cm-item-meta">{item.meta}</span>}
                     </li>

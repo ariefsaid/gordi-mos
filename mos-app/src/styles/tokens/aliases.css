@@ -38,9 +38,11 @@
   --accent-subtle: color(display-p3 0.276 0.384 0.837 / 0.10);
 
   /* ---- Radii ---- */
-  --radius-xs: var(--ds-border-radius-xs);   /* 2px */
-  --radius-sm: var(--ds-border-radius-sm);   /* 4px — default control radius */
-  --radius-md: var(--ds-border-radius-md);   /* 8px — cards, menus */
+  /* A4/parity-sweep 2026-07-18: the --radius-{xs,sm,md} aliases used to re-map the semantic
+     scale onto the ds-kit's tighter values (2/4/8) LATER in the cascade — silently defeating
+     index.css's OD-P3-10 e7-aligned scale (4/8/10/12, "8px CONTROLS") that was already the
+     decided authority. Removed: index.css :root is the single radius authority now. The
+     --ds-border-radius-* kit tokens remain for kit-internal use only. */
   --radius-pill: var(--ds-border-radius-pill);
   --radius-round: var(--ds-border-radius-rounded);
 

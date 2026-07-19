@@ -73,7 +73,7 @@ function HamburgerIcon() {
 }
 
 // Deputy spark icon — 16px, stroke-2, aria-hidden (T28 desktop top-bar button)
-function DeputyIcon() {
+export function DeputyIcon() {
   return (
     <svg
       width={16}

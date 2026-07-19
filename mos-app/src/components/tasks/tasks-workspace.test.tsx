@@ -928,7 +928,7 @@ function cssRuleBody(selector: string): string {
   return css.slice(open + 1, close)
 }
 
-describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-foreground)', () => {
+describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted — supersedes OD-P4-10 weight-400)', () => {
   it('AC-T01: a populated table columnheader carries the th-cell class', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Overline task' })])
     renderTable()
@@ -937,12 +937,13 @@ describe('PR-2 — AC-T01 thead th overline (weight-400 uppercase text-muted-for
     expect(th.className).toContain('th-cell')
   })
 
-  it('AC-T01: .th-cell rule is weight 400 + UPPERCASE + 0.06em tracking + text-muted-foreground', () => {
+  it('AC-T01: .th-cell rule is e7 table-header grammar — weight 600, h38, UPPERCASE, 0.06em, muted color', () => {
     const body = cssRuleBody('.th-cell')
-    // OD-P4-10 overline, scoped to thead th only: weight 400 (NOT 600), uppercase,
-    // 0.06em tracking, the --ds-font-color-tertiary crosswalk (text-muted-foreground).
-    expect(body).toMatch(/font-weight:\s*400/)
-    expect(body).not.toMatch(/font-weight:\s*600/)
+    // Parity sweep A3 (2026-07-18): e7 owns the table grammar for the redesign skin (SALVAGE);
+    // weight 600 + height 38 SUPERSEDE the pre-redesign OD-P4-10/ADR-0013 weight-400 overline.
+    // Uppercase + 0.06em + muted color + 11px retained (measured non-divergent vs e7).
+    expect(body).toMatch(/font-weight:\s*600/)
+    expect(body).toMatch(/height:\s*38px/)
     expect(body).toMatch(/text-transform:\s*uppercase/)
     expect(body).toMatch(/letter-spacing:\s*\.?0*\.?06em/) // 0.06em
     expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)

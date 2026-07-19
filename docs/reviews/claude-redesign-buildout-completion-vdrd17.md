@@ -31,14 +31,14 @@ after step 11).
   APPROVE with AC-by-AC coverage tables in the step ledgers; every AC owned by one test at its layer.
 - code-quality: APPROVE — per-step code-quality reviews (opus): steps 4–11 all APPROVE; step-6
   fix-then-ship items (silent write failures, useOccurrenceGroups extraction) FIXED and verified.
-- design: BLOCK — reopened 2026-07-18 by owner-caught fidelity finding **DESIGN-FIDELITY-1 (rail
-  selected-state + panel bg not ported from e7)** — see § "Design fidelity — reopened" below. The prior
-  per-step + holistic APPROVEs stand for structure/flow/a11y, but ALL of them (and the mockup-fidelity
-  audit) measured proxies for visual fidelity, never computed-style parity vs the owning mockup, so a
-  visible rail regression passed every stage. Verdict returns to APPROVE only after DESIGN-FIDELITY-1 is
-  fixed AND re-verified with the now-mandatory computed-style parity step (`design-reviewer.md` Lens a).
-  *(Prior state, retained: steps 4/5/6 BLOCK→fix→APPROVE with rendered evidence; 7–10 first-pass
-  APPROVE; holistic 3-persona×2-breakpoint pass SHIP for structure; 785cdf3 fixed 2 Important + 2 copy.)*
+- design: BLOCK — reopened 2026-07-18 (DESIGN-FIDELITY-1, rail) — see below. *(retained history)*
+- design: APPROVE — 2026-07-18, fidelity restored and **parity-verified by measurement**: rail
+  (DESIGN-FIDELITY-1) + the full two-axis sweep's Importants all fixed and re-measured (A1 ⌘K SVG
+  icons 0-emoji · A2 heading navy 15/700 · A3 th 600/38 · A4 radius cascade fixed · B2 sketch plain
+  labels · OD-68 sketch rail). Evidence: `parity-sweep-2026-07-18.md` § Resolution. Remaining design
+  items are owner-gated ratify features (Signal full-page, canonical composer, shared drawer host,
+  Inbox triage, attention control, image-attach slice per OD-69i) — tracked in the ratify list, not
+  fidelity blocks.
 - security: APPROVE — security-auditor (opus): step 4 BLOCK (HIGH-1 + 3 Low) → all empirically
   CLEARED; step 6 APPROVE (0 Critical/High; Low-1/2/3 hardened in the fix wave, re-verified by
   pgTAP). Steps 5/7/8/9/10/11 carry no new auth/RLS/schema surface beyond those audits' scope.

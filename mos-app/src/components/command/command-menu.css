@@ -22,7 +22,7 @@
   max-width: calc(100% - 32px);
   background: var(--surface-primary);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg); /* e7 overlay radius 12 (parity A4) */
   box-shadow: var(--shadow-strong); /* --ds-box-shadow-strong */
   overflow: hidden;
   /* Themed scope sets color explicitly so children don't inherit a body-baked
@@ -110,7 +110,9 @@
 .cm-item-glyph {
   color: var(--text-tertiary);
   width: 18px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
 }
 .cm-item.action .cm-item-glyph { color: var(--text-accent); }

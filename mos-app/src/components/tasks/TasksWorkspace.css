@@ -234,13 +234,14 @@
 /* Condensed PIC: drop the name, keep the avatar (AC-113 ladder step 2). */
 .assembly.condensed .td-owner .own-name { display: none; }
 
-/* OD-P4-10 overline, scoped to thead th ONLY (group headers + rail labels keep
-   weight 600/500). Weight 400 + UPPERCASE + 0.06em tracking, color
-   --muted-foreground (the --ds-font-color-tertiary crosswalk — clears dark-mode AA,
-   ADR-0013 Decision 2). Mockup: mock-shell-and-table.html `.records thead th`. */
+/* Table-header grammar: e7 owns it for the redesign skin (SALVAGE — parity sweep A3,
+   2026-07-18): weight 600, h38. This SUPERSEDES the OD-P4-10/ADR-0013 weight-400 overline
+   (pre-redesign era, mock-shell-and-table.html) — era discipline: the owning redesign
+   mockup outranks the earlier kit decision. UPPERCASE 11px + muted color retained (not
+   divergent in the measured sweep). */
 .th-cell {
-  text-align: left; height: 32px; padding: 0 12px; line-height: 1.3;
-  font-weight: 400; text-transform: uppercase; letter-spacing: 0.06em;
+  text-align: left; height: 38px; padding: 0 12px; line-height: 1.3;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
   /* Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role). */
   font-size: 11px; color: var(--muted-foreground);
   border-bottom: 1px solid var(--border); white-space: nowrap;

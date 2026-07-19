@@ -1791,3 +1791,17 @@ ceiling — upgrade to team.business_unit when the viewer payload carries it). P
 recorded in the vdrd17 ledger: an owner artifact's omission was routed around by a Director
 default, then OD-57's text enshrined the default and six audits verified the text — an owner's
 drawing outranks a transcription of it.
+
+### OD-REDESIGN-69 — Parity-sweep rulings: image-attach accepted, plain Work labels, radius scale restored (owner "proceed", 2026-07-18)
+
+(i) **Signal composer image-attach** (the owner's thrice-stated "an icon to add image", dropped at
+the decision step — sweep finding B1) is **ACCEPTED as a feature**: build as its own spec'd slice
+(needs Supabase storage — currently excluded from the local stack and CI — plus bucket RLS and a
+security pass; an icon without a backend would be a fake affordance). Until built, the composer
+ships without it deliberately, not silently. (ii) **Work children are plain indented labels** in the
+rail, per the frame sketch — the shipped icons were a builder default parked in a scorecard footnote
+(finding B2); reverted. (iii) **Radius scale**: no new decision needed — OD-P3-10 (8px controls /
+12px overlays, e7-aligned) was already law; `aliases.css` was silently overriding it in the cascade
+with the kit's tighter 2/4/8 values. Override removed; `index.css` is the single radius authority.
+(iv) The e7 table-header grammar (600/h38) supersedes the pre-redesign OD-P4-10 weight-400 overline
+for the redesign skin, per SALVAGE e7 table-grammar ownership.

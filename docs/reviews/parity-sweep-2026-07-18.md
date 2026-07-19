@@ -63,3 +63,12 @@ REJECTED with a reason, or they are B1-class silent drops.
 
 Everything else in Axis 1 (A1/A2/A3 + minors) is settled-law fidelity work — no decision needed,
 just the port, each re-verified by computed-style parity.
+
+## Resolution (same day, owner: "proceed")
+
+All executed and **parity re-verified by measurement**: A1 ⌘K = 10/10 SVG slots, 0 emoji, panel
+radius 12 ✓ · A2 heading = 15px/700 `--brand-navy-text` ✓ · A3 th = 600/h38 ✓ (supersedes OD-P4-10,
+AC-T01 updated as a deliberate change) · A4 `--radius-sm/md/lg` now resolve 8/10/12 — the
+`aliases.css` cascade override was the root cause and is removed ✓ · B2 Work children = 0 icons,
+plain labels per the sketch ✓ · B1 accepted as its own slice (OD-69i, backlog). Full Vitest
+2763/2763 · typecheck 0 · eslint clean.
