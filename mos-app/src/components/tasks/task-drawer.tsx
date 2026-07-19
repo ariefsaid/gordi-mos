@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface } from './task-surface'
 import { useExpandPref } from './use-expand-pref'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
-import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
+import { RecordPanelHost } from '@/shell/record-panel-host'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
 
@@ -31,23 +31,18 @@ function BreadcrumbTitleSync({ title }: { title: string }) {
   return null
 }
 
-const FOCUSABLE = [
-  'a[href]', 'button:not([disabled])', 'input:not([disabled])',
-  'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
-].join(',')
-
 /**
- * The task drawer host (ADR-0007 §4, design-plan §1.2 / §5.1). Reads the route
- * param, owns the per-user-global expand preference (AC-104/105), and renders
- * the single TaskSurface beside (or over) the persistent table.
+ * The task record drawer (ADR-0007 §4, design-plan §1.2 / §5.1). Reads the route
+ * param, owns the per-user-global expand preference (AC-104/105), and mounts the
+ * single TaskSurface as the CONTENT of the shared RecordPanelHost.
  *
- * Two focus regimes, one component (AC-110):
- *  • ≥1100px split → NON-MODAL <aside> (no trap, no scrim): Tab flows table↔drawer
- *    so triage continues; opening moves focus to the surface, closing returns it
- *    to the invoking row.
- *  • <1100px (overlay 920–1100 + mobile <768) → MODAL dialog: role="dialog" +
- *    aria-modal, a scrim, focus-trap, Esc-to-close, and return-focus on close —
- *    because the table underneath is covered/inert.
+ * The host owns the overlay grammar (spec record-panel-host.spec.md, FR-1/FR-2):
+ * the dual modal regime (≥1100px non-modal <aside> split / <1100px role=dialog
+ * aria-modal sheet), the .drawer shell, the focus contract, Esc, and return-focus.
+ * This drawer keeps only the task-specific plumbing (param, expand pref, breadcrumb
+ * title, close target) and passes the TaskSurface through — the Task keeps its own
+ * rich header (TaskDrawerHeader) inside the content, so extraction is behaviour-
+ * neutral (FR-2: every existing task-drawer test passes unmodified).
  */
 export function TaskDrawer({ mode }: TaskDrawerProps) {
   const { taskId } = useParams<{ taskId: string }>()
@@ -56,79 +51,20 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const ctx = useOutletContext<TaskDrawerOutletContext | null>()
   const [expanded, setExpanded] = useExpandPref()
   const isSplit = useIsSplitWidth()
-  const isDesktop = useIsDesktop()
+  const t = useT()
 
   // ADR-0013 D1 / OD-P4-9: track the resolved task title so BreadcrumbTitleSync can
   // push it to the shell Breadcrumb. Resets on taskId change (new record opens).
   const [resolvedTitle, setResolvedTitle] = useState<string | null>(null)
   useEffect(() => { setResolvedTitle(null) }, [taskId])
 
-  const isModal = !isSplit
-  const isFullScreen = !isDesktop // <768px: full-screen modal (design-plan §1.5)
-  const t = useT()
-
-  const panelRef = useRef<HTMLElement>(null)
-  // Remember the element that had focus before the drawer opened, to restore on close.
-  const invokerRef = useRef<HTMLElement | null>(null)
-
   const close = () => navigate({ pathname: '/work/tasks', search: location.search })
-
-  // ── Focus management ────────────────────────────────────────────────────────
-  useEffect(() => {
-    invokerRef.current = (document.activeElement as HTMLElement) ?? null
-    const panel = panelRef.current
-    if (!panel) return
-
-    // Move focus into the surface on open (both regimes land keyboard/SR users
-    // on the new content; only the modal regime traps).
-    const first = panel.querySelector<HTMLElement>(FOCUSABLE)
-    first?.focus()
-
-    return () => {
-      // Return focus to the invoking row/control on close.
-      invokerRef.current?.focus?.()
-    }
-    // Re-run when the task or regime changes (a fresh surface mounts).
-  }, [taskId, mode, isModal])
-
-  // Modal-only: focus trap (on the panel) + Esc (on the document, since the modal
-  // owns the whole screen and focus may rest on the body/scrim).
-  useEffect(() => {
-    if (!isModal) return
-    const panel = panelRef.current
-    if (!panel) return
-
-    function onTrapKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Tab') return
-      const focusable = Array.from(panel!.querySelectorAll<HTMLElement>(FOCUSABLE))
-        .filter(el => el.offsetParent !== null || el === document.activeElement)
-      if (focusable.length === 0) return
-      const firstEl = focusable[0]
-      const lastEl = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === firstEl) {
-        e.preventDefault(); lastEl.focus()
-      } else if (!e.shiftKey && document.activeElement === lastEl) {
-        e.preventDefault(); firstEl.focus()
-      }
-    }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); close() }
-    }
-    panel.addEventListener('keydown', onTrapKeyDown)
-    document.addEventListener('keydown', onEsc)
-    return () => {
-      panel.removeEventListener('keydown', onTrapKeyDown)
-      document.removeEventListener('keydown', onEsc)
-    }
-  }, [isModal, taskId, mode]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
 
   // ADR-0013 D3 / AC-R06: the expand control PROMOTES the surface to the full-width
   // two-column record page — but only where there's room for two columns (the split
   // regime, ≥1100px). Below split (modal sheet / mobile full-screen) "expanded" keeps
   // the compact stacked drawer; there isn't horizontal room for the side-by-side grid.
-  // (Pre-fix bug: width was hardcoded "drawer", so .record-2col never mounted live.)
   const fullWidth = expanded && isSplit
   const width = fullWidth ? 'full' : 'drawer'
 
@@ -153,38 +89,14 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
     </>
   )
 
-  // ── Non-modal split (≥1100px): plain <aside>, no scrim, no trap ─────────────
-  if (!isModal) {
-    return (
-      <aside
-        ref={panelRef}
-        className={`drawer${expanded ? ' expanded' : ''}`}
-        aria-label={label}
-      >
-        {surface}
-      </aside>
-    )
-  }
-
-  // ── Modal (overlay 920–1100 + mobile <768): dialog + scrim + trap ────────────
-  const sheetClass = [
-    'drawer', 'drawer-modal',
-    isFullScreen ? 'drawer-fullscreen' : 'drawer-sheet',
-    expanded ? 'expanded' : '',
-  ].filter(Boolean).join(' ')
-
   return (
-    <div className="drawer-modal-root">
-      <div className="drawer-scrim" onClick={close} aria-hidden="true" />
-      <aside
-        ref={panelRef}
-        className={sheetClass}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-      >
-        {surface}
-      </aside>
-    </div>
+    <RecordPanelHost
+      label={label}
+      onClose={close}
+      expanded={expanded}
+      focusKey={`${taskId ?? mode}-${mode}`}
+    >
+      {surface}
+    </RecordPanelHost>
   )
 }

@@ -1,0 +1,26 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   RecordPanelHost chrome — the ONE header bar every record tenant that asks for
+   host chrome renders (title zone · optional "Open full page" · ✕ Close). Values
+   are the SAME DESIGN.md tokens as the Task drawer's .dw-bar / .dw-iconbtn strip
+   (Rule 11 — reuse, no new visual language), so a Signal panel's chrome measures
+   identical to a Task's. The .drawer shell (width/border/shadow/scrim) lives in
+   styles/drawer.css, loaded globally.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.record-panel-chrome {
+  display: flex; align-items: center; gap: 6px; flex: none;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.record-panel-title { font-size: 12px; color: var(--muted-foreground); min-width: 0; }
+.record-panel-spacer { flex: 1; }
+.record-panel-btn {
+  width: 30px; height: 30px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  background: transparent; border: 1px solid transparent;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--muted-foreground);
+}
+.record-panel-btn:hover { background: var(--accent); color: var(--foreground); }
+.record-panel-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Mobile (<768px full-screen sheet): ≥44px touch target parity with the Task chrome. */
+.drawer-modal.drawer-fullscreen .record-panel-btn { width: 44px; height: 44px; }
