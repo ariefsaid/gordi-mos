@@ -141,10 +141,12 @@ measurement error — the `<aside>` carries `bg-secondary` + a right border; the
 `p3(.984,.976,.957)`, distinct from the cream canvas — the correct warm port of e7's cooler rail, not a
 defect). The genuine gaps were the selected-state, height, and padding, all now closed.
 
-**Still owed before design → APPROVE:** run the parity step across the OTHER load-bearing surfaces
-(cards, table rows, buttons, badges, ⌘K palette) — the rail was the first thing the new check caught,
-not provably the only treatment gap. Design stays **BLOCK** until that sweep is clean; one fixed surface
-is not the battery.
+**Sweep COMPLETE (2026-07-18) — `parity-sweep-2026-07-18.md` is the evidence of record.** Axis 1
+found 3 more Important (⌘K emoji glyphs · section-heading token · table-header weight) + a
+duplicate-radius-scale root cause; 9 surfaces measured CLEAN; two earlier audit claims REFUTED by
+measurement (⌘K position, tab underline). Axis 2: OD text faithful, 13 shipped-as-said verified; 2 new
+findings (composer image-attach DROPPED; Work-children icons DEFAULTED-AROUND). Design stays **BLOCK**
+until A1/A2/A3 are ported + parity-re-verified and the owner rules on B1/B2/A4.
 
 ## Final fidelity audits (2026-07-18, owner-requested)
 

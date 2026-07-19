@@ -81,6 +81,14 @@ provider is unavailable — the loop is substrate-agnostic.
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
   source of truth; 4-lens design review (Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) before merging UI changes.
 - **Review battery (BLOCKING):** before offering or performing merge-to-main, the full review battery (spec · code-quality · design if any `*.tsx`/`*.css` changed · security if any auth/RLS/schema path changed) MUST have run and be recorded in `docs/reviews/<branch>.md`, verified by `bash scripts/pre-merge-check.sh` (exit 0). Green gates ≠ reviewed. No ledger + no passing script run = no merge.
+- **Owner-artifact deviations (BLOCKING):** any build-time deviation from an owner artifact — a sketch,
+  a verbatim directive, a mockup pick — MUST become a `RATIFY-BEFORE-MERGE:` line in the step ledger.
+  A scorecard footnote or a "say the word to revert" flag is not a tracker (that mechanism shipped two
+  sketch deviations undetected — OD-68 + the Work-children icons, 2026-07-18). An owner-stated
+  affordance that doesn't become a decision must be recorded as explicitly REJECTED with a reason;
+  otherwise it is a silent drop (the composer image-attach case). Design fidelity is judged by the
+  **computed-style parity step** (`design-reviewer.md` Lens a) against the owning mockup — never by
+  tokens-in-palette or decision text alone.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
