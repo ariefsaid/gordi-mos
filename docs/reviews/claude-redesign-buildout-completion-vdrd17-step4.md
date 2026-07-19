@@ -151,13 +151,13 @@ commit per finding; strict TDD (failing test first where a test owns the behavio
 
 | # | Finding | Commit | How verified |
 |---|---|---|---|
-| 1 | SECURITY HIGH-1 — a `signal.retract` holder could rewrite another author's content | `3e96961` | pgTAP `87_signal_correction_retraction` (plan 9→12): a non-author retract-holder is denied a body rewrite (42501), may still retract, body stays unchanged. Full suite green. |
-| 2 | CQ IMPORTANT-1 + SECURITY LOW-1 + LOW-2 — non-atomic 3-call post; unvalidated mention targets; non-idempotent fan-out | `414524e` | pgTAP `90_signal_create_rpc` (plan 8): atomic rollback on bad target, org-target rejection, idempotent double fan-out. DAL `createSignal` → RPC; composer retry-safe (unit). |
-| 3 | SECURITY LOW-3 — `_test_seed_signal_tree` unguarded in prod | `7efc084` | New migration guards on `app.allow_test_seeds`; `83` asserts it fires without the GUC; all 7 signal files opt in. `supabase test db` 90 files / 632 tests PASS. |
-| 4 | CQ minors — dup category picker, attention slug, date format, parallel reads, inline style | `2f4e61f` | `SignalCategoryPicker` + `attentionSlug` + `formatWibDateTime` reused; `getSignal` Promise.all; `.signal-composer-mention-anchor` class. Card/record/archive/category-picker unit tests green. |
-| 5 | CQ IMPORTANT-2 — unbounded `listReadableSignals` (defer + document) | `4f7e0d0` | Recorded in Deferred / tracked debt above (server-side search + range pagination). Not built (YAGNI). |
-| 6 | SPEC minor-1 — `sandbox-pg.sh` omitted `seed.dev-signals.sql` | `56adbbb` | Added in config.toml `[db.seed]` order (after dev-tasks, before dev-auth); `bash -n` clean. |
-| — | Supporting: Home feed did not refresh after a Share (surfaced by AC-430 once the post path was fixed) | `455bc80` | `postCount` on the composer context; feed watches it. Composer-host + feed-section unit tests; AC-430 e2e passes. |
+| 1 | SECURITY HIGH-1 — a `signal.retract` holder could rewrite another author's content | `de9a3c3` | pgTAP `87_signal_correction_retraction` (plan 9→12): a non-author retract-holder is denied a body rewrite (42501), may still retract, body stays unchanged. Full suite green. |
+| 2 | CQ IMPORTANT-1 + SECURITY LOW-1 + LOW-2 — non-atomic 3-call post; unvalidated mention targets; non-idempotent fan-out | `7a51086` | pgTAP `90_signal_create_rpc` (plan 8): atomic rollback on bad target, org-target rejection, idempotent double fan-out. DAL `createSignal` → RPC; composer retry-safe (unit). |
+| 3 | SECURITY LOW-3 — `_test_seed_signal_tree` unguarded in prod | `20a275b` | New migration guards on `app.allow_test_seeds`; `83` asserts it fires without the GUC; all 7 signal files opt in. `supabase test db` 90 files / 632 tests PASS. |
+| 4 | CQ minors — dup category picker, attention slug, date format, parallel reads, inline style | `ccf285b` | `SignalCategoryPicker` + `attentionSlug` + `formatWibDateTime` reused; `getSignal` Promise.all; `.signal-composer-mention-anchor` class. Card/record/archive/category-picker unit tests green. |
+| 5 | CQ IMPORTANT-2 — unbounded `listReadableSignals` (defer + document) | `a43ea48` | Recorded in Deferred / tracked debt above (server-side search + range pagination). Not built (YAGNI). |
+| 6 | SPEC minor-1 — `sandbox-pg.sh` omitted `seed.dev-signals.sql` | `a1cc664` | Added in config.toml `[db.seed]` order (after dev-tasks, before dev-auth); `bash -n` clean. |
+| — | Supporting: Home feed did not refresh after a Share (surfaced by AC-430 once the post path was fixed) | `1acb6b3` | `postCount` on the composer context; feed watches it. Composer-host + feed-section unit tests; AC-430 e2e passes. |
 | 7 | Ledger update (this section) | this commit | — |
 
 **Final gates (fresh, 2026-07-17):**
@@ -181,3 +181,8 @@ commit per finding; strict TDD (failing test first where a test owns the behavio
   the pgTAP harness sets it per-transaction). Chosen because the repo has no reliable prod-vs-local DB
   marker (`current_database()` is `postgres` in both; no `app.settings.environment`); mirrors the
   existing `app.esb_target_env` GUC pattern.
+
+> Hash correction (2026-07-19): the fix-wave table above originally cited 7 pre-rewrite
+> worktree hashes that exist in no ref (evidence-verification audit finding). Corrected to the
+> real merged commits via the audit's verified 1:1 subject mapping; the fixes themselves were
+> always real and independently verified (pgTAP green).
