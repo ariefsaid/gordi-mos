@@ -146,10 +146,9 @@ function makeDescriptor(opts: {
       },
     },
     presentations: { table: presentation('table'), card: presentation('card') },
-    load: async ({ query }) => {
+    load: async () => {
       opts.loadSpy?.()
       return { records: rows, context: { viewerId: 'p-me' } } as CollectionData<FakeTask, { viewerId: string | null }>
-      void query
     },
     project: (data, query): CollectionProjection<FakeTask, FakeGroup> => {
       const q = (query.q ?? '').toLowerCase()
