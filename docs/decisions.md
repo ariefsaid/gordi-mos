@@ -1875,3 +1875,21 @@ and checklist; a Standard/SOP may emphasize version, applicability, typed steps,
 and linked Processes. Object-specific blocks and layouts plug into the shared anatomy. V3 must not
 collapse the domain into a universal records table or arbitrary JSON model, and it must not create a
 separate viewer/editor implementation for every object type.
+
+### OD-REDESIGN-75 — One overlay and navigation grammar by interaction job (owner 2026-07-20)
+
+V3 uses one predictable overlay grammar; components do not choose drawer, modal, popover, or page
+independently. Search and the command launcher are centered, temporary surfaces. A record click opens
+the shared right-side RecordViewer panel; related records push onto its internal Back stack, and an
+explicit action escalates the same renderer to its full canonical page. Deputy uses this same panel
+host and stack rather than opening a second competing drawer over a record.
+
+Create flows use the relevant RecordViewer in new-record mode. A compact centered composer remains
+valid for capture-first objects such as Signals. Blocking confirmations use the one centered dialog;
+small menus and pickers remain anchored to their trigger. On phones, panel experiences become
+full-screen while preserving the same content, Back behavior, focus contract, and canonical URL.
+
+Opening one panel tenant replaces or stacks within the shared host according to the user's journey;
+two unrelated side panels may never cover each other. Escape, Close, browser Back, internal Back,
+focus entry, and focus return are part of the shared behavior and must be driven in acceptance tests
+for every consuming surface.
