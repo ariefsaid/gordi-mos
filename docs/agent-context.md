@@ -24,24 +24,97 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > the delegation posture below are **not** superseded and remain binding.
 >
 > **WHERE ARE WE RIGHT NOW → `docs/reviews/v3-redesign.md` and `docs/reference/v3-live-inventory.md`.**
-> V3 Issue 1 is complete locally as a documentation/source-inventory checkpoint. The closed
-> `docs/plans/AUTONOMOUS-RUN-STATE.md` / `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it
-> as the current V3 workstream state.
+> V3 Issue 2 is complete locally as a Storybook component/state/responsive proof checkpoint and is
+> pending owner review at the issue boundary. The closed `docs/plans/AUTONOMOUS-RUN-STATE.md` /
+> `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
-> **CURRENT WORKSTREAM (2026-07-20): V3 redesign Issue 1 local checkpoint**, workstream label
-> `v3-redesign`, era E8. OD-REDESIGN-72 through OD-REDESIGN-79 preserve E7 as the visual foundation and
-> correct IA/IxD through the V3 page, RecordViewer, RecordCollection, overlay, focus, navigation, and
-> responsive grammar. The exact plan is `docs/plans/2026-07-20-v3-design-foundation.md`; the live evidence
-> is `docs/reference/v3-live-inventory.json` / `.md`; the binding contract is `DESIGN.md`; and the review
-> ledger is `docs/reviews/v3-redesign.md`. No Storybook work, route migration, or application component
-> migration occurred. Owner approval of this foundation is required before Issue 2. Issue 2 is Storybook
-> component/state/responsive proof only and cannot claim application migration or rendered representative
-> acceptance. Issue 3 owns **Page-family primitives and migration guards**; Issue 4 **Shared
-> overlay/panel/navigation host**; Issue 5 **RecordViewer contract, field primitives, and Task adapter**;
-> Issue 6 **RecordCollection/view engine and Tasks/Signals adapters**; Issue 7 **Inbox triage plus Deputy
-> host integration**; Issue 8 **Café canonical-record integration and Team-context correction**; and Issue 9
-> **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain
-> separately owned by the master spec.
+> **CURRENT WORKSTREAM (2026-07-20): V3 redesign Issue 2 local checkpoint**, workstream label
+> `v3-redesign`, era E8. E7 owns visual styling; current owner law owns IA and interaction behavior.
+> The Issue 2 plan is `docs/plans/2026-07-20-v3-storybook-matrix.md`; the governing spec is
+> `docs/specs/v3-redesign.spec.md` §12; the generated proof is
+> `docs/reference/v3-storybook-matrix.json` / `.md`; the live inventory is
+> `docs/reference/v3-live-inventory.json` / `.md`; the visual evidence is
+> `docs/reference/evidence/v3-storybook-2026-07-20/`; and the review ledger is
+> `docs/reviews/v3-redesign.md`. Implementation is committed as `04cbe8b` and the corrected plan
+> checkpoints are `4ffc9f5` and `0fd276f`.
+>
+> Verified: 28 Storybook stories, 36 state entries, 3 responsive entries, and 23 canonical jobs;
+> Storybook 10.5.2 with the external `@storybook/test-runner` 0.24.4 ran 7 suites / 28 tests with
+> addon-backed a11y checks; plain `npm ci` succeeded without `--legacy-peer-deps`; Vitest remains
+> 3.2.6 and the normal suite is 2,878/2,878 (up from the 2,868 baseline) with no Storybook files
+> discovered; typecheck, ESLint, Stylelint, production build, Storybook build, and both build/lint
+> orderings pass. The matrix and live-inventory guards and `git diff --check` pass.
+>
+> Not done: no route/page migration, no representative application acceptance, no Supabase or
+> Supabase-dependent dev server, and no Issues 3–12 behavior. The exact recorded debts are the
+> canonical Button loading state owned by Issue 3 and future shared RecordPanelHost behavior owned
+> by Issue 4. Issue 2 maps to AC-V3-001 only as workbench/evidence boundary and to NFR-V3-001/002/
+> 003/004/005/006/007; it does not close the Issue 9 rendered acceptance gate.
+>
+> **Next action:** the owner reviews the linked matrix, browser evidence, and review ledger and
+> explicitly approves the Issue 3 gate; only after that approval may the next harness begin Issue 3
+> **Page-family primitives and migration guards**.
+
+## V3 Issue 2 resumable checkpoint (2026-07-20)
+
+This is the canonical handoff for the completed local Issue 2 work. Do not infer state from a running
+process or an uncommitted generated directory.
+
+### Verified
+
+- Scope: Storybook workbench only; the seven curated story files contain 28 indexed stories. The
+  deterministic guard excludes only each file's `v3Matrix` metadata export from CSF indexing and
+  derives canonical coverage from actual production named imports.
+- Matrix totals: 36 state entries, 3 responsive entries (`desktop1280` 1280px, `intermediate`
+  1024px, `phone390` 390px), and 23 canonical component/job representations.
+- Package compatibility: Storybook `10.5.2`, `@storybook/react-vite` `10.5.2`,
+  `@storybook/addon-a11y` `10.5.2`, and external `@storybook/test-runner` `0.24.4`; the existing
+  Vitest `3.2.6` project and `mos-app/vite.config.ts` test behavior remain unchanged. No Vitest 4,
+  `@vitest/browser`, `@vitest/browser-playwright`, or `@storybook/addon-vitest` was installed.
+- Production corrections are locked in the existing ViewTabs, StatusPill, and CommandMenu suites;
+  Button/CardHead/CommandMenu changes are narrow E7/interaction/a11y corrections with rendered or
+  behavioral evidence. Storybook overlay mocks remain on the Storybook-only alias boundary and are
+  absent from `mos-app/dist`.
+- Evidence: [matrix](reference/v3-storybook-matrix.md), [live inventory](reference/v3-live-inventory.md),
+  [rendered evidence](reference/evidence/v3-storybook-2026-07-20/), [plan](plans/2026-07-20-v3-storybook-matrix.md),
+  and [review ledger](reviews/v3-redesign.md).
+
+### Gate record
+
+| Command | Result |
+|---|---|
+| `node --test scripts/v3-storybook-matrix.test.mjs` | 0; 6 passed |
+| `node --test scripts/v3-live-inventory.test.mjs` | 0; 6 passed |
+| `node scripts/v3-storybook-matrix.mjs --check` / `node scripts/v3-live-inventory.mjs --check` | 0; current |
+| Plain `npm ci` in `mos-app/` after clean `node_modules` | 0; no resolver flag |
+| `npm ls --depth=0 ... vitest ...` | 0; Vitest 3.2.6, no Vitest 4/browser package |
+| `npm run typecheck` | 0 |
+| `npm run lint` | 0; ESLint and Stylelint, zero warnings |
+| `npm test -- src/components/command/command-menu.test.tsx --run` | 0; 35 passed, including loading → ArrowDown → ready → Enter |
+| `npm test -- --reporter=json --outputFile=/tmp/gordi-mos-v3-vitest-command-fix-final.json` | 0; 2,878 passed, 0 failed, 1,098 suites; no Storybook files |
+| `npm run test:coverage -- --reporter=dot` | 0; 2,878 passed; 92.52% statements/lines, 86.93% branches, 88.34% functions |
+| `npm run build` | 0; 665 modules; existing CSS/minified chunk-size warnings only |
+| `npm run build-storybook` | 0; Storybook 10.5.2; generated output ignored |
+| `npm run build-storybook && npm run lint` | 0 |
+| `npm run lint && npm run build-storybook` | 0 |
+| `npm run test-storybook` from `mos-app/` | 0; 7 suites / 28 tests passed; output `/tmp/gordi-mos-v3-storybook-final.txt` |
+| `git diff --check 0fd276f HEAD` and `git diff --check` | 0 |
+
+### Remaining delivery sequence
+
+3. Page-family primitives and migration guards.
+4. Shared overlay/panel/navigation host.
+5. RecordViewer contract, field primitives, and Task adapter.
+6. RecordCollection/view engine and Tasks/Signals adapters.
+7. Inbox triage plus Deputy host integration.
+8. Café canonical-record integration and Team-context correction.
+9. Representative-slice rendered/driven owner gate; provisional IA ratification.
+10. Structured-content schema ADR, storage/RLS, editor, and typed embeds.
+11. Remaining route migration by page/component family.
+12. Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough.
+
+Issue 3 unlock condition: owner approval of this Issue 2 evidence and explicit confirmation at the
+issue boundary. No Issue 3+ claim is included in this checkpoint.
 
 ## Reading order for a cold start (30+ docs; these are the ones that bind)
 
