@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { PageFamily } from './page-families'
+import './page-head.css'
 
 export interface PageHeadProps {
   title: string

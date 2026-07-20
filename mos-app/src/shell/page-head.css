@@ -1,0 +1,96 @@
+/* Shared PageHead/content-header grammar. Domain styles may position their
+   content around this shell, but they do not redefine its title row. */
+.content-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.content-header .ch-icon {
+  color: var(--muted-foreground);
+  display: inline-flex;
+  flex: none;
+}
+
+.content-header .ch-title {
+  font-weight: 600;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.content-header .ch-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  padding: 2px 9px;
+  border-radius: 999px;
+  flex: none;
+  line-height: 1.4;
+}
+
+.content-header .ch-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.content-header .ch-action {
+  margin-left: auto;
+  flex: none;
+}
+
+.ch-submeta {
+  color: var(--muted-foreground);
+  font-size: 15px;
+}
+
+.page-head--v3.content-header {
+  flex-wrap: wrap;
+}
+
+.page-head--v3 .page-head-job {
+  flex: 0 0 100%;
+  margin: -4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.page-head--v3:not(.content-header) .page-head-job {
+  margin: 6px 0 0;
+}
+
+@media (max-width: 767.98px) {
+  .content-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 8px;
+  }
+
+  .content-header .ch-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 24px;
+  }
+
+  .content-header .ch-meta {
+    order: 4;
+    flex: 0 0 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .content-header .ch-action {
+    order: 3;
+  }
+}

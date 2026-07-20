@@ -8,22 +8,6 @@
   margin: 0;
 }
 
-.page-head--v3.content-header {
-  flex-wrap: wrap;
-}
-
-.page-head--v3 .page-head-job {
-  flex: 0 0 100%;
-  margin: -4px 0 0;
-  color: var(--muted-foreground);
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.page-head--v3:not(.content-header) .page-head-job {
-  margin: 6px 0 0;
-}
-
 @media (min-width: 768px) and (max-width: 1279px) {
   .page-frame--v3 {
     padding: 20px 24px 40px;
@@ -32,7 +16,7 @@
 
 @media (max-width: 767px) {
   .page-frame--v3 {
-    padding: 16px 16px calc(16px + var(--bottom-tab-bar-h, 60px));
+    padding: 16px 16px calc(16px + var(--tabbar-h, 60px));
   }
 
   .page-frame--v3 .page-frame__content {

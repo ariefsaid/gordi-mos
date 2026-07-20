@@ -10,33 +10,7 @@
    no maxWidth cap). The bespoke .page-head-row / .tasks-page-title / .tasks-count-line
    classes were removed; only the head-owned controls below remain. */
 
-/* ── Content header (mockup `.content-header`) ──────────────────────────────────
-   The list/DB-view header chrome: a single clean row = entity icon + title +
-   count pill + right-aligned inline action. Pixel oracle:
-   docs/design-mockups/ui-revamp/mock-shell-and-table.html `.content-header`.
-   Every value resolves to a DESIGN.md token (crosswalk of the mockup's --ds-*). */
-.content-header {
-  display: flex; align-items: center; gap: 10px;
-  min-height: 48px; margin-bottom: 16px;
-  padding-bottom: 14px; border-bottom: 1px solid var(--border);
-}
-.content-header .ch-icon { color: var(--muted-foreground); display: inline-flex; flex: none; }
-.content-header .ch-title {
-  font-weight: 600; font-size: 24px; letter-spacing: -0.01em; color: var(--foreground);
-  margin: 0; line-height: 1.2;
-}
-/* Count pill (mockup `.ch-count`) — small muted pill on the tertiary surface. */
-.content-header .ch-count {
-  font-size: 11px; font-weight: 600; color: var(--muted-foreground);
-  background: var(--secondary); padding: 2px 9px; border-radius: 999px;
-  flex: none; line-height: 1.4;
-}
-/* Overdue/blocked subtotals + clearable filter chips ride just after the pill. */
-.content-header .ch-meta { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-/* Right-aligned inline action (mockup `.ch-action`) — pushed to the far edge. */
-.content-header .ch-action { margin-left: auto; flex: none; }
-/* Off-track subtotals (blocked / overdue) ride beside the count pill. */
-.ch-submeta { color: var(--muted-foreground); font-size: 15px; }
+/* Shared PageHead/content-header styling lives in src/shell/page-head.css. */
 
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
@@ -424,32 +398,6 @@ tr:focus-within .row-menu { visibility: visible; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-}
-
-@media (max-width: 767.98px) {
-  .content-header {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    row-gap: 8px;
-  }
-
-  .content-header .ch-title {
-    flex: 0 1 auto;
-    min-width: 0;
-    font-size: 24px;
-  }
-
-  .content-header .ch-meta {
-    order: 4;
-    flex: 0 0 100%;
-    align-items: flex-start;
-    justify-content: flex-start;
-    margin-left: 0;
-  }
-
-  .content-header .ch-action {
-    order: 3;
   }
 }
 

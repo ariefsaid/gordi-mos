@@ -14,8 +14,8 @@ import { resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import { PageHead } from './page-head'
 
-function tasksWorkspaceCss() {
-  return readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+function pageHeadCss() {
+  return readFileSync(resolve(process.cwd(), 'src/shell/page-head.css'), 'utf8')
 }
 
 describe('PageHead — shared header invariant (RI-IA-1)', () => {
@@ -80,7 +80,7 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
   })
 
   it('uses the shared 24px page-title scale for .ch-title', () => {
-    const css = tasksWorkspaceCss()
+    const css = pageHeadCss()
     expect(css).toMatch(/\.content-header \.ch-title\s*\{[^}]*font-size:\s*24px/)
   })
 
