@@ -1,24 +1,23 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-20): V3 redesign Issue 1 — design foundation evidence complete locally; owner review pending.**
-> The workstream label is `v3-redesign` (E8). E7 owns visual styling; the recorded owner decisions
-> OD-REDESIGN-72 through OD-REDESIGN-79 own the current IA and interaction corrections. The exact
-> implementation plan is [`docs/plans/2026-07-20-v3-design-foundation.md`](plans/2026-07-20-v3-design-foundation.md).
-> The reproducible live inventory is [`docs/reference/v3-live-inventory.json`](reference/v3-live-inventory.json)
-> and [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md); the binding V3 visual and
-> interaction grammar is [`DESIGN.md`](../DESIGN.md); the evidence ledger is
-> [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md). The inventory classifies 58 route declarations
-> (29 page, 25 redirect, 4 DEV-only), 13 shared interaction jobs, and 67 CSS families.
-> Issue 1 maps to AC-V3-001 (contract/evidence boundary) and AC-V3-014 (reproducible inventory guard).
-> No application component migration or rendered acceptance occurred. Issue 2 may start only after the
-> owner approves this foundation, and Issue 2 is Storybook component/state/responsive proof only: it cannot
-> claim application migration or rendered representative acceptance. The master sequence keeps ownership
-> separate: Issue 3 **Page-family primitives and migration guards**; Issue 4 **Shared overlay/panel/navigation
-> host**; Issue 5 **RecordViewer contract, field primitives, and Task adapter**; Issue 6
-> **RecordCollection/view engine and Tasks/Signals adapters**; Issue 7 **Inbox triage plus Deputy host
-> integration**; Issue 8 **Café canonical-record integration and Team-context correction**; and Issue 9
-> **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain
-> separately owned by `docs/specs/v3-redesign.spec.md` §12.
+> **CURRENT (2026-07-20): V3 redesign Issue 2 — Storybook matrix evidence complete locally; owner review pending.**
+> The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
+> interaction behavior. The exact plan is [`docs/plans/2026-07-20-v3-storybook-matrix.md`](plans/2026-07-20-v3-storybook-matrix.md);
+> the governing delivery sequence is [`docs/specs/v3-redesign.spec.md`](specs/v3-redesign.spec.md) §12;
+> the deterministic proof is [`docs/reference/v3-storybook-matrix.md`](reference/v3-storybook-matrix.md)
+> and the live inventory is [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md).
+> The evidence ledger is [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md), with rendered files in
+> [`docs/reference/evidence/v3-storybook-2026-07-20/`](reference/evidence/v3-storybook-2026-07-20/).
+> Issue 2 verifies 28 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs. It maps
+> to AC-V3-001 as a workbench/evidence boundary and to NFR-V3-001/002/003/004/005/006/007. It does not
+> claim route migration or representative application acceptance. Issue 3 **Page-family primitives and
+> migration guards**; Issue 4 **Shared overlay/panel/navigation host**; Issue 5 **RecordViewer contract,
+> field primitives, and Task adapter**; Issue 6 **RecordCollection/view engine and Tasks/Signals adapters**;
+> Issue 7 **Inbox triage plus Deputy host integration**; Issue 8 **Café canonical-record integration and
+> Team-context correction**; Issue 9 **Representative-slice rendered/driven owner gate; provisional IA
+> ratification**; Issue 10 **Structured-content schema ADR, storage/RLS, editor, and typed embeds**; Issue 11
+> **Remaining route migration by page/component family**; and Issue 12 **Full cross-surface acceptance,
+> stale-style removal, documentation closure, and owner walkthrough**.
 > The dated banners below are historical strata. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
 > buildout record, not the live V3 plan.
 >
@@ -27,6 +26,50 @@
 > use the composite checklist per surface. Its OPEN-UNTRACKED list (phone bottom-tab Café-for-all;
 > desktop no-clip column invariant; café capture-link default-active) and CONFLICT-needs-owner list
 > (action-verb family) are the redesign fix-queue + owner-A/B inputs.
+
+## V3 Issue 2 local checkpoint (2026-07-20)
+
+Verified in the isolated `v3-redesign` worktree and committed in implementation checkpoint `04cbe8b`:
+
+- The Storybook workbench uses the canonical production components and runtime tokens across seven
+  curated files: 28 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs.
+- Plain `npm ci` succeeds after a clean dependency install without `--legacy-peer-deps`. The accepted
+  stack is Storybook 10.5.2 / `@storybook/react-vite` 10.5.2 / `@storybook/addon-a11y` 10.5.2 /
+  external `@storybook/test-runner` 0.24.4. Vitest remains 3.2.6; no Vitest 4 or browser package was
+  introduced, and the existing Vitest config/include/exclude behavior is unchanged.
+- The normal suite is 2,878/2,878 with zero failures (baseline 2,868; +10 canonical locking tests).
+  Typecheck, ESLint, Stylelint, production build, Storybook static build, and the matrix/inventory
+  guards pass. The focused CommandMenu suite passes 35/35, and the external browser runner passes
+  7 suites / 28 tests with addon-backed a11y checks.
+- The production corrections are limited to the existing ViewTabs, StatusPill, Button/CardHead, and
+  CommandMenu seams. The only recorded Issue 2 debts are Button loading state → Issue 3 and future
+  shared RecordPanelHost behavior → Issue 4. There is no Supabase, route migration, or representative
+  application acceptance in this checkpoint.
+
+Evidence and commands: [plan](plans/2026-07-20-v3-storybook-matrix.md), [spec §12](specs/v3-redesign.spec.md),
+[matrix](reference/v3-storybook-matrix.md), [live inventory](reference/v3-live-inventory.md),
+[screenshots and contrast evidence](reference/evidence/v3-storybook-2026-07-20/), and [review ledger](reviews/v3-redesign.md).
+The final runner output is `/tmp/gordi-mos-v3-storybook-final.txt`; the final Vitest JSON is
+`/tmp/gordi-mos-v3-vitest-command-fix-final.json`. `node scripts/v3-storybook-matrix.mjs --check`,
+`node scripts/v3-live-inventory.mjs --check`, `git diff --check 0fd276f HEAD`, and `git diff --check`
+all exit 0. Both `npm run build-storybook && npm run lint` and `npm run lint && npm run build-storybook`
+exit 0 with generated `storybook-static/` ignored.
+
+### Remaining V3 Issues 3–12
+
+3. Page-family primitives and migration guards.
+4. Shared overlay/panel/navigation host.
+5. RecordViewer contract, field primitives, and Task adapter.
+6. RecordCollection/view engine and Tasks/Signals adapters.
+7. Inbox triage plus Deputy host integration.
+8. Café canonical-record integration and Team-context correction.
+9. Representative-slice rendered/driven owner gate; provisional IA ratification.
+10. Structured-content schema ADR, storage/RLS, editor, and typed embeds.
+11. Remaining route migration by page/component family.
+12. Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough.
+
+**Next action:** owner reviews the Issue 2 evidence and explicitly approves the Issue 3 gate; the next
+harness then begins Issue 3 only.
 
 - **DONE (2026-07-19) — C2 / OD-REDESIGN-22 I5 inline-edit retrofit:** free-typed text/number qty cells
   (`qty-cell.tsx`, `plan-qty-cell.tsx`) now route through the one `useInlineCommit` primitive —

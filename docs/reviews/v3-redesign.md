@@ -1,8 +1,8 @@
-# V3 redesign — Issue 1 review ledger
+# V3 redesign — Issue 1 + Issue 2 review ledger
 
-**Workstream:** `v3-redesign` · **Issue:** V3 Design Foundation · **Date:** 2026-07-20
+**Workstream:** `v3-redesign` · **Issue:** V3 Design Foundation + Issue 2 Storybook Proof · **Date:** 2026-07-20
 
-An `OD-REDESIGN-NN` label means a recorded owner decision in `docs/decisions.md`; the plain-language rule below each evidence item is the operative explanation. This ledger records Issue 1 only. It does not claim rendered application acceptance.
+An `OD-REDESIGN-NN` label means a recorded owner decision in `docs/decisions.md`; the plain-language rule below each evidence item is the operative explanation. The Issue 1 material below is historical evidence; the Issue 2 ledger is appended after it. Neither section claims rendered representative application acceptance.
 
 ## Scope and exclusions
 
@@ -154,3 +154,155 @@ Separate typed database models remain required throughout. Shared UI is a gramma
 ## Owner gate
 
 Owner approval is still required for the Issue 1 foundation before Issue 2 starts: the plan, the reproducible inventory, the reconciled DESIGN.md, and this evidence ledger. Issue 2 may then produce Storybook component/state/responsive proof only. No application migration or rendered representative acceptance may be claimed under Issue 2; those remain with Issues 3–9, with Issue 9 the owner gate. No push, PR, merge, deploy, or irreversible infrastructure action is authorized by this Issue 1 checkpoint. No rendered application acceptance is claimed.
+
+## V3 redesign — Issue 2 review ledger (2026-07-20)
+
+### Scope and boundary
+
+Issue 2 implements the approved in-code Storybook workbench for the component/state/responsive proof
+matrix in `docs/specs/v3-redesign.spec.md` §12. E7 remains the visual styling authority; current owner
+law remains the IA and interaction authority. This checkpoint does not migrate routes, change page
+composition behavior, invent a universal records schema, start Supabase, run a Supabase-dependent dev
+server, or claim representative application acceptance. Issue 9 owns that rendered/driven owner gate.
+
+### Authority and plan self-review
+
+- Governing spec: [`docs/specs/v3-redesign.spec.md`](../specs/v3-redesign.spec.md) §10–§12; AC-V3-001
+  is retained as an explicit evidence boundary, and NFR-V3-001/002/003/004/005/006/007 are mapped in
+  [`docs/plans/2026-07-20-v3-storybook-matrix.md`](../plans/2026-07-20-v3-storybook-matrix.md).
+- Visual and product authorities: [`DESIGN.md`](../../DESIGN.md), OD-REDESIGN-72 through 79,
+  `docs/jtbd.md`, `docs/experience-contract.md`, `docs/interaction-contract.md`, and the E7
+  `SALVAGE-INVENTORY.md`/visual assets. Impeccable and Taste were used only as anti-slop review
+  checks subordinate to those authorities.
+- Plan review corrected the production paths to `mos-app/src/components/ui/button.tsx` and
+  `mos-app/src/shell/{page-frame,page-head,record-panel-host}.tsx`, kept `@storybook/test-runner`
+  out of `main.ts` addons, avoided recursive `test-storybook`, and split the steps into exact
+  2–5-minute TDD tasks. Plan checkpoints: `4ffc9f5` and `0fd276f`.
+- Implementation checkpoint: `04cbe8b` (`feat: add V3 Storybook proof matrix`), amended after the
+  Director’s diff-check finding. The generator now owns the single-terminal-newline contract and
+  `node --test scripts/v3-storybook-matrix.test.mjs` locks it.
+
+### Package and runner decision
+
+The accepted stack is Storybook `10.5.2`, `@storybook/react-vite` `10.5.2`,
+`@storybook/addon-a11y` `10.5.2`, and the external `@storybook/test-runner` `0.24.4`. The existing
+Vitest resolution remains `3.2.6`; no Vitest 4, `@vitest/browser`, `@vitest/browser-playwright`, or
+`@storybook/addon-vitest` was added. The Vitest addon path was rejected because its package metadata
+would broaden this repo into the Vitest 4/browser stack. The external runner is a CLI, not a
+Storybook addon, so `.storybook/main.ts` lists only `@storybook/addon-a11y`.
+
+The decision follows the official [Storybook install guide](https://storybook.js.org/docs/get-started/install),
+[10.5 addon installation guide](https://storybook.js.org/docs/10.5/addons/install-addons),
+[10.5 accessibility testing guide](https://storybook.js.org/docs/10.5/writing-tests/accessibility-testing),
+[10.5 test-runner integration guide](https://storybook.js.org/docs/10.5/writing-tests/integrations/test-runner),
+and [test-runner package metadata](https://www.npmjs.com/package/@storybook/test-runner). The runner’s
+`postVisit` waits for the Storybook page; the actual browser gate, not addon installation alone, is
+the a11y evidence.
+
+### Matrix and production corrections
+
+- Seven curated files index 28 real stories: Foundation (4), Controls (4), Feedback (4), Page
+  composition (3), Dense collection (7), Overlays (4), and Accessibility/responsive (2).
+- The guard records 36 state entries, 3 responsive entries (`desktop1280` 1280×900, `intermediate`
+  1024×900, `phone390` 390×844), and 23 canonical jobs. It derives canonical imports from source,
+  excludes only `v3Matrix` metadata from CSF indexing, rejects positive migration/Issue 9 claims,
+  and validates package metadata against both `package.json` and `package-lock.json`.
+- Existing canonical test suites were extended in place: ViewTabs gained the roving-focus lock;
+  StatusPill gained E7 contrast-token locks; CommandMenu gained the composite-widget contract for
+  combobox/listbox ownership, `aria-controls`/`aria-activedescendant`, named non-interactive options,
+  mouse activation, Arrow/Enter/Escape, Tab containment, active-option scrolling, localized loading,
+  and valid populated/loading/empty ownership.
+- Red/green evidence: `/tmp/gordi-mos-v3-issue2-locking-red.txt` records the expected five failures
+  before the ViewTabs/StatusPill production corrections; the final normal suite and existing suites
+  are green. Rendered contrast evidence records destructive default `12.43:1`, hover `13.04:1`,
+  StatusPill values `10.42:1`–`14.39:1`, and ErrorState `13.40:1`; the old tokens measured below the
+  governed contrast bar. Button hover derives from corrected `red12`, so default and interaction
+  states stay in one token family.
+- The later CommandMenu TDD regression was red at 1 failed / 34 passed: after loading, `ArrowDown`
+  produced `active = -1`, so the ready record had no `aria-activedescendant`. The canonical clamp
+  keeps keyboard state at zero with no items; the existing suite is now 35/35 and Enter activates the
+  first ready record. This fixes the state invariant rather than weakening the assertion.
+- Overlay stories use pure Storybook aliases at the service boundary. The production bundle seam
+  probe found no `v3-storybook-service-boundary`, `src/storybook/mocks`, or mock alias symbols in
+  `mos-app/dist`; `mos-app/vite.config.ts` is unchanged.
+
+### Rendered review and evidence
+
+The final visual review inspected these exact rendered stories at the named regimes:
+
+- `Foundation/RuntimeTypography` at 1280px: runtime fonts/background and E7 role hierarchy.
+- `DenseCollection/ReadyIntermediate` at 1024px and `DenseCollection/ReadyPhone` at 390px:
+  realistic Gordi records, dense collection states, no horizontal overflow, and responsive copy that
+  does not expose the implementation hook name.
+- `Overlays/CurrentRecordPanelShell` at 390px: the current shell is full-width in the computed and
+  saved 390×844 proof; the rightmost column is warm surface/border, not a black strip.
+- `AccessibilityResponsive/KeyboardJourneys` at 1280px: active ViewTabs focus and current shell
+  behavior.
+
+Evidence files: [`foundation-runtime-1280.png`](../reference/evidence/v3-storybook-2026-07-20/foundation-runtime-1280.png),
+[`dense-ready-intermediate.png`](../reference/evidence/v3-storybook-2026-07-20/dense-ready-intermediate.png),
+[`dense-ready-phone390.png`](../reference/evidence/v3-storybook-2026-07-20/dense-ready-phone390.png),
+[`overlay-record-panel-phone390.png`](../reference/evidence/v3-storybook-2026-07-20/overlay-record-panel-phone390.png),
+[`accessibility-keyboard.png`](../reference/evidence/v3-storybook-2026-07-20/accessibility-keyboard.png),
+and [`rendered-contrast.md`](../reference/evidence/v3-storybook-2026-07-20/rendered-contrast.md).
+
+### Exact verification record
+
+| Command | Result |
+|---|---|
+| `node --test scripts/v3-storybook-matrix.test.mjs` | Exit 0; 6 passed |
+| `node --test scripts/v3-live-inventory.test.mjs` | Exit 0; 6 passed |
+| `node scripts/v3-storybook-matrix.mjs --check` / `node scripts/v3-live-inventory.mjs --check` | Exit 0; artifacts current |
+| Plain `npm ci` after removing the isolated worktree’s installed dependencies | Exit 0; no `--legacy-peer-deps` |
+| `npm ls --depth=0 storybook @storybook/react-vite @storybook/addon-a11y @storybook/test-runner vitest @vitest/coverage-v8 @vitest/browser-playwright @vitest/browser @storybook/addon-vitest` | Exit 0; Storybook 10.5.2, runner 0.24.4, Vitest 3.2.6; no Vitest 4/browser package |
+| `npm run typecheck` | Exit 0 |
+| `npm run lint` | Exit 0; ESLint and Stylelint, zero warnings |
+| `npm test -- src/components/command/command-menu.test.tsx --run` | Exit 0; 35 passed, including loading → ArrowDown → ready → Enter |
+| `npm test -- --reporter=json --outputFile=/tmp/gordi-mos-v3-vitest-command-fix-final.json` | Exit 0; 2,878 passed, 0 failed, 1,098 suites; no Storybook files discovered |
+| `npm run test:coverage -- --reporter=dot` | Exit 0; 2,878 passed; 92.52% statements/lines, 86.93% branches, 88.34% functions; output `/tmp/gordi-mos-v3-vitest-coverage-command-fix-final.txt` |
+| `npm run build` | Exit 0; 665 modules; existing CSS comment and chunk-size warnings only |
+| `npm run build-storybook` | Exit 0; Storybook 10.5.2; `storybook-static/` generated but ignored |
+| `npm run build-storybook && npm run lint` | Exit 0 |
+| `npm run lint && npm run build-storybook` | Exit 0 |
+| `npm run test-storybook` from `mos-app/` | Exit 0; 7 suites / 28 tests passed, 0 snapshots; complete output in `/tmp/gordi-mos-v3-storybook-final.txt` |
+| `git diff --check 0fd276f HEAD` / `git diff --check` | Exit 0 |
+
+The external runner executed the configured addon-backed a11y checks; this ledger does not claim AA
+merely because an addon is installed. The runner emitted Storybook’s advisory suggestion about the
+Vitest addon; that suggestion was not followed because it conflicts with the binding Vitest 3.2.6
+constraint. The generated `storybook-static/` directory is ignored by both Git and ESLint, and no
+`.playwright-cli/` files remain in the worktree.
+
+Changed production TSX coverage from the canonical final HTML report is above the repository’s 80%
+changed-code line bar: `command-menu.tsx` **236/239 lines (98.74%; 3 uncovered instrumented lines)**,
+`view-tabs.tsx` **76/76 (100%)**, and `status-pill.tsx` **34/34 (100%)**. The focused existing suites
+exercise the changed keyboard and semantic-token behavior. CSS (`Button.css`, `CardHead.css`, and
+CommandMenu CSS), Storybook stories/config/setup/mocks, i18n data (`messages.ts`), and generated
+matrix/inventory/docs are non-instrumented or non-production artifacts and are not counted as
+production TS/TSX coverage; their build, lint, matrix, and browser checks are recorded separately.
+
+### Known gaps and later owners
+
+- Button loading is represented as an explicit matrix debt because the canonical primitive does not
+  expose that state. Owner: Issue 3, Page-family primitives and migration guards.
+- `RecordPanelHost` is represented honestly as the current shell; future shared host behavior is not
+  faked. Owner: Issue 4, Shared overlay/panel/navigation host.
+- No additional visual or a11y gap remains from the final Storybook browser gate. Production build
+  warnings are existing CSS-comment/chunk-size advisories, not an Issue 2 acceptance failure.
+
+### Remaining Issues 3–12 and Issue 3 gate
+
+3. Page-family primitives and migration guards.
+4. Shared overlay/panel/navigation host.
+5. RecordViewer contract, field primitives, and Task adapter.
+6. RecordCollection/view engine and Tasks/Signals adapters.
+7. Inbox triage plus Deputy host integration.
+8. Café canonical-record integration and Team-context correction.
+9. Representative-slice rendered/driven owner gate; provisional IA ratification.
+10. Structured-content schema ADR, storage/RLS, editor, and typed embeds.
+11. Remaining route migration by page/component family.
+12. Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough.
+
+The Issue 3 gate is open only after owner review and explicit approval of this Issue 2 evidence at the
+issue boundary. **Next action:** owner reviews the plan, matrix, screenshots, contrast record, and
+this ledger, then approves or rejects the Issue 3 gate; no Issue 3+ work is claimed here.
