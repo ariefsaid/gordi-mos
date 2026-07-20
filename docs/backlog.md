@@ -1,9 +1,11 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-16) — one line:** the active workstream is the **E7 redesign buildout**; live
-> state + next action live in **`docs/plans/AUTONOMOUS-RUN-STATE.md`**. Redesign open/unratified items
-> live there too. The dated banners below are historical strata (newest first) — read them for
-> archaeology, not for what to do next.
+> **CURRENT (2026-07-20): V3 redesign intake and ratification** on branch `v3-redesign`
+> (OD-REDESIGN-72; `docs/requirements-evolution.md` E8). E7's visual styling is retained; the work is
+> to migrate the whole app onto that visual language while correcting IA/IxD through later owner law.
+> Current next step: resolve the remaining authority contradictions one at a time, then write the
+> V3 SDD and phased implementation plans. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
+> buildout record, not the live V3 plan. The dated banners below are historical strata.
 >
 > **Standing oracle — `docs/reference/provenance/owner-directives-index.md`** (composite: owner-word →
 > lost-good → owning-default, NOT e7-fidelity). Reviews check touched surfaces against it; transplants
@@ -20,7 +22,7 @@
 
 The durable record of what's next. NOT loaded as session context (kept out of CLAUDE.md).
 Phasing detail: `docs/roadmap.md`. Locked decisions: `docs/decisions.md`. How the requirement
-bar itself moved (era timeline E1→E7): `docs/requirements-evolution.md`.
+bar itself moved (era timeline E1→E8/V3): `docs/requirements-evolution.md`.
 
 > **2026-07-09/10 — REDESIGN IS THE CURRENT DIRECTION.** The in-flight workstream tracked in the
 > dated banners below (agent port, dashboard, sales read-models, UI-revamp) is **pre-redesign**.

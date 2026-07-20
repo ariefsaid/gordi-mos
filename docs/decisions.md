@@ -1823,3 +1823,21 @@ unaffected. (iii) **Café opening: members can start** — `process.start` exten
 (resolves RATIFY-7A toward the OD-66 zero-training front; deliberate owner-ratified access
 expansion). (iv) **`SHOW_WEEKLY_UPDATES` flips off globally** — no redesign surface consumes the
 write flow (resolves ratify-18).
+
+### OD-REDESIGN-72 — V3 keeps E7's visual styling; IA and IxD are the redesign scope (owner 2026-07-20)
+
+The V3 redesign is **not** a new brand or visual-style exploration. The owner likes E7's visual
+styling. E7 therefore remains the visual reference for typography, spacing, sizing, density,
+surfaces, component presentation, and overall finish. The shipped app at `a89ece3` is not evidence
+that this visual objective was met: large parts of the application still retain pre-E7 page and
+component styling and read as several applications under a changed shell.
+
+E7 is **not** copied as an interaction or information-architecture oracle. Its IA/IxD is amended by
+the later owner decisions, the composite owner-directives/lost-good record, `docs/jtbd.md`, and the
+binding `docs/interaction-contract.md`. In short: **E7 owns the visual language; current owner law
+owns behavior and structure.** A visual-fidelity check that ignores interaction is incomplete, and
+an IA/IxD correction that introduces a different visual language is a regression.
+
+Rule 11's reuse requirement means one canonical implementation per component job. It does not make
+an old or visually non-conformant implementation permanent: V3 may replace a canonical primitive
+once, then must migrate every consumer rather than creating another parallel component family.

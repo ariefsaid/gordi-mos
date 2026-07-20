@@ -26,6 +26,12 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md` § STATE.** Steps 4–11 shipped;
 > the cloud-autonomous window (`CLOUD-AGENT-HANDOFF.md`, OD-67) is CLOSED — historical, don't act on it.
 
+> **CURRENT WORKSTREAM (2026-07-20): V3 redesign intake** on branch `v3-redesign`, era E8.
+> OD-REDESIGN-72 ratifies the boundary: preserve E7's visual styling; correct IA/IxD and migrate the
+> whole application away from its surviving pre-E7 visual/component grammars. Remaining authority
+> conflicts are being ratified before the V3 SDD and implementation plans are written. The E7
+> completion ledger proves what was built; it is not the V3 design-acceptance oracle.
+
 ## Reading order for a cold start (30+ docs; these are the ones that bind)
 
 Read in this order. Everything else is evidence you consult when a specific question arises.
@@ -40,7 +46,7 @@ Read in this order. Everything else is evidence you consult when a specific ques
   not RACI; Signal replaced Weekly Update + Daily Log.
 
 **2. The DECISIONS (why anything is the way it is):**
-- `docs/decisions.md` — OD-REDESIGN-1..71. The owner's word, chronological.
+- `docs/decisions.md` — OD-REDESIGN-1..72. The owner's word, chronological.
 - `docs/reference/provenance/owner-directives-index.md` — **the composite oracle**: every verbatim
   owner directive across every era, traced to its shipped state. Use this before assuming intent.
   Its tiers: owner-word > lost-good (things an EARLIER mockup got right, including things e7 itself

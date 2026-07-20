@@ -52,7 +52,7 @@ authorization with admin-editable roles. **E1's "first slice" language is histor
 Plan/Operate guidance no longer hold. Canonical-record, cascade, Inbox-router, agent-panel, financial
 truth, and authorization principles survive only where ADR-0025/OD-REDESIGN do not amend them.
 
-### E7 — Full redesign: modules-in-rail, one record workspace, Signals (2026-07-09/10 · ADR-0025, OD-REDESIGN-1..55) ← CURRENT
+### E7 — Full redesign: modules-in-rail, one record workspace, Signals (2026-07-09/10 · ADR-0025, OD-REDESIGN-1..71)
 A full IA/IxD/UI reset: the never-used app behaved like "several apps," so the owner treated the
 existing app/routes/`DESIGN.md`/mockups/ADRs as *evidence, not authority*. Locked direction: rail =
 **Destinations (Home · Work · Money · Inbox) + BU-grouped Modules (Café · Ecommerce · Roastery)** —
@@ -72,6 +72,20 @@ versioned **Standard** quality-loop are first-class. One **Action Launcher** (ph
 into one decision-complete prototype** (`docs/design-mockups/redesign-mockups-2026-07/`) → **owner approval → SDD →
 plan → TDD build → review → BDD acceptance**. Clean data baseline authorized in **direction only**
 (OD-REDESIGN-34); no reset/deploy is authorized by the direction itself. Vocabulary: `CONTEXT.md`.
+
+### E8 / V3 — E7 visual language, rebuilt as one coherent app (2026-07-20 · OD-REDESIGN-72) ← CURRENT
+
+The E7 build completed technically but failed owner visual/IxD acceptance: most routes retained
+pre-redesign styling beneath the changed shell, component styling remained fragmented, and analogous
+records/overlays behaved differently. V3 keeps **E7's visual styling** as the target; it does not
+invent a new brand. Its redesign scope is the application-wide visual migration plus correction of
+E7's IA/IxD through later owner decisions, the composite lost-good record, `docs/jtbd.md`, and the
+binding interaction contract. E7 is therefore a visual reference, not a snapshot to copy wholesale.
+
+V3 proceeds on branch `v3-redesign`. Before SDD/implementation, the owner ratifies the remaining
+authority conflicts one at a time; the resulting V3 design/spec and implementation plans must be
+wired into this timeline, `docs/backlog.md`, and `docs/agent-context.md` rather than existing as
+orphan review prose.
 
 ## What never changed (constant across all eras)
 Usability + speed beat model completeness · `org_id` + RLS on every business table · owner gates on
