@@ -93,6 +93,9 @@ Official references used for the decision:
 - `scripts/v3-live-inventory.mjs`: extend `buildInventory`, `validateInventory`, and
   `renderInventoryMarkdown` with a derived `storybookMatrix` summary and artifact links. Keep all
   Issue 1 route/component/CSS counts and delivery-sequence checks intact.
+- `mos-app/eslint.config.js` and `mos-app/.gitignore`: ignore the generated `storybook-static/`
+  output in the normal lint and Git paths; allow the required Storybook CSF default export only in
+  `src/stories/v3/`.
 - `docs/backlog.md`, `docs/agent-context.md`, and `docs/reviews/v3-redesign.md`: update the current
   V3 checkpoint from Issue 1 local evidence to Issue 2 local evidence, retain the owner approval
   pause, and state the Issue 3 unlock condition. Do not rewrite historical strata.
@@ -240,6 +243,10 @@ before implementation.
 - [ ] Add `--check` and `--write` modes. `--write` produces the JSON/Markdown artifacts; `--check`
   fails if artifacts are absent or stale. Add exact `storyCount`, `stateEntryCount`, and
   `responsiveEntryCount` fields so totals are deterministic.
+- [ ] Have the matrix builder read each accepted Storybook package from `mos-app/package.json`, the
+  lockfile root declaration, and its resolved lockfile entry; validate the exact supported versions,
+  emit that metadata once in the matrix, and add a red/green drift fixture so a package or lockfile
+  change makes the matrix and dependent live inventory stale until regenerated.
 - [ ] Run `node --test scripts/v3-storybook-matrix.test.mjs`; it remains red until all story source
   metadata is present, then turns green once the full matrix is implemented.
 
@@ -249,7 +256,7 @@ by a story-only claim that Issue 2 migrated routes or completed Issue 9.
 ### Task 4: Add the isolated Storybook package/config path without touching Vitest
 
 **Files:**
-- Modify: `mos-app/package.json`, `mos-app/package-lock.json`, `mos-app/tsconfig.app.json`, `mos-app/tsconfig.node.json`
+- Modify: `mos-app/package.json`, `mos-app/package-lock.json`, `mos-app/tsconfig.app.json`, `mos-app/tsconfig.node.json`, `mos-app/.gitignore`, `mos-app/eslint.config.js`
 - Create: `mos-app/.storybook/main.ts`, `mos-app/.storybook/preview.tsx`, `mos-app/.storybook/test-runner.ts`, `mos-app/src/storybook/setup.ts`, `scripts/run-v3-storybook-tests.mjs`
 - Preserve unchanged: `mos-app/vite.config.ts`, existing Vitest scripts
 
@@ -278,6 +285,9 @@ the exact `mos-app/node_modules/.bin/test-storybook` binary with its runtime `--
   Set `layout: 'fullscreen'` and `parameters.a11y.test: 'error'` globally.
 - [ ] Add `.storybook/test-runner.ts` with the current official `postVisit(page, context)` hook;
   await `waitForPageReady(page)` there and leave a11y enforcement to the addon-backed runner path.
+- [ ] Add `storybook-static/` to the canonical Git and ESLint ignore paths and prove both gate orders:
+  `npm run build-storybook` followed by `npm run lint`, and `npm run lint` followed by the production
+  build/test gate, without deleting generated output between commands.
 - [ ] Add `scripts/run-v3-storybook-tests.mjs`; start Storybook on a temporary port, wait for the
   server health response, then invoke the exact binary
   `mos-app/node_modules/.bin/test-storybook` with the runtime `--url` and `--maxWorkers=1` arguments. Never call
@@ -398,8 +408,9 @@ Vitest test through an include-pattern change.
 
 - [ ] Import `buildStorybookMatrix` into `scripts/v3-live-inventory.mjs` without importing the
   inventory generator back into the Storybook guard. Add `storybookMatrix` to the generated JSON
-  with artifact paths, Storybook/runner versions, story/state/responsive totals, canonical job count,
-  and the two false scope claims.
+  with artifact paths, the matrix-owned package metadata, story/state/responsive totals, canonical
+  job count, and the two false scope claims. Validation must reject stale package metadata as well as
+  stale matrix totals.
 - [ ] Add an Issue 2 evidence section to `renderInventoryMarkdown` immediately after the summary,
   linking `v3-storybook-matrix.json`/`.md` and repeating that this is not application migration or
   Issue 9 rendered acceptance. Preserve the Issue 1 route/component/CSS tables and delivery sequence.
