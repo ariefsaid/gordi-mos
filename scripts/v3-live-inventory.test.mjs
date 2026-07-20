@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
@@ -28,5 +29,33 @@ test('AC-V3-014: inventory records canonical primitive jobs', () => {
   assert.ok(inventory.cssFamilies.length >= 10, 'style inventory must cover the surviving CSS families')
   for (const job of ['search', 'filter', 'sort', 'group', 'saved views', 'wide right panel', 'full page', 'phone full-screen']) {
     assert.ok(inventory.canonicalJobs.includes(job), `missing canonical job: ${job}`)
+  }
+})
+
+test('AC-V3-001: DESIGN.md contains the binding V3 visual and interaction grammar', () => {
+  const design = readFileSync(resolve(repoRoot, 'DESIGN.md'), 'utf8')
+  for (const anchor of [
+    'E7 visual foundation',
+    'RecordViewer',
+    'RecordCollection',
+    'Focused record',
+    'wide right panel',
+    'Escape restores',
+    '390px',
+    ':focus-visible',
+    'saved views',
+  ]) {
+    assert.equal(design.includes(anchor), true, `missing DESIGN.md V3 anchor: ${anchor}`)
+  }
+  for (const staleExample of [
+    '`Write-Review`',
+    '`Catalog-Manage`',
+    '`/updates`',
+    '`/ops`',
+    '`/tasks`',
+    '`/dashboard`',
+    '`/kitchen/log`',
+  ]) {
+    assert.equal(design.includes(staleExample), false, `stale DESIGN.md example remains: ${staleExample}`)
   }
 })
