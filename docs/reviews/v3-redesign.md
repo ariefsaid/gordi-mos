@@ -371,3 +371,31 @@ Minor notes: `page-head.css` extraction is in-scope beyond the literal task list
 `--tabbar-h` fix corrects a phantom token the plan itself carried; CSS-ownership guards are
 source-scans, real geometry stays with Tasks 13–14 e2e. Process flag: these landed pre-gate —
 recorded above; base is technically clean and Tasks 5–14 remain with the `v3/i3` lane.
+
+### Issue 2 independent re-review (2026-07-20, Claude opus adversarial substitute — Luna/pi unavailable)
+
+VERDICT: CONFIRM (fix-then-ship). Exact commit set reviewed: `d2aee27 01b5e17 be8f854 c744cf8 4fa90c1`.
+Verified from source: mock isolation airtight (Storybook-only resolveId+alias boundary, vite.config
+byte-unchanged, dist seam clean); the matrix guard derives coverage from real TS-AST production
+imports with substantive negative fixtures and byte-compare `--check`; totals 35/36/3/23 recounted
+exact; scope flags machine-enforced false. Changed-TSX coverage 98.7–100%.
+
+**Corrections applied to this ledger per the review's two Important findings:**
+
+1. **Disclosure — sixth production file.** `mos-app/src/index.css:32` changed the GLOBAL token
+   `--status-lost-text` (oklch 0.2796,0.1396,0.0158 → 0.45,0.05,0.04 — a hue correction brown→red,
+   not a contrast rescue). Blast radius: ~25 consumer files (CardHead, Pill, data-table, TaskSurface,
+   kitchen pages, login-page, signal-card, …). Guarded by `contrast.test.ts:125-133` (≥4.5:1 +
+   red-hue assertion). The earlier "Matrix and production corrections" list omitted this file; it is
+   in-scope of plan Task 5 ("the E7 status-lost token") but MUST be named, and now is.
+2. **Contrast-figure reconciliation.** The figures "ErrorState 13.40:1" and StatusPill
+   "10.42:1–14.39:1" earlier in this ledger were measured against the OLD token value. Shipped
+   values measure Blocked 9.73:1 and ErrorState 10.88:1 — both clear AA. For `--status-lost-text`
+   specifically the "old tokens measured below the governed contrast bar" framing was wrong: the old
+   brown measured HIGHER contrast; the change traded contrast headroom for correct hue.
+   `rendered-contrast.md` at the tip already carries the corrected measurements.
+
+Minor recommendations adopted: the matrix + inventory `--check`s are now wired into
+`scripts/pre-merge-check.sh` (commit `2daf1e9`). Remaining minors accepted as noted trade-offs
+(self-declared state coverage backed by screenshots+axe; one white-box hover assertion deferred to
+the browser gate; `role="option"` on disabled listbox rows; the café CSS comment tweak rides along).
