@@ -229,6 +229,15 @@ if [ "$ORPHAN_COUNT" -gt 0 ]; then
 fi
 rm -f "$ORPHAN_LIST"
 
+# V3 deterministic proof artifacts must be fresh (added 2026-07-20, Issue-2 re-review rec:
+# a deterministic check the gate never runs can silently rot).
+if [ -f scripts/v3-storybook-matrix.mjs ]; then
+  node scripts/v3-storybook-matrix.mjs --check || { echo "FAIL: v3-storybook-matrix stale"; exit 1; }
+fi
+if [ -f scripts/v3-live-inventory.mjs ]; then
+  node scripts/v3-live-inventory.mjs --check || { echo "FAIL: v3-live-inventory stale"; exit 1; }
+fi
+
 echo "PASS: all required reviews cleared. Safe to merge."
 echo ""
 exit 0
