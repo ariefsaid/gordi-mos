@@ -29,6 +29,17 @@ describe('PageHead — shared header invariant (RI-IA-1)', () => {
     render(<PageHead title="Daily Log" meta={<span>3 entries</span>} />)
     expect(screen.getByText('3 entries')).toBeInTheDocument()
   })
+
+  it('renders one job sentence and keeps one level-one heading', () => {
+    render(
+      <PageHead
+        title="Tasks"
+        jobSentence="Find and update the tasks your Team owns."
+      />,
+    )
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getAllByText('Find and update the tasks your Team owns.')).toHaveLength(1)
+  })
 })
 
 describe('PageHead — content-header variant (mockup chrome)', () => {

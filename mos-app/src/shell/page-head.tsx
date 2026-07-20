@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
+import type { PageFamily } from './page-families'
 
-type PageHeadProps = {
+export interface PageHeadProps {
   title: string
   subtitle?: string
+  jobSentence?: string
   /**
    * Count/meta slot that sits on the title's baseline, immediately after it
    * ("11 tasks · 2 blocked", "Tue 17 Jun · N log entries"). Folded in from the
@@ -32,6 +34,7 @@ type PageHeadProps = {
    * empty/error states can own their own create CTA.
    */
   action?: ReactNode
+  family?: PageFamily
 }
 
 /**
@@ -41,14 +44,15 @@ type PageHeadProps = {
  * mockup `.content-header` chrome (icon + title + count pill + inline action).
  */
 export function PageHead({
-  title, subtitle, meta, maxWidth,
-  variant = 'prose', count, action,
+  title, subtitle, jobSentence, meta, maxWidth,
+  variant = 'prose', count, action, family,
 }: PageHeadProps) {
+  const v3ClassName = family ? ' page-head--v3' : ''
   if (variant === 'content') {
     return (
       <div
         data-testid="page-head"
-        className="content-header"
+        className={`content-header${v3ClassName}`}
         style={maxWidth ? { maxWidth } : undefined}
       >
         {/* Cohesion-debt 2026-07-19, item #5 (owner call: "proceed with all items"):
@@ -61,6 +65,7 @@ export function PageHead({
         {/* Overdue/blocked subtotals + clearable filter chips ride beside the pill */}
         {meta && <span className="ch-meta">{meta}</span>}
         {action && <span className="ch-action">{action}</span>}
+        {jobSentence && <p className="page-head-job">{jobSentence}</p>}
       </div>
     )
   }
@@ -69,6 +74,7 @@ export function PageHead({
     <div
       data-testid="page-head"
       style={{ marginBottom: 16, ...(maxWidth ? { maxWidth } : {}) }}
+      className={family ? 'page-head--v3' : undefined}
     >
       <div className="flex items-baseline gap-3 flex-wrap">
         <h1
@@ -90,6 +96,7 @@ export function PageHead({
           {subtitle}
         </p>
       )}
+      {jobSentence && <p className="page-head-job">{jobSentence}</p>}
     </div>
   )
 }
