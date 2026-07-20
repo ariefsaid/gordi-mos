@@ -23,10 +23,64 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > threads, owner prompts verbatim, in-repo. Owner prefs, hard rules, multi-agent/git gotchas, and
 > the delegation posture below are **not** superseded and remain binding.
 >
-> **Running the redesign steps 4–11 autonomously? → `docs/plans/CLOUD-AGENT-HANDOFF.md`** (OD-67).
->
-> **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md`** (mode, branch strategy, per-step
-> status, the next open item, the both-reviews gate). Evidence of record: `docs/reviews/feat-redesign-buildout.md`.
+> **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md` § STATE.** Steps 4–11 shipped;
+> the cloud-autonomous window (`CLOUD-AGENT-HANDOFF.md`, OD-67) is CLOSED — historical, don't act on it.
+
+## Reading order for a cold start (30+ docs; these are the ones that bind)
+
+Read in this order. Everything else is evidence you consult when a specific question arises.
+
+**1. The LAW (what you must obey — read all four, they're short):**
+- `CLAUDE.md` — the loop, the gates, model discipline. Rules only, no state.
+- `docs/experience-contract.md` — Rules 1–12, the UI acceptance bar (incl. Rule 8-desktop no-clip).
+- **`docs/interaction-contract.md`** — ONE behaviour per interaction class (I1–I10) + a per-surface
+  conformance table. **Behaviour is first-class here** because three audit generations measured
+  statics and let the interaction layer fracture. Lens (b) must DRIVE these, not read code.
+- `CONTEXT.md` — the domain vocabulary. "Process Run" is not a user-facing noun; PIC/Supervisor,
+  not RACI; Signal replaced Weekly Update + Daily Log.
+
+**2. The DECISIONS (why anything is the way it is):**
+- `docs/decisions.md` — OD-REDESIGN-1..71. The owner's word, chronological.
+- `docs/reference/provenance/owner-directives-index.md` — **the composite oracle**: every verbatim
+  owner directive across every era, traced to its shipped state. Use this before assuming intent.
+  Its tiers: owner-word > lost-good (things an EARLIER mockup got right, including things e7 itself
+  dropped) > owning-mockup default. **The oracle is the composite, never one snapshot** — the owner:
+  "i dont want to look exactly like e7… that's why i keep calling it a moving quicksand."
+- `docs/adr/` — architecture (0025 = the redesign direction; 0050/0051 = Signal + occurrence schema).
+
+**3. The STATE (what's done / open):**
+- `docs/plans/AUTONOMOUS-RUN-STATE.md` § STATE — this file's sibling; the current tip, gates, opens.
+- `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` — evidence of record + **the ratify
+  list** (owner decisions; never resolve one yourself).
+- `docs/backlog.md` — standing programs and non-redesign work.
+
+**4. The DEBT MAPS (what's known-broken and why):**
+- `docs/reviews/cohesion-debt-2026-07-19.md` — the mechanical sources of "several apps thrown
+  together" + what shipped against them.
+- `docs/reviews/parity-sweep-2026-07-18.md` — fidelity/provenance audits + the convention audit.
+
+## The five traps this project has actually paid for (do not re-learn these)
+
+1. **A check whose failure is silent is not a check.** Real instances: a secret scan that "passed"
+   because grep crashed; a merge gate that skipped design+security when `git diff` failed; an auth
+   e2e rewritten to a `localStorage.clear()` that never called `signOut()`; e2e runs piped through
+   `tail` that ate a 6-failure block AND the exit code; the orphan-doc gate that exited 1 silently
+   *at the moment it found an orphan*. **Always capture exit codes; never `| tail` a verification.**
+2. **Measure the goal, not a proxy.** "Tokens are in-palette" passes with the WRONG token — the rail's
+   selected-state shipped invisible that way. Design fidelity = **computed-style parity** against the
+   owning mockup (`design-reviewer.md` Lens a); interaction = **driven**, not read.
+3. **An owner artifact's omission IS a decision.** The frame sketch had no module blocks; that was
+   flagged, unanswered, defaulted-around, and the default got enshrined in OD text — then six audits
+   verified the text. Every build-time deviation from an owner artifact MUST become a
+   `RATIFY-BEFORE-MERGE:` ledger line (CLAUDE.md, binding).
+4. **"Stale" is quicksand.** Superseded ≠ wrong ≠ deletable. Prove it by diff, preserve on a branch,
+   name the decision that supersedes.
+5. **Parallel agents need isolation + the correct base.** Agents sharing a worktree while the Director
+   runs `git reset --hard` lose their work; `isolation:worktree` branched off the WRONG base (main,
+   not the feature tip) and three agents correctly refused to build. Create the worktree yourself off
+   the verified tip, one branch each, and merge serially.
+
+**Evidence of record:** `docs/reviews/feat-redesign-buildout.md` (steps 1–3 + base closure).
 >
 > **UPDATE 2026-07-14 — mockup phase CLOSED (OD-REDESIGN-56).** The canonical next product step is the
 > **buildout in `mos-app`** per `docs/plans/2026-07-14-redesign-buildout.md` (11 owner-approved steps;

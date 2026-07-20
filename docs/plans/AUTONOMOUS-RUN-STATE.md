@@ -1,23 +1,46 @@
 # Redesign buildout — live run state (update this doc as work lands)
 
-**What this is:** the single "where are we RIGHT NOW" tracker for the redesign buildout
-(`docs/plans/2026-07-14-redesign-buildout.md`). The **review ledger**
-(`docs/reviews/feat-redesign-buildout.md`) is the evidence of record; this file is the index over it.
-If the two disagree, **the ledger is ground truth** — and this file is stale: fix it.
+**What this is:** the single "where are we RIGHT NOW" tracker. The **review ledger**
+(`docs/reviews/claude-redesign-buildout-completion-vdrd17.md`) is the evidence of record; this file
+is the index over it. If the two disagree, **the ledger is ground truth** — fix this file.
 
-**Last updated:** 2026-07-16 (owner present; docs consolidated after a fresh-agent comprehension audit).
+**Last updated:** 2026-07-20 (cohesion program shipped; branch green across every layer).
 
-## Mode (READ THIS FIRST — it changes what you're allowed to do)
+## STATE (read this first)
 
-- **▶ CLOUD-AGENT AUTONOMOUS RUN (OD-REDESIGN-67, 2026-07-16):** steps 4–11 run independently; the
-  owner reviews **once, after step 11**. Per-step owner gates are suspended; **both review batteries
-  remain mandatory**. Charter + piping: **`docs/plans/CLOUD-AGENT-HANDOFF.md`** — read it before
-  starting any step.
+**Branch:** `claude/redesign-buildout-completion-vdrd17` — pushed, NOT merged. Merge is the owner's.
 
-- **Owner is PRESENT.** Normal per-issue gates are in force: spec sign-off, owner walkthroughs at
-  steps 2/4/6, owner visual diff every step, owner approves push/merge/deploy.
-- *(Historical: a 2026-07-15 AFK window authorized building all steps unattended on conservative
-  defaults with everything held locally. That window is CLOSED. Do not act on it.)*
+**Done and verified on the branch tip:**
+- **Redesign buildout steps 4–11** — Signal v1, Home proper, occurrence-as-tasks, Café retrofit,
+  catalog re-home, Money/Inbox (flag-gated), Events stub, decommission sweep. Full battery per step.
+- **Base closed** — the four STEP-0 verdicts are honest APPROVEs (incl. the security re-audit).
+- **Fidelity + convention remediation** (2026-07-18) — computed-style parity restored, the founding
+  "best practice / impeccable + taste" mandate finally run against the BUILT app, criticals fixed.
+- **OD-68 the rail shows YOUR work** (owner sketch made real) · **OD-69** parity rulings ·
+  **OD-70** language in Profile · **OD-71** four ratifications ("agree all").
+- **Cohesion program, both halves** (2026-07-19/20) — the mechanical sources of "several apps
+  thrown together": one money/date format, one empty-state, one loading grammar, one scrim, one
+  CloseIcon, one confirm primitive, a z-index tier scale (fixed a real confirm-behind-drawer bug),
+  focus-visible normalization, I7 exactly-one-`aria-current`. Map: `docs/reviews/cohesion-debt-2026-07-19.md`.
+
+**Gates at tip:** typecheck 0 · Vitest 2868 · eslint 0 · **e2e exit 0 (54 passed / 2 skipped)** ·
+`bash scripts/pre-merge-check.sh` exit 0.
+
+**What is NOT done (tracked, not hidden):**
+- **Host P3/P4** — Inbox two-door (bell → quick-triage panel, OD-20) and Deputy chrome. Inbox still
+  navigates away instead of opening in the shared panel: the last piece of the owner's original
+  "inbox opens on top, task opens on the side" complaint.
+- **`ModalShell` follow-up** — OccurrenceAssignDialog + CreatePersonDialog are hand-rolled overlays;
+  correctly NOT forced onto the confirm primitive (they aren't confirms).
+- **The ratify list** — `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` § Ratify before
+  merge. Owner decisions, unchanged by any agent.
+- **The owner's walkthrough** — nobody has replaced it. Rendered evidence ≠ the owner's eyes.
+
+## Mode (what you're allowed to do)
+
+- **Owner is PRESENT.** Normal gates in force: spec sign-off, owner approves push/merge/deploy.
+- The 2026-07-16 cloud-autonomous window (OD-REDESIGN-67, steps 4–11 unattended) is **CLOSED** —
+  do not act on it. *(Historical: a 2026-07-15 AFK window is also closed.)*
 
 ## Branch / PR strategy (owner-directed 2026-07-15)
 
@@ -65,19 +88,6 @@ consolidated verdicts, gates, the owner's 15-item ratify list, deferred debt) + 
 **Owner's next action:** review the ratify list there, walk the app, then merge/deploy.
 
 *(Historical per-step live-state entries below this point are superseded by the table above.)*
-
-## (superseded) Where the work stood
-
-| Step | Built | Code review | Design review | Status |
-|---|---|---|---|---|
-| 1 Styling pass | ✅ | BLOCK → fixed → **APPROVE** | ✅ (light+dark) | **Done** (pending owner visual sign-off) |
-| 2 Shell + routes | ✅ | BLOCK → fixed → **APPROVE** | ✅ | **Done** (pending owner walkthrough) |
-| 3 Tasks re-home | ✅ | BLOCK → fixed → **APPROVE** | ✅ | **Done** (pending owner visual sign-off) |
-| Remediation waves 1/2/2b | ✅ | BLOCK → fixed → **APPROVE** | OD-61..64 all **RESOLVED**, 0 new regressions | Done |
-| **Wave 2c** (desktop table density) | ✅ `8ab3235` | spec + code-quality **APPROVE** (2026-07-16, cloud) | **APPROVE** (2026-07-16, rendered, pixel evidence) | **Done** |
-| Security BLOCK (HIGH-1/2, MED-1, LOW-1) | ✅ fixed `54afd98`+`0088246` | re-audit **APPROVE** | shell fix 4-lens **APPROVE** | **Done** |
-| 4 Signal v1 | 🔨 in progress (cloud run) | — | — | spec+plan+ADR-0050 done; building |
-| 5–11 | ❌ not started | — | — | queued behind step 4 |
 
 ## ▶ BASE IS CLOSED (2026-07-16, cloud autonomous run — OD-REDESIGN-67)
 
