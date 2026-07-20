@@ -319,3 +319,44 @@ production TS/TSX coverage; their build, lint, matrix, and browser checks are re
 The Issue 3 gate is open only after independent re-review confirms this evidence and the owner gives
 explicit approval at the issue boundary. **Next action:** independent re-review, then owner reviews
 the plan, matrix, screenshots, contrast record, and this ledger; no Issue 3+ work is claimed here.
+
+## Independent re-review + owner acceleration directive (2026-07-20 evening)
+
+### Director gate re-run (independent of the build harness)
+
+Executed at the branch tip with the two untracked Issue-3 WIP files parked outside the tree
+(tree clean, `git status --porcelain` empty at run time):
+
+| Command | Result |
+|---|---|
+| `node --test scripts/v3-storybook-matrix.test.mjs` | exit 0 |
+| `node --test scripts/v3-live-inventory.test.mjs` | exit 0 |
+| `node scripts/v3-storybook-matrix.mjs --check` / `node scripts/v3-live-inventory.mjs --check` | exit 0 / exit 0 |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 |
+| `npm test -- src/components/command/command-menu.test.tsx --run` | 35/35 passed |
+
+Director visual pass on `docs/reference/evidence/v3-storybook-2026-07-20/`: typography tokens match
+DESIGN.md (Plus Jakarta display / DM Sans body / Inter tabular), phone-390 card branch and overlay
+record panel render clean. A cross-family gpt-5.6-luna re-review of the Issue 2 range was dispatched
+and its verdict will be appended when it lands.
+
+### Owner directive (verbatim intent, 2026-07-20)
+
+The owner directed: deliver the V3 redesign as prescribed, in full, ASAP — "do whatever you need,
+dynamic workflow, parallel subagents, or parallel workflows… fast is the name of the game now."
+Recorded effect: the per-issue owner-approval pauses for Issues 3–8 unit-layer work are WAIVED by
+the owner; the Issue 9 rendered owner gate, Issue 7 read-vs-handled semantics ratification, and the
+Issue 10 ADR ratification remain owner decisions and are surfaced as RATIFY-BEFORE-MERGE items, not
+silently assumed.
+
+### Acceleration wave record
+
+- Discrepancy noted for the record: three Issue-3 code commits (`130dcda`, `b34642a`, `d069a92`)
+  were already on the branch tip before the Issue-2 gate formally opened, contradicting the
+  "clean preflight only" handoff line. They pass the gate re-run above; they receive spec/CQ review
+  with the wave merges rather than being reverted (owner speed directive).
+- Wave dispatched from tip `d069a92`, one isolated worktree + branch per issue, merged serially by
+  the Director: `v3/i3` (finish migration guards), `v3/i4` (overlay host), `v3/i5` (RecordViewer),
+  `v3/i6` (RecordCollection engine). Unit/component layer only — no Supabase/DB/e2e in this wave;
+  DB-backed and rendered-acceptance work stays serialized behind it.
