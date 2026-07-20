@@ -477,3 +477,21 @@ corrected to `'shell'|'tasks'|'signals'`). Post-merge battery: typecheck 0 · li
 Remaining render-dependent host adoption (listed, not faked): top-bar bell, Deputy cutover in
 app-shell/AssistantPanel, `/inbox` page migration onto the Issue-6 engine — these ride the Issue 9
 rendered-slice lane. DB authoring for Issues 6/7/8 dispatched on `v3/db` (execution serialized).
+
+### DB rank merged + live gate (2026-07-21 early)
+
+`v3/db` merged: migrations `20260721000001` (collection saved views: metadata CHECK binds
+kind/context/spec version, pin trigger, legacy rows untouched), `...000002` (notifications
+`handled_at`, R-OWNER-3 header, read-but-unhandled representable, content-immutability guard
+preserved), `...000003` (nullable `mos.tasks.team_id` + FK, RLS-forced ambiguities audit table,
+revoked SECURITY DEFINER `_rehome_task_teams()` mirroring the TS classifier, extended
+`_guard_task_refs`), plus `...000004_...enforce.sql.HOLD` (parked; cannot auto-apply; R-OWNER-4).
+Deliberately excluded (behavior-changing before app/RPC updates): spawn/resolve RPC re-home and a
+non-null-team insert policy — deferred to enforcement.
+
+Live gate on the local stack: `supabase start` 0 · `supabase db reset` 0 (all migrations incl. the
+apply-time re-home run) · **full pgTAP 103 files / 772 tests PASS** (new suites 100/101/102 green).
+Test numbering: plan's `63_` was taken → 100/101/102 (plan-canonical for two, next-free for one).
+
+Review battery in flight: 3 combined spec+CQ reviewers (i3-finish+i4 · i5+i6 · i7+i8+wire) and a
+security audit of the DB rank. Verdicts recorded here when they land.
