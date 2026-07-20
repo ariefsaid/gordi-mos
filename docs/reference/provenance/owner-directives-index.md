@@ -133,7 +133,7 @@ get rendered-A/B treatment.
    **"+ New task" / "Add Objective / Add Project"**. e7 + convergence use "Create …"; G0 option-b used
    "New …"; two reviewers pulled opposite directions (Rule-7 bare-verb fix vs mockup verb fidelity). An
    owner taste call — pick one family, lock it as a convention. (vdrd17 ratify item 19)
-2. **Q1 — Signal-on-Home placement** (P-18) is direction-approved but **final look reserved** by the
+2. *(status is canonical in the ledger's register — see `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` § Ratify before merge)* **Q1 — Signal-on-Home placement** (P-18) is direction-approved but **final look reserved** by the
    owner to the post-step-11 review (OD-59 provisional). Not gen-vs-gen; listed here because it is an
    owner A/B still owed: (A) ratify as built — ambient feed below the non-removable brief, Work =
    Signals archive only, no Updates root; (B) change the region order / make Work-primary.

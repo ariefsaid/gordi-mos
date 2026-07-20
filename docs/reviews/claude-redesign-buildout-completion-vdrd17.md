@@ -47,17 +47,35 @@ after step 11).
 
 | Gate | Result |
 |---|---|
-| `npm run typecheck` | PASS — 0 errors (tip, 2026-07-19) |
-| `npm test` (Vitest) | PASS — 273 files / **2767** tests (tip, 2026-07-19) |
+| `npm run typecheck` | PASS — 0 errors (tip `37cc2ed`, 2026-07-20) |
+| `npm test` (Vitest) | PASS — 280 files / **2868** tests (tip `37cc2ed`, 2026-07-20 — post-cohesion) |
 | `supabase test db` (pgTAP) | PASS — 100 files / 727 (2026-07-17; no schema change since) |
-| `npx playwright test` | **PASS — exit 0, 52 passed / 2 skipped = all 54 declared** (tip, 2026-07-19). ⚠ The two prior "green" runs were piped through `tail`, hiding a 6-failure block + masking the exit code — 5 stale oracles + 1 real Rule-5 regression fixed to get here honestly. |
+| `npx playwright test` | **PASS — exit 0, 54 passed / 2 skipped** (tip `37cc2ed`, 2026-07-20). ⚠ The two prior "green" runs were piped through `tail`, hiding a 6-failure block + masking the exit code — 5 stale oracles + 1 real Rule-5 regression fixed to get here honestly. |
 | `bash scripts/pre-merge-check.sh` | PASS — exit 0 (verdicts as recorded; Director-commit range awaits independent battery per the truthful boundary) |
 
-## Ratify before merge (consolidated — the owner's one post-step-11 list)
+## Ratify before merge — THE CANONICAL OPEN-DECISIONS REGISTER
+
+> **This section is the single source of truth for "what still needs the owner."** A cold-start
+> comprehension test (2026-07-20) found the same items described in three places with three
+> different status words — the exact drift that lets an item look settled in one doc and open in
+> another. Fixed by DESIGNATION, not by adding a doc: `docs/plans/AUTONOMOUS-RUN-STATE.md` and
+> `docs/reference/provenance/owner-directives-index.md` now POINT here instead of restating status.
+> If any doc disagrees with this list, **this list wins** — and that doc is stale, fix it.
+>
+> **One status vocabulary. Use exactly these words:**
+> - **OPEN** — needs an owner decision before merge. Nobody but the owner resolves it.
+> - **PROVISIONAL** — owner approved the *direction*; the final look/wording is still the owner's.
+> - **RESOLVED** — the owner ruled (cite the OD); kept here only for traceability.
+> - **DEFERRED** — consciously not-now, with a named tracker. Not an owner decision.
 
 Every conservative default taken while the owner was absent, with its home ledger:
-1. **Q1 Signal-on-Home** — provisionally approved (OD-REDESIGN-59); built as specified. (step 4)
-2. **`can_read_signal` SECURITY DEFINER** — deviation from ADR-0050 D4 (INVOKER recurses); ratify into the ADR. (step 4)
+1. **PROVISIONAL — Q1 Signal-on-Home** — direction approved (OD-REDESIGN-59), built as specified;
+   the FINAL LOOK is reserved to the owner's walkthrough. (step 4)
+2. **OPEN — `can_read_signal` SECURITY DEFINER** — deviates from ADR-0050 D4 (INVOKER recurses
+   infinitely under self-referential RLS). **This is a DOC-RECONCILIATION item, not an unresolved
+   security hole:** the security re-audit APPROVED the shipped function (PUBLIC execute revoked,
+   verified), so `security: APPROVE` above is correct — what's open is amending ADR-0050's text to
+   match the shipped INVOKER→DEFINER decision. (step 4)
 3. **`comments_select` signal tightening** — reader-of-parent SELECT gate. (step 4)
 4. **A7 fixture role-strip reading** of AC-403/406 (Team membership alone ≠ read under BU-scoped R2). (step 4)
 5. **Attention pill not built** (spec §4 had no owning AC) — defer vs follow-up. (step 4)

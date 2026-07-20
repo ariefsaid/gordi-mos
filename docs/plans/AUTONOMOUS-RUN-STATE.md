@@ -170,7 +170,8 @@ source of truth for **non-redesign** open items + risks; the buildout plan's "Q-
 the list below (if they disagree, **this list wins**).
 
 Current standing ratifications:
-- **Q1 Signal-on-Home** — *provisionally approved* (OD-REDESIGN-59); final ratification at the step-4
+- **Q1 Signal-on-Home** — status lives in the canonical register (ledger § Ratify before merge);
+  do not restate it here. *(historical note: OD-REDESIGN-59, final ratification was set for the step-4
   walkthrough. Step 5 must not treat it as final.
 - **Q2 job-function assignment** — **APPROVED** (OD-REDESIGN-58).
 - **Events as a rail root** — **RATIFIED** by the owner's frame sketch (OD-REDESIGN-57); it is built and
