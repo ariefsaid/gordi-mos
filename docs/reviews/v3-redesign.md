@@ -443,3 +443,21 @@ Director diff-audited it (content matches the lane's verified controller; no sus
   adapter input); keys exist in the commit dispatcher.
 - R-T-8 (i7): `pendingIds` optional prop beyond the plan's provisional props (aria-busy needs it);
   `inbox-page` still renders legacy InboxList pending the Issue 6 seam.
+
+### Complete-tip battery + post-merge fixes (2026-07-20 night)
+
+Tip after all six lane merges + two cross-lane fixes: typecheck 0 · ESLint+Stylelint 0 · `npm run
+build` 0 · full unit suite **3095/3095 (306 files)**. (One contention-timeout run occurred while a
+second worktree ran the suite concurrently; the quiet rerun is the gate evidence.)
+
+Cross-lane defects caught by standing guards, fixed at the app layer:
+1. Inbox focus rings used inset −2px off the dense allowlist → standard +2px (CHROME-FOCUS guard).
+2. `record-collection.css` invented a phantom token family (`--space-*`, `--color-*`, `--radius-2`,
+   `--font-size-sm`) → rewritten to the house vocabulary (css-var wiring guard). Recorded as i6
+   deviation R-T-9; the adapter/engine code was unaffected.
+
+Additional i6 technical deviations for the register: R-T-10 `CollectionQuerySchema.neutral` field
+added (compat checking needs populated-value knowledge); R-T-11 controller `subscribe`/`descriptor`/
+`setSourceBuilder` beyond the plan's method list (React binding); R-T-12 viewer-contract import path
+reconciled to the real `record-viewer.types.ts` (the plan's `record-viewer-contract` path never
+existed — resolved by the wiring lane's seam swap).
