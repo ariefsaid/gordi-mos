@@ -360,3 +360,14 @@ silently assumed.
   the Director: `v3/i3` (finish migration guards), `v3/i4` (overlay host), `v3/i5` (RecordViewer),
   `v3/i6` (RecordCollection engine). Unit/component layer only — no Supabase/DB/e2e in this wave;
   DB-backed and rendered-acceptance work stays serialized behind it.
+
+### Issue-3 base commits — spec+CQ review (2026-07-20, Claude opus, independent)
+
+VERDICT: CONFIRM — `130dcda` / `b34642a` / `d069a92` are sound and safe as the wave base.
+Evidence: 251 shell tests + 74 router/consistency tests green, typecheck clean; commits map to plan
+Tasks 1–4 exactly; router change verified metadata-only (paths/guards/redirects byte-preserved);
+silent-failure trap closed (`assertV3RouteConfig` throws on any unclassified route, live in tests).
+Minor notes: `page-head.css` extraction is in-scope beyond the literal task list (NFR-V3-007);
+`--tabbar-h` fix corrects a phantom token the plan itself carried; CSS-ownership guards are
+source-scans, real geometry stays with Tasks 13–14 e2e. Process flag: these landed pre-gate —
+recorded above; base is technically clean and Tasks 5–14 remain with the `v3/i3` lane.
