@@ -461,3 +461,19 @@ added (compat checking needs populated-value knowledge); R-T-11 controller `subs
 `setSourceBuilder` beyond the plan's method list (React binding); R-T-12 viewer-contract import path
 reconciled to the real `record-viewer.types.ts` (the plan's `record-viewer-contract` path never
 existed — resolved by the wiring lane's seam swap).
+
+### Wiring pass merged (2026-07-20 night, `v3/wire` → tip `15e8d16`)
+
+Seam swaps to real contracts (Issue 5 leave-guard → `@/shell/overlay-navigation`; Issue 6 seam →
+real `@/shell/overlay-host` + new permanent `record-opening-contract.ts`; Issue 7 host contracts
+re-pinned), R-OWNER-1 provisional ContextRow suppression (scoped to the migration registry via
+`matchPath`, NOT the route handle — a handle-keyed rule would have hidden the only sentence on the
+23 deferred routes), and R-T-3 not-found heading demotion. Four true contract mismatches found and
+reconciled without casts (plan's viewer-contract path never existed → Issue-6-owned bridge types;
+host API narrowed via Pick; leave-guard seam was a benign strict subset; Issue-7 `OverlayOwner`
+corrected to `'shell'|'tasks'|'signals'`). Post-merge battery: typecheck 0 · lint 0 · build 0 ·
+**full unit 3101/3101 (306 files), exit 0 explicitly captured**.
+
+Remaining render-dependent host adoption (listed, not faked): top-bar bell, Deputy cutover in
+app-shell/AssistantPanel, `/inbox` page migration onto the Issue-6 engine — these ride the Issue 9
+rendered-slice lane. DB authoring for Issues 6/7/8 dispatched on `v3/db` (execution serialized).
