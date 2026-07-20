@@ -3,8 +3,8 @@ import { createRecordCollectionController } from './engine'
 import type {
   CollectionAccess,
   CollectionData,
+  CollectionOverlayHost,
   CollectionProjection,
-  OverlayHostApi,
   RecordCollectionDescriptor,
 } from './types'
 import {
@@ -34,7 +34,7 @@ const ROWS: FakeTask[] = [
   { id: 't-2', title: 'Finalise Q3 roastery output forecast', status: 'In Progress' },
 ]
 
-function fakeHost(): OverlayHostApi & {
+function fakeHost(): CollectionOverlayHost & {
   openRoot: ReturnType<typeof vi.fn>
   push: ReturnType<typeof vi.fn>
   openPage: ReturnType<typeof vi.fn>
@@ -74,7 +74,7 @@ function makeSpec(query: TaskCollectionQuery, presentation: TaskCollectionPresen
 function makeDescriptor(opts: {
   rows?: FakeTask[]
   access?: CollectionAccess<FakeAction>
-  host?: OverlayHostApi
+  host?: CollectionOverlayHost
   loadSpy?: () => void
   store?: {
     list: () => Promise<readonly PersistedCollectionView[]>

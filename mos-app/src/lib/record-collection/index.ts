@@ -2,4 +2,4 @@
 export * from './types'
 export * from './query-state'
 export * from './collection-view-spec'
-export * from './integration-contracts'
+export * from './record-opening-contract'

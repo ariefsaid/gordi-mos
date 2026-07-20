@@ -1,18 +1,16 @@
 import type { ReactNode } from 'react'
-// RATIFY-BEFORE-MERGE: Issue 5 owns `@/components/record-viewer/record-viewer-contract`. Until it
-// lands we import the identical opening-contract shape from the local integration seam.
 import type {
-  OverlayHostApi,
+  CollectionOverlayHost,
   RecordViewerOpenSource,
   RecordViewerOpeningContract,
-} from './integration-contracts'
+} from './record-opening-contract'
 import type {
   CollectionViewSpec,
   CollectionViewValidationResult,
   PersistedCollectionView,
 } from './collection-view-spec'
 
-export type { OverlayHostApi, RecordViewerOpenSource, RecordViewerOpeningContract }
+export type { CollectionOverlayHost, RecordViewerOpenSource, RecordViewerOpeningContract }
 
 export type CollectionStatus =
   | 'loading' | 'ready' | 'empty' | 'filtered-empty' | 'error'
@@ -179,7 +177,7 @@ export interface RecordCollectionDescriptor<
   }): CollectionAccess<TAction>
   viewer: RecordViewerOpeningContract<TRecord>
   /** Issue 4 overlay host, injected by the React hook. React-free engine calls this seam. */
-  host?: OverlayHostApi
+  host?: CollectionOverlayHost
   runBulkAction?: (args: {
     action: TAction
     ids: readonly TId[]

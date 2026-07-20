@@ -5,7 +5,7 @@ import {
   type InboxTriageOpen,
   type NotificationRow,
 } from '@/test/fixtures/v3-record-collection'
-import type { OverlayHostApi } from './types'
+import type { CollectionOverlayHost } from './types'
 import { taskCollectionQuery, type TaskCollectionQuery } from '@/components/tasks/task-collection-adapter'
 
 const INBOX_INITIAL = {
@@ -15,7 +15,7 @@ const INBOX_INITIAL = {
   accessRoles: ['member'],
 }
 
-function fakeHost(): OverlayHostApi & { openRoot: ReturnType<typeof vi.fn>; push: ReturnType<typeof vi.fn> } {
+function fakeHost(): CollectionOverlayHost & { openRoot: ReturnType<typeof vi.fn>; push: ReturnType<typeof vi.fn> } {
   return {
     openRoot: vi.fn(async () => ({ status: 'committed' as const })),
     push: vi.fn(async () => ({ status: 'committed' as const })),

@@ -1,7 +1,20 @@
-import { useLocation } from 'react-router-dom'
+import { matchPath, useLocation } from 'react-router-dom'
 import { jobKeyForPath } from './job-sentences'
+import { ISSUE_3_REPRESENTATIVE_ROUTES } from './page-family-migration'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+
+/**
+ * R-OWNER-1 (provisional): a route is "migrated" when it renders on a PageFamilyFrame whose
+ * region-3 page head already emits the job sentence. On those routes the shell ContextRow must
+ * NOT emit the sentence a second time. Unmigrated routes carry no region-3 sentence, so ContextRow
+ * stays their sole job sentence. The migration registry (ISSUE_3_REPRESENTATIVE_ROUTES) is the
+ * authority for which routes are on PageFamilyFrame — the route handle alone cannot tell migrated
+ * (`v3Page` + PageFamilyFrame) from deferred (`v3Page`, no region-3 sentence) apart.
+ */
+function pageOwnsJobSentence(pathname: string): boolean {
+  return ISSUE_3_REPRESENTATIVE_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
+}
 
 function resolveViewerScope(roleName: string | undefined, accessRoles: readonly string[]): string {
   const role = roleName?.toLowerCase() ?? ''
@@ -41,9 +54,12 @@ export function ContextRow() {
       style={{ height: 'var(--ctx-row-h, 40px)', flex: 'none' }}
     >
       {scope && <span className="ctx-scope truncate text-muted-foreground" style={{ fontSize: 13 }}>{scope}</span>}
-      <b className="ctx-job truncate text-foreground" style={{ fontSize: 13, fontWeight: 500 }}>
-        {t(jobKey)}
-      </b>
+      {/* RATIFY R-OWNER-1: provisional — ContextRow sentence suppressed on V3-family routes */}
+      {!pageOwnsJobSentence(pathname) && (
+        <b className="ctx-job truncate text-foreground" style={{ fontSize: 13, fontWeight: 500 }}>
+          {t(jobKey)}
+        </b>
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordViewer } from './record-viewer'
-import type { OverlayLeaveGuard } from './leave-guard'
+import type { OverlayLeaveGuard } from '@/shell/overlay-navigation'
 import type { RecordViewerAdapter } from './record-viewer.types'
 
 // Real Task-shaped adapter fixture with one editable text field.
