@@ -11,7 +11,14 @@
 > (29 page, 25 redirect, 4 DEV-only), 13 shared interaction jobs, and 67 CSS families.
 > Issue 1 maps to AC-V3-001 (contract/evidence boundary) and AC-V3-014 (reproducible inventory guard).
 > No application component migration or rendered acceptance occurred. Issue 2 may start only after the
-> owner approves this foundation and its evidence; the representative rendered slice remains a later gate.
+> owner approves this foundation, and Issue 2 is Storybook component/state/responsive proof only: it cannot
+> claim application migration or rendered representative acceptance. The master sequence keeps ownership
+> separate: Issue 3 **Page-family primitives and migration guards**; Issue 4 **Shared overlay/panel/navigation
+> host**; Issue 5 **RecordViewer contract, field primitives, and Task adapter**; Issue 6
+> **RecordCollection/view engine and Tasks/Signals adapters**; Issue 7 **Inbox triage plus Deputy host
+> integration**; Issue 8 **Café canonical-record integration and Team-context correction**; and Issue 9
+> **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain
+> separately owned by `docs/specs/v3-redesign.spec.md` §12.
 > The dated banners below are historical strata. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
 > buildout record, not the live V3 plan.
 >

@@ -23,7 +23,7 @@
 - Use the authority order in `docs/specs/v3-redesign.spec.md` §2: owner decisions OD-REDESIGN-72..79, current domain/ADR law, JTBD/Experience/Interaction Contracts, lost-good evidence, then E7 visual styling.
 - E7 owns visual language only. Current owner law owns IA and interaction behavior.
 - Keep separate typed database models. Shared UI is a grammar over those models, not a universal records table.
-- Do not create standalone mockups, Storybook work, or Issue 2 application component migration in this issue.
+- Do not create standalone mockups, Issue 2 Storybook work, or any Issue 3–9 application/component migration in this issue.
 - Do not run Supabase commands, migrations, a Supabase-dependent dev server, cloud/staging queries, push, PR, merge, or deploy.
 - Preserve unrelated worktree changes. Use `apply_patch` for edits. Commit locally with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 
@@ -34,14 +34,14 @@ Create these files:
 - `scripts/v3-live-inventory.mjs` — exports `buildInventory(repoRoot)`, `collectRouteDeclarations(routerText)`, `validateInventory(inventory, repoRoot)`, `renderInventoryMarkdown(inventory)`, and `main(argv)`; CLI modes are `--write` and `--check`.
 - `scripts/v3-live-inventory.test.mjs` — Node built-in tests for AC-V3-014 route coverage, source references, canonical primitive evidence, deterministic rendering/CLI behavior, and the `DESIGN.md` V3 anchor/conformity guard.
 - `docs/reference/v3-live-inventory.json` — deterministic machine-readable route/component/style inventory generated from the live source tree.
-- `docs/reference/v3-live-inventory.md` — deterministic human-readable rendering of that JSON, including totals and explicit current debt/deferred Issue 2 work.
+- `docs/reference/v3-live-inventory.md` — deterministic human-readable rendering of that JSON, including totals, the master-spec delivery sequence, and exact deferred ownership for Issues 2–12.
 - `docs/reviews/v3-redesign.md` — Issue 1 evidence-of-record ledger for authority, plan, inventory, design reconciliation, checks, and owner gates.
 
 Modify these files:
 
 - `DESIGN.md` — preserve the token foundation and replace the stale three archetypes/deleted-route examples with V3 page families, RecordViewer, RecordCollection, overlay/navigation/focus/Back, direct-edit feedback, responsive grammar, state matrix, and anti-slop limits.
-- `docs/backlog.md` — add the current V3 Issue 1 status, artifact links, exact verification commands, and the Issue 2 unlock condition above historical strata.
-- `docs/agent-context.md` — move the current V3 state from “plan/spec pending” to “Issue 1 implementation evidence recorded; owner sign-off still required before Issue 2”; point to the plan and inventory paths.
+- `docs/backlog.md` — add the current V3 Issue 1 status, artifact links, exact verification commands, and the separate Issue 2–9 ownership sequence above historical strata.
+- `docs/agent-context.md` — move the current V3 state from “plan/spec pending” to “Issue 1 implementation evidence recorded; owner sign-off still required before Issue 2”; point to the plan and inventory paths and preserve the separate Issue 3–9 gates.
 
 The inventory schema is fixed before implementation:
 
@@ -213,7 +213,7 @@ Expected: local checkpoint contains the passing guard and no application compone
 
 **Interfaces:**
 - Consumes: `buildInventory(repoRoot)` and `renderInventoryMarkdown(inventory)`.
-- Produces: reproducible inventory artifacts used by `AC-V3-014`, the review ledger, backlog, and Issue 2.
+- Produces: reproducible inventory artifacts used by `AC-V3-014`, the review ledger, backlog, and the separately numbered Issues 2–12.
 
 - [ ] **Step 1: Write the inventory artifacts with the CLI**
 
@@ -265,7 +265,7 @@ Expected: checkpoint contains the reproducible evidence and the guard implementa
 
 **Interfaces:**
 - Consumes: `docs/specs/v3-redesign.spec.md` §§2, 6, 9–13; `docs/decisions.md` OD-REDESIGN-72..79; `docs/experience-contract.md` Rules 1–12; `docs/interaction-contract.md` I1–I10; `docs/reference/twenty-ixd-patterns.md`; `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md`; E7 tokens in `e7-prototype.css`.
-- Produces: one normative `DESIGN.md` V3 foundation that the Issue 2 Storybook matrix and later app migration can consume.
+- Produces: one normative `DESIGN.md` V3 foundation that Issue 2's Storybook matrix and the separately numbered Issues 3–12 can consume.
 
 - [ ] **Step 1: Write the failing DESIGN conformance guard**
   Add the DESIGN-only assertions to `scripts/v3-live-inventory.test.mjs`: the E7 anchors (type, spacing, surfaces, controls, `RecordViewer`, `RecordCollection`, `Focused record`, right-side panel, direct-edit Escape behavior, and `390px` responsive behavior) must be present, while the deleted `Write-Review`, `Catalog-Manage`, `/updates`, `/ops`, and `/kitchen` route examples must be absent. Run `node --test scripts/v3-live-inventory.test.mjs`. Expected result: FAIL on the current stale DESIGN.md.
@@ -323,19 +323,19 @@ Expected: checkpoint changes documentation and the guard only; no `.tsx`, applic
 
 **Interfaces:**
 - Consumes: generated inventory totals, exact local commit hashes, command output, and the reconciled `DESIGN.md` sections.
-- Produces: no orphaned Issue 1 plan, a review ledger keyed to `v3-redesign`, and an explicit owner gate for Issue 2.
+- Produces: no orphaned Issue 1 plan, a review ledger keyed to `v3-redesign`, and an explicit Issue 2 Storybook-only gate plus separate Issues 3–9 ownership.
 
 - [ ] **Step 1: Update the backlog current-state block**
 
-Record Issue 1 as “implementation evidence complete locally; owner review pending,” link the plan, inventory JSON/Markdown, `DESIGN.md`, and ledger, map the issue to AC-V3-001 and AC-V3-014, and state that Issue 2 unlocks only after owner approval of the Issue 1 documentation/conformance foundation. Keep historical E7 strata unchanged below the banner.
+Record Issue 1 as “implementation evidence complete locally; owner review pending,” link the plan, inventory JSON/Markdown, `DESIGN.md`, and ledger, map the issue to AC-V3-001 and AC-V3-014, and state that Issue 2 unlocks only after owner approval of the Issue 1 documentation/conformance foundation. State that Issue 2 is Storybook component/state/responsive proof only, while Issues 3–9 retain separate application and owner-gate ownership. Keep historical E7 strata unchanged below the banner.
 
 - [ ] **Step 2: Update agent context without moving rules into state**
 
-Change only the E8 current-workstream/current-state pointers: identify Issue 1 as the active local checkpoint, point to the exact plan and inventory, state that no application component migration occurred, and state the remaining owner decision as approval of the foundation before Issue 2. Preserve the standing rules and cold-start reading order.
+Change only the E8 current-workstream/current-state pointers: identify Issue 1 as the active local checkpoint, point to the exact plan and inventory, state that no application component migration occurred, and state the remaining owner decision as approval of the foundation before Issue 2. State the exact Issue 2–9 ownership sequence. Preserve the standing rules and cold-start reading order.
 
 - [ ] **Step 3: Create the v3-redesign review ledger**
 
-Use these headings and evidence fields: Scope and exclusions; authority read; plan self-review; inventory totals; route/component/style findings; contradiction register; AC-V3-001 evidence boundary; AC-V3-014 guard evidence; exact commands and exit codes; changed files; local commit hashes; Issue 2 deferrals; owner gate. State plainly that Issue 1 has no rendered application acceptance because UI migration is deferred.
+Use these headings and evidence fields: Scope and exclusions; authority read; plan self-review; inventory totals; route/component/style findings; contradiction register; AC-V3-001 evidence boundary; AC-V3-014 guard evidence; exact commands and exit codes; changed files; local commit hashes; delivery decomposition and ownership for Issues 2–12; owner gate. State plainly that Issue 1 has no rendered application acceptance because UI migration is deferred.
 
 - [ ] **Step 4: Run orphan/path checks**
 
@@ -416,7 +416,7 @@ Expected: only the plan, inventory guard/artifacts, `DESIGN.md`, backlog/context
 
 - [ ] **Step 5: Record exact results and local hashes in the ledger**
 
-Append the actual command outputs summarized with exit codes, inventory totals, contradiction resolutions, Issue 2 deferrals, owner decision still required, and `git log --oneline` hashes to `docs/reviews/v3-redesign.md`.
+Append the actual command outputs summarized with exit codes, inventory totals, contradiction resolutions, the exact Issues 2–12 delivery decomposition, owner decision still required, and `git log --oneline` hashes to `docs/reviews/v3-redesign.md`.
 
 - [ ] **Step 6: Commit the verification record**
 
@@ -429,13 +429,13 @@ Expected: the final local commit has the required co-author trailer. Do not push
 
 ## Self-review before implementation
 
-- [x] **Spec coverage:** AC-V3-001 is mapped to Tasks 1, 3, 4, and 6 as a contract/evidence boundary; rendered computed-style acceptance remains deferred to Issue 2 and the representative-slice gate. AC-V3-014 is mapped to Tasks 1–3 and 6. FR-V3-001/002 and NFR-V3-003/004/005/006/007/009 are mapped to the collector, design contract, and verification tasks. The Issue 1 delivery decomposition item is covered by Tasks 1–5.
-- [x] **Scope boundary:** Issue 1 does not implement Storybook, page-family primitives, shared overlay host migration, RecordViewer code, RecordCollection code, JSONB schema/ADR, route migration, rendered browser acceptance, owner IA ratification, or any Issue 2 application component migration. The gate unlocking Issue 2 is owner approval of this plan's evidence, the reconciled `DESIGN.md`, and the reproducible inventory/guard; the owner still must approve the representative rendered slice later.
+- [x] **Spec coverage:** AC-V3-001 is mapped to Tasks 1, 3, 4, and 6 as a contract/evidence boundary; Issue 2 owns Storybook proof only, while rendered computed-style acceptance belongs to Issue 9 after Issues 3–8. AC-V3-014 is mapped to Tasks 1–3 and 6. FR-V3-001/002 and NFR-V3-003/004/005/006/007/009 are mapped to the collector, design contract, and verification tasks. The Issue 1 delivery decomposition item is covered by Tasks 1–5.
+- [x] **Scope boundary:** Issue 1 does not implement Storybook, page-family primitives, shared overlay host migration, RecordViewer code, RecordCollection code, JSONB schema/ADR, route migration, rendered browser acceptance, owner IA ratification, or any Issue 3–9 application work. Issue 2 is a separate Storybook component/state/responsive proof issue; it cannot claim application migration or rendered representative acceptance. The gate unlocking Issue 2 is owner approval of this plan's evidence, the reconciled `DESIGN.md`, and the reproducible inventory/guard; Issues 3–8 and the Issue 9 representative owner gate remain separate.
 - [x] **Placeholder scan:** the plan contains no unresolved placeholder or unbounded test step; every executable step names a file, symbol, command, and expected exit/result.
 - [x] **Path/interface consistency:** every created artifact appears in the Files sections and the state/ledger task; the test imports the exact exports defined in Task 2; CLI modes and generated paths are consistent across Tasks 2–6.
 - [x] **Risk review:** route parsing is source inspection only, so the guard reports parser/source failures loudly; it does not execute app code, touch Supabase, or claim browser style parity. Existing mixed route shells are recorded as debt for later migration instead of being silently marked conformant.
 
-## Issue 2 handoff gate
+## Delivery sequence and Issue 2 handoff gate
 
 Issue 1 is complete only when the final local verification is recorded and the owner can review:
 
@@ -444,4 +444,4 @@ Issue 1 is complete only when the final local verification is recorded and the o
 3. `docs/reviews/v3-redesign.md` as the evidence ledger; and
 4. the exact local commits and zero-exit static checks.
 
-Issue 2 may start only after the owner approves this foundation. No Issue 1 evidence is a rendered application acceptance claim.
+Issue 2 may start only after the owner approves this foundation, and Issue 2 is limited to Storybook component/state/responsive proof. It cannot claim application migration or rendered representative acceptance. Issues 3–8 own the separately numbered application migrations; Issue 9 owns the representative-slice rendered/driven owner gate. No Issue 1 evidence is a rendered application acceptance claim.

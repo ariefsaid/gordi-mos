@@ -653,7 +653,7 @@ V3 has exactly three page families: **Workspace**, **Focused record**, and **Man
 
 Every application route targets one family. Public authentication, redirects, DEV harnesses, and the not-found route are routing infrastructure and are marked not-applicable in the inventory; they do not create a fourth page family.
 
-**Shared frame target.** A page route uses one `PageFrame` owning one `<main>` landmark and one `PageHead` owning one `<h1>`. The head has one clear job sentence/context and one primary action where the task requires it. Specialized content may vary by domain, but shell geometry, type roles, spacing rhythm, and state treatment remain shared. Current source files that do not meet this target remain explicitly listed as conformance debt until Issue 2 migrates them.
+**Shared frame target.** A page route uses one `PageFrame` owning one `<main>` landmark and one `PageHead` owning one `<h1>`. The head has one clear job sentence/context and one primary action where the task requires it. Specialized content may vary by domain, but shell geometry, type roles, spacing rhythm, and state treatment remain shared. Current source files that do not meet this target remain explicitly listed as conformance debt until Issue 3 migrates them after the Storybook proof in Issue 2.
 
 ### RecordViewer
 
@@ -663,7 +663,7 @@ RecordViewer is the shared presentation and editing contract over separate typed
 |---|---|
 | Identity and type | Make the record name, type, status, and current context clear without exposing internal system nouns as the primary label. |
 | Ordered metadata and relations | Render typed metadata and typed relation links in a stable order. Relation navigation stays in the same panel stack and exposes an internal Back control. |
-| Content | Render authored sections/blocks through an allow-listed domain renderer. Structured authored content is a later Issue 2 concern; do not invent a universal JSON renderer in Issue 1. |
+| Content | Render authored sections/blocks through an allow-listed domain renderer. Structured authored content is the Issue 10 concern; do not invent a universal JSON renderer in Issue 1. |
 | Activity/history | Show meaningful activity or history when the domain supports it, using the shared activity treatment rather than a page-local timeline identity. |
 | Actions and permission | Show actions available to the current viewer. Unauthorized records are honestly read-only; do not show a disabled fake affordance as if editing were available. |
 | Fields and feedback | Use the shared field display/edit treatment with direct-edit lifecycle feedback: Saving, Saved, validation, retry, and server error. |
@@ -739,4 +739,4 @@ Taste is an anti-slop checklist only. It yields to E7 identity, owner law, acces
 
 ### Issue 1 evidence boundary
 
-The live inventory at `docs/reference/v3-live-inventory.md` records the current route/component/style seams, including existing bespoke heads/frames, route-local CSS, duplicate menus/dialogs/panels, and the current panel geometry. That evidence is intentionally not a claim that AC-V3-001 or final AC-V3-014 rendered acceptance has passed. Issue 1 changes documentation and source inspection only; Issue 2 owns the application migration, Storybook/matrix work, representative in-app iteration, computed-style comparison, and rendered owner gate.
+The live inventory at `docs/reference/v3-live-inventory.md` records the current route/component/style seams, including existing bespoke heads/frames, route-local CSS, duplicate menus/dialogs/panels, and the current panel geometry. That evidence is intentionally not a claim that AC-V3-001 or final AC-V3-014 rendered acceptance has passed. Issue 1 changes documentation and source inspection only. Issue 2 is **Storybook component/state/responsive matrix proving the reconciled DESIGN.md contract** only; it cannot claim application migration or rendered representative acceptance. The approved sequence assigns Issue 3 to **Page-family primitives and migration guards**, Issue 4 to **Shared overlay/panel/navigation host**, Issue 5 to **RecordViewer contract, field primitives, and Task adapter**, Issue 6 to **RecordCollection/view engine and Tasks/Signals adapters**, Issue 7 to **Inbox triage plus Deputy host integration**, Issue 8 to **Café canonical-record integration and Team-context correction**, and Issue 9 to **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain separately owned by the master spec.

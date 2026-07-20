@@ -6,6 +6,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '..')
 const ROUTER_PATH = 'mos-app/src/router.tsx'
 const DESIGN_PATH = 'DESIGN.md'
+const SPEC_PATH = 'docs/specs/v3-redesign.spec.md'
 const APP_SOURCE_ROOTS = ['mos-app/src/pages', 'mos-app/src/components', 'mos-app/src/shell']
 const INVENTORY_JSON_PATH = 'docs/reference/v3-live-inventory.json'
 const INVENTORY_MARKDOWN_PATH = 'docs/reference/v3-live-inventory.md'
@@ -519,19 +520,40 @@ function uniqueSorted(values) {
   return [...new Set(values)].sort()
 }
 
+function normalizeIssueName(value) {
+  return value.replaceAll('`', '').replace(/:\s+replace\s*$/, '').replace(/\.$/, '').replace(/\s+/g, ' ').trim()
+}
+
+export function extractDeliveryDecomposition(specText) {
+  const section = specText.match(/^## 12\. Delivery decomposition\s*\n([\s\S]*?)(?=^## 13\.)/m)?.[1]
+  if (!section) throw new Error('Master V3 spec is missing section 12 delivery decomposition')
+
+  const issues = []
+  for (const line of section.split(/\r?\n/)) {
+    const issue = line.match(/^(\d+)\.\s+(.+)$/)
+    if (issue) {
+      issues.push({ issue: Number(issue[1]), name: normalizeIssueName(issue[2]) })
+    }
+  }
+  return issues
+}
+
 export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
   const root = resolve(repoRoot)
   const cssFamilyRows = collectCssFamilies(root)
   const routes = collectRoutes(root)
   const sharedComponents = cloneComponents()
+  const deliverySequence = extractDeliveryDecomposition(readText(root, SPEC_PATH))
   return {
     schemaVersion: 1,
     sourceCommit: null,
     sources: {
       router: ROUTER_PATH,
       design: DESIGN_PATH,
+      spec: SPEC_PATH,
       appRoot: 'mos-app/src',
     },
+    deliverySequence,
     routes,
     sharedComponents,
     cssFamilies: cssFamilyRows,
@@ -548,16 +570,10 @@ export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
     },
     currentDebt: [
       'The live source tree still contains route-local shells, multiple collection presentations, and CSS literal families; this manifest records them as Issue 1 evidence rather than marking them migrated.',
-      'Current record panel CSS is an existing implementation detail; V3 requires the shared wide right panel grammar and the same RecordViewer in page mode during Issue 2 migration.',
+      'Current record panel CSS is an existing implementation detail; Issues 3–8 own the application migration of page families, the shared host, RecordViewer, RecordCollection, Inbox/Deputy, and Café while Issue 9 owns rendered representative acceptance.',
       'Separate typed database models remain required for Task, Standard/SOP, Signal, Process, Project, Money, and People.',
     ],
-    deferredToIssue2: [
-      'Storybook or component matrix work.',
-      'PageFrame/PageHead consumer migration.',
-      'RecordViewer and RecordCollection application components.',
-      'Overlay host, URL, focus, responsive, and direct-edit behavior migration.',
-      'Rendered representative-slice acceptance at desktop, intermediate, and phone widths.',
-    ],
+    deferredToIssues: deliverySequence.slice(1).map(({ issue, name }) => ({ issue, name })),
   }
 }
 
@@ -623,6 +639,20 @@ export function validateInventory(inventory, repoRoot = DEFAULT_REPO_ROOT) {
   for (const family of inventory.cssFamilies) if (!fileExists(root, family.path)) errors.push(`CSS family source missing: ${family.path}`)
   const scannedCss = new Set(inventory.literals.filesScanned)
   for (const family of inventory.cssFamilies) if (!scannedCss.has(family.path)) errors.push(`CSS family omitted from literal scan: ${family.path}`)
+  let expectedDeliverySequence = []
+  if (fileExists(root, SPEC_PATH)) {
+    try {
+      expectedDeliverySequence = extractDeliveryDecomposition(readText(root, SPEC_PATH))
+    } catch (error) {
+      errors.push(error.message)
+    }
+  } else {
+    errors.push(`missing source: ${SPEC_PATH}`)
+  }
+  if (JSON.stringify(inventory.deliverySequence) !== JSON.stringify(expectedDeliverySequence)) errors.push('delivery sequence does not match master V3 spec section 12')
+  const deferredIssues = Array.isArray(inventory.deferredToIssues) ? inventory.deferredToIssues : []
+  const expectedDeferredIssues = expectedDeliverySequence.slice(1)
+  if (JSON.stringify(deferredIssues) !== JSON.stringify(expectedDeferredIssues)) errors.push('deferred issue ownership does not match master V3 spec section 12')
   return uniqueSorted(errors)
 }
 
@@ -682,11 +712,14 @@ export function renderInventoryMarkdown(inventory) {
   }
   lines.push('', '### Aggregate literal counts', '', '| Property | Count | Example files |', '| --- | ---: | --- |')
   for (const kind of CSS_LITERAL_KINDS) lines.push(`| ${kind} | ${inventory.literals.countsByKind[kind]} | ${markdownCell(renderList(inventory.literals.examples[kind]))} |`)
-  lines.push('', '## Current conformance debt', '')
+  lines.push('', '## Delivery sequence', '', 'This sequence is parsed from `docs/specs/v3-redesign.spec.md` section 12 so deferred ownership cannot collapse into Issue 2.', '', '| Issue | Name |', '| ---: | --- |')
+  for (const { issue, name } of inventory.deliverySequence) lines.push(`| ${issue} | ${markdownCell(name)} |`)
+  lines.push('', 'Issue 2 is Storybook component/state/responsive proof only. It cannot claim application migration or rendered representative acceptance; those responsibilities remain with the separately numbered issues below.', '')
+  lines.push('## Current conformance debt', '')
   for (const item of inventory.currentDebt) lines.push(`- ${item}`)
-  lines.push('', '## Deferred to Issue 2', '')
-  for (const item of inventory.deferredToIssue2) lines.push(`- ${item}`)
-  lines.push('', '## Sources', '', `- Router: \`${inventory.sources.router}\``, `- Binding design contract: \`${inventory.sources.design}\``, `- App source root: \`${inventory.sources.appRoot}\``, '')
+  lines.push('', '## Deferred issue ownership', '')
+  for (const { issue, name } of inventory.deferredToIssues) lines.push(`- Issue ${issue} — ${name}`)
+  lines.push('', '## Sources', '', `- Router: \`${inventory.sources.router}\``, `- Binding design contract: \`${inventory.sources.design}\``, `- Master V3 delivery sequence: \`${inventory.sources.spec}\` §12`, `- App source root: \`${inventory.sources.appRoot}\``, '')
   return `${lines.join('\n').replace(/\n+$/, '')}\n`
 }
 

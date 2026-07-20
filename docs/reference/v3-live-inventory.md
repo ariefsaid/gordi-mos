@@ -700,22 +700,50 @@ Canonical collection and opening jobs: **search**, **filter**, **sort**, **group
 | width | 305 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
 | height | 231 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
 
+## Delivery sequence
+
+This sequence is parsed from `docs/specs/v3-redesign.spec.md` section 12 so deferred ownership cannot collapse into Issue 2.
+
+| Issue | Name |
+| ---: | --- |
+| 1 | Documentation truth reset, live route/component inventory, and DESIGN.md reconciliation |
+| 2 | Storybook component/state/responsive matrix proving the reconciled DESIGN.md contract |
+| 3 | Page-family primitives and migration guards |
+| 4 | Shared overlay/panel/navigation host |
+| 5 | RecordViewer contract, field primitives, and Task adapter |
+| 6 | RecordCollection/view engine and Tasks/Signals adapters |
+| 7 | Inbox triage plus Deputy host integration |
+| 8 | Café canonical-record integration and Team-context correction |
+| 9 | Representative-slice rendered/driven owner gate; provisional IA ratification |
+| 10 | Structured-content schema ADR, storage/RLS, editor, and typed embeds |
+| 11 | Remaining route migration by page/component family |
+| 12 | Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough |
+
+Issue 2 is Storybook component/state/responsive proof only. It cannot claim application migration or rendered representative acceptance; those responsibilities remain with the separately numbered issues below.
+
 ## Current conformance debt
 
 - The live source tree still contains route-local shells, multiple collection presentations, and CSS literal families; this manifest records them as Issue 1 evidence rather than marking them migrated.
-- Current record panel CSS is an existing implementation detail; V3 requires the shared wide right panel grammar and the same RecordViewer in page mode during Issue 2 migration.
+- Current record panel CSS is an existing implementation detail; Issues 3–8 own the application migration of page families, the shared host, RecordViewer, RecordCollection, Inbox/Deputy, and Café while Issue 9 owns rendered representative acceptance.
 - Separate typed database models remain required for Task, Standard/SOP, Signal, Process, Project, Money, and People.
 
-## Deferred to Issue 2
+## Deferred issue ownership
 
-- Storybook or component matrix work.
-- PageFrame/PageHead consumer migration.
-- RecordViewer and RecordCollection application components.
-- Overlay host, URL, focus, responsive, and direct-edit behavior migration.
-- Rendered representative-slice acceptance at desktop, intermediate, and phone widths.
+- Issue 2 — Storybook component/state/responsive matrix proving the reconciled DESIGN.md contract
+- Issue 3 — Page-family primitives and migration guards
+- Issue 4 — Shared overlay/panel/navigation host
+- Issue 5 — RecordViewer contract, field primitives, and Task adapter
+- Issue 6 — RecordCollection/view engine and Tasks/Signals adapters
+- Issue 7 — Inbox triage plus Deputy host integration
+- Issue 8 — Café canonical-record integration and Team-context correction
+- Issue 9 — Representative-slice rendered/driven owner gate; provisional IA ratification
+- Issue 10 — Structured-content schema ADR, storage/RLS, editor, and typed embeds
+- Issue 11 — Remaining route migration by page/component family
+- Issue 12 — Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough
 
 ## Sources
 
 - Router: `mos-app/src/router.tsx`
 - Binding design contract: `DESIGN.md`
+- Master V3 delivery sequence: `docs/specs/v3-redesign.spec.md` §12
 - App source root: `mos-app/src`

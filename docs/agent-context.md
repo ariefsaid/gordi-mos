@@ -34,8 +34,14 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > responsive grammar. The exact plan is `docs/plans/2026-07-20-v3-design-foundation.md`; the live evidence
 > is `docs/reference/v3-live-inventory.json` / `.md`; the binding contract is `DESIGN.md`; and the review
 > ledger is `docs/reviews/v3-redesign.md`. No Storybook work, route migration, or application component
-> migration occurred. Owner approval of this foundation is required before Issue 2; rendered application
-> acceptance and the representative slice remain later gates.
+> migration occurred. Owner approval of this foundation is required before Issue 2. Issue 2 is Storybook
+> component/state/responsive proof only and cannot claim application migration or rendered representative
+> acceptance. Issue 3 owns **Page-family primitives and migration guards**; Issue 4 **Shared
+> overlay/panel/navigation host**; Issue 5 **RecordViewer contract, field primitives, and Task adapter**;
+> Issue 6 **RecordCollection/view engine and Tasks/Signals adapters**; Issue 7 **Inbox triage plus Deputy
+> host integration**; Issue 8 **Café canonical-record integration and Team-context correction**; and Issue 9
+> **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain
+> separately owned by the master spec.
 
 ## Reading order for a cold start (30+ docs; these are the ones that bind)
 
@@ -60,7 +66,7 @@ Read in this order. Everything else is evidence you consult when a specific ques
 - `docs/adr/` — architecture (0025 = the redesign direction; 0050/0051 = Signal + occurrence schema).
 
 **3. The STATE (what's done / open):**
-- `docs/reviews/v3-redesign.md` — current Issue 1 evidence, inventory totals, contradictions, and Issue 2 gate.
+- `docs/reviews/v3-redesign.md` — current Issue 1 evidence, inventory totals, contradictions, and the exact Issue 2–12 delivery sequence/gates.
 - `docs/reference/v3-live-inventory.md` — reproducible route/component/style evidence.
 - `docs/backlog.md` — current V3 banner plus standing programs and historical strata.
 - `docs/plans/AUTONOMOUS-RUN-STATE.md` and `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` — historical E7 evidence only; do not treat them as the current V3 state.
@@ -97,7 +103,8 @@ Read in this order. Everything else is evidence you consult when a specific ques
 > E7/convergence mockups remain standing references with a presumption of correctness for later in-app
 > migration, and their ownership map is `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md`.
 > Issue 1 creates no standalone mockups; direct in-app iteration and the owner-approved representative
-> slice begin only after the Issue 2 gate.
+> slice begins only at the separately numbered Issue 9 representative owner gate, after Issues 2–8 have
+> completed their own acceptance and the owner approves that gate.
 
 ## Who the owner is (Arief) & how he works
 - **Concise reporting** — sacrifice grammar for concision; lead with the answer, not the journey.
@@ -193,7 +200,7 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 - **Inventory:** 58 route declarations (29 page, 25 redirect, 4 DEV-only), 13 shared interaction jobs, 67 CSS families; 7 route records are bespoke/missing frames and 13 are bespoke/missing heads in the current source scan.
 - **Resolved contradictions:** old Page Archetypes/Write-Review/Catalog-Manage language and deleted-route examples are gone from DESIGN.md; rail geometry is 232px; E7 row geometry is 52px; V3 separates E7 styling from owner IA/IxD law; record opening, focus, Back, direct editing, and responsive rules are explicit.
 - **Not migrated:** no Storybook, route migration, RecordViewer/RecordCollection application code, shared overlay host migration, CSS/token consumer migration, database/JSONB work, Supabase command, dev server, or rendered application acceptance.
-- **Gate:** Issue 2 starts only after owner approval of the plan, inventory, and DESIGN.md foundation. The later representative in-app slice remains owner-gated.
+- **Gate:** Issue 2 starts only after owner approval of the plan, inventory, and DESIGN.md foundation. Issue 2 is Storybook component/state/responsive proof only; Issues 3–8 own the application migrations by capability, and Issue 9 owns the later representative rendered/driven owner gate.
 
 ## Legacy headline state (historical — do not use as current V3 state; 2026-07-07 late)
 - **⚠️ READ the `## Current focus (2026-07-07 late)` block in `docs/platform-workstream-status.md` first** — full state + branch map + ▶ NEXT. Summary: `dev` includes the UI-coherence merge, closure regression guards, and post-merge IA cleanup. **Pre-F hardening A1–A6 DONE + merged** (`docs/reviews/feat-harden-round2.md`; pgTAP 570 · unit 2345 · cov 95.43%). **Nav catalog FR-424** (Objectives/Projects&Processes back as capability-gated Work rail entries). **MVP-push design review render-verified** (`design-mvp-push-2026-07-07.md`). **UI-coherence polish + deputy battery DONE + merged** (`docs/reviews/feat-ui-coherence.md`): Select retrofit, shared tables/state/header cleanup, no-FAB deputy launcher, phone MyTasks reflow, and Deputy **C2 safe markdown + C3 typed widgets**; closure guards and IA cleanup also landed. **F (task #16, owner-gated)** = promote + deploy + secrets + backup drill + prod security gate + A4 job-GUC org-scope.
