@@ -1,0 +1,128 @@
+# V3 redesign — Issue 1 review ledger
+
+**Workstream:** `v3-redesign` · **Issue:** V3 Design Foundation · **Date:** 2026-07-20
+
+An `OD-REDESIGN-NN` label means a recorded owner decision in `docs/decisions.md`; the plain-language rule below each evidence item is the operative explanation. This ledger records Issue 1 only. It does not claim rendered application acceptance.
+
+## Scope and exclusions
+
+Issue 1 completed the documentation truth reset, the live source inventory, the root DESIGN.md reconciliation, and the automated source/conformance guards.
+
+It deliberately did not implement Storybook, page-family primitives, RecordViewer code, RecordCollection code, route migration, shared overlay-host migration, CSS/token consumer migration, authored JSONB blocks, database migrations, Supabase commands, a dev server, browser rendering, or a representative owner-approved application slice. Those are Issue 2 or later gates.
+
+## Authority read
+
+- Current era and scope: `docs/requirements-evolution.md` E8 and `docs/specs/v3-redesign.spec.md`.
+- Owner law: `docs/decisions.md` OD-REDESIGN-72 through OD-REDESIGN-79. E7 owns visual styling; owner law owns IA and interaction behavior; shared record grammar does not collapse typed domain models.
+- Composite provenance: `docs/reference/provenance/owner-directives-index.md` and `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md`.
+- Product and behavior: `CONTEXT.md`, `PRODUCT.md`, `docs/jtbd.md`, `docs/experience-contract.md`, `docs/interaction-contract.md`, and `docs/reference/twenty-ixd-patterns.md`.
+- Existing visual and anti-slop guidance: `DESIGN.md`, E7 prototype CSS, the Impeccable shape/product references, and Taste as a checklist subordinate to E7, owner law, accessibility, and the existing React/CSS architecture.
+
+## Plan self-review
+
+[`docs/plans/2026-07-20-v3-design-foundation.md`](../plans/2026-07-20-v3-design-foundation.md) was written before implementation and committed as `b9f4eaa`.
+
+- AC-V3-001 is mapped to the DESIGN contract and evidence boundary; rendered computed-style acceptance is explicitly deferred.
+- AC-V3-014 is mapped to the red/green inventory guard, deterministic artifacts, and final static verification.
+- Every created path and exported interface is named; steps specify exact commands and expected results.
+- The red test precedes collector implementation; the DESIGN conformance test is separately red before the DESIGN reset.
+- The plan explicitly states the Issue 2 unlock gate and excludes all application component migration.
+
+## Inventory totals
+
+The deterministic generator reads `mos-app/src/router.tsx`, route/page/component source, and every CSS file under `mos-app/src/pages`, `mos-app/src/components`, and `mos-app/src/shell`.
+
+| Evidence | Total |
+|---|---:|
+| Classified route declarations | 58 |
+| Page records | 29 |
+| Redirect records | 25 |
+| DEV-only records | 4 |
+| Workspace records | 18 |
+| Focused-record records | 5 |
+| Management records | 4 |
+| Routing/not-applicable records | 31 |
+| Shared interaction jobs | 13 |
+| Jobs with raw/duplicate consumers | 13 |
+| CSS families scanned | 67 |
+| Records with shared PageFrame evidence | 26 |
+| Records with shared PageHead evidence | 20 |
+| Records with bespoke/missing frame evidence | 7 |
+| Records with bespoke/missing head evidence | 13 |
+
+The machine artifact is [`docs/reference/v3-live-inventory.json`](../reference/v3-live-inventory.json); the reviewable rendering is [`docs/reference/v3-live-inventory.md`](../reference/v3-live-inventory.md). Both have stable ordering, `sourceCommit: null`, and a `--check` freshness guard.
+
+## Route, component, and style findings
+
+- The route tree includes the current canonical destinations, conditional role/feature branches, DEV harnesses, and legacy aliases. Legacy aliases remain in the inventory because they are live redirect declarations; they are not current DESIGN.md page examples or page families.
+- Page evidence identifies `PageFrame`/`PageHead` use, route-local CSS imports, state-kit symbols, collection presentations, overlay candidates, record-opening behavior, and responsive hook evidence. The current source is mixed: some page records use the shared frame/head, while others expose bespoke or missing head/frame evidence.
+- Canonical interaction jobs are recorded with sources and duplicate consumers: button, select, menu, dialog, drawer/panel, table/list, page head, page frame, record renderer, state kit, collection view, navigation, and typography/spacing.
+- Current CSS evidence includes 67 families and literal counts for `font-size`, `line-height`, `padding`, `margin`, `gap`, `width`, and `height`. The scan is an audit of remaining debt, not a permission to add more local style families.
+- The existing record split host in `mos-app/src/styles/drawer.css` uses a `clamp(360px, 33vw, 480px)` desktop panel. DESIGN.md now binds the V3 40–45% wide right-panel target; Issue 2 must migrate the host and consumers without creating a centered near-full record popup.
+
+## Contradiction register
+
+| Earlier statement or implementation seam | Resolution in Issue 1 | Status |
+|---|---|---|
+| DESIGN.md used `Workspace`, `Write-Review`, and `Catalog-Manage` as the three page archetypes and used deleted/legacy route examples as exemplars. | Replaced the stale tail with exactly `Workspace`, `Focused record`, and `Management`; current canonical route examples are used, while redirects remain evidence only. | Resolved in docs |
+| DESIGN.md documented a 224px rail and 54px/50px row family against the E7 232px rail and 52px row grammar. | Updated the binding geometry and recorded current source deviations as migration debt. | Resolved in docs; app migration deferred |
+| DESIGN.md treated overlay focus trapping and Escape as a build-time gap and did not define collection-to-record navigation. | Added one overlay/navigation/focus/Back grammar: centered search, wide right panel, internal stack, full-page URL, phone full-screen, centered confirmation, anchored menus, focus return, and Escape semantics. | Resolved in docs; behavior migration deferred |
+| Existing drawer CSS is narrower than the V3 target. | Inventory records the exact current seam; DESIGN.md states the future target without changing application CSS in Issue 1. | Evidence recorded |
+| E7 styling, IA, and interaction rules were previously read as one snapshot. | DESIGN.md states E7 visual authority separately from owner IA/IxD law and preserves lost-good evidence as input, not a snapshot mandate. | Resolved in docs |
+| Backlog and agent context said planning/ratification was still pending and pointed fresh agents to the closed autonomous run. | Current-state banners now point to the Issue 1 plan, inventory, DESIGN.md, and review ledger; old run state is marked historical. | Resolved in docs |
+| Generic Taste guidance could suggest a new font, Tailwind direction, motion, or decorative identity. | DESIGN.md makes Taste subordinate to E7, owner law, accessibility, and the current React/CSS architecture, with explicit anti-slop limits. | Resolved in docs |
+
+## AC-V3-001 evidence boundary
+
+The guard proves the binding DESIGN.md anchors exist and stale archetype/deleted-route examples are absent. It does not prove computed-style parity or rendered behavior. AC-V3-001 remains open for Issue 2's in-app representative slice at desktop, intermediate, and 390px phone widths.
+
+## AC-V3-014 guard evidence
+
+`scripts/v3-live-inventory.test.mjs` owns the source guard. It fails before the collector exists (`ERR_MODULE_NOT_FOUND`), turns green after the collector is implemented, and contains the separate DESIGN conformance test that was red against the stale DESIGN.md and green after reconciliation. `scripts/v3-live-inventory.mjs --check` validates route literals, source files/symbols, canonical component jobs, token sources, CSS coverage, and deterministic JSON/Markdown artifacts.
+
+## Exact commands and exit codes
+
+Completed during Issue 1 so far:
+
+| Command | Exit | Evidence |
+|---|---:|---|
+| `node --test scripts/v3-live-inventory.test.mjs` before collector | 1 | Expected `ERR_MODULE_NOT_FOUND` red state |
+| `node --test scripts/v3-live-inventory.test.mjs` after collector | 0 | AC-V3-014 route/component/style guard green |
+| `node --test scripts/v3-live-inventory.test.mjs` before DESIGN reset | 1 | Expected missing E7 anchor red state |
+| `node --check scripts/v3-live-inventory.mjs` | 0 | Node syntax check |
+| `node scripts/v3-live-inventory.mjs --write` | 0 | Deterministic artifacts written |
+| `node scripts/v3-live-inventory.mjs --check` | 0 | Artifacts current |
+| `git diff --check` | 0 | No whitespace errors at the checked checkpoints |
+
+The final `npm run typecheck`, `npm run lint`, targeted Vitest suite, full non-Supabase Vitest suite if run, final diff inspection, and exact final commit range are appended before the verification checkpoint is committed.
+
+## Changed files
+
+- `docs/plans/2026-07-20-v3-design-foundation.md`
+- `scripts/v3-live-inventory.mjs`
+- `scripts/v3-live-inventory.test.mjs`
+- `docs/reference/v3-live-inventory.json`
+- `docs/reference/v3-live-inventory.md`
+- `DESIGN.md`
+- `docs/backlog.md`
+- `docs/agent-context.md`
+- `docs/reviews/v3-redesign.md`
+
+No `mos-app/src/*.tsx`, application CSS, route, dependency, migration, environment, or Supabase file was changed.
+
+## Local commit hashes
+
+- `b9f4eaa` — plan the V3 design foundation.
+- `87dd5eb` — define the red inventory guard.
+- `c0d4d40` — add the deterministic collector and artifacts.
+- `f2a0ab8` — validate inventory source references.
+- `90bee8d` — reconcile DESIGN.md to the V3 grammar.
+- The documentation/state evidence checkpoint and final verification checkpoint are recorded here after their commits.
+
+## Issue 2 deferrals
+
+Issue 2 owns the application migration: shared PageFrame/PageHead convergence, RecordViewer and RecordCollection code, the one overlay host and URL/focus/Back behavior, responsive panel migration, direct-edit feedback migration, raw/canonical consumer consolidation, rendered representative-slice review, computed-style comparison, and owner approval of the in-app slice. It must continue to preserve separate typed database models and must not use this inventory as a universal record schema.
+
+## Owner gate
+
+Owner approval is still required for the Issue 1 foundation before Issue 2 starts: the plan, the reproducible inventory, the reconciled DESIGN.md, and this evidence ledger. No push, PR, merge, deploy, or irreversible infrastructure action is authorized by this Issue 1 checkpoint. No rendered application acceptance is claimed.

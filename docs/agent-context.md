@@ -16,23 +16,26 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Home with live data).
 
 > **Product/IA direction below is superseded (2026-07-09/10) by ADR-0025 + `docs/decisions.md`
-> OD-REDESIGN-1..55** (era **E7**, `docs/requirements-evolution.md`) — a full redesign, not a
+> OD-REDESIGN-1..79** (era **E8**, `docs/requirements-evolution.md`) — a full redesign, not a
 > continuation of the "Current state" / "Headline current state" workstream dated 2026-07-07 below.
 > Quick map: `docs/redesign-decision-index.md` (its **§ Provenance** maps the source threads).
 > **Need the *why* behind a decision? → `docs/reference/provenance/`** — extracted grill + frustration
 > threads, owner prompts verbatim, in-repo. Owner prefs, hard rules, multi-agent/git gotchas, and
 > the delegation posture below are **not** superseded and remain binding.
 >
-> **WHERE ARE WE RIGHT NOW → `docs/plans/AUTONOMOUS-RUN-STATE.md` § STATE.** Steps 4–11 shipped;
-> the cloud-autonomous window (`CLOUD-AGENT-HANDOFF.md`, OD-67) is CLOSED — historical, don't act on it.
+> **WHERE ARE WE RIGHT NOW → `docs/reviews/v3-redesign.md` and `docs/reference/v3-live-inventory.md`.**
+> V3 Issue 1 is complete locally as a documentation/source-inventory checkpoint. The closed
+> `docs/plans/AUTONOMOUS-RUN-STATE.md` / `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it
+> as the current V3 workstream state.
 
-> **CURRENT WORKSTREAM (2026-07-20): V3 redesign intake** on branch `v3-redesign`, era E8.
-> OD-REDESIGN-72 ratifies the boundary: preserve E7's visual styling; correct IA/IxD and migrate the
-> whole application away from its surviving pre-E7 visual/component grammars. Remaining authority
-> conflicts are being ratified before the V3 SDD and implementation plans are written. The E7
-> completion ledger proves what was built; it is not the V3 design-acceptance oracle.
-> Draft design specification: `docs/specs/v3-redesign.spec.md`; owner sign-off gates the detailed
-> implementation plan.
+> **CURRENT WORKSTREAM (2026-07-20): V3 redesign Issue 1 local checkpoint**, workstream label
+> `v3-redesign`, era E8. OD-REDESIGN-72 through OD-REDESIGN-79 preserve E7 as the visual foundation and
+> correct IA/IxD through the V3 page, RecordViewer, RecordCollection, overlay, focus, navigation, and
+> responsive grammar. The exact plan is `docs/plans/2026-07-20-v3-design-foundation.md`; the live evidence
+> is `docs/reference/v3-live-inventory.json` / `.md`; the binding contract is `DESIGN.md`; and the review
+> ledger is `docs/reviews/v3-redesign.md`. No Storybook work, route migration, or application component
+> migration occurred. Owner approval of this foundation is required before Issue 2; rendered application
+> acceptance and the representative slice remain later gates.
 
 ## Reading order for a cold start (30+ docs; these are the ones that bind)
 
@@ -48,7 +51,7 @@ Read in this order. Everything else is evidence you consult when a specific ques
   not RACI; Signal replaced Weekly Update + Daily Log.
 
 **2. The DECISIONS (why anything is the way it is):**
-- `docs/decisions.md` — OD-REDESIGN-1..72. The owner's word, chronological.
+- `docs/decisions.md` — OD-REDESIGN-1..79. The owner's word, chronological.
 - `docs/reference/provenance/owner-directives-index.md` — **the composite oracle**: every verbatim
   owner directive across every era, traced to its shipped state. Use this before assuming intent.
   Its tiers: owner-word > lost-good (things an EARLIER mockup got right, including things e7 itself
@@ -57,10 +60,10 @@ Read in this order. Everything else is evidence you consult when a specific ques
 - `docs/adr/` — architecture (0025 = the redesign direction; 0050/0051 = Signal + occurrence schema).
 
 **3. The STATE (what's done / open):**
-- `docs/plans/AUTONOMOUS-RUN-STATE.md` § STATE — this file's sibling; the current tip, gates, opens.
-- `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` — evidence of record + **the ratify
-  list** (owner decisions; never resolve one yourself).
-- `docs/backlog.md` — standing programs and non-redesign work.
+- `docs/reviews/v3-redesign.md` — current Issue 1 evidence, inventory totals, contradictions, and Issue 2 gate.
+- `docs/reference/v3-live-inventory.md` — reproducible route/component/style evidence.
+- `docs/backlog.md` — current V3 banner plus standing programs and historical strata.
+- `docs/plans/AUTONOMOUS-RUN-STATE.md` and `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` — historical E7 evidence only; do not treat them as the current V3 state.
 
 **4. The DEBT MAPS (what's known-broken and why):**
 - `docs/reviews/cohesion-debt-2026-07-19.md` — the mechanical sources of "several apps thrown
@@ -88,16 +91,13 @@ Read in this order. Everything else is evidence you consult when a specific ques
    not the feature tip) and three agents correctly refused to build. Create the worktree yourself off
    the verified tip, one branch each, and merge serially.
 
-**Evidence of record:** `docs/reviews/feat-redesign-buildout.md` (steps 1–3 + base closure).
+**Historical evidence of record:** `docs/reviews/feat-redesign-buildout.md` (steps 1–3 + base closure). Current evidence of record is `docs/reviews/v3-redesign.md`.
 >
-> **UPDATE 2026-07-14 — mockup phase CLOSED (OD-REDESIGN-56).** The canonical next product step is the
-> **buildout in `mos-app`** per `docs/plans/2026-07-14-redesign-buildout.md` (11 owner-approved steps;
-> step 1 = styling pass). Binding on every step: `docs/experience-contract.md` Rules 1–12 (incl. Rule 11
-> component reuse — never re-implement an existing surface) + OD-REDESIGN-56..66. The E7/convergence
-> mockups are **standing references with a presumption of correctness** — port what they answered
-> unless it's on the explicit override list; ownership map:
-> `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md` (binding read-first for UI
-> steps; live at :8766 e7 · :8134 convergence in the `gordi-mos-e7-prototype` working copy).
+> **UPDATE 2026-07-14 — mockup phase CLOSED (historical; superseded by V3 Issue 1 evidence).** The
+> E7/convergence mockups remain standing references with a presumption of correctness for later in-app
+> migration, and their ownership map is `docs/design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md`.
+> Issue 1 creates no standalone mockups; direct in-app iteration and the owner-approved representative
+> slice begin only after the Issue 2 gate.
 
 ## Who the owner is (Arief) & how he works
 - **Concise reporting** — sacrifice grammar for concision; lead with the answer, not the journey.
@@ -164,7 +164,7 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 | Need | Doc |
 |---|---|
 | **How the requirement evolved (era timeline — read before any older doc)** | `docs/requirements-evolution.md` |
-| **Current redesign direction + next work** | `docs/redesign-decision-index.md` + top of `docs/backlog.md` |
+| **Current redesign direction + next work** | `docs/specs/v3-redesign.spec.md` + `docs/plans/2026-07-20-v3-design-foundation.md` + `docs/reviews/v3-redesign.md` |
 | **Legacy implementation + infrastructure status** | `docs/platform-workstream-status.md` |
 | **Agent-native port (ADR-0018) — plans per train** | `docs/plans/2026-07-04-port-p1-substrate.md` · `docs/plans/2026-07-05-port-p2-panel-runtime.md` · `docs/plans/2026-07-06-port-p3-automations-inbox.md` |
 | **Review battery ledgers (per branch)** | `docs/reviews/feat-port-p1-substrate.md` · `feat-port-p2-panel-runtime.md` · `feat-bu-taxonomy-remap.md` · `feat-home-v1-margin.md` · `feat-port-p3a-replay-inbox.md` · `feat-p2.1-db-side-aggregate.md` · `release-staging-bu-remap.md` · `feat-work-spine.md` · **MVP-push (2026-07-07): `feat-ia-nav-work-spine.md` · `feat-ar-followup-bridge.md` · `feat-plan-v1.md` · `feat-home-stacked-union.md`** · **pre-F hardening A1–A6: `feat-harden-round2.md`** |
@@ -186,7 +186,16 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 | Delegation via pi CLI | `docs/pi-delegation.md` |
 | Staging env + gotchas | `docs/environments.md` |
 
-## Headline current state (2026-07-07 late)
+## V3 Issue 1 local checkpoint (2026-07-20)
+
+- **Status:** documentation truth reset, deterministic inventory, and binding DESIGN.md reconciliation are complete locally; owner review is pending.
+- **Evidence:** [`docs/plans/2026-07-20-v3-design-foundation.md`](plans/2026-07-20-v3-design-foundation.md), [`docs/reference/v3-live-inventory.json`](reference/v3-live-inventory.json), [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md), [`DESIGN.md`](../DESIGN.md), and [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md).
+- **Inventory:** 58 route declarations (29 page, 25 redirect, 4 DEV-only), 13 shared interaction jobs, 67 CSS families; 7 route records are bespoke/missing frames and 13 are bespoke/missing heads in the current source scan.
+- **Resolved contradictions:** old Page Archetypes/Write-Review/Catalog-Manage language and deleted-route examples are gone from DESIGN.md; rail geometry is 232px; E7 row geometry is 52px; V3 separates E7 styling from owner IA/IxD law; record opening, focus, Back, direct editing, and responsive rules are explicit.
+- **Not migrated:** no Storybook, route migration, RecordViewer/RecordCollection application code, shared overlay host migration, CSS/token consumer migration, database/JSONB work, Supabase command, dev server, or rendered application acceptance.
+- **Gate:** Issue 2 starts only after owner approval of the plan, inventory, and DESIGN.md foundation. The later representative in-app slice remains owner-gated.
+
+## Legacy headline state (historical — do not use as current V3 state; 2026-07-07 late)
 - **⚠️ READ the `## Current focus (2026-07-07 late)` block in `docs/platform-workstream-status.md` first** — full state + branch map + ▶ NEXT. Summary: `dev` includes the UI-coherence merge, closure regression guards, and post-merge IA cleanup. **Pre-F hardening A1–A6 DONE + merged** (`docs/reviews/feat-harden-round2.md`; pgTAP 570 · unit 2345 · cov 95.43%). **Nav catalog FR-424** (Objectives/Projects&Processes back as capability-gated Work rail entries). **MVP-push design review render-verified** (`design-mvp-push-2026-07-07.md`). **UI-coherence polish + deputy battery DONE + merged** (`docs/reviews/feat-ui-coherence.md`): Select retrofit, shared tables/state/header cleanup, no-FAB deputy launcher, phone MyTasks reflow, and Deputy **C2 safe markdown + C3 typed widgets**; closure guards and IA cleanup also landed. **F (task #16, owner-gated)** = promote + deploy + secrets + backup drill + prod security gate + A4 job-GUC org-scope.
 - *(Prior, 2026-07-07 — now history:)* MVP push shipped 5 slices A–E to `dev` dark behind flags; round-2 gpt-5.5 ×3 audit → SHIP-WITH-FIXES (blocklist A1–A6, now done).
 - *(Prior, 2026-07-06 EOD — now history:)* staging LIVE up-to-BU-remap; COGS root-cause fix deployed; ADR-0022/0023/0024 + JTBD v0.3 accepted + merged to dev; grill session-2 decisions in `docs/decisions.md`.

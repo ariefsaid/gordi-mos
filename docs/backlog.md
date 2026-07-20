@@ -1,13 +1,19 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-20): V3 redesign intake and ratification** on branch `v3-redesign`
-> (OD-REDESIGN-72; `docs/requirements-evolution.md` E8). E7's visual styling is retained; the work is
-> to migrate the whole app onto that visual language while correcting IA/IxD through later owner law.
-> Current next step: resolve the remaining authority contradictions one at a time, then write the
-> V3 SDD and phased implementation plans. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
-> buildout record, not the live V3 plan. The dated banners below are historical strata.
-> Draft design specification: `docs/specs/v3-redesign.spec.md` (owner sign-off gate before detailed
-> implementation planning).
+> **CURRENT (2026-07-20): V3 redesign Issue 1 — design foundation evidence complete locally; owner review pending.**
+> The workstream label is `v3-redesign` (E8). E7 owns visual styling; the recorded owner decisions
+> OD-REDESIGN-72 through OD-REDESIGN-79 own the current IA and interaction corrections. The exact
+> implementation plan is [`docs/plans/2026-07-20-v3-design-foundation.md`](plans/2026-07-20-v3-design-foundation.md).
+> The reproducible live inventory is [`docs/reference/v3-live-inventory.json`](reference/v3-live-inventory.json)
+> and [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md); the binding V3 visual and
+> interaction grammar is [`DESIGN.md`](../DESIGN.md); the evidence ledger is
+> [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md). The inventory classifies 58 route declarations
+> (29 page, 25 redirect, 4 DEV-only), 13 shared interaction jobs, and 67 CSS families.
+> Issue 1 maps to AC-V3-001 (contract/evidence boundary) and AC-V3-014 (reproducible inventory guard).
+> No application component migration or rendered acceptance occurred. Issue 2 may start only after the
+> owner approves this foundation and its evidence; the representative rendered slice remains a later gate.
+> The dated banners below are historical strata. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
+> buildout record, not the live V3 plan.
 >
 > **Standing oracle — `docs/reference/provenance/owner-directives-index.md`** (composite: owner-word →
 > lost-good → owning-default, NOT e7-fidelity). Reviews check touched surfaces against it; transplants
