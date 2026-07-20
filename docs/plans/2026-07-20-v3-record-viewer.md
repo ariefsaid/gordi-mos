@@ -980,5 +980,5 @@ No contradiction is hidden by adding a fake record kind, changing the database m
 | AC-V3-010 | Issue 10 | Structured JSONB content save/reopen is not implemented here |
 | AC-V3-011 | Issue 10 | Normalized-state references from authored content are not implemented here |
 | AC-V3-012 | Issue 9 | First-time floor-member Café completion is not proven here |
-| AC-V3-013 | Issue 6 | Shared RecordCollection consumption by role-affiliated collections is not proven here |
-| AC-V3-014 | Issue 12 | Floor-member default work-before-configuration behavior is not proven here |
+| AC-V3-013 | Issue 6 | Manager filtering, grouping, presentation switching, and consecutive-record context retention are not proven here |
+| AC-V3-014 | Issue 12 | All-route removal of bespoke shells and superseded component/style families is not proven here |
