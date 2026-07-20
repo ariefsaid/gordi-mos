@@ -204,6 +204,32 @@ describe('RecordCollectionSurface', () => {
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   })
 
+  it('NFR-V3-009: a forbidden collection shows an access notice and no rows or controls', async () => {
+    const c = createRecordCollectionController(
+      makeDescriptor({ access: { mode: 'forbidden', visibleActions: [] } }),
+      INITIAL,
+    )
+    await ready(c)
+    render(
+      <RecordCollectionSurface
+        controller={c}
+        controls={<div data-testid="manager-controls">controls</div>}
+        {...chrome}
+      />,
+    )
+    expect(screen.getByText(/don’t have access/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('work-rows')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('manager-controls')).not.toBeInTheDocument()
+  })
+
+  it('NFR-V3-001: switching presentation to a target with no data yet keeps a loading affordance', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    // Render before the initial load resolves — the surface shows the loading shell, not a crash.
+    const { container } = render(<RecordCollectionSurface controller={c} {...chrome} />)
+    expect(container.querySelector('[data-collection-status="loading"]')).not.toBeNull()
+    await ready(c)
+  })
+
   it('NFR-V3-001: empty state renders create affordance and no rows', async () => {
     const c = createRecordCollectionController(makeDescriptor({ rows: [] }), INITIAL)
     await ready(c)

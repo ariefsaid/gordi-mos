@@ -355,4 +355,121 @@ describe('RecordCollection engine', () => {
     expect(c.state.query.groupBy).not.toBe('supervisor')
     expect(c.state.savedViews.error).toBeTruthy()
   })
+
+  it('FR-V3-007: save/rename/archive lifecycle updates the saved-view list and surfaces pending/error states', async () => {
+    const view: PersistedCollectionView = {
+      id: 'v-1', name: 'My open work', scope: 'private', kind: 'collection', context: 'work',
+      lifecycle: 'active', spec: makeSpec(TASK_COLLECTION_NEUTRAL_QUERY, 'table'), createdAt: '', updatedAt: '', archivedAt: null,
+    }
+    const store = {
+      list: vi.fn(async () => [view]),
+      get: async () => view,
+      create: vi.fn(async () => view),
+      rename: vi.fn(async () => {}),
+      archive: vi.fn(async () => {}),
+    }
+    const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
+    await flush()
+
+    await c.loadSavedViews()
+    expect(store.list).toHaveBeenCalledTimes(1)
+    expect(c.state.savedViews.items).toHaveLength(1)
+
+    const created = await c.saveCurrentView('My open work', 'private')
+    expect(created?.id).toBe('v-1')
+    expect(store.create).toHaveBeenCalledTimes(1)
+    // saved identity is written after success.
+    expect(c.state.query.savedViewId).toBe('v-1')
+    expect(c.state.savedViews.operation).toBe('idle')
+
+    await c.renameSavedView('v-1', 'Renamed')
+    expect(store.rename).toHaveBeenCalledWith('v-1', 'Renamed')
+    expect(c.state.savedViews.items.find((v) => v.id === 'v-1')?.name).toBe('Renamed')
+
+    await c.archiveSavedView('v-1')
+    expect(store.archive).toHaveBeenCalledWith('v-1')
+    expect(c.state.savedViews.items).toHaveLength(0)
+    // archiving the applied view clears only the saved identity.
+    expect(c.state.query.savedViewId).toBeNull()
+  })
+
+  it('NFR-V3-001: saveCurrentView surfaces a retryable error when the store rejects', async () => {
+    const store = {
+      list: async () => [],
+      get: async () => null,
+      create: vi.fn(async () => { throw new Error('network down') }),
+      rename: vi.fn(),
+      archive: vi.fn(),
+    }
+    const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
+    await flush()
+    const result = await c.saveCurrentView('X', 'private')
+    expect(result).toBeNull()
+    expect(c.state.savedViews.operation).toBe('error')
+    expect(c.state.savedViews.error).toContain('network down')
+  })
+
+  it('NFR-V3-001: loadSavedViews surfaces an error state that stays retryable', async () => {
+    const store = {
+      list: vi.fn(async () => { throw new Error('list failed') }),
+      get: async () => null,
+      create: vi.fn(),
+      rename: vi.fn(),
+      archive: vi.fn(),
+    }
+    const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
+    await flush()
+    await c.loadSavedViews()
+    expect(c.state.savedViews.operation).toBe('error')
+    expect(c.state.savedViews.error).toContain('list failed')
+  })
+
+  it('FR-V3-007: selectVisible adds only the given ids and clearSelection empties the set', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    c.toggleSelected('t-2')
+    c.selectVisible(['t-1'])
+    expect(c.state.selectedIds.has('t-1')).toBe(true)
+    expect(c.state.selectedIds.has('t-2')).toBe(true)
+    c.clearSelection()
+    expect(c.state.selectedIds.size).toBe(0)
+  })
+
+  it('NFR-V3-001: retry re-runs the loader with the same typed query', async () => {
+    const loadSpy = vi.fn()
+    const c = createRecordCollectionController(makeDescriptor({ loadSpy }), INITIAL)
+    await flush()
+    const queryBefore = c.state.query
+    loadSpy.mockClear()
+    c.retry()
+    await flush()
+    expect(loadSpy).toHaveBeenCalledTimes(1)
+    expect(c.state.query).toEqual(queryBefore)
+  })
+
+  it('FR-V3-007: toggleGroup collapses and re-expands a typed group id', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    c.toggleGroup('grp-a')
+    expect(c.state.collapsedGroupIds.has('grp-a')).toBe(true)
+    c.toggleGroup('grp-a')
+    expect(c.state.collapsedGroupIds.has('grp-a')).toBe(false)
+  })
+
+  it('NFR-V3-001: runBulkAction is a no-op when the descriptor grants no bulk capability', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    c.toggleSelected('t-1')
+    // TaskCollectionAction is `never`; nothing to run and no throw.
+    await expect(c.runBulkAction('archive' as never)).resolves.toBeUndefined()
+  })
+
+  it('FR-V3-003/004/006 seam: openRecord is a no-op when no host is wired yet (parallel Issue 4)', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await flush()
+    // No host injected — must not throw; the opening seam simply does nothing until Issue 4 lands.
+    expect(() =>
+      c.openRecord(ROWS[0], { collectionId: 'tasks', presentation: 'table', pathname: '/tasks', search: '', query: c.state.query }),
+    ).not.toThrow()
+  })
 })
