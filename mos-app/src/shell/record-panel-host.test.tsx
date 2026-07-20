@@ -152,6 +152,63 @@ describe('RecordPanelHost — shell parity across tenants (AC-RPH-2)', () => {
   })
 })
 
+describe('RecordPanelHost — overlay-host oracle + stack chrome (V3 Issue 4)', () => {
+  it('owner/entryKey → the host root carries the data-overlay-host oracle attributes', () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    renderHost({ label: 'Signal', owner: 'signals', entryKey: 'signal:42' })
+    const host = document.querySelector<HTMLElement>('[data-overlay-host="true"]')
+    expect(host).toBeTruthy()
+    expect(host!.getAttribute('data-overlay-owner')).toBe('signals')
+    expect(host!.getAttribute('data-overlay-entry')).toBe('signal:42')
+  })
+
+  it('no owner → no data-overlay-host oracle (a bare tenant render stays anonymous)', () => {
+    renderHost({ label: 'Signal' })
+    expect(document.querySelector('[data-overlay-host]')).toBeNull()
+  })
+
+  it('I2 canGoBack → renders a Back control that pops one frame via onBack', () => {
+    const onBack = vi.fn()
+    renderHost({ label: 'Signal', title: 'Signal', canGoBack: true, onBack })
+    const back = screen.getByRole('button', { name: /back/i })
+    fireEvent.click(back)
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
+  it('no canGoBack → no Back control (a root frame has nothing to pop to)', () => {
+    renderHost({ label: 'Signal', title: 'Signal' })
+    expect(screen.queryByRole('button', { name: /back/i })).toBeNull()
+  })
+
+  it('transitionPending → chrome controls are disabled + aria-busy while the guard resolves', () => {
+    renderHost({
+      label: 'Signal',
+      title: 'Signal',
+      canGoBack: true,
+      onBack: vi.fn(),
+      onOpenPage: vi.fn(),
+      transitionPending: true,
+    })
+    const close = screen.getByRole('button', { name: /^close$/i })
+    expect(close).toBeDisabled()
+    expect(close.getAttribute('aria-busy')).toBe('true')
+    expect(screen.getByRole('button', { name: /back/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /open full page/i })).toBeDisabled()
+  })
+
+  it('close/scrim carry the explicit-close intent; Esc carries escape (I2 via)', () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    const onClose = vi.fn()
+    renderHost({ label: 'Signal', title: 'Signal', onClose })
+    fireEvent.click(screen.getByRole('button', { name: /^close$/i }))
+    expect(onClose).toHaveBeenLastCalledWith('explicit-close')
+    fireEvent.click(document.querySelector('.drawer-scrim')!)
+    expect(onClose).toHaveBeenLastCalledWith('explicit-close')
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Signal' }), { key: 'Escape' })
+    expect(onClose).toHaveBeenLastCalledWith('escape')
+  })
+})
+
 describe('RecordPanelHost — focus contract (FR-1)', () => {
   it('moves focus into the panel on open, and returns it to the opener on close', () => {
     const opener = document.createElement('button')

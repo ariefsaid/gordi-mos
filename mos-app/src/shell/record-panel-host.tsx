@@ -4,6 +4,7 @@ import { useIsSplitWidth } from './use-is-split-width'
 import { useIsDesktop } from './use-is-desktop'
 import { CloseIcon } from './icons'
 import { useT } from '@/i18n/use-t'
+import type { OverlayOwner } from './overlay-navigation'
 
 // ONE overlay grammar for records (spec docs/specs/record-panel-host.spec.md, FR-1). Every
 // record tenant — Task, Signal, and eventually Inbox/Deputy — mounts its CONTENT through this
@@ -21,8 +22,8 @@ const FOCUSABLE = [
 export type RecordPanelHostProps = {
   /** aria-label for the panel surface (both regimes). */
   label: string
-  /** ✕ Close / Esc / scrim → underlying page, focus returned to the opener. */
-  onClose: () => void
+  /** ✕ Close / Esc / scrim → underlying page, focus returned to the opener. `via` distinguishes I2 intents. */
+  onClose: (via?: 'explicit-close' | 'escape') => void
   /** The record content (e.g. TaskSurface, SignalRecordHost) — chrome-free. */
   children: ReactNode
   /** Promotes the split aside to full width (Task expand) → adds `.expanded`. */
@@ -33,8 +34,26 @@ export type RecordPanelHostProps = {
   title?: ReactNode
   /** "Open full page ⤢" — rendered in the chrome when a canonical page exists for this record. */
   onOpenPage?: () => void
+  /** Internal Back (I2): pops one stack frame. Only rendered when `canGoBack`. */
+  onBack?: () => void
+  /** Whether an internal linked-record stack Back control is available. */
+  canGoBack?: boolean
   /** Extra identity class on the panel (aside in split, .drawer-modal-root in modal). */
   rootClassName?: string
+  /** Overlay-host oracle: which route/shell owner mounts this host. */
+  owner?: OverlayOwner
+  /** Overlay-host oracle: the active stack entry key. */
+  entryKey?: string
+  /** True while a leave-guard confirmation is pending; suppresses a second visual transition. */
+  transitionPending?: boolean
+}
+
+function BackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  )
 }
 
 function OpenPageIcon() {
@@ -52,6 +71,7 @@ function OpenPageIcon() {
  */
 export function RecordPanelHost({
   label, onClose, children, expanded, focusKey, title, onOpenPage, rootClassName,
+  onBack, canGoBack, owner, entryKey, transitionPending,
 }: RecordPanelHostProps) {
   const isSplit = useIsSplitWidth()
   const isDesktop = useIsDesktop()
@@ -99,7 +119,7 @@ export function RecordPanelHost({
       }
     }
     function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onClose() }
+      if (e.key === 'Escape') { e.preventDefault(); onClose('escape') }
     }
     panel.addEventListener('keydown', onTrapKeyDown)
     document.addEventListener('keydown', onEsc)
@@ -109,8 +129,33 @@ export function RecordPanelHost({
     }
   }, [isModal, focusKey, onClose])
 
-  const chrome = title != null && (
+  // Overlay-host oracle: only the OverlayHostSlot sets `owner`, so a bare tenant render
+  // (Task/Signal migration compatibility) stays anonymous. `undefined` values are omitted
+  // by React so a slotless render carries no `data-overlay-*` attribute at all.
+  const overlayAttrs = owner
+    ? {
+        'data-overlay-host': 'true',
+        'data-overlay-owner': owner,
+        'data-overlay-entry': entryKey,
+      }
+    : undefined
+
+  const busy = transitionPending ? { disabled: true, 'aria-busy': true } : undefined
+
+  const chrome = (title != null || canGoBack) && (
     <div className="record-panel-chrome">
+      {canGoBack && (
+        <button
+          type="button"
+          className="record-panel-btn"
+          aria-label={t('record.back')}
+          title={t('record.back')}
+          onClick={onBack}
+          {...busy}
+        >
+          <BackIcon />
+        </button>
+      )}
       <span className="record-panel-title">{title}</span>
       <span className="record-panel-spacer" />
       {onOpenPage && (
@@ -120,6 +165,7 @@ export function RecordPanelHost({
           aria-label={t('record.openFullPage')}
           title={t('record.openFullPage')}
           onClick={onOpenPage}
+          {...busy}
         >
           <OpenPageIcon />
         </button>
@@ -129,7 +175,8 @@ export function RecordPanelHost({
         className="record-panel-btn"
         aria-label={t('record.close')}
         title={t('record.close')}
-        onClick={onClose}
+        onClick={() => onClose('explicit-close')}
+        {...busy}
       >
         <CloseIcon />
       </button>
@@ -148,7 +195,7 @@ export function RecordPanelHost({
     const asideClass = ['drawer', expanded ? 'expanded' : '', rootClassName ?? '']
       .filter(Boolean).join(' ')
     return (
-      <aside ref={panelRef} className={asideClass} aria-label={label}>
+      <aside ref={panelRef} className={asideClass} aria-label={label} {...overlayAttrs}>
         {body}
       </aside>
     )
@@ -163,8 +210,8 @@ export function RecordPanelHost({
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={rootClass}>
-      <div className="drawer-scrim" onClick={onClose} aria-hidden="true" />
+    <div className={rootClass} {...overlayAttrs}>
+      <div className="drawer-scrim" onClick={() => onClose('explicit-close')} aria-hidden="true" />
       <aside
         ref={panelRef}
         className={sheetClass}
