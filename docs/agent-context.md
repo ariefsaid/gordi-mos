@@ -35,8 +35,9 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `docs/reference/v3-storybook-matrix.json` / `.md`; the live inventory is
 > `docs/reference/v3-live-inventory.json` / `.md`; the visual evidence is
 > `docs/reference/evidence/v3-storybook-2026-07-20/`; and the review ledger is
-> `docs/reviews/v3-redesign.md`. Implementation is committed as `04cbe8b` and the corrected plan
-> checkpoints are `4ffc9f5` and `0fd276f`.
+> `docs/reviews/v3-redesign.md`. The complete Issue 2 checkpoint is consolidated on the Director
+> branch through `4fa90c1` (`d2aee27` initial workbench, `c744cf8` hardening, `4fa90c1` evidence
+> reconciliation). The source worktree is clean and nothing has been pushed.
 >
 > Verified: 35 Storybook stories, 36 state entries, 3 responsive entries, and 23 canonical jobs;
 > Storybook 10.5.2 with the external `@storybook/test-runner` 0.24.4 ran 7 suites / 35 tests with
@@ -54,10 +55,33 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > 002/003/004/005/006/007; it does not claim full master acceptance or close the Issue 9 rendered
 > acceptance gate.
 >
-> **Next action:** independent re-review confirms this evidence; then the owner reviews the linked
-> matrix, browser evidence, and review ledger and explicitly approves the Issue 3 gate. Only after
-> that approval may the next harness begin Issue 3
-> **Page-family primitives and migration guards**.
+> **Next action:** independent re-review confirms the exact Director range `be8f854..4fa90c1`; then
+> the owner reviews the linked matrix, browser evidence, and review ledger and explicitly approves
+> the Issue 3 gate. Only after that approval may the next harness begin Issue 3 **Page-family
+> primitives and migration guards**. The Issue 3 thread completed a clean preflight only: no code or
+> commit was produced before Issue 2 integration.
+
+### Consolidated V3 continuation map (2026-07-20)
+
+All useful parallel planning work is committed on this Director branch; the source worktrees are
+clean and no remote action occurred. A replacement harness should resume from this branch, not from
+the source worktrees.
+
+| Issue | Director commit / artifact | State and exact continuation |
+|---:|---|---|
+| 2 | `4fa90c1` plus prior Issue 2 commits | Implemented and locally verified; independent re-review and owner issue-boundary approval remain. |
+| 3 | `80e5199`, `docs/plans/2026-07-20-v3-page-families.md` | Plan only. After Issue 2 approval, execute first with TDD; no Supabase required. |
+| 4 | `2493506`, `docs/plans/2026-07-20-v3-shared-overlay-host.md` | Plan only. Execute after Issue 3; final async `leaveGuard(intent)` contract is binding. |
+| 5 | `0d685d8` + `cf34354`, `docs/plans/2026-07-20-v3-record-viewer.md` | Plan only. Task adapter uses PIC/Supervisor and preserves distinct domain models. |
+| 6 | `7798366`, `docs/plans/2026-07-20-v3-record-collection.md` | Plan only. Execute after Issues 3–5; owns persisted views and Tasks/Signals adapters. |
+| 7 | `f0e585f`, `docs/plans/2026-07-20-v3-inbox-deputy.md` | Plan only. Owner must ratify provisional read-versus-handled semantics before implementation. |
+| 8 | `6611c1b`, `docs/plans/2026-07-20-v3-cafe-canonical-records.md` | Plan only. Requires Issues 5–7 and explicit resolution of ambiguous legacy Task-to-Team mappings. |
+| 10 | `afa9d35`, ADR-0052 + `docs/plans/2026-07-20-v3-structured-content.md` | ADR/plan only. Owner ratification and Issues 3–9 precede implementation. |
+
+Issues 9, 11, and 12 remain specified by `docs/specs/v3-redesign.spec.md` and are not falsely marked
+planned or implemented here. Do not collapse the above plans into one parallel implementation wave:
+their dependency order is intentional, and the single local Supabase means database/e2e work must be
+serialized.
 
 ## V3 Issue 2 resumable checkpoint (2026-07-20)
 
