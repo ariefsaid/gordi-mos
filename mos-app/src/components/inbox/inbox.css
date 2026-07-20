@@ -110,7 +110,7 @@
 }
 .inbox-triage__filter:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 .inbox-triage__filter[aria-pressed='true'] {
   background: var(--accent);
@@ -146,7 +146,7 @@
 }
 .inbox-row__handle:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
 /* Visually-hidden polite live region for optimistic open/action announcements. */
