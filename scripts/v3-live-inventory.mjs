@@ -48,7 +48,7 @@ const SOURCE_COMPONENTS = [
       { file: 'mos-app/src/components/admin/user-table.tsx', symbol: 'PersonActionMenu' },
     ],
     stateCoverage: ['open', 'keyboard focus', 'close/Escape'],
-    tokenSources: ['mos-app/src/components/command/command-menu.css', 'mos-app/src/components/tasks/row-menu.css'],
+    tokenSources: ['mos-app/src/components/command/command-menu.css', 'mos-app/src/components/tasks/TasksWorkspace.css'],
   },
   {
     job: 'dialog',
@@ -78,7 +78,7 @@ const SOURCE_COMPONENTS = [
       { file: 'mos-app/src/components/signals/signal-feed.tsx', symbol: 'SignalFeed' },
     ],
     stateCoverage: ['default', 'loading', 'empty', 'error', 'filtered-empty'],
-    tokenSources: ['mos-app/src/components/dashboard/data-table.css', 'mos-app/src/components/tasks/tasks-workspace.css'],
+    tokenSources: ['mos-app/src/components/dashboard/data-table.css', 'mos-app/src/components/tasks/TasksWorkspace.css'],
   },
   {
     job: 'page-head',
@@ -132,7 +132,7 @@ const SOURCE_COMPONENTS = [
       { file: 'mos-app/src/components/admin/user-table.tsx', symbol: 'UserTable' },
     ],
     stateCoverage: ['search', 'filter', 'sort', 'group', 'saved view', 'selection'],
-    tokenSources: ['mos-app/src/components/tasks/tasks-workspace.tsx', 'mos-app/src/components/tasks/tasks-workspace.css'],
+    tokenSources: ['mos-app/src/components/tasks/tasks-workspace.tsx', 'mos-app/src/components/tasks/TasksWorkspace.css'],
   },
   {
     job: 'navigation',
@@ -561,8 +561,15 @@ export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
   }
 }
 
+export function collectRouteDeclarations(routerText) {
+  return {
+    pathLiterals: [...routerText.matchAll(/\bpath:\s*['"]([^'"]+)['"]/g)].map((match) => match[1]),
+    hasIndexRoute: routerText.includes('index: true'),
+  }
+}
+
 function collectRouteLiterals(routerText) {
-  return [...routerText.matchAll(/\bpath:\s*['"]([^'"]+)['"]/g)].map((match) => match[1])
+  return collectRouteDeclarations(routerText).pathLiterals
 }
 
 function symbolPresent(repoRoot, reference) {
@@ -611,6 +618,7 @@ export function validateInventory(inventory, repoRoot = DEFAULT_REPO_ROOT) {
       if (!fileExists(root, reference.file)) errors.push(`component source missing: ${row.job} -> ${reference.file}`)
       else if (!symbolPresent(root, reference)) errors.push(`component symbol missing: ${row.job} -> ${reference.file} :: ${reference.symbol}`)
     }
+    for (const tokenSource of row.tokenSources) if (!fileExists(root, tokenSource)) errors.push(`component token source missing: ${row.job} -> ${tokenSource}`)
   }
   for (const family of inventory.cssFamilies) if (!fileExists(root, family.path)) errors.push(`CSS family source missing: ${family.path}`)
   const scannedCss = new Set(inventory.literals.filesScanned)
