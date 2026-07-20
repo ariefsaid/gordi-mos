@@ -359,6 +359,25 @@ describe('AC-K08: listbox ownership remains valid through search states', () => 
     resolveSearch([])
   })
 
+  it('keeps the first ready option active when ArrowDown is pressed during loading', async () => {
+    let resolveSearch!: (rows: TaskTitleRef[]) => void
+    mockSearch.mockReturnValue(new Promise((resolve) => { resolveSearch = resolve }))
+    renderMenu()
+    const input = screen.getByRole('combobox')
+    fireEvent.change(input, { target: { value: 'forecast' } })
+    await screen.findByRole('option', { name: 'Searching records' })
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+
+    resolveSearch([{ id: 't9', title: 'Finalise Q3 forecast', status: 'Open' }])
+    const option = await screen.findByRole('option', { name: /Finalise Q3 forecast/i })
+    expect(input).toHaveAttribute('aria-activedescendant', option.id)
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/t9')
+  })
+
   it('keeps zero results inside the controlled listbox as a non-activatable option', async () => {
     mockSearch.mockResolvedValue([])
     renderMenu()
