@@ -20,6 +20,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import type { RecordFieldControl, RecordFieldSpec, RecordValue } from './record-viewer.types'
 import './record-viewer.css'
 
@@ -122,9 +123,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
       </label>
 
       {isOption ? (
-        <select
+        <Select
           id={controlId}
-          className="record-field__control record-field__control--select"
+          className="record-field__select"
+          fullWidth
           value={draft}
           disabled={busy}
           aria-busy={busy || undefined}
@@ -140,7 +142,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
               {opt.label}
             </option>
           ))}
-        </select>
+        </Select>
       ) : spec.control === 'textarea' ? (
         <textarea
           id={controlId}

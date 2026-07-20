@@ -159,8 +159,9 @@ describe('RecordField', () => {
 describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 
-  it('encodes a 44px minimum for the field control and its retry action', () => {
+  it('encodes a 44px minimum for the field control, the shared select, and its retry action', () => {
     expect(css).toMatch(/\.record-field__control[\s\S]*min-height:\s*44px/)
+    expect(css).toMatch(/\.record-field__select \.mk-select__field[\s\S]*min-height:\s*44px/)
     expect(css).toMatch(/\.record-field__retry[\s\S]*min-height:\s*44px/)
   })
 })

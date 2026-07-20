@@ -29,7 +29,7 @@
 }
 
 .record-field__control:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -40,6 +40,12 @@
 .record-field__control--textarea {
   min-height: 88px;
   resize: vertical;
+}
+
+/* The shared Select primitive owns its chrome; raise its field to the 44px floor
+ * inside a record field (NFR-V3-006). */
+.record-field__select .mk-select__field {
+  min-height: 44px;
 }
 
 .record-field__value {
