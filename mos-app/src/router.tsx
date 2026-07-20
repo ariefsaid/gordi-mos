@@ -34,6 +34,7 @@ import { RecoveryPage } from './pages/recovery-page'
 import { UiGallery } from './pages/ui-gallery'
 import { DevViewsPage } from './pages/dev-views-page'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+import { v3Infrastructure, v3Page, v3Redirect } from './shell/route-classification'
 
 // Route layout (Redesign Step 2 — the IA move):
 // / (RedirectIfAuthed gate) — unauthenticated users
@@ -80,126 +81,137 @@ export function TasksIdRedirect() {
 export const routeConfig: RouteObject[] = [
   // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell.
   ...(import.meta.env.DEV
-    ? [{ path: '/dev/ui', element: <UiGallery /> }]
+    ? [{ path: '/dev/ui', element: <UiGallery />, handle: v3Infrastructure('dev-only') }]
     : []),
   {
     element: <RedirectIfAuthed />,
     errorElement: <RouteErrorBoundary />,
+    handle: v3Infrastructure('auth'),
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/recovery', element: <RecoveryPage /> },
+      { path: '/login', element: <LoginPage />, handle: v3Infrastructure('public') },
+      { path: '/recovery', element: <RecoveryPage />, handle: v3Infrastructure('public') },
     ],
   },
   {
     element: <ProtectedRoute />,
     errorElement: <RouteErrorBoundary />,
+    handle: v3Infrastructure('auth'),
     children: [
       {
         element: <AppShell />,
+        handle: v3Infrastructure('layout'),
         children: [
-          { index: true, element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage /> },
+          { index: true, element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage />, handle: v3Page('workspace') },
           ...(import.meta.env.DEV
-            ? [{ path: '__home-stacked', element: <StackedUnionHome /> }]
+            ? [{ path: '__home-stacked', element: <StackedUnionHome />, handle: v3Infrastructure('dev-only') }]
             : []),
 
           // ── Work (canonical) ──
-          { path: 'work', element: <Navigate to="/work/tasks" replace /> },
+          { path: 'work', element: <Navigate to="/work/tasks" replace />, handle: v3Redirect('/work/tasks') },
           {
             path: 'work/tasks',
             element: <TasksLayout />,
+            handle: v3Page('workspace'),
             children: [
-              { path: 'new', element: <TaskDrawer mode="create" /> },
-              { path: ':taskId', element: <TaskDrawer mode="view" /> },
+              { path: 'new', element: <TaskDrawer mode="create" />, handle: v3Page('focused-record') },
+              { path: ':taskId', element: <TaskDrawer mode="view" />, handle: v3Page('focused-record') },
             ],
           },
-          { path: 'work/signals', element: <SignalsArchivePage /> },
-          { path: 'work/signals/:signalId', element: <SignalRecordPage /> },
-          { path: 'work/projects-processes', element: <SearchRedirect to="/work/projects" /> },
+          { path: 'work/signals', element: <SignalsArchivePage />, handle: v3Page('workspace') },
+          { path: 'work/signals/:signalId', element: <SignalRecordPage />, handle: v3Page('focused-record') },
+          { path: 'work/projects-processes', element: <SearchRedirect to="/work/projects" />, handle: v3Redirect('/work/projects') },
           {
             element: <RequireCapability capability="workline.manage" />,
-            children: [{ path: 'work/projects', element: <ProjectsProcessesPage /> }],
+            handle: v3Infrastructure('capability'),
+            children: [{ path: 'work/projects', element: <ProjectsProcessesPage />, handle: v3Page('management') }],
           },
           {
             element: <RequireCapability capability="objective.manage" />,
-            children: [{ path: 'work/objectives', element: <ObjectivesPage /> }],
+            handle: v3Infrastructure('capability'),
+            children: [{ path: 'work/objectives', element: <ObjectivesPage />, handle: v3Page('management') }],
           },
-          { path: 'work/cascade', element: <Navigate to="/work/tasks" replace /> },
-          { path: 'work/follow-ups', element: <Navigate to="/work/tasks?view=followups" replace /> },
-          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
+          { path: 'work/cascade', element: <Navigate to="/work/tasks" replace />, handle: v3Redirect('/work/tasks') },
+          { path: 'work/follow-ups', element: <Navigate to="/work/tasks?view=followups" replace />, handle: v3Redirect('/work/tasks?view=followups') },
+          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace />, handle: v3Page('focused-record') },
 
           // ── Events / Money / Inbox (canonical) ──
-          { path: 'events', element: <EventsPage /> },
+          { path: 'events', element: <EventsPage />, handle: v3Page('workspace') },
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
+            handle: v3Infrastructure('capability'),
             children: [
-              { path: 'money', element: <DashboardPage /> },
-              { path: 'money/detail', element: <DashboardPage defaultTab="detail" /> },
-              { path: 'money/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace /> },
-              { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace /> },
-              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
+              { path: 'money', element: <DashboardPage />, handle: v3Page('workspace') },
+              { path: 'money/detail', element: <DashboardPage defaultTab="detail" />, handle: v3Page('workspace') },
+              { path: 'money/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
+              { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
+              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace />, handle: v3Page('focused-record') },
             ],
           },
-          { path: 'inbox', element: <InboxPage /> },
+          { path: 'inbox', element: <InboxPage />, handle: v3Page('workspace') },
 
           // ── Café (Kitchen re-homed, OD-15; Step 7 RATIFY-7D — /cafe hosts the opening home) ──
-          { path: 'cafe', element: <CafeOpeningPage /> },
-          { path: 'cafe/log', element: <KitchenLogPage /> },
-          { path: 'cafe/plan', element: <KitchenPlanPage /> },
-          { path: 'cafe/stock', element: <KitchenStockPage /> },
+          { path: 'cafe', element: <CafeOpeningPage />, handle: v3Page('workspace') },
+          { path: 'cafe/log', element: <KitchenLogPage />, handle: v3Page('workspace') },
+          { path: 'cafe/plan', element: <KitchenPlanPage />, handle: v3Page('workspace') },
+          { path: 'cafe/stock', element: <KitchenStockPage />, handle: v3Page('workspace') },
           {
             element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            handle: v3Infrastructure('capability'),
             children: [
-              { path: 'cafe/review', element: <KitchenReviewPage /> },
-              { path: 'cafe/pushes', element: <KitchenPushesPage /> },
+              { path: 'cafe/review', element: <KitchenReviewPage />, handle: v3Page('workspace') },
+              { path: 'cafe/pushes', element: <KitchenPushesPage />, handle: v3Page('workspace') },
             ],
           },
 
           // ── Ecommerce / Roastery / Profile (stubs) ──
-          { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" /> },
-          { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" /> },
-          { path: 'profile', element: <ProfilePage /> }, // OD-70: real page (language selection lives here)
+          { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" />, handle: v3Page('workspace') },
+          { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" />, handle: v3Page('workspace') },
+          { path: 'profile', element: <ProfilePage />, handle: v3Page('management') }, // OD-70: real page (language selection lives here)
 
           // ── Admin (canonical; /admin → /admin/people) ──
-          { path: 'admin', element: <Navigate to="/admin/people" replace /> },
+          { path: 'admin', element: <Navigate to="/admin/people" replace />, handle: v3Redirect('/admin/people') },
           {
             element: <AdminRoute />,
-            children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
+            handle: v3Infrastructure('capability'),
+            children: [{ path: 'admin/people', element: <AdminUsersPage />, handle: v3Page('management') }],
           },
 
           // ADR-0018 P1 — view-composition dev harness (DEV + SHOW_USER_VIEWS).
           {
             path: 'dev/views',
             element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+            handle: v3Infrastructure('dev-only'),
           },
           {
             path: 'dev/views/:viewId',
             element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+            handle: v3Infrastructure('dev-only'),
           },
 
           // ── Redirects from every old route (FR-009/010, spec §7) ──
-          { path: 'tasks', element: <SearchRedirect to="/work/tasks" /> },
-          { path: 'tasks/new', element: <SearchRedirect to="/work/tasks/new" /> },
-          { path: 'tasks/:taskId', element: <TasksIdRedirect /> },
-          { path: 'updates', element: <Navigate to="/work/signals" replace /> },
-          { path: 'ops', element: <Navigate to="/" replace /> },
-          { path: 'ops/new', element: <Navigate to="/" replace /> },
-          { path: 'ops/:id/edit', element: <Navigate to="/" replace /> },
-          { path: 'kitchen', element: <Navigate to="/cafe" replace /> },
-          { path: 'kitchen/log', element: <SearchRedirect to="/cafe/log" /> },
-          { path: 'kitchen/plan', element: <SearchRedirect to="/cafe/plan" /> },
-          { path: 'kitchen/stock', element: <SearchRedirect to="/cafe/stock" /> },
-          { path: 'kitchen/review', element: <SearchRedirect to="/cafe/review" /> },
-          { path: 'kitchen/pushes', element: <SearchRedirect to="/cafe/pushes" /> },
-          { path: 'objectives', element: <SearchRedirect to="/work/objectives" /> },
-          { path: 'projects-processes', element: <SearchRedirect to="/work/projects" /> },
-          { path: 'dashboard', element: <SearchRedirect to="/money" /> },
-          { path: 'dashboard/detail', element: <SearchRedirect to="/money/detail" /> },
+          { path: 'tasks', element: <SearchRedirect to="/work/tasks" />, handle: v3Redirect('/work/tasks') },
+          { path: 'tasks/new', element: <SearchRedirect to="/work/tasks/new" />, handle: v3Redirect('/work/tasks/new') },
+          { path: 'tasks/:taskId', element: <TasksIdRedirect />, handle: v3Redirect('/work/tasks/:taskId') },
+          { path: 'updates', element: <Navigate to="/work/signals" replace />, handle: v3Redirect('/work/signals') },
+          { path: 'ops', element: <Navigate to="/" replace />, handle: v3Redirect('/') },
+          { path: 'ops/new', element: <Navigate to="/" replace />, handle: v3Redirect('/') },
+          { path: 'ops/:id/edit', element: <Navigate to="/" replace />, handle: v3Redirect('/') },
+          { path: 'kitchen', element: <Navigate to="/cafe" replace />, handle: v3Redirect('/cafe') },
+          { path: 'kitchen/log', element: <SearchRedirect to="/cafe/log" />, handle: v3Redirect('/cafe/log') },
+          { path: 'kitchen/plan', element: <SearchRedirect to="/cafe/plan" />, handle: v3Redirect('/cafe/plan') },
+          { path: 'kitchen/stock', element: <SearchRedirect to="/cafe/stock" />, handle: v3Redirect('/cafe/stock') },
+          { path: 'kitchen/review', element: <SearchRedirect to="/cafe/review" />, handle: v3Redirect('/cafe/review') },
+          { path: 'kitchen/pushes', element: <SearchRedirect to="/cafe/pushes" />, handle: v3Redirect('/cafe/pushes') },
+          { path: 'objectives', element: <SearchRedirect to="/work/objectives" />, handle: v3Redirect('/work/objectives') },
+          { path: 'projects-processes', element: <SearchRedirect to="/work/projects" />, handle: v3Redirect('/work/projects') },
+          { path: 'dashboard', element: <SearchRedirect to="/money" />, handle: v3Redirect('/money') },
+          { path: 'dashboard/detail', element: <SearchRedirect to="/money/detail" />, handle: v3Redirect('/money/detail') },
           // /sales → /money directly (no chained redirect via /dashboard — spec §16).
-          { path: 'sales', element: <SearchRedirect to="/money" /> },
-          { path: 'plan/budget', element: <SearchRedirect to="/money/budget" /> },
-          { path: 'plan/pricing', element: <SearchRedirect to="/money/pricing" /> },
+          { path: 'sales', element: <SearchRedirect to="/money" />, handle: v3Redirect('/money') },
+          { path: 'plan/budget', element: <SearchRedirect to="/money/budget" />, handle: v3Redirect('/money/budget') },
+          { path: 'plan/pricing', element: <SearchRedirect to="/money/pricing" />, handle: v3Redirect('/money/pricing') },
 
-          { path: '*', element: <NotFoundPage /> },
+          { path: '*', element: <NotFoundPage />, handle: v3Infrastructure('not-found') },
         ],
       },
     ],
