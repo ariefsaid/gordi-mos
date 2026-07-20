@@ -1,0 +1,854 @@
+{
+  "schemaVersion": 1,
+  "packageVersions": {
+    "storybook": {
+      "required": "10.5.2",
+      "declared": "10.5.2",
+      "lockDeclared": "10.5.2",
+      "resolved": "10.5.2"
+    },
+    "@storybook/react-vite": {
+      "required": "10.5.2",
+      "declared": "10.5.2",
+      "lockDeclared": "10.5.2",
+      "resolved": "10.5.2"
+    },
+    "@storybook/addon-a11y": {
+      "required": "10.5.2",
+      "declared": "10.5.2",
+      "lockDeclared": "10.5.2",
+      "resolved": "10.5.2"
+    },
+    "@storybook/test-runner": {
+      "required": "0.24.4",
+      "declared": "0.24.4",
+      "lockDeclared": "0.24.4",
+      "resolved": "0.24.4"
+    }
+  },
+  "issueBoundary": {
+    "issue2": {
+      "issue": 2,
+      "name": "Storybook component/state/responsive matrix proving the reconciled `DESIGN.md` contract."
+    },
+    "issue3": {
+      "issue": 3,
+      "name": "Page-family primitives and migration guards."
+    },
+    "issue9": {
+      "issue": 9,
+      "name": "Representative-slice rendered/driven owner gate; provisional IA ratification."
+    }
+  },
+  "storyFiles": [
+    {
+      "path": "mos-app/src/stories/v3/foundation.stories.tsx",
+      "exists": true,
+      "exports": [
+        "RuntimeTypography",
+        "TokenRoles",
+        "ResponsiveFrames",
+        "FocusSurface"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "expect",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "userEvent",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "within",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "Button",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "TextInput",
+          "importPath": "@/components/ui/text-input"
+        },
+        {
+          "symbol": "CloseIcon",
+          "importPath": "@/shell/icons"
+        },
+        {
+          "symbol": "TasksIcon",
+          "importPath": "@/shell/icons"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "Button",
+          "file": "mos-app/src/components/ui/button.tsx",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "TextInput",
+          "file": "mos-app/src/components/ui/text-input.tsx",
+          "importPath": "@/components/ui/text-input"
+        },
+        {
+          "symbol": "TasksIcon",
+          "file": "mos-app/src/shell/icons.tsx",
+          "importPath": "@/shell/icons"
+        },
+        {
+          "symbol": "CloseIcon",
+          "file": "mos-app/src/shell/icons.tsx",
+          "importPath": "@/shell/icons"
+        }
+      ],
+      "debts": [],
+      "metadataError": null
+    },
+    {
+      "path": "mos-app/src/stories/v3/controls.stories.tsx",
+      "exists": true,
+      "exports": [
+        "ButtonStateMatrix",
+        "FieldStateMatrix",
+        "SelectionAndStatus",
+        "KeyboardFocus"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "useState",
+          "importPath": "react"
+        },
+        {
+          "symbol": "expect",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "userEvent",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "within",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "Button",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "Checkbox",
+          "importPath": "@/components/ui/checkbox"
+        },
+        {
+          "symbol": "Pill",
+          "importPath": "@/components/ui/pill"
+        },
+        {
+          "symbol": "Select",
+          "importPath": "@/components/ui/select"
+        },
+        {
+          "symbol": "StatusPill",
+          "importPath": "@/components/tasks/status-pill"
+        },
+        {
+          "symbol": "TextInput",
+          "importPath": "@/components/ui/text-input"
+        },
+        {
+          "symbol": "Toggle",
+          "importPath": "@/components/ui/toggle"
+        },
+        {
+          "symbol": "ViewTabs",
+          "importPath": "@/components/ui/view-tabs"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "Button",
+          "file": "mos-app/src/components/ui/button.tsx",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "TextInput",
+          "file": "mos-app/src/components/ui/text-input.tsx",
+          "importPath": "@/components/ui/text-input"
+        },
+        {
+          "symbol": "Select",
+          "file": "mos-app/src/components/ui/select.tsx",
+          "importPath": "@/components/ui/select"
+        },
+        {
+          "symbol": "Checkbox",
+          "file": "mos-app/src/components/ui/checkbox.tsx",
+          "importPath": "@/components/ui/checkbox"
+        },
+        {
+          "symbol": "Toggle",
+          "file": "mos-app/src/components/ui/toggle.tsx",
+          "importPath": "@/components/ui/toggle"
+        },
+        {
+          "symbol": "Pill",
+          "file": "mos-app/src/components/ui/pill.tsx",
+          "importPath": "@/components/ui/pill"
+        },
+        {
+          "symbol": "StatusPill",
+          "file": "mos-app/src/components/tasks/status-pill.tsx",
+          "importPath": "@/components/tasks/status-pill"
+        },
+        {
+          "symbol": "ViewTabs",
+          "file": "mos-app/src/components/ui/view-tabs.tsx",
+          "importPath": "@/components/ui/view-tabs"
+        }
+      ],
+      "debts": [
+        "Button loading state is not exposed by the canonical primitive; owner: Issue 3."
+      ],
+      "metadataError": null
+    },
+    {
+      "path": "mos-app/src/stories/v3/feedback.stories.tsx",
+      "exists": true,
+      "exports": [
+        "EmptyStateVariants",
+        "ErrorAndRetry",
+        "LoadingShells",
+        "SavingAndSaved"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "ErrorState",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "EmptyState",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "LoadingShell",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "SkeletonRows",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "PlanQtyCell",
+          "importPath": "@/components/kitchen/plan-qty-cell"
+        },
+        {
+          "symbol": "PlanQtyStepper",
+          "importPath": "@/components/kitchen/plan-qty-stepper"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "EmptyState",
+          "file": "mos-app/src/components/ui/state-kit.tsx",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "ErrorState",
+          "file": "mos-app/src/components/ui/state-kit.tsx",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "SkeletonRows",
+          "file": "mos-app/src/components/ui/state-kit.tsx",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "LoadingShell",
+          "file": "mos-app/src/components/ui/state-kit.tsx",
+          "importPath": "@/components/ui/state-kit"
+        },
+        {
+          "symbol": "PlanQtyStepper",
+          "file": "mos-app/src/components/kitchen/plan-qty-stepper.tsx",
+          "importPath": "@/components/kitchen/plan-qty-stepper"
+        },
+        {
+          "symbol": "PlanQtyCell",
+          "file": "mos-app/src/components/kitchen/plan-qty-cell.tsx",
+          "importPath": "@/components/kitchen/plan-qty-cell"
+        }
+      ],
+      "debts": [],
+      "metadataError": null
+    },
+    {
+      "path": "mos-app/src/stories/v3/page-compositions.stories.tsx",
+      "exists": true,
+      "exports": [
+        "Workspace",
+        "FocusedRecord",
+        "Management"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "Button",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "DataTable",
+          "importPath": "@/components/dashboard/data-table"
+        },
+        {
+          "symbol": "DataTableColumn",
+          "importPath": "@/components/dashboard/data-table"
+        },
+        {
+          "symbol": "PageFrame",
+          "importPath": "@/shell/page-frame"
+        },
+        {
+          "symbol": "PageHead",
+          "importPath": "@/shell/page-head"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "Button",
+          "file": "mos-app/src/components/ui/button.tsx",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "PageFrame",
+          "file": "mos-app/src/shell/page-frame.tsx",
+          "importPath": "@/shell/page-frame"
+        },
+        {
+          "symbol": "PageHead",
+          "file": "mos-app/src/shell/page-head.tsx",
+          "importPath": "@/shell/page-head"
+        },
+        {
+          "symbol": "DataTable",
+          "file": "mos-app/src/components/dashboard/data-table.tsx",
+          "importPath": "@/components/dashboard/data-table"
+        }
+      ],
+      "debts": [],
+      "metadataError": null
+    },
+    {
+      "path": "mos-app/src/stories/v3/dense-collections.stories.tsx",
+      "exists": true,
+      "exports": [
+        "ReadyDesktop",
+        "ReadyIntermediate",
+        "ReadyPhone",
+        "Loading",
+        "Empty",
+        "FilteredEmpty",
+        "Error"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "DataTable",
+          "importPath": "@/components/dashboard/data-table"
+        },
+        {
+          "symbol": "DataTableColumn",
+          "importPath": "@/components/dashboard/data-table"
+        },
+        {
+          "symbol": "StatusPill",
+          "importPath": "@/components/tasks/status-pill"
+        },
+        {
+          "symbol": "useIsDesktop",
+          "importPath": "@/shell/use-is-desktop"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "DataTable",
+          "file": "mos-app/src/components/dashboard/data-table.tsx",
+          "importPath": "@/components/dashboard/data-table"
+        },
+        {
+          "symbol": "StatusPill",
+          "file": "mos-app/src/components/tasks/status-pill.tsx",
+          "importPath": "@/components/tasks/status-pill"
+        }
+      ],
+      "debts": [],
+      "metadataError": null
+    },
+    {
+      "path": "mos-app/src/stories/v3/overlays.stories.tsx",
+      "exists": true,
+      "exports": [
+        "CommandSearch",
+        "Confirmation",
+        "AnchoredMenu",
+        "CurrentRecordPanelShell"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "CommandMenu",
+          "importPath": "@/components/command/command-menu"
+        },
+        {
+          "symbol": "Button",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "ConfirmDialog",
+          "importPath": "@/components/ui/confirm-dialog"
+        },
+        {
+          "symbol": "RowMenu",
+          "importPath": "@/components/tasks/row-menu"
+        },
+        {
+          "symbol": "RecordPanelHost",
+          "importPath": "@/shell/record-panel-host"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "CommandMenu",
+          "file": "mos-app/src/components/command/command-menu.tsx",
+          "importPath": "@/components/command/command-menu"
+        },
+        {
+          "symbol": "Button",
+          "file": "mos-app/src/components/ui/button.tsx",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "ConfirmDialog",
+          "file": "mos-app/src/components/ui/confirm-dialog.tsx",
+          "importPath": "@/components/ui/confirm-dialog"
+        },
+        {
+          "symbol": "RowMenu",
+          "file": "mos-app/src/components/tasks/row-menu.tsx",
+          "importPath": "@/components/tasks/row-menu"
+        },
+        {
+          "symbol": "RecordPanelHost",
+          "file": "mos-app/src/shell/record-panel-host.tsx",
+          "importPath": "@/shell/record-panel-host"
+        }
+      ],
+      "debts": [
+        "RecordPanelHost remains the current shell; future host behavior is owned by Issue 4."
+      ],
+      "metadataError": null
+    },
+    {
+      "path": "mos-app/src/stories/v3/accessibility-responsive.stories.tsx",
+      "exists": true,
+      "exports": [
+        "RuntimeAndViewport",
+        "KeyboardJourneys"
+      ],
+      "sourceImports": [
+        {
+          "symbol": "useState",
+          "importPath": "react"
+        },
+        {
+          "symbol": "expect",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "userEvent",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "within",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "Button",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "ViewTabs",
+          "importPath": "@/components/ui/view-tabs"
+        },
+        {
+          "symbol": "RecordPanelHost",
+          "importPath": "@/shell/record-panel-host"
+        }
+      ],
+      "excludesMatrixMetadata": true,
+      "canonicalImports": [
+        {
+          "symbol": "Button",
+          "file": "mos-app/src/components/ui/button.tsx",
+          "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "ViewTabs",
+          "file": "mos-app/src/components/ui/view-tabs.tsx",
+          "importPath": "@/components/ui/view-tabs"
+        },
+        {
+          "symbol": "RecordPanelHost",
+          "file": "mos-app/src/shell/record-panel-host.tsx",
+          "importPath": "@/shell/record-panel-host"
+        }
+      ],
+      "debts": [],
+      "metadataError": null
+    }
+  ],
+  "canonicalComponents": {
+    "Button": [
+      {
+        "file": "mos-app/src/components/ui/button.tsx",
+        "importPath": "@/components/ui/button",
+        "story": "mos-app/src/stories/v3/accessibility-responsive.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/button.tsx",
+        "importPath": "@/components/ui/button",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/button.tsx",
+        "importPath": "@/components/ui/button",
+        "story": "mos-app/src/stories/v3/foundation.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/button.tsx",
+        "importPath": "@/components/ui/button",
+        "story": "mos-app/src/stories/v3/overlays.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/button.tsx",
+        "importPath": "@/components/ui/button",
+        "story": "mos-app/src/stories/v3/page-compositions.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "TextInput": [
+      {
+        "file": "mos-app/src/components/ui/text-input.tsx",
+        "importPath": "@/components/ui/text-input",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/text-input.tsx",
+        "importPath": "@/components/ui/text-input",
+        "story": "mos-app/src/stories/v3/foundation.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "Select": [
+      {
+        "file": "mos-app/src/components/ui/select.tsx",
+        "importPath": "@/components/ui/select",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "Checkbox": [
+      {
+        "file": "mos-app/src/components/ui/checkbox.tsx",
+        "importPath": "@/components/ui/checkbox",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "Toggle": [
+      {
+        "file": "mos-app/src/components/ui/toggle.tsx",
+        "importPath": "@/components/ui/toggle",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "Pill": [
+      {
+        "file": "mos-app/src/components/ui/pill.tsx",
+        "importPath": "@/components/ui/pill",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "StatusPill": [
+      {
+        "file": "mos-app/src/components/tasks/status-pill.tsx",
+        "importPath": "@/components/tasks/status-pill",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/tasks/status-pill.tsx",
+        "importPath": "@/components/tasks/status-pill",
+        "story": "mos-app/src/stories/v3/dense-collections.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "EmptyState": [
+      {
+        "file": "mos-app/src/components/ui/state-kit.tsx",
+        "importPath": "@/components/ui/state-kit",
+        "story": "mos-app/src/stories/v3/feedback.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "ErrorState": [
+      {
+        "file": "mos-app/src/components/ui/state-kit.tsx",
+        "importPath": "@/components/ui/state-kit",
+        "story": "mos-app/src/stories/v3/feedback.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "SkeletonRows": [
+      {
+        "file": "mos-app/src/components/ui/state-kit.tsx",
+        "importPath": "@/components/ui/state-kit",
+        "story": "mos-app/src/stories/v3/feedback.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "LoadingShell": [
+      {
+        "file": "mos-app/src/components/ui/state-kit.tsx",
+        "importPath": "@/components/ui/state-kit",
+        "story": "mos-app/src/stories/v3/feedback.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "PlanQtyStepper": [
+      {
+        "file": "mos-app/src/components/kitchen/plan-qty-stepper.tsx",
+        "importPath": "@/components/kitchen/plan-qty-stepper",
+        "story": "mos-app/src/stories/v3/feedback.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "PlanQtyCell": [
+      {
+        "file": "mos-app/src/components/kitchen/plan-qty-cell.tsx",
+        "importPath": "@/components/kitchen/plan-qty-cell",
+        "story": "mos-app/src/stories/v3/feedback.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "PageFrame": [
+      {
+        "file": "mos-app/src/shell/page-frame.tsx",
+        "importPath": "@/shell/page-frame",
+        "story": "mos-app/src/stories/v3/page-compositions.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "PageHead": [
+      {
+        "file": "mos-app/src/shell/page-head.tsx",
+        "importPath": "@/shell/page-head",
+        "story": "mos-app/src/stories/v3/page-compositions.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "DataTable": [
+      {
+        "file": "mos-app/src/components/dashboard/data-table.tsx",
+        "importPath": "@/components/dashboard/data-table",
+        "story": "mos-app/src/stories/v3/dense-collections.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/dashboard/data-table.tsx",
+        "importPath": "@/components/dashboard/data-table",
+        "story": "mos-app/src/stories/v3/page-compositions.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "CommandMenu": [
+      {
+        "file": "mos-app/src/components/command/command-menu.tsx",
+        "importPath": "@/components/command/command-menu",
+        "story": "mos-app/src/stories/v3/overlays.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "ConfirmDialog": [
+      {
+        "file": "mos-app/src/components/ui/confirm-dialog.tsx",
+        "importPath": "@/components/ui/confirm-dialog",
+        "story": "mos-app/src/stories/v3/overlays.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "RowMenu": [
+      {
+        "file": "mos-app/src/components/tasks/row-menu.tsx",
+        "importPath": "@/components/tasks/row-menu",
+        "story": "mos-app/src/stories/v3/overlays.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "RecordPanelHost": [
+      {
+        "file": "mos-app/src/shell/record-panel-host.tsx",
+        "importPath": "@/shell/record-panel-host",
+        "story": "mos-app/src/stories/v3/accessibility-responsive.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/shell/record-panel-host.tsx",
+        "importPath": "@/shell/record-panel-host",
+        "story": "mos-app/src/stories/v3/overlays.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "ViewTabs": [
+      {
+        "file": "mos-app/src/components/ui/view-tabs.tsx",
+        "importPath": "@/components/ui/view-tabs",
+        "story": "mos-app/src/stories/v3/accessibility-responsive.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/view-tabs.tsx",
+        "importPath": "@/components/ui/view-tabs",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "TasksIcon": [
+      {
+        "file": "mos-app/src/shell/icons.tsx",
+        "importPath": "@/shell/icons",
+        "story": "mos-app/src/stories/v3/foundation.stories.tsx",
+        "evidence": "named production import"
+      }
+    ],
+    "CloseIcon": [
+      {
+        "file": "mos-app/src/shell/icons.tsx",
+        "importPath": "@/shell/icons",
+        "story": "mos-app/src/stories/v3/foundation.stories.tsx",
+        "evidence": "named production import"
+      }
+    ]
+  },
+  "jobs": [
+    "accessibility.keyboard-focus",
+    "accessibility.runnable-a11y",
+    "accessibility.runtime-proof",
+    "controls.button-state-matrix",
+    "controls.field-state-matrix",
+    "controls.keyboard-focus",
+    "controls.selection-status",
+    "dense-collection.realistic-gordi-records",
+    "dense-collection.state-matrix",
+    "dense-collection.viewport-matrix",
+    "feedback.empty-variants",
+    "feedback.error-retry",
+    "feedback.loading-skeleton",
+    "feedback.saving-saved",
+    "feedback.validation-retry",
+    "foundation.colors-borders-radii-elevation",
+    "foundation.focus-visible",
+    "foundation.icons",
+    "foundation.responsive-frames",
+    "foundation.runtime-fonts-background",
+    "foundation.spacing-rhythm",
+    "foundation.typography-roles",
+    "overlay.anchored-menu",
+    "overlay.command-search",
+    "overlay.confirmation",
+    "overlay.current-record-panel-shell",
+    "page-composition.focused-record",
+    "page-composition.management",
+    "page-composition.workspace"
+  ],
+  "states": [
+    "button.active",
+    "button.default",
+    "button.disabled",
+    "button.focus-visible",
+    "button.hover-documentation",
+    "button.loading-debt",
+    "checkbox.checked",
+    "checkbox.default",
+    "checkbox.disabled",
+    "checkbox.indeterminate",
+    "collection.empty",
+    "collection.error",
+    "collection.filtered-empty",
+    "collection.loading",
+    "collection.ready",
+    "empty.awaiting",
+    "empty.blank",
+    "empty.next-step",
+    "empty.quiet",
+    "error.retry",
+    "feedback.saved",
+    "feedback.saving",
+    "feedback.validation-retry",
+    "loading.shell",
+    "loading.skeleton-rows",
+    "overlay.current-host-shell",
+    "select.default",
+    "select.disabled",
+    "select.error",
+    "select.focus-visible",
+    "status.semantic-tones",
+    "text-input.default",
+    "text-input.disabled",
+    "text-input.error",
+    "text-input.focus-visible",
+    "toggle.default"
+  ],
+  "responsive": [
+    "desktop1280",
+    "intermediate",
+    "phone390"
+  ],
+  "debts": [
+    "Button loading state is not exposed by the canonical primitive; owner: Issue 3.",
+    "RecordPanelHost remains the current shell; future host behavior is owned by Issue 4."
+  ],
+  "viewports": [
+    "desktop1280",
+    "intermediate",
+    "phone390"
+  ],
+  "a11y": {
+    "addonConfigured": true,
+    "testMode": true,
+    "runnerConfigured": true,
+    "mechanism": "storybook-addon-a11y-test-runner"
+  },
+  "serviceBoundary": {
+    "configured": true,
+    "productionImportRule": "Storybook-only aliases replace @/lib/db/tasks and @/lib/supabase; production Vite does not load .storybook/main.ts."
+  },
+  "scope": {
+    "applicationMigration": false,
+    "representativeAcceptance": false,
+    "futureIssue4Host": false
+  },
+  "storyCount": 28,
+  "stateEntryCount": 36,
+  "responsiveEntryCount": 3,
+  "canonicalJobCount": 23
+}

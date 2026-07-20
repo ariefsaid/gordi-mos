@@ -71,6 +71,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   const panelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
+  const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const moneyAuthorized = accessRoles.includes('finance') || accessRoles.includes('admin')
@@ -162,6 +163,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   }, [isSearching, trimmed, records, universalActions, visibleNavigate, t])
 
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  const activeId = flatItems[active]?.id
 
   useEffect(() => { setActive(0) }, [trimmed])
   useEffect(() => {
@@ -195,6 +197,11 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     return () => panel.removeEventListener('keydown', onTrap)
   }, [open])
 
+  useEffect(() => {
+    if (!open || !activeId) return
+    optionRefs.current[activeId]?.scrollIntoView?.({ block: 'nearest' })
+  }, [activeId, open])
+
   if (!open) return null
 
   function activate(item: CommandItem | undefined) {
@@ -216,8 +223,6 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
       default: break
     }
   }
-
-  const activeId = flatItems[active]?.id
 
   return (
     <div className="cm-root">
@@ -247,49 +252,62 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
           <kbd className="cm-foot-key">esc</kbd>
         </div>
 
-        <ul className="cm-body" id="cm-list" role="listbox" aria-label="Command results">
-          {isSearching && records.status === 'error' && (
-            <li className="cm-records-error">{t('commandMenu.error.searchRecords')}</li>
-          )}
-          {isSearching && records.status === 'loading' && (
-            <li className="cm-item" data-testid="cm-records-skeleton" aria-hidden="true">
-              <span className="cm-item-glyph" aria-hidden="true"><TasksIcon /></span>
-              <span className="cm-skeleton" />
-            </li>
-          )}
-          {isSearching && flatItems.length === 0 && records.status !== 'loading' && (
-            <li className="cm-empty">{t('commandMenu.empty.noMatches', { query: trimmed })}</li>
-          )}
-
-          {groups.map((group) => (
-            <li key={group.key}>
-              <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
-              <ul role="presentation" className="cm-group-list">
-                {group.items.map((item) => {
-                  const isActive = item.id === activeId
-                  return (
-                    <li
-                      key={item.id}
-                      id={item.id}
-                      role="option"
-                      aria-selected={isActive}
-                      className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
-                      onClick={() => activate(item)}
-                      onMouseMove={() => {
-                        const idx = flatItems.findIndex((f) => f.id === item.id)
-                        if (idx >= 0) setActive(idx)
-                      }}
-                    >
-                      <span className="cm-item-glyph" aria-hidden="true"><item.Icon /></span>
-                      <span className="cm-item-label truncate" title={item.label}>{item.label}</span>
-                      {item.meta && <span className="cm-item-meta">{item.meta}</span>}
-                    </li>
-                  )
-                })}
-              </ul>
-            </li>
-          ))}
-        </ul>
+        <div className="cm-body">
+          <div
+            className="cm-group-list"
+            id="cm-list"
+            role="listbox"
+            aria-label={t('commandMenu.resultsLabel')}
+            aria-busy={records.status === 'loading' ? 'true' : undefined}
+            tabIndex={-1}
+          >
+            {isSearching && records.status === 'error' && (
+              <div className="cm-records-error" role="option" aria-selected="false" aria-disabled="true">
+                {t('commandMenu.error.searchRecords')}
+              </div>
+            )}
+            {isSearching && records.status === 'loading' && (
+              <div className="cm-item" data-testid="cm-records-skeleton" role="option" aria-selected="false" aria-disabled="true">
+                <span className="cm-item-glyph" aria-hidden="true"><TasksIcon /></span>
+                <span className="cm-skeleton" />
+                <span className="sr-only">{t('commandMenu.status.searchingRecords')}</span>
+              </div>
+            )}
+            {flatItems.length > 0 ? groups.map((group) => (
+              <div key={group.key} role="group" aria-label={group.label}>
+                <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
+                <div className="cm-group-list">
+                  {group.items.map((item) => {
+                    const isActive = item.id === activeId
+                    return (
+                        <div
+                          key={item.id}
+                          id={item.id}
+                          ref={(element) => { optionRefs.current[item.id] = element }}
+                          role="option"
+                        aria-selected={isActive}
+                        className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
+                        onClick={() => activate(item)}
+                        onMouseMove={() => {
+                          const idx = flatItems.findIndex((f) => f.id === item.id)
+                          if (idx >= 0) setActive(idx)
+                        }}
+                      >
+                        <span className="cm-item-glyph" aria-hidden="true"><item.Icon /></span>
+                        <span className="cm-item-label truncate" title={item.label}>{item.label}</span>
+                        {item.meta && <span className="cm-item-meta">{item.meta}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )) : isSearching && records.status !== 'loading' && (
+              <div className="cm-empty" role="option" aria-selected="false" aria-disabled="true" aria-live="polite">
+                {t('commandMenu.empty.noMatches', { query: trimmed })}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="cm-foot" aria-hidden="true">
           <span><span className="cm-foot-key">↑↓</span> {t('commandMenu.footer.navigate')}</span>

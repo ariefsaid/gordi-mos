@@ -19,7 +19,7 @@
 .error-state {
   display: flex; align-items: center; gap: 12px; padding: 16px 20px; font-size: 15px;
 }
-.error-state-text { color: var(--destructive); flex: 1; }
+.error-state-text { color: var(--status-lost-text); flex: 1; }
 
 .empty-state {
   display: flex; justify-content: center; align-items: center;

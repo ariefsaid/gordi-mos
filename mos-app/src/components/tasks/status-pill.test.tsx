@@ -2,6 +2,7 @@
 // to a semantic tag colour, and the text label is always present.
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { StatusPill } from './status-pill'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 
@@ -39,4 +40,21 @@ describe('StatusPill — AC-118 always-label rule (label is the redundant cue)',
       expect(tag.textContent).toContain(status)
     })
   }
+})
+
+describe('StatusPill — Issue 2 AA text-token lock', () => {
+  it.each([
+    ['Open', '--warning-foreground'],
+    ['In Progress', '--status-open-text'],
+    ['Blocked', '--status-lost-text'],
+    ['Done', '--status-won-text'],
+  ] as const)('uses the E7 AA text role for %s status text', (status, token) => {
+    render(
+      <I18nProvider>
+        <StatusPill status={status} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByText(status).closest('.mk-tag')).toHaveStyle({ color: `var(${token})` })
+  })
 })

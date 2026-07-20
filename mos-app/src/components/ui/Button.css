@@ -47,9 +47,13 @@
 
 /* Destructive — the only solid status fill; irreversible actions only */
 .btn-destructive {
-  background: var(--destructive); color: var(--destructive-foreground);
+  /* The saturated base red with near-white text is 3.91:1 at body size. The
+     existing E7 red-12 scale keeps the destructive hue while clearing AA. */
+  background: var(--ds-color-red12); color: var(--destructive-foreground);
 }
-.btn-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--destructive) 90%, transparent); }
+.btn-destructive:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-color-red12) 90%, var(--brand-navy) 10%);
+}
 
 /* Full-width mobile touch variant (44px) — pairs with any .btn-{variant}.
    Used by the phone submit bars where the action must span the viewport. */

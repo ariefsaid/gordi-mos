@@ -16,6 +16,18 @@ This deterministic artifact is source evidence for Issue 1. It is not a rendered
 
 Canonical collection and opening jobs: **search**, **filter**, **sort**, **group**, **saved views**, **wide right panel**, **full page**, and **phone full-screen**.
 
+## Issue 2 Storybook matrix
+
+The Storybook workbench is the in-code component/state/responsive proof for Issue 2. It does not claim application migration or Issue 9 representative rendered acceptance.
+
+- Matrix JSON: [`docs/reference/v3-storybook-matrix.json`](v3-storybook-matrix.json)
+- Matrix Markdown: [`docs/reference/v3-storybook-matrix.md`](v3-storybook-matrix.md)
+- Stack: Storybook 10.5.2 / React-Vite 10.5.2 / addon-a11y 10.5.2 / external runner 0.24.4
+- Totals: 28 stories, 36 state entries, 3 responsive entries, 23 canonical component jobs
+- Viewports: desktop1280, intermediate, phone390; a11y test mode: error
+- Scope claims: migration no; representative acceptance no; future Issue 4 host no
+- Later-owner gaps: Button loading state is not exposed by the canonical primitive; owner: Issue 3., RecordPanelHost remains the current shell; future host behavior is owned by Issue 4.
+
 ## Route inventory
 
 ### `*`

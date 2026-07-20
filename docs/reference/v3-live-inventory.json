@@ -4878,6 +4878,62 @@
     },
     "source": "CSS property literals are evidence of current style-family debt; shared token sources remain mos-app/src/index.css and DESIGN.md."
   },
+  "storybookMatrix": {
+    "artifactJson": "docs/reference/v3-storybook-matrix.json",
+    "artifactMarkdown": "docs/reference/v3-storybook-matrix.md",
+    "packageVersions": {
+      "storybook": {
+        "required": "10.5.2",
+        "declared": "10.5.2",
+        "lockDeclared": "10.5.2",
+        "resolved": "10.5.2"
+      },
+      "@storybook/react-vite": {
+        "required": "10.5.2",
+        "declared": "10.5.2",
+        "lockDeclared": "10.5.2",
+        "resolved": "10.5.2"
+      },
+      "@storybook/addon-a11y": {
+        "required": "10.5.2",
+        "declared": "10.5.2",
+        "lockDeclared": "10.5.2",
+        "resolved": "10.5.2"
+      },
+      "@storybook/test-runner": {
+        "required": "0.24.4",
+        "declared": "0.24.4",
+        "lockDeclared": "0.24.4",
+        "resolved": "0.24.4"
+      }
+    },
+    "storyCount": 28,
+    "stateEntryCount": 36,
+    "responsiveEntryCount": 3,
+    "canonicalJobCount": 23,
+    "viewports": [
+      "desktop1280",
+      "intermediate",
+      "phone390"
+    ],
+    "applicationMigration": false,
+    "representativeAcceptance": false,
+    "futureIssue4Host": false,
+    "a11y": {
+      "addonConfigured": true,
+      "testMode": true,
+      "runnerConfigured": true,
+      "mechanism": "storybook-addon-a11y-test-runner"
+    },
+    "serviceBoundary": {
+      "configured": true,
+      "productionImportRule": "Storybook-only aliases replace @/lib/db/tasks and @/lib/supabase; production Vite does not load .storybook/main.ts."
+    },
+    "debts": [
+      "Button loading state is not exposed by the canonical primitive; owner: Issue 3.",
+      "RecordPanelHost remains the current shell; future host behavior is owned by Issue 4."
+    ]
+  },
   "summary": {
     "routeCount": 58,
     "pageRouteCount": 29,

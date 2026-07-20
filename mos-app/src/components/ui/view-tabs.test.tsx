@@ -2,6 +2,7 @@
 // archetype de-duplication). Replaces the deleted tab-strip.test.tsx coverage +
 // adds the `soon`/`disabled` + enabled-only keyboard-nav contracts that the
 // tasks Table/Board/Calendar grammar needs.
+import { useState } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ViewTabs } from './view-tabs'
@@ -151,6 +152,29 @@ describe('ViewTabs', () => {
       />,
     )
     expect(screen.getByText('Applies to both tabs')).toBeInTheDocument()
+  })
+
+  it('Issue 2: moves focus with the selected tab under the roving-tabindex contract', () => {
+    function ControlledTabs() {
+      const [active, setActive] = useState('table')
+      return (
+        <ViewTabs
+          ariaLabel="Collection view"
+          tabs={[{ id: 'table', label: 'Table' }, { id: 'queue', label: 'Queue' }, { id: 'board', label: 'Board', soon: true }]}
+          active={active}
+          onChange={setActive}
+        />
+      )
+    }
+
+    render(<ControlledTabs />)
+    const table = screen.getByRole('tab', { name: 'Table' })
+    table.focus()
+    fireEvent.keyDown(table, { key: 'ArrowRight' })
+
+    const queue = screen.getByRole('tab', { name: 'Queue' })
+    expect(queue).toHaveFocus()
+    expect(queue).toHaveAttribute('tabindex', '0')
   })
 
   // RI-1 (Q1, ratified Option B) — a `mode="radiogroup"` variant for a mutually-exclusive
