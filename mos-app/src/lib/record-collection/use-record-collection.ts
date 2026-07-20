@@ -4,10 +4,11 @@
 // fixed: the Home embedded Signal Feed — a fixed query that never steals the Home route's URL.
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { createRecordCollectionController, type RecordCollectionController } from './engine'
 import { writeCollectionQuery } from './query-state'
 import type {
-  OverlayHostApi,
+  CollectionOverlayHost,
   PresentationSwitchResult,
   RecordCollectionDescriptor,
 } from './types'
@@ -26,8 +27,11 @@ export interface UseRecordCollectionOptions<
   fixedQuery?: TQuery
   viewerId: string | null
   accessRoles: readonly string[]
-  // RATIFY-BEFORE-MERGE: replace with Issue 4 `useOverlayHost()` once `@/shell/overlay-host` lands.
-  host?: OverlayHostApi
+  /**
+   * Explicit overlay host override. When omitted, the hook binds the ambient Issue 4
+   * `useOverlayHost()` controller if one is present in the tree (see below).
+   */
+  host?: CollectionOverlayHost
 }
 
 export function useRecordCollection<
@@ -41,9 +45,14 @@ export function useRecordCollection<
 >(
   options: UseRecordCollectionOptions<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
 ): RecordCollectionController<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation> {
-  const { descriptor, urlMode, fixedQuery, viewerId, accessRoles, host } = options
+  const { descriptor, urlMode, fixedQuery, viewerId, accessRoles } = options
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
+  // Prefer an explicit host override; otherwise bind the ambient Issue 4 overlay controller when a
+  // provider is present. Absent both (e.g. an embedded collection with no record-opening), the
+  // engine's host stays undefined and openRecord is a no-op — exactly as before this wiring.
+  const ambientHost = useOptionalOverlayHost()
+  const host = options.host ?? ambientHost ?? undefined
 
   // Build the controller exactly once. Initial query/presentation come from the URL (synced) or the
   // caller's fixed query (fixed). Malformed URL values fall back to the neutral query, not a crash.

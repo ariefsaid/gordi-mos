@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import { OverlayHostProvider, useOverlayHost } from '@/shell/overlay-host'
 import { useRecordCollection } from './use-record-collection'
 import type { CollectionData, CollectionProjection, RecordCollectionDescriptor } from './types'
 import {
@@ -139,6 +140,32 @@ describe('useRecordCollection (synced)', () => {
     // Unrelated route state untouched.
     expect(params.get('panel')).toBe('keep')
     expect(params.get('sidebar')).toBe('open')
+  })
+
+  it('binds the ambient Issue 4 overlay host so openRecord opens a real panel session without an explicit host prop', async () => {
+    let sessionFrames = -1
+    function HostObserver() {
+      sessionFrames = useOverlayHost().session?.frames.length ?? 0
+      return null
+    }
+    render(
+      <MemoryRouter initialEntries={['/signals?layout=feed']}>
+        <OverlayHostProvider>
+          <Harness />
+          <HostObserver />
+        </OverlayHostProvider>
+      </MemoryRouter>,
+    )
+    await flush()
+    // No session open yet.
+    expect(sessionFrames).toBe(0)
+
+    act(() => {
+      controllerRef?.openRecord(ROWS[0])
+    })
+    await flush()
+    // The engine reached the REAL ambient host (openRoot), not a no-op: a one-frame panel session is live.
+    expect(sessionFrames).toBe(1)
   })
 
   it('FR-V3-007: applying an incompatible saved view keeps the current query and URL intact', async () => {

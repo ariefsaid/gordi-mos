@@ -323,6 +323,15 @@ export function useOverlayHost(): OverlayHostApi {
 }
 
 /**
+ * Non-throwing accessor for the ambient overlay host: returns the controller when an
+ * `<OverlayHostProvider>` is above in the tree, otherwise `null`. Used by mounts that may
+ * legitimately render without a host (e.g. an embedded collection with no record-opening).
+ */
+export function useOptionalOverlayHost(): OverlayHostApi | null {
+  return useContext(OverlayHostContext)
+}
+
+/**
  * The ONLY mount allowed to render a physical `RecordPanelHost`. It renders the host when the
  * active session's top frame is owned by `owner`; otherwise it renders nothing. The shell slot
  * and a collection slot can coexist in the tree while exactly one physical host is in the DOM
