@@ -1854,3 +1854,24 @@ This is not permission for a whole-app big bang. The representative slice is the
 must prove E7 visual fidelity, corrected IA/IxD, cross-surface component reuse, desktop and phone
 behavior, and both the manager-efficiency and floor-member-obviousness fronts. Only after that gate
 is approved may the migration continue family-by-family. Separate throwaway mockups are not created.
+
+### OD-REDESIGN-74 — Shared page families and RecordViewer grammar over distinct domain models (owner 2026-07-20)
+
+Every route uses one of the shared page families; specialized modules may supply specialized content
+but do not invent their own page shell, typography, spacing, controls, or interaction language. The
+core detail-surface abstraction is a shared **RecordViewer grammar** inspired by the reusable-object
+principles in the Twenty and Notion references, not by copying their tables or making every record
+look identical.
+
+Task, Standard/SOP, Signal, Process, Project, financial records, and other first-class objects retain
+their **separate typed database models**, validation, permissions, lifecycle, and domain actions. Each
+object exposes a type-specific presentation contract describing its identity, ordered metadata,
+relationships, content sections, activity/history, and allowed actions. The shared RecordViewer
+renders those contracts with one panel/page host, field-display/edit primitives, relation treatment,
+save/error feedback, focus/history behavior, and E7 visual language.
+
+"Similar, not same" is binding: a Task may emphasize PIC, Supervisor, Team, due date, status, source,
+and checklist; a Standard/SOP may emphasize version, applicability, typed steps, evidence requirements,
+and linked Processes. Object-specific blocks and layouts plug into the shared anatomy. V3 must not
+collapse the domain into a universal records table or arbitrary JSON model, and it must not create a
+separate viewer/editor implementation for every object type.
