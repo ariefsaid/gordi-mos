@@ -376,10 +376,11 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
 | `AC-RPH-2` / Signal shell parity | `mos-app/src/pages/signals-archive-page.test.tsx` and host computed-style assertions in `mos-app/e2e/v3-overlay-host.spec.ts` | Signal data/content remains unchanged |
 | `AC-RPH-3` / Signal panel vs canonical page | `mos-app/src/pages/signals-archive-page.test.tsx`, `mos-app/src/components/signals/signal-page-mode.test.ts`, and the focused Playwright route test | Issue 6 still owns collection/adapter work |
 | `AC-RPH-5` / one active tenant | `mos-app/src/shell/overlay-host.test.tsx` with record → Deputy → record replacement and `data-overlay-host` count | Synthetic quick tenant only; no Inbox integration |
-| `AC-RPH-7` / asynchronous leave guard | `mos-app/src/shell/overlay-host.test.tsx`, `overlay-navigation.test.ts`, `record-panel-host.test.tsx`, and the router/focus matrix in Task 3A; clean, denied, allowed, repeated, and browser POP paths | Issue 4 owns only the domain-neutral seam and synthetic tenant proof; Issue 7 wires Deputy/Inbox dirty state and copy |
-| `AC-V3-002` / same panel grammar | host unit matrix for Task/Signal/Deputy entry metadata plus Task/Signal Playwright journeys | Café is revalidated by Issue 8 |
-| `AC-V3-003` / no overlapping side panels | controller unit and desktop/intermediate Playwright assertions that exactly one host/scrim exists | No nested physical drawer/editor |
-| `AC-V3-013` / consecutive manager triage | Task Playwright open → internal fake stack/back contract and real consecutive collection opens | Full RecordCollection filtering/presentation is Issue 6 |
+| Leave-guard host contract (`FR-V3-012`, `NFR-V3-001`) | `mos-app/src/shell/overlay-host.test.tsx` owns the synthetic allow/deny/repeat/approval and browser-POP goal matrix; `record-panel-host.test.tsx` owns focus retention/return | Issue 4 owns only the domain-neutral seam and synthetic tenant proof; Issue 7 wires Deputy/Inbox dirty state and copy |
+| `FR-V3-004` / collection-to-panel geometry | `mos-app/e2e/v3-overlay-host.spec.ts` desktop goal journey plus host computed-style assertions | This is an Issue 4 prerequisite contribution; the full `AC-V3-002` journey is deferred below |
+| `FR-V3-005` / canonical page promotion | `mos-app/src/pages/tasks-layout.test.tsx` and `mos-app/src/pages/signals-archive-page.test.tsx` route goal tests | Direct/refresh/new-tab behavior is tested here; Issue 5/6 own viewer/collection semantics |
+| `FR-V3-006` / one linked-record stack | `mos-app/src/shell/overlay-host.test.tsx` stack/back goal test and the clean browser Back/Forward route test | Consecutive-record host behavior contributes to `AC-V3-013`; filtering/grouping/presentation remains Issue 6 |
+| `FR-V3-012` / interaction-job selection | `record-panel-host.test.tsx`, `modal-shell.test.tsx`, `overlay-host.test.tsx`, and menu consumer goal tests | The generic host/modal/menu prerequisite is Issue 4; real Inbox/Deputy/Café journeys remain owned by later issues |
 | `I1`, `I2`, `I3`, `I4`, `I7` | `mos-app/src/shell/record-panel-host.test.tsx`, `mos-app/src/components/ui/modal-shell.test.tsx`, `mos-app/src/shell/overlay-host.test.tsx`, menu consumer tests, existing command e2e | `I9` Inbox bell remains Issue 7 |
 | `NFR-V3-001` | semantic role/name, keyboard, focus, modal boundary, contrast/token and 44px assertions | WCAG review is still required at the issue gate |
 | `NFR-V3-003` | `npm run test:coverage` with changed-file coverage ≥80% | No coverage inflation with snapshot-only tests |
@@ -388,7 +389,18 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
 | `NFR-V3-007` | static search and one-host DOM invariant; duplicate wrappers removed in the same issue | Existing typed content is ported, not duplicated |
 | `NFR-V3-009` | command audit and final diff; no Supabase/staging action | Local ephemeral e2e only when implementation begins |
 
-`AC-V3-006`, `AC-RPH-4`, and `AC-RPH-6` are explicitly **not claimed by Issue 4**. The final ledger must say that the generic quick-tenant seam is verified while the real Inbox bell/triage flow remains Issue 7.
+### Master-AC contribution and deferred ownership
+
+The following master acceptance criteria are deliberately not Issue 4 claims. Each row names the one future owner of the full master journey; Issue 4 may supply only the listed prerequisite evidence.
+
+| Master AC | Issue 4 contribution only | Full master-journey owner |
+|---|---|---|
+| `AC-V3-002` | Same host mechanism for Task/Signal plus a synthetic quick tenant; no Inbox or Café claim | Issue 12 final cross-surface acceptance, after Issue 7 proves Inbox and Issue 8 proves Café |
+| `AC-V3-003` | Generic one-host/stack/replace mechanism, synthetic replacement proof, and clean no-double rendered invariant; no real Deputy claim | Issue 7 real record → Deputy/record journey, with Issue 12 final regression |
+| `AC-V3-006` | No real Inbox journey; only the generic quick-tenant seam | Issue 7 |
+| `AC-V3-013` | Consecutive-record stack/back prerequisite and collection-context preservation; no filtering, grouping, presentation-switch, or full keyboard-triage claim | Issue 6, with Issue 12 final acceptance |
+
+`AC-RPH-4` and `AC-RPH-6` are also explicitly **not claimed by Issue 4**. The final ledger must say that the generic quick-tenant seam is verified while the real Inbox bell/triage flow remains Issue 7.
 
 ---
 
@@ -442,12 +454,12 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
   } from './overlay-navigation'
 
   describe('overlay navigation markers', () => {
-    it('AC-V3-003: rejects malformed router state instead of opening a host', () => {
+    it('host marker validation: rejects malformed router state instead of opening a host', () => {
       expect(readOverlayMarker({ __mosOverlay: { depth: -1 } })).toBeNull()
       expect(readOverlayMarker({ __mosOverlay: { depth: 0, mode: 'route' } })).toBeNull()
     })
 
-    it('AC-V3-003: preserves unrelated router state while adding a marker', () => {
+    it('host marker serialization: preserves unrelated router state while adding a marker', () => {
       expect(withOverlayMarker({ taskSurface: 'panel' }, {
         sessionId: 'session-1', depth: 0, entryKey: 'task:1', mode: 'route', historyIndex: 12,
       })).toEqual({
@@ -462,7 +474,7 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
       })
     })
 
-    it('AC-RPH-7: rejects a marker without a browser history index', () => {
+    it('host marker validation: rejects a marker without a browser history index', () => {
       expect(readOverlayMarker({
         __mosOverlay: {
           sessionId: 'session-1', depth: 0, entryKey: 'task:1', mode: 'route',
@@ -515,11 +527,11 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
   The red tests must cover:
 
   ```text
-  AC-V3-003: opening a Deputy root while a Task root is open leaves one data-overlay-host and one active frame.
-  AC-V3-003: push(record:2) creates two logical frames but one physical host; pushing record:1 again pops to record:1.
+  Host replacement: opening a synthetic Deputy root while a Task root is open leaves one data-overlay-host and one active frame.
+  FR-V3-006 host stack: push(record:2) creates two logical frames but one physical host; pushing record:1 again pops to record:1.
   I2: internal Back pops exactly one frame; root Close returns to the underlying route.
   I2: focus enters the first control, returns to the link that opened the frame, then returns to the original opener on root close.
-  AC-V3-003: a shell slot and a collection slot mounted together never render two physical hosts.
+  Host slot invariant: a shell slot and a collection slot mounted together never render two physical hosts.
   ```
 
   ```sh
@@ -576,7 +588,7 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
   }
 
   describe('leave guard transaction', () => {
-    it('AC-RPH-7: coalesces every repeated leave action into one pending guard', async () => {
+    it('leave-guard host race: coalesces every repeated leave action into one pending guard', async () => {
       const decision = deferred<OverlayLeaveDecision>()
       const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
       const dirtyEntry: OverlayEntry = {
@@ -637,7 +649,7 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
   import { RouterProvider, createMemoryRouter } from 'react-router-dom'
   import { readOverlayMarker } from './overlay-navigation'
 
-  it('AC-RPH-7/I2: restores a denied browser Back marker and URL', async () => {
+  it('FR-V3-012/I2: restores a denied browser Back marker and URL', async () => {
     const historyDriver = {
       index: vi.fn().mockReturnValueOnce(12).mockReturnValue(11),
       go: vi.fn(),
@@ -839,7 +851,7 @@ The snippet intentionally shows no host-level `isDirty` field and no Deputy/Inbo
 
 **Files:** create `mos-app/e2e/v3-overlay-host.spec.ts`; use existing `e2e/helpers/login.ts`, `e2e/helpers/tasks.ts`, and `e2e/fixtures/users.ts`. Do not add an Inbox journey to this file.
 
-- [ ] **Step 1 (5 min):** Add the 1280×900 desktop journey tagged `AC-V3-003`/`AC-V3-013`: log in as `VIEWER`, create/open a Task from `/work/tasks`, assert the table and exactly one `data-overlay-host` remain visible, assert the panel is on the right and its width divided by the available content width is between `0.40` and `0.45`, then assert `Escape` closes to the collection URL and focus returns to the row trigger.
+- [ ] **Step 1 (5 min):** Add the 1280×900 desktop journey tagged `FR-V3-004`/`NFR-V3-001`: log in as `VIEWER`, create/open a Task from `/work/tasks`, assert the table and exactly one `data-overlay-host` remain visible, assert the panel is on the right and its width divided by the available content width is between `0.40` and `0.45`, then assert `Escape` closes to the collection URL and focus returns to the row trigger. This is the host prerequisite only; do not label it as a full master acceptance journey.
 
   ```ts
   const geometry = await page.locator('[data-overlay-host="true"]').evaluate((node) => {
@@ -883,7 +895,7 @@ Visually inspect the three generated PNGs in the desktop app at their native wid
   npm run test:coverage
   ```
 
-  Confirm changed-line coverage is ≥80% and that the test titles contain `AC-RPH-`, `AC-V3-`, `I1`, `I2`, `I3`, or `I4` for the owned behavior. Do not count Inbox ACs as Issue 4 evidence.
+  Confirm changed-line coverage is ≥80% and that the test titles contain an owned `AC-RPH-` identifier, a descriptive host-contract name, an applicable `FR-V3-`/`NFR-V3-` mapping, or `I1`, `I2`, `I3`, or `I4`. Master `AC-V3-002`, `AC-V3-003`, and `AC-V3-013` appear only in the contribution/deferred ownership language, never as Issue 4 granular test tags.
 
 - [ ] **Step 2 (2 min):** Run typecheck, lint, and build.
 
@@ -906,6 +918,7 @@ Visually inspect the three generated PNGs in the desktop app at their native wid
   git diff --name-only
   rg -n "data-overlay-host|RecordPanelHost|ModalShell|drawer-modal-root|AssistantPanel" mos-app/src mos-app/e2e
   ! rg -n -U 'OverlayHostProvider\(\{\s*\n\s*children,\s*\n\s*children,' docs/plans/2026-07-20-v3-overlay-host.md
+  ! rg -n "it\(['\"]AC-V3-(002|003|013)|tagged .*AC-V3-(002|003|013)" docs/plans/2026-07-20-v3-overlay-host.md
   git status --short
   ```
 
@@ -928,7 +941,7 @@ Visually inspect the three generated PNGs in the desktop app at their native wid
 
 - [ ] **Step 2 (3 min):** Replace the current V3 banner in `docs/backlog.md` with a concise pointer to the Issue 4 plan and ledger, preserving the master sequence and explicitly stating that real Inbox integration remains Issue 7. The banner must include the verified host/focus/URL/responsive scope, the exact next action “start V3 Issue 5: RecordViewer contract, field primitives, and Task adapter,” and the owner gate status.
 
-- [ ] **Step 3 (5 min):** Append an `## Issue 4 — Shared overlay/panel/navigation host` section to `docs/reviews/v3-redesign.md` containing: authority read; exact changed source/test paths; AC/NFR ownership table; exact commands and exit codes; rendered widths and no-overflow/touch/focus results; verified completion; exclusions for Issues 5–9; and the exact next Issue 5 action. State explicitly that `AC-V3-006`, `AC-RPH-4`, and `AC-RPH-6` remain open for Issue 7.
+- [ ] **Step 3 (5 min):** Append an `## Issue 4 — Shared overlay/panel/navigation host` section to `docs/reviews/v3-redesign.md` containing: authority read; exact changed source/test paths; contribution/deferred ownership table; AC/NFR ownership table; exact commands and exit codes; rendered widths and no-overflow/touch/focus results; verified completion; exclusions for Issues 5–9; and the exact next Issue 5 action. State explicitly that the full `AC-V3-002`/`AC-V3-003`/`AC-V3-013` journeys are not Issue 4 claims, that their full owners are the rows above, and that `AC-V3-006`, `AC-RPH-4`, and `AC-RPH-6` remain open for Issue 7.
 
 - [ ] **Step 4 (2 min):** Mechanically verify that only the three canonical state surfaces were changed by this checkpoint and that no new state/handoff authority exists.
 
@@ -1001,4 +1014,5 @@ Visually inspect the three generated PNGs in the desktop app at their native wid
 - [ ] AC/NFR ownership, 80% coverage, typecheck/lint/build, accessibility, responsive, rendered, no-overflow, and 44px checks are explicit.
 - [ ] The leave guard is one domain-neutral async seam: all listed transitions use typed intents, pending requests coalesce, denied POP restores URL/marker, and confirmed cleanup bypasses exactly once without host-owned dirty state or copy.
 - [ ] The `OverlayHostProvider` snippet destructures `children` exactly once; the Task 10 `rg -U` duplicate-property check passes.
+- [ ] Master `AC-V3-002`, `AC-V3-003`, and `AC-V3-013` occur only in explicit contribution/deferred ownership language; no Issue 4 `it()`/`test()`/`tagged` line claims them, and each full owner is named once.
 - [ ] The last implementation task updates only `docs/agent-context.md`, `docs/backlog.md`, and `docs/reviews/v3-redesign.md`, separates verified completion from remaining work, and names Issue 5 plus its exact next action; Issue 7’s domain dirty-state/copy work remains explicit.
