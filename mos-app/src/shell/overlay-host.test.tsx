@@ -170,7 +170,7 @@ describe('overlay host — leave guard transaction', () => {
 
   it('leave-guard allow: an allowed close commits the transition and re-guards a later leave', async () => {
     const guardCalls: string[] = []
-    let decision = deferred<OverlayLeaveDecision>()
+    const decision = deferred<OverlayLeaveDecision>()
     const leaveGuard: OverlayLeaveGuard = vi.fn((intent) => {
       guardCalls.push(intent.kind)
       return decision.promise
@@ -231,5 +231,51 @@ describe('overlay host — leave guard transaction', () => {
     const result = await act(() => getApi().close('explicit-close'))
     expect(result).toEqual({ status: 'committed' })
     expect(getApi().session).toBeNull()
+  })
+})
+
+describe('overlay host — clean transitions (Task 3 step 4 replacement + stack)', () => {
+  it('replaceRoot swaps the current tenant in place, clearing frames and keeping one host', async () => {
+    const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    await act(() => getApi().push(makeEntry({ key: 'record:2' })))
+    const result = await act(() => getApi().replaceRoot(makeEntry({ key: 'deputy:1', tenant: 'deputy' })))
+    expect(result).toEqual({ status: 'committed' })
+    expect(getApi().session?.frames).toHaveLength(1)
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('deputy:1')
+    expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(1)
+  })
+
+  it('replaceCurrent swaps only the top frame and preserves the stack below it', async () => {
+    const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    await act(() => getApi().push(makeEntry({ key: 'record:2' })))
+    await act(() => getApi().replaceCurrent(makeEntry({ key: 'record:3' })))
+    expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual(['record:1', 'record:3'])
+  })
+
+  it('openPage leaves the panel host (route seam performs the navigation)', async () => {
+    const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
+    await act(() =>
+      getApi().openRoot(makeEntry({ key: 'record:1', pageTo: '/work/tasks/1' }), 'route'),
+    )
+    const result = await act(() => getApi().openPage('/work/tasks/1'))
+    expect(result).toEqual({ status: 'committed' })
+    expect(getApi().session).toBeNull()
+  })
+
+  it('I2: internal Back at the root frame closes the session', async () => {
+    const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    const result = await act(() => getApi().back())
+    expect(result).toEqual({ status: 'committed' })
+    expect(getApi().session).toBeNull()
+  })
+
+  it('replaceRoot with no active session opens a fresh ephemeral root', async () => {
+    const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
+    await act(() => getApi().replaceRoot(makeEntry({ key: 'quick:1', tenant: 'quick' })))
+    expect(getApi().session?.mode).toBe('ephemeral')
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('quick:1')
   })
 })
