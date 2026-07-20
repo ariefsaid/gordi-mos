@@ -1949,3 +1949,22 @@ At narrow widths the panel becomes full-screen with ordinary Back behavior. A ne
 popup is rejected: it hides collection context without gaining the URL/history stability or working
 space of a real page. The panel-to-page transition is explicit and user-controlled, never an automatic
 surprise caused by editing a particular field.
+
+### OD-REDESIGN-79 — Shared RecordCollection engine; object-specific presentations (owner 2026-07-20)
+
+V3 pairs RecordViewer with one shared **RecordCollection** system. Search, filtering, sorting,
+grouping, saved-view state, selection, loading/error/empty behavior, URL persistence, and record
+opening belong to the collection framework rather than to each page implementation. A saved view
+stores presentation, visible fields, filters, sort, grouping, and relevant layout—not another copy
+of the records.
+
+Feed, Table, Triage Queue, Board, Calendar, and Library are presentations over that shared collection
+machinery. Signals may use Feed or Table; Inbox may use Queue or Table; Tasks may use Table, Board, or
+Calendar; Standards/SOPs may use Library or Table. Not every object must support every presentation,
+field, or grouping. Each object contract declares the meaningful capabilities and presentation adapters.
+
+Shared capability does not mean every control is permanently visible. Default views remain simple and
+job-focused; role-adaptive disclosure exposes denser view configuration to managers without forcing a
+floor member to configure a database before working. A record selected from any presentation opens the
+same canonical RecordViewer, and operational modules compose filtered collections rather than building
+parallel record lists.
