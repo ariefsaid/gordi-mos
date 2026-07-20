@@ -123,3 +123,10 @@ test('AC-V3-014: inventory renderer and CLI remain deterministic', () => {
   assert.equal(main(['--write'], repoRoot), 0)
   assert.equal(main(['--check'], repoRoot), 0)
 })
+
+test('AC-V3-014: generated inventory rejects Storybook package metadata drift', () => {
+  const inventory = buildInventory(repoRoot)
+  const drifted = structuredClone(inventory)
+  drifted.storybookMatrix.packageVersions['@storybook/test-runner'].declared = '0.25.0'
+  assert.ok(validateInventory(drifted, repoRoot).includes('storybook matrix package versions are stale'))
+})

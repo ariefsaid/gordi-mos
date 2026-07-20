@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildStorybookMatrix } from './v3-storybook-matrix.mjs'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '..')
@@ -544,6 +545,7 @@ export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
   const routes = collectRoutes(root)
   const sharedComponents = cloneComponents()
   const deliverySequence = extractDeliveryDecomposition(readText(root, SPEC_PATH))
+  const storybook = buildStorybookMatrix(root)
   return {
     schemaVersion: 1,
     sourceCommit: null,
@@ -559,6 +561,22 @@ export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
     cssFamilies: cssFamilyRows,
     canonicalJobs: [...CANONICAL_JOBS],
     literals: collectLiteralExamples(root, cssFamilyRows),
+    storybookMatrix: {
+      artifactJson: 'docs/reference/v3-storybook-matrix.json',
+      artifactMarkdown: 'docs/reference/v3-storybook-matrix.md',
+      packageVersions: storybook.packageVersions,
+      storyCount: storybook.storyCount,
+      stateEntryCount: storybook.stateEntryCount,
+      responsiveEntryCount: storybook.responsiveEntryCount,
+      canonicalJobCount: storybook.canonicalJobCount,
+      viewports: storybook.viewports,
+      applicationMigration: storybook.scope.applicationMigration,
+      representativeAcceptance: storybook.scope.representativeAcceptance,
+      futureIssue4Host: storybook.scope.futureIssue4Host,
+      a11y: storybook.a11y,
+      serviceBoundary: storybook.serviceBoundary,
+      debts: storybook.debts,
+    },
     summary: {
       routeCount: routes.length,
       pageRouteCount: routes.filter((route) => route.kind === 'page').length,
@@ -653,6 +671,19 @@ export function validateInventory(inventory, repoRoot = DEFAULT_REPO_ROOT) {
   const deferredIssues = Array.isArray(inventory.deferredToIssues) ? inventory.deferredToIssues : []
   const expectedDeferredIssues = expectedDeliverySequence.slice(1)
   if (JSON.stringify(deferredIssues) !== JSON.stringify(expectedDeferredIssues)) errors.push('deferred issue ownership does not match master V3 spec section 12')
+  const storybook = buildStorybookMatrix(root)
+  const recordedStorybook = inventory.storybookMatrix
+  if (!recordedStorybook) errors.push('storybook matrix summary is missing')
+  else {
+    for (const field of ['storyCount', 'stateEntryCount', 'responsiveEntryCount', 'canonicalJobCount']) {
+      if (recordedStorybook[field] !== storybook[field]) errors.push(`storybook matrix ${field} is stale`)
+    }
+    if (JSON.stringify(recordedStorybook.packageVersions) !== JSON.stringify(storybook.packageVersions)) errors.push('storybook matrix package versions are stale')
+    if (recordedStorybook.applicationMigration !== false) errors.push('storybook matrix claims application migration')
+    if (recordedStorybook.representativeAcceptance !== false) errors.push('storybook matrix claims representative acceptance')
+    if (recordedStorybook.futureIssue4Host !== false) errors.push('storybook matrix claims future Issue 4 host behavior')
+    for (const artifact of [recordedStorybook.artifactJson, recordedStorybook.artifactMarkdown]) if (!fileExists(root, artifact)) errors.push(`storybook matrix artifact missing: ${artifact}`)
+  }
   return uniqueSorted(errors)
 }
 
@@ -683,6 +714,18 @@ export function renderInventoryMarkdown(inventory) {
     `| Jobs with raw/duplicate consumers | ${inventory.summary.duplicateJobCount} |`,
     '',
     'Canonical collection and opening jobs: **search**, **filter**, **sort**, **group**, **saved views**, **wide right panel**, **full page**, and **phone full-screen**.',
+    '',
+    '## Issue 2 Storybook matrix',
+    '',
+    'The Storybook workbench is the in-code component/state/responsive proof for Issue 2. It does not claim application migration or Issue 9 representative rendered acceptance.',
+    '',
+    `- Matrix JSON: [\`${inventory.storybookMatrix.artifactJson}\`](v3-storybook-matrix.json)`,
+    `- Matrix Markdown: [\`${inventory.storybookMatrix.artifactMarkdown}\`](v3-storybook-matrix.md)`,
+    `- Stack: Storybook ${inventory.storybookMatrix.packageVersions.storybook.resolved} / React-Vite ${inventory.storybookMatrix.packageVersions['@storybook/react-vite'].resolved} / addon-a11y ${inventory.storybookMatrix.packageVersions['@storybook/addon-a11y'].resolved} / external runner ${inventory.storybookMatrix.packageVersions['@storybook/test-runner'].resolved}`,
+    `- Totals: ${inventory.storybookMatrix.storyCount} stories, ${inventory.storybookMatrix.stateEntryCount} state entries, ${inventory.storybookMatrix.responsiveEntryCount} responsive entries, ${inventory.storybookMatrix.canonicalJobCount} canonical component jobs`,
+    `- Viewports: ${renderList(inventory.storybookMatrix.viewports)}; a11y test mode: ${inventory.storybookMatrix.a11y.testMode ? 'error' : 'missing'}`,
+    `- Scope claims: migration ${inventory.storybookMatrix.applicationMigration ? 'yes' : 'no'}; representative acceptance ${inventory.storybookMatrix.representativeAcceptance ? 'yes' : 'no'}; future Issue 4 host ${inventory.storybookMatrix.futureIssue4Host ? 'yes' : 'no'}`,
+    `- Later-owner gaps: ${renderList(inventory.storybookMatrix.debts)}`,
     '',
     '## Route inventory',
     '',

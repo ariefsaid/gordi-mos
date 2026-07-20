@@ -25,6 +25,16 @@ const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'Done': 'green',
 }
 
+// The design-kit Tag palette is intentionally soft, but its light text tokens for
+// status tags can miss the 4.5:1 small-text threshold. Reuse the ratified E7
+// darkened semantic text roles while preserving each Tag background/hue.
+const STATUS_TEXT_COLOR: Record<TaskStatus, string> = {
+  'In Progress': 'var(--status-open-text)',
+  'Blocked': 'var(--status-lost-text)',
+  'Open': 'var(--warning-foreground)',
+  'Done': 'var(--status-won-text)',
+}
+
 export function StatusPill({ status, label }: StatusPillProps) {
   const t = useT()
   const localizedStatus = status === 'Open'
@@ -42,6 +52,7 @@ export function StatusPill({ status, label }: StatusPillProps) {
       color={STATUS_COLOR[status]}
       weight="medium"
       className="status-pill"
+      style={{ color: STATUS_TEXT_COLOR[status] }}
       Icon={<span className="status-dot" aria-hidden="true" />}
     >
       {label ?? localizedStatus}

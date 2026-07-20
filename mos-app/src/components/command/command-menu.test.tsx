@@ -6,7 +6,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
-import { searchTasksByTitle } from '@/lib/db/tasks'
+import { searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
 import { CommandMenu } from './command-menu'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 
@@ -63,8 +63,28 @@ describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
   it('AC-K07: Esc closes the menu', () => {
     const onClose = vi.fn()
     renderMenu(onClose)
-    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' })
+    const input = screen.getByRole('combobox')
+    fireEvent.keyDown(input, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('AC-K07: Tab stays in the combobox and Arrow navigation scrolls the active option without moving focus', () => {
+    renderMenu()
+    const input = screen.getByRole('combobox')
+    const options = screen.getAllByRole('option')
+    const nextOption = options[1]
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(nextOption, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(document.activeElement).toBe(input)
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(input)
+    expect(input).toHaveAttribute('aria-activedescendant', nextOption.id)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    expect(screen.getByRole('listbox')).toHaveAttribute('tabindex', '-1')
   })
 
   it('AC-K07: focus returns to the invoking trigger on unmount', () => {
@@ -90,8 +110,15 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard', () => {
     const input = screen.getByRole('combobox')
     expect(input).toHaveAttribute('aria-expanded', 'true')
     expect(input).toHaveAttribute('aria-controls', 'cm-list')
-    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'cm-list')
-    expect(within(screen.getByRole('listbox')).getAllByRole('option').length).toBeGreaterThan(0)
+    const listbox = screen.getByRole('listbox')
+    expect(listbox).toHaveAttribute('id', 'cm-list')
+    const groups = within(listbox).getAllByRole('group')
+    expect(groups.length).toBeGreaterThan(0)
+    expect(groups.every((group) => within(group).getAllByRole('option').length > 0)).toBe(true)
+    expect(within(listbox).getAllByRole('option').every((option) => {
+      return option.querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])').length === 0
+    })).toBe(true)
+    expect(document.activeElement).toBe(input)
   })
 
   it('AC-K08: ArrowDown moves aria-activedescendant; exactly one option aria-selected', () => {
@@ -105,6 +132,7 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard', () => {
     const selected = screen.getAllByRole('option').filter((o) => o.getAttribute('aria-selected') === 'true')
     expect(selected).toHaveLength(1)
     expect(selected[0].id).toBe(after)
+    expect(document.activeElement).toBe(input)
   })
 
   it('AC-K08: Home/End jump to first/last option', () => {
@@ -307,6 +335,43 @@ describe('AC-K05: activating a record navigates to /work/tasks/:id', () => {
     await screen.findByRole('option', { name: /Finalise Q3 forecast/i })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/t9')
+    expect(document.activeElement).toBe(input)
+  })
+})
+
+describe('AC-K08: listbox ownership remains valid through search states', () => {
+  it.each([
+    ['en', 'Searching records'],
+    ['id', 'Mencari rekaman'],
+  ] as const)('localizes the loading option for %s without changing combobox ownership', async (locale, loadingLabel) => {
+    let resolveSearch!: (rows: TaskTitleRef[]) => void
+    mockSearch.mockReturnValue(new Promise((resolve) => { resolveSearch = resolve }))
+    renderMenu(vi.fn(), locale)
+    const input = screen.getByRole('combobox')
+    fireEvent.change(input, { target: { value: 'forecast' } })
+
+    const loading = await screen.findByRole('option', { name: loadingLabel })
+    const listbox = screen.getByRole('listbox')
+    expect(input).toHaveAttribute('aria-controls', 'cm-list')
+    expect(listbox).toHaveAttribute('id', 'cm-list')
+    expect(loading).toHaveAttribute('aria-disabled', 'true')
+    expect(document.activeElement).toBe(input)
+    resolveSearch([])
+  })
+
+  it('keeps zero results inside the controlled listbox as a non-activatable option', async () => {
+    mockSearch.mockResolvedValue([])
+    renderMenu()
+    const input = screen.getByRole('combobox')
+    fireEvent.change(input, { target: { value: 'forecast' } })
+
+    const empty = await screen.findByRole('option', { name: 'No matches for “forecast”.' })
+    const listbox = screen.getByRole('listbox')
+    expect(input).toHaveAttribute('aria-controls', 'cm-list')
+    expect(listbox).toHaveAttribute('id', 'cm-list')
+    expect(empty).toHaveAttribute('aria-disabled', 'true')
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+    expect(document.activeElement).toBe(input)
   })
 })
 
@@ -317,6 +382,9 @@ describe('AC-K06: scoped search failure', () => {
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'forecast' } })
     await waitFor(() => expect(screen.getByText("Couldn't search records.")).toBeInTheDocument())
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'cm-list')
+    expect(screen.getByRole('option', { name: "Couldn't search records." })).toHaveAttribute('aria-disabled', 'true')
+    expect(document.activeElement).toBe(screen.getByRole('combobox'))
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'home' } })
     const nav = await screen.findByRole('option', { name: /^Home$/i })
     fireEvent.click(nav)

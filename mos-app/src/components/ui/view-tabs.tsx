@@ -11,7 +11,7 @@
 // no-op) — the Table/Board/Calendar "soon" placeholders. `count` renders the small
 // tabular pill (the dashboard's "N rows"). The composition owns active-state + URL
 // persistence; this primitive just reports onChange.
-import type { ReactNode, KeyboardEvent } from 'react'
+import { useRef, type ReactNode, type KeyboardEvent } from 'react'
 import './view-tabs.css'
 
 export interface ViewTab {
@@ -45,6 +45,7 @@ export interface ViewTabsProps {
 }
 
 export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel, mode = 'tablist' }: ViewTabsProps) {
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   // Keyboard nav roves across ENABLED tabs only — soon/disabled stubs are skipped.
   const enabledOrder = tabs
     .map((tab, index) => ({ tab, index }))
@@ -66,7 +67,12 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel, mode = '
     }
     if (nextPos !== null) {
       e.preventDefault()
-      onChange(tabs[enabledOrder[nextPos]].id)
+      const nextIndex = enabledOrder[nextPos]
+      onChange(tabs[nextIndex].id)
+      // The active tab owns tabindex=0, so arrow navigation must move DOM focus with
+      // the selection. This is the roving-tabindex contract (DESIGN.md / interaction-contract I7),
+      // not merely a visual state update.
+      tabRefs.current[nextIndex]?.focus()
       return
     }
     // Space selects the currently-focused (enabled) option — mainly meaningful for the
@@ -98,6 +104,7 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel, mode = '
           .join(' ')
         return (
           <button
+            ref={(element) => { tabRefs.current[index] = element }}
             key={tab.id}
             type="button"
             role={itemRole}
