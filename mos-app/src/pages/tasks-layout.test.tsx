@@ -561,6 +561,41 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
   })
 
+  // V3 Issue 3, Task 9/10 — the direct/full Task page is the Focused-record representative.
+  it('Focused record family: a direct Task page mounts inside the focused-record frame with one h1 (shell) + one h2 (record identity)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open me' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    // The record identity is now an h2 (the PageFamilyFrame owns the shell h1).
+    await screen.findByRole('heading', { level: 2, name: 'Open me' })
+
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('focused-record')
+
+    // Exactly one shell h1 and one record-identity h2, both the resolved title.
+    expect(screen.getAllByRole('heading', { level: 1, name: 'Open me' })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { level: 2, name: 'Open me' })).toHaveLength(1)
+
+    // The focused-record job sentence renders; the internal family name never shows.
+    expect(screen.getByText('Review and update this task.')).toBeInTheDocument()
+    expect(screen.queryByText('Focused record')).toBeNull()
+
+    // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
+    expect(document.querySelector('.rd-id-sub')?.textContent).toContain('Kitchen')
+    expect(document.querySelector('tbody tr.task-row')).toBeNull()
+    expect(document.querySelector('.record-2col')).toBeTruthy()
+  })
+
+  it('Focused record family: the shell shows the loading state before the title resolves', () => {
+    mockGetTask.mockReturnValue(new Promise(() => {}))
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('focused-record')
+    expect(main?.getAttribute('data-page-state')).toBe('loading')
+    expect(main?.getAttribute('aria-busy')).toBe('true')
+  })
+
   it('OD-63: ?view= is preserved on the standalone page (Rule 4)', async () => {
     // The record fails to load → the not-found back link must carry the preserved
     // ?view= search (TaskSurface builds it from location.search), so a direct-open

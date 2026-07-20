@@ -21,6 +21,10 @@ export type RecordDetailsPanelProps = {
   // pinned header already owns the identity row + Status trigger, so the compact
   // panel suppresses both to avoid duplicate controls.
   compact?: boolean
+  // Heading level for the record-identity name. Defaults to 1 (the identity is the
+  // page h1). When a shell frame (PageFamilyFrame) owns the h1 — the V3 focused-record
+  // full page — the host passes 2 so the identity nests as an h2 under the shell title.
+  identityHeadingLevel?: 1 | 2
   // D4: objective + work-line inline edit
   objectives?: ObjectiveRow[]
   workLines?: WorkLineRow[]
@@ -38,6 +42,7 @@ export type RecordDetailsPanelProps = {
 // anatomy for the drawer width.
 export function RecordDetailsPanel({
   task, buName, people, editable, checklistCount, compact,
+  identityHeadingLevel = 1,
   objectives = [], workLines = [],
   onStatusChange, onPicChange, onMarkComplete,
   onWorkLineChange, onObjectiveChange,
@@ -59,12 +64,15 @@ export function RecordDetailsPanel({
       aria-label={t('tasks.detailsTitle')}
       data-testid="record-details"
     >
-      {/* Identity row — suppressed in compact (the drawer header owns it) */}
+      {/* Identity row — suppressed in compact (the drawer header owns it). The
+          heading level is h1 by default, h2 when a shell frame owns the page h1. */}
       {!compact && (
         <div className="rd-identity">
           <span className="rd-id-av" aria-hidden="true">{initials(task.title) || '·'}</span>
           <div className="rd-id-text">
-            <h1 className="rd-id-name" title={task.title}>{task.title}</h1>
+            {identityHeadingLevel === 2
+              ? <h2 className="rd-id-name" title={task.title}>{task.title}</h2>
+              : <h1 className="rd-id-name" title={task.title}>{task.title}</h1>}
             <p className="rd-id-sub" title={`${buName} · ${code}`}>{buName} · {code}</p>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch, useLocation, useNavigationType } from 'react-router-dom'
 import { useTasksSavedView } from '@/components/tasks/use-tasks-saved-view'
 import { PageFrame } from '@/shell/page-frame'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 import { useExpandPref } from '@/components/tasks/use-expand-pref'
@@ -61,11 +62,7 @@ export function TasksLayout() {
   // the e2e proves the real-browser direct-open branch). All hooks run above so this
   // branch is a plain conditional return, not a conditional hook.
   if (isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && taskId) {
-    return (
-      <PageFrame variant="data">
-        <TaskRecordPage taskId={taskId} />
-      </PageFrame>
-    )
+    return <TaskRecordPage taskId={taskId} />
   }
 
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
@@ -101,13 +98,24 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   // Empty string before the title resolves keeps the crumb at "Work · Tasks";
   // once resolved it pushes the task title; on unmount the hook clears it.
   useSetBreadcrumbTitle(title ?? '')
+  // V3 focused-record family: the PageFamilyFrame owns the shell <main> + h1
+  // (the resolved title, or "Task" while unresolved → loading state). The typed
+  // TaskSurface body renders the record identity as an h2 beneath it.
   return (
-    <TaskSurface
-      taskId={taskId}
-      mode="view"
-      width="full"
-      presentation="page"
-      onTitleResolved={setTitle}
-    />
+    <PageFamilyFrame
+      family="focused-record"
+      title={title ?? 'Task'}
+      jobSentence="Review and update this task."
+      state={title ? 'default' : 'loading'}
+    >
+      <TaskSurface
+        taskId={taskId}
+        mode="view"
+        width="full"
+        presentation="page"
+        onTitleResolved={setTitle}
+        identityHeadingLevel={2}
+      />
+    </PageFamilyFrame>
   )
 }
