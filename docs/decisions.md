@@ -1841,3 +1841,16 @@ an IA/IxD correction that introduces a different visual language is a regression
 Rule 11's reuse requirement means one canonical implementation per component job. It does not make
 an old or visually non-conformant implementation permanent: V3 may replace a canonical primitive
 once, then must migrate every consumer rather than creating another parallel component family.
+
+### OD-REDESIGN-73 — V3 iterates directly in the app; no standalone mockup generation (owner 2026-07-20)
+
+V3 preserves the earlier decision to stop repeated standalone mockup rounds. Because E7's visual
+language is already selected, V3 works directly in `mos-app` on the isolated `v3-redesign` branch.
+The first implementation milestone is a reversible representative slice covering the shared visual
+and interaction foundations plus Home, Tasks, Inbox, Café, and a canonical record panel. The owner
+reviews that cohesive slice before the design is migrated across the remaining application.
+
+This is not permission for a whole-app big bang. The representative slice is the design gate: it
+must prove E7 visual fidelity, corrected IA/IxD, cross-surface component reuse, desktop and phone
+behavior, and both the manager-efficiency and floor-member-obviousness fronts. Only after that gate
+is approved may the migration continue family-by-family. Separate throwaway mockups are not created.
