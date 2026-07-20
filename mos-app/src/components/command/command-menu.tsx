@@ -215,7 +215,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     switch (e.key) {
       case 'Escape': e.preventDefault(); onClose(); break
-      case 'ArrowDown': e.preventDefault(); setActive((i) => Math.min(i + 1, flatItems.length - 1)); break
+      case 'ArrowDown': e.preventDefault(); setActive((i) => flatItems.length ? Math.max(0, Math.min(i + 1, flatItems.length - 1)) : 0); break
       case 'ArrowUp': e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); break
       case 'Home': e.preventDefault(); setActive(0); break
       case 'End': e.preventDefault(); setActive(Math.max(flatItems.length - 1, 0)); break
