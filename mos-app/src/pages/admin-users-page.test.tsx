@@ -235,3 +235,45 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     expect(screen.getByTestId('page-head')).toBeInTheDocument()
   })
 })
+
+// V3 Issue 3, Task 11/12 — People is the Management page-family representative.
+describe('AdminUsersPage — V3 Management frame', () => {
+  it('renders People inside the Management page family with one main, one h1, and the People job sentence', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+
+    // Exactly one <main> landmark, carrying the management family marker.
+    const mains = document.querySelectorAll('main')
+    expect(mains).toHaveLength(1)
+    const main = mains[0]
+    expect(main.getAttribute('data-page-family')).toBe('management')
+
+    // Exactly one h1 — the resolved People title (never the internal family name).
+    const h1s = screen.getAllByRole('heading', { level: 1 })
+    expect(h1s).toHaveLength(1)
+    expect(h1s[0]).toHaveTextContent('People')
+
+    // The People job sentence is visible; the internal family name never renders as chrome.
+    expect(screen.getByText('Manage who can sign in and what they can do.')).toBeInTheDocument()
+    expect(screen.queryByText('Management')).toBeNull()
+  })
+
+  it('marks the loading state on the Management frame while people resolve', () => {
+    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('management')
+    expect(main?.getAttribute('data-page-state')).toBe('loading')
+    expect(main?.getAttribute('aria-busy')).toBe('true')
+  })
+
+  it('marks the error state on the Management frame and keeps retry', async () => {
+    mockListAdminPeople.mockRejectedValue(new Error('rls denied'))
+    renderPage()
+    await screen.findByText(/couldn't load people/i)
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-state')).toBe('error')
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  })
+})
