@@ -1910,3 +1910,23 @@ This decision is **PROVISIONAL**, reflecting the owner's "for now." The first re
 slice must drive real Home → Work → Inbox → Café journeys for both a manager and floor member. The
 owner ratifies or adjusts the top-level IA after seeing those journeys in the app; implementation may
 not present this provisional structure as final approval.
+
+### OD-REDESIGN-77 — Structured metadata plus JSONB-authored content; operational truth stays normalized (owner 2026-07-20)
+
+RecordViewer surfaces have two complementary layers. **Structured metadata** remains in typed columns,
+relationships, and domain tables: ownership, Team, due date, status, version, parentage, permissions,
+and other queryable business state. **Authored content** is a versioned, schema-validated JSONB block
+document rendered through the shared structured-content editor: paragraphs, headings, bullet and
+numbered lists, links, callouts, simple content checklists, references, and other contract-approved
+content components.
+
+JSONB owns authored composition and layout; normalized tables own operational truth. A content-only
+checklist may be a JSONB block. A Task checklist whose completion affects operations remains Task
+checklist records. A Standard/SOP step requiring measurement, evidence, validation, sign-off, or audit
+remains a typed domain record. The document may embed those operational objects through typed reference
+blocks, but it never duplicates their authoritative state in JSONB.
+
+The JSONB document has an explicit schema version, stable block identifiers, an allow-listed block
+union, validation on every write, and a migration path between document versions. It is never stored
+as an arbitrary HTML or Markdown blob. The schema/storage design is cross-cutting and must receive a
+dedicated ADR plus RLS/security review before implementation.
