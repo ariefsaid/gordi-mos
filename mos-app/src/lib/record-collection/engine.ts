@@ -26,6 +26,15 @@ export interface RecordCollectionController<
   TPresentation extends string,
 > {
   readonly state: RecordCollectionState<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>
+  readonly descriptor: RecordCollectionDescriptor<
+    TRecord,
+    TId,
+    TQuery,
+    TContext,
+    TGroup,
+    TAction,
+    TPresentation
+  >
   subscribe(listener: () => void): () => void
   setQuery(next: TQuery): void
   switchPresentation(next: TPresentation): PresentationSwitchResult<TQuery, TPresentation>
@@ -33,7 +42,12 @@ export interface RecordCollectionController<
   selectVisible(ids: readonly TId[]): void
   clearSelection(): void
   toggleGroup(groupId: string): void
-  openRecord(record: TRecord, source: CollectionOpenSource<TQuery, TPresentation>): void
+  /**
+   * Bind a source builder (the React hook supplies the live pathname/search) so the presentation
+   * can call `openRecord(record)` without threading router state through fixed surface props.
+   */
+  setSourceBuilder(builder: () => CollectionOpenSource<TQuery, TPresentation>): void
+  openRecord(record: TRecord, source?: CollectionOpenSource<TQuery, TPresentation>): void
   runBulkAction(action: TAction): Promise<void>
   retry(): void
   loadSavedViews(): Promise<void>
@@ -103,6 +117,7 @@ export function createRecordCollectionController<
   const listeners = new Set<() => void>()
   let loadToken = 0
   let openCount = 0
+  let sourceBuilder: (() => CollectionOpenSource<TQuery, TPresentation>) | null = null
 
   const emit = () => {
     for (const l of listeners) l()
@@ -167,6 +182,7 @@ export function createRecordCollectionController<
     get state() {
       return state
     },
+    descriptor,
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -211,8 +227,13 @@ export function createRecordCollectionController<
       else next.add(groupId)
       set({ collapsedGroupIds: next })
     },
+    setSourceBuilder(builder) {
+      sourceBuilder = builder
+    },
     openRecord(record, source) {
-      const entry = descriptor.viewer.buildPanelEntry(record, source)
+      const resolvedSource = source ?? sourceBuilder?.()
+      if (!resolvedSource) return
+      const entry = descriptor.viewer.buildPanelEntry(record, resolvedSource)
       const host = descriptor.host
       if (!host) return
       if (openCount === 0) void host.openRoot(entry, 'route')
