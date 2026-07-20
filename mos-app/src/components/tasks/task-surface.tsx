@@ -388,7 +388,12 @@ function ViewSurface({
   if (notFound || !localTask) {
     return (
       <div className="not-found-panel">
-        <h1 className="not-found-title">{t('tasks.notFound.title')}</h1>
+        {/* R-T-3: when a shell PageFamilyFrame owns the page h1 (focused-record page,
+            identityHeadingLevel=2), the not-found title nests as an h2 so there is no
+            double-h1; the default full-width host keeps it an h1. */}
+        {identityHeadingLevel === 2
+          ? <h2 className="not-found-title">{t('tasks.notFound.title')}</h2>
+          : <h1 className="not-found-title">{t('tasks.notFound.title')}</h1>}
         <p className="not-found-copy">{t('tasks.notFound.copy')}</p>
         <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">{t('tasks.all')}</Link>
       </div>

@@ -240,6 +240,25 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
   })
 
+  it('R-T-3: demotes the not-found heading to h2 when a PageFamilyFrame owns the page h1 (identityHeadingLevel=2)', async () => {
+    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    renderSurface({ identityHeadingLevel: 2 })
+    // Inside the focused-record PageFamilyFrame the region-3 head is the page h1, so the not-found
+    // panel must nest as an h2 — never a second h1 (R-T-3 double-h1 fix).
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 2, name: /task not found/i })).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('heading', { level: 1, name: /task not found/i })).not.toBeInTheDocument()
+  })
+
+  it('R-T-3: keeps the not-found heading an h1 in the default full-width host (identityHeadingLevel defaults to 1)', async () => {
+    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    renderSurface()
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: /task not found/i })).toBeInTheDocument(),
+    )
+  })
+
   it('calls onClose (not navigate) after a successful archive', async () => {
     const onClose = vi.fn()
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
