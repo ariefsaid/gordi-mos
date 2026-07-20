@@ -219,7 +219,7 @@ the a11y evidence.
 - Red/green evidence: `/tmp/gordi-mos-v3-issue2-locking-red.txt` records the expected five failures
   before the ViewTabs/StatusPill production corrections; the final normal suite and existing suites
   are green. Rendered contrast evidence records destructive default `12.43:1`, hover `13.04:1`,
-  StatusPill values `10.42:1`–`14.39:1`, and ErrorState `13.40:1`; the old tokens measured below the
+  StatusPill values `9.73:1`–`14.39:1`, and ErrorState `10.88:1`; the old tokens measured below the
   governed contrast bar. Button hover derives from corrected `red12`, so default and interaction
   states stay in one token family.
 - The later CommandMenu TDD regression was red at 1 failed / 34 passed: after loading, `ArrowDown`
@@ -273,7 +273,7 @@ overlay phone 390×844; accessibility keyboard 1280×900.
 | `npm run build-storybook` | Exit 0; Storybook 10.5.2; `storybook-static/` generated but ignored |
 | `npm run build-storybook && npm run lint` | Exit 0 |
 | `npm run lint && npm run build-storybook` | Exit 0 |
-| `npm run test-storybook` from `mos-app/` | Exit 0; 7 suites / 35 tests passed, 0 snapshots; fresh real browser evidence; not rerun after the hook-only code-shape correction |
+| `npm run test-storybook` from `mos-app/` | Exit 0; 7 suites / 35 tests passed, 0 snapshots, 83.085s; rerun after the final viewport-runner and hook-shape corrections |
 | `git diff --check 0fd276f HEAD` / `git diff --check` | Exit 0 |
 
 The external runner executed the configured addon-backed a11y checks; this ledger does not claim AA

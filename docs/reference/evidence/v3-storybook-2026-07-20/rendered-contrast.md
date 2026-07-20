@@ -22,11 +22,12 @@ against white and was the rendered axe failure. The hover rule now derives from 
 | --- | --- | ---: |
 | Open | `color(display-p3 0.28 0.22 0.08)` / `color(display-p3 0.994 0.969 0.782)` | 10.42:1 |
 | In Progress | `color(display-p3 0.1001 0.0765 0.4201)` / `color(display-p3 0.933 0.948 0.992)` | 13.64:1 |
-| Blocked | `color(display-p3 0.2796 0.1396 0.0158)` / `color(display-p3 0.985 0.925 0.925)` | 11.97:1 |
+| Blocked | `color(display-p3 0.45 0.05 0.04)` / `color(display-p3 0.985 0.925 0.925)` | 9.73:1 |
 | Done | `color(display-p3 0.0704 0.1496 0.0619)` / `color(display-p3 0.913 0.964 0.925)` | 14.39:1 |
-| ErrorState | `color(display-p3 0.2796 0.1396 0.0158)` / warm surface `color(display-p3 1 0.988 0.972)` | 13.40:1 |
+| ErrorState | `color(display-p3 0.45 0.05 0.04)` / warm surface `color(display-p3 1 0.988 0.972)` | 10.88:1 |
 
 The pre-correction StatusPill/Open and ErrorState text used lighter/legacy semantic roles and
-failed the Storybook axe run; canonical E7 darkened roles now own both corrections. The existing
-Vitest suites lock the StatusPill token mapping; Storybook's 28-story axe run locks the rendered
-result.
+failed the Storybook axe run; canonical E7 darkened roles now own both corrections. The final lost
+role is intentionally destructive red, not the earlier brown/orange drift. The existing Vitest
+suites lock the StatusPill token mapping; the post-hardening Storybook 35-story axe run locks the
+rendered result.

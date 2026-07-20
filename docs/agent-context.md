@@ -42,8 +42,9 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Verified: 35 Storybook stories, 36 state entries, 3 responsive entries, and 23 canonical jobs;
 > Storybook 10.5.2 with the external `@storybook/test-runner` 0.24.4 ran 7 suites / 35 tests with
 > addon-backed a11y checks; plain `npm ci` succeeded without `--legacy-peer-deps`; Vitest remains
-> 3.2.6. The Director’s aggregate Node guard evidence is 23/23 (12 matrix tests, 9 inventory tests,
-> and two deterministic artifact checks); targeted Vitest is 120/120; typecheck, ESLint, Stylelint,
+> 3.2.6. The Director’s Node guard evidence is 21/21 (12 matrix tests + 9 inventory tests), followed
+> by 2/2 deterministic artifact-freshness CLI checks; targeted Vitest is 120/120; typecheck, ESLint,
+> Stylelint,
 > and the post-comment-fix production build pass. A resource-saturated full-suite attempt had two
 > unrelated 5-second timeout flakes; both affected files reran alone at 30/30. Do not treat that
 > attempt as a green full-suite gate.
@@ -111,7 +112,7 @@ re-review. Do not infer state from a running process or an uncommitted generated
 
 | Command | Result |
 |---|---|
-| `node --test scripts/v3-storybook-matrix.test.mjs` | 0; 12 passed |
+| `node --test scripts/v3-storybook-matrix.test.mjs` | 0; 12 passed (21/21 when combined with the 9 inventory tests) |
 | `node --test scripts/v3-live-inventory.test.mjs` | 0; 9 passed |
 | `node scripts/v3-storybook-matrix.mjs --check` / `node scripts/v3-live-inventory.mjs --check` | 0; current |
 | Plain `npm ci` in `mos-app/` after clean `node_modules` | 0; no resolver flag |
@@ -125,7 +126,7 @@ re-review. Do not infer state from a running process or an uncommitted generated
 | `npm run build-storybook` | 0; Storybook 10.5.2; generated output ignored |
 | `npm run build-storybook && npm run lint` | 0 |
 | `npm run lint && npm run build-storybook` | 0 |
-| `npm run test-storybook` from `mos-app/` | 0; 7 suites / 35 tests passed; fresh real browser evidence; not rerun after the hook-only code-shape correction |
+| `npm run test-storybook` from `mos-app/` | 0; 7 suites / 35 tests passed in 83.085s after the final viewport-runner and hook-shape corrections |
 | `git diff --check 0fd276f HEAD` and `git diff --check` | 0 |
 
 ### Remaining delivery sequence

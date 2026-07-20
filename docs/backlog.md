@@ -37,8 +37,9 @@ Verified in the isolated `v3-redesign` worktree and committed in implementation 
   stack is Storybook 10.5.2 / `@storybook/react-vite` 10.5.2 / `@storybook/addon-a11y` 10.5.2 /
   external `@storybook/test-runner` 0.24.4. Vitest remains 3.2.6; no Vitest 4 or browser package was
   introduced, and the existing Vitest config/include/exclude behavior is unchanged.
-- The Director’s aggregate Node guard evidence is 23/23 (12 matrix tests, 9 inventory tests, and two
-  deterministic artifact checks); targeted Vitest is 120/120; typecheck, ESLint, Stylelint, and the
+- The Director’s Node guard evidence is 21/21 (12 matrix tests + 9 inventory tests), followed by 2/2
+  deterministic artifact-freshness CLI checks; targeted Vitest is 120/120; typecheck, ESLint,
+  Stylelint, and the
   post-comment-fix production build pass. The resource-saturated full-suite attempt had two unrelated
   5-second timeout flakes; both affected files reran alone at 30/30, so the full-suite gate is recorded
   as inconclusive rather than green. The external browser runner passes 7 suites / 35 tests with
