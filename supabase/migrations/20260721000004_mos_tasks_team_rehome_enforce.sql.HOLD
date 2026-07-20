@@ -1,0 +1,45 @@
+-- RATIFY R-OWNER-4: do not apply until owner resolves ambiguous mappings.
+--
+-- V3 Issue 8 (Task 3, FINAL enforcement) — set mos.tasks.team_id NOT NULL. This file carries a `.HOLD`
+-- suffix so the Supabase migration runner CANNOT auto-apply it: only `.sql` files are applied. Rename
+-- it to `20260721000004_mos_tasks_team_rehome_enforce.sql` ONLY after:
+--   1. mos.task_team_rehome_ambiguities has no unresolved (resolved_at IS NULL) rows, AND
+--   2. the owner has ratified an explicit Task->Team mapping for every ambiguous legacy Task
+--      (a genuine data decision — no app heuristic may generate it), AND
+--   3. that mapping has been applied in a reviewed, transactional data step that validates each
+--      Team's org, BU, and historical policy.
+--
+-- If any mos.tasks.team_id IS NULL row remains, the guard block below RAISES and the migration aborts,
+-- leaving the database in the reversible nullable stage. This migration performs NO destructive column
+-- drop or data cleanup. Reversibility (pre-production): `supabase db reset`; manual DOWN at foot.
+
+do $$
+declare
+  v_null_teams int;
+  v_bu_divergent int;
+begin
+  select count(*) into v_null_teams
+    from mos.tasks
+   where team_id is null;
+  if v_null_teams > 0 then
+    raise exception
+      'cannot enforce mos.tasks.team_id NOT NULL: % task(s) still have a NULL team_id — resolve mos.task_team_rehome_ambiguities first',
+      v_null_teams;
+  end if;
+
+  -- Belt-and-braces: every Task's BU must equal its Team's BU before we harden the invariant.
+  select count(*) into v_bu_divergent
+    from mos.tasks t
+    join shared.teams tm on tm.id = t.team_id
+   where tm.business_unit_id is distinct from t.business_unit_id;
+  if v_bu_divergent > 0 then
+    raise exception
+      'cannot enforce mos.tasks.team_id NOT NULL: % task(s) have business_unit_id diverging from their Team BU',
+      v_bu_divergent;
+  end if;
+end $$;
+
+alter table mos.tasks alter column team_id set not null;
+
+-- ── Manual rollback (pre-production) ────────────────────────────────────────────
+-- alter table mos.tasks alter column team_id drop not null;
