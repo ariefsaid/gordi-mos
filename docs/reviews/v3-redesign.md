@@ -399,3 +399,47 @@ Minor recommendations adopted: the matrix + inventory `--check`s are now wired i
 `scripts/pre-merge-check.sh` (commit `2daf1e9`). Remaining minors accepted as noted trade-offs
 (self-declared state coverage backed by screenshots+axe; one white-box hover assertion deferred to
 the browser gate; `role="option"` on disabled listbox rows; the café CSS comment tweak rides along).
+
+## Acceleration wave — merge train + consolidated RATIFY-BEFORE-MERGE register (2026-07-20 night)
+
+Merged serially into `v3-redesign`, each tip verified (typecheck + owning test scope) before the
+next merge: `v3/i3` (guards + 3 representative migrations) → `v3/i4` (overlay host controller +
+leaveGuard) → `v3/i5` (RecordViewer + adapters) → `v3/i7` (Inbox triage core) → `v3/i8`
+(Team-context core). Zero merge conflicts (disjoint-path isolation held). `v3/i6`
+(RecordCollection) still building; full merged-tip battery running. Incident note: `v3/i4` commit
+`76907d5` was machine-committed by a concurrent process during the GLM/Claude substrate handover;
+Director diff-audited it (content matches the lane's verified controller; no suspicious patterns).
+
+### RATIFY register — owner decisions (block merge-to-main, not the branch build)
+
+- **R-OWNER-1 (Issue 3, MATERIAL): job-sentence region ownership.** E7 ContextRow (region 2,
+  experience-contract) and V3 PageHead (region 3, DESIGN.md §V3 target) both render the job
+  sentence — migrated pages show it twice. Decide: retire the ContextRow sentence, or suppress the
+  PageHead sentence per family. Provisional (wiring lane): suppress the ContextRow duplicate on
+  V3-family routes — smallest reversible delta.
+- **R-OWNER-2 (Issue 5): field-error behavior.** Plan's FieldErrorRetryContract (rejected save
+  preserves draft + Retry) conflicts with owner-locked I5 rollback (OD-REDESIGN-22). Built to the
+  plan. Ratify which behavior is law; I5's text changes if the plan wins.
+- **R-OWNER-3 (Issue 7): read-vs-handled semantics** built as provisional per plan; Handled filter
+  withheld until ratified.
+- **R-OWNER-4 (Issue 8): ambiguous legacy Task-to-Team mappings.** Classifier leaves
+  zero/multiple-candidate, cross-org-run, missing-run(-team), bu-mismatch rows UNRESOLVED;
+  `mos.tasks.team_id NOT NULL` must not ship until the owner ratifies the mapping for every
+  unresolved row from `buildRehomeReport`.
+
+### RATIFY register — technical deviations (Director-ratifiable, listed for the record)
+
+- R-T-1 (i3): `migration.ts` sourceFile paths are mos-app-cwd-relative (execution-correct) vs the
+  plan's literal `mos-app/src/...`.
+- R-T-2 (i3): AC-121 assertion replaced per plan Task 8 (V3 workspace-frame 1180px cap).
+- R-T-3 (i3): focused-record not-found double-h1 left per plan Task 10; fix rides the wiring lane.
+- R-T-4 (i4): browser-POP leaveGuard branch typed but unwired; `historyDriver` prop omitted — needs
+  its own red-test slice before the ~250-line router-POP implementation.
+- R-T-5 (i4): RecordPanelHost geometry (40–45% track / intermediate sheet / phone) + split-Escape
+  correction deferred to the design-review + Playwright gate.
+- R-T-6 (i5): three additive optional props (`onCommitField`, `loading`, `onRetry`) beyond the
+  plan's frozen `RecordViewerProps` — required by the charter DoD (loading/error states).
+- R-T-7 (i5): Task adapter renders no project/process-link/objective fields (no label source in the
+  adapter input); keys exist in the commit dispatcher.
+- R-T-8 (i7): `pendingIds` optional prop beyond the plan's provisional props (aria-busy needs it);
+  `inbox-page` still renders legacy InboxList pending the Issue 6 seam.
