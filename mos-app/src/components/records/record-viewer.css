@@ -1,0 +1,157 @@
+/* RecordViewer + RecordField styles (V3 Issue 5).
+ * Presentation grammar shared by the Task and Signal adapters. Interactive targets
+ * meet the 44px keyboard/touch floor (NFR-V3-006); the phone regime is a full-width
+ * stack with no horizontal overflow. Tokens come from the adopted DESIGN.md set. */
+
+.record-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.record-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.record-field__control {
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+}
+
+.record-field__control:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.record-field__control[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.record-field__control--textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.record-field__value {
+  margin: 0;
+  font-size: 14px;
+  color: var(--foreground);
+}
+
+.record-field__reason {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.record-field__feedback {
+  min-height: 18px;
+}
+
+.record-field__status {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.record-field__status--ok {
+  color: var(--primary);
+}
+
+.record-field__error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--destructive);
+}
+
+.record-field__retry {
+  min-height: 44px;
+}
+
+/* RecordViewer shell -------------------------------------------------------- */
+
+.record-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.record-viewer__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.record-viewer__section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.record-viewer__fields {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.record-viewer__relations,
+.record-viewer__activity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record-viewer__relation {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.record-viewer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.record-viewer__actions .btn {
+  min-height: 44px;
+}
+
+.record-viewer__permission-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 767.98px) {
+  .record-viewer__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
