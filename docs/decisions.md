@@ -1930,3 +1930,22 @@ The JSONB document has an explicit schema version, stable block identifiers, an 
 union, validation on every write, and a migration path between document versions. It is never stored
 as an arbitrary HTML or Markdown blob. The schema/storage design is cross-cutting and must receive a
 dedicated ADR plus RLS/security review before implementation.
+
+### OD-REDESIGN-78 — Drawer-first inspection, full-page focused work, one RecordViewer (owner 2026-07-20)
+
+A record opened from a list, table, Inbox, related-record link, or operational workspace first opens
+in a **wide right-side panel** that preserves collection context. The panel supports reading, metadata
+edits, checklist completion, status/ownership changes, short content edits, and fast movement between
+records. It is a legitimate record surface, not the current narrow utility drawer; its desktop measure
+is approximately 40–45% of the available workspace, subject to responsive validation.
+
+An explicit **Open full page** action escalates the same RecordViewer to focused work. Direct URLs,
+refresh, bookmarks, and new-tab opens use the full canonical page automatically. Full-page mode serves
+long-form writing, Standard/SOP composition, evidence/history review, complex forms, and large linked
+record sets. Panel and page share the exact content model, field components, actions, permissions, and
+save state; V3 must not maintain two record editors.
+
+At narrow widths the panel becomes full-screen with ordinary Back behavior. A near-full-screen desktop
+popup is rejected: it hides collection context without gaining the URL/history stability or working
+space of a real page. The panel-to-page transition is explicit and user-controlled, never an automatic
+surprise caused by editing a particular field.
