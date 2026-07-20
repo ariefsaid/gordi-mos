@@ -162,13 +162,18 @@ function renderAtState(path: string, state: unknown) {
 }
 
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
-  it('AC-121: TasksLayout renders inside a full-bleed (variant=data) PageFrame — no 1080px maxWidth cap', async () => {
+  it('AC-121: TasksLayout renders inside the V3 Workspace frame — full-bleed content, no inline 1080px prose cap', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
     renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Triage me'))
     const main = document.querySelector('main') as HTMLElement
-    const inner = main.querySelector('main > div') as HTMLElement
-    expect(inner.style.maxWidth).toBe('none')
+    // V3 workspace frame: the <main> carries the family marker and the content
+    // container is the page-frame__content wrapper (width capped by CSS at 1180px,
+    // never the old inline 1080px prose cap).
+    expect(main.getAttribute('data-page-family')).toBe('workspace')
+    const inner = main.querySelector(':scope > div') as HTMLElement
+    expect(inner.className).toContain('page-frame__content')
+    expect(inner.style.maxWidth).toBe('')
   })
 
   it('AC-120: the Tasks <main> landmark is present and the breadcrumb/nav survive full-bleed', async () => {

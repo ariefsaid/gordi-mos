@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch, useLocation, useNavigationType } from 'react-router-dom'
 import { useTasksSavedView } from '@/components/tasks/use-tasks-saved-view'
-import { PageFrame } from '@/shell/page-frame'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
@@ -67,21 +66,21 @@ export function TasksLayout() {
 
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
 
+  // TasksWorkspace now supplies its own PageFamilyFrame (family=workspace), which
+  // owns the <main> landmark — no outer PageFrame here (that would double the frame).
   return (
-    <PageFrame variant="data">
-      <TasksWorkspace
-        selectedId={taskId ?? null}
-        drawerOpen={drawerOpen}
-        splitLayout={isSplit}
-        expanded={expanded}
-        statusOverrides={statusOverrides}
-        refreshKey={refreshKey}
-        savedView={savedView}
-        onSavedViewChange={setSavedView}
-        onToggleExpand={() => setExpanded(e => !e)}
-        drawerSlot={<Outlet context={outletContext} />}
-      />
-    </PageFrame>
+    <TasksWorkspace
+      selectedId={taskId ?? null}
+      drawerOpen={drawerOpen}
+      splitLayout={isSplit}
+      expanded={expanded}
+      statusOverrides={statusOverrides}
+      refreshKey={refreshKey}
+      savedView={savedView}
+      onSavedViewChange={setSavedView}
+      onToggleExpand={() => setExpanded(e => !e)}
+      drawerSlot={<Outlet context={outletContext} />}
+    />
   )
 }
 

@@ -28,7 +28,8 @@ import { useTasksKeyboard } from './use-tasks-keyboard'
 import { useTasksViewPref } from './use-tasks-view-pref'
 import { useCascadeCatalogs } from './use-cascade-catalogs'
 import { GroupHeaderRow } from './group-header-row'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
+import type { PageFamilyState } from '@/shell/page-families'
 import { TasksToolbar } from './tasks-toolbar'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { TasksTableBody } from './tasks-table-body'
@@ -709,24 +710,35 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     />
   )
 
-  return (
-    <>
-      <PageHead
-        variant="content"
-        title={t('tasks.title')}
-        count={stats === null ? null : stats.total}
-        action={
-          showNewTask ? (
-            <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
-          ) : undefined
-        }
-        meta={
-          <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
-            {stats === null ? '—' : stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null}
-          </span>
-        }
-      />
+  // V3 Workspace family: the shell frame owns the <main> + h1 + job sentence; the
+  // Tasks load state maps to the shared PageFamilyState (the TasksTableBody keeps its
+  // own typed loading/error/empty/filtered-empty bodies).
+  const frameState: PageFamilyState = loading
+    ? 'loading'
+    : error
+      ? 'error'
+      : leafTasks.length === 0
+        ? (hasActiveFilter ? 'filtered-empty' : 'empty')
+        : 'default'
 
+  return (
+    <PageFamilyFrame
+      family="workspace"
+      title={t('tasks.title')}
+      jobSentence={t('job.tasks')}
+      state={frameState}
+      count={stats === null ? null : stats.total}
+      action={
+        showNewTask ? (
+          <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
+        ) : undefined
+      }
+      meta={
+        <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
+          {stats === null ? '—' : stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null}
+        </span>
+      }
+    >
       <div className={splitClass}>
         <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           {captureFirstMobile ? (
@@ -837,6 +849,6 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
           onClose={closeAssign}
         />
       )}
-    </>
+    </PageFamilyFrame>
   )
 }

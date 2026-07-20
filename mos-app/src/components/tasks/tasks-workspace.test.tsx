@@ -244,6 +244,39 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
   })
 })
 
+// V3 Issue 3, Task 7/8 — Tasks is the Workspace page-family representative.
+describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
+  it('mounts Tasks inside the Workspace page family with one main, one h1, and the Tasks job sentence', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 't1', title: 'Prep the bar' })])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: /^tasks$/i }))
+
+    // Exactly one <main> landmark, carrying the workspace family marker.
+    const mains = document.querySelectorAll('main')
+    expect(mains).toHaveLength(1)
+    expect(mains[0].getAttribute('data-page-family')).toBe('workspace')
+
+    // Exactly one h1 — the Tasks title (never the internal family name).
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+
+    // The Tasks job sentence is visible; the internal family name never renders as chrome.
+    expect(screen.getByText('Find and do the work I own or my Team owns.')).toBeInTheDocument()
+    expect(screen.queryByText('Workspace')).toBeNull()
+
+    // The typed Tasks region survives the frame swap.
+    expect(screen.getByRole('region', { name: /tasks/i })).toBeInTheDocument()
+  })
+
+  it('marks the loading state on the Workspace frame before tasks resolve', () => {
+    mockListTasks.mockReturnValue(new Promise(() => {}))
+    renderTable()
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('workspace')
+    expect(main?.getAttribute('data-page-state')).toBe('loading')
+    expect(main?.getAttribute('aria-busy')).toBe('true')
+  })
+})
+
 // ── Visual-fidelity chrome (feat/ui-fidelity-tasks-chrome) ────────────────────
 // Restores the signed mockup's toolbar/header idiom (mock-shell-and-table.html):
 // view-tabs (Table active; Board/Calendar disabled "soon"), the My work/Team work
