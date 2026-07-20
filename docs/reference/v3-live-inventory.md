@@ -719,4 +719,3 @@ Canonical collection and opening jobs: **search**, **filter**, **sort**, **group
 - Router: `mos-app/src/router.tsx`
 - Binding design contract: `DESIGN.md`
 - App source root: `mos-app/src`
-

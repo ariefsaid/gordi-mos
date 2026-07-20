@@ -687,7 +687,7 @@ export function renderInventoryMarkdown(inventory) {
   lines.push('', '## Deferred to Issue 2', '')
   for (const item of inventory.deferredToIssue2) lines.push(`- ${item}`)
   lines.push('', '## Sources', '', `- Router: \`${inventory.sources.router}\``, `- Binding design contract: \`${inventory.sources.design}\``, `- App source root: \`${inventory.sources.appRoot}\``, '')
-  return `${lines.join('\n')}\n`
+  return `${lines.join('\n').replace(/\n+$/, '')}\n`
 }
 
 function stableJson(inventory) {

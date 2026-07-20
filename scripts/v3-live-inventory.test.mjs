@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-import { buildInventory, validateInventory } from './v3-live-inventory.mjs'
+import { buildInventory, collectRouteDeclarations, main, renderInventoryMarkdown, validateInventory } from './v3-live-inventory.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -58,4 +58,17 @@ test('AC-V3-001: DESIGN.md contains the binding V3 visual and interaction gramma
   ]) {
     assert.equal(design.includes(staleExample), false, `stale DESIGN.md example remains: ${staleExample}`)
   }
+})
+
+test('AC-V3-014: inventory renderer and CLI remain deterministic', () => {
+  const inventory = buildInventory(repoRoot)
+  const router = readFileSync(resolve(repoRoot, 'mos-app/src/router.tsx'), 'utf8')
+  const declarations = collectRouteDeclarations(router)
+  assert.equal(declarations.hasIndexRoute, true)
+  assert.equal(declarations.pathLiterals.includes('work/tasks'), true)
+  const markdown = renderInventoryMarkdown(inventory)
+  assert.match(markdown, /^# V3 live route, component, and style inventory/m)
+  assert.equal(markdown.endsWith('\n\n'), false)
+  assert.equal(main(['--write'], repoRoot), 0)
+  assert.equal(main(['--check'], repoRoot), 0)
 })
