@@ -92,9 +92,16 @@ Completed during Issue 1 so far:
 | `node --check scripts/v3-live-inventory.mjs` | 0 | Node syntax check |
 | `node scripts/v3-live-inventory.mjs --write` | 0 | Deterministic artifacts written |
 | `node scripts/v3-live-inventory.mjs --check` | 0 | Artifacts current |
-| `git diff --check` | 0 | No whitespace errors at the checked checkpoints |
+| `node --experimental-test-coverage --test --test-coverage-include=scripts/v3-live-inventory.mjs scripts/v3-live-inventory.test.mjs` | 0 | 97.56% lines, 81.36% branches, 98.51% functions |
+| `npm ci --no-audit --no-fund` in `mos-app/` | 0 | Restored lockfile-defined dependencies; no manifest changes |
+| Initial app `npm run typecheck` / `npm run lint` / targeted `npm test` | 127 | Expected dependency-missing state (`tsc`, `eslint`, `vitest` not installed) |
+| Final `npm run typecheck` in `mos-app/` | 0 | TypeScript project check clean |
+| Final `npm run lint` in `mos-app/` | 0 | ESLint and stylelint clean with zero lint warnings |
+| Final targeted Vitest slice | 0 | 6 files, 80 tests passed |
+| Full `npm test` in `mos-app/` | 0 | 280 files, 2,868 tests passed; no Supabase/dev server used |
+| `git diff --check 112c257..HEAD` | 0 | No whitespace errors across the Issue 1 checkpoint range |
 
-The final `npm run typecheck`, `npm run lint`, targeted Vitest suite, full non-Supabase Vitest suite if run, final diff inspection, and exact final commit range are appended before the verification checkpoint is committed.
+The initial missing-dependency exit was resolved by installing the existing lockfile set; the final commands above are the evidence of record. Vitest emitted existing React `act(...)` and Node deprecation/experimental warnings to stderr, but the suite exit code was zero and lint reported zero warnings.
 
 ## Changed files
 
@@ -117,7 +124,10 @@ No `mos-app/src/*.tsx`, application CSS, route, dependency, migration, environme
 - `c0d4d40` — add the deterministic collector and artifacts.
 - `f2a0ab8` — validate inventory source references.
 - `90bee8d` — reconcile DESIGN.md to the V3 grammar.
-- The documentation/state evidence checkpoint and final verification checkpoint are recorded here after their commits.
+- `b06b0d2` — record backlog/context/ledger evidence and the owner gate.
+- `5d50aa2` — align the plan with the coverage guard.
+- `dabd70c` — verify deterministic inventory rendering and coverage tests.
+- The final ledger checkpoint is the commit that records this updated section.
 
 ## Issue 2 deferrals
 
