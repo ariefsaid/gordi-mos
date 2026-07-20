@@ -31,8 +31,8 @@
 
 Create these files:
 
-- `scripts/v3-live-inventory.mjs` — exports `buildInventory(repoRoot)`, `validateInventory(inventory, repoRoot)`, `renderInventoryMarkdown(inventory)`, and `main(argv)`; CLI modes are `--write` and `--check`.
-- `scripts/v3-live-inventory.test.mjs` — Node built-in tests for AC-V3-014 route coverage, source references, canonical primitive evidence, and the `DESIGN.md` V3 anchor/conformity guard.
+- `scripts/v3-live-inventory.mjs` — exports `buildInventory(repoRoot)`, `collectRouteDeclarations(routerText)`, `validateInventory(inventory, repoRoot)`, `renderInventoryMarkdown(inventory)`, and `main(argv)`; CLI modes are `--write` and `--check`.
+- `scripts/v3-live-inventory.test.mjs` — Node built-in tests for AC-V3-014 route coverage, source references, canonical primitive evidence, deterministic rendering/CLI behavior, and the `DESIGN.md` V3 anchor/conformity guard.
 - `docs/reference/v3-live-inventory.json` — deterministic machine-readable route/component/style inventory generated from the live source tree.
 - `docs/reference/v3-live-inventory.md` — deterministic human-readable rendering of that JSON, including totals and explicit current debt/deferred Issue 2 work.
 - `docs/reviews/v3-redesign.md` — Issue 1 evidence-of-record ledger for authority, plan, inventory, design reconciliation, checks, and owner gates.
@@ -373,10 +373,11 @@ Run from the repository root:
 ~~~bash
 node scripts/v3-live-inventory.mjs --check
 node --test scripts/v3-live-inventory.test.mjs
+node --experimental-test-coverage --test --test-coverage-include=scripts/v3-live-inventory.mjs scripts/v3-live-inventory.test.mjs
 git diff --check HEAD~5..HEAD
 ~~~
 
-Expected: all exit `0`; `--check` reports the manifest is current; both AC-tagged tests pass; Git reports no whitespace errors. If the checkpoint count differs from five because a prior commit was coalesced, use `git diff --check $(git merge-base HEAD HEAD~1)..HEAD` and record the exact range instead of hiding the failure.
+Expected: all commands exit `0`; `--check` reports the manifest is current; all AC-tagged tests pass; Node reports at least 80% changed-script line coverage; Git reports no whitespace errors. If the checkpoint count differs from five because a prior commit was coalesced, use `git diff --check $(git merge-base HEAD HEAD~1)..HEAD` and record the exact range instead of hiding the failure.
 
 - [ ] **Step 2: Run the app static gates inside `mos-app/`**
 
