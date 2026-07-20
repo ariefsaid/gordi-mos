@@ -574,6 +574,9 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
 
     // The record identity is now an h2 (the PageFamilyFrame owns the shell h1).
     await screen.findByRole('heading', { level: 2, name: 'Open me' })
+    // The shell h1 resolves to the same title one render later (async via
+    // onTitleResolved), so wait for it before asserting the exact heading counts.
+    await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
     const main = document.querySelector('main')
     expect(main?.getAttribute('data-page-family')).toBe('focused-record')
