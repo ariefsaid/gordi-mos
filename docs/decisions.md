@@ -1893,3 +1893,20 @@ Opening one panel tenant replaces or stacks within the shared host according to 
 two unrelated side panels may never cover each other. Escape, Close, browser Back, internal Back,
 focus entry, and focus return are part of the shared behavior and must be driven in acceptance tests
 for every consuming surface.
+
+### OD-REDESIGN-76 — Provisional V3 top-level IA for journey validation (owner "agree for now", 2026-07-20)
+
+The working V3 structure is: **Home** for today's attention; **Work** as the universal home for
+durable records and saved views; **Events** as the time/calendar lens; role-gated **Money** as the
+financial workspace; **Inbox** as the full triage destination with a quick bell panel; role-relevant
+**Café / Ecommerce / Roastery** operational workspaces; and secondary **Profile / Administration**.
+
+Modules are contextual operational views, not independent applications or duplicate records. A Task
+shown in Café and Work is one Task rendered through the same RecordViewer contract; the Café surface
+adds operational context and a filtered starting view. All destinations and modules use the shared
+page families and V3 visual/interaction primitives.
+
+This decision is **PROVISIONAL**, reflecting the owner's "for now." The first representative V3
+slice must drive real Home → Work → Inbox → Café journeys for both a manager and floor member. The
+owner ratifies or adjusts the top-level IA after seeing those journeys in the app; implementation may
+not present this provisional structure as final approval.
