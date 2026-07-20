@@ -22,8 +22,12 @@ It deliberately did not implement Storybook, page-family primitives, RecordViewe
 
 [`docs/plans/2026-07-20-v3-design-foundation.md`](../plans/2026-07-20-v3-design-foundation.md) was written before implementation and committed as `b9f4eaa`.
 
-- AC-V3-001 is mapped to the DESIGN contract and evidence boundary; rendered computed-style acceptance is explicitly deferred.
-- AC-V3-014 is mapped to the red/green inventory guard, deterministic artifacts, and final static verification.
+- The Issue 1 granular DESIGN and inventory guards are precondition evidence, not owning tests for
+  the full master AC goals. Issue 2 likewise treats AC-V3-001 as a Storybook workbench/evidence
+  boundary only; it does not claim representative rendered acceptance or any full master AC.
+- The Issue 1 inventory guard remains source/conformance evidence for the later full migration closure;
+  it does not own AC-V3-014. The master acceptance-ownership clarification is intentionally outside
+  this Issue 2 correction wave.
 - Every created path and exported interface is named; steps specify exact commands and expected results.
 - The red test precedes collector implementation; the DESIGN conformance test is separately red before the DESIGN reset.
 - The plan explicitly states that Issue 2 is Storybook-only, excludes all application component migration, and preserves the separate Issues 3–9 ownership sequence.
@@ -78,7 +82,7 @@ The guard proves the binding DESIGN.md anchors exist and stale archetype/deleted
 
 ## AC-V3-014 guard evidence
 
-`scripts/v3-live-inventory.test.mjs` owns the source guard. It fails before the collector exists (`ERR_MODULE_NOT_FOUND`), turns green after the collector is implemented, and contains the separate DESIGN conformance test that was red against the stale DESIGN.md and green after reconciliation. `scripts/v3-live-inventory.mjs --check` validates route literals, source files/symbols, canonical component jobs, token sources, CSS coverage, and deterministic JSON/Markdown artifacts.
+`scripts/v3-live-inventory.test.mjs` is precondition/source evidence; it does not own the full AC-V3-014 goal. It fails before the collector exists (`ERR_MODULE_NOT_FOUND`), turns green after the collector is implemented, and contains the separate DESIGN conformance test that was red against the stale DESIGN.md and green after reconciliation. `scripts/v3-live-inventory.mjs --check` validates route literals, source files/symbols, canonical component jobs, token sources, CSS coverage, and deterministic JSON/Markdown artifacts.
 
 The delivery-sequence guard now parses the canonical labels from `docs/specs/v3-redesign.spec.md` §12, emits Issues 1–12 in the inventory artifacts, and checks the current Issue 1 docs for collapsed ownership. It rejects assigning rendered computed-style acceptance to Issue 2 and rejects assigning application component work to Issue 2. Issue 2 is therefore constrained to Storybook component/state/responsive proof; Issues 3–8 own application capabilities and Issue 9 owns the rendered/driven representative owner gate.
 
@@ -89,7 +93,7 @@ Completed during Issue 1 so far:
 | Command | Exit | Evidence |
 |---|---:|---|
 | `node --test scripts/v3-live-inventory.test.mjs` before collector | 1 | Expected `ERR_MODULE_NOT_FOUND` red state |
-| `node --test scripts/v3-live-inventory.test.mjs` after collector | 0 | AC-V3-014 route/component/style guard green |
+| `node --test scripts/v3-live-inventory.test.mjs` after collector | 0 | Descriptive route/component/style precondition guard green; not AC-V3-014 ownership |
 | `node --test scripts/v3-live-inventory.test.mjs` before DESIGN reset | 1 | Expected missing E7 anchor red state |
 | `node --check scripts/v3-live-inventory.mjs` | 0 | Node syntax check |
 | `node scripts/v3-live-inventory.mjs --write` | 0 | Deterministic artifacts written |
@@ -168,7 +172,7 @@ server, or claim representative application acceptance. Issue 9 owns that render
 ### Authority and plan self-review
 
 - Governing spec: [`docs/specs/v3-redesign.spec.md`](../specs/v3-redesign.spec.md) §10–§12; AC-V3-001
-  is retained as an explicit evidence boundary, and NFR-V3-001/002/003/004/005/006/007 are mapped in
+  is retained as an explicit workbench/evidence boundary only, and NFR-V3-001/002/003/004/005/006/007 are mapped in
   [`docs/plans/2026-07-20-v3-storybook-matrix.md`](../plans/2026-07-20-v3-storybook-matrix.md).
 - Visual and product authorities: [`DESIGN.md`](../../DESIGN.md), OD-REDESIGN-72 through 79,
   `docs/jtbd.md`, `docs/experience-contract.md`, `docs/interaction-contract.md`, and the E7
@@ -201,8 +205,8 @@ the a11y evidence.
 
 ### Matrix and production corrections
 
-- Seven curated files index 28 real stories: Foundation (4), Controls (4), Feedback (4), Page
-  composition (3), Dense collection (7), Overlays (4), and Accessibility/responsive (2).
+- Seven curated files index 35 real stories: Foundation (4), Controls (5), Feedback (4), Page
+  composition (5), Dense collection (7), Overlays (6), and Accessibility/responsive (4).
 - The guard records 36 state entries, 3 responsive entries (`desktop1280` 1280×900, `intermediate`
   1024×900, `phone390` 390×844), and 23 canonical jobs. It derives canonical imports from source,
   excludes only `v3Matrix` metadata from CSF indexing, rejects positive migration/Issue 9 claims,
@@ -236,8 +240,11 @@ The final visual review inspected these exact rendered stories at the named regi
   does not expose the implementation hook name.
 - `Overlays/CurrentRecordPanelShell` at 390px: the current shell is full-width in the computed and
   saved 390×844 proof; the rightmost column is warm surface/border, not a black strip.
-- `AccessibilityResponsive/KeyboardJourneys` at 1280px: active ViewTabs focus and current shell
-  behavior.
+- `AccessibilityResponsive/KeyboardJourneys` uses the `phone390` runner variant for active ViewTabs
+  focus, close/Escape, and opener focus return in the current phone modal regime. The saved
+  `accessibility-keyboard.png` is a 1280×900 manager capture; desktop and intermediate shell
+  semantics are covered by the dedicated RecordPanel variants, with desktop Escape intentionally
+  non-modal.
 
 Evidence files: [`foundation-runtime-1280.png`](../reference/evidence/v3-storybook-2026-07-20/foundation-runtime-1280.png),
 [`dense-ready-intermediate.png`](../reference/evidence/v3-storybook-2026-07-20/dense-ready-intermediate.png),
@@ -245,26 +252,28 @@ Evidence files: [`foundation-runtime-1280.png`](../reference/evidence/v3-storybo
 [`overlay-record-panel-phone390.png`](../reference/evidence/v3-storybook-2026-07-20/overlay-record-panel-phone390.png),
 [`accessibility-keyboard.png`](../reference/evidence/v3-storybook-2026-07-20/accessibility-keyboard.png),
 and [`rendered-contrast.md`](../reference/evidence/v3-storybook-2026-07-20/rendered-contrast.md).
+Raster dimensions checked: foundation 1280×900; dense intermediate 1024×900; dense phone 390×844;
+overlay phone 390×844; accessibility keyboard 1280×900.
 
 ### Exact verification record
 
 | Command | Result |
 |---|---|
-| `node --test scripts/v3-storybook-matrix.test.mjs` | Exit 0; 6 passed |
-| `node --test scripts/v3-live-inventory.test.mjs` | Exit 0; 6 passed |
+| `node --test scripts/v3-storybook-matrix.test.mjs` | Exit 0; 12 passed |
+| `node --test scripts/v3-live-inventory.test.mjs` | Exit 0; 9 passed |
 | `node scripts/v3-storybook-matrix.mjs --check` / `node scripts/v3-live-inventory.mjs --check` | Exit 0; artifacts current |
 | Plain `npm ci` after removing the isolated worktree’s installed dependencies | Exit 0; no `--legacy-peer-deps` |
 | `npm ls --depth=0 storybook @storybook/react-vite @storybook/addon-a11y @storybook/test-runner vitest @vitest/coverage-v8 @vitest/browser-playwright @vitest/browser @storybook/addon-vitest` | Exit 0; Storybook 10.5.2, runner 0.24.4, Vitest 3.2.6; no Vitest 4/browser package |
 | `npm run typecheck` | Exit 0 |
 | `npm run lint` | Exit 0; ESLint and Stylelint, zero warnings |
 | `npm test -- src/components/command/command-menu.test.tsx --run` | Exit 0; 35 passed, including loading → ArrowDown → ready → Enter |
-| `npm test -- --reporter=json --outputFile=/tmp/gordi-mos-v3-vitest-command-fix-final.json` | Exit 0; 2,878 passed, 0 failed, 1,098 suites; no Storybook files discovered |
+| Full `npm test` attempt | Inconclusive under resource contention: two unrelated 5-second timeout flakes; Director reran the two affected files alone at 30/30 |
 | `npm run test:coverage -- --reporter=dot` | Exit 0; 2,878 passed; 92.52% statements/lines, 86.93% branches, 88.34% functions; output `/tmp/gordi-mos-v3-vitest-coverage-command-fix-final.txt` |
-| `npm run build` | Exit 0; 665 modules; existing CSS comment and chunk-size warnings only |
+| `npm run build` | Exit 0; 665 modules; post-comment-fix CSS syntax warning gone; only the pre-existing >500k chunk advisory remains |
 | `npm run build-storybook` | Exit 0; Storybook 10.5.2; `storybook-static/` generated but ignored |
 | `npm run build-storybook && npm run lint` | Exit 0 |
 | `npm run lint && npm run build-storybook` | Exit 0 |
-| `npm run test-storybook` from `mos-app/` | Exit 0; 7 suites / 28 tests passed, 0 snapshots; complete output in `/tmp/gordi-mos-v3-storybook-final.txt` |
+| `npm run test-storybook` from `mos-app/` | Exit 0; 7 suites / 35 tests passed, 0 snapshots; fresh real browser evidence; not rerun after the hook-only code-shape correction |
 | `git diff --check 0fd276f HEAD` / `git diff --check` | Exit 0 |
 
 The external runner executed the configured addon-backed a11y checks; this ledger does not claim AA
@@ -288,7 +297,11 @@ production TS/TSX coverage; their build, lint, matrix, and browser checks are re
 - `RecordPanelHost` is represented honestly as the current shell; future shared host behavior is not
   faked. Owner: Issue 4, Shared overlay/panel/navigation host.
 - No additional visual or a11y gap remains from the final Storybook browser gate. Production build
-  warnings are existing CSS-comment/chunk-size advisories, not an Issue 2 acceptance failure.
+  has only the pre-existing >500k chunk advisory after the unrelated CSS comment terminator fix.
+- The full default Vitest attempt is a machine-resource contention exception, not a passing gate:
+  two unrelated 5-second timeout flakes were isolated and reran green at 2 files / 30 tests. The
+  changed-scope targeted Vitest evidence is green at 120/120; independent re-review must decide
+  whether to rerun the full suite on a quieter machine.
 
 ### Remaining Issues 3–12 and Issue 3 gate
 
@@ -303,6 +316,6 @@ production TS/TSX coverage; their build, lint, matrix, and browser checks are re
 11. Remaining route migration by page/component family.
 12. Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough.
 
-The Issue 3 gate is open only after owner review and explicit approval of this Issue 2 evidence at the
-issue boundary. **Next action:** owner reviews the plan, matrix, screenshots, contrast record, and
-this ledger, then approves or rejects the Issue 3 gate; no Issue 3+ work is claimed here.
+The Issue 3 gate is open only after independent re-review confirms this evidence and the owner gives
+explicit approval at the issue boundary. **Next action:** independent re-review, then owner reviews
+the plan, matrix, screenshots, contrast record, and this ledger; no Issue 3+ work is claimed here.

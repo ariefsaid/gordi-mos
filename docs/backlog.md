@@ -1,6 +1,6 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-20): V3 redesign Issue 2 — Storybook matrix evidence complete locally; owner review pending.**
+> **CURRENT (2026-07-20): V3 redesign Issue 2 — Storybook matrix implementation evidence is green locally; independent re-review and owner review are pending.**
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. The exact plan is [`docs/plans/2026-07-20-v3-storybook-matrix.md`](plans/2026-07-20-v3-storybook-matrix.md);
 > the governing delivery sequence is [`docs/specs/v3-redesign.spec.md`](specs/v3-redesign.spec.md) §12;
@@ -8,7 +8,7 @@
 > and the live inventory is [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md).
 > The evidence ledger is [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md), with rendered files in
 > [`docs/reference/evidence/v3-storybook-2026-07-20/`](reference/evidence/v3-storybook-2026-07-20/).
-> Issue 2 verifies 28 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs. It maps
+> Issue 2 verifies 35 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs. It maps
 > to AC-V3-001 as a workbench/evidence boundary and to NFR-V3-001/002/003/004/005/006/007. It does not
 > claim route migration or representative application acceptance. Issue 3 **Page-family primitives and
 > migration guards**; Issue 4 **Shared overlay/panel/navigation host**; Issue 5 **RecordViewer contract,
@@ -32,15 +32,17 @@
 Verified in the isolated `v3-redesign` worktree and committed in implementation checkpoint `04cbe8b`:
 
 - The Storybook workbench uses the canonical production components and runtime tokens across seven
-  curated files: 28 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs.
+  curated files: 35 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs.
 - Plain `npm ci` succeeds after a clean dependency install without `--legacy-peer-deps`. The accepted
   stack is Storybook 10.5.2 / `@storybook/react-vite` 10.5.2 / `@storybook/addon-a11y` 10.5.2 /
   external `@storybook/test-runner` 0.24.4. Vitest remains 3.2.6; no Vitest 4 or browser package was
   introduced, and the existing Vitest config/include/exclude behavior is unchanged.
-- The normal suite is 2,878/2,878 with zero failures (baseline 2,868; +10 canonical locking tests).
-  Typecheck, ESLint, Stylelint, production build, Storybook static build, and the matrix/inventory
-  guards pass. The focused CommandMenu suite passes 35/35, and the external browser runner passes
-  7 suites / 28 tests with addon-backed a11y checks.
+- The Director’s aggregate Node guard evidence is 23/23 (12 matrix tests, 9 inventory tests, and two
+  deterministic artifact checks); targeted Vitest is 120/120; typecheck, ESLint, Stylelint, and the
+  post-comment-fix production build pass. The resource-saturated full-suite attempt had two unrelated
+  5-second timeout flakes; both affected files reran alone at 30/30, so the full-suite gate is recorded
+  as inconclusive rather than green. The external browser runner passes 7 suites / 35 tests with
+  addon-backed a11y checks.
 - The production corrections are limited to the existing ViewTabs, StatusPill, Button/CardHead, and
   CommandMenu seams. The only recorded Issue 2 debts are Button loading state → Issue 3 and future
   shared RecordPanelHost behavior → Issue 4. There is no Supabase, route migration, or representative
@@ -68,8 +70,8 @@ exit 0 with generated `storybook-static/` ignored.
 11. Remaining route migration by page/component family.
 12. Full cross-surface acceptance, stale-style removal, documentation closure, and owner walkthrough.
 
-**Next action:** owner reviews the Issue 2 evidence and explicitly approves the Issue 3 gate; the next
-harness then begins Issue 3 only.
+**Next action:** independent re-review confirms the Issue 2 evidence; then the owner explicitly
+approves the Issue 3 gate. The next harness begins Issue 3 only after that approval.
 
 - **DONE (2026-07-19) — C2 / OD-REDESIGN-22 I5 inline-edit retrofit:** free-typed text/number qty cells
   (`qty-cell.tsx`, `plan-qty-cell.tsx`) now route through the one `useInlineCommit` primitive —

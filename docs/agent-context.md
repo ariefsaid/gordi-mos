@@ -24,8 +24,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > the delegation posture below are **not** superseded and remain binding.
 >
 > **WHERE ARE WE RIGHT NOW → `docs/reviews/v3-redesign.md` and `docs/reference/v3-live-inventory.md`.**
-> V3 Issue 2 is complete locally as a Storybook component/state/responsive proof checkpoint and is
-> pending owner review at the issue boundary. The closed `docs/plans/AUTONOMOUS-RUN-STATE.md` /
+> V3 Issue 2 has green implementation evidence locally as a Storybook component/state/responsive
+> proof checkpoint and is pending independent re-review and owner review at the issue boundary. The closed `docs/plans/AUTONOMOUS-RUN-STATE.md` /
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
 > **CURRENT WORKSTREAM (2026-07-20): V3 redesign Issue 2 local checkpoint**, workstream label
@@ -38,31 +38,35 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `docs/reviews/v3-redesign.md`. Implementation is committed as `04cbe8b` and the corrected plan
 > checkpoints are `4ffc9f5` and `0fd276f`.
 >
-> Verified: 28 Storybook stories, 36 state entries, 3 responsive entries, and 23 canonical jobs;
-> Storybook 10.5.2 with the external `@storybook/test-runner` 0.24.4 ran 7 suites / 28 tests with
+> Verified: 35 Storybook stories, 36 state entries, 3 responsive entries, and 23 canonical jobs;
+> Storybook 10.5.2 with the external `@storybook/test-runner` 0.24.4 ran 7 suites / 35 tests with
 > addon-backed a11y checks; plain `npm ci` succeeded without `--legacy-peer-deps`; Vitest remains
-> 3.2.6 and the normal suite is 2,878/2,878 (up from the 2,868 baseline) with no Storybook files
-> discovered; typecheck, ESLint, Stylelint, production build, Storybook build, and both build/lint
-> orderings pass. The matrix and live-inventory guards and `git diff --check` pass.
+> 3.2.6. The Director’s aggregate Node guard evidence is 23/23 (12 matrix tests, 9 inventory tests,
+> and two deterministic artifact checks); targeted Vitest is 120/120; typecheck, ESLint, Stylelint,
+> and the post-comment-fix production build pass. A resource-saturated full-suite attempt had two
+> unrelated 5-second timeout flakes; both affected files reran alone at 30/30. Do not treat that
+> attempt as a green full-suite gate.
 >
 > Not done: no route/page migration, no representative application acceptance, no Supabase or
 > Supabase-dependent dev server, and no Issues 3–12 behavior. The exact recorded debts are the
 > canonical Button loading state owned by Issue 3 and future shared RecordPanelHost behavior owned
-> by Issue 4. Issue 2 maps to AC-V3-001 only as workbench/evidence boundary and to NFR-V3-001/002/
-> 003/004/005/006/007; it does not close the Issue 9 rendered acceptance gate.
+> by Issue 4. Issue 2 maps to AC-V3-001 only as a workbench/evidence boundary and to NFR-V3-001/
+> 002/003/004/005/006/007; it does not claim full master acceptance or close the Issue 9 rendered
+> acceptance gate.
 >
-> **Next action:** the owner reviews the linked matrix, browser evidence, and review ledger and
-> explicitly approves the Issue 3 gate; only after that approval may the next harness begin Issue 3
+> **Next action:** independent re-review confirms this evidence; then the owner reviews the linked
+> matrix, browser evidence, and review ledger and explicitly approves the Issue 3 gate. Only after
+> that approval may the next harness begin Issue 3
 > **Page-family primitives and migration guards**.
 
 ## V3 Issue 2 resumable checkpoint (2026-07-20)
 
-This is the canonical handoff for the completed local Issue 2 work. Do not infer state from a running
-process or an uncommitted generated directory.
+This is the canonical handoff for the locally implemented Issue 2 work, pending independent
+re-review. Do not infer state from a running process or an uncommitted generated directory.
 
 ### Verified
 
-- Scope: Storybook workbench only; the seven curated story files contain 28 indexed stories. The
+- Scope: Storybook workbench only; the seven curated story files contain 35 indexed stories. The
   deterministic guard excludes only each file's `v3Matrix` metadata export from CSF indexing and
   derives canonical coverage from actual production named imports.
 - Matrix totals: 36 state entries, 3 responsive entries (`desktop1280` 1280px, `intermediate`
@@ -83,21 +87,21 @@ process or an uncommitted generated directory.
 
 | Command | Result |
 |---|---|
-| `node --test scripts/v3-storybook-matrix.test.mjs` | 0; 6 passed |
-| `node --test scripts/v3-live-inventory.test.mjs` | 0; 6 passed |
+| `node --test scripts/v3-storybook-matrix.test.mjs` | 0; 12 passed |
+| `node --test scripts/v3-live-inventory.test.mjs` | 0; 9 passed |
 | `node scripts/v3-storybook-matrix.mjs --check` / `node scripts/v3-live-inventory.mjs --check` | 0; current |
 | Plain `npm ci` in `mos-app/` after clean `node_modules` | 0; no resolver flag |
 | `npm ls --depth=0 ... vitest ...` | 0; Vitest 3.2.6, no Vitest 4/browser package |
 | `npm run typecheck` | 0 |
 | `npm run lint` | 0; ESLint and Stylelint, zero warnings |
 | `npm test -- src/components/command/command-menu.test.tsx --run` | 0; 35 passed, including loading → ArrowDown → ready → Enter |
-| `npm test -- --reporter=json --outputFile=/tmp/gordi-mos-v3-vitest-command-fix-final.json` | 0; 2,878 passed, 0 failed, 1,098 suites; no Storybook files |
+| Full `npm test` attempt | Inconclusive under resource contention: two unrelated 5-second timeout flakes; both affected files reran alone at 30/30 |
 | `npm run test:coverage -- --reporter=dot` | 0; 2,878 passed; 92.52% statements/lines, 86.93% branches, 88.34% functions |
-| `npm run build` | 0; 665 modules; existing CSS/minified chunk-size warnings only |
+| `npm run build` | 0; 665 modules; post-comment-fix CSS syntax warning gone; only the pre-existing >500k chunk advisory remains |
 | `npm run build-storybook` | 0; Storybook 10.5.2; generated output ignored |
 | `npm run build-storybook && npm run lint` | 0 |
 | `npm run lint && npm run build-storybook` | 0 |
-| `npm run test-storybook` from `mos-app/` | 0; 7 suites / 28 tests passed; output `/tmp/gordi-mos-v3-storybook-final.txt` |
+| `npm run test-storybook` from `mos-app/` | 0; 7 suites / 35 tests passed; fresh real browser evidence; not rerun after the hook-only code-shape correction |
 | `git diff --check 0fd276f HEAD` and `git diff --check` | 0 |
 
 ### Remaining delivery sequence

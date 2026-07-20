@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - V3 Issue 2 only: Storybook component/state/responsive proof; no route migration, page-family production refactor, shared overlay host, RecordViewer/RecordCollection behavior, representative app rendering, or Supabase operation.
-- `docs/specs/v3-redesign.spec.md` §12 is the delivery-sequence authority; §10 owns NFR-V3-001 through NFR-V3-007; §11 owns AC-V3-001.
+- `docs/specs/v3-redesign.spec.md` §12 is the delivery-sequence authority; §10 owns NFR-V3-001 through NFR-V3-007; Issue 2 treats AC-V3-001 as a workbench/evidence boundary only and does not claim its full representative acceptance.
 - E7 owns visual styling; `DESIGN.md` and existing runtime tokens are the styling authority; current owner law owns IA and interaction behavior.
 - Use one canonical production component per job; stories may compose canonical components but may not create a competing production vocabulary or mask a component gap with story-only CSS.
 - Preserve the existing `mos-app/package.json` `test`, `test:coverage`, and `test:watch` scripts, the existing `mos-app/vite.config.ts` Vitest block, and its include/exclude behavior. The recorded pre-change baseline is 2,868 tests; the post-change count is expected to increase legitimately because canonical ViewTabs, StatusPill, and CommandMenu locking tests remain in normal discovery.
@@ -25,7 +25,8 @@
 ## Authority and compatibility decisions
 
 - `docs/specs/v3-redesign.spec.md` §12 is the delivery-sequence authority; §10 owns NFR-V3-001
-  through NFR-V3-007; §11 owns AC-V3-001.
+  through NFR-V3-007; Issue 2 treats AC-V3-001 as a workbench/evidence boundary only and does not
+  claim its full representative acceptance.
 - `DESIGN.md`, E7 assets, `SALVAGE-INVENTORY.md`, `docs/jtbd.md`,
   `docs/experience-contract.md`, and `docs/interaction-contract.md` are the visual, product,
   and interaction authorities already reconciled in Issue 1. No new aesthetic or standalone
@@ -358,7 +359,7 @@ Vitest test through an include-pattern change.
 - [ ] Add `src/stories/v3/page-compositions.stories.tsx` composing the real `PageFrame`, `PageHead`,
   and `DataTable` components into Workspace, Focused record, and Management reference compositions.
   Keep these static compositions; no router route, data fetch, mutation, or new page family is added.
-- [ ] Use realistic records such as Gordi tasks, owners, operational notes, and current statuses;
+- [ ] Use realistic records such as Gordi tasks with explicit PIC/Supervisor metadata, operational notes, and current statuses;
   do not use lorem ipsum, generic “John Doe”, emoji, or fake-perfect KPI filler.
 - [ ] Re-run the guard; expected result is red only for dense collection, overlays, and remaining
   responsive/a11y matrix keys.
@@ -425,14 +426,14 @@ Vitest test through an include-pattern change.
 - Produce temporary evidence: `/tmp/gordi-mos-v3-vitest-after.json`
 
 **Produces:** An after-report with unchanged discovery/configuration and the legitimate post-change
-test total of `2,877` (2,868 pre-change tests plus nine canonical locking tests).
+test total of `2,878` (2,868 pre-change tests plus ten canonical locking tests).
 
 - [ ] Verify `git diff -- mos-app/vite.config.ts` is empty and the existing package script values
   equal the pre-change hash in `/tmp/gordi-mos-v3-vitest-config-before.txt`.
 - [ ] Run the existing command exactly again:
   `npm test -- --reporter=json --outputFile=/tmp/gordi-mos-v3-vitest-after.json`.
-- [ ] Parse the after report with the same Node command and assert `numTotalTests === 2877`, zero
-  failures, and that the count delta is exactly the nine tests added to the existing ViewTabs,
+- [ ] Parse the after report with the same Node command and assert `numTotalTests === 2878`, zero
+  failures, and that the count delta is exactly the ten tests added to the existing ViewTabs,
   StatusPill, and CommandMenu suites. Assert that `npm test` did not discover any `*.stories.tsx`
   file and that the Vite test block's include/exclude values are unchanged.
 - [ ] Run `npm run test:coverage -- --reporter=dot` as the existing coverage command, verifying no
@@ -451,7 +452,7 @@ test total of `2,877` (2,868 pre-change tests plus nine canonical locking tests)
 
 - [ ] Run `npm run typecheck`; expected: zero TypeScript errors.
 - [ ] Run `npm run lint`; expected: ESLint zero errors/warnings and Stylelint zero warnings/errors.
-- [ ] Run `npm test`; expected: 2,877 tests pass under Vitest 3.2.6, with the pre-change command,
+- [ ] Run `npm test`; expected: 2,878 tests pass under Vitest 3.2.6, with the pre-change command,
   include/exclude behavior, and Vite test block unchanged.
 - [ ] Run `npm run build-storybook`; expected: static Storybook build succeeds without Supabase.
 - [ ] Run `npm run test-storybook`; expected: the isolated Storybook test runner passes all curated
@@ -494,7 +495,7 @@ test total of `2,877` (2,868 pre-change tests plus nine canonical locking tests)
 
 | Requirement | Issue 2 proof in this plan | Explicit non-claim or later owner |
 | --- | --- | --- |
-| AC-V3-001 | Foundation/page/composition/dense/overlay stories expose canonical computed-style and responsive contracts; generated matrix identifies exact stories and viewports. | Representative application routes and driven desktop/phone acceptance remain Issue 9. |
+| AC-V3-001 (evidence boundary) | Foundation/page/composition/dense/overlay stories expose canonical computed-style and responsive contracts; generated matrix identifies exact stories and viewports. | Issue 2 does not claim the full master acceptance; representative application routes and driven desktop/phone acceptance remain outside this workbench. |
 | NFR-V3-001 | `@storybook/addon-a11y` + isolated `test-storybook` browser runs; project `parameters.a11y.test: 'error'`; keyboard/focus plays. | Automated axe is not a complete WCAG/AA audit; remaining violations are recorded, not declared AA by addon presence. |
 | NFR-V3-002 | Exact Storybook 10.5.2/React-Vite 10.5.2/a11y 10.5.2/test-runner 0.24.4 metadata and no second CSS/component library. | The rejected addon-vitest/Vitest4 path is recorded as a compatibility decision. |
 | NFR-V3-003 | Existing 2,868-test Vitest baseline, unchanged `vite.config.ts` test block, and changed-code coverage command. | Storybook runner is isolated from application Vitest coverage. |
@@ -508,7 +509,7 @@ test total of `2,877` (2,868 pre-change tests plus nine canonical locking tests)
 - [ ] All requested files/symbols, exact commands, expected red/green transitions, and generated
   artifact paths are named; no vague test or implementation instruction remains.
 - [ ] The implementation never changes `mos-app/vite.config.ts`'s Vitest project, test scripts, or
-  include/exclude behavior; the 2,868 → 2,877 regression proof occurs before and after package edits,
+  include/exclude behavior; the 2,868 → 2,878 regression proof occurs before and after package edits,
   and all nine new locks are in existing normally discovered suites.
 - [ ] The selected Storybook path is compatible with React 19/Vite 7 and avoids the official
   addon-vitest browser peer that would require Vitest 4.
