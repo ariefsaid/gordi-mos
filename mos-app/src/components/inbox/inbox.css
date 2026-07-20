@@ -82,3 +82,82 @@
   font-size: 18px;
   line-height: 1;
 }
+
+/* Issue 7 triage surface — chrome-free (the shared host owns modal regime/scrim/close). */
+.inbox-triage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inbox-triage__filters {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.inbox-triage__filter {
+  min-height: 44px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.inbox-triage__filter:hover {
+  background: var(--accent);
+}
+.inbox-triage__filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.inbox-triage__filter[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--foreground);
+  border-color: var(--foreground);
+  font-weight: 600;
+}
+
+/* A row is [open button | Mark handled]; the open button keeps its full-width target. */
+.inbox-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.inbox-row .inbox-row__button {
+  flex: 1 1 auto;
+}
+.inbox-row__handle {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 12px;
+  align-self: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.inbox-row__handle:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.inbox-row__handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Visually-hidden polite live region for optimistic open/action announcements. */
+.inbox-triage__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
