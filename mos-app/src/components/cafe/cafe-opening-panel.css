@@ -1,5 +1,5 @@
 /* CafeOpeningPanel (Step 7 / cafe-retrofit.spec.md §4) — a thin "Start today's opening" surface
-   over the DS tokens (DESIGN.md --ds-*/--brand-*/--status-* aliases only, no --e7-*). */
+   over the DS tokens (DESIGN.md --ds-*, --brand-*, and --status-* aliases only; no --e7-*). */
 .cafe-opening-panel {
   display: flex; flex-direction: column; gap: 12px;
 }

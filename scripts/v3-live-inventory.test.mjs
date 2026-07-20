@@ -10,12 +10,13 @@ import {
   extractDeliveryDecomposition,
   main,
   renderInventoryMarkdown,
+  validateDesignContract,
   validateInventory,
 } from './v3-live-inventory.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-test('AC-V3-014: live route inventory covers canonical, conditional, redirect, and dev branches', () => {
+test('V3 inventory classifies canonical, conditional, redirect, and DEV branches', () => {
   const inventory = buildInventory(repoRoot)
   const errors = validateInventory(inventory, repoRoot)
   assert.deepEqual(errors, [])
@@ -29,7 +30,7 @@ test('AC-V3-014: live route inventory covers canonical, conditional, redirect, a
   }
 })
 
-test('AC-V3-014: inventory records canonical primitive jobs', () => {
+test('V3 inventory records canonical primitive jobs', () => {
   const inventory = buildInventory(repoRoot)
   assert.ok(inventory.routes.length >= 40, 'route inventory must cover the complete live route tree')
   assert.ok(inventory.sharedComponents.length >= 10, 'shared-component inventory must name the live primitive set')
@@ -39,7 +40,7 @@ test('AC-V3-014: inventory records canonical primitive jobs', () => {
   }
 })
 
-test('AC-V3-014: delivery sequence derives exact issue ownership from the master spec', () => {
+test('V3 delivery sequence derives exact issue ownership from the master spec', () => {
   const spec = readFileSync(resolve(repoRoot, 'docs/specs/v3-redesign.spec.md'), 'utf8')
   const sequence = extractDeliveryDecomposition(spec)
   const inventory = buildInventory(repoRoot)
@@ -83,7 +84,7 @@ test('AC-V3-014: delivery sequence derives exact issue ownership from the master
   }
 })
 
-test('AC-V3-001: DESIGN.md contains the binding V3 visual and interaction grammar', () => {
+test('V3 DESIGN contract contains the binding visual and interaction grammar', () => {
   const design = readFileSync(resolve(repoRoot, 'DESIGN.md'), 'utf8')
   for (const anchor of [
     'E7 visual foundation',
@@ -111,7 +112,12 @@ test('AC-V3-001: DESIGN.md contains the binding V3 visual and interaction gramma
   }
 })
 
-test('AC-V3-014: inventory renderer and CLI remain deterministic', () => {
+test('V3 DESIGN active-law guard rejects retired guidance and preserves the sanctioned Action Launcher', () => {
+  const design = readFileSync(resolve(repoRoot, 'DESIGN.md'), 'utf8')
+  assert.deepEqual(validateDesignContract(design), [])
+})
+
+test('V3 inventory renderer and CLI remain deterministic', () => {
   const inventory = buildInventory(repoRoot)
   const router = readFileSync(resolve(repoRoot, 'mos-app/src/router.tsx'), 'utf8')
   const declarations = collectRouteDeclarations(router)
@@ -124,9 +130,23 @@ test('AC-V3-014: inventory renderer and CLI remain deterministic', () => {
   assert.equal(main(['--check'], repoRoot), 0)
 })
 
-test('AC-V3-014: generated inventory rejects Storybook package metadata drift', () => {
+test('V3 generated inventory rejects Storybook package metadata drift', () => {
   const inventory = buildInventory(repoRoot)
   const drifted = structuredClone(inventory)
   drifted.storybookMatrix.packageVersions['@storybook/test-runner'].declared = '0.25.0'
   assert.ok(validateInventory(drifted, repoRoot).includes('storybook matrix package versions are stale'))
+})
+
+test('V3 generated inventory rejects Storybook ownership mapping drift', () => {
+  const inventory = buildInventory(repoRoot)
+  const drifted = structuredClone(inventory)
+  drifted.storybookMatrix.ownership.find((row) => row.path.endsWith('/overlays.stories.tsx')).responsive = ['desktop1280', 'intermediate']
+  assert.ok(validateInventory(drifted, repoRoot).includes('storybook matrix ownership mapping is stale'))
+})
+
+test('V3 generated inventory rejects Task vocabulary guard drift', () => {
+  const inventory = buildInventory(repoRoot)
+  const drifted = structuredClone(inventory)
+  drifted.storybookMatrix.taskVocabularyViolations = [{ path: 'mos-app/src/stories/v3/page-compositions.stories.tsx', line: 1, term: 'owner', text: 'owner: Aisyah Rahman' }]
+  assert.ok(validateInventory(drifted, repoRoot).includes('storybook matrix Task vocabulary guard is stale'))
 })

@@ -80,7 +80,36 @@
           "importPath": "@/shell/icons"
         }
       ],
+      "responsiveVariants": {},
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "foundation.typography-roles",
+          "foundation.spacing-rhythm",
+          "foundation.colors-borders-radii-elevation",
+          "foundation.icons",
+          "foundation.focus-visible",
+          "foundation.runtime-fonts-background",
+          "foundation.responsive-frames",
+          "accessibility.runtime-proof"
+        ],
+        "states": [
+          "button.focus-visible"
+        ],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "Button",
+          "TextInput",
+          "TasksIcon",
+          "CloseIcon"
+        ],
+        "responsiveVariants": {}
+      },
       "canonicalImports": [
         {
           "symbol": "Button",
@@ -113,6 +142,7 @@
         "ButtonStateMatrix",
         "FieldStateMatrix",
         "SelectionAndStatus",
+        "StatusSemanticColorProof",
         "KeyboardFocus"
       ],
       "sourceImports": [
@@ -135,6 +165,10 @@
         {
           "symbol": "Button",
           "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "ErrorState",
+          "importPath": "@/components/ui/state-kit"
         },
         {
           "symbol": "Checkbox",
@@ -165,12 +199,67 @@
           "importPath": "@/components/ui/view-tabs"
         }
       ],
+      "responsiveVariants": {},
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "controls.button-state-matrix",
+          "controls.field-state-matrix",
+          "controls.selection-status",
+          "controls.keyboard-focus",
+          "accessibility.keyboard-focus"
+        ],
+        "states": [
+          "button.default",
+          "button.hover-documentation",
+          "button.focus-visible",
+          "button.active",
+          "button.disabled",
+          "button.loading-debt",
+          "text-input.default",
+          "text-input.focus-visible",
+          "text-input.disabled",
+          "text-input.error",
+          "select.default",
+          "select.focus-visible",
+          "select.disabled",
+          "select.error",
+          "checkbox.default",
+          "checkbox.checked",
+          "checkbox.indeterminate",
+          "checkbox.disabled",
+          "toggle.default",
+          "status.semantic-tones"
+        ],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "Button",
+          "ErrorState",
+          "TextInput",
+          "Select",
+          "Checkbox",
+          "Toggle",
+          "Pill",
+          "StatusPill",
+          "ViewTabs"
+        ],
+        "responsiveVariants": {}
+      },
       "canonicalImports": [
         {
           "symbol": "Button",
           "file": "mos-app/src/components/ui/button.tsx",
           "importPath": "@/components/ui/button"
+        },
+        {
+          "symbol": "ErrorState",
+          "file": "mos-app/src/components/ui/state-kit.tsx",
+          "importPath": "@/components/ui/state-kit"
         },
         {
           "symbol": "TextInput",
@@ -248,7 +337,44 @@
           "importPath": "@/components/kitchen/plan-qty-stepper"
         }
       ],
+      "responsiveVariants": {},
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "feedback.empty-variants",
+          "feedback.error-retry",
+          "feedback.loading-skeleton",
+          "feedback.saving-saved",
+          "feedback.validation-retry"
+        ],
+        "states": [
+          "empty.quiet",
+          "empty.next-step",
+          "empty.awaiting",
+          "empty.blank",
+          "error.retry",
+          "loading.skeleton-rows",
+          "loading.shell",
+          "feedback.saving",
+          "feedback.saved",
+          "feedback.validation-retry"
+        ],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "EmptyState",
+          "ErrorState",
+          "SkeletonRows",
+          "LoadingShell",
+          "PlanQtyStepper",
+          "PlanQtyCell"
+        ],
+        "responsiveVariants": {}
+      },
       "canonicalImports": [
         {
           "symbol": "EmptyState",
@@ -289,10 +415,20 @@
       "exists": true,
       "exports": [
         "Workspace",
+        "WorkspaceIntermediate",
+        "WorkspacePhone",
         "FocusedRecord",
         "Management"
       ],
       "sourceImports": [
+        {
+          "symbol": "expect",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "within",
+          "importPath": "storybook/test"
+        },
         {
           "symbol": "Button",
           "importPath": "@/components/ui/button"
@@ -302,19 +438,67 @@
           "importPath": "@/components/dashboard/data-table"
         },
         {
-          "symbol": "DataTableColumn",
-          "importPath": "@/components/dashboard/data-table"
-        },
-        {
           "symbol": "PageFrame",
           "importPath": "@/shell/page-frame"
         },
         {
           "symbol": "PageHead",
           "importPath": "@/shell/page-head"
+        },
+        {
+          "symbol": "useIsDesktop",
+          "importPath": "@/shell/use-is-desktop"
         }
       ],
+      "responsiveVariants": {
+        "Workspace": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "WorkspaceIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "WorkspacePhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      },
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "page-composition.workspace",
+          "page-composition.focused-record",
+          "page-composition.management"
+        ],
+        "states": [],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "Button",
+          "PageFrame",
+          "PageHead",
+          "DataTable"
+        ],
+        "responsiveVariants": {
+          "Workspace": {
+            "parameter": "desktop1280",
+            "global": "desktop1280"
+          },
+          "WorkspaceIntermediate": {
+            "parameter": "intermediate",
+            "global": "intermediate"
+          },
+          "WorkspacePhone": {
+            "parameter": "phone390",
+            "global": "phone390"
+          }
+        }
+      },
       "canonicalImports": [
         {
           "symbol": "Button",
@@ -358,10 +542,6 @@
           "importPath": "@/components/dashboard/data-table"
         },
         {
-          "symbol": "DataTableColumn",
-          "importPath": "@/components/dashboard/data-table"
-        },
-        {
           "symbol": "StatusPill",
           "importPath": "@/components/tasks/status-pill"
         },
@@ -370,7 +550,59 @@
           "importPath": "@/shell/use-is-desktop"
         }
       ],
+      "responsiveVariants": {
+        "ReadyDesktop": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "ReadyIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "ReadyPhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      },
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "dense-collection.realistic-gordi-records",
+          "dense-collection.viewport-matrix",
+          "dense-collection.state-matrix"
+        ],
+        "states": [
+          "collection.ready",
+          "collection.loading",
+          "collection.empty",
+          "collection.filtered-empty",
+          "collection.error"
+        ],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "DataTable",
+          "StatusPill"
+        ],
+        "responsiveVariants": {
+          "ReadyDesktop": {
+            "parameter": "desktop1280",
+            "global": "desktop1280"
+          },
+          "ReadyIntermediate": {
+            "parameter": "intermediate",
+            "global": "intermediate"
+          },
+          "ReadyPhone": {
+            "parameter": "phone390",
+            "global": "phone390"
+          }
+        }
+      },
       "canonicalImports": [
         {
           "symbol": "DataTable",
@@ -393,9 +625,27 @@
         "CommandSearch",
         "Confirmation",
         "AnchoredMenu",
-        "CurrentRecordPanelShell"
+        "CurrentRecordPanelShell",
+        "CurrentRecordPanelShellIntermediate",
+        "CurrentRecordPanelShellPhone"
       ],
       "sourceImports": [
+        {
+          "symbol": "useState",
+          "importPath": "react"
+        },
+        {
+          "symbol": "expect",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "userEvent",
+          "importPath": "storybook/test"
+        },
+        {
+          "symbol": "within",
+          "importPath": "storybook/test"
+        },
         {
           "symbol": "CommandMenu",
           "importPath": "@/components/command/command-menu"
@@ -417,7 +667,59 @@
           "importPath": "@/shell/record-panel-host"
         }
       ],
+      "responsiveVariants": {
+        "CurrentRecordPanelShell": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "CurrentRecordPanelShellIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "CurrentRecordPanelShellPhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      },
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "overlay.command-search",
+          "overlay.confirmation",
+          "overlay.anchored-menu",
+          "overlay.current-record-panel-shell"
+        ],
+        "states": [
+          "overlay.current-host-shell"
+        ],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "CommandMenu",
+          "Button",
+          "ConfirmDialog",
+          "RowMenu",
+          "RecordPanelHost"
+        ],
+        "responsiveVariants": {
+          "CurrentRecordPanelShell": {
+            "parameter": "desktop1280",
+            "global": "desktop1280"
+          },
+          "CurrentRecordPanelShellIntermediate": {
+            "parameter": "intermediate",
+            "global": "intermediate"
+          },
+          "CurrentRecordPanelShellPhone": {
+            "parameter": "phone390",
+            "global": "phone390"
+          }
+        }
+      },
       "canonicalImports": [
         {
           "symbol": "CommandMenu",
@@ -446,7 +748,7 @@
         }
       ],
       "debts": [
-        "RecordPanelHost remains the current shell; future host behavior is owned by Issue 4."
+        "RecordPanelHost remains the current shell; desktop split Esc behavior is intentionally non-modal, and any I2 host unification is owned by Issue 4."
       ],
       "metadataError": null
     },
@@ -455,6 +757,8 @@
       "exists": true,
       "exports": [
         "RuntimeAndViewport",
+        "RuntimeIntermediate",
+        "RuntimePhone",
         "KeyboardJourneys"
       ],
       "sourceImports": [
@@ -479,15 +783,81 @@
           "importPath": "@/components/ui/button"
         },
         {
+          "symbol": "DataTable",
+          "importPath": "@/components/dashboard/data-table"
+        },
+        {
           "symbol": "ViewTabs",
           "importPath": "@/components/ui/view-tabs"
         },
         {
           "symbol": "RecordPanelHost",
           "importPath": "@/shell/record-panel-host"
+        },
+        {
+          "symbol": "useIsDesktop",
+          "importPath": "@/shell/use-is-desktop"
         }
       ],
+      "responsiveVariants": {
+        "RuntimeAndViewport": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "RuntimeIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "RuntimePhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        },
+        "KeyboardJourneys": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      },
+      "taskVocabularyViolations": [],
       "excludesMatrixMetadata": true,
+      "ownership": {
+        "jobs": [
+          "accessibility.runnable-a11y",
+          "accessibility.runtime-proof",
+          "accessibility.keyboard-focus"
+        ],
+        "states": [
+          "button.focus-visible"
+        ],
+        "responsive": [
+          "desktop1280",
+          "intermediate",
+          "phone390"
+        ],
+        "canonicalSymbols": [
+          "Button",
+          "ViewTabs",
+          "RecordPanelHost",
+          "DataTable"
+        ],
+        "responsiveVariants": {
+          "RuntimeAndViewport": {
+            "parameter": "desktop1280",
+            "global": "desktop1280"
+          },
+          "RuntimeIntermediate": {
+            "parameter": "intermediate",
+            "global": "intermediate"
+          },
+          "RuntimePhone": {
+            "parameter": "phone390",
+            "global": "phone390"
+          },
+          "KeyboardJourneys": {
+            "parameter": "phone390",
+            "global": "phone390"
+          }
+        }
+      },
       "canonicalImports": [
         {
           "symbol": "Button",
@@ -503,10 +873,280 @@
           "symbol": "RecordPanelHost",
           "file": "mos-app/src/shell/record-panel-host.tsx",
           "importPath": "@/shell/record-panel-host"
+        },
+        {
+          "symbol": "DataTable",
+          "file": "mos-app/src/components/dashboard/data-table.tsx",
+          "importPath": "@/components/dashboard/data-table"
         }
       ],
       "debts": [],
       "metadataError": null
+    }
+  ],
+  "ownership": [
+    {
+      "path": "mos-app/src/stories/v3/foundation.stories.tsx",
+      "jobs": [
+        "foundation.typography-roles",
+        "foundation.spacing-rhythm",
+        "foundation.colors-borders-radii-elevation",
+        "foundation.icons",
+        "foundation.focus-visible",
+        "foundation.runtime-fonts-background",
+        "foundation.responsive-frames",
+        "accessibility.runtime-proof"
+      ],
+      "states": [
+        "button.focus-visible"
+      ],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "Button",
+        "TextInput",
+        "TasksIcon",
+        "CloseIcon"
+      ],
+      "responsiveVariants": {}
+    },
+    {
+      "path": "mos-app/src/stories/v3/controls.stories.tsx",
+      "jobs": [
+        "controls.button-state-matrix",
+        "controls.field-state-matrix",
+        "controls.selection-status",
+        "controls.keyboard-focus",
+        "accessibility.keyboard-focus"
+      ],
+      "states": [
+        "button.default",
+        "button.hover-documentation",
+        "button.focus-visible",
+        "button.active",
+        "button.disabled",
+        "button.loading-debt",
+        "text-input.default",
+        "text-input.focus-visible",
+        "text-input.disabled",
+        "text-input.error",
+        "select.default",
+        "select.focus-visible",
+        "select.disabled",
+        "select.error",
+        "checkbox.default",
+        "checkbox.checked",
+        "checkbox.indeterminate",
+        "checkbox.disabled",
+        "toggle.default",
+        "status.semantic-tones"
+      ],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "Button",
+        "ErrorState",
+        "TextInput",
+        "Select",
+        "Checkbox",
+        "Toggle",
+        "Pill",
+        "StatusPill",
+        "ViewTabs"
+      ],
+      "responsiveVariants": {}
+    },
+    {
+      "path": "mos-app/src/stories/v3/feedback.stories.tsx",
+      "jobs": [
+        "feedback.empty-variants",
+        "feedback.error-retry",
+        "feedback.loading-skeleton",
+        "feedback.saving-saved",
+        "feedback.validation-retry"
+      ],
+      "states": [
+        "empty.quiet",
+        "empty.next-step",
+        "empty.awaiting",
+        "empty.blank",
+        "error.retry",
+        "loading.skeleton-rows",
+        "loading.shell",
+        "feedback.saving",
+        "feedback.saved",
+        "feedback.validation-retry"
+      ],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "EmptyState",
+        "ErrorState",
+        "SkeletonRows",
+        "LoadingShell",
+        "PlanQtyStepper",
+        "PlanQtyCell"
+      ],
+      "responsiveVariants": {}
+    },
+    {
+      "path": "mos-app/src/stories/v3/page-compositions.stories.tsx",
+      "jobs": [
+        "page-composition.workspace",
+        "page-composition.focused-record",
+        "page-composition.management"
+      ],
+      "states": [],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "Button",
+        "PageFrame",
+        "PageHead",
+        "DataTable"
+      ],
+      "responsiveVariants": {
+        "Workspace": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "WorkspaceIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "WorkspacePhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      }
+    },
+    {
+      "path": "mos-app/src/stories/v3/dense-collections.stories.tsx",
+      "jobs": [
+        "dense-collection.realistic-gordi-records",
+        "dense-collection.viewport-matrix",
+        "dense-collection.state-matrix"
+      ],
+      "states": [
+        "collection.ready",
+        "collection.loading",
+        "collection.empty",
+        "collection.filtered-empty",
+        "collection.error"
+      ],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "DataTable",
+        "StatusPill"
+      ],
+      "responsiveVariants": {
+        "ReadyDesktop": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "ReadyIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "ReadyPhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      }
+    },
+    {
+      "path": "mos-app/src/stories/v3/overlays.stories.tsx",
+      "jobs": [
+        "overlay.command-search",
+        "overlay.confirmation",
+        "overlay.anchored-menu",
+        "overlay.current-record-panel-shell"
+      ],
+      "states": [
+        "overlay.current-host-shell"
+      ],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "CommandMenu",
+        "Button",
+        "ConfirmDialog",
+        "RowMenu",
+        "RecordPanelHost"
+      ],
+      "responsiveVariants": {
+        "CurrentRecordPanelShell": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "CurrentRecordPanelShellIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "CurrentRecordPanelShellPhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      }
+    },
+    {
+      "path": "mos-app/src/stories/v3/accessibility-responsive.stories.tsx",
+      "jobs": [
+        "accessibility.runnable-a11y",
+        "accessibility.runtime-proof",
+        "accessibility.keyboard-focus"
+      ],
+      "states": [
+        "button.focus-visible"
+      ],
+      "responsive": [
+        "desktop1280",
+        "intermediate",
+        "phone390"
+      ],
+      "canonicalSymbols": [
+        "Button",
+        "ViewTabs",
+        "RecordPanelHost",
+        "DataTable"
+      ],
+      "responsiveVariants": {
+        "RuntimeAndViewport": {
+          "parameter": "desktop1280",
+          "global": "desktop1280"
+        },
+        "RuntimeIntermediate": {
+          "parameter": "intermediate",
+          "global": "intermediate"
+        },
+        "RuntimePhone": {
+          "parameter": "phone390",
+          "global": "phone390"
+        },
+        "KeyboardJourneys": {
+          "parameter": "phone390",
+          "global": "phone390"
+        }
+      }
     }
   ],
   "canonicalComponents": {
@@ -614,6 +1254,12 @@
       {
         "file": "mos-app/src/components/ui/state-kit.tsx",
         "importPath": "@/components/ui/state-kit",
+        "story": "mos-app/src/stories/v3/controls.stories.tsx",
+        "evidence": "named production import"
+      },
+      {
+        "file": "mos-app/src/components/ui/state-kit.tsx",
+        "importPath": "@/components/ui/state-kit",
         "story": "mos-app/src/stories/v3/feedback.stories.tsx",
         "evidence": "named production import"
       }
@@ -667,6 +1313,12 @@
       }
     ],
     "DataTable": [
+      {
+        "file": "mos-app/src/components/dashboard/data-table.tsx",
+        "importPath": "@/components/dashboard/data-table",
+        "story": "mos-app/src/stories/v3/accessibility-responsive.stories.tsx",
+        "evidence": "named production import"
+      },
       {
         "file": "mos-app/src/components/dashboard/data-table.tsx",
         "importPath": "@/components/dashboard/data-table",
@@ -823,9 +1475,10 @@
     "intermediate",
     "phone390"
   ],
+  "taskVocabularyViolations": [],
   "debts": [
     "Button loading state is not exposed by the canonical primitive; owner: Issue 3.",
-    "RecordPanelHost remains the current shell; future host behavior is owned by Issue 4."
+    "RecordPanelHost remains the current shell; desktop split Esc behavior is intentionally non-modal, and any I2 host unification is owned by Issue 4."
   ],
   "viewports": [
     "desktop1280",
@@ -847,7 +1500,7 @@
     "representativeAcceptance": false,
     "futureIssue4Host": false
   },
-  "storyCount": 28,
+  "storyCount": 35,
   "stateEntryCount": 36,
   "responsiveEntryCount": 3,
   "canonicalJobCount": 23

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, userEvent, within } from 'storybook/test'
 import { CommandMenu } from '@/components/command/command-menu'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -21,7 +23,7 @@ export const v3Matrix = {
     { symbol: "RowMenu", file: "mos-app/src/components/tasks/row-menu.tsx", importPath: "@/components/tasks/row-menu" },
     { symbol: "RecordPanelHost", file: "mos-app/src/shell/record-panel-host.tsx", importPath: "@/shell/record-panel-host" },
   ],
-  debt: ["RecordPanelHost remains the current shell; future host behavior is owned by Issue 4."],
+  debt: ["RecordPanelHost remains the current shell; desktop split Esc behavior is intentionally non-modal, and any I2 host unification is owned by Issue 4."],
   scope: { applicationMigration: false, representativeAcceptance: false, futureIssue4Host: false },
 } as const
 
@@ -67,26 +69,76 @@ export const AnchoredMenu: Story = {
   ),
 }
 
-export const CurrentRecordPanelShell: Story = {
-  render: () => (
+function RecordPanelShellJourney() {
+  const [open, setOpen] = useState(false)
+  return (
     <div className="v3-story-frame v3-story-frame--wide">
       <section className="v3-story-section" aria-labelledby="overlay-panel-title">
         <h1 id="overlay-panel-title" className="v3-story-section__title">Current record-panel shell</h1>
-        <p className="v3-story-section__copy">This is the current host implementation across the named viewport regimes; it is not the future Issue 4 host migration.</p>
-        <RecordPanelHost
-          label="Task record"
-          title="Confirm Roastery calibration notes"
-          onClose={() => undefined}
-          onOpenPage={() => undefined}
-        >
-          <div className="v3-record-panel-specimen">
-            <h2 className="v3-record-panel-specimen__title">Confirm Roastery calibration notes</h2>
-            <p className="v3-record-panel-specimen__copy">Aisyah Rahman is checking the calibration notes before the next batch is released to the Café team.</p>
-            <Button variant="outline">Open task page</Button>
-          </div>
-        </RecordPanelHost>
+        <p className="v3-story-section__copy">Review a current Gordi task in the shared host. The desktop split remains non-modal; narrower regimes use the current modal sheet. Future host migration remains Issue 4.</p>
+        <Button variant="primary" onClick={() => setOpen(true)}>Review calibration task</Button>
+        {open && (
+          <RecordPanelHost
+            label="Roastery calibration task"
+            title="Confirm Roastery calibration notes"
+            onClose={() => setOpen(false)}
+            onOpenPage={() => undefined}
+          >
+            <div className="v3-record-panel-specimen">
+              <h2 className="v3-record-panel-specimen__title">Confirm Roastery calibration notes</h2>
+              <p className="v3-record-panel-specimen__copy">Aisyah Rahman is checking the calibration notes before the next batch is released to the Café team.</p>
+              <Button variant="outline">Open task page</Button>
+            </div>
+          </RecordPanelHost>
+        )}
       </section>
     </div>
-  ),
+  )
+}
+
+async function assertRecordPanelJourney(canvasElement: HTMLElement, regime: 'desktop' | 'modal') {
+  const canvas = within(canvasElement)
+  const trigger = canvas.getByRole('button', { name: 'Review calibration task' })
+  await userEvent.click(trigger)
+  if (regime === 'desktop') {
+    await expect(canvas.getByRole('complementary', { name: 'Roastery calibration task' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect(canvas.getByRole('complementary', { name: 'Roastery calibration task' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Close' }))
+  } else {
+    await expect(canvas.getByRole('dialog', { name: 'Roastery calibration task' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Close' }))
+  }
+  await expect(canvas.queryByRole('complementary', { name: 'Roastery calibration task' })).not.toBeInTheDocument()
+  await expect(canvas.queryByRole('dialog', { name: 'Roastery calibration task' })).not.toBeInTheDocument()
+  await expect(trigger).toHaveFocus()
+
+  if (regime === 'modal') {
+    await userEvent.click(trigger)
+    await expect(canvas.getByRole('dialog', { name: 'Roastery calibration task' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect(canvas.queryByRole('dialog', { name: 'Roastery calibration task' })).not.toBeInTheDocument()
+    await expect(trigger).toHaveFocus()
+  }
+}
+
+export const CurrentRecordPanelShell: Story = {
+  render: () => <RecordPanelShellJourney />,
+  parameters: { v3Viewport: 'desktop1280' },
   globals: { viewport: { value: 'desktop1280' } },
+  play: async ({ canvasElement }) => assertRecordPanelJourney(canvasElement, 'desktop'),
+}
+
+export const CurrentRecordPanelShellIntermediate: Story = {
+  render: () => <RecordPanelShellJourney />,
+  parameters: { v3Viewport: 'intermediate' },
+  globals: { viewport: { value: 'intermediate' } },
+  play: async ({ canvasElement }) => assertRecordPanelJourney(canvasElement, 'modal'),
+}
+
+export const CurrentRecordPanelShellPhone: Story = {
+  render: () => <RecordPanelShellJourney />,
+  parameters: { v3Viewport: 'phone390' },
+  globals: { viewport: { value: 'phone390' } },
+  play: async ({ canvasElement }) => assertRecordPanelJourney(canvasElement, 'modal'),
 }

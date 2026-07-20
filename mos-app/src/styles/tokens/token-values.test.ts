@@ -482,7 +482,7 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
     it('--status-lost-text (light) AA-darkened red', () => {
       assertColorClose(
         getToken('--status-lost-text', 'indexCss'),
-        'color(display-p3 0.2796 0.1396 0.0158)',
+        'color(display-p3 0.45 0.05 0.04)',
         '--status-lost-text (light)'
       )
     })

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildStorybookMatrix } from './v3-storybook-matrix.mjs'
+import { buildStorybookMatrix, validateStorybookMatrix } from './v3-storybook-matrix.mjs'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '..')
@@ -12,6 +12,32 @@ const APP_SOURCE_ROOTS = ['mos-app/src/pages', 'mos-app/src/components', 'mos-ap
 const INVENTORY_JSON_PATH = 'docs/reference/v3-live-inventory.json'
 const INVENTORY_MARKDOWN_PATH = 'docs/reference/v3-live-inventory.md'
 const CSS_LITERAL_KINDS = ['font-size', 'line-height', 'padding', 'margin', 'gap', 'width', 'height']
+
+const DESIGN_ACTIVE_FORBIDDEN_PATTERNS = [
+  { pattern: /Mine\/RACI\/All/i, label: 'Mine/RACI/All Task toolbar grammar' },
+  { pattern: /Task RACI/i, label: 'Task RACI' },
+  { pattern: /full R\/A\/C\/I[\s\S]{0,100}task detail/i, label: 'full R/A/C/I chips on Task detail' },
+  { pattern: /RACI[^\n]{0,100}task detail/i, label: 'RACI on Task detail' },
+  { pattern: /Weekly-update\s+\*\*update lines\*\*/i, label: 'Weekly-update progress-marker guidance' },
+  { pattern: /weekly update filed/i, label: 'Weekly-update filing guidance' },
+  { pattern: /Ops Log/i, label: 'retired Ops Log vocabulary' },
+  { pattern: /disabled[^\n]{0,80}SOON[^\n]{0,80}stub/i, label: 'disabled SOON presentation stubs' },
+  { pattern: /Home \/ digest surfaces \(My Week/i, label: 'My Week as current Home name' },
+  { pattern: /Surface wash:[^\n]*\(My Week\)/i, label: 'My Week surface-wash label' },
+  { pattern: /Kitchen and Bar/i, label: 'retired Kitchen module vocabulary' },
+  { pattern: /MOS sanctions no floating action button paradigm/i, label: 'blanket no-FAB rule' },
+]
+
+export function validateDesignContract(designText) {
+  const errors = DESIGN_ACTIVE_FORBIDDEN_PATTERNS
+    .filter(({ pattern }) => pattern.test(designText))
+    .map(({ label }) => `DESIGN.md retains forbidden active guidance: ${label}`)
+  if (!/Task[^\n]{0,100}PIC[^\n]{0,100}Supervisor/i.test(designText)) errors.push('DESIGN.md must name PIC + Supervisor for Task rows/details')
+  if (!/Deputy[^\n]{0,120}never a FAB/i.test(designText)) errors.push('DESIGN.md must state that Deputy is never a FAB')
+  if (!/phone[^\n]{0,160}Action Launcher[^\n]{0,160}FAB/i.test(designText)) errors.push('DESIGN.md must state the sanctioned phone Action Launcher FAB')
+  if (!/RACI[^\n]{0,160}(Objective|Project|Process)/i.test(designText)) errors.push('DESIGN.md must scope RACI chips to Objective/Project/Process governance')
+  return errors
+}
 
 const CANONICAL_JOBS = [
   'search',
@@ -544,7 +570,8 @@ export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
   const cssFamilyRows = collectCssFamilies(root)
   const routes = collectRoutes(root)
   const sharedComponents = cloneComponents()
-  const deliverySequence = extractDeliveryDecomposition(readText(root, SPEC_PATH))
+  const specText = readText(root, SPEC_PATH)
+  const deliverySequence = extractDeliveryDecomposition(specText)
   const storybook = buildStorybookMatrix(root)
   return {
     schemaVersion: 1,
@@ -570,6 +597,8 @@ export function buildInventory(repoRoot = DEFAULT_REPO_ROOT) {
       responsiveEntryCount: storybook.responsiveEntryCount,
       canonicalJobCount: storybook.canonicalJobCount,
       viewports: storybook.viewports,
+      ownership: storybook.ownership,
+      taskVocabularyViolations: storybook.taskVocabularyViolations,
       applicationMigration: storybook.scope.applicationMigration,
       representativeAcceptance: storybook.scope.representativeAcceptance,
       futureIssue4Host: storybook.scope.futureIssue4Host,
@@ -675,10 +704,14 @@ export function validateInventory(inventory, repoRoot = DEFAULT_REPO_ROOT) {
   const recordedStorybook = inventory.storybookMatrix
   if (!recordedStorybook) errors.push('storybook matrix summary is missing')
   else {
+    for (const error of validateStorybookMatrix(storybook)) errors.push(`storybook matrix invalid: ${error}`)
     for (const field of ['storyCount', 'stateEntryCount', 'responsiveEntryCount', 'canonicalJobCount']) {
       if (recordedStorybook[field] !== storybook[field]) errors.push(`storybook matrix ${field} is stale`)
     }
     if (JSON.stringify(recordedStorybook.packageVersions) !== JSON.stringify(storybook.packageVersions)) errors.push('storybook matrix package versions are stale')
+    if (JSON.stringify(recordedStorybook.ownership) !== JSON.stringify(storybook.ownership)) errors.push('storybook matrix ownership mapping is stale')
+    if (JSON.stringify(recordedStorybook.taskVocabularyViolations) !== JSON.stringify(storybook.taskVocabularyViolations)) errors.push('storybook matrix Task vocabulary guard is stale')
+    for (const error of validateDesignContract(readText(root, DESIGN_PATH))) errors.push(error)
     if (recordedStorybook.applicationMigration !== false) errors.push('storybook matrix claims application migration')
     if (recordedStorybook.representativeAcceptance !== false) errors.push('storybook matrix claims representative acceptance')
     if (recordedStorybook.futureIssue4Host !== false) errors.push('storybook matrix claims future Issue 4 host behavior')
@@ -723,9 +756,17 @@ export function renderInventoryMarkdown(inventory) {
     `- Matrix Markdown: [\`${inventory.storybookMatrix.artifactMarkdown}\`](v3-storybook-matrix.md)`,
     `- Stack: Storybook ${inventory.storybookMatrix.packageVersions.storybook.resolved} / React-Vite ${inventory.storybookMatrix.packageVersions['@storybook/react-vite'].resolved} / addon-a11y ${inventory.storybookMatrix.packageVersions['@storybook/addon-a11y'].resolved} / external runner ${inventory.storybookMatrix.packageVersions['@storybook/test-runner'].resolved}`,
     `- Totals: ${inventory.storybookMatrix.storyCount} stories, ${inventory.storybookMatrix.stateEntryCount} state entries, ${inventory.storybookMatrix.responsiveEntryCount} responsive entries, ${inventory.storybookMatrix.canonicalJobCount} canonical component jobs`,
+    `- Ownership rows: ${inventory.storybookMatrix.ownership.length}; each required job/state/viewport/component is validated against its owning story file`,
+    `- Task vocabulary guard: ${inventory.storybookMatrix.taskVocabularyViolations.length} violations; Task specimens use PIC + Supervisor and reject Owner/RACI vocabulary`,
     `- Viewports: ${renderList(inventory.storybookMatrix.viewports)}; a11y test mode: ${inventory.storybookMatrix.a11y.testMode ? 'error' : 'missing'}`,
     `- Scope claims: migration ${inventory.storybookMatrix.applicationMigration ? 'yes' : 'no'}; representative acceptance ${inventory.storybookMatrix.representativeAcceptance ? 'yes' : 'no'}; future Issue 4 host ${inventory.storybookMatrix.futureIssue4Host ? 'yes' : 'no'}`,
     `- Later-owner gaps: ${renderList(inventory.storybookMatrix.debts)}`,
+    '',
+    '### Storybook ownership mapping',
+    '',
+    '| Story file | Jobs | States | Responsive | Canonical imports |',
+    '| --- | --- | --- | --- | --- |',
+    ...inventory.storybookMatrix.ownership.map((row) => `| ${row.path} | ${renderList(row.jobs)} | ${renderList(row.states)} | ${renderList(row.responsive)} | ${renderList(row.canonicalSymbols)} |`),
     '',
     '## Route inventory',
     '',

@@ -216,7 +216,7 @@ This is the existing, owner-approved RIS Portal look — a shadcn/Radix-derived,
 
 The personality is **calm, dense, and data-first.** The surface is white-on-near-white: a single blue carries every interactive affordance against a field of warm-cool greys, so the eye goes straight to numbers, status, and the one action that matters. Density is deliberate — controls are compact (32px tall), but table rows breathe (52px) so financial figures are scannable. This is an operator's tool for a contract- and project-based business: the owner reviews budgets, procurement, and pipeline on desktop and phone, and the design optimizes for trust in the data over decoration. It explicitly rejects the "AI SaaS marketing" aesthetic: no neon, no glassmorphism panels, no oversized hero type, no shadow-heavy "floating card" soup, no purple gradients.
 
-**Owner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12).** After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's *texture* without changing its *identity*: a new font pairing (Plus Jakarta Sans + DM Sans, with Inter retained only for the verified numeric tabular scope), a slightly larger card radius (12px), a single subtle *resting* shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Single-Border Rule, density, the Tinted-Status pattern, and all RACI/progress/ops/MOS-density tokens are **unchanged** — these are the load-bearing identity, and the refresh leaves them intact.
+**Owner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12).** After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's *texture* without changing its *identity*: a new font pairing (Plus Jakarta Sans + DM Sans, with Inter retained only for the verified numeric tabular scope), a slightly larger card radius (12px), a single subtle *resting* shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Single-Border Rule, density, the Tinted-Status pattern, current status and Signal semantics, Task PIC/Supervisor grammar, governance role-chip semantics, and MOS density mode are **unchanged** — these are the load-bearing identity, and the refresh leaves them intact.
 
 **Key Characteristics:**
 - One blue accent (`primary`, `hsl(221 83% 53%)`) does all the interactive work; everything else is neutral.
@@ -272,7 +272,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Orange-Sprinkle Rule (OD-P3-7).** `brand-orange` is a brand sprinkle used **sparingly** (≤2 marks per screen): the logo dot and the **active view-tab underline marker**. It is kept **OFF all status semantics** (it sits hue-wise between the red/amber status hues and would be misread as a warning) and **OFF all actions**. Never a status, never a link, never a button.
 
-**The Deputy-Launcher / No-FAB Rule (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange FAB).** MOS sanctions **no floating action button** paradigm — a floating orange "Open deputy" FAB doubly violated the Orange-Sprinkle Rule (orange-as-action) and collided with page content + the Kitchen submit bar on phone. The deputy launcher is instead a **neutral top-bar icon button on every viewport** (desktop *and* phone): 32px, the deputy spark glyph, `muted-foreground` → `foreground` on hover, sitting in the header right-cluster beside search/bell — identical chrome to the notification bell. One launcher location app-wide (one app, not "several apps"). No orange, no float.
+**Deputy launcher and phone Action Launcher (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange Deputy FAB).** Deputy is never a FAB; it uses the shared top-bar/host door on every viewport: a neutral 32px deputy spark button in the header right-cluster beside search/bell, with `muted-foreground` → `foreground` on hover. The only sanctioned phone Action Launcher FAB is the universal capability-filtered `+ Action Launcher`; it may expose at most one high-frequency contextual module action permitted by current law, never orange decorative chrome, never Capture, and never a second launcher. Desktop/tablet use the shared top-bar `+ Create` door. One launcher location app-wide (one app, not "several apps").
 
 ## Typography
 
@@ -317,7 +317,7 @@ This is a **borders-first system with a permitted soft resting lift** (amended 2
 The system was gradient-free at rest by default. The owner ratified **two bounded, navy-tinted gradients** — explicitly **NOT purple**, far lighter than the demo's lavender, and always within The One Blue Rule.
 
 - **Primary-button sheen** (`gradients.primary-sheen`): An **optional** whisper-subtle vertical gradient on the primary fill — top ~3% lighter, bottom ~2% darker than the base `primary`. It is a sheen on the *same* blue, not a second hue. `primary-foreground` (near-white) clears AA (≥4.5:1) across the *entire* range.
-- **Surface wash** (`gradients.surface-wash`): A very faint navy-tinted top-wash for **home / digest surfaces only** (My Week). It fades from `brand-navy` at 3.5% alpha to fully transparent within 220px.
+- **Surface wash** (`gradients.surface-wash`): A very faint navy-tinted top-wash for **Home / digest surfaces only**. It fades from `brand-navy` at 3.5% alpha to fully transparent within 220px.
 
 **The Restrained-Gradient Rule (OD-P3-12).** Gradients are permitted in **exactly two places**: the optional primary-button sheen and the home/digest surface wash. Hard bounds: **(1)** never on status; **(2)** never introduces a new hue — only the `primary` blue (sheen) or `brand-navy` (wash) families, **never purple/indigo/violet**; **(3)** opacity ceiling — the surface wash tops out at **3.5% alpha** and fully fades to transparent; the button sheen stays within **±3% L** of base `primary`; **(4)** AA text contrast must hold across the **full** gradient range, verified at the worst-case stop. No glassmorphism, no neon, no multi-stop rainbows — these are *whispers* of depth.
 
@@ -398,13 +398,13 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **DataTable reflow (OD-W4-4):** the DataTable **single-renders** — at `md` (768 px) it renders the `<table>`; below `md` it renders a stacked card list instead. Exactly ONE branch is in the DOM at a time (chosen by `useIsDesktop()` reading `(min-width: 768px)` synchronously at first paint, so no flash of the wrong branch on mobile). These are two separate breakpoints — 920 px for the rail collapse, 768 px for the table→card reflow. Card anatomy: first column = title/activation button, remaining columns = `<dl>` label:value grid. The mobile cards take the 12px card radius + resting lift (OD-P3-10/11). Because only one branch renders, each cell appears once in the AT tree — **no `aria-hidden` on either branch** (the unrendered branch is simply absent). Touch targets on card affordances extend to ≥44 px via `.touch-target`.
 
 ### View-tab strip (OD-P3-6)
-A horizontal tab strip above the toolbar selecting the workspace view (Table · Board · Calendar). 34px tall tabs, 13px/600, `0 12px` padding, 7px gap to a 15px icon. Inactive = `muted-foreground`; hover = `foreground`; **active = `brand-navy-text` + a 2px `brand-orange` bottom border** (the one orange sprinkle per screen). Disabled/"SOON" stubs = `hsl(240 4% 62%)` text + `not-allowed` cursor + a small `secondary`/`muted-foreground` "SOON" pill, `aria-disabled="true"`. `role="tablist"` / `role="tab"` / `aria-selected`; roving tabindex (only the active tab is `tabindex=0`). The strip is the "this is a database view, not a to-do list" signature. *Disabled stub AA note: ~3:1 contrast is acceptable for disabled controls (WCAG exempts them); state is communicated by the "SOON" pill + `aria-disabled`, not color alone.*
+A horizontal tab strip above the toolbar selects a **live presentation supported by the current domain**. A domain may expose Table, Board, Calendar, or another adapter only when that presentation is functional for the collection; unsupported future adapters are omitted, never rendered as dead tabs or decorative placeholders. Tabs remain 34px tall, 13px/600, `0 12px` padding, with a 7px gap to a 15px icon. Inactive = `muted-foreground`; hover = `foreground`; **active = `brand-navy-text` + a 2px `brand-orange` bottom border** (the one orange sprinkle per screen). `role="tablist"` / `role="tab"` / `aria-selected`; roving tabindex (only the active tab is `tabindex=0`). The strip is the "this is a database view, not a to-do list" signature; its visual grammar stays shared while its live tab set follows domain capability.
 
 ### Group header row (OD-P3-6)
 Inside the grouped DataTable, each group is introduced by a full-width `<tr>` rendered as a clean **hairline-separated** row (38px): top + bottom 1px `border`, transparent bg — **no navy band, no left-edge swatch** (left stripes removed as distracting — owner). Contents: a caret (`▾`/`▸`, `muted-foreground`, `aria-expanded`), the group **label** (13px/700, `brand-navy-text`, the structural-navy use), a plain **count** (`muted-foreground`, `tabular-nums`), an **overdue subtotal** when >0 (`· N overdue`, `--status-lost-text`, click-to-filter button `aria-label="Filter to N overdue tasks"`), and a trailing **"+ Add task"** ghost affordance (`muted-foreground`, pre-fills the grouped dimension). The whole header toggles collapse on click/Enter/Space (`aria-expanded`). Groups are **always shown** (including empty ones) for layout stability. Flat at rest (utility row — no resting shadow).
 
 ### DB-view toolbar controls (OD-P3-6)
-The Tasks toolbar uses **bordered** filter controls (the existing `control` chip: 32px, 1px `input` border, **8px control radius**, `muted-foreground` label + `foreground` value + chevron) — A's bordered chrome, not borderless text triggers. The **group-by control is the exception**: it is tinted to read as the active "database" control — `brand-navy/6` bg + 1px `brand-navy` border + `brand-navy-text` text + 600 weight (the structural-navy use). The Mine/RACI/All `seg` segmented control is unchanged (`secondary` track, white "on" pill + lift). **The segment is disabled when a Person filter is set** (Person overrides it): disabled `seg` = `opacity: 0.5`, `aria-disabled`, with the segment visually reading "Person: me."
+The Tasks toolbar uses **bordered** filter controls (the existing `control` chip: 32px, 1px `input` border, **8px control radius**, `muted-foreground` label + `foreground` value + chevron) — A's bordered chrome, not borderless text triggers. The **group-by control is the exception**: it is tinted to read as the active "database" control — `brand-navy/6` bg + 1px `brand-navy` border + `brand-navy-text` text + 600 weight (the structural-navy use). Saved views use **My work / Team work / Overdue**; explicit filters name **PIC / Supervisor / Team**. The saved-view segment stays available unless a more specific capability filter makes a view inapplicable, in which case the control explains that state rather than implying Task governance roles.
 
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary`, buttons 28px, "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. `role="tablist"`/`role="tab"`/`aria-selected`. Used for stage filters.
@@ -503,7 +503,7 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
    ```
 4. **Alpha tints** (`primary/10%`, `success/12%`, `border/70%`, `brand-navy/6`, etc.) come straight from the slash-alpha syntax — keep them; they are load-bearing for the tinted-status and hover-wash patterns.
 5. **Resting shadow (OD-P3-11).** Apply `box-shadow: var(--shadow-rest)` (or the `shadow-rest` utility) to the card, KPI-tile, kanban-card, and mobile-reflow-card classes **in addition to** their existing 1px border. Do NOT add it to toolbars, plain table rows, group-header rows, strips, or inputs (those stay flat). Hover still deepens to the existing `state lift` / `kanban-hover` shadow.
-6. **Gradients (OD-P3-12).** Primary-button sheen: optionally set `background-image: var(--gradient-primary-sheen)` on `.btn-primary` (keep the solid `primary` `background-color` underneath as fallback + as the hover flatten target). Surface wash: apply `var(--gradient-surface-wash)` as a `background-image` on the **home/digest page container only** (My Week), e.g. on the `PageFrame variant="prose"` home surface — never on list/detail surfaces, never on cards, never on status elements.
+6. **Gradients (OD-P3-12).** Primary-button sheen: optionally set `background-image: var(--gradient-primary-sheen)` on `.btn-primary` (keep the solid `primary` `background-color` underneath as fallback + as the hover flatten target). Surface wash: apply `var(--gradient-surface-wash)` as a `background-image` on the **Home/digest page container only**, e.g. on the `PageFrame variant="prose"` Home surface — never on list/detail surfaces, never on cards, never on status elements.
 7. **Numbers + tnum verification (OD-P3-9 — REQUIRED step).** Add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric. **Then verify on the live Tasks table:** render a column of varying-width currency/percent/count values and confirm the digits column-align (no jitter) in **DM Sans**. If they do, done. **If DM Sans `tnum` is weak/absent,** scope a numeric fallback — `.tnum, .num, td.num { font-family: "Inter", var(--font-sans); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }` — applying Inter-tabular to numeric table cells / KPI values ONLY (load Inter `wght@400;500;600` in that case). Proportional body/UI text stays DM Sans regardless. Record the outcome (DM Sans tnum OK, or Inter-fallback engaged) in the build PR.
 8. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px }` rather than per-component focus styles.
 9. **Charts (recharts):** theme series/axes/grid from these tokens — axis/grid in `border`/`muted-foreground`, primary series in `primary`, status series in success/warning/destructive, categorical in violet. (No chart tokens existed in the mockups; derive from the palette, do not invent new chart colors.)
@@ -526,7 +526,7 @@ composition rule only — every hue, type token, radius, and rule above is uncha
 two Phase-0 redline rounds (IA-1..5 "too dense" → IA-6/7 "too sparse" → IA-8 adopted, OD-P0-6).
 Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
 
-### Home / digest surfaces (My Week and any future at-a-glance view)
+### Home / digest surfaces (current landing brief and any future at-a-glance view)
 - **Single content column ~1080px** (1040–1120) with generous header air; no side asides, no second
   card column. *(OD-P3-12: this surface may carry the faint `gradient-surface-wash` navy top-wash.)*
 - **One dominant module** per surface: a grouped table — 4 columns max, **44–48px rows**, 8–10 rows
@@ -535,41 +535,37 @@ Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
   link to its full surface, not a rendered module. **One ratified exception (OD-P0-8):** users with
   direct reports get a third, role-conditional compact team module (filed-status + overdue count per
   person) after the strips.
-- **Progressive disclosure:** RACI renders as the R-person avatar + muted "+N" on rows; full
-  R/A/C/I chips live on detail surfaces only. No mono IDs, no double badges, no nav badge-counts,
-  no caption paragraphs on home.
+- **Progressive disclosure:** Task rows show the PIC and a compact Supervisor cue; full typed metadata
+  lives on the focused record surface. No mono IDs, no double badges, no nav badge-counts, no caption
+  paragraphs on Home.
 - **Due dates:** colored only when overdue (destructive) or ≤3 days (warning text); otherwise muted.
 
-### RACI role chips (added 2026-06-11, OD-P2 — reuse existing hues, no new brand)
-RACI ownership renders as small role chips, all from the existing palette:
+### Governance role chips (Objective / Project / Process only — reuse existing hues, no new brand)
+RACI ownership for Objective, Project, and Process governance renders as small role chips, all from the existing palette:
 - `--raci-responsible` = `primary` (blue) — R, the doer; mirrors the list R-avatar tint.
 - `--raci-accountable` = `violet` — A, the single owner (categorical use of violet, allowed).
 - `--raci-consulted` / `--raci-informed` = `muted-foreground` on `secondary` — C and I, quiet.
 Chip = ≤16px role glyph + person name on a tinted pill (10–12% bg + darkened text, the standard
-tinted-status pattern). On list rows only the R person shows (avatar + "+N"); the full R/A/C/I set
-appears on the task detail surface. The R chip's small categorical use of the brand blue is within
-The One Blue Rule budget (it is never an action).
+tinted-status pattern). On governance list rows only the R person shows (avatar + "+N"); the full
+role set appears on the corresponding governance detail surface. A Task never uses RACI role chips;
+Task rows and details use PIC + Supervisor. The R chip's small categorical use of the brand blue is
+within The One Blue Rule budget (it is never an action).
 
-### Progress-marker pills (added 2026-06-12, OD-P2-10 — reuse existing hues, no new brand)
-Weekly-update **update lines** carry a progress marker — distinct from a task's Status (self-reported
-achievement cue, not the task's real state). Three values, all from the existing palette via the
-Tinted-Status pattern (10–14% tint + darkened AA text + dot):
-- **In progress** = `primary/12%` bg + `--status-open-text` + `primary` dot.
-- **Blocked** = `destructive/12%` bg + `--status-lost-text` + `destructive` dot.
-- **Done** = `success/14%` bg + `--status-won-text` + `success` dot.
-Note the vocabulary/semantics differ from the task `StatusPill` (which maps Open→amber over 4 values);
-keep them as separate components. **Late** (a weekly update filed after the Friday 17:00 WIB due) is
-shown in **warning/amber** (caution — filing is allowed, OD-P2-14), never destructive/red.
+### Status and Signal semantics (current)
+Task `StatusPill` represents the record's current state with the shared tinted-status rule. Signal
+entries use source, type, and attention treatment from the same semantic palette; an attention or late
+condition is warning/amber, never destructive/red. These are current data states, not a filing or
+progress-marker component contract.
 
 ### Operations event tokens (added 2026-06-12, OD-P2-15..19 — reuse existing hues, no new brand)
 The Signals archive (`/work/signals`) renders operational event entries with:
 - **Source badge** (the business unit): calm, NOT a per-unit rainbow — only the two ops-writing units
-  tint, everything else neutral. Kitchen and Bar = `primary/10%` + `--status-open-text`; Roastery =
+  tint, everything else neutral. Café = `primary/10%` + `--status-open-text`; Roastery =
   `violet/12%` + `--status-violet-text`; all other units = neutral `badge-status` (`secondary` +
   `muted-foreground`).
 - **Type** (production/receiving/qc/follow_up/other): quiet **muted-foreground label text**, not a
   filled chip (per the signed mockup).
-- **Needs attention**: row treatment = `warning/7%` fill + a 2px `warning` left rule; the My Week
+- **Needs attention**: row treatment = `warning/7%` fill + a 2px `warning` left rule; the Home
   ops-strip amber = `warning/18%` + `warning-foreground` + `warning` dot (the same warning/amber family
   as the late TimingChip — late/attention is amber, never destructive/red). The 2px left rule is the
   one deliberate, owner-approved exception to the anti-slop side-stripe ban: it is state-bearing,
@@ -606,8 +602,8 @@ not identity; everything in "KEEP UNCHANGED" below is untouched.
 **KEEP UNCHANGED (owner: "keep the rest").** The One Blue Rule (blue stays the only action color;
 accent hue is NOT changing to the demo's indigo-violet), the near-monochrome palette, the
 Single-Border Rule, density (16px card padding, 32px controls, roomy table rows), no-emoji /
-SVG-icons, the Tinted-Status pattern, all RACI / progress-marker / Ops Log tokens, and MOS density
-mode. The four OD-P3-9..12 changes touch those sections only where a font/radius/elevation/gradient
+SVG-icons, the Tinted-Status pattern, current StatusPill/Signal/Task/governance tokens, and MOS density
+mode. Retired filing and legacy operations surfaces are not binding component guidance. The four OD-P3-9..12 changes touch those sections only where a font/radius/elevation/gradient
 change mechanically requires it (e.g. card frontmatter radius, KPI value weight 700→600).
 
 ### Open risk (OD-P3-9 tnum contingency)
@@ -699,7 +695,7 @@ There is one overlay grammar by interaction job:
 - **Record open from a collection** is a wide right panel on desktop, retaining the collection in view. It is a right-side panel sized to 40–45% of the available content area at desktop widths and is not a near-full centered record popup. The panel uses the same RecordViewer as the full page.
 - **Panel navigation** uses one host and an internal stack. Relation clicks push a new record; internal Back pops the stack; Close exits the panel. Focus enters the new record and returns to the originating control when the panel closes.
 - **Explicit full page** is always available from the viewer. A direct URL, refresh, bookmark, browser new tab, or explicit Open full page action is the canonical full-page destination, not an accidental re-opening of a panel.
-- **Deputy** uses the same host and focus/close behavior as other non-blocking panels. It does not create a separate page shell or a floating action-button identity.
+- **Deputy** uses the same host and focus/close behavior as other non-blocking panels. Deputy is never a FAB; it uses the shared top-bar/host door. The sanctioned phone Action Launcher remains the one capability-filtered `+` FAB and is not a Deputy or Capture control.
 - **Confirmation** is one centered blocking dialog for consequential actions. **Menus and pickers** are anchored to their trigger and remain keyboard navigable. **Toast/status feedback** reports completion or failure without becoming a second navigation surface.
 - **Phone** turns the record panel into a full-screen record surface. Phone does not use a near-full centered record popup or a clipped desktop table.
 

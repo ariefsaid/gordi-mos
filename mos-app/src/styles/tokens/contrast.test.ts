@@ -26,6 +26,37 @@ function contrastRatio(fg: Color, bg: Color): number {
   return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
 }
 
+function p3ToSrgb(color: Color): Color {
+  const decode = (value: number) => value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+  const encode = (value: number) => value <= 0.0031308 ? 12.92 * value : 1.055 * Math.pow(value, 1 / 2.4) - 0.055
+  const linear = [color.r, color.g, color.b].map(decode)
+  const xyz = [
+    0.48657095 * linear[0] + 0.26566769 * linear[1] + 0.19821729 * linear[2],
+    0.22897456 * linear[0] + 0.69173852 * linear[1] + 0.07928691 * linear[2],
+    0.04511338 * linear[1] + 1.04394437 * linear[2],
+  ]
+  return {
+    r: Math.min(1, Math.max(0, encode(3.24096994 * xyz[0] - 1.53738318 * xyz[1] - 0.49861076 * xyz[2]))),
+    g: Math.min(1, Math.max(0, encode(-0.96924364 * xyz[0] + 1.8759675 * xyz[1] + 0.04155506 * xyz[2]))),
+    b: Math.min(1, Math.max(0, encode(0.05563008 * xyz[0] - 0.20397696 * xyz[1] + 1.05697151 * xyz[2]))),
+    a: color.a,
+  }
+}
+
+function hueDegrees(color: Color): number {
+  const max = Math.max(color.r, color.g, color.b)
+  const min = Math.min(color.r, color.g, color.b)
+  const delta = max - min
+  if (delta === 0) return 0
+  let hue = max === color.r
+    ? 60 * (((color.g - color.b) / delta) % 6)
+    : max === color.g
+      ? 60 * ((color.b - color.r) / delta + 2)
+      : 60 * ((color.r - color.g) / delta + 4)
+  if (hue < 0) hue += 360
+  return hue
+}
+
 // Known token values (from the updated source files) for contrast testing
 const TOKENS = {
   // Light theme surfaces
@@ -44,7 +75,7 @@ const TOKENS = {
   // Status AA text (light)
   '--status-open-text':   { r: 0.1001, g: 0.0765, b: 0.4201, a: 1 },
   '--status-won-text':    { r: 0.0704, g: 0.1496, b: 0.0619, a: 1 },
-  '--status-lost-text':   { r: 0.2796, g: 0.1396, b: 0.0158, a: 1 },
+  '--status-lost-text':   { r: 0.45,   g: 0.05,   b: 0.04,   a: 1 },
   '--status-violet-text': { r: 0.1372, g: 0.0724, b: 0.4282, a: 1 },
   '--warning-foreground': { r: 0.28,  g: 0.22,  b: 0.08,  a: 1 },
   // Dark theme surfaces (warmed values as shipped in theme-dark.css)
@@ -97,6 +128,11 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
 
+    it('status-lost-text stays in the destructive red hue role', () => {
+      const hue = hueDegrees(p3ToSrgb(TOKENS['--status-lost-text']))
+      expect(hue < 15 || hue > 345).toBe(true)
+    })
+
     it('status-open-text on accent/10% ≥ 4.5:1', () => {
       const accent = { r: 0.276, g: 0.384, b: 0.837, a: 1 }
       const bg = tint(accent, TOKENS['--surface-primary'], 0.10)
@@ -145,6 +181,11 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       const bg = tint(destructive, TOKENS['--surface-primary-dark'], 0.12)
       const ratio = contrastRatio(TOKENS['--status-lost-text-dark'], bg)
       expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('status-lost-text-dark remains red in the dark theme', () => {
+      const hue = hueDegrees(p3ToSrgb(TOKENS['--status-lost-text-dark']))
+      expect(hue < 15 || hue > 345).toBe(true)
     })
 
     it('status-open-text-dark on accent/10% ≥ 4.5:1', () => {

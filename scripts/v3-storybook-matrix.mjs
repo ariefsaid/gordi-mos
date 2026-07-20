@@ -1,6 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+const require = createRequire(new URL('../mos-app/package.json', import.meta.url))
+const typescript = require('typescript')
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '..')
@@ -23,6 +27,14 @@ const STORY_FILES = [
   'mos-app/src/stories/v3/accessibility-responsive.stories.tsx',
 ]
 
+const TASK_STORY_FILES = new Set([
+  'mos-app/src/stories/v3/page-compositions.stories.tsx',
+  'mos-app/src/stories/v3/dense-collections.stories.tsx',
+  'mos-app/src/stories/v3/accessibility-responsive.stories.tsx',
+])
+
+const FORBIDDEN_TASK_VOCABULARY = /\b(owner|responsible|accountable|raci)\b/i
+
 const EXPECTED_STORIES = {
   'mos-app/src/stories/v3/foundation.stories.tsx': [
     'RuntimeTypography',
@@ -34,6 +46,7 @@ const EXPECTED_STORIES = {
     'ButtonStateMatrix',
     'FieldStateMatrix',
     'SelectionAndStatus',
+    'StatusSemanticColorProof',
     'KeyboardFocus',
   ],
   'mos-app/src/stories/v3/feedback.stories.tsx': [
@@ -44,6 +57,8 @@ const EXPECTED_STORIES = {
   ],
   'mos-app/src/stories/v3/page-compositions.stories.tsx': [
     'Workspace',
+    'WorkspaceIntermediate',
+    'WorkspacePhone',
     'FocusedRecord',
     'Management',
   ],
@@ -61,9 +76,13 @@ const EXPECTED_STORIES = {
     'Confirmation',
     'AnchoredMenu',
     'CurrentRecordPanelShell',
+    'CurrentRecordPanelShellIntermediate',
+    'CurrentRecordPanelShellPhone',
   ],
   'mos-app/src/stories/v3/accessibility-responsive.stories.tsx': [
     'RuntimeAndViewport',
+    'RuntimeIntermediate',
+    'RuntimePhone',
     'KeyboardJourneys',
   ],
 }
@@ -166,6 +185,133 @@ const REQUIRED_STATES = [
 ]
 
 const REQUIRED_VIEWPORTS = ['desktop1280', 'intermediate', 'phone390']
+
+// Every required matrix slice has one accountable story file. The generated artifact retains
+// this mapping so an aggregate union cannot make a mutated or empty owner look covered.
+const REQUIRED_STORY_OWNERSHIP = {
+  'mos-app/src/stories/v3/foundation.stories.tsx': {
+    jobs: [
+      'foundation.typography-roles',
+      'foundation.spacing-rhythm',
+      'foundation.colors-borders-radii-elevation',
+      'foundation.icons',
+      'foundation.focus-visible',
+      'foundation.runtime-fonts-background',
+      'foundation.responsive-frames',
+      'accessibility.runtime-proof',
+    ],
+    states: ['button.focus-visible'],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['Button', 'TextInput', 'TasksIcon', 'CloseIcon'],
+  },
+  'mos-app/src/stories/v3/controls.stories.tsx': {
+    jobs: [
+      'controls.button-state-matrix',
+      'controls.field-state-matrix',
+      'controls.selection-status',
+      'controls.keyboard-focus',
+      'accessibility.keyboard-focus',
+    ],
+    states: [
+      'button.default',
+      'button.hover-documentation',
+      'button.focus-visible',
+      'button.active',
+      'button.disabled',
+      'button.loading-debt',
+      'text-input.default',
+      'text-input.focus-visible',
+      'text-input.disabled',
+      'text-input.error',
+      'select.default',
+      'select.focus-visible',
+      'select.disabled',
+      'select.error',
+      'checkbox.default',
+      'checkbox.checked',
+      'checkbox.indeterminate',
+      'checkbox.disabled',
+      'toggle.default',
+      'status.semantic-tones',
+    ],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['Button', 'ErrorState', 'TextInput', 'Select', 'Checkbox', 'Toggle', 'Pill', 'StatusPill', 'ViewTabs'],
+  },
+  'mos-app/src/stories/v3/feedback.stories.tsx': {
+    jobs: [
+      'feedback.empty-variants',
+      'feedback.error-retry',
+      'feedback.loading-skeleton',
+      'feedback.saving-saved',
+      'feedback.validation-retry',
+    ],
+    states: [
+      'empty.quiet',
+      'empty.next-step',
+      'empty.awaiting',
+      'empty.blank',
+      'error.retry',
+      'loading.skeleton-rows',
+      'loading.shell',
+      'feedback.saving',
+      'feedback.saved',
+      'feedback.validation-retry',
+    ],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['EmptyState', 'ErrorState', 'SkeletonRows', 'LoadingShell', 'PlanQtyStepper', 'PlanQtyCell'],
+  },
+  'mos-app/src/stories/v3/page-compositions.stories.tsx': {
+    jobs: ['page-composition.workspace', 'page-composition.focused-record', 'page-composition.management'],
+    states: [],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['Button', 'PageFrame', 'PageHead', 'DataTable'],
+  },
+  'mos-app/src/stories/v3/dense-collections.stories.tsx': {
+    jobs: ['dense-collection.realistic-gordi-records', 'dense-collection.viewport-matrix', 'dense-collection.state-matrix'],
+    states: ['collection.ready', 'collection.loading', 'collection.empty', 'collection.filtered-empty', 'collection.error'],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['DataTable', 'StatusPill'],
+  },
+  'mos-app/src/stories/v3/overlays.stories.tsx': {
+    jobs: ['overlay.command-search', 'overlay.confirmation', 'overlay.anchored-menu', 'overlay.current-record-panel-shell'],
+    states: ['overlay.current-host-shell'],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['CommandMenu', 'Button', 'ConfirmDialog', 'RowMenu', 'RecordPanelHost'],
+  },
+  'mos-app/src/stories/v3/accessibility-responsive.stories.tsx': {
+    jobs: ['accessibility.runnable-a11y', 'accessibility.runtime-proof', 'accessibility.keyboard-focus'],
+    states: ['button.focus-visible'],
+    responsive: REQUIRED_VIEWPORTS,
+    canonicalSymbols: ['Button', 'ViewTabs', 'RecordPanelHost', 'DataTable'],
+  },
+}
+
+// Responsive proof is accountable at the exported-story level as well as the file level.
+// The custom parameter drives the isolated runner; the matching global keeps the Storybook
+// manager/toolbar honest for reviewers inspecting the same story.
+const REQUIRED_RESPONSIVE_VARIANTS = {
+  'mos-app/src/stories/v3/page-compositions.stories.tsx': {
+    Workspace: 'desktop1280',
+    WorkspaceIntermediate: 'intermediate',
+    WorkspacePhone: 'phone390',
+  },
+  'mos-app/src/stories/v3/dense-collections.stories.tsx': {
+    ReadyDesktop: 'desktop1280',
+    ReadyIntermediate: 'intermediate',
+    ReadyPhone: 'phone390',
+  },
+  'mos-app/src/stories/v3/overlays.stories.tsx': {
+    CurrentRecordPanelShell: 'desktop1280',
+    CurrentRecordPanelShellIntermediate: 'intermediate',
+    CurrentRecordPanelShellPhone: 'phone390',
+  },
+  'mos-app/src/stories/v3/accessibility-responsive.stories.tsx': {
+    RuntimeAndViewport: 'desktop1280',
+    RuntimeIntermediate: 'intermediate',
+    RuntimePhone: 'phone390',
+    KeyboardJourneys: 'phone390',
+  },
+}
 
 // The matrix builder owns the accepted Storybook stack. The live inventory consumes this
 // evidence instead of copying package versions into a second, independently editable list.
@@ -281,15 +427,81 @@ function collectStoryExports(source) {
     .filter((name) => name !== 'v3Matrix')
 }
 
-function collectNamedImports(source) {
+export function collectNamedImports(source) {
+  const sourceFile = typescript.createSourceFile('storybook-matrix.tsx', source, typescript.ScriptTarget.Latest, true, typescript.ScriptKind.TSX)
   const imports = []
-  for (const match of source.matchAll(/import\s*\{([\s\S]*?)\}\s*from\s*['"]([^'"]+)['"]/g)) {
-    for (const specifier of match[1].split(',')) {
-      const symbol = specifier.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim()
-      if (symbol) imports.push({ symbol, importPath: match[2] })
+  function visit(node) {
+    if (typescript.isImportDeclaration(node) && typescript.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.importClause
+      if (!clause?.isTypeOnly && clause?.namedBindings && typescript.isNamedImports(clause.namedBindings)) {
+        for (const specifier of clause.namedBindings.elements) {
+          if (specifier.isTypeOnly) continue
+          imports.push({
+            symbol: specifier.propertyName?.text ?? specifier.name.text,
+            importPath: node.moduleSpecifier.text,
+          })
+        }
+      }
     }
+    typescript.forEachChild(node, visit)
   }
+  visit(sourceFile)
   return imports
+}
+
+function objectPropertyName(property) {
+  if (!property.name) return null
+  if (typescript.isIdentifier(property.name) || typescript.isStringLiteral(property.name)) return property.name.text
+  return null
+}
+
+function findObjectProperty(object, name) {
+  if (!typescript.isObjectLiteralExpression(object)) return null
+  return object.properties.find((property) => objectPropertyName(property) === name) ?? null
+}
+
+function readStringProperty(object, name) {
+  const property = findObjectProperty(object, name)
+  if (!property || !typescript.isPropertyAssignment(property)) return null
+  return typescript.isStringLiteralLike(property.initializer) ? property.initializer.text : null
+}
+
+function readViewportGlobal(storyObject) {
+  const globalsProperty = findObjectProperty(storyObject, 'globals')
+  if (!globalsProperty || !typescript.isPropertyAssignment(globalsProperty)) return null
+  const viewportProperty = findObjectProperty(globalsProperty.initializer, 'viewport')
+  if (!viewportProperty || !typescript.isPropertyAssignment(viewportProperty)) return null
+  if (typescript.isStringLiteralLike(viewportProperty.initializer)) return viewportProperty.initializer.text
+  return readStringProperty(viewportProperty.initializer, 'value')
+}
+
+export function collectResponsiveVariants(source) {
+  const sourceFile = typescript.createSourceFile('storybook-responsive-variants.tsx', source, typescript.ScriptTarget.Latest, true, typescript.ScriptKind.TSX)
+  const variants = {}
+  function visit(node) {
+    if (typescript.isVariableStatement(node) && node.modifiers?.some((modifier) => modifier.kind === typescript.SyntaxKind.ExportKeyword)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (!typescript.isIdentifier(declaration.name) || declaration.name.text === 'v3Matrix' || !declaration.initializer || !typescript.isObjectLiteralExpression(declaration.initializer)) continue
+        const parametersProperty = findObjectProperty(declaration.initializer, 'parameters')
+        const parameter = parametersProperty && typescript.isPropertyAssignment(parametersProperty)
+          ? readStringProperty(parametersProperty.initializer, 'v3Viewport')
+          : null
+        const global = readViewportGlobal(declaration.initializer)
+        if (parameter !== null || global !== null) variants[declaration.name.text] = { parameter, global }
+      }
+    }
+    typescript.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return variants
+}
+
+export function collectTaskVocabularyViolations(path, source) {
+  if (!TASK_STORY_FILES.has(path)) return []
+  return source.split(/\r?\n/).flatMap((line, index) => {
+    const match = line.match(FORBIDDEN_TASK_VOCABULARY)
+    return match ? [{ path, line: index + 1, term: match[1].toLowerCase(), text: line.trim() }] : []
+  })
 }
 
 function uniqueSorted(values) {
@@ -324,6 +536,8 @@ export function buildStorybookMatrix(repoRoot = DEFAULT_REPO_ROOT) {
       exists: fileExists(root, path),
       exports: collectStoryExports(source),
       sourceImports: collectNamedImports(source),
+      responsiveVariants: collectResponsiveVariants(source),
+      taskVocabularyViolations: collectTaskVocabularyViolations(path, source),
       excludesMatrixMetadata: /excludeStories\s*:\s*\/\^v3Matrix\$\//.test(source),
       metadata: parsed.metadata,
       metadataError: parsed.error,
@@ -331,6 +545,25 @@ export function buildStorybookMatrix(repoRoot = DEFAULT_REPO_ROOT) {
   })
   const canonicalComponents = canonicalComponentsFrom(storyFiles)
   const allMetadata = storyFiles.map((story) => story.metadata).filter(Boolean)
+  const storyFileEvidence = storyFiles.map(({ path, exists, exports, sourceImports, responsiveVariants, taskVocabularyViolations, excludesMatrixMetadata, metadataError, metadata }) => ({
+    path,
+    exists,
+    exports,
+    sourceImports,
+    responsiveVariants,
+    taskVocabularyViolations,
+    excludesMatrixMetadata,
+    ownership: {
+      jobs: metadata?.jobs ?? [],
+      states: metadata?.states ?? [],
+      responsive: metadata?.responsive ?? [],
+      canonicalSymbols: (metadata?.canonicalImports ?? []).map((item) => item.symbol),
+      responsiveVariants,
+    },
+    canonicalImports: metadata?.canonicalImports ?? [],
+    debts: metadata?.debt ?? [],
+    metadataError,
+  }))
   const previewText = readText(root, PREVIEW_PATH)
   const mainText = readText(root, MAIN_PATH)
   const runnerText = readText(root, RUNNER_PATH)
@@ -342,26 +575,24 @@ export function buildStorybookMatrix(repoRoot = DEFAULT_REPO_ROOT) {
       issue3: issueByNumber[3] ?? { issue: 3, name: '' },
       issue9: issueByNumber[9] ?? { issue: 9, name: '' },
     },
-    storyFiles: storyFiles.map(({ path, exists, exports, sourceImports, excludesMatrixMetadata, metadataError, metadata }) => ({
-      path,
-      exists,
-      exports,
-      sourceImports,
-      excludesMatrixMetadata,
-      canonicalImports: metadata?.canonicalImports ?? [],
-      debts: metadata?.debt ?? [],
-      metadataError,
-    })),
+    storyFiles: storyFileEvidence,
+    ownership: storyFileEvidence.map(({ path, ownership }) => ({ path, ...ownership })),
     canonicalComponents,
-    jobs: uniqueSorted(allMetadata.flatMap((metadata) => metadata.jobs ?? [])),
-    states: uniqueSorted(allMetadata.flatMap((metadata) => metadata.states ?? [])),
-    responsive: uniqueSorted(allMetadata.flatMap((metadata) => metadata.responsive ?? [])),
+    jobs: uniqueSorted(storyFileEvidence.flatMap((story) => story.ownership.jobs)),
+    states: uniqueSorted(storyFileEvidence.flatMap((story) => story.ownership.states)),
+    responsive: uniqueSorted(storyFileEvidence.flatMap((story) => story.ownership.responsive)),
+    taskVocabularyViolations: storyFileEvidence.flatMap((story) => story.taskVocabularyViolations ?? []),
     debts: allMetadata.flatMap((metadata) => metadata.debt ?? []),
     viewports: REQUIRED_VIEWPORTS,
     a11y: {
       addonConfigured: mainText.includes('@storybook/addon-a11y'),
       testMode: /a11y\s*:\s*\{[\s\S]*?test\s*:\s*['"]error['"]/.test(previewText),
-      runnerConfigured: runnerText.includes('postVisit') && runnerText.includes('waitForPageReady'),
+      runnerConfigured: runnerText.includes('preVisit')
+        && runnerText.includes('getStoryContext')
+        && runnerText.includes('setViewportSize')
+        && runnerText.includes('postVisit')
+        && runnerText.includes('waitForPageReady')
+        && runnerText.includes('v3Viewport'),
       mechanism: 'storybook-addon-a11y-test-runner',
     },
     serviceBoundary: {
@@ -417,6 +648,9 @@ export function validateStorybookMatrix(matrix) {
 
   for (const path of STORY_FILES) {
     const story = matrix.storyFiles?.find((candidate) => candidate.path === path)
+    const expectedOwnership = REQUIRED_STORY_OWNERSHIP[path]
+    const ownership = story?.ownership
+    const recordedOwnership = matrix.ownership?.find((candidate) => candidate.path === path)
     if (!story?.exists) errors.push(`missing required Storybook story file: ${path}`)
     if (story?.metadataError) errors.push(`${path}: ${story.metadataError}`)
     if (!story?.excludesMatrixMetadata) errors.push(`${path}: must exclude only v3Matrix from CSF story indexing`)
@@ -426,7 +660,32 @@ export function validateStorybookMatrix(matrix) {
         errors.push(`${path}: metadata canonical import is not an actual named production import: ${item.symbol}`)
       }
     }
+    if (!ownership) errors.push(`${path}: per-story ownership mapping is missing`)
+    if (!recordedOwnership) errors.push(`${path}: top-level ownership mapping is missing`)
+    else if (JSON.stringify(recordedOwnership) !== JSON.stringify({ path, ...ownership })) errors.push(`${path}: top-level ownership mapping diverges from story-file ownership`)
+    for (const job of expectedOwnership?.jobs ?? []) if (!ownership?.jobs?.includes(job)) errors.push(`${path}: ownership missing job ${job}`)
+    for (const state of expectedOwnership?.states ?? []) if (!ownership?.states?.includes(state)) errors.push(`${path}: ownership missing state ${state}`)
+    for (const viewport of expectedOwnership?.responsive ?? []) if (!ownership?.responsive?.includes(viewport)) errors.push(`${path}: ownership missing responsive viewport ${viewport}`)
+    for (const symbol of expectedOwnership?.canonicalSymbols ?? []) if (!ownership?.canonicalSymbols?.includes(symbol)) errors.push(`${path}: ownership missing canonical component ${symbol}`)
+    if (ownership && JSON.stringify(ownership.canonicalSymbols) !== JSON.stringify((story.canonicalImports ?? []).map((item) => item.symbol))) errors.push(`${path}: ownership canonical symbols diverge from metadata imports`)
+    for (const violation of story?.taskVocabularyViolations ?? []) errors.push(`${path}: forbidden Task vocabulary "${violation.term}" at line ${violation.line}`)
+    for (const [exportName, expectedViewport] of Object.entries(REQUIRED_RESPONSIVE_VARIANTS[path] ?? {})) {
+      const variant = story?.responsiveVariants?.[exportName]
+      if (!variant) {
+        errors.push(`${path}: responsive variant ${exportName} must declare parameters.v3Viewport and globals.viewport`)
+        continue
+      }
+      if (variant.parameter !== expectedViewport) errors.push(`${path}:${exportName} parameters.v3Viewport must be ${expectedViewport}`)
+      if (variant.global !== expectedViewport) errors.push(`${path}:${exportName} globals.viewport must be ${expectedViewport}`)
+      if (variant.parameter !== variant.global) errors.push(`${path}:${exportName} parameters.v3Viewport and globals.viewport must agree`)
+    }
+    for (const [exportName, variant] of Object.entries(story?.responsiveVariants ?? {})) {
+      if (variant.parameter !== variant.global) errors.push(`${path}:${exportName} parameters.v3Viewport and globals.viewport must agree`)
+    }
   }
+  const derivedTaskVocabularyViolations = (matrix.storyFiles ?? []).flatMap((story) => story.taskVocabularyViolations ?? [])
+  if (!Array.isArray(matrix.taskVocabularyViolations)) errors.push('matrix Task vocabulary guard output is missing')
+  else if (JSON.stringify(matrix.taskVocabularyViolations) !== JSON.stringify(derivedTaskVocabularyViolations)) errors.push('matrix Task vocabulary guard output diverges from story-file evidence')
   if (matrix.storyCount !== Object.values(EXPECTED_STORIES).flat().length) errors.push(`story export count must be ${Object.values(EXPECTED_STORIES).flat().length}, received ${matrix.storyCount}`)
   for (const [symbol, expectation] of Object.entries(REQUIRED_CANONICAL_COMPONENTS)) {
     if (!hasNamedProductionImport(matrix, symbol, expectation)) errors.push(`missing actual named production import for ${symbol}: ${expectation.importPath}`)
@@ -438,7 +697,7 @@ export function validateStorybookMatrix(matrix) {
   if (JSON.stringify(matrix.viewports) !== JSON.stringify(REQUIRED_VIEWPORTS)) errors.push('viewport presets must be desktop1280, intermediate, phone390')
   if (!matrix.a11y?.addonConfigured) errors.push('Storybook main config does not register @storybook/addon-a11y')
   if (!matrix.a11y?.testMode) errors.push("Storybook preview must set parameters.a11y.test to 'error'")
-  if (!matrix.a11y?.runnerConfigured) errors.push('Storybook test-runner must configure postVisit with waitForPageReady')
+  if (!matrix.a11y?.runnerConfigured) errors.push('Storybook test-runner must configure preVisit v3Viewport sizing plus postVisit with waitForPageReady')
   if (!matrix.serviceBoundary?.configured) errors.push('Storybook overlay service boundary is not configured')
   for (const debt of REQUIRED_DEBTS) {
     const story = matrix.storyFiles?.find((candidate) => candidate.path === debt.story)
@@ -487,6 +746,8 @@ export function renderStorybookMatrixMarkdown(matrix) {
     '',
     markdownList(matrix.debts ?? []),
     '',
+    `- Task vocabulary guard: **${(matrix.taskVocabularyViolations ?? []).length} violations** (Task specimens use PIC + Supervisor; Owner/RACI vocabulary is rejected)`,
+    '',
     '## Master-spec boundary',
     '',
     `- Issue 2: ${matrix.issueBoundary.issue2.name}`,
@@ -505,6 +766,21 @@ export function renderStorybookMatrixMarkdown(matrix) {
     '',
     markdownList(matrix.responsive),
     '',
+    '## Per-story ownership',
+    '',
+    '| Story file | Jobs | States | Responsive | Canonical imports |',
+    '| --- | --- | --- | --- | --- |',
+    ...matrix.storyFiles.map((story) => `| ${story.path} | ${(story.ownership?.jobs ?? []).join('<br>') || '—'} | ${(story.ownership?.states ?? []).join('<br>') || '—'} | ${(story.ownership?.responsive ?? []).join('<br>') || '—'} | ${(story.ownership?.canonicalSymbols ?? []).join('<br>') || '—'} |`),
+    '',
+    '## Responsive story variants',
+    '',
+    '| Story file | Export | `parameters.v3Viewport` | `globals.viewport` |',
+    '| --- | --- | --- | --- |',
+    ...Object.entries(REQUIRED_RESPONSIVE_VARIANTS).flatMap(([path, expectedVariants]) => Object.keys(expectedVariants).map((exportName) => {
+      const variant = matrix.storyFiles.find((story) => story.path === path)?.responsiveVariants?.[exportName] ?? {}
+      return `| ${path} | ${exportName} | ${variant.parameter ?? 'missing'} | ${variant.global ?? 'missing'} |`
+    })),
+    '',
     '## Canonical production imports',
     '',
     '| Symbol | Story source evidence |',
@@ -515,7 +791,7 @@ export function renderStorybookMatrixMarkdown(matrix) {
     '',
     `- Addon configured: **${matrix.a11y.addonConfigured ? 'yes' : 'no'}**`,
     `- ` + '`parameters.a11y.test: \'error\'`' + `: **${matrix.a11y.testMode ? 'yes' : 'no'}**`,
-    `- External runner readiness hook: **${matrix.a11y.runnerConfigured ? 'postVisit + waitForPageReady' : 'missing'}**`,
+    `- External runner hooks: **${matrix.a11y.runnerConfigured ? 'preVisit story viewport + postVisit waitForPageReady' : 'missing'}**`,
     `- Storybook-only service boundary: **${matrix.serviceBoundary?.configured ? 'configured' : 'missing'}**`,
   ].join('\n')
 }

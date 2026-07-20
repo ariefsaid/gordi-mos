@@ -29,7 +29,7 @@
   /* Status-pill darkened-AA text tokens (DESIGN.md §5 / ADR-0008) — P3 form */
   --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
-  --status-lost-text:   color(display-p3 0.2796 0.1396 0.0158); /* hsl(0 72% 45%)   */
+  --status-lost-text:   color(display-p3 0.45 0.05 0.04); /* destructive red; AA on light status/error surfaces */
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
   --warning-foreground: color(display-p3 0.28 0.22 0.08);        /* hsl(28 80% 34%) — E7 deep brown */
 }

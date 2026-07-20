@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { buildStorybookMatrix, renderStorybookMatrixMarkdown, validateStorybookMatrix } from './v3-storybook-matrix.mjs'
+import { buildStorybookMatrix, collectNamedImports, renderStorybookMatrixMarkdown, validateStorybookMatrix } from './v3-storybook-matrix.mjs'
 
 const repoRoot = new URL('..', import.meta.url)
 
@@ -80,4 +80,85 @@ test('the guard rejects migration and representative acceptance claims', () => {
 
   assert.match(validateStorybookMatrix(broken).join('\n'), /application migration/)
   assert.match(validateStorybookMatrix(broken).join('\n'), /representative rendered acceptance/)
+})
+
+test('the guard keeps required jobs, states, responsive viewports, and canonical imports owned by their story file', () => {
+  const matrix = buildStorybookMatrix(repoRoot)
+  const broken = structuredClone(matrix)
+  const pageCompositions = broken.storyFiles.find((story) => story.path.endsWith('/page-compositions.stories.tsx'))
+  const overlays = broken.storyFiles.find((story) => story.path.endsWith('/overlays.stories.tsx'))
+
+  pageCompositions.ownership = {
+    jobs: ['page-composition.workspace', 'page-composition.focused-record', 'page-composition.management'],
+    states: [],
+    responsive: ['desktop1280', 'intermediate', 'phone390'],
+    canonicalSymbols: ['Button', 'PageFrame', 'PageHead', 'DataTable'],
+  }
+  overlays.ownership = {
+    jobs: ['overlay.command-search', 'overlay.confirmation', 'overlay.anchored-menu', 'overlay.current-record-panel-shell'],
+    states: ['overlay.current-host-shell'],
+    responsive: ['desktop1280', 'intermediate', 'phone390'],
+    canonicalSymbols: ['CommandMenu', 'Button', 'ConfirmDialog', 'RowMenu', 'RecordPanelHost'],
+  }
+  pageCompositions.ownership.canonicalSymbols = pageCompositions.ownership.canonicalSymbols.filter((symbol) => symbol !== 'DataTable')
+  pageCompositions.canonicalImports = pageCompositions.canonicalImports.filter((item) => item.symbol !== 'DataTable')
+  pageCompositions.sourceImports = pageCompositions.sourceImports.filter((item) => item.symbol !== 'DataTable')
+  overlays.ownership.responsive = overlays.ownership.responsive.filter((viewport) => viewport !== 'phone390')
+
+  const errors = validateStorybookMatrix(broken).join('\n')
+  assert.match(errors, /page-compositions\.stories\.tsx.*canonical component DataTable/)
+  assert.match(errors, /overlays\.stories\.tsx.*responsive viewport phone390/)
+})
+
+test('the named-import collector ignores comment, template-string, and type-only import spoofing', () => {
+  const source = `
+    /* import { Button } from '@/components/ui/button' */
+    const copied = \`import { DataTable } from '@/components/dashboard/data-table'\`
+    import type { PageFrame } from '@/shell/page-frame'
+    import { type DataTableColumn, Button as PrimaryButton } from '@/components/ui/button'
+  `
+
+  assert.deepEqual(collectNamedImports(source), [
+    { symbol: 'Button', importPath: '@/components/ui/button' },
+  ])
+})
+
+test('responsive story variants retain an explicit v3Viewport parameter that agrees with Storybook globals', () => {
+  const matrix = buildStorybookMatrix(repoRoot)
+  const pageCompositions = matrix.storyFiles.find((story) => story.path.endsWith('/page-compositions.stories.tsx'))
+  const accessibility = matrix.storyFiles.find((story) => story.path.endsWith('/accessibility-responsive.stories.tsx'))
+
+  assert.ok(pageCompositions?.responsiveVariants, 'page composition stories must retain responsive variant metadata')
+  assert.ok(accessibility?.responsiveVariants, 'accessibility stories must retain responsive variant metadata')
+  assert.equal(pageCompositions.responsiveVariants.WorkspacePhone.parameter, 'phone390')
+  assert.equal(pageCompositions.responsiveVariants.WorkspacePhone.global, 'phone390')
+  assert.equal(accessibility.responsiveVariants.RuntimeIntermediate.parameter, 'intermediate')
+  assert.equal(accessibility.responsiveVariants.RuntimeIntermediate.global, 'intermediate')
+})
+
+test('the guard rejects responsive metadata when a parameter and global diverge', () => {
+  const matrix = buildStorybookMatrix(repoRoot)
+  const broken = structuredClone(matrix)
+  const pageCompositions = broken.storyFiles.find((story) => story.path.endsWith('/page-compositions.stories.tsx'))
+  pageCompositions.responsiveVariants.WorkspacePhone.global = 'desktop1280'
+
+  assert.match(validateStorybookMatrix(broken).join('\n'), /WorkspacePhone.*globals\.viewport must be phone390/)
+  assert.match(validateStorybookMatrix(broken).join('\n'), /WorkspacePhone.*must agree/)
+})
+
+test('V3 Task specimens do not encode superseded ownership vocabulary', () => {
+  const matrix = buildStorybookMatrix(repoRoot)
+
+  assert.deepEqual(matrix.taskVocabularyViolations, [])
+})
+
+test('the guard rejects a Task vocabulary violation injected into its owning story slice', () => {
+  const matrix = buildStorybookMatrix(repoRoot)
+  const broken = structuredClone(matrix)
+  const pageCompositions = broken.storyFiles.find((story) => story.path.endsWith('/page-compositions.stories.tsx'))
+  pageCompositions.taskVocabularyViolations = [{ path: pageCompositions.path, line: 1, term: 'owner', text: 'owner: Aisyah Rahman' }]
+
+  const errors = validateStorybookMatrix(broken).join('\n')
+  assert.match(errors, /forbidden Task vocabulary "owner"/)
+  assert.match(errors, /Task vocabulary guard output diverges/)
 })

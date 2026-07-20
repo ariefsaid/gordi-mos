@@ -36,21 +36,23 @@ type Story = StoryObj<typeof meta>
 type CollectionRow = {
   id: string
   task: string
-  owner: string
+  pic: string
+  supervisor: string
   status: 'Open' | 'In Progress' | 'Blocked' | 'Done'
   due: string
 }
 
 const rows: CollectionRow[] = [
-  { id: 'task-071', task: 'Confirm Roastery calibration notes', owner: 'Aisyah Rahman', status: 'In Progress', due: 'Today' },
-  { id: 'task-044', task: 'Reconcile Café dispatch quantities', owner: 'Putri Lestari', status: 'Open', due: 'Tomorrow' },
-  { id: 'task-019', task: 'Review weekly cash position', owner: 'Budi Santoso', status: 'Blocked', due: 'Fri 24 Jul' },
-  { id: 'task-006', task: 'Publish Monday branch briefing', owner: 'Nadia Pratama', status: 'Done', due: 'Completed' },
+  { id: 'task-071', task: 'Confirm Roastery calibration notes', pic: 'Aisyah Rahman', supervisor: 'Putri Lestari', status: 'In Progress', due: 'Today' },
+  { id: 'task-044', task: 'Reconcile Café dispatch quantities', pic: 'Putri Lestari', supervisor: 'Budi Santoso', status: 'Open', due: 'Tomorrow' },
+  { id: 'task-019', task: 'Review weekly cash position', pic: 'Budi Santoso', supervisor: 'Nadia Pratama', status: 'Blocked', due: 'Fri 24 Jul' },
+  { id: 'task-006', task: 'Publish Monday branch briefing', pic: 'Nadia Pratama', supervisor: 'Aisyah Rahman', status: 'Done', due: 'Completed' },
 ]
 
 const columns: DataTableColumn<CollectionRow>[] = [
   { key: 'task', header: 'Task', cardLabel: '', render: (row) => <strong>{row.task}</strong> },
-  { key: 'owner', header: 'Owner', cardLabel: 'Owner' },
+  { key: 'pic', header: 'PIC', cardLabel: 'PIC' },
+  { key: 'supervisor', header: 'Supervisor', cardLabel: 'Supervisor' },
   { key: 'status', header: 'Status', cardLabel: 'Status', render: (row) => <StatusPill status={row.status} /> },
   { key: 'due', header: 'Due', cardLabel: 'Due' },
 ]
@@ -78,16 +80,19 @@ function CollectionSpecimen({ state = 'ready', emptyLabel = 'No tasks match this
 
 export const ReadyDesktop: Story = {
   render: () => <CollectionSpecimen />,
+  parameters: { v3Viewport: 'desktop1280' },
   globals: { viewport: { value: 'desktop1280' } },
 }
 
 export const ReadyIntermediate: Story = {
   render: () => <CollectionSpecimen />,
+  parameters: { v3Viewport: 'intermediate' },
   globals: { viewport: { value: 'intermediate' } },
 }
 
 export const ReadyPhone: Story = {
   render: () => <CollectionSpecimen />,
+  parameters: { v3Viewport: 'phone390' },
   globals: { viewport: { value: 'phone390' } },
 }
 
@@ -100,7 +105,7 @@ export const Empty: Story = {
 }
 
 export const FilteredEmpty: Story = {
-  render: () => <CollectionSpecimen state="empty" emptyLabel="No Gordi tasks match status Blocked and owner Aisyah Rahman." />,
+  render: () => <CollectionSpecimen state="empty" emptyLabel="No Gordi tasks match status Blocked and PIC Aisyah Rahman." />,
 }
 
 export const Error: Story = {

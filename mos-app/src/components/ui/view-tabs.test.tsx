@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ViewTabs } from './view-tabs'
 import type { ViewTab } from './view-tabs'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 // summary + detail(enabled, with count) + board(soon placeholder) — exercises every
 // tab kind the two consumers surface (dashboard counts; tasks "soon" stubs).
@@ -47,6 +48,25 @@ describe('ViewTabs', () => {
   it('renders the optional count pill on a tab', () => {
     render(<ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />)
     expect(screen.getByText('86')).toBeInTheDocument()
+  })
+
+  it('localizes the soon-tab tooltip in English and Indonesian', () => {
+    localStorage.setItem('mos.locale', 'en')
+    const english = render(
+      <I18nProvider>
+        <ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('tab', { name: /board/i })).toHaveAttribute('title', 'Coming soon')
+    english.unmount()
+
+    localStorage.setItem('mos.locale', 'id')
+    render(
+      <I18nProvider>
+        <ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('tab', { name: /board/i })).toHaveAttribute('title', 'Segera hadir')
   })
 
   it('does not call onChange when the active tab is clicked again', () => {

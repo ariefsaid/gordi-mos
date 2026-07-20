@@ -23,10 +23,24 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Matrix JSON: [`docs/reference/v3-storybook-matrix.json`](v3-storybook-matrix.json)
 - Matrix Markdown: [`docs/reference/v3-storybook-matrix.md`](v3-storybook-matrix.md)
 - Stack: Storybook 10.5.2 / React-Vite 10.5.2 / addon-a11y 10.5.2 / external runner 0.24.4
-- Totals: 28 stories, 36 state entries, 3 responsive entries, 23 canonical component jobs
+- Totals: 35 stories, 36 state entries, 3 responsive entries, 23 canonical component jobs
+- Ownership rows: 7; each required job/state/viewport/component is validated against its owning story file
+- Task vocabulary guard: 0 violations; Task specimens use PIC + Supervisor and reject Owner/RACI vocabulary
 - Viewports: desktop1280, intermediate, phone390; a11y test mode: error
 - Scope claims: migration no; representative acceptance no; future Issue 4 host no
-- Later-owner gaps: Button loading state is not exposed by the canonical primitive; owner: Issue 3., RecordPanelHost remains the current shell; future host behavior is owned by Issue 4.
+- Later-owner gaps: Button loading state is not exposed by the canonical primitive; owner: Issue 3., RecordPanelHost remains the current shell; desktop split Esc behavior is intentionally non-modal, and any I2 host unification is owned by Issue 4.
+
+### Storybook ownership mapping
+
+| Story file | Jobs | States | Responsive | Canonical imports |
+| --- | --- | --- | --- | --- |
+| mos-app/src/stories/v3/foundation.stories.tsx | foundation.typography-roles, foundation.spacing-rhythm, foundation.colors-borders-radii-elevation, foundation.icons, foundation.focus-visible, foundation.runtime-fonts-background, foundation.responsive-frames, accessibility.runtime-proof | button.focus-visible | desktop1280, intermediate, phone390 | Button, TextInput, TasksIcon, CloseIcon |
+| mos-app/src/stories/v3/controls.stories.tsx | controls.button-state-matrix, controls.field-state-matrix, controls.selection-status, controls.keyboard-focus, accessibility.keyboard-focus | button.default, button.hover-documentation, button.focus-visible, button.active, button.disabled, button.loading-debt, text-input.default, text-input.focus-visible, text-input.disabled, text-input.error, select.default, select.focus-visible, select.disabled, select.error, checkbox.default, checkbox.checked, checkbox.indeterminate, checkbox.disabled, toggle.default, status.semantic-tones | desktop1280, intermediate, phone390 | Button, ErrorState, TextInput, Select, Checkbox, Toggle, Pill, StatusPill, ViewTabs |
+| mos-app/src/stories/v3/feedback.stories.tsx | feedback.empty-variants, feedback.error-retry, feedback.loading-skeleton, feedback.saving-saved, feedback.validation-retry | empty.quiet, empty.next-step, empty.awaiting, empty.blank, error.retry, loading.skeleton-rows, loading.shell, feedback.saving, feedback.saved, feedback.validation-retry | desktop1280, intermediate, phone390 | EmptyState, ErrorState, SkeletonRows, LoadingShell, PlanQtyStepper, PlanQtyCell |
+| mos-app/src/stories/v3/page-compositions.stories.tsx | page-composition.workspace, page-composition.focused-record, page-composition.management | — | desktop1280, intermediate, phone390 | Button, PageFrame, PageHead, DataTable |
+| mos-app/src/stories/v3/dense-collections.stories.tsx | dense-collection.realistic-gordi-records, dense-collection.viewport-matrix, dense-collection.state-matrix | collection.ready, collection.loading, collection.empty, collection.filtered-empty, collection.error | desktop1280, intermediate, phone390 | DataTable, StatusPill |
+| mos-app/src/stories/v3/overlays.stories.tsx | overlay.command-search, overlay.confirmation, overlay.anchored-menu, overlay.current-record-panel-shell | overlay.current-host-shell | desktop1280, intermediate, phone390 | CommandMenu, Button, ConfirmDialog, RowMenu, RecordPanelHost |
+| mos-app/src/stories/v3/accessibility-responsive.stories.tsx | accessibility.runnable-a11y, accessibility.runtime-proof, accessibility.keyboard-focus | button.focus-visible | desktop1280, intermediate, phone390 | Button, ViewTabs, RecordPanelHost, DataTable |
 
 ## Route inventory
 

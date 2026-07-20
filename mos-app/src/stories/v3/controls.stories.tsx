@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
 import { Button } from '@/components/ui/button'
+import { ErrorState } from '@/components/ui/state-kit'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Pill } from '@/components/ui/pill'
 import { Select } from '@/components/ui/select'
@@ -43,6 +44,7 @@ export const v3Matrix = {
   responsive: ["desktop1280", "intermediate", "phone390"],
   canonicalImports: [
     { symbol: "Button", file: "mos-app/src/components/ui/button.tsx", importPath: "@/components/ui/button" },
+    { symbol: "ErrorState", file: "mos-app/src/components/ui/state-kit.tsx", importPath: "@/components/ui/state-kit" },
     { symbol: "TextInput", file: "mos-app/src/components/ui/text-input.tsx", importPath: "@/components/ui/text-input" },
     { symbol: "Select", file: "mos-app/src/components/ui/select.tsx", importPath: "@/components/ui/select" },
     { symbol: "Checkbox", file: "mos-app/src/components/ui/checkbox.tsx", importPath: "@/components/ui/checkbox" },
@@ -121,9 +123,9 @@ export const FieldStateMatrix: Story = {
       <section className="v3-story-section" aria-labelledby="controls-field-title">
         <h1 id="controls-field-title" className="v3-story-section__title">Field state matrix</h1>
         <div className="v3-story-grid--two v3-story-grid">
-          <TextInput label="Owner" defaultValue="Aisyah Rahman" />
+          <TextInput label="Example value" defaultValue="Ready for review" />
           <TextInput label="Search" placeholder="Search tasks" autoFocus />
-          <TextInput label="Read-only owner" defaultValue="Putri Lestari" disabled />
+          <TextInput label="Disabled example" defaultValue="Not editable in this state" disabled />
           <TextInput label="Task title" defaultValue="" error aria-describedby="controls-title-error" />
           <span id="controls-title-error" className="v3-status-copy">Task title is required before saving.</span>
           <Select label="Status" defaultValue="open">
@@ -172,6 +174,99 @@ export const SelectionAndStatus: Story = {
       </section>
     </div>
   ),
+}
+
+type RgbColor = { r: number; g: number; b: number; a: number; space: 'srgb' | 'display-p3' }
+
+function parseComputedColor(value: string): RgbColor | null {
+  const p3 = value.match(/^color\(display-p3\s+([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)(?:\s*\/\s*([-+]?\d*\.?\d+))?\)$/)
+  if (p3) return { r: Number(p3[1]), g: Number(p3[2]), b: Number(p3[3]), a: Number(p3[4] ?? 1), space: 'display-p3' }
+  const channels = value.match(/[-+]?\d*\.?\d+/g)?.map(Number)
+  if (!channels || channels.length < 3) return null
+  const alpha = channels[3] ?? 1
+  const normalized = value.startsWith('rgb') && channels.some((channel) => channel > 1)
+  return { r: normalized ? channels[0] / 255 : channels[0], g: normalized ? channels[1] / 255 : channels[1], b: normalized ? channels[2] / 255 : channels[2], a: alpha, space: 'srgb' }
+}
+
+function toSrgb(color: RgbColor): RgbColor {
+  if (color.space === 'srgb') return color
+  const decode = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  const encode = (value: number) => value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
+  const linear = [color.r, color.g, color.b].map(decode)
+  const xyz = [
+    0.48657095 * linear[0] + 0.26566769 * linear[1] + 0.19821729 * linear[2],
+    0.22897456 * linear[0] + 0.69173852 * linear[1] + 0.07928691 * linear[2],
+    0.04511338 * linear[1] + 1.04394437 * linear[2],
+  ]
+  const clamp = (value: number) => Math.min(1, Math.max(0, encode(value)))
+  return {
+    r: clamp(3.24096994 * xyz[0] - 1.53738318 * xyz[1] - 0.49861076 * xyz[2]),
+    g: clamp(-0.96924364 * xyz[0] + 1.8759675 * xyz[1] + 0.04155506 * xyz[2]),
+    b: clamp(0.05563008 * xyz[0] - 0.20397696 * xyz[1] + 1.05697151 * xyz[2]),
+    a: color.a,
+    space: 'srgb',
+  }
+}
+
+function luminance(color: RgbColor) {
+  const srgb = toSrgb(color)
+  const linear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  return 0.2126 * linear(srgb.r) + 0.7152 * linear(srgb.g) + 0.0722 * linear(srgb.b)
+}
+
+function contrastRatio(foreground: RgbColor, background: RgbColor) {
+  const foregroundLuminance = luminance(foreground)
+  const backgroundLuminance = luminance(background)
+  return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+}
+
+function hueDegrees(color: RgbColor) {
+  const srgb = toSrgb(color)
+  const max = Math.max(srgb.r, srgb.g, srgb.b)
+  const min = Math.min(srgb.r, srgb.g, srgb.b)
+  const delta = max - min
+  if (delta === 0) return 0
+  let hue = max === srgb.r
+    ? 60 * (((srgb.g - srgb.b) / delta) % 6)
+    : max === srgb.g
+      ? 60 * ((srgb.b - srgb.r) / delta + 2)
+      : 60 * ((srgb.r - srgb.g) / delta + 4)
+  if (hue < 0) hue += 360
+  return hue
+}
+
+export const StatusSemanticColorProof: Story = {
+  render: () => (
+    <div className="v3-story-frame">
+      <section className="v3-story-section" aria-labelledby="controls-status-proof-title">
+        <h1 id="controls-status-proof-title" className="v3-story-section__title">Status and error color proof</h1>
+        <p className="v3-story-section__copy">Blocked work and a failed Gordi task refresh use one destructive red text role, with the visible status word kept as the non-color cue.</p>
+        <div className="v3-story-stack">
+          <StatusPill status="Blocked" label="Blocked" />
+          <ErrorState message="The Roastery task queue could not be refreshed." />
+        </div>
+      </section>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const blocked = canvas.getByText('Blocked').closest('.mk-tag')
+    const errorText = canvas.getByText('The Roastery task queue could not be refreshed.')
+    expect(blocked).not.toBeNull()
+    const blockedStyles = getComputedStyle(blocked as HTMLElement)
+    const errorStyles = getComputedStyle(errorText)
+    const foreground = parseComputedColor(blockedStyles.color)
+    const background = parseComputedColor(blockedStyles.backgroundColor)
+    const pageBackground = parseComputedColor(getComputedStyle(document.body).backgroundColor)
+    expect(foreground).not.toBeNull()
+    expect(background).not.toBeNull()
+    expect(pageBackground).not.toBeNull()
+    expect(errorStyles.color).toBe(blockedStyles.color)
+    expect(contrastRatio(foreground as RgbColor, background as RgbColor)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(foreground as RgbColor, pageBackground as RgbColor)).toBeGreaterThanOrEqual(4.5)
+    const hue = hueDegrees(foreground as RgbColor)
+    expect(hue < 15 || hue > 345).toBe(true)
+  },
 }
 
 function KeyboardControls() {
