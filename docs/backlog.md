@@ -6,6 +6,8 @@
 > Current next step: resolve the remaining authority contradictions one at a time, then write the
 > V3 SDD and phased implementation plans. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
 > buildout record, not the live V3 plan. The dated banners below are historical strata.
+> Draft design specification: `docs/specs/v3-redesign.spec.md` (owner sign-off gate before detailed
+> implementation planning).
 >
 > **Standing oracle — `docs/reference/provenance/owner-directives-index.md`** (composite: owner-word →
 > lost-good → owning-default, NOT e7-fidelity). Reviews check touched surfaces against it; transplants

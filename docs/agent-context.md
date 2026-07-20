@@ -31,6 +31,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > whole application away from its surviving pre-E7 visual/component grammars. Remaining authority
 > conflicts are being ratified before the V3 SDD and implementation plans are written. The E7
 > completion ledger proves what was built; it is not the V3 design-acceptance oracle.
+> Draft design specification: `docs/specs/v3-redesign.spec.md`; owner sign-off gates the detailed
+> implementation plan.
 
 ## Reading order for a cold start (30+ docs; these are the ones that bind)
 
