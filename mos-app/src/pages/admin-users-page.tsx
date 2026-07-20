@@ -11,8 +11,7 @@
 
 import { useState, useEffect, useCallback, useId } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
@@ -167,15 +166,19 @@ export function AdminUsersPage() {
     void load()
   }
 
+  // Shell state seam (V3 Management family): the People load state maps to the
+  // shared PageFamilyState. The UserTable body keeps its own empty/segment states.
+  const frameState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : 'default'
+
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="People"
-        count={loadState === 'loaded' ? people.length : null}
-        meta={<span>Manage who can sign in and what they can do.</span>}
-        action={<Button variant="primary" onClick={() => setAddOpen(true)}>+ Add person</Button>}
-      />
+    <PageFamilyFrame
+      family="management"
+      title="People"
+      jobSentence="Manage who can sign in and what they can do."
+      count={loadState === 'loaded' ? people.length : null}
+      action={<Button variant="primary" onClick={() => setAddOpen(true)}>+ Add person</Button>}
+      state={frameState}
+    >
 
       {/* Action error (inline, non-fatal) */}
       {actionError && (
@@ -335,6 +338,6 @@ export function AdminUsersPage() {
 
       {/* Success toast (item 6) */}
       <Toast toast={toast} onDismiss={clearToast} />
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

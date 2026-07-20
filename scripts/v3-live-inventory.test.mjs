@@ -30,6 +30,21 @@ test('V3 inventory classifies canonical, conditional, redirect, and DEV branches
   }
 })
 
+test('V3 inventory counts PageFamilyFrame as shared frame + head evidence for the migrated representatives', () => {
+  const inventory = buildInventory(repoRoot)
+  const byPath = new Map(inventory.routes.map((route) => [route.path, route]))
+  // The three Issue 3 representatives adopt the shared PageFamilyFrame helper, so the
+  // scanner must still credit them with the shared frame AND the shared head.
+  for (const path of ['/work/tasks', '/admin/people']) {
+    const route = byPath.get(path)
+    assert.ok(route, `missing representative route ${path}`)
+    assert.equal(route.frame, 'shared-page-frame', `${path} must keep shared frame evidence`)
+    assert.equal(route.head, 'shared-page-head', `${path} must keep shared head evidence`)
+    assert.equal(route.sourceEvidence.pageFrameUse, true, `${path} must record pageFrameUse`)
+    assert.equal(route.sourceEvidence.pageHeadUse, true, `${path} must record pageHeadUse`)
+  }
+})
+
 test('V3 inventory records canonical primitive jobs', () => {
   const inventory = buildInventory(repoRoot)
   assert.ok(inventory.routes.length >= 40, 'route inventory must cover the complete live route tree')

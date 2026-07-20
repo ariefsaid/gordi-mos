@@ -54,6 +54,12 @@ describe('RecordDetailsPanel (AC-R02/R04)', () => {
     expect(heading).toHaveAttribute('title', 'Fix the coffee machine')
   })
 
+  it('V3 focused-record: identityHeadingLevel=2 nests the identity as an h2 (shell owns the h1)', () => {
+    renderPanel({ identityHeadingLevel: 2 })
+    expect(screen.getByRole('heading', { level: 2, name: 'Fix the coffee machine' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+  })
+
   it('AC-R02: shows Status, typed ownership, Dates, Checklist count, and completion', () => {
     renderPanel()
     // Status (above the fold) — editor sees the change-status trigger

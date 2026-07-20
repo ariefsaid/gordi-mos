@@ -428,8 +428,12 @@ function scanSourceEvidence(repoRoot, sourceFile, routeSpec) {
   const localCssFiles = localCssImports(repoRoot, sourceFile, sourceText)
   const cssText = localCssFiles.map((file) => readText(repoRoot, file)).join('\n')
   const literalKinds = countCssLiterals(cssText)
-  const hasPageFrame = hasWord(sourceText, 'PageFrame') && /<PageFrame\b/.test(sourceText)
-  const hasPageHead = hasWord(sourceText, 'PageHead') && /<PageHead\b/.test(sourceText)
+  // V3 Issue 3: PageFamilyFrame is the shared composition helper that renders exactly
+  // one PageFrame + one PageHead. A representative that adopts it therefore still uses
+  // the shared frame AND the shared head, so it counts as evidence for both.
+  const hasPageFamilyFrame = hasWord(sourceText, 'PageFamilyFrame') && /<PageFamilyFrame\b/.test(sourceText)
+  const hasPageFrame = hasPageFamilyFrame || (hasWord(sourceText, 'PageFrame') && /<PageFrame\b/.test(sourceText))
+  const hasPageHead = hasPageFamilyFrame || (hasWord(sourceText, 'PageHead') && /<PageHead\b/.test(sourceText))
   const states = ['default']
   if (sourceSymbols(sourceText, ['LoadingShell', 'SkeletonRows', 'isLoading', 'loading']).length) states.push('loading')
   if (sourceSymbols(sourceText, ['EmptyState', 'isEmpty', 'filteredEmpty']).length) states.push('empty')

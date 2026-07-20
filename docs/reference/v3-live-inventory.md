@@ -597,11 +597,11 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 ### `/work/tasks`
 - Kind/status/auth: page / canonical / protected
 - Component/source: TasksLayout — `mos-app/src/pages/tasks-layout.tsx` :: `TasksLayout`; router literal `work/tasks`
-- Page family/frame/head: workspace / shared-page-frame / bespoke-or-missing
+- Page family/frame/head: workspace / shared-page-frame / shared-page-head
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
 - Collection grammar: route-local collection/view state is present; presentations: Table + triage queue; owns view state: yes
 - Record opening: default current split/right panel host; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: record drawer/panel; states: default, saving/saved; CSS families: mos-app/src/index.css
+- Overlays: record drawer/panel; states: default, loading, saving/saved; CSS families: mos-app/src/index.css
 - Notes: Collection host with nested TaskDrawer outlet.
 
 ### `/work/tasks/:taskId`

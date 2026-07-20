@@ -61,6 +61,9 @@ export type TaskSurfaceProps = {
   onTaskCreated?: (id: string) => void         // C2: lets the table refetch after a create (PR-B)
   onTaskArchived?: (id: string) => void        // I3: lets the table refetch after an archive (PR-B)
   onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
+  // Heading level for the full-width record identity. Defaults to 1; the V3
+  // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
+  identityHeadingLevel?: 1 | 2
 }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
@@ -90,6 +93,7 @@ export function TaskSurface(props: TaskSurfaceProps) {
 function ViewSurface({
   taskId, width, presentation = width === 'drawer' ? 'panel' : 'page', expanded,
   onClose, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
+  identityHeadingLevel,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -568,6 +572,7 @@ function ViewSurface({
           people={peopleDirectory}
           editable={editable}
           viewerId={viewerId}
+          identityHeadingLevel={identityHeadingLevel}
           checklistCount={[checklistDone, localChecklist.length]}
           objectives={objectivesDir}
           workLines={workLinesDir}

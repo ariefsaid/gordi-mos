@@ -162,13 +162,18 @@ function renderAtState(path: string, state: unknown) {
 }
 
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
-  it('AC-121: TasksLayout renders inside a full-bleed (variant=data) PageFrame — no 1080px maxWidth cap', async () => {
+  it('AC-121: TasksLayout renders inside the V3 Workspace frame — full-bleed content, no inline 1080px prose cap', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
     renderAt('/work/tasks')
     await waitFor(() => screen.getByText('Triage me'))
     const main = document.querySelector('main') as HTMLElement
-    const inner = main.querySelector('main > div') as HTMLElement
-    expect(inner.style.maxWidth).toBe('none')
+    // V3 workspace frame: the <main> carries the family marker and the content
+    // container is the page-frame__content wrapper (width capped by CSS at 1180px,
+    // never the old inline 1080px prose cap).
+    expect(main.getAttribute('data-page-family')).toBe('workspace')
+    const inner = main.querySelector(':scope > div') as HTMLElement
+    expect(inner.className).toContain('page-frame__content')
+    expect(inner.style.maxWidth).toBe('')
   })
 
   it('AC-120: the Tasks <main> landmark is present and the breadcrumb/nav survive full-bleed', async () => {
@@ -559,6 +564,44 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(document.querySelector('.record-2col')).toBeNull()
     // And the panel offers the escalation to the full page.
     expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
+  })
+
+  // V3 Issue 3, Task 9/10 — the direct/full Task page is the Focused-record representative.
+  it('Focused record family: a direct Task page mounts inside the focused-record frame with one h1 (shell) + one h2 (record identity)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open me' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    // The record identity is now an h2 (the PageFamilyFrame owns the shell h1).
+    await screen.findByRole('heading', { level: 2, name: 'Open me' })
+    // The shell h1 resolves to the same title one render later (async via
+    // onTitleResolved), so wait for it before asserting the exact heading counts.
+    await screen.findByRole('heading', { level: 1, name: 'Open me' })
+
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('focused-record')
+
+    // Exactly one shell h1 and one record-identity h2, both the resolved title.
+    expect(screen.getAllByRole('heading', { level: 1, name: 'Open me' })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { level: 2, name: 'Open me' })).toHaveLength(1)
+
+    // The focused-record job sentence renders; the internal family name never shows.
+    expect(screen.getByText('Review and update this task.')).toBeInTheDocument()
+    expect(screen.queryByText('Focused record')).toBeNull()
+
+    // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
+    expect(document.querySelector('.rd-id-sub')?.textContent).toContain('Kitchen')
+    expect(document.querySelector('tbody tr.task-row')).toBeNull()
+    expect(document.querySelector('.record-2col')).toBeTruthy()
+  })
+
+  it('Focused record family: the shell shows the loading state before the title resolves', () => {
+    mockGetTask.mockReturnValue(new Promise(() => {}))
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('focused-record')
+    expect(main?.getAttribute('data-page-state')).toBe('loading')
+    expect(main?.getAttribute('aria-busy')).toBe('true')
   })
 
   it('OD-63: ?view= is preserved on the standalone page (Rule 4)', async () => {
