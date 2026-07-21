@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { Outlet } from 'react-router-dom'
+import { useState, useRef, useMemo, type ReactNode } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { Rail } from './rail'
 import { TopBar } from './top-bar'
 import { ContextRow } from './context-row'
@@ -13,8 +13,32 @@ import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
-import { OverlayHostProvider, OverlayHostSlot } from './overlay-host'
+import { OverlayHostSlot, type OverlayHistoryDriver, OverlayHostProvider } from './overlay-host'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
+
+/**
+ * Wires the shared overlay host to react-router (V3 Issue 4 route seam): the history driver
+ * reads the browser history index from `window.history.state.idx` and routes relative
+ * `go(delta)` through react-router's `navigate(delta)`. URL markers (`__mosOverlay`) are
+ * pushed/synced by the controller via `withOverlayMarker`; a hard load carrying a marker is
+ * restored through a tenant-supplied deep-link resolver (the shell wires the driver only —
+ * record content is owned by the Task/Signal slots, deferred to their own slices).
+ */
+function OverlayHostRoot({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
+  const historyDriver = useMemo<OverlayHistoryDriver>(
+    () => ({
+      index: () => {
+        if (typeof window === 'undefined' || !window.history?.state) return null
+        const idx = (window.history.state as { idx?: unknown }).idx
+        return typeof idx === 'number' && Number.isInteger(idx) && idx >= 0 ? idx : null
+      },
+      go: (delta: number) => navigate(delta),
+    }),
+    [navigate],
+  )
+  return <OverlayHostProvider historyDriver={historyDriver}>{children}</OverlayHostProvider>
+}
 
 function ShellContent() {
   const isNarrow = useIsNarrow()
@@ -133,9 +157,9 @@ export function AppShell() {
   // It sits INSIDE SignalComposerHost/AgentRuntimeProvider so those providers are available
   // to any overlay content (tasks, signals, deputy).
   const shellWithOverlay = (
-    <OverlayHostProvider>
+    <OverlayHostRoot>
       <ShellContent />
-    </OverlayHostProvider>
+    </OverlayHostRoot>
   )
 
   if (!SHOW_ASSISTANT) {
