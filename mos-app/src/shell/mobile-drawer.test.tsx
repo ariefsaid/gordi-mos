@@ -139,6 +139,35 @@ describe('More menu navigation + a11y', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  // Interaction-contract I2: Close/Back must return focus to the opener — the SAME
+  // route-safe focus-return path Escape/backdrop/X already use. Previously the
+  // destination-link onClick called raw `onClose`, so focus could land on a link
+  // that's about to unmount instead of returning to the launcher.
+  it('clicking a destination link ALSO returns focus to the opener (I2 — same path as Escape/backdrop/X)', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const focusOpener = vi.fn()
+    setAuthAs(['admin'])
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route
+                path="*"
+                element={<><MobileDrawer open onClose={onClose} focusOpener={focusOpener} /><LocationDisplay /></>}
+              />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    await user.click(screen.getByRole('link', { name: /Events/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/events')
+    expect(onClose).toHaveBeenCalled()
+    expect(focusOpener).toHaveBeenCalled()
+  })
+
   it('Escape closes the drawer and returns focus to the opener', async () => {
     const user = userEvent.setup()
     const focusOpener = vi.fn()

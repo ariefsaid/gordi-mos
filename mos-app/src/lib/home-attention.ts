@@ -14,7 +14,19 @@ export type AttentionLaneKind = 'overdue' | 'due-today' | 'mentions' | 'failed-c
 export type LaneState = 'loading' | 'ready' | 'error'
 
 export interface AttentionItem { id: string; title: string; meta?: string; route: string }
-export interface AttentionLane { kind: AttentionLaneKind; state: LaneState; items: AttentionItem[] }
+export interface AttentionLane {
+  kind: AttentionLaneKind
+  state: LaneState
+  items: AttentionItem[]
+  /**
+   * Re-fetch the ONE projection this lane's items come from (Home retry/projection
+   * convergence). Overdue and due-today share the same underlying tasks fetch — both
+   * lanes MUST be wired to the SAME function reference, never two independent fetches
+   * of the same data, so a retry click is idempotent and never duplicates in-flight
+   * work for one source (convergence-audit Home finding, 2026-07-21).
+   */
+  onRetry?: () => void
+}
 
 /** WIB (Asia/Jakarta) calendar date YYYY-MM-DD from an injected clock — never scattered Date.now() (FR-512). */
 export function wibToday(now: Date = new Date()): string {

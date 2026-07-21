@@ -50,49 +50,21 @@
   color: var(--muted-foreground);
 }
 
-/* ── Segmented status filter (DESIGN.md §"Inline segmented (seg)") ─────────── */
-/* secondary track, "on" = white background pill + foreground + 600 + lift */
-.people-seg {
-  display: inline-flex;
-  height: 32px;
-  padding: 3px;
-  background: var(--secondary);
-  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+/* ── Segmented status filter — shared ViewTabs (interaction-contract I7) ────── */
+/* The strip renders inline in this compact toolbar row, not as ViewTabs' default
+   full-bleed sticky page strip — reset that chrome (mirrors collection-toolbar's
+   own `.view-tabs` reset). The tab-underline grammar itself stays ViewTabs' own
+   (Rule 11 — never a bespoke segmented control here). */
+.people-status-tabs {
   flex-shrink: 0;
 }
 
-.people-seg-btn {
-  border: 0;
+.people-status-tabs .view-tabs {
+  position: static;
+  padding: 0;
+  border-bottom: 0;
   background: transparent;
-  font: inherit;
-  font-size: 13px;
-  padding: 0 10px;
-  border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
-  color: var(--secondary-foreground);
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.people-seg-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
-}
-
-/* Active segment: crisp ring + lift (DESIGN.md "Pressed/selected lift") */
-.people-seg-btn[aria-selected='true'] {
-  background: var(--background);
-  font-weight: 600;
-  color: var(--foreground);
-  box-shadow: 0 0 0 1px var(--border-strong),
-    0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
-  cursor: default;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .people-seg-btn {
-    transition: none;
-  }
+  z-index: auto;
 }
 
 /* ── Mobile reflow (<768px) ────────────────────────────────────────────────── */
@@ -108,17 +80,18 @@
     min-width: 0;
   }
 
-  .people-seg {
+  .people-status-tabs .view-tabs {
     width: 100%;
     justify-content: stretch;
   }
 
-  .people-seg-btn {
+  .people-status-tabs .view-tabs__tab {
     flex: 1 1 0;
-    min-height: 44px; /* ≥44px touch target */
+    height: 44px; /* ≥44px touch target — overrides ViewTabs' own 40px mobile height */
     padding: 0 6px;
     font-size: 12px;
     text-align: center;
+    justify-content: center;
   }
 
   .people-tb-spacer {

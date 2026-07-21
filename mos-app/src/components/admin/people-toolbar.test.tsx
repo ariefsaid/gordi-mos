@@ -178,6 +178,68 @@ describe('PeopleToolbar — segment filters', () => {
 
     expect(activeTab).toHaveAttribute('aria-selected', 'true')
   })
+
+  // Interaction-contract I7 / the shared ViewTabs keyboard grammar (view-tabs.tsx):
+  // roving tabindex (only the active tab is tabindex=0, every other tab is -1) plus
+  // Arrow/Home/End cycling. Previously the status filter was raw tablist buttons with
+  // no keyboard contract at all.
+  describe('roving tabindex + Arrow/Home/End (shared ViewTabs contract)', () => {
+    it('only the active tab is tabindex=0; every other tab is -1', () => {
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const tabs = within(tablist).getAllByRole('tab')
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+
+      expect(allTab).toHaveAttribute('tabindex', '0')
+      for (const tab of tabs) {
+        if (tab !== allTab) expect(tab).toHaveAttribute('tabindex', '-1')
+      }
+    })
+
+    it('ArrowRight moves selection + DOM focus to the next tab (wrapping)', async () => {
+      const user = userEvent.setup()
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+      const activeTab = within(tablist).getByRole('tab', { name: /^active$/i })
+
+      allTab.focus()
+      await user.keyboard('{ArrowRight}')
+
+      expect(activeTab).toHaveFocus()
+      expect(activeTab).toHaveAttribute('aria-selected', 'true')
+      expect(allTab).toHaveAttribute('aria-selected', 'false')
+    })
+
+    it('End jumps to the last tab (Archived) and selects it', async () => {
+      const user = userEvent.setup()
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+      const archivedTab = within(tablist).getByRole('tab', { name: /archived/i })
+
+      allTab.focus()
+      await user.keyboard('{End}')
+
+      expect(archivedTab).toHaveFocus()
+      expect(archivedTab).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByText('Eko Prasetyo')).toBeInTheDocument()
+    })
+
+    it('Home jumps back to the first tab (All) from anywhere', async () => {
+      const user = userEvent.setup()
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const archivedTab = within(tablist).getByRole('tab', { name: /archived/i })
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+
+      archivedTab.focus()
+      await user.keyboard('{End}{Home}')
+
+      expect(allTab).toHaveFocus()
+      expect(allTab).toHaveAttribute('aria-selected', 'true')
+    })
+  })
 })
 
 // ── Search filter tests ────────────────────────────────────────────────────────

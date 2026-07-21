@@ -254,8 +254,8 @@ describe('F-C / OD-REDESIGN-64 — member Home has no legacy dead-link cards', (
   })
 })
 
-describe('AC-H06: tasks tile links to /tasks and shows the open-task count', () => {
-  it('shows the R/A non-Done count and links to /tasks', async () => {
+describe('AC-H06: tasks tile links to /work/tasks (canonical) and shows the open-task count', () => {
+  it('shows the R/A non-Done count and links to /work/tasks', async () => {
     mockListTasks.mockResolvedValue([
       {
         id: 't-1', org_id: 'org-1', title: 'Task 1', business_unit_id: 'bu-1',
@@ -275,7 +275,7 @@ describe('AC-H06: tasks tile links to /tasks and shows the open-task count', () 
     const tile = screen.getByRole('group', { name: /open tasks/i })
     const link = tile.closest('a')
     expect(link).not.toBeNull()
-    expect(link!.getAttribute('href')).toBe('/tasks')
+    expect(link!.getAttribute('href')).toBe('/work/tasks')
   })
 })
 
@@ -461,5 +461,78 @@ describe('AC-515: region order is width-independent, no CSS reflow (Step 5)', ()
 
       utils.unmount()
     }
+  })
+})
+
+// Home retry/projection convergence (convergence-audit 2026-07-21): the attention
+// error branch previously supplied no retry callback at all — "Refresh to try again"
+// was dead copy. Overdue and due-today both read the ONE tasks projection, so a
+// retry must be wired to a SINGLE shared function (never two independent listTasks
+// calls for the same data) and must be idempotent (a second click while the first
+// retry is still in flight must not fire a second concurrent fetch).
+describe('Home retry/projection convergence: the attention error lanes are actually retriable', () => {
+  // Persistent (not -Once): HomePage's own attention fetch AND MyTasksCard's separate
+  // fetch both call the same listTasks() DAL — a real, still-standing instance of the
+  // very "duplicate projection" finding this slice narrows. Using a persistent reject
+  // means the assertion doesn't depend on which of the two callers fires first.
+  it('overdue lane Retry re-fetches the ONE tasks projection and recovers BOTH overdue and due-today', async () => {
+    mockListTasks.mockRejectedValue(new Error('network failure'))
+    await renderHome(financeViewer)
+
+    const attentionRegion = await waitFor(() => screen.getByRole('region', { name: 'Needs attention' }))
+    await waitFor(() => expect(within(attentionRegion).getByRole('heading', { name: 'Overdue' })).toBeInTheDocument())
+    // Both overdue and due-today lanes read the same failed tasks fetch.
+    expect(within(attentionRegion).getByRole('heading', { name: 'Due today' })).toBeInTheDocument()
+    expect(within(attentionRegion).getAllByText("Couldn't load this list. Refresh to try again.")).toHaveLength(2)
+
+    const viewerId = financeViewer.viewer.person.id
+    mockListTasks.mockResolvedValue([
+      {
+        id: 't-overdue', org_id: 'org-1', title: 'Overdue task', business_unit_id: 'bu-1',
+        status: 'In Progress', responsible_person_id: viewerId, accountable_person_id: 'other-1',
+        consulted_person_ids: [], informed_person_ids: [], description: null,
+        due_date: '2000-01-01', objective_id: null, work_line_id: null,
+        last_activity_at: '2026-06-30T00:00:00Z', archived_at: null, created_by: 'x',
+        created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-30T00:00:00Z',
+      },
+    ])
+
+    // Both lane error blocks render their own Retry button, but MUST be wired to the
+    // SAME retry function reference (single source, not two independent fetches).
+    const retryButtons = within(attentionRegion).getAllByRole('button', { name: /retry/i })
+    expect(retryButtons).toHaveLength(2)
+    const callsBefore = mockListTasks.mock.calls.length
+    await act(async () => {
+      retryButtons[0].click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // A single retry click issues exactly one new fetch (the one shared projection).
+    expect(mockListTasks.mock.calls.length).toBe(callsBefore + 1)
+    await waitFor(() => expect(within(attentionRegion).getByText('Overdue task')).toBeInTheDocument())
+    // The error is gone from BOTH lanes, not just the one whose button was clicked.
+    expect(within(attentionRegion).queryByText("Couldn't load this list. Refresh to try again.")).toBeNull()
+  })
+
+  it('a second Retry click while the first retry is still in flight does not issue a second concurrent fetch (idempotent)', async () => {
+    mockListTasks.mockRejectedValue(new Error('network failure'))
+    await renderHome(financeViewer)
+    const attentionRegion = await waitFor(() => screen.getByRole('region', { name: 'Needs attention' }))
+    await waitFor(() => expect(within(attentionRegion).getByRole('heading', { name: 'Overdue' })).toBeInTheDocument())
+
+    mockListTasks.mockReturnValue(new Promise(() => {})) // never resolves — stays "in flight"
+
+    const retryButton = within(attentionRegion).getAllByRole('button', { name: /retry/i })[0]
+    const callsBeforeRetry = mockListTasks.mock.calls.length
+    // Two clicks in the SAME synchronous batch (no await between them) — the second
+    // click reaches the retry handler before React has re-rendered the lane back to
+    // loading, so only an explicit in-flight guard (not "the button disappeared")
+    // proves idempotency here.
+    await act(async () => {
+      retryButton.click()
+      retryButton.click()
+    })
+    expect(mockListTasks.mock.calls.length).toBe(callsBeforeRetry + 1)
   })
 })
