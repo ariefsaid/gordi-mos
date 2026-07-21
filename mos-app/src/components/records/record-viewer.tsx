@@ -29,6 +29,14 @@ export interface RecordViewerProps {
   adapter: RecordViewerAdapter
   mode: RecordViewerMode
   headingLevel?: 1 | 2
+  /**
+   * Render the viewer's own identity header (eyebrow · type · title heading). Default true.
+   * A tenant whose surrounding chrome already owns the record name — e.g. the Task panel's
+   * TaskDrawerHeader / identity row — passes false so there is no duplicate heading. The section
+   * landmark stays accessible: when suppressed it is named by the adapter title via aria-label
+   * instead of aria-labelledby (ViewerIdentitySuppressionContract / no-duplicate-h1).
+   */
+  showIdentityHeader?: boolean
   /** Host-supplied loading gate (the adapter models ready/empty/error only). */
   loading?: boolean
   onClose?: () => void
@@ -54,6 +62,7 @@ export function RecordViewer({
   adapter,
   mode,
   headingLevel = 2,
+  showIdentityHeader = true,
   loading = false,
   onOpenPage,
   onOpenRelated,
@@ -89,15 +98,17 @@ export function RecordViewer({
       className={`record-viewer record-viewer--${mode}`}
       data-record-kind={adapter.kind}
       data-record-mode={mode}
-      aria-labelledby={titleId}
+      {...(showIdentityHeader ? { 'aria-labelledby': titleId } : { 'aria-label': adapter.title })}
     >
-      <header className="record-viewer__identity" data-viewer-region="identity">
-        {adapter.eyebrow && <p className="record-viewer__eyebrow">{adapter.eyebrow}</p>}
-        <p className="record-viewer__type">{adapter.typeLabel}</p>
-        <Heading id={titleId} className="record-viewer__title">
-          {adapter.title}
-        </Heading>
-      </header>
+      {showIdentityHeader && (
+        <header className="record-viewer__identity" data-viewer-region="identity">
+          {adapter.eyebrow && <p className="record-viewer__eyebrow">{adapter.eyebrow}</p>}
+          <p className="record-viewer__type">{adapter.typeLabel}</p>
+          <Heading id={titleId} className="record-viewer__title">
+            {adapter.title}
+          </Heading>
+        </header>
+      )}
       {body}
     </section>
   )
