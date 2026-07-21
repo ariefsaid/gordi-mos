@@ -34,6 +34,27 @@ IA/IxD. The target is therefore:
   dead controls, misleading success states, generic dashboard chrome, or interaction contracts
   that vary merely because a different page was built.
 
+## Owner-directed UI convergence loop (2026-07-21)
+
+The owner has explicitly shortened the loop for this redesign's visual/IxD convergence slices. Do
+not make a worker spend an entire turn manufacturing red tests or re-reading the history before
+the first visible implementation. The order is:
+
+1. Implement the smallest end-to-end behavior against the existing contracts and owner oracle.
+2. Run a bounded smoke check (focused tests if available, typecheck, changed lint/style, diff check).
+3. Render the real surface at the relevant desktop/intermediate/phone widths; the owner's eye is the
+   acceptance oracle for visual grammar, IA, and IxD.
+4. Add or tighten goal-level tests after the behavior is visible, locking the observed journey and
+   preventing regression. Tests still gate integration; this is not permission for proxy tests or
+   unverified code.
+5. Commit the coherent slice and record evidence in the ledger.
+
+This is scoped to UI convergence work (RecordViewer, RecordCollection presentations, page-family,
+overlay, and route interaction seams). Schema/security/data work retains the normal red-first and
+stronger pre-change verification requirements. Historical TDD plans remain useful as acceptance
+checklists, but a worker must not block a small visible UI implementation on exhaustive test
+archaeology when the owner has already supplied the interaction intent.
+
 ## Authoritative reading order
 
 Read these in order on a cold start:

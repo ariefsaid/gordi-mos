@@ -51,6 +51,13 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
    transitions, convention placement, post-action feedback, mental-model match — the binding list in
    `.claude/agents/ui-implementer.md` "IxD / flow-naturalness alignment") and escalates plan-vs-naturalness
    conflicts instead of building or silently fixing them.
+
+   **V3 owner-directed fast path:** for the current redesign's visual/IxD convergence seams, the
+   worker may implement the smallest visible end-to-end behavior before writing the full red test
+   harness. It must then run a bounded smoke check, render the real surface for the owner's eye,
+   and add/tighten goal-level regression tests before integration. This is a sequencing exception,
+   not a quality waiver: proxy assertions, unverified code, and schema/security shortcuts remain
+   prohibited.
 3. **Design-review — the standing FOUR-LENS battery** *(read-only; renders + screenshots the running
    app at the plan's breakpoints)*. Every UI review runs **all four** lenses, each **explicitly
    directed** — a single generic "UX review" prompt reliably hits only the first and misses the others

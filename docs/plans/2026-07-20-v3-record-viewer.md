@@ -179,7 +179,14 @@ Issue 5 owns only AC-V3-008 and AC-V3-009 end to end. Task/Signal viewer, panel/
 
 ## Execution sequence
 
-Each task below is a separate red-green-refactor checkpoint. Run commands from mos-app unless the command is explicitly rooted at the repository. Commit after the named green checkpoint with the exact message and the required trailer:
+The default engineering loop is red-green-refactor, but the owner has directed a scoped V3 UI/IxD
+fast path for this redesign wave: implement the smallest visible RecordViewer seam first, run a
+bounded smoke/typecheck/lint check, render it for the owner's visual/IxD review, then add or tighten
+goal-level regression tests before commit. Do not block visible progress on exhaustive test
+archaeology. This does not permit proxy-only tests, unverified code, or any schema/security shortcut.
+Each task below remains a checkpoint and must finish with focused proof and the required trailer. Run
+commands from mos-app unless the command is explicitly rooted at the repository. Commit after the
+named green checkpoint with the exact message and the required trailer:
 
 ~~~text
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

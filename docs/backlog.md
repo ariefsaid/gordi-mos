@@ -30,6 +30,11 @@
 > The dated banners below are historical strata. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
 > buildout record, not the live V3 plan.
 >
+> **UI convergence execution rule (owner-directed 2026-07-21):** implement → bounded smoke check →
+> render/owner-eye review → goal-level regression tests → commit. Do not delay visible UI/IxD progress
+> for exhaustive red-test archaeology; this exception does not weaken integration gates or permit
+> proxy-only evidence.
+>
 > **Standing oracle — `docs/reference/provenance/owner-directives-index.md`** (composite: owner-word →
 > lost-good → owning-default, NOT e7-fidelity). Reviews check touched surfaces against it; transplants
 > use the composite checklist per surface. Its OPEN-UNTRACKED list (phone bottom-tab Café-for-all;

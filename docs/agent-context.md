@@ -72,6 +72,12 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host
 > dependencies and Issues 7–9 are actually complete.
 
+> **OWNER UI-FAST-PATH (2026-07-21):** For visual/IxD convergence slices, implement the smallest
+> visible end-to-end behavior first, run bounded smoke/typecheck/lint checks, render it for the
+> owner's eye, then add/tighten goal-level tests and commit. Do not block on exhaustive red-test
+> archaeology. This is scoped to UI behavior only; tests still gate integration, proxy assertions
+> remain invalid, and schema/security/data work keeps normal pre-change verification.
+
 ### Historical planning-era V3 continuation map (2026-07-20; superseded by current state above)
 
 All useful parallel planning work is committed on this Director branch; the source worktrees are

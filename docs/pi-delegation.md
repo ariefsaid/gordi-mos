@@ -6,7 +6,10 @@ acting as **Director** (`docs/director-playbook.md` §1 posture) how to dispatch
 else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md` §2 (including the
 `grill-with-docs` intake gate and the Phase-0 mockup-first gate), the UI cycle in
 `docs/design-workflow.md` (§1 mockup-first + §2 four-lens battery), and the per-layer DoD in
-`docs/product-expectations.md` are unchanged and binding.
+`docs/product-expectations.md` are unchanged and binding. **Scoped V3 UI exception (owner-directed
+2026-07-21):** for visual/IxD convergence seams, a worker may implement first, run a bounded smoke
+check, render for the owner's eye, and add or tighten goal-level tests afterward. This changes only
+sequencing; tests, rendered review, diff inspection, and merge gates still apply.
 
 Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; providers
 `zai` and `openai-codex/gpt-5.6-luna` both smoke-tested green. **`zai/glm-5.2`** (newest GLM, out
