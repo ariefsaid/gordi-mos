@@ -29,7 +29,20 @@ function followUpStatusTone(state: FollowUpState): TaskStatus {
   return 'In Progress'
 }
 
-export function FollowUpQueueTable({ queue }: { queue: FollowUpQueueState }) {
+export function FollowUpQueueTable({
+  queue,
+  onOpenRecord,
+}: {
+  queue: FollowUpQueueState
+  /**
+   * When provided, the counterparty cell renders a BUTTON that opens the follow-up record through
+   * the shared overlay host in panel mode (drawer-first), instead of a bare <Link> to the page.
+   * The canonical page route remains reachable via the host chrome's Open-full-page button (the
+   * entry carries pageTo). When omitted (e.g. the Work Tasks saved-view embed), the cell falls back
+   * to the legacy direct <Link> so the embed's behavior is unchanged.
+   */
+  onOpenRecord?: (row: FollowUpRow) => void
+}) {
   const t = useT()
   const isDesktop = useIsDesktop()
   const { rows, state, error, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit } = queue
@@ -87,12 +100,23 @@ export function FollowUpQueueTable({ queue }: { queue: FollowUpQueueState }) {
         <div>
           <strong>{row.counterparty}</strong>
           <br />
-          <Link
-            to={`/work/follow-ups/${row.id}`}
-            aria-label={`Read-only source ${row.source_invoice_ref ?? row.id}`}
-          >
-            {row.source_invoice_ref ?? row.kind}
-          </Link>
+          {onOpenRecord ? (
+            <button
+              type="button"
+              className="follow-up-queue-table__open-record"
+              onClick={() => onOpenRecord(row)}
+              aria-label={`Open follow-up ${row.source_invoice_ref ?? row.id}`}
+            >
+              {row.source_invoice_ref ?? row.kind}
+            </button>
+          ) : (
+            <Link
+              to={`/work/follow-ups/${row.id}`}
+              aria-label={`Read-only source ${row.source_invoice_ref ?? row.id}`}
+            >
+              {row.source_invoice_ref ?? row.kind}
+            </Link>
+          )}
         </div>
       ),
     },

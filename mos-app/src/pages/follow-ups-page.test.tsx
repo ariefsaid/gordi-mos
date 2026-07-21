@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider, OverlayHostSlot } from '@/shell/overlay-host'
 import type { AuthState } from '@/auth/context'
 import { FollowUpsPage } from './follow-ups-page'
 
@@ -168,5 +169,50 @@ describe('FollowUpsPage', () => {
     const errorView = render(createElement(FollowUpsPage), { wrapper })
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('network down'))
     expect(errorView.container.querySelector('.error-state')).toBeTruthy()
+  })
+
+  describe('drawer-first record door (Luna audit B4 / FR-V3 record-open parity)', () => {
+    // The follow-up queue row should open the record IN CONTEXT through the shared overlay host
+    // (panel mode, preserving the queue), not navigate directly to the page route. The canonical
+    // page route is still reachable via the host chrome's Open-full-page button (entry.pageTo).
+    function renderWithHost() {
+      return render(
+        createElement(
+          MemoryRouter,
+          { initialEntries: ['/work/follow-ups'] },
+          createElement(
+            I18nProvider,
+            null,
+            createElement(
+              OverlayHostProvider,
+              null,
+              createElement(FollowUpsPage),
+              createElement(OverlayHostSlot, { owner: 'shell' }),
+            ),
+          ),
+        ),
+      )
+    }
+
+    it('the counterparty row opens the follow-up record through the shared overlay host (panel mode)', async () => {
+      const { container } = renderWithHost()
+      // Wait for the queue row to mount.
+      const openBtn = await screen.findByRole('button', { name: /Open follow-up INV-1001/i })
+      // No overlay host slot is populated before the click.
+      expect(container.querySelectorAll('[data-overlay-host]').length).toBe(0)
+
+      await userEvent.setup().click(openBtn)
+
+      // After the click, the shared host has an active session rendering the follow-up record panel.
+      // The FollowUpRecordHost loads via getFollowUp (mocked via the actual module — returns undefined
+      // here, so the host shows its loading skeleton, which proves the panel mounted).
+      await waitFor(() => {
+        expect(container.querySelectorAll('[data-overlay-host]').length).toBe(1)
+      })
+      // The counterparty name now appears TWICE: once in the queue row (still mounted behind the
+      // panel — drawer-first preserves context) and once in the panel title (host chrome renders
+      // entry.title = row.counterparty). This double-occurrence IS the drawer-first proof.
+      expect(screen.getAllByText('PT Big Buyer').length).toBe(2)
+    })
   })
 })
