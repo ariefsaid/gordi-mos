@@ -210,7 +210,9 @@
   --destructive:           var(--ds-color-red);
   --destructive-foreground:var(--ds-font-color-inverted);
   --warning:               var(--ds-color-amber);
-  --warning-foreground:    color(display-p3 0.28 0.22 0.08); /* E7 deep brown — NOT --status-lost-text (that's the red bug, D-5) */
+  /* --warning-foreground is owned by the theme pair above (light: E7 deep brown, .dark: light
+     amber — NOT --status-lost-text, the D-5 red bug). Re-defining it here clobbered the .dark
+     override (equal specificity, later order wins) → invisible dark-mode pill text. */
   --success:               var(--ds-color-green);
   --success-foreground:    var(--ds-font-color-inverted);
   /* Controls/fields get a VISIBLE hairline; dividers/cards stay quiet.
