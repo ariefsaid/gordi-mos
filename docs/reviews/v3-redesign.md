@@ -495,3 +495,37 @@ Test numbering: plan's `63_` was taken → 100/101/102 (plan-canonical for two, 
 
 Review battery in flight: 3 combined spec+CQ reviewers (i3-finish+i4 · i5+i6 · i7+i8+wire) and a
 security audit of the DB rank. Verdicts recorded here when they land.
+
+## Acceleration wave — review battery verdicts (2026-07-21, GLM-5.2 cross-family; Luna unavailable)
+
+| Lane | Verdict | Critical | Important | Minor |
+|---|---|---:|---:|---:|
+| i3-finish (guards + representative migrations) | CONFIRM | 0 | 0 | few |
+| i4 (overlay host, honestly-scoped partial) | CONFIRM | 0 | 2 | 5 |
+| i5 (RecordViewer/fields/adapters) | CONFIRM | 0 | 3 | 3 |
+| i6 (collection engine/spec/adapters) | CONFIRM* | 2 | 4 | 2 |
+| i7 (Inbox triage core) | CONFIRM | 0 | 0 | 3 |
+| i8 (Team-context core) | CONFIRM | 0 | 0 | 2 |
+| wire (seam swaps + R-OWNER-1 + R-T-3) | CONFIRM | 0 | 0 | 1 |
+| DB rank security audit | **SHIP** | 0 | 0 | 3 Low |
+
+*i6's two "Critical" flags: (1) a REAL dispatcher bug — engine `openCount` never resets, so
+close-then-reopen silently no-ops onto an empty overlay session; (2) a scope statement — the engine
+has no production consumer yet, so AC-V3-005/013 cannot be claimed at the application layer (known:
+plan Tasks 10–13/15 are the outstanding slice). Security highlights: `_rehome_task_teams()` no
+injection surface + revoked from app roles; ambiguities table triple-locked; `.HOLD` cannot
+auto-apply; one tracked Low — DB CHECK doesn't mirror the client validator's full depth.
+
+**Fix lane dispatched (`v3/fix`, GLM-5.2)** for the concrete findings: the openCount bug +
+close-then-open test; the vacuous 44px assertion; the mis-titled compatibility-guard test; the
+missing plan-Task-14 deterministic conformance guard (+ pre-merge wiring); the i4 intent-matrix +
+re-guard-after-deny tests; two small boundary tests (inbox feature-off adapter-null,
+effective_from === today). Deferred-but-tracked (not in this fix lane): i4 per-frame returnFocus
+consumption + router-POP slice; i5/i6 production page wiring; URL back/forward rehydration
+(consistent with the deferred POP transaction).
+
+**Director rendered pass (live app, local stack, Director login):** Workspace/Focused-record/
+Management all render correctly at 1280 and 390 — one h1 + ONE job sentence each (R-OWNER-1
+suppression verified in the real DOM), PIC/Supervisor vocabulary, phone card regime + tab bar, no
+horizontal overflow. Minor visual notes: legacy "Admin" ContextRow scope chip content (pre-wave
+behavior, for the design lens); panel geometry is the known deferred R-T-5.
