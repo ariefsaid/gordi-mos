@@ -79,6 +79,42 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > archaeology. This is scoped to UI behavior only; tests still gate integration, proxy assertions
 > remain invalid, and schema/security/data work keeps normal pre-change verification.
 
+
+> **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
+> `docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`).** Tip `8cd1053`. MERGED this
+> session (each Director-close-reviewed; Luna cross-family review verdicts recorded in the ledger):
+> `9c59eac` follow-up record door + R-OWNER-5 workspace reclassification + Café copy; geometry
+> parity (rail 232, panel 44%/45vw/phone, split-Escape via leaveGuard, oracle-on-sheet); `fef7054`
+> Inbox LIVE through the mounted host (triage doors, Bell quick-open, Deputy focus return); hpm
+> slice (Home retry idempotence + StrictMode mount fix, People ViewTabs keyboard, More focus
+> return, canonical /work/tasks links).
+>
+> **ACTIVE LANES (worktrees under .claude/worktrees/, one branch each — check `git log` +
+> transcript liveness before assuming):** `v3/rv-live` (Claude opus — surgical RecordViewer into
+> Task panel fields + Signal content-slot wrap, identity-suppression option in panel mode, ruling
+> recorded); `v3/taskspage-fix` (Claude opus — the 8 pre-existing tasks-page failures from the
+> live-engine landing + TasksWorkspace `.split` 33vw→44% parity + the 3 context-row job-sentence
+> failures); `v3/route-seam` (GLM-5.2 — R-T-4: historyDriver, openPage navigation, browser-POP
+> guarded transaction, deep-link restore; FULL red/green tests required, it is dirty-guard
+> infrastructure); `v3/inbox-failclosed` (GLM-5.2 — CRITICAL Luna finding: buildInboxTargetDeps
+> hardcodes canOpen/isSameOrg/recordExists=true; wire real can()/org/existence + production-deps
+> tests); minimax-m3 page-grammar hunt + inkling interaction-door hunt (NIM, read-only, dev server
+> on :5199 serves the v3-redesign worktree — kill it when hunts finish).
+>
+> **QUEUED BEHIND route-seam (do NOT run in parallel with it — same shell files):** Bell shell-slot
+> 44% geometry; Deputy dual-panel guard (Bell panel + Deputy can coexist); Inbox record-door pageTo/
+> host-promotion wiring; follow-up queue panel-first opening (I1). All four are Luna findings routed
+> in the ledger (`a55b2fa`).
+>
+> **INTEGRATION RULES for whoever resumes:** merge lanes serially into `v3-redesign` after
+> close-reviewing the actual diff (scope-guard check first); run the owning targeted suites +
+> typecheck on the merged tip per merge; ONE full battery (full vitest + lint + build + conformance
+> guards + pgTAP if schema touched) on the final tip only (memory-frugal — the machine has OOMed);
+> the review battery + `bash scripts/pre-merge-check.sh` + the owner's rendered three-width
+> walkthrough (Issue 9) gate any merge-to-main. Pre-existing known failures (do not re-diagnose):
+> tasks-page 8 + context-row 3 — owned by `v3/taskspage-fix`. Deferred/backlog items live in
+> `docs/backlog.md` (owner rule 2026-07-21: no task chips — take on or backlog, nothing else).
+
 ### Historical planning-era V3 continuation map (2026-07-20; superseded by current state above)
 
 All useful parallel planning work is committed on this Director branch; the source worktrees are
