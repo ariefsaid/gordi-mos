@@ -12,6 +12,7 @@
 // overlay (through its leaveGuard). Deputy yields unconditionally (no dirty state by design).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import {
   OverlayHostProvider,
   useOverlayHost,
@@ -37,16 +38,20 @@ function Harness({ onOverlayReady, onDeputyReady }: {
   onDeputyReady?: (api: ReturnType<typeof useAgentRuntime>) => void
 }) {
   return (
-    <AgentRuntimeProvider runtime={null}>
-      <OverlayHostProvider>
-        <CoordinatorProbe
-          onReady={({ overlay, deputy }) => {
-            onOverlayReady?.(overlay)
-            onDeputyReady?.(deputy)
-          }}
-        />
-      </OverlayHostProvider>
-    </AgentRuntimeProvider>
+    // MemoryRouter: OverlayHostProvider is router-coupled since the route seam
+    // (useNavigate/useLocation for URL markers) — harness shape only, goals unchanged.
+    <MemoryRouter>
+      <AgentRuntimeProvider runtime={null}>
+        <OverlayHostProvider>
+          <CoordinatorProbe
+            onReady={({ overlay, deputy }) => {
+              onOverlayReady?.(overlay)
+              onDeputyReady?.(deputy)
+            }}
+          />
+        </OverlayHostProvider>
+      </AgentRuntimeProvider>
+    </MemoryRouter>
   )
 }
 
