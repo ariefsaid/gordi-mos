@@ -6,12 +6,18 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { PersonOption } from '@/lib/db/directory'
 
-vi.mock('@/lib/db/signals', () => ({
-  listReadableSignals: vi.fn(),
-  listAllTeams: vi.fn(),
-}))
+vi.mock('@/lib/db/signals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/signals')>()
+  return { ...actual, listReadableSignals: vi.fn(), listAllTeams: vi.fn(), correctSignal: vi.fn() }
+})
 vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
+}))
+// The V3 collection Table renders in desktop mode here (deterministic), and the archive Feed's
+// "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
+vi.mock('@/shell/signal-composer-host', () => ({
+  useSignalComposer: () => ({ open: vi.fn(), postCount: 0 }),
 }))
 
 // The ?record=<id> record is SignalRecordHost's own job (signal-record-host.test.tsx covers its
