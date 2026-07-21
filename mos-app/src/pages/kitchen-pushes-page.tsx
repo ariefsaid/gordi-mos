@@ -217,7 +217,7 @@ export function KitchenPushesPage() {
           <p className="kpu-forbidden-msg">
             The ESB outbox is visible to ops leads and admins.
           </p>
-          <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
+          <Link to="/cafe/log" className="btn btn-outline">Back to Log</Link>
         </div>
       </PageFamilyFrame>
     )

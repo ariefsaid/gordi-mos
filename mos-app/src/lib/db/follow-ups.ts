@@ -55,6 +55,12 @@ export async function listFollowUps(filters: FollowUpFilters = {}): Promise<Foll
   return (data ?? []) as FollowUpRow[]
 }
 
+export async function getFollowUp(id: string): Promise<FollowUpRow | null> {
+  const { data, error } = await mos().from('follow_ups').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`getFollowUp failed — ${error.message}`)
+  return (data as FollowUpRow | null) ?? null
+}
+
 export async function listFollowUpEvents(followUpId: string): Promise<FollowUpEvent[]> {
   const { data, error } = await mos().from('follow_up_events').select('*').eq('follow_up_id', followUpId).order('created_at', { ascending: true })
   if (error) throw new Error(`listFollowUpEvents failed — ${error.message}`)

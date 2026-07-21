@@ -349,6 +349,14 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(days).toBe(14)
   })
 
+  it('Café hygiene: the member view speaks Café — its title is café-facing and never leaks the internal "Pesanan" noun', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />)
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('heading', { name: 'Café · Plan' })).toBeInTheDocument()
+    expect(screen.queryByText(/pesanan/i)).toBeNull()
+  })
+
   it('AC-024: member NEVER gets edit/save affordances or calls the editor read/write', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />)

@@ -197,8 +197,9 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
       </MemoryRouter>,
     )
     const backLink = await screen.findByRole('link', { name: /back to log/i })
-    // Link must resolve via the SPA router (basename applied) — not a full-reload raw anchor
-    expect(backLink).toHaveAttribute('href', '/mos/kitchen/log')
+    // Link must resolve via the SPA router (basename applied) — not a full-reload raw anchor —
+    // and it points at the CANONICAL café route, not the retired /kitchen/* noun (Café hygiene).
+    expect(backLink).toHaveAttribute('href', '/mos/cafe/log')
   })
 })
 

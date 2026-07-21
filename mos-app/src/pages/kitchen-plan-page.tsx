@@ -293,7 +293,7 @@ function PlanEditor() {
       {load.kind === 'ready' && items.length === 0 && (
         <EmptyState
           title="No active WIP items"
-          copy="Ask an admin to add kitchen items first."
+          copy="Ask an admin to add café items first."
         />
       )}
 
@@ -384,7 +384,7 @@ function PesananView() {
   return (
     <PageFamilyFrame
       family="workspace"
-      title="Café · Pesanan"
+      title="Café · Plan"
       jobSentence={t('job.cafe')}
       count={load.kind === 'ready' ? rows.length : null}
       meta={<span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>}
@@ -413,7 +413,7 @@ function PesananView() {
           rows={rows}
           groups={pesananGroups}
           isDesktop={isDesktop}
-          caption="Planned items — pesanan horizon"
+          caption={`Planned items — next ${PESANAN_HORIZON_DAYS} days`}
         />
       )}
     </PageFamilyFrame>

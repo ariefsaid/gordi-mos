@@ -548,9 +548,9 @@ export function KitchenReviewPage() {
         <div className="kr-block kr-forbidden" role="region" aria-label="Access restricted">
           <p className="kr-forbidden-title">Review is available to ops leads only.</p>
           <p className="kr-forbidden-msg">
-            Ask an ops lead to review your submitted kitchen logs.
+            Ask an ops lead to review your submitted café logs.
           </p>
-          <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
+          <Link to="/cafe/log" className="btn btn-outline">Back to Log</Link>
         </div>
       </PageFamilyFrame>
     )

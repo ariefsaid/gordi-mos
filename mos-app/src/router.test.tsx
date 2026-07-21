@@ -32,6 +32,7 @@ import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { InboxPage } from './pages/inbox-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
+import { FollowUpRecordPage } from './pages/follow-up-record-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 import { ProfilePage } from './pages/profile-page'
 import { SignalsArchivePage } from './pages/signals-archive-page'
@@ -240,6 +241,17 @@ describe('AC-006: Money canonical routes + redirects', () => {
     // /work/follow-ups/:id D-2 deep-link contract test above).
     expect([<FollowUpsPage />, <Navigate to="/" replace />]).toContainEqual(route.element)
   })
+
+  it('R-OWNER-5: the follow-ups QUEUE (/money/follow-ups) is a workspace destination (count + overdue meta), while the follow-up RECORD (/work/follow-ups/:id) stays focused-record', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/follow-ups'),
+    )!
+    const queue = gate.children!.find((r) => r.path === 'money/follow-ups')!
+    expect(queue.handle).toEqual({ kind: 'page', family: 'workspace' })
+
+    const record = shellChildren().find((r) => r.path === 'work/follow-ups/:id')!
+    expect(record.handle).toEqual({ kind: 'page', family: 'focused-record' })
+  })
 })
 
 // AC-006: Café re-home (kitchen → cafe) + stubs + admin.
@@ -309,10 +321,10 @@ describe('FR-009: old-route redirect map is present', () => {
     )
     expect(shellChildren().find((r) => r.path === 'ops')!.element).toEqual(<Navigate to="/" replace />)
   })
-  it('/work/follow-ups/:id stays gated by SHOW_FOLLOWUPS (D-2 deep-link contract)', () => {
+  it('/work/follow-ups/:id opens the focused-record door (FollowUpRecordPage), gated by SHOW_FOLLOWUPS (D-2 deep-link contract)', () => {
     const r = shellChildren().find((x) => x.path === 'work/follow-ups/:id')!
     // flag-off branch redirects to /; the route is present either way.
     expect(r).toBeDefined()
-    expect([<FollowUpsPage />, <Navigate to="/" replace />]).toContainEqual(r.element)
+    expect([<FollowUpRecordPage />, <Navigate to="/" replace />]).toContainEqual(r.element)
   })
 })

@@ -97,9 +97,10 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
     expect(await screen.findByText(/available to ops leads/i)).toBeInTheDocument()
     // the queue read is never even attempted for a member
     expect(mockList).not.toHaveBeenCalled()
-    // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
+    // Back to Log must resolve via the SPA router — not a raw href that causes a full reload —
+    // and it points at the CANONICAL café route, not the retired /kitchen/* noun (Café hygiene).
     const backLink = screen.getByRole('link', { name: /back to log/i })
-    expect(backLink).toHaveAttribute('href', '/mos/kitchen/log')
+    expect(backLink).toHaveAttribute('href', '/mos/cafe/log')
   })
 
   it('an admin is allowed (not forbidden)', async () => {
