@@ -526,3 +526,9 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
   (provisional), Modules-in-rail window, and every `RATIFY-BEFORE-MERGE:` conservative default it takes
   on the step 4 & 6 schema/RLS work.
 - **Cohesion program (standing)** — `docs/reviews/cohesion-debt-2026-07-19.md`: the mechanical sources of the owner's "several apps thrown together" (4 modals · 4 scrims · 4 close glyphs · 2 money formats · 3 empty-state grammars · 2 list grammars · z-index tiers). Sequenced 1–6; items 5–6 need owner calls. Paired with `docs/interaction-contract.md` (behavioural half).
+
+- **More-drawer focus return (deferred, 2026-07-21):** both the TopBar hamburger and the
+  BottomTabBar "More" open the same MobileDrawer, but only the hamburger registers a focus-return —
+  close always focuses the hamburger regardless of the actual launcher (I2 gap, found by the hpm
+  lane, out of its bounded scope). Fix = per-open launcher registration (pattern:
+  AgentRuntimeContext opener capture) in app-shell/bottom-tab-bar/mobile-drawer + an I2 test.
