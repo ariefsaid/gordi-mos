@@ -40,12 +40,20 @@ const ARCHIVE_ROW_ATTENTION_CLASSES = [
 const MENTION_KIND_VALUES: MentionKind[] = ['person', 'team', 'bu']
 // signal-mention-picker.tsx: `type-badge type-badge--${kind}`
 const TYPE_BADGE_CLASSES = ['type-badge', ...MENTION_KIND_VALUES.map((k) => `type-badge--${k}`)]
+// signal-table-presentation.tsx: `signal-table-attention signal-table-attention--${slug}` + row states.
+const SIGNAL_TABLE_CLASSES = [
+  'signal-table-attention',
+  ...ATTENTION_VALUES.map((a) => `signal-table-attention--${attentionSlug(a)}`),
+  'signal-table-row--retracted',
+  'signal-table-row--selected',
+]
 
 interface Suite { component: string; css: string[]; extraClasses?: string[]; ignoreClasses?: string[] }
 
 const SUITES: Suite[] = [
   { component: 'src/components/signals/signal-card.tsx', css: ['src/components/signals/signal-card.css'], extraClasses: SIGNAL_ATTENTION_CLASSES },
   { component: 'src/components/signals/signal-feed.tsx', css: ['src/components/signals/signal-feed.css'] },
+  { component: 'src/components/signals/signal-table-presentation.tsx', css: ['src/components/signals/signal-table-presentation.css'], extraClasses: SIGNAL_TABLE_CLASSES },
   { component: 'src/components/signals/signal-composer.tsx', css: ['src/components/signals/signal-composer.css'] },
   { component: 'src/components/signals/signal-mention-picker.tsx', css: ['src/components/signals/signal-mention-picker.css'], extraClasses: TYPE_BADGE_CLASSES },
   { component: 'src/components/signals/signal-category-picker.tsx', css: ['src/components/signals/signal-card.css'] },

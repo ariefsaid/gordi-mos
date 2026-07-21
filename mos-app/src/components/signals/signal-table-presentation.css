@@ -1,0 +1,58 @@
+/* Signal archive TABLE presentation (Issue 6). Rides on the generic DataTable (.dt-*) chrome; these
+   rules only skin the Signal-specific cells: the message link, the retracted tombstone, the attention
+   pill, the row-selection control, and the retracted/selected row states. E7 tokens only. */
+
+.signal-table-message {
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: none;
+}
+.signal-table-message:hover {
+  text-decoration: underline;
+}
+
+.signal-table-tombstone {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.signal-table-reason {
+  color: var(--muted-foreground);
+}
+
+.signal-table-attention {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.signal-table-attention--fyi {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+.signal-table-attention--needs-attention {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+.signal-table-attention--urgent {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--status-lost-text);
+}
+
+.signal-table-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.signal-table-row--retracted {
+  color: var(--muted-foreground);
+}
+.signal-table-row--selected {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
