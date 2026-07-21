@@ -650,3 +650,21 @@ ESLint, Stylelint, `git diff --check`, and the 10-test `scripts/v3-record-collec
 guard passed. No Supabase, dev server, browser, full-suite fan-out, push, merge, or deploy was used.
 This closes the live Tasks collection engine seam only. Task RecordViewer opening, drawer-first /
 direct-page parity, Signal collection convergence, and rendered owner acceptance remain open.
+
+### Ownership split for the next convergence wave (2026-07-21)
+
+The owner approved an implementation-first UI/IxD sequence: visible behavior → bounded smoke gates →
+rendered owner-eye review → goal-level regression tests → commit. This is recorded in the handoff,
+agent context, design workflow, pi delegation guide, and RecordViewer plan; it is scoped to UI seams
+and does not weaken integration, security, schema, or final rendered gates.
+
+- **Signal lane** (`019f843e-6dd0-76d0-b4f0-9bed74b4b2d3`): grouping/collapse, opener/query state,
+  dead selection/Create Task, and archive/focused page families.
+- **RecordViewer lane** (`019f8444-0709-7b03-bf1a-3ecf09eb2589`): Task/Signal viewer bridge,
+  drawer-first host opening, focus return, and canonical page parity.
+- **Home/People/More lane** (`019f844c-a942-7c12-992f-ae86618cfc88`): retry/projection duplication,
+  ViewTabs keyboard behavior, mobile More focus return, and legacy links.
+- **Director-owned next work:** independent review/integration of these lanes, then Inbox/Deputy,
+  Follow-ups/Café, geometry/legacy cleanup, representative rendered gate, and owner walkthrough.
+
+No lane may claim another lane's acceptance, use Supabase, or fan out broad/full browser suites.

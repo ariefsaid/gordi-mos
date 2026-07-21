@@ -128,7 +128,24 @@ after its process exits.
 | Overlay host | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-record-viewer-live` / `v3/record-viewer-live` | Complete; cherry-picked as `9e2a8d1` and independently verified | Host is landed; consumer RecordViewer/Inbox/Deputy migrations remain separate |
 | Signal collection | NIM Nemotron 3 Ultra 550B → Luna xhigh verifier | `.claude/worktrees/v3-signals-frame` / `v3/signals-frame`; verifier thread `019f843e-6dd0-76d0-b4f0-9bed74b4b2d3` | Active; provider-interrupted WIP is checkpointed and under bounded review | Must prove real grouping headers/collapse, opener/query preservation, no phantom selection, archive-vs-focused page families; do not accept adapter-only tests |
 | Tasks live collection | Luna xhigh | Source thread `019f8423-d2c9-7523-88cc-c470c2597a3e` | Complete at `542002b`; cherry-picked as `15924dc`, independently verified | Production `TasksWorkspace` uses one typed collection loader/projection and `RecordCollectionSurface`; RecordViewer remains separate |
+| Home / People / More | Luna xhigh | Worktree `/Users/ariefsaid/.codex/worktrees/aaca/gordi-mos`; thread `019f844c-a942-7c12-992f-ae86618cfc88` | Active; owner-fast-path implementation | Must fix Home retry/projection duplication, People ViewTabs keyboard behavior, More focus return, and visible legacy `/tasks` links; no RecordViewer/Signal/Inbox/Café scope |
 | Auth controls | Luna xhigh | Codex worktree from `v3/auth-control-grammar` (thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d`) | Complete; source commit `c4bf105` cherry-picked as `93555ac` | Already independently re-verified; do not duplicate |
+
+## Ownership commitments (owner-directed, 2026-07-21)
+
+The Director claims responsibility for independently reviewing and integrating the Signal,
+RecordViewer, and Home/People/More worker results, then owning the remaining cross-surface work:
+
+| Owner | Claimed work | Acceptance handoff |
+|---|---|---|
+| Signal worker | Signal collection grouping/collapse, opener/query preservation, dead selection/Create Task removal, archive-vs-focused page family | Director focused tests, typecheck/lint/diff, then rendered review |
+| RecordViewer worker | Task/Signal viewer bridge, drawer-first host opening, focus return, canonical page parity | Director focused tests, typed adapter inspection, then rendered review |
+| Home/People/More worker | Retry callback, shared Tasks projection direction, ViewTabs keyboard contract, mobile More focus, canonical links | Director focused tests, keyboard journey, then rendered review |
+| Director | Integration/review of all three lanes; Inbox/Bell + Deputy; Follow-ups/Café; geometry/legacy cleanup; representative gate; final docs and owner walkthrough | No push/merge/deploy until the owner sees the rendered representative slice |
+
+No worker may claim another lane's acceptance, and no lane may start Supabase or broad browser/full-suite
+fan-out. A worker's green result is a handoff, not completion; the Director owns the final visual/IxD
+judgment and merge gate.
 
 ### Provider failures to preserve as handoff evidence
 

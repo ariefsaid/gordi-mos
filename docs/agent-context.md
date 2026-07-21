@@ -61,14 +61,16 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Stylelint, conformance guard, diff clean). `v3/signals-frame` (NIM Nemotron) is fixing real Signal
 > grouping/opening/selection/page-family behavior; Luna verifier thread `019f843e-6dd0-76d0-b4f0-9bed74b4b2d3`
 > is reviewing its provider-interrupted checkpoint. Luna thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d` landed
-> auth controls as `93555ac`. All active work must be independently reviewed before cherry-pick.
+> auth controls as `93555ac`. Luna thread `019f844c-a942-7c12-992f-ae86618cfc88` now owns the
+> bounded Home/People/More interaction slice. All active work must be independently reviewed before
+> cherry-pick.
 > Only one local Supabase exists; no active lane may start it. Keep memory bounded, avoid browser/full-suite
 > fan-out, and inspect redirected logs only once after a process exits. The full active map and failed
 > provider attempts are recorded in the convergence handoff.
 >
-> **Next action:** finish and independently verify the Signal lane; then migrate Task/Signal RecordViewer
-> openings, Inbox/Deputy, Follow-ups,
-> Café, Home/People/More, geometry, and final three-width acceptance in the dependency order in the
+> **Next action:** finish and independently verify Signal, RecordViewer, and Home/People/More in
+> their claimed lanes; I (Director) then own Inbox/Deputy, Follow-ups/Café, geometry, and final
+> three-width acceptance in the dependency order in the
 > convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host
 > dependencies and Issues 7–9 are actually complete.
 

@@ -6,8 +6,10 @@
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.
 > Tasks live-engine adoption is now integrated and independently re-verified at `15924dc`; Signal
-> collection correctness remains isolated and pending independent review. The single production
-> overlay-host mount is integrated and independently verified.
+> collection correctness and Home/People/More interaction cleanup are delegated to isolated Luna
+> lanes for independent review. The single production overlay-host mount is integrated and
+> independently verified. The Director claims integration/review plus Inbox/Deputy, Follow-ups/Café,
+> geometry, and final rendered owner acceptance.
 > Issue-12 cleanup has also removed the
 > unreachable legacy Sales and My Week page implementations rather than preserving their parallel
 > page-head/CSS grammar. The exact active state and continuation
