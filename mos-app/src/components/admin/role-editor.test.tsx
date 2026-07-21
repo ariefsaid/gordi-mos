@@ -198,6 +198,18 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('does not dismiss while a role mutation is pending', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mockGrantRole.mockReturnValue(new Promise(() => {}))
+    renderEditor(OTHER_PERSON, { onClose })
+
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
   it('AC-050: Close button dismisses the dialog', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -208,11 +220,10 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
-  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+  it('uses the canonical bordered ModalShell rather than another overlay implementation', () => {
     renderEditor()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.style.border).toBeTruthy()
-    expect(dialog.style.border).not.toBe('')
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 })

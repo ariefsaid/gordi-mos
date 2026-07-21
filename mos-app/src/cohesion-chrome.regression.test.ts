@@ -78,12 +78,15 @@ describe('CHROME-Z: z-index tier scale', () => {
   })
 
   it('CHROME-Z: admin confirm/create/role dialogs use the modal tier, not a bare z-50', () => {
-    for (const f of ['components/ui/confirm-dialog.tsx', 'components/admin/create-person-dialog.tsx']) {
+    for (const f of [
+      'components/ui/confirm-dialog.tsx',
+      'components/admin/create-person-dialog.tsx',
+      'components/admin/role-editor.tsx',
+    ]) {
       const body = readSrc(f)
       expect(body, `${f} must not ship the bare Tailwind z-50 overlay`).not.toMatch(/className="fixed inset-0 z-50/)
       expect(body, `${f} must compose the shared modal tier`).toMatch(/<ModalShell/)
     }
-    expect(readSrc('components/admin/role-editor.tsx')).toMatch(/var\(--z-modal\)/)
   })
 
   it('CHROME-Z: the 9999 admin-portal outlier is capped onto the tier scale', () => {
@@ -307,6 +310,7 @@ describe('CHROME-MODAL: modal consolidation', () => {
       'components/ui/confirm-dialog.tsx',
       'components/tasks/occurrence-assign-dialog.tsx',
       'components/admin/create-person-dialog.tsx',
+      'components/admin/role-editor.tsx',
       'components/command/command-menu.tsx',
       'shell/signal-composer-host.tsx',
     ]

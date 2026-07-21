@@ -13,10 +13,11 @@
 //   item 13: heading uses .subheading token instead of fontSize: '18px'
 //   item 14: self-assign copy → plain language
 
-import { useState, useEffect, useId, useCallback, useRef } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { CloseIcon } from '@/shell/icons'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
@@ -66,57 +67,6 @@ export function RoleEditor({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const titleId = useId()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const invokerRef = useRef<HTMLElement | null>(null)
-  const closeBtnRef = useRef<HTMLButtonElement>(null)
-
-  // Capture invoker for focus return
-  useEffect(() => {
-    if (open) {
-      invokerRef.current = document.activeElement as HTMLElement | null
-      // Auto-focus close button on open (first element, not destructive)
-      requestAnimationFrame(() => {
-        closeBtnRef.current?.focus()
-      })
-    } else {
-      invokerRef.current?.focus?.()
-    }
-  }, [open])
-
-  // Close on Esc + Tab trap
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const container = containerRef.current
-      if (!container) return
-      const FOCUSABLE =
-        'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    },
-    [onClose],
-  )
-
-  useEffect(() => {
-    if (!open) return
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, handleKeyDown])
 
   // Reset error whenever dialog opens / person changes
   useEffect(() => {
@@ -146,27 +96,14 @@ export function RoleEditor({
   }
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'var(--scrim)', zIndex: 'var(--z-modal)' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      ariaLabelledBy={titleId}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
     >
-      <div
-        ref={containerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="relative w-full max-w-sm overflow-hidden rounded-lg"
-        style={{
-          background: 'var(--card)',
-          boxShadow: 'var(--shadow-overlay)',
-          border: '1px solid var(--input)',
-          borderRadius: 'var(--radius)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="role-editor-panel">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
           <div>
@@ -182,12 +119,12 @@ export function RoleEditor({
             </p>
           </div>
           <button
-            ref={closeBtnRef}
             type="button"
             aria-label="Dismiss dialog"
             className="-mr-1 -mt-1 rounded-sm p-1 hover:bg-accent/60"
             style={{ color: 'var(--muted-foreground)' }}
             onClick={onClose}
+            disabled={busy}
           >
             <CloseIcon />
           </button>
@@ -282,6 +219,6 @@ export function RoleEditor({
           </Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
