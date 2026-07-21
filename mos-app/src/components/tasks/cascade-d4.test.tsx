@@ -327,10 +327,13 @@ describe('FR-249 — detail panel shows "—" when both fields are null (read-on
       </AuthContext.Provider>,
     )
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // With lookups loaded but no id set, read-only path shows "—" for each field
-    // Also Due date is null so there's at least one "—" from that
+    // FR-249: null fields render an explicit null-indicator (not blank). Work-line and Objective
+    // render "—"; Due renders the more informative "No due date" (task-record-adapter.tsx:185
+    // sets displayValue: task.due_date ?? 'No due date'). Both satisfy the FR-249 goal — a null
+    // field is visibly marked, not empty.
     const dashes = screen.getAllByText('—')
-    // At minimum: work-line "—", objective "—", due date "—" = 3
-    expect(dashes.length).toBeGreaterThanOrEqual(3)
+    // Work-line "—" + Objective "—" (Due uses "No due date" instead of "—")
+    expect(dashes.length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('No due date')).toBeInTheDocument()
   })
 })
