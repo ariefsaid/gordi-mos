@@ -21,6 +21,10 @@ test('the shared RecordCollection stack passes every conformance invariant on th
   assert.deepEqual(report.taskPresentations, ['card', 'table'])
   assert.deepEqual(report.signalPresentations, ['feed', 'table'])
   assert.equal(report.hookBindsHost, true)
+  assert.equal(report.liveTaskWorkspaceUsesHook, true)
+  assert.equal(report.liveTaskWorkspaceUsesSurface, true)
+  assert.equal(report.liveTaskWorkspaceUsesDescriptor, true)
+  assert.deepEqual(report.liveTaskConsumerLegacyHits, [])
   assert.deepEqual(validateConformance(report), [])
 })
 
@@ -60,6 +64,15 @@ test('the guard rejects a legacy Task view hook or a disabled "soon" placeholder
 
   const soon = { ...report, soonPlaceholderHits: [{ path: 'task-collection-adapter.tsx' }] }
   assert.match(validateConformance(soon).join('\n'), /disabled "soon" presentation placeholder/)
+})
+
+test('the guard rejects legacy loader/query ownership in a live Task consumer', () => {
+  const report = buildConformance(repoRoot)
+  const legacy = {
+    ...report,
+    liveTaskConsumerLegacyHits: [{ path: 'tasks-workspace.tsx', token: '\\blistTasks\\s*\\(' }],
+  }
+  assert.match(validateConformance(legacy).join('\n'), /legacy Task query ownership/)
 })
 
 test('the guard rejects drifted Task or Signal live presentations', () => {

@@ -5,13 +5,9 @@
 // structural non-negotiables of the shared engine + the Task/Signal collection adapters. It is the
 // machine proof behind docs/plans/2026-07-20-v3-record-collection.md Task 14.
 //
-// SCOPE (deliberate): the guard protects the DELIVERED Issue-6 code — the React-free engine, its
-// single React hook, and the two typed collection adapters. It intentionally does NOT reach into the
-// yet-to-be-migrated legacy Task workspace (tasks-workspace.tsx / tasks-toolbar.tsx / the legacy
-// useTasksSavedView / useTasksViewPref hooks and their "soon" placeholder tab). Those are removed by
-// the later wiring issues; asserting their absence today would fail against the tree. The guard
-// therefore forbids the legacy vocabulary/imports/placeholders inside the shared stack + adapters,
-// so a regression that re-imports them into the engine boundary is caught.
+// SCOPE: the guard protects the shared Issue-6 stack, typed adapters, and the live Task consumer.
+// The latter is deliberately included now that TasksWorkspace has crossed the migration boundary:
+// it must keep one hook/surface and cannot reacquire the legacy loaders/query owners.
 //
 // Structure mirrors scripts/v3-storybook-matrix.mjs: build(repoRoot) -> report, validate(report) ->
 // sorted errors, main(argv) -> exit code. pre-merge-check.sh runs `--check`.
@@ -26,12 +22,18 @@ const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '..')
 const ENGINE_PATH = 'mos-app/src/lib/record-collection/engine.ts'
 const HOOK_PATH = 'mos-app/src/lib/record-collection/use-record-collection.ts'
 const TASK_ADAPTER_PATH = 'mos-app/src/components/tasks/task-collection-adapter.tsx'
+const TASK_WORKSPACE_PATH = 'mos-app/src/components/tasks/tasks-workspace.tsx'
+const TASK_TOOLBAR_PATH = 'mos-app/src/components/tasks/tasks-toolbar.tsx'
+const TASK_LAYOUT_PATH = 'mos-app/src/pages/tasks-layout.tsx'
 const SIGNAL_ADAPTER_PATH = 'mos-app/src/components/signals/signal-collection-adapter.tsx'
+const LIVE_TASK_CONSUMER_PATHS = [TASK_WORKSPACE_PATH, TASK_TOOLBAR_PATH, TASK_LAYOUT_PATH]
 
 // The stable, sorted source set the guard reads. Sorted so the manifest is filesystem-order-free.
 const SOURCE_PATHS = [
   'mos-app/src/components/signals/signal-collection-adapter.tsx',
   'mos-app/src/components/tasks/task-collection-adapter.tsx',
+  'mos-app/src/components/tasks/tasks-toolbar.tsx',
+  'mos-app/src/components/tasks/tasks-workspace.tsx',
   'mos-app/src/lib/record-collection/collection-view-spec.ts',
   'mos-app/src/lib/record-collection/engine.ts',
   'mos-app/src/lib/record-collection/index.ts',
@@ -39,6 +41,7 @@ const SOURCE_PATHS = [
   'mos-app/src/lib/record-collection/record-opening-contract.ts',
   'mos-app/src/lib/record-collection/types.ts',
   'mos-app/src/lib/record-collection/use-record-collection.ts',
+  'mos-app/src/pages/tasks-layout.tsx',
 ]
 
 // The adapter boundary must be typed end-to-end: no universal row, no arbitrary JSON query, no `any`.
@@ -63,6 +66,16 @@ const ARBITRARY_QUERY_TOKENS = [/Record<\s*string\s*,\s*unknown\s*>/, /:\s*any\b
 // Legacy per-user Task view hooks: the shared engine owns saved views + presentation, so neither may
 // be imported into the shared stack or the adapters after migration.
 const LEGACY_HOOK_TOKENS = [/use-tasks-saved-view/, /use-tasks-view-pref/, /\buseTasksSavedView\b/, /\buseTasksViewPref\b/]
+const LEGACY_LIVE_QUERY_TOKENS = [
+  /\blistTasks\s*\(/,
+  /\bgetBusinessUnits\s*\(/,
+  /\bgetPeople\s*\(/,
+  /\buseTasksSavedView\b/,
+  /\buseTasksViewPref\b/,
+  /\buseReactTable\b/,
+  /\bgetFilteredRowModel\b/,
+  /\bgetSortedRowModel\b/,
+]
 
 // The two raw storage columns for Task person fields. They are only legitimate inside the single
 // `toTaskCollectionRecord` mapper; anywhere else in the adapter they are a leaked storage spelling.
@@ -154,6 +167,12 @@ export function buildConformance(repoRoot = DEFAULT_REPO_ROOT) {
     legacyHookHits: [...ADAPTER_BOUNDARY_FILES].flatMap((path) =>
       LEGACY_HOOK_TOKENS.filter((token) => stripped[path] != null && token.test(stripped[path])).map((token) => ({ path, token: token.source })),
     ),
+    liveTaskConsumerLegacyHits: LIVE_TASK_CONSUMER_PATHS.flatMap((path) =>
+      LEGACY_LIVE_QUERY_TOKENS.filter((token) => stripped[path] != null && token.test(stripped[path])).map((token) => ({ path, token: token.source })),
+    ),
+    liveTaskWorkspaceUsesHook: stripped[TASK_WORKSPACE_PATH]?.includes('useRecordCollection') ?? false,
+    liveTaskWorkspaceUsesSurface: stripped[TASK_WORKSPACE_PATH]?.includes('RecordCollectionSurface') ?? false,
+    liveTaskWorkspaceUsesDescriptor: stripped[TASK_WORKSPACE_PATH]?.includes('taskCollectionDescriptor') ?? false,
     soonPlaceholderHits: [ENGINE_PATH, HOOK_PATH, TASK_ADAPTER_PATH, SIGNAL_ADAPTER_PATH]
       .filter((path) => stripped[path] != null && /\bsoon\b/i.test(stripped[path]))
       .map((path) => ({ path })),
@@ -185,6 +204,7 @@ export function validateConformance(report) {
   for (const hit of report.universalRowHits) errors.push(`universal record row type ${hit.token} at ${hit.path}`)
   for (const hit of report.arbitraryQueryHits) errors.push(`untyped adapter boundary (${hit.token}) at ${hit.path}`)
   for (const hit of report.legacyHookHits) errors.push(`legacy Task view hook (${hit.token}) imported into the shared stack at ${hit.path}`)
+  for (const hit of report.liveTaskConsumerLegacyHits) errors.push(`legacy Task query ownership (${hit.token}) in live consumer ${hit.path}`)
   for (const hit of report.soonPlaceholderHits) errors.push(`disabled "soon" presentation placeholder in the shared stack at ${hit.path}`)
   for (const spelling of report.leakedRawSpellings) {
     errors.push(`raw storage spelling "${spelling}" appears outside toTaskCollectionRecord in the Task adapter`)
@@ -196,6 +216,10 @@ export function validateConformance(report) {
   if (JSON.stringify(report.signalPresentations) !== JSON.stringify(EXPECTED_SIGNAL_PRESENTATIONS)) {
     errors.push(`Signal live presentations must be exactly feed/table, found ${JSON.stringify(report.signalPresentations)}`)
   }
+
+  if (!report.liveTaskWorkspaceUsesHook) errors.push('live TasksWorkspace must consume useRecordCollection')
+  if (!report.liveTaskWorkspaceUsesSurface) errors.push('live TasksWorkspace must render RecordCollectionSurface')
+  if (!report.liveTaskWorkspaceUsesDescriptor) errors.push('live TasksWorkspace must use the typed Task collection descriptor')
 
   if (!report.hookBindsHost) errors.push('the React hook must bind the live overlay host (bindOverlayHost)')
 

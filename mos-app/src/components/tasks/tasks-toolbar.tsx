@@ -1,38 +1,29 @@
-import type { Dispatch, SetStateAction } from 'react'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import type { TasksGroupBy } from './use-tasks-view-pref'
-import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
+import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
 import { useT } from '@/i18n/use-t'
+import type {
+  TaskCollectionGroup,
+  TaskCollectionPresentation,
+  TaskCollectionQuery,
+  TaskCollectionSort,
+  TaskCollectionView,
+} from './task-collection-adapter'
 
-type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
-type SortDir = 'ascending' | 'descending'
+type SortDir = TaskCollectionQuery['direction']
 
 export type TasksToolbarProps = {
-  groupBy: TasksGroupBy
-  setGroupBy: (next: TasksGroupBy) => void
-  businessUnitId: string
-  setBusinessUnitId: Dispatch<SetStateAction<string>>
-  statusFilter: TaskStatus | ''
-  setStatusFilter: Dispatch<SetStateAction<TaskStatus | ''>>
-  personFilter: string
-  setPersonFilter: Dispatch<SetStateAction<string>>
-  savedView: TasksSavedView
-  onSavedViewChange: (next: TasksSavedViewChip | 'all') => void
-  searchText: string
-  setSearchText: Dispatch<SetStateAction<string>>
-  includeArchived: boolean
-  setIncludeArchived: Dispatch<SetStateAction<boolean>>
-  sortCol: SortCol
-  sortDir: SortDir
-  onSortChange: (sort: SortCol, direction: SortDir) => void
+  query: TaskCollectionQuery
+  onQueryChange: (patch: Partial<TaskCollectionQuery>) => void
+  onViewChange: (next: TaskCollectionView) => void
+  onPresentationChange: (next: TaskCollectionPresentation) => void
   overdueCount: number
-  overdueOnly: boolean
   onOverdueFilter: () => void
   onClearOverdue: () => void
-  buOptions: BusinessUnitOption[]
-  personOptions: PersonOption[]
+  buOptions: readonly BusinessUnitOption[]
+  personOptions: readonly PersonOption[]
+  savedViews?: CollectionToolbarSavedViews
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -43,18 +34,19 @@ const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress
   { value: 'Done', key: 'done' },
 ]
 
-const GROUP_VALUES: { value: TasksGroupBy; key: 'none' | 'status' | 'owner' | 'businessUnit' | 'projectProcess' | 'occurrence' }[] = [
+const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'status' | 'pic' | 'businessUnit' | 'projectProcess' | 'occurrence' }[] = [
   { value: 'none', key: 'none' },
   { value: 'status', key: 'status' },
-  { value: 'owner', key: 'owner' },
+  // `owner` remains a DOM compatibility alias for mature tests/bookmarks; the typed query is PIC.
+  { value: 'owner', key: 'pic' },
   { value: 'bu', key: 'businessUnit' },
   { value: 'workline', key: 'projectProcess' },
   { value: 'occurrence', key: 'occurrence' },
 ]
 
-const VIEW_VALUES: { value: TasksSavedViewChip | 'all'; key: 'all' | 'mine' | 'team' | 'overdue' | 'followups' }[] = [
+const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'team' | 'overdue' | 'followups' }[] = [
   { value: 'all', key: 'all' },
-  { value: 'mine', key: 'mine' },
+  { value: 'my-work', key: 'my-work' },
   { value: 'team', key: 'team' },
   { value: 'overdue', key: 'overdue' },
   { value: 'followups', key: 'followups' },
@@ -62,90 +54,118 @@ const VIEW_VALUES: { value: TasksSavedViewChip | 'all'; key: 'all' | 'mine' | 't
 
 /** Task-specific options projected into the one visible RecordCollection toolbar grammar. */
 export function TasksToolbar({
-  groupBy, setGroupBy,
-  businessUnitId, setBusinessUnitId,
-  statusFilter, setStatusFilter,
-  personFilter, setPersonFilter,
-  savedView, onSavedViewChange,
-  searchText, setSearchText,
-  includeArchived, setIncludeArchived,
-  sortCol, sortDir, onSortChange,
-  overdueCount, overdueOnly, onOverdueFilter, onClearOverdue,
-  buOptions, personOptions,
+  query,
+  onQueryChange,
+  onViewChange,
+  onPresentationChange,
+  overdueCount,
+  onOverdueFilter,
+  onClearOverdue,
+  buOptions,
+  personOptions,
+  savedViews,
 }: TasksToolbarProps) {
   const t = useT()
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
   const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
     if (key === 'none') return t('tasks.filter.none')
     if (key === 'status') return t('tasks.filter.status')
-    if (key === 'owner') return t('tasks.pic')
+    if (key === 'pic') return t('tasks.pic')
     if (key === 'businessUnit') return t('tasks.filter.businessUnit')
     if (key === 'projectProcess') return t('tasks.filter.projectProcess')
     return t('tasks.filter.occurrence')
   }
-  const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) =>
-    key === 'all' ? t('tasks.saved.all') : t(`tasks.saved.${key}` as const)
+  const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) => {
+    if (key === 'all') return t('tasks.saved.all')
+    if (key === 'my-work') return t('tasks.saved.mine')
+    if (key === 'team') return t('tasks.saved.team')
+    if (key === 'overdue') return t('tasks.saved.overdue')
+    return t('tasks.saved.followups')
+  }
 
   return (
     <CollectionToolbar
       className="tasks-collection-toolbar"
       presentation={{
-        label: t('tasks.view'), value: 'table',
-        options: [{ value: 'table', label: t('tasks.tab.table') }],
-        onChange: () => {},
+        label: t('tasks.view'),
+        value: query.layout,
+        options: [
+          { value: 'table', label: t('tasks.tab.table') },
+          { value: 'card', label: 'Card' },
+        ],
+        onChange: onPresentationChange,
       }}
       views={{
         label: t('tasks.savedViews'),
-        value: savedView.activeChip ?? 'all',
+        value: query.view,
         options: VIEW_VALUES.map(({ value, key }) => ({ value, label: viewLabel(key) })),
-        onChange: onSavedViewChange,
+        onChange: onViewChange,
       }}
+      savedViews={savedViews}
       search={{
         label: t('tasks.filter.search'),
         placeholder: t('tasks.filter.searchPlaceholder'),
-        value: searchText,
-        onChange: setSearchText,
+        value: query.q,
+        onChange: (value) => onQueryChange({ q: value }),
       }}
       filters={[
         {
-          id: 'task-group', label: t('tasks.filter.group'), value: groupBy,
+          id: 'task-group', label: t('tasks.filter.group'), value: query.groupBy === 'pic' ? 'owner' : query.groupBy,
           options: GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) })),
-          onChange: (value) => setGroupBy(value as TasksGroupBy),
+          onChange: (value) => {
+            const groupBy = value === 'owner' ? 'pic' : value as TaskCollectionGroup
+            onQueryChange({ groupBy })
+            // Compatibility persistence for the mature Task preference contract. URL/query state
+            // remains authoritative; this write is not read by the live collection.
+            try { localStorage.setItem('mos.tasks.groupBy', value) } catch { /* storage disabled */ }
+          },
         },
         {
-          id: 'task-bu', label: t('tasks.filter.businessUnit'), value: businessUnitId,
+          id: 'task-bu', label: t('tasks.filter.businessUnit'), value: query.businessUnitId ?? '',
           options: [
             { value: '', label: t('tasks.saved.all') },
             ...buOptions.map((bu) => ({ value: bu.id, label: bu.name })),
           ],
-          onChange: setBusinessUnitId,
+          onChange: (value) => onQueryChange({ businessUnitId: value || null }),
         },
         {
-          id: 'task-status', label: t('tasks.filter.status'), value: statusFilter,
+          id: 'task-status', label: t('tasks.filter.status'), value: query.status ?? '',
           options: STATUS_VALUES.map(({ value, key }) => ({ value, label: statusLabel(key) })),
-          onChange: (value) => setStatusFilter(value as TaskStatus | ''),
+          onChange: (value) => onQueryChange({ status: (value || null) as TaskStatus | null }),
         },
         {
-          id: 'task-person', label: t('tasks.filter.person'), value: personFilter,
+          id: 'task-pic', label: `${t('tasks.pic')} (person)`, value: query.picId ?? '',
           options: [
             { value: '', label: t('tasks.filter.anyone') },
             ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
           ],
-          onChange: setPersonFilter,
+          onChange: (value) => onQueryChange({ picId: value || null }),
         },
         {
-          id: 'task-sort', label: t('tasks.filter.sort'), value: `${sortCol}:${sortDir}`,
+          id: 'task-supervisor', label: t('tasks.supervisor'), value: query.supervisorId ?? '',
+          options: [
+            { value: '', label: t('tasks.filter.anyone') },
+            ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+          ],
+          onChange: (value) => onQueryChange({ supervisorId: value || null }),
+        },
+        {
+          id: 'task-sort', label: t('tasks.filter.sort'), value: `${query.sort}:${query.direction}`,
           options: [
             { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
             { value: 'due:descending', label: t('tasks.filter.sortDueLatest') },
             { value: 'task:ascending', label: t('tasks.filter.sortTask') },
             { value: 'status:ascending', label: t('tasks.filter.sortStatus') },
-            { value: 'owner:ascending', label: t('tasks.filter.sortPic') },
+            { value: 'pic:ascending', label: t('tasks.filter.sortPic') },
+            { value: 'supervisor:ascending', label: t('tasks.supervisor') },
             { value: 'activity:descending', label: t('tasks.filter.sortActivity') },
           ],
           onChange: (value) => {
             const [sort, direction] = value.split(':')
-            onSortChange(sort as SortCol, direction as SortDir)
+            onQueryChange({
+              sort: sort as TaskCollectionSort,
+              direction: direction as SortDir,
+            })
           },
         },
       ]}
@@ -154,8 +174,8 @@ export function TasksToolbar({
           <label className="collection-toolbar__toggle">
             <input
               type="checkbox"
-              checked={includeArchived}
-              onChange={(event) => setIncludeArchived(event.target.checked)}
+              checked={query.includeArchived}
+              onChange={(event) => onQueryChange({ includeArchived: event.target.checked })}
               aria-label={t('tasks.filter.showArchived')}
               className="archived-checkbox"
             />
@@ -171,7 +191,7 @@ export function TasksToolbar({
               {t('tasks.filter.overdueCount', { count: overdueCount })}
             </button>
           ) : null}
-          {overdueOnly ? (
+          {query.overdueOnly ? (
             <button
               type="button"
               className="overdue-chip"

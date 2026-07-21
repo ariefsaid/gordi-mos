@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
 import { Outlet, useParams, useMatch, useLocation, useNavigationType } from 'react-router-dom'
-import { useTasksSavedView } from '@/components/tasks/use-tasks-saved-view'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
@@ -27,7 +26,6 @@ export function TasksLayout() {
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
   const navigationType = useNavigationType()
-  const { savedView, setSavedView } = useTasksSavedView()
   const [expanded, setExpanded] = useExpandPref()
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal
   // overlay over a full-width (un-squashed) table, so the table must NOT condense.
@@ -76,8 +74,6 @@ export function TasksLayout() {
       expanded={expanded}
       statusOverrides={statusOverrides}
       refreshKey={refreshKey}
-      savedView={savedView}
-      onSavedViewChange={setSavedView}
       onToggleExpand={() => setExpanded(e => !e)}
       drawerSlot={<Outlet context={outletContext} />}
     />

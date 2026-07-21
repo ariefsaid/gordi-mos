@@ -137,13 +137,21 @@ export function createRecordCollectionController<
     set({ savedViews: { ...state.savedViews, ...patch } })
   }
 
-  const runLoad = () => {
+  const runLoad = (preserveCurrentProjection = false) => {
     if (state.access.mode === 'forbidden') {
       set({ status: 'permission', data: null, projection: null })
       return
     }
     const token = ++loadToken
-    set({ status: 'loading', error: null })
+    // Keep a ready collection mounted while a typed query changes. The projector can immediately
+    // show the new sort/filter against the existing snapshot; the fresh load then reconciles it.
+    // Initial loads and explicit retries still use the canonical loading state.
+    set({
+      status: preserveCurrentProjection && state.projection
+        ? deriveStatus(state.access, state.projection)
+        : 'loading',
+      error: null,
+    })
     void descriptor
       .load({ query: state.query, viewerId: initial.viewerId })
       .then((data) => {
@@ -199,7 +207,8 @@ export function createRecordCollectionController<
     },
     setQuery(next) {
       set({ query: descriptor.query.normalize(next), queryIssues: [] })
-      runLoad()
+      reproject()
+      runLoad(true)
     },
     switchPresentation(next) {
       const result = checkPresentationCompatibility<TQuery, TPresentation>({

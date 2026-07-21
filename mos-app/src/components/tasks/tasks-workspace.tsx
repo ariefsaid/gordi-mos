@@ -1,606 +1,179 @@
 import './TasksWorkspace.css'
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  useReactTable,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  createColumnHelper,
-} from '@tanstack/react-table'
-import type { SortingState, FilterFn } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
-import { listTasks } from '@/lib/db/tasks'
-import type { TaskListFilters } from '@/lib/db/tasks'
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
-import { getBusinessUnits } from '@/lib/db/directory'
-import { getPeople } from '@/lib/db/directory'
-import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import { isOverdue } from '@/lib/due-status'
-import { TaskRow } from './task-row'
-// OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
-import { STATUS_ORDER } from './task-formatters'
-import { useTasksKeyboard } from './use-tasks-keyboard'
-import { useTasksViewPref } from './use-tasks-view-pref'
-import { useCascadeCatalogs } from './use-cascade-catalogs'
-import { GroupHeaderRow } from './group-header-row'
+import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
-import { TasksToolbar } from './tasks-toolbar'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
-import { TasksTableBody } from './tasks-table-body'
-import type { FlatRow } from './tasks-table-body'
-import type { RenderGroup } from './tasks-grouping'
-import type { WorkloadSummary } from './workload-caption'
-import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
 import { useT } from '@/i18n/use-t'
+import { useDueRuns } from '@/components/processes/use-due-runs'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
-// Step 6 (ADR-0051, Track C wiring — C1/C2): the occurrence group-by + its Start-run control +
-// its pending-PIC-resolution host. Reuses the shipped Tasks DB-view (Rule 11) — no parallel UI.
-// Design fix wave item 1: the due-runs surface is split into a compact trigger (near the toolbar,
-// before the table) and its row list (mounted AFTER the table) sharing one useDueRuns() hook — the
-// table stays the first substantive content regardless of collapse state (step-6 CRITICAL).
-import { useDueRuns } from '@/components/processes/use-due-runs'
-import { DueRunsTrigger } from '@/components/processes/due-runs-trigger'
-import { DueRunsList } from '@/components/processes/due-runs-list'
-import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
-import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
-import { useOccurrenceGroups } from './use-occurrence-groups'
+import { TasksToolbar } from './tasks-toolbar'
+import {
+  TASK_COLLECTION_NEUTRAL_QUERY,
+  taskCollectionDescriptor,
+} from './task-collection-adapter'
+import type {
+  TaskCollectionQuery,
+  TaskCollectionSort,
+  TaskCollectionView,
+} from './task-collection-adapter'
+import {
+  TaskCollectionRuntimeProvider,
+  TaskCollectionChrome,
+  type TaskCollectionRuntime,
+} from './task-collection-presentation'
+import type { TaskStatus } from '@/lib/db/tasks.types'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type Segment = 'mine' | 'all'
-type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
-type SortDir = 'ascending' | 'descending'
+type TasksSavedViewChip = 'mine' | 'team' | 'overdue' | 'followups'
+const EMPTY_ACCESS_ROLES: readonly string[] = []
+const EMPTY_RECORDS: never[] = []
+const EMPTY_STATUS_OVERRIDES = new Map<string, TaskStatus>()
+
+type LegacySavedView = {
+  view: TasksSavedViewChip | 'all' | 'unknown'
+  activeChip: TasksSavedViewChip | null
+  segment: 'mine' | 'all'
+  overdueOnly: boolean
+  reserved: 'followups' | null
+  search: string
+}
 
 export type TasksTableStats = { total: number; blocked: number; overdue: number } | null
 
 export type TasksTableProps = {
-  savedView?: TasksSavedView
+  /** Legacy test/embedding bridge. Production TasksLayout now derives this from the typed URL query. */
+  savedView?: LegacySavedView
   onSavedViewChange?: (next: TasksSavedViewChip | 'all') => void
-  /** Currently-open task (split-view) — gets aria-current + the selected style. */
   selectedId?: string | null
-  /** Whether a drawer is open beside the table (split-view). */
   drawerOpen?: boolean
-  /** Whether the open drawer is expanded to full width (table hidden). */
   expanded?: boolean
-  /** Whether the viewport is in the ≥1100px live split (false → modal overlay/mobile,
-   *  where the drawer floats over a full-width table — so the table must NOT squash). */
   splitLayout?: boolean
-  /** Optimistic per-row overrides fed by the open drawer (AC-103). */
   statusOverrides?: Map<string, TaskStatus>
-  /** C2/I3: bump this to force a list refetch (after create/archive in the drawer). */
   refreshKey?: number
-  /** AC-109: toggle the per-user-global expand pref (keyboard `e`). */
   onToggleExpand?: () => void
-  /** The drawer slot (the router <Outlet>); rendered inside the .split grid. */
   drawerSlot?: ReactNode
 }
 
-
-// The RenderGroup shape (group label/key/rows/overdue/prefill) lives in
-// ./tasks-grouping so the orchestrator + body agree on it.
-
-const columnHelper = createColumnHelper<TaskListRow>()
-
-/** Sort-direction indicator (IXD-1/2/3: distinct from the shared dropdown Chevron —
- *  a shafted arrow, never the bare chevron that means "dropdown"). Rendered only on
- *  the active-sort column. */
-function SortArrow({ dir }: { dir: SortDir }) {
-  return (
-    <svg className="sort-aff" width="10" height="10" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {dir === 'ascending' ? (
-        <><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>
-      ) : (
-        <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>
-      )}
-    </svg>
-  )
+function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskCollectionQuery | undefined {
+  if (!savedView) return undefined
+  const view: TaskCollectionView = savedView.view === 'mine'
+    ? 'my-work'
+    : savedView.view === 'team'
+      ? 'team'
+      : savedView.view === 'overdue'
+        ? 'overdue'
+        : savedView.view === 'followups'
+          ? 'followups'
+          : 'all'
+  return {
+    ...TASK_COLLECTION_NEUTRAL_QUERY,
+    view,
+    overdueOnly: savedView.overdueOnly,
+  }
 }
 
-/**
- * The Tasks workspace assembly (page title + toolbar + grouped dense table /
- * mobile grouped cards + all states + the split-view drawer slot). Built on a
- * single client-side @tanstack/react-table instance for filtering + sorting
- * (NFR-120); grouping (incl. empty groups), the keyboard cursor, optimistic
- * status sync, and virtualization are layered on top. (Formerly TasksTable.)
- */
-export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = false, splitLayout = true, statusOverrides, refreshKey = 0, savedView, onSavedViewChange, onToggleExpand, drawerSlot }: TasksTableProps) {
-  // Condense only in the live ≥1100px split. In the overlay/mobile regime the
-  // drawer floats over a full-width table, so the table keeps all columns.
-  const condensed = drawerOpen && !expanded && splitLayout
-  const isDesktop = useIsDesktop()
+function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
+  if (view === 'my-work') return 'mine'
+  if (view === 'overdue') return 'overdue'
+  if (view === 'followups') return 'followups'
+  if (view === 'team') return 'team'
+  return 'all'
+}
+
+function viewLabel(view: TaskCollectionView, t: ReturnType<typeof useT>): string {
+  switch (view) {
+    case 'my-work': return t('tasks.saved.mine')
+    case 'team': return t('tasks.saved.team')
+    case 'overdue': return t('tasks.saved.overdue')
+    case 'followups': return t('tasks.saved.followups')
+    default: return t('tasks.saved.all')
+  }
+}
+
+export function TasksWorkspace({
+  selectedId = null,
+  drawerOpen = false,
+  expanded = false,
+  splitLayout = true,
+  statusOverrides,
+  refreshKey = 0,
+  savedView,
+  onSavedViewChange,
+  onToggleExpand,
+  drawerSlot,
+}: TasksTableProps) {
+  const t = useT()
   const navigate = useNavigate()
+  const location = useLocation()
   const auth = useAuth()
+  const isDesktop = useIsDesktop()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
   const isManager = auth.status === 'authenticated' && auth.viewer.isManager
   const captureFirstMobile = !isDesktop && !isManager
-  const t = useT()
-  // Design fix wave item 3 — the occurrence-group "N to assign" affordance (desktop + mobile) only
-  // renders for a viewer who can actually resolve a pending step; RLS remains the real gate on the
-  // resolve_pending_task RPC itself (mirrors the process.start capability checks elsewhere on this
-  // page).
-  const canResolvePending = can(
-    auth.status === 'authenticated' ? auth.viewer.accessRoles : [],
-    'process.start',
-  )
-
-  // ── Persistence (FR-125) ──────────────────────────────────────────────────
-  const { groupBy, setGroupBy, isCollapsed, toggleCollapsed, collapsedGroups } = useTasksViewPref()
-
-  // Step 7 (cafe-retrofit.spec.md FR-704, C2): a host link (e.g. the Café panel's "View opening
-  // tasks") can arrive with ?occurrence=<runId> to land directly on the Occurrence grouping — REUSES
-  // the Step-6 occurrence group-by (Rule 11), no new grouping/scoping mechanism. One-shot on mount
-  // (a later manual Group change is never fought back to Occurrence).
-  const [searchParams] = useSearchParams()
-  useEffect(() => {
-    if (searchParams.has('occurrence')) setGroupBy('occurrence')
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot on the param's initial presence
-  }, [])
-
-  // ── Filters ────────────────────────────────────────────────────────────────
-  const [businessUnitId, setBusinessUnitId] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
-  const [includeArchived, setIncludeArchived] = useState(false)
-  const [segment, setSegment] = useState<Segment>(savedView?.segment ?? 'all')
-  const [personFilter, setPersonFilter] = useState<string>('')
-  const [searchText, setSearchText] = useState<string>('')
+  const currentSearch = location.search
+  const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
-  // Transient overdue-only filter (AC-128 / FR-126) — clicking "N overdue" sets this;
-  // cleared via the chip ✕ or the Clear filters button.
-  const [overdueOnly, setOverdueOnly] = useState(savedView?.overdueOnly ?? false)
 
-  // ── Sort (UI state; mapped onto the TanStack sorting state below) ──────────
-  const [sortCol, setSortCol] = useState<SortCol>('due')
-  const [sortDir, setSortDir] = useState<SortDir>('ascending')
+  const controller = useRecordCollection({
+    descriptor: taskCollectionDescriptor,
+    urlMode: 'synced',
+    initialQuery,
+    viewerId,
+    accessRoles,
+  })
+  const { state } = controller
+  // The engine keeps presentation separate from query for compatibility checks; expose the
+  // canonical layout in the domain query consumed by the toolbar/runtime without writing a second
+  // query owner.
+  const query = useMemo(() => ({ ...state.query, layout: state.presentation }), [state.presentation, state.query])
+  const dataContext = state.data?.context
+  const projection = state.projection
+  const records = projection?.visibleRecords ?? EMPTY_RECORDS
+  const runtimeStatusOverrides = statusOverrides ?? EMPTY_STATUS_OVERRIDES
 
-  // ── Row selection (PR-2 AC-T02/T07) — presentational scaffolding only.
-  //    A local selected set; NO bulk action ships this PR. The select-all header
-  //    checkbox exposes aria-checked="mixed" when the selection is partial.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
-  const toggleSelected = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
+  const refreshStarted = useRef(false)
+  useEffect(() => {
+    if (!refreshStarted.current) {
+      refreshStarted.current = true
+      return
+    }
+    controller.retry()
+    // refreshKey is the explicit host-owned create/archive channel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
+
+  const setQuery = useCallback((patch: Partial<TaskCollectionQuery>) => {
+    controller.setQuery({ ...controller.state.query, ...patch })
+  }, [controller])
+
+  const handleViewChange = useCallback((view: TaskCollectionView) => {
+    setQuery({
+      view,
+      overdueOnly: view === 'overdue' ? true : view === 'all' || view === 'team' ? false : controller.state.query.overdueOnly,
     })
-  }, [])
+    onSavedViewChange?.(legacyViewFor(view))
+  }, [controller.state.query.overdueOnly, onSavedViewChange, setQuery])
 
-  // ── Data ─────────────────────────────────────────────────────────────────
-  const [allTasks, setAllTasks] = useState<TaskListRow[]>([])
-  const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
-  const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Fix-7: cascade catalog load is mount-once via useCascadeCatalogs — never
-  // refetched on filter changes (the prior inline loads in load() re-triggered on
-  // every BU/status/includeArchived change — a performance regression).
-  const { workLines: workLinesDirectory, objectiveMap, workLineMap } =
-    useCascadeCatalogs()
-
-  const now = useMemo(() => new Date(), [allTasks]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const buMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const bu of busDirectory) m.set(bu.id, bu.name)
-    return m
-  }, [busDirectory])
-
-  const personMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const p of peopleDirectory) m.set(p.id, p.full_name)
-    return m
-  }, [peopleDirectory])
-
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    const filters: TaskListFilters = {
-      ...(businessUnitId ? { businessUnitId } : {}),
-      ...(statusFilter ? { status: statusFilter as TaskStatus } : {}),
-      includeArchived,
-    }
-    let cancelled = false
-    // Critical load: tasks + directory (BUs, people). The table's loading gate hangs off
-    // ONLY these — never the cascade catalogs (those are mount-once via useCascadeCatalogs).
-    Promise.all([
-      listTasks(filters),
-      getBusinessUnits(),
-      getPeople(),
-    ])
-      .then(([rows, bus, people]) => {
-        if (!cancelled) {
-          setAllTasks(rows)
-          setBusDirectory(bus)
-          setPeopleDirectory(people)
-          setLoading(false)
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) { console.error('[TasksWorkspace] load failed:', err); setError('load-failed'); setLoading(false) }
-      })
-    return () => { cancelled = true }
-  }, [businessUnitId, statusFilter, includeArchived])
-
-  // C2/I3: refetch on filter changes AND whenever the host bumps refreshKey
-  // (create/archive in the drawer). refreshKey is intentionally an extra dep.
-  useEffect(() => { const cancel = load(); return cancel }, [load, refreshKey])
-
-  useEffect(() => {
-    if (!savedView) return
-    setSegment(savedView.segment)
-    setOverdueOnly(savedView.overdueOnly)
-  }, [savedView])
-
-  // ── Occurrence group-by (Step 6, C1) — derived roll-ups + the assign-dialog host state, both
-  // owned by useOccurrenceGroups (CQ IMPORTANT-2 decomposition, extracted verbatim). ────────────
-  const {
-    runRollups, assignRunId, pendingForAssign, pendingLoading, pendingError,
-    openAssignPending, handlePendingResolved, closeAssign, provenanceByTaskDefId,
-  } = useOccurrenceGroups(allTasks, groupBy, load)
-
-  // Design fix wave item 1: ONE due-runs hook instance shared by the compact trigger (rendered
-  // near the toolbar) and its row list (rendered after the table) — see the import comment above.
-  // onStarted refreshes THIS page's own task list (a newly-spawned run's Tasks must appear here).
-  const dueRuns = useDueRuns(() => load())
-
-  // ── Apply optimistic status overrides from the open drawer ────────────────
-  const tasksWithOverrides = useMemo(() => {
-    if (!statusOverrides || statusOverrides.size === 0) return allTasks
-    return allTasks.map(t => statusOverrides.has(t.id) ? { ...t, status: statusOverrides.get(t.id)! } : t)
-  }, [allTasks, statusOverrides])
-
-  // ── TanStack instance: the single client-side engine (NFR-120) ────────────
-  // Owns filtering (ownership scope / search / overdue) + sorting (default Due-asc).
-  // The grouping (incl. empty-group injection) is built from the engine's filtered
-  // + sorted rows below (outside the row model, per the empty-group requirement).
-  const columns = useMemo(() => [
-    columnHelper.accessor('title', { id: 'task', sortingFn: (a, b) => a.original.title.localeCompare(b.original.title) }),
-    columnHelper.accessor('status', { id: 'status', sortingFn: (a, b) => a.original.status.localeCompare(b.original.status) }),
-    columnHelper.accessor('responsible_person_id', { id: 'owner' }),
-    columnHelper.accessor('due_date', {
-      id: 'due',
-      sortingFn: (a, b) => {
-        const ad = a.original.due_date, bd = b.original.due_date
-        if (!ad && !bd) return 0
-        if (!ad) return 1
-        if (!bd) return -1
-        return ad < bd ? -1 : ad > bd ? 1 : 0
-      },
-    }),
-    columnHelper.accessor('last_activity_at', {
-      id: 'activity',
-      sortingFn: (a, b) => b.original.last_activity_at.localeCompare(a.original.last_activity_at),
-    }),
-  ], [])
-
-  // Owner sort needs the personMap — handled via a manual sort layer after the
-  // engine for the 'owner' column (engine sorts by id otherwise). Kept simple:
-  // the engine's sorted rows are re-sorted only when sorting by owner name.
-  const sortingState: SortingState = useMemo(
-    () => [{ id: sortCol, desc: sortDir === 'descending' }],
-    [sortCol, sortDir],
-  )
-
-  // The composite filter state is carried as the engine's globalFilter value.
-  const globalFilter = useMemo(
-    () => ({ search: searchText, overdueOnly, segment, personFilter }),
-    [searchText, overdueOnly, segment, personFilter],
-  )
-
-  // Single composite global filter: ownership scope + search + transient overdue-only.
-  const globalFilterFn: FilterFn<TaskListRow> = useCallback((row, _id, value) => {
-    const t = row.original
-    const { search, overdueOnly: od, segment: seg, personFilter: pf } =
-      value as { search: string; overdueOnly: boolean; segment: Segment; personFilter: string }
-    // Typed ownership scope (Person overrides the My work/All view, FR-124).
-    const isOwnedBy = (personId: string) =>
-      t.responsible_person_id === personId || t.accountable_person_id === personId
-    if (pf) { if (!isOwnedBy(pf)) return false }
-    else if (seg === 'mine' && viewerId && !isOwnedBy(viewerId)) return false
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
-    if (od && !isOverdue(t, now)) return false
-    return true
-  }, [now, viewerId])
-
-  const table = useReactTable({
-    data: tasksWithOverrides,
-    columns,
-    state: { sorting: sortingState, globalFilter },
-    globalFilterFn,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    enableSortingRemoval: false,
-    getRowId: (t) => t.id,
-  })
-
-  // The engine's filtered + sorted leaf rows (global Due-asc by default).
-  const engineRows = table.getRowModel().rows
-  const sortedTasks = useMemo<TaskListRow[]>(() => {
-    let rows = engineRows.map(r => r.original)
-    // Owner-name sort isn't expressible by id alone — re-sort by display name.
-    if (sortCol === 'owner') {
-      rows = [...rows].sort((a, b) => {
-        const an = personMap.get(a.responsible_person_id) ?? ''
-        const bn = personMap.get(b.responsible_person_id) ?? ''
-        const cmp = an.localeCompare(bn)
-        return sortDir === 'ascending' ? cmp : -cmp
-      })
-    }
-    return rows
-    // engineRows identity changes whenever the engine recomputes
-  }, [engineRows, sortCol, sortDir, personMap])
-
-  function handleSort(col: SortCol) {
-    if (sortCol === col) setSortDir(d => d === 'ascending' ? 'descending' : 'ascending')
-    else { setSortCol(col); setSortDir('ascending') }
-  }
-
-  const statusLabel = useCallback((status: TaskStatus): string => status === 'Open'
-    ? t('tasks.status.open')
-    : status === 'In Progress'
-      ? t('tasks.status.inProgress')
-      : status === 'Blocked'
-        ? t('tasks.status.blocked')
-        : t('tasks.status.done'), [t])
-
-  // ── Grouping (FR-122/123, AC-123/124) ────────────────────────────────────
-  // Build the ordered group list from the engine's filtered + sorted rows.
-  // Empty groups (Owner/BU with zero rows) are injected from the full directory
-  // (Status uses the fixed 4-status set) so all groups always show (OD-P3-6).
-  const groups = useMemo<RenderGroup[]>(() => {
-    // Flat default (mockup): one implicit group, NO header row — rendered as a plain
-    // leaf list (the flatRows builder below skips the header for groupBy === 'none').
-    if (groupBy === 'none') {
-      const overdue = sortedTasks.filter(t => isOverdue(t, now)).length
-      return [{ key: '__flat__', label: '', rows: sortedTasks, overdue, prefillParam: '' }]
-    }
-    // Step 6 (ADR-0051, C1/AC-622): occurrence-caption grouping. A dedicated branch (not the
-    // keyFor partition below) — grouping is by run id via the shared groupTasksByOccurrence
-    // helper (B5, Rule 11), captioned from the derived roll-up, never by a single Task field.
-    if (groupBy === 'occurrence') {
-      const captionByRunId: Record<string, string> = {}
-      for (const [runId, rollup] of runRollups) captionByRunId[runId] = rollup.caption
-      // Normalize process_run_id to string|null (TaskListRow's is optional) — the typing seam
-      // this satisfies with no `as` cast (mos-app/src/lib/db/tasks.types.test.ts).
-      const groupable = sortedTasks.map(row => ({ ...row, process_run_id: row.process_run_id ?? null }))
-      const { groups: occGroups, ungrouped } = groupTasksByOccurrence(groupable, captionByRunId)
-      const named: RenderGroup[] = occGroups.map(g => {
-        const rollup = runRollups.get(g.runId)
-        return {
-          key: g.runId,
-          label: g.caption,
-          rows: g.tasks,
-          overdue: rollup?.overdue ?? g.tasks.filter(row => isOverdue(row, now)).length,
-          prefillParam: '',
-          occurrenceRollup: rollup
-            ? { total: rollup.total, done: rollup.done, overdue: rollup.overdue, pendingUnresolved: rollup.pending_unresolved }
-            : undefined,
-        }
-      })
-      // Ad-hoc Tasks (no process_run_id) never get forced under an occurrence caption (B5) — they
-      // stay visible in a trailing catch-all group instead of silently disappearing (OD-P3-6).
-      if (ungrouped.length > 0) {
-        named.push({
-          key: '__no_occurrence__',
-          label: t('tasks.group.noOccurrence'),
-          rows: ungrouped,
-          overdue: ungrouped.filter(row => isOverdue(row, now)).length,
-          prefillParam: '',
-        })
-      }
-      return named
-    }
-    const byKey = new Map<string, TaskListRow[]>()
-    const keyFor = (t: TaskListRow): string =>
-      groupBy === 'status' ? t.status
-        : groupBy === 'owner' ? t.responsible_person_id
-          : groupBy === 'workline' ? (t.work_line_id ?? '__no_workline__')
-            : t.business_unit_id
-    for (const t of sortedTasks) {
-      const k = keyFor(t)
-      const arr = byKey.get(k)
-      if (arr) arr.push(t); else byKey.set(k, [t])
-    }
-    const mk = (key: string, label: string, prefillParam: string, workLineType?: 'project' | 'process' | null): RenderGroup => {
-      const rows = byKey.get(key) ?? []
-      const overdue = rows.filter(t => isOverdue(t, now)).length
-      return { key, label, rows, overdue, prefillParam, workLineType }
-    }
-    if (groupBy === 'status') {
-      // FR-123 (refined): Status groups open a plain /work/tasks/new (no ?status= pre-fill)
-      // because CreateSurface has no status field — the task always opens as "Open".
-      // Owner→?r=<personId> and BU→?bu=<buId> ARE read and applied by CreateSurface.
-      return STATUS_ORDER.map(s => mk(s, statusLabel(s), ''))
-    }
-    if (groupBy === 'owner') {
-      return peopleDirectory.map(p => mk(p.id, p.full_name, `r=${p.id}`))
-    }
-    if (groupBy === 'workline') {
-      // FR-232: group by work_line_id; null → trailing "No work-line" group.
-      // Named groups appear in work-line alphabetical order (from workLinesDirectory),
-      // then the null group always trails (clear separation of "assigned" vs "unassigned").
-      // RI-2 fix: when a person filter is active, suppress zero-count work-line groups
-      // (empty groups contradict the per-person caption and clutter the one-question read).
-      // Empty-group injection stays for the other dimensions / no-person-filter (layout stability).
-      const filterZeroWhenPerson = personFilter !== ''
-      const named = workLinesDirectory
-        .map(wl => mk(wl.id, wl.name, '', wl.type))
-        .filter(g => !filterZeroWhenPerson || g.rows.length > 0)
-      const noGroup = mk('__no_workline__', t('tasks.group.noWorkLine'), '', null)
-      // Also suppress the "No work-line" group when person-filtered and it has no rows
-      const groups: typeof named = [...named]
-      if (!filterZeroWhenPerson || noGroup.rows.length > 0) groups.push(noGroup)
-      return groups
-    }
-    // bu
-    return busDirectory.map(b => mk(b.id, b.name, `bu=${b.id}`))
-  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter, statusLabel, t, runRollups])
-
-  // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
-  // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
-  // FlatRow shape lives in ./tasks-table-body (shared with the body renderer).
-  const { flatRows, leafTasks } = useMemo(() => {
-    const flat: FlatRow[] = []
-    const leaves: TaskListRow[] = []
-    // Flat default (mockup): emit leaf rows only — no group-header rows, no collapse.
-    const flatList = groupBy === 'none'
-    for (const g of groups) {
-      if (!flatList) {
-        flat.push({ kind: 'header', group: g })
-        if (isCollapsed(g.key)) continue
-      }
-      for (const t of g.rows) {
-        flat.push({ kind: 'leaf', task: t, leafIndex: leaves.length })
-        leaves.push(t)
-      }
-    }
-    return { flatRows: flat, leafTasks: leaves }
-    // collapsedGroups identity changes drive recompute (isCollapsed reads it)
-  }, [groups, groupBy, isCollapsed, collapsedGroups]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Select-all derived state (PR-2 AC-T07): aria-checked="mixed" when partial,
-  // true only when every visible leaf row is selected. Empty table -> unchecked.
-  const someChecked = selectedIds.size > 0 && leafTasks.some(t => selectedIds.has(t.id))
-  const allChecked = leafTasks.length > 0 && leafTasks.every(t => selectedIds.has(t.id))
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds(prev =>
-      leafTasks.length > 0 && leafTasks.every(t => prev.has(t.id))
-        ? new Set()
-        : new Set(leafTasks.map(t => t.id)),
-    )
-  }, [leafTasks])
-
-  // Active-filter detection (for no-results-after-filter vs empty-no-tasks)
-  const hasActiveFilter = businessUnitId !== '' || statusFilter !== '' || personFilter !== ''
-    || searchText !== '' || overdueOnly || includeArchived
-
-  function clearFilters() {
-    setBusinessUnitId('')
-    setStatusFilter('')
-    setPersonFilter('')
-    setSearchText('')
-    setOverdueOnly(false)
-    setIncludeArchived(false)
-  }
-
-  // ── Keyboard layer (AC-109, OBS-121) ───────────────────────────────────────
-  // The cursor moves over LEAF rows only (group-header rows are not cursor
-  // targets) — cursor index maps onto leafTasks[i].
-  const currentSearch = savedView?.search ?? ''
-
-  const { cursor, setCursor } = useTasksKeyboard({
-    rowCount: leafTasks.length,
-    enabled: isDesktop, // mobile uses the card list + native links, not row cursor
-    onOpen: i => { const t = leafTasks[i]; if (t) navigate({ pathname: `/work/tasks/${t.id}`, search: currentSearch }, { state: { taskSurface: 'panel' } }) },
-    onClose: () => { if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch }) },
-    onNew: () => navigate({ pathname: '/work/tasks/new', search: currentSearch }),
-    onExpand: () => { if (drawerOpen) onToggleExpand?.() },
-  })
-
-  // Keep the cursor synced to the open/selected leaf row so j/k continues from there.
-  useEffect(() => {
-    if (!selectedId) return
-    const idx = leafTasks.findIndex(t => t.id === selectedId)
-    if (idx >= 0 && idx !== cursor) setCursor(idx)
-  }, [selectedId, leafTasks, cursor, setCursor])
-
-  // Scroll the cursor row into view as j/k moves it (windowing-safe).
-  const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
-  useEffect(() => {
-    cursorRowRef.current?.scrollIntoView?.({ block: 'nearest' })
-  }, [cursor])
-
-  // ── Virtualization (AC-131, NFR-120) ───────────────────────────────────────
-  // Window the desktop body at 50+ LEAF rows. The window spans the flat visible
-  // row list (headers + leaves) so headers and leaves window together. The
-  // <thead> (with aria-sort) stays outside the window; the j/k cursor uses
-  // scrollToIndex on the flat-row position to keep the windowed row mounted.
-  const VIRTUALIZE_THRESHOLD = 50
-  const ROW_HEIGHT = 50 // OD-P3-6: dense DB-view body row (not the 54px default)
-  const virtualize = isDesktop && leafTasks.length >= VIRTUALIZE_THRESHOLD
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const rowVirtualizer = useVirtualizer({
-    count: virtualize ? flatRows.length : 0,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
-    initialRect: { width: 0, height: 600 },
-  })
-
-  // Map the leaf cursor onto its flat-row position so windowing keeps it mounted.
-  const cursorFlatIndex = useMemo(() => {
-    if (cursor < 0) return -1
-    return flatRows.findIndex(r => r.kind === 'leaf' && r.leafIndex === cursor)
-  }, [cursor, flatRows])
-  useEffect(() => {
-    if (virtualize && cursorFlatIndex >= 0) rowVirtualizer.scrollToIndex(cursorFlatIndex, { align: 'auto' })
-  }, [cursorFlatIndex, virtualize, rowVirtualizer])
-
-  // ── Stats → host ──────────────────────────────────────────────────────────
-  const stats = useMemo<TasksTableStats>(() => {
-    if (error) return null
-    const blocked = leafTasks.filter(t => t.status === 'Blocked').length
-    const overdue = leafTasks.filter(t => isOverdue(t, now)).length
-    return { total: leafTasks.length, blocked, overdue }
-  }, [leafTasks, now, error])
-
-  // ── FR-236: Workload summary caption ─────────────────────────────────────
-  // Shown when groupBy === 'workline' AND a single person is filtered.
-  // Counts distinct project vs process work-lines among visible open tasks.
-  const workloadSummary = useMemo<WorkloadSummary | null>(() => {
-    if (groupBy !== 'workline' || !personFilter) return null
-    const person = peopleDirectory.find(p => p.id === personFilter)
-    if (!person) return null
-    const firstName = person.full_name.split(' ')[0] ?? person.full_name
-    const isSelf = personFilter === viewerId
-    // Build a local type map from workLinesDirectory (avoids an extra useMemo dep)
-    const typeMap = new Map<string, 'project' | 'process'>()
-    for (const wl of workLinesDirectory) typeMap.set(wl.id, wl.type)
-    // Count distinct project / process work-line ids among OPEN, NON-ARCHIVED visible tasks.
-    // RI-4: also count tasks with no work_line_id (unassigned) for the reconciliation clause.
-    const projectIds = new Set<string>()
-    const dailyIds = new Set<string>()
-    let unassignedCount = 0
-    for (const t of leafTasks) {
-      if (t.status === 'Done') continue           // exclude Done tasks
-      if (t.archived_at != null) continue         // RI-4: exclude archived tasks
-      if (!t.work_line_id) {
-        unassignedCount++                         // RI-4: open unclassified task
-        continue
-      }
-      const wlType = typeMap.get(t.work_line_id)
-      if (wlType === 'project') projectIds.add(t.work_line_id)
-      else if (wlType === 'process') dailyIds.add(t.work_line_id)
-    }
-    return { isSelf, firstName, projectCount: projectIds.size, dailyCount: dailyIds.size, unassignedCount }
-  }, [groupBy, personFilter, peopleDirectory, leafTasks, workLinesDirectory, viewerId])
-
-  const splitClass = `split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`
-
-  // ── Empty copy ─────────────────────────────────────────────────────────────
-  function emptyTitle(): string {
-    if (includeArchived) return t('tasks.empty.archivedTitle')
-    if (segment === 'mine') return t('tasks.empty.mineTitle')
-    return t('tasks.empty.noTasksTitle')
-  }
-  function emptyCopy(): string {
-    if (includeArchived) return t('tasks.empty.archivedCopy')
-    if (segment === 'mine') return t('tasks.empty.mineCopy')
-    return t('tasks.empty.noTasksCopy')
-  }
-
-  // "+ Add task" pre-fill: navigate to the create surface seeding the grouped
-  // dimension (Owner → R, BU → bu, Status → status) — AC-125, FR-123.
-  const openAddTask = useCallback((prefillParam: string) => {
+  const retry = useCallback(() => controller.retry(), [controller])
+  const dueRuns = useDueRuns(retry)
+  const onOpenTask = useCallback((taskId: string) => {
+    navigate({ pathname: `/work/tasks/${taskId}`, search: currentSearch }, { state: { taskSurface: 'panel' } })
+  }, [currentSearch, navigate])
+  const onCloseDrawer = useCallback(() => {
+    if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
+  }, [currentSearch, drawerOpen, navigate])
+  const onNewTask = useCallback(() => {
+    navigate({ pathname: '/work/tasks/new', search: currentSearch })
+  }, [currentSearch, navigate])
+  const onAddTask = useCallback((prefillParam: string) => {
     const params = new URLSearchParams(currentSearch)
     if (prefillParam) {
       const prefill = new URLSearchParams(prefillParam)
@@ -609,120 +182,114 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
     const search = params.toString()
     navigate({ pathname: '/work/tasks/new', search: search ? `?${search}` : '' })
   }, [currentSearch, navigate])
+  const onClearFilters = useCallback(() => {
+    setQuery({
+      q: '', businessUnitId: null, status: null, picId: null, supervisorId: null,
+      overdueOnly: false, includeArchived: false, view: query.view === 'overdue' ? 'all' : query.view,
+    })
+  }, [query.view, setQuery])
+  const onSort = useCallback((sort: TaskCollectionSort) => {
+    const direction = query.sort === sort
+      ? query.direction === 'ascending' ? 'descending' : 'ascending'
+      : 'ascending'
+    setQuery({ sort, direction })
+  }, [query.direction, query.sort, setQuery])
 
-  // ── Row renderer (shared by the plain + virtualized bodies) ────────────────
-  function renderRow(task: TaskListRow, leafIndex: number) {
-    return (
-      <TaskRow
-        key={task.id}
-        task={task}
-        now={now}
-        condensed={condensed}
-        isSelected={selectedId === task.id}
-        isCursor={cursor === leafIndex}
-        leafIndex={leafIndex}
-        cursorRowRef={cursor === leafIndex ? cursorRowRef : undefined}
-        ownerName={personMap.get(task.responsible_person_id) ?? ''}
-        onOpen={(id) => navigate({ pathname: `/work/tasks/${id}`, search: currentSearch }, { state: { taskSurface: 'panel' } })}
-        checked={selectedIds.has(task.id)}
-        onCheck={() => toggleSelected(task.id)}
-        supervisorName={personMap.get(task.accountable_person_id) ?? ''}
-        recordSearch={currentSearch}
-        provenanceRoleName={task.generated_from_task_def_id ? provenanceByTaskDefId.get(task.generated_from_task_def_id) : undefined}
-      />
-    )
-  }
+  const recordsForStats = useMemo(
+    () => records.map((record) => ({ ...record, status: runtimeStatusOverrides.get(record.id) ?? record.status })),
+    [records, runtimeStatusOverrides],
+  )
+  const stats: TasksTableStats = state.status === 'error' || state.status === 'loading'
+    ? null
+    : {
+        total: recordsForStats.length,
+        blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
+        overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
+      }
+  const hasRows = projection !== null && projection.visibleRecords.length > 0
+  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups'
+  const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
+  const emptyTitle = query.includeArchived
+    ? t('tasks.empty.archivedTitle')
+    : query.view === 'my-work'
+      ? t('tasks.empty.mineTitle')
+      : t('tasks.empty.noTasksTitle')
+  const emptyCopy = query.includeArchived
+    ? t('tasks.empty.archivedCopy')
+    : query.view === 'my-work'
+      ? t('tasks.empty.mineCopy')
+      : t('tasks.empty.noTasksCopy')
 
-  function renderGroupHeader(group: RenderGroup) {
-    return (
-      <GroupHeaderRow
-        key={`grp-${group.key}`}
-        label={group.label}
-        count={group.rows.length}
-        overdue={group.overdue}
-        collapsed={isCollapsed(group.key)}
-        // Wave 2c: both desktop modes share the 7-column priority set
-        // (cb + Task + Status + PIC + Supervisor + Due + menu).
-        colSpan={7}
-        prefill={group.prefillParam}
-        controlsId={`grp-rows-${group.key}`}
-        workLineType={group.workLineType}
-        occurrenceRollup={group.occurrenceRollup}
-        onAssignPending={group.occurrenceRollup && canResolvePending ? () => openAssignPending(group.key) : undefined}
-        onToggle={() => toggleCollapsed(group.key)}
-        onAddTask={() => openAddTask(group.prefillParam)}
-        onOverdueFilter={() => setOverdueOnly(true)}
-      />
-    )
-  }
-
-  function colSort(col: SortCol): 'ascending' | 'descending' | 'none' {
-    return sortCol === col ? sortDir : 'none'
-  }
-  function sortIndicator(col: SortCol): ReactNode {
-    if (sortCol !== col) return null
-    return <SortArrow dir={sortDir} />
-  }
-
-  // + New task lives in the content-header (mockup `.ch-action`) only when the table
-  // is populated — empty / no-results states own their own create CTA, so every
-  // state has exactly one create link.
-  const showNewTask = !drawerOpen && !loading && !error && leafTasks.length > 0
-  const effectiveSavedView = savedView ?? {
-    view: 'all' as const,
-    activeChip: null,
-    segment: 'all' as const,
-    overdueOnly: false,
-    reserved: null,
-    search: '',
-  }
-  const mobileViewLabel = effectiveSavedView.activeChip === 'mine'
-    ? t('tasks.saved.mine')
-    : effectiveSavedView.activeChip === 'team'
-      ? t('tasks.saved.team')
-      : effectiveSavedView.activeChip === 'overdue'
-        ? t('tasks.saved.overdue')
-        : effectiveSavedView.activeChip === 'followups'
-          ? t('tasks.saved.followups')
-          : t('tasks.saved.all')
+  const personOptions = dataContext?.people ?? []
+  const buOptions = dataContext?.businessUnits ?? []
   const tasksToolbar = (
     <TasksToolbar
-      groupBy={groupBy}
-      setGroupBy={setGroupBy}
-      businessUnitId={businessUnitId}
-      setBusinessUnitId={setBusinessUnitId}
-      statusFilter={statusFilter}
-      setStatusFilter={setStatusFilter}
-      personFilter={personFilter}
-      setPersonFilter={setPersonFilter}
-      savedView={effectiveSavedView}
-      onSavedViewChange={onSavedViewChange ?? (() => {})}
-      searchText={searchText}
-      setSearchText={setSearchText}
-      includeArchived={includeArchived}
-      setIncludeArchived={setIncludeArchived}
-      sortCol={sortCol}
-      sortDir={sortDir}
-      onSortChange={(sort, direction) => { setSortCol(sort); setSortDir(direction) }}
+      query={query}
+      onQueryChange={setQuery}
+      onViewChange={handleViewChange}
       overdueCount={stats?.overdue ?? 0}
-      overdueOnly={overdueOnly}
-      onOverdueFilter={() => setOverdueOnly(true)}
-      onClearOverdue={() => setOverdueOnly(false)}
-      buOptions={busDirectory}
-      personOptions={peopleDirectory}
+      onOverdueFilter={() => setQuery({ overdueOnly: true })}
+      onClearOverdue={() => setQuery({ overdueOnly: false })}
+      buOptions={buOptions}
+      personOptions={personOptions}
+      onPresentationChange={(next) => { controller.switchPresentation(next) }}
+      savedViews={{
+        label: t('tasks.savedViews'),
+        selectedId: state.savedViews.items.find((item) => item.id === query.savedViewId)?.id ?? null,
+        operation: state.savedViews.operation,
+        items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
+        onLoad: () => { void controller.loadSavedViews() },
+        onApply: async (id) => { await controller.applySavedView(id) },
+        onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
+      }}
     />
   )
 
-  // V3 Workspace family: the shell frame owns the <main> + h1 + job sentence; the
-  // Tasks load state maps to the shared PageFamilyState (the TasksTableBody keeps its
-  // own typed loading/error/empty/filtered-empty bodies).
-  const frameState: PageFamilyState = loading
-    ? 'loading'
-    : error
-      ? 'error'
-      : leafTasks.length === 0
-        ? (hasActiveFilter ? 'filtered-empty' : 'empty')
-        : 'default'
+  const runtime: TaskCollectionRuntime = useMemo(() => ({
+    selectedId,
+    drawerOpen,
+    expanded,
+    splitLayout,
+    isDesktop,
+    recordSearch: currentSearch,
+    statusOverrides: runtimeStatusOverrides,
+    onOpenTask,
+    onCloseDrawer,
+    onNewTask,
+    onToggleExpand: onToggleExpand ?? (() => {}),
+    onAddTask,
+    onRetry: retry,
+    onClearFilters,
+    onSort,
+    onOverdueFilter: () => setQuery({ overdueOnly: true }),
+      onClearOverdue: () => setQuery({ overdueOnly: false }),
+    createHref: { pathname: '/work/tasks/new', search: currentSearch },
+    dueRuns,
+    followups: query.view === 'followups',
+    followupsEnabled: SHOW_FOLLOWUPS,
+    canResolvePending: can(accessRoles, 'process.start'),
+  }), [
+    accessRoles, currentSearch, drawerOpen, dueRuns, expanded, isDesktop, onAddTask,
+    onCloseDrawer, onNewTask, onOpenTask, onToggleExpand, onClearFilters, onSort,
+    query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
+  ])
+
+  const controls = captureFirstMobile ? (
+      <ViewOptionsDisclosure
+      open={mobileOptionsOpen}
+      onToggle={() => setMobileOptionsOpen((open) => !open)}
+      label={t('tasks.viewOptions')}
+      summary={viewLabel(query.view, t)}
+      panelId="mobile-task-options-panel"
+      className="mobile-task-options"
+      triggerClassName="mobile-task-options-trigger"
+      summaryClassName="mobile-task-options-summary"
+      chevronClassName="mobile-task-options-chevron"
+      panelClassName="mobile-task-options-panel"
+    >
+      {tasksToolbar}
+    </ViewOptionsDisclosure>
+  ) : tasksToolbar
 
   return (
     <PageFamilyFrame
@@ -730,128 +297,47 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
       state={frameState}
-      count={stats === null ? null : stats.total}
-      action={
-        showNewTask ? (
-          <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
-        ) : undefined
-      }
+      count={stats?.total ?? null}
+      action={showNewTask ? (
+        <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
+      ) : undefined}
       meta={
         <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
           {stats === null ? '—' : stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null}
         </span>
       }
     >
-      <div className={splitClass}>
-        <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
-          {captureFirstMobile ? (
-            // Rule 8 capture-first · Rule 11 reuse: the SAME "View options" disclosure
-            // primitive Home uses, skinned to the Tasks full-width header. The member
-            // phone filter stack folds behind it so work leads (OD-REDESIGN-61).
-            <ViewOptionsDisclosure
-              open={mobileOptionsOpen}
-              onToggle={() => setMobileOptionsOpen(open => !open)}
-              label={t('tasks.viewOptions')}
-              summary={t('tasks.viewSummary', { view: mobileViewLabel })}
-              panelId="mobile-task-options-panel"
-              className="mobile-task-options"
-              triggerClassName="mobile-task-options-trigger"
-              summaryClassName="mobile-task-options-summary"
-              chevronClassName="mobile-task-options-chevron"
-              panelClassName="mobile-task-options-panel"
-            >
-              {tasksToolbar}
-            </ViewOptionsDisclosure>
-          ) : tasksToolbar}
-
-          {/* Design fix wave item 1b: the compact due-runs summary — collapsed by default, near
-              the toolbar, renders nothing for a viewer without process.start OR with no due work
-              (RLS remains the real gate on the underlying spawn RPC). */}
-          <DueRunsTrigger due={dueRuns.due} expanded={dueRuns.expanded} onToggle={dueRuns.toggleExpanded} />
-
-          {savedView?.reserved === 'followups' ? (
-            SHOW_FOLLOWUPS ? (
-              <div className="follow-ups-embed" role="region" aria-label={t('tasks.saved.followups')}>
-                <FollowUpQueueEmbed />
-              </div>
-            ) : (
-              <div className="empty-state empty-state--quiet" role="region" aria-label={t('tasks.saved.followups')}>
-                <div className="empty-state-frame">
-                  <div className="empty-state-body">
-                    <h3 className="empty-title">{t('tasks.followups.title')}</h3>
-                    <p className="empty-copy">{t('tasks.followups.copy')}</p>
-                  </div>
-                </div>
-              </div>
-            )
-          ) : (
-          <TasksTableBody
-            loading={loading}
-            error={error}
-            leafTasks={leafTasks}
-            hasActiveFilter={hasActiveFilter}
-            isDesktop={isDesktop}
-            onRetry={load}
-            onClearFilters={clearFilters}
-            emptyTitle={emptyTitle()}
-            emptyCopy={emptyCopy()}
-            sortCol={sortCol}
-            onSort={handleSort}
-            ariaSort={colSort}
-            sortIndicator={sortIndicator}
-            allChecked={allChecked}
-            someChecked={someChecked}
-            onToggleSelectAll={toggleSelectAll}
-            flatRows={flatRows}
-            virtualize={virtualize}
-            scrollRef={scrollRef}
-            rowVirtualizer={rowVirtualizer}
-            renderRow={renderRow}
-            renderGroupHeader={renderGroupHeader}
-            groups={groups}
-            recordSearch={currentSearch}
-            now={now}
-            buMap={buMap}
-            personMap={personMap}
-            isCollapsed={isCollapsed}
-            toggleCollapsed={toggleCollapsed}
-            openAddTask={openAddTask}
-            setOverdueOnly={setOverdueOnly}
-            workLineMap={workLineMap}
-            objectiveMap={objectiveMap}
-            workloadSummary={workloadSummary}
-            createHref={{ pathname: '/work/tasks/new', search: currentSearch }}
-            onAssignPending={canResolvePending ? openAssignPending : undefined}
-            provenanceByTaskDefId={provenanceByTaskDefId}
-          />)}
-
-          {/* Design fix wave item 1b: the due-runs row list — mounted AFTER the Tasks table (never
-              between the toolbar and the table) so the table is always the first substantive
-              content, collapsed or expanded (design-review step-6 CRITICAL). */}
-          <DueRunsList
-            due={dueRuns.due}
-            expanded={dueRuns.expanded}
-            startingKey={dueRuns.startingKey}
-            startError={dueRuns.startError}
-            onStart={dueRuns.handleStart}
-          />
+      <div className={`split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`}>
+        <section className={`assembly${drawerOpen && !expanded && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+          <TaskCollectionRuntimeProvider value={runtime}>
+            <RecordCollectionSurface
+              controller={controller}
+              controls={
+                <>
+                  {controls}
+                  <TaskCollectionChrome dueRuns={dueRuns} />
+                </>
+              }
+              empty={{
+                title: emptyTitle,
+                copy: emptyCopy,
+                create: query.view === 'followups' && SHOW_FOLLOWUPS
+                  ? <FollowUpQueueEmbed />
+                  : <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>,
+              }}
+              filteredEmpty={{
+                title: t('tasks.empty.filteredTitle'),
+                copy: t('tasks.empty.filteredCopy'),
+                clear: onClearFilters,
+                create: <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>,
+              }}
+              error={{ message: t('tasks.error.load'), retry }}
+              loadingLabel={t('tasks.loading')}
+            />
+          </TaskCollectionRuntimeProvider>
         </section>
         {drawerOpen && drawerSlot}
       </div>
-
-      {/* Step 6 (ADR-0051, C2): the pending-PIC resolution host, opened from an occurrence group
-          header's "N to assign" affordance. */}
-      {assignRunId && (
-        <OccurrenceAssignDialog
-          pending={pendingForAssign}
-          people={peopleDirectory}
-          loading={pendingLoading}
-          error={pendingError}
-          onRetry={() => openAssignPending(assignRunId)}
-          onResolved={handlePendingResolved}
-          onClose={closeAssign}
-        />
-      )}
     </PageFamilyFrame>
   )
 }

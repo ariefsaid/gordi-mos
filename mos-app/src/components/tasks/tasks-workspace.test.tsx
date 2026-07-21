@@ -36,10 +36,15 @@ vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
+import { taskCollectionDescriptor } from './task-collection-adapter'
 import { __resetExpandPrefForTests } from './use-expand-pref'
 
 const mockListTasks = vi.mocked(listTasks)
@@ -152,6 +157,21 @@ beforeEach(() => {
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(listWorkLines).mockResolvedValue([])
+})
+
+describe('FR-V3-013 — live Tasks collection wiring', () => {
+  it('TasksWorkspace renders the canonical collection surface through the typed descriptor loader', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'One loader task' })])
+    const load = vi.spyOn(taskCollectionDescriptor, 'load')
+
+    renderTable()
+
+    await waitFor(() => expect(screen.getByText('One loader task')).toBeInTheDocument())
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-collection-status="ready"]')).toBeTruthy()
+  })
 })
 
 // ── F-A / OD-REDESIGN-61 — member phone disclosure (RED) ─────────────────────

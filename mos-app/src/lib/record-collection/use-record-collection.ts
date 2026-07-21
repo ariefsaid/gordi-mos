@@ -25,6 +25,8 @@ export interface UseRecordCollectionOptions<
   descriptor: RecordCollectionDescriptor<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>
   urlMode: 'synced' | 'fixed'
   fixedQuery?: TQuery
+  /** Initial typed query used by compatibility embedders when the URL has no collection query. */
+  initialQuery?: TQuery
   viewerId: string | null
   accessRoles: readonly string[]
   /**
@@ -45,7 +47,7 @@ export function useRecordCollection<
 >(
   options: UseRecordCollectionOptions<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
 ): RecordCollectionController<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation> {
-  const { descriptor, urlMode, fixedQuery, viewerId, accessRoles } = options
+  const { descriptor, urlMode, fixedQuery, initialQuery, viewerId, accessRoles } = options
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
   // Prefer an explicit host override; otherwise bind the ambient Issue 4 overlay controller when a
@@ -72,6 +74,9 @@ export function useRecordCollection<
     if (urlMode === 'fixed' && fixedQuery) {
       query = fixedQuery
       presentation = presentationOf(fixedQuery, descriptor.defaultPresentation)
+    } else if (initialQuery && location.search === '') {
+      query = initialQuery
+      presentation = presentationOf(initialQuery, descriptor.defaultPresentation)
     } else {
       const parsed = descriptor.query.parse(new URLSearchParams(searchParams), descriptor.defaultPresentation)
       query = parsed.ok ? parsed.query : parsed.query ?? descriptor.query.neutral

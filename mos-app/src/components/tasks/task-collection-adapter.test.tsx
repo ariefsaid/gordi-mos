@@ -1,7 +1,7 @@
 // Task collection descriptor (V3 Issue 6, Tasks 10/11) — load / access / viewer / saved-view mapping
 // / presentation. The pure filter/sort/group projection is covered in task-collection-projector.test.ts.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -222,7 +222,7 @@ describe('table presentation (shared-surface fallback renderer)', () => {
     )
     expect(screen.getByText('Fix the coffee machine')).toBeInTheDocument()
     expect(screen.getByText('Raka')).toBeInTheDocument()
-    screen.getByRole('button', { name: /Fix the coffee machine/ }).click()
+    fireEvent.click(screen.getByRole('row', { name: /Fix the coffee machine/ }))
     expect(onOpenRecord).toHaveBeenCalledTimes(1)
   })
 })

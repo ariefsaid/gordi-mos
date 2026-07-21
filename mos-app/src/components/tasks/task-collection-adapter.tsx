@@ -2,7 +2,6 @@
 // The full descriptor (load/project/presentations/viewer) is layered on in the migration task; this
 // module owns the typed Task query <-> URL schema and the vocabulary guard (PIC / Supervisor /
 // Business Unit — never RACI, never a role-free `person`, never a Team before Issue 8's team_id).
-import type { ReactNode } from 'react'
 import { listTasks, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
@@ -13,8 +12,8 @@ import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { isOverdue } from '@/lib/due-status'
 import { STATUS_ORDER } from './task-formatters'
-import { StatusPill } from './status-pill'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
+import { TaskCardPresentation, TaskTablePresentation } from './task-collection-presentation'
 import {
   createCollectionView,
   getCollectionView,
@@ -32,7 +31,6 @@ import type {
   CollectionAccess,
   CollectionData,
   CollectionPresentationDescriptor,
-  CollectionPresentationProps,
   CollectionProjection,
   CollectionQueryIssue,
   CollectionQueryParse,
@@ -51,7 +49,7 @@ export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due
 export type TaskCollectionAction = never
 
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'followups'
+  | 'all' | 'team' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'followups'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -72,7 +70,7 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
+  'all', 'team', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
@@ -189,7 +187,9 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
 
 function serializeTaskQuery(query: TaskCollectionQuery): URLSearchParams {
   const p = new URLSearchParams()
-  p.set('layout', query.layout)
+  // Table is the neutral live presentation; omit it from the route so canonical Task links stay
+  // `/work/tasks/:id` while Card remains shareable as an explicit layout.
+  if (query.layout !== TASK_COLLECTION_NEUTRAL_QUERY.layout) p.set('layout', query.layout)
   if (query.view !== 'all') p.set('view', query.view)
   if (query.q) p.set('q', query.q)
   if (query.businessUnitId) p.set('bu', query.businessUnitId)
@@ -346,7 +346,8 @@ function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
     query.view === 'my-work' ||
     query.view === 'my-pic' ||
     query.view === 'my-supervisor' ||
-    query.view === 'overdue'
+    query.view === 'overdue' ||
+    query.view === 'followups'
   )
 }
 
@@ -592,49 +593,9 @@ export const taskCollectionSavedViews: CollectionSavedViewDescriptor<
 }
 
 // ── Presentations ─────────────────────────────────────────────────────────────────────────────────
-// Option B (Director ruling 2026-07-21): the LIVE Task table is rendered workspace-owned so its
-// virtualization + j/k keyboard cursor stay wired as-is. These descriptor presentations are the
-// shared-surface fallback + conformance renderer (read-only grouped list); they are NOT the live
-// Task grid. Upgrade path: move the workspace table body in here once a virtualization/keyboard seam
-// exists on CollectionPresentationProps.
-type TaskPresentationProps = CollectionPresentationProps<
-  TaskCollectionRecord,
-  TaskCollectionQuery,
-  CollectionProjection<TaskCollectionRecord, TaskRenderGroup>,
-  TaskCollectionContext,
-  string
->
-
-function renderTaskGroups(props: TaskPresentationProps, variant: TaskCollectionPresentation): ReactNode {
-  const { projection, context, onOpenRecord } = props
-  const name = (id: string) => context.personNamesById.get(id) ?? ''
-  return (
-    <div className={`task-collection-fallback task-collection-fallback--${variant}`}>
-      {projection.groups.map((group) => (
-        <section key={group.key} className="task-collection-group" aria-label={group.label || undefined}>
-          {group.label ? (
-            <h3 className="task-collection-group-head">
-              {group.label} <span className="tabular-nums">({group.rows.length})</span>
-            </h3>
-          ) : null}
-          <ul className="task-collection-rows">
-            {group.rows.map((row) => (
-              <li key={row.id}>
-                <button type="button" className="task-collection-row" onClick={() => onOpenRecord(row)}>
-                  <span className="task-collection-title">{row.title}</span>
-                  <StatusPill status={row.status} />
-                  <span className="task-collection-pic">{name(row.picId)}</span>
-                  <span className="task-collection-supervisor">{name(row.supervisorId) || '—'}</span>
-                  <span className="task-collection-due tabular-nums">{row.dueDate ?? '—'}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
-  )
-}
+// The descriptor owns the real Task presentations. Their rendering delegates to the mature E7
+// table/card stack through a typed runtime context; it never falls back to a generic collection
+// row or a second query/loader implementation.
 
 // Capability KEYS are query keys (like the Inbox fixture), not the value unions. `sort`/`groupBy`
 // are the single sortable/groupable query keys; their supported VALUE sets live in the toolbar.
@@ -670,7 +631,7 @@ const taskTablePresentation: TaskPresentationDescriptor = {
     groupKeys: [...TASK_CAPABILITIES.groupKeys],
     bulkActions: [...TASK_CAPABILITIES.bulkActions],
   },
-  render: (props) => renderTaskGroups(props, 'table'),
+  render: (props) => <TaskTablePresentation {...props} />,
 }
 
 const taskCardPresentation: TaskPresentationDescriptor = {
@@ -684,7 +645,7 @@ const taskCardPresentation: TaskPresentationDescriptor = {
     groupKeys: [...TASK_CAPABILITIES.groupKeys],
     bulkActions: [...TASK_CAPABILITIES.bulkActions],
   },
-  render: (props) => renderTaskGroups(props, 'card'),
+  render: (props) => <TaskCardPresentation {...props} />,
 }
 
 // ── Load ────────────────────────────────────────────────────────────────────────────────────────
@@ -705,8 +666,8 @@ async function loadTaskCollection(args: {
     listTasks(filters),
     getBusinessUnits(),
     getPeople(),
-    listObjectives(),
-    listWorkLines(),
+    listObjectives().catch(() => []),
+    listWorkLines().catch(() => []),
   ])
   const records = rows.map(toTaskCollectionRecord)
 
