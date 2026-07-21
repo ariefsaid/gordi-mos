@@ -636,3 +636,17 @@ ordering, assistant feature-flag behavior, and display-contents geometry. Indepe
 focused shell/overlay tests, typecheck, ESLint, Stylelint, and diff clean. This establishes the host
 only; Task/Signal RecordViewer consumers, Inbox/Deputy, and phone/back/focus consumer journeys remain
 open and must not be inferred from the mount tests.
+
+### Tasks live collection convergence — independently verified (2026-07-21)
+
+Luna implementation source `542002b` was reviewed in its isolated worktree and cherry-picked as
+`15924dc`. The live production `TasksWorkspace` now has one typed `useRecordCollection` loader /
+projection and renders the canonical `RecordCollectionSurface`; the distinct Task domain model is
+preserved. Mature table/card/group/mobile/keyboard/virtualization behavior remains the outcome
+oracle rather than being replaced by a synthetic adapter demo.
+
+Independent evidence: the live workspace and adapter focused battery passed 70 tests; typecheck,
+ESLint, Stylelint, `git diff --check`, and the 10-test `scripts/v3-record-collection-conformance`
+guard passed. No Supabase, dev server, browser, full-suite fan-out, push, merge, or deploy was used.
+This closes the live Tasks collection engine seam only. Task RecordViewer opening, drawer-first /
+direct-page parity, Signal collection convergence, and rendered owner acceptance remain open.

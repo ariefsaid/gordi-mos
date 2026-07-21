@@ -1,12 +1,13 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
 > **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign`; implementation
-> checkpoint `9e2a8d1` plus documentation state commits, all local and unpushed.**
+> checkpoint `15924dc` plus documentation state commits, all local and unpushed.**
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.
-> Tasks live-engine adoption and Signal collection correctness remain isolated and pending independent
-> review; the single production overlay-host mount is now integrated and independently verified.
+> Tasks live-engine adoption is now integrated and independently re-verified at `15924dc`; Signal
+> collection correctness remains isolated and pending independent review. The single production
+> overlay-host mount is integrated and independently verified.
 > Issue-12 cleanup has also removed the
 > unreachable legacy Sales and My Week page implementations rather than preserving their parallel
 > page-head/CSS grammar. The exact active state and continuation

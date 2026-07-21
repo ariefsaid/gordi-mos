@@ -53,12 +53,22 @@ Read these in order on a cold start:
 
 ## Current branch state
 
-Target branch: `v3-redesign`, local only, implementation checkpoint `9e2a8d1` plus subsequent
+Target branch: `v3-redesign`, local only, implementation checkpoint `15924dc` plus subsequent
 documentation state commits. The branch includes the prior page-family/collection/modal/legacy-page
 cleanup wave through `9695fd2`, the independently reviewed auth migration `93555ac`, and this
 handoff. Nothing has been pushed, merged, or deployed.
 
 ### Completed and independently re-verified
+
+Tasks live collection is landed at `15924dc` (source `542002b` from the Luna worktree) after an
+independent Director verification. The production `TasksWorkspace` now consumes one typed
+`useRecordCollection` loader/projection and `RecordCollectionSurface`; the mature Task table, card,
+group, keyboard, phone, saved-view, loading/error/empty, and virtualization behavior remains the
+goal-level oracle. Independent proof on the source worktree: 70 focused Tasks tests, typecheck,
+ESLint, Stylelint, `git diff --check`, and the 10-test RecordCollection conformance guard all pass.
+The worker's docs edits were intentionally not taken during cherry-pick because this handoff and
+ledger are the newer canonical state; the evidence is recorded here instead. RecordViewer opening,
+Inbox/Deputy host consumers, and rendered three-width acceptance remain open.
 
 Auth control grammar is landed at `93555ac` (source commit `c4bf105`):
 
@@ -95,8 +105,8 @@ after its process exits.
 | Lane | Substrate | Worktree / branch | Current state | Dependency / review rule |
 |---|---|---|---|---|
 | Overlay host | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-record-viewer-live` / `v3/record-viewer-live` | Complete; cherry-picked as `9e2a8d1` and independently verified | Host is landed; consumer RecordViewer/Inbox/Deputy migrations remain separate |
-| Signal collection | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-signals-frame` / `v3/signals-frame` | Active; production and test edits | Must prove real grouping headers/collapse, opener/query preservation, no phantom selection, archive-vs-focused page families; do not accept adapter-only tests |
-| Tasks live collection | Luna xhigh | Codex worktree from `v3/task-live-migration` (thread `019f8423-d2c9-7523-88cc-c470c2597a3e`) | Active; narrowing onto the live wiring seams | Must make production `TasksWorkspace` use one collection loader/projection and `RecordCollectionSurface`, preserve mature Task table/card/group/keyboard behavior, and avoid shell/RecordViewer scope |
+| Signal collection | NIM Nemotron 3 Ultra 550B → Luna xhigh verifier | `.claude/worktrees/v3-signals-frame` / `v3/signals-frame`; verifier thread `019f843e-6dd0-76d0-b4f0-9bed74b4b2d3` | Active; provider-interrupted WIP is checkpointed and under bounded review | Must prove real grouping headers/collapse, opener/query preservation, no phantom selection, archive-vs-focused page families; do not accept adapter-only tests |
+| Tasks live collection | Luna xhigh | Source thread `019f8423-d2c9-7523-88cc-c470c2597a3e` | Complete at `542002b`; cherry-picked as `15924dc`, independently verified | Production `TasksWorkspace` uses one typed collection loader/projection and `RecordCollectionSurface`; RecordViewer remains separate |
 | Auth controls | Luna xhigh | Codex worktree from `v3/auth-control-grammar` (thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d`) | Complete; source commit `c4bf105` cherry-picked as `93555ac` | Already independently re-verified; do not duplicate |
 
 ### Provider failures to preserve as handoff evidence
@@ -183,9 +193,10 @@ Proxy checks include standalone InboxTriage tests while production renders Inbox
 
 ## Dependency-ordered next work
 
-1. Review and cherry-pick the exiting Overlay host and Signal collection lanes independently. Run
-   focused tests, typecheck/lint/style, and inspect the actual rendered/keyboard contracts.
-2. Review the Tasks Luna result and prove the real production workspace uses one loader/projection.
+1. Review and cherry-pick the exiting Signal collection lane independently. Run focused tests,
+   typecheck/lint/style, and inspect the actual rendered/keyboard contracts.
+2. Treat the Tasks live collection migration as complete only at the bounded unit/conformance
+   layer proven above; rendered owner acceptance and RecordViewer opening remain separate.
 3. Migrate Task and Signal record opening to the shared RecordViewer only after the host and live
    collection invariants are green. Preserve typed adapters and drawer-first/direct-page parity.
 4. Cut Inbox/Bell and Deputy onto the shared host, including opener focus and phone behavior.
@@ -208,8 +219,8 @@ browser/full-suite fan-out in parallel. The owner must still see the rendered ap
 
 ## Current handoff truth
 
-At the time of writing, auth, the production overlay host, and this documentation handoff are
-landed on `v3-redesign` (`93555ac`, `9e2a8d1`, and the docs checkpoints). Signal has
-uncommitted active work in their isolated branches; Tasks and auth follow-up have active Luna
-threads. No production merge, push, deploy, or owner walkthrough has occurred. A future agent must
+At the time of writing, auth, the production overlay host, live Tasks collection migration, and this
+documentation handoff are landed on `v3-redesign` (`93555ac`, `9e2a8d1`, `15924dc`, and the docs
+checkpoints). Signal has active isolated review work; no production merge, push, deploy, or owner
+walkthrough has occurred. A future agent must
 update this section and `docs/agent-context.md` immediately after each reviewed cherry-pick.
