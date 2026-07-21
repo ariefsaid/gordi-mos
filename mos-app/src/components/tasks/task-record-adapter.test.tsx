@@ -7,6 +7,7 @@ import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import {
   createTaskRecordAdapter,
+  createTaskPanelAdapter,
   createTaskFieldCommit,
   type TaskRecordAdapterInput,
 } from './task-record-adapter'
@@ -72,6 +73,61 @@ function fieldByKey(adapter: RecordViewerAdapter, key: string): RecordFieldSpec 
   if (!f) throw new Error(`no field ${key}`)
   return f
 }
+
+describe('createTaskPanelAdapter (metadata-only, for the live RecordDetailsPanel)', () => {
+  it('TaskPanelAdapterContract: renders ONLY ownership + due metadata — no activity, content, or actions', () => {
+    const adapter = createTaskPanelAdapter({
+      task: makeTask(), editable: true, people, businessUnits,
+    })
+    expect(adapter.kind).toBe('task')
+    // Ownership + due fields render through the shared field grammar.
+    expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
+    expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
+    expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Ibnu')
+    expect(fieldByKey(adapter, 'dueDate').value).toBe('2026-07-25')
+    // Metadata-only: no activity/content/actions (the drawer header + RecordFeed own those).
+    expect(adapter.activity).toEqual([])
+    expect(adapter.contentSlots).toEqual([])
+    expect(adapter.actions).toEqual([])
+    // Status is NOT a panel field (owned by the header / status trigger).
+    expect(fieldsOf(adapter).find((f) => f.key === 'status')).toBeUndefined()
+  })
+
+  it('TaskVocabularyContract: Business Unit and Team are distinct; missing Team is an honest read-only state, never the BU value', () => {
+    const adapter = createTaskPanelAdapter({ task: makeTask(), editable: true, people, businessUnits })
+    const bu = fieldByKey(adapter, 'businessUnit')
+    const team = fieldByKey(adapter, 'team')
+    expect(bu.label).toBe('Business Unit')
+    expect(bu.displayValue).toBe('Retail Ops')
+    expect(team.label).toBe('Team')
+    expect(team.editable).toBe(false)
+    expect(team.displayValue).not.toBe('Retail Ops')
+    expect(team.displayValue).toMatch(/not assigned/i)
+    // No RACI vocabulary anywhere.
+    for (const f of fieldsOf(adapter)) {
+      expect(f.label).not.toMatch(/responsible|accountable|consulted|informed|raci/i)
+    }
+  })
+
+  it('a real Team-backed lookup shows the Team label (never the honest-missing state)', () => {
+    const adapter = createTaskPanelAdapter({
+      task: makeTask(), editable: true, people, businessUnits,
+      team: { id: 'team-hq', label: 'HQ Kitchen' },
+    })
+    const team = fieldByKey(adapter, 'team')
+    expect(team.displayValue).toBe('HQ Kitchen')
+  })
+
+  it('AC-V3-009: a non-editor sees read-only fields with the permission reason', () => {
+    const adapter = createTaskPanelAdapter({
+      task: makeTask(), editable: false, people, businessUnits,
+      readOnlyReason: 'This task is archived',
+    })
+    expect(adapter.permission.readOnly).toBe(true)
+    expect(fieldByKey(adapter, 'pic').editable).toBe(false)
+    expect(fieldByKey(adapter, 'pic').readOnlyReason).toBe('This task is archived')
+  })
+})
 
 describe('createTaskRecordAdapter', () => {
   it('FR-V3-003 / TaskAdapterContract: renders Task identity, BU, PIC/Supervisor/status/due, checklist, events, actions', () => {

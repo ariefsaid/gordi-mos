@@ -8,7 +8,7 @@ import {
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   archiveTask, unarchiveTask,
 } from '@/lib/db/tasks'
-import type { TaskDetail as TaskDetailData, CreateTaskInput } from '@/lib/db/tasks'
+import type { TaskDetail as TaskDetailData, CreateTaskInput, TaskFieldsPatch } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
@@ -21,6 +21,8 @@ import { ConfirmArchive } from './confirm-archive'
 import { canEdit, canArchive } from './task-permissions'
 import { TaskDrawerHeader } from './task-drawer-header'
 import { RecordDetailsPanel } from './record-details-panel'
+import type { TaskViewerFieldKey } from './task-record-adapter'
+import { dirtyLeaveGuard } from '@/components/records/dirty-leave-guard'
 import { RecordFeed } from './record-feed'
 import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
@@ -239,23 +241,54 @@ function ViewSurface({
     setComments(loadedComments)
   }
 
-  // ── PIC reassignment ─────────────────────────────────────────────────────
-  async function handlePicChange(personId: string) {
-    if (!localTask || personId === localTask.responsible_person_id) return
+  // ── Domain-facing field commit (V3 Issue 5 DAL seam) ──────────────────────
+  // RecordViewer/RecordField commit a domain-facing key (pic/supervisor/businessUnit/dueDate/…);
+  // this is the ONE place the viewer key is translated to the legacy storage column (the plan's
+  // saveTaskViewerField switch — including the legacy responsible/accountable → PIC/Supervisor
+  // storage-name mismatch, kept out of the vocabulary). It stays optimistic + rolls back, and
+  // RE-THROWS on failure so RecordField shows its error/retry feedback.
+  async function handleUpdateField(field: TaskViewerFieldKey, value: string | null) {
+    if (!localTask) return
     const prev = { ...localTask }
-    const next = { ...localTask, responsible_person_id: personId }
+    const v = value === '' ? null : value
+    const patch: TaskFieldsPatch = {}
+    const optimistic: Partial<TaskListRow> = {}
+    switch (field) {
+      case 'pic': patch.responsible_person_id = v ?? ''; optimistic.responsible_person_id = v ?? ''; break
+      case 'supervisor': patch.accountable_person_id = v ?? ''; optimistic.accountable_person_id = v ?? ''; break
+      case 'businessUnit': patch.business_unit_id = v ?? ''; optimistic.business_unit_id = v ?? ''; break
+      case 'dueDate': patch.due_date = v; optimistic.due_date = v; break
+      case 'title': patch.title = v ?? ''; optimistic.title = v ?? ''; break
+      case 'description': patch.description = v; optimistic.description = v; break
+      case 'projectProcess': patch.work_line_id = v; optimistic.work_line_id = v; break
+      case 'objective': patch.objective_id = v; optimistic.objective_id = v; break
+    }
+    const next = { ...localTask, ...optimistic }
     setLocalTask(next)
     onTaskChanged?.(next)
     try {
-      await updateTaskFields(localTask.id, { responsible_person_id: personId }, viewerId)
+      await updateTaskFields(localTask.id, patch, viewerId)
       await refetchEvents(localTask.id)
-      announce(t('tasks.feedback.picReassigned'))
-    } catch {
+      if (field === 'pic') announce(t('tasks.feedback.picReassigned'))
+      else if (field === 'projectProcess') announce(t('tasks.feedback.workLineUpdated'))
+      else if (field === 'objective') announce(t('tasks.feedback.objectiveUpdated'))
+      // Other fields rely on RecordField's own visible Saving/Saved feedback.
+    } catch (err) {
       setLocalTask(prev)
       onTaskChanged?.(prev)
       announce(ROLLBACK_MSG)
+      throw err instanceof Error ? err : new Error('updateTaskFields failed')
     }
   }
+
+  // Dirty-draft tracking (V3 Issue 5, content side): RecordField bubbles dirty through
+  // RecordViewer.onDirtyChange; while a draft is dirty the tenant would supply the overlay
+  // leave-guard. NOTE: the live panel still mounts RecordPanelHost directly (not the Issue 4
+  // overlay session), so this guard has no live attachment yet — see the RATIFY line. The value is
+  // computed so the future openRoot mount seam can hand it to OverlayEntry.leaveGuard.
+  const [fieldsDirty, setFieldsDirty] = useState(false)
+  // Referenced to keep the guard factory wired + typechecked ahead of the frame-lane openRoot mount.
+  void dirtyLeaveGuard(fieldsDirty, () => true)
 
   // ── Work-line change (D4) ────────────────────────────────────────────────
   async function handleWorkLineChange(workLineId: string | null) {
@@ -444,6 +477,7 @@ function ViewSurface({
             task={task}
             buName={buName}
             people={peopleDirectory}
+            businessUnits={busDirectory}
             editable={editable}
             viewerId={viewerId}
             checklistCount={[checklistDone, localChecklist.length]}
@@ -451,7 +485,8 @@ function ViewSurface({
             workLines={workLinesDir}
             compact
             onStatusChange={handleStatusChange}
-            onPicChange={handlePicChange}
+            onUpdateField={handleUpdateField}
+            onDirtyChange={setFieldsDirty}
             onMarkComplete={handleMarkComplete}
             onWorkLineChange={handleWorkLineChange}
             onObjectiveChange={handleObjectiveChange}
@@ -575,6 +610,7 @@ function ViewSurface({
           task={task}
           buName={buName}
           people={peopleDirectory}
+          businessUnits={busDirectory}
           editable={editable}
           viewerId={viewerId}
           identityHeadingLevel={identityHeadingLevel}
@@ -582,7 +618,8 @@ function ViewSurface({
           objectives={objectivesDir}
           workLines={workLinesDir}
           onStatusChange={handleStatusChange}
-          onPicChange={handlePicChange}
+          onUpdateField={handleUpdateField}
+          onDirtyChange={setFieldsDirty}
           onMarkComplete={handleMarkComplete}
           onWorkLineChange={handleWorkLineChange}
           onObjectiveChange={handleObjectiveChange}

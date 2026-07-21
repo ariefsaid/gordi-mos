@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import type { SignalDetail, SignalRevisionRow } from '@/lib/db/signals'
 import type { SignalRow, TeamOption } from '@/lib/db/signals.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
-import { createSignalRecordAdapter, type SignalRecordAdapterInput } from './signal-record-adapter'
+import { createSignalRecordAdapter, wrapSignalRecord, type SignalRecordAdapterInput } from './signal-record-adapter'
 import type { RecordViewerAdapter } from '@/components/records/record-viewer.types'
 
 const AUTHOR = 'p-author'
@@ -121,5 +121,30 @@ describe('createSignalRecordAdapter', () => {
     // Acknowledge / correct / comment / link are gone on a retracted Signal.
     expect(adapter.permission.allowedActionIds).not.toContain('acknowledge')
     expect(adapter.actions.map((a) => a.id)).not.toContain('acknowledge')
+  })
+})
+
+describe('wrapSignalRecord (LIVE host wrapper — hosts the full SignalRecord subtree)', () => {
+  it('renders the hosted subtree as ONE typed Signal content slot with no duplicating metadata/actions', () => {
+    const detail = makeDetail(makeSignal())
+    const adapter = wrapSignalRecord(detail, <div data-testid="signal-subtree">SignalRecord goes here</div>)
+    expect(adapter.kind).toBe('signal')
+    expect(adapter.typeLabel).toBe('Signal')
+    // The wrapper adds NO Signal metadata/actions/activity/relations — SignalRecord owns all display.
+    expect(adapter.metadata).toEqual([])
+    expect(adapter.actions).toEqual([])
+    expect(adapter.activity).toEqual([])
+    expect(adapter.relations).toEqual([])
+    // The hosted subtree is the sole content slot.
+    expect(adapter.contentSlots).toHaveLength(1)
+    render(<>{adapter.contentSlots[0].render({ mode: 'panel', readOnly: false })}</>)
+    expect(screen.getByTestId('signal-subtree')).toBeInTheDocument()
+  })
+
+  it('AC-V3-009: a retracted Signal is read-only, and the wrapper does NOT re-render the tombstone reason (SignalRecord owns it)', () => {
+    const detail = makeDetail(makeSignal({ retracted_at: '2026-07-21T00:00:00Z', retract_reason: 'Duplicate report' }))
+    const adapter = wrapSignalRecord(detail, <div>subtree</div>)
+    expect(adapter.permission.readOnly).toBe(true)
+    expect(adapter.permission.reason).toBeUndefined()
   })
 })

@@ -16,6 +16,8 @@ import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { SignalRecord, type SignalMentionView } from './signal-record'
+import { RecordViewer } from '@/components/records/record-viewer'
+import { wrapSignalRecord } from './signal-record-adapter'
 import './signal-record-host.css'
 
 // C3 (KNOWN GAP 2): signal-record.tsx (B15) is a fully presentational renderer — this host is
@@ -172,8 +174,14 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
     load()
   }
 
-  return (
-    <div className="signal-record-host">
+  // V3 Issue 5 tenant half: the Signal record renders THROUGH the shared RecordViewer. The full
+  // object-specific SignalRecord subtree (author/team/mentions/category picker/comments/follow-up/
+  // link/linked-work/retraction tombstone) is hosted as ONE typed Signal content slot via
+  // wrapSignalRecord, so the viewer supplies the record-viewer grammar while SignalRecord keeps
+  // ownership of the Signal's display — nothing is duplicated. The viewer identity header is
+  // suppressed because SignalRecord already presents the body/heading (no duplicate heading).
+  const hostContent = (
+    <>
       <SignalRecord
         mode={mode}
         signal={signal}
@@ -244,6 +252,16 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
           </form>
         )
       )}
+    </>
+  )
+
+  return (
+    <div className="signal-record-host">
+      <RecordViewer
+        adapter={wrapSignalRecord(detail, hostContent)}
+        mode={mode}
+        showIdentityHeader={false}
+      />
     </div>
   )
 }

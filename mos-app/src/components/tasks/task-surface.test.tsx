@@ -327,12 +327,14 @@ describe('TaskSurface — mutation handlers', () => {
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reassign PIC' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Other Person' }))
+    // V3 Issue 5: PIC is now a RecordViewer/RecordField select (was a bespoke person picker).
+    const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
+    fireEvent.change(pic, { target: { value: 'other-id' } })
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
       'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID,
     ))
-    expect(screen.getByRole('button', { name: 'Reassign PIC' })).toHaveTextContent('Cahya Cafe')
+    // Optimistic reassignment rolled back to the previous PIC after the write rejects.
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement).value).toBe(VIEWER_ID))
   })
 
   // I3: archiving reports the id back to the host (so the table drops the row).
@@ -421,8 +423,8 @@ describe('TaskSurface — live region (AC-111)', () => {
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reassign PIC' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Other Person' }))
+    const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
+    fireEvent.change(pic, { target: { value: 'other-id' } })
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 })

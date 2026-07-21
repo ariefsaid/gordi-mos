@@ -174,6 +174,13 @@ export const messages = {
     'tasks.label.task': 'Task',
     'tasks.ownership': 'Task ownership',
     'tasks.team': 'Team',
+    // V3 Issue 5 — Business Unit is a DISTINCT field from Team in the RecordViewer panel.
+    'tasks.field.businessUnit': 'Business Unit',
+    'tasks.field.teamUnassigned': 'Team not assigned yet (data migration)',
+    'tasks.field.teamFromRecord': 'Team is set from the task record.',
+    'tasks.field.teamMigration': 'No team is assigned to this task yet (data migration).',
+    'tasks.field.readOnlyArchived': 'Archived tasks can’t be edited.',
+    'tasks.field.readOnlyNoPermission': 'You don’t have permission to edit this task.',
     'tasks.pic': 'PIC',
     // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership source, shown
     // beside the PIC on occurrence-grouped rows whose generating def binds a Role.
@@ -798,6 +805,12 @@ export const messages = {
     'tasks.label.task': 'Tugas',
     'tasks.ownership': 'Kepemilikan tugas',
     'tasks.team': 'Tim',
+    'tasks.field.businessUnit': 'Unit Bisnis',
+    'tasks.field.teamUnassigned': 'Tim belum ditetapkan (migrasi data)',
+    'tasks.field.teamFromRecord': 'Tim ditetapkan dari catatan tugas.',
+    'tasks.field.teamMigration': 'Belum ada tim untuk tugas ini (migrasi data).',
+    'tasks.field.readOnlyArchived': 'Tugas terarsip tidak dapat diubah.',
+    'tasks.field.readOnlyNoPermission': 'Anda tidak memiliki izin untuk mengubah tugas ini.',
     'tasks.pic': 'PIC',
     'tasks.pic.via': 'melalui ${role}',
     'tasks.supervisor': 'Supervisor',

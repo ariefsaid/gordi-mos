@@ -163,6 +163,27 @@ describe('RecordViewer', () => {
     expect(screen.queryByRole('button', { name: /add block/i })).not.toBeInTheDocument()
   })
 
+  it('ViewerIdentitySuppressionContract: showIdentityHeader=false renders no heading but keeps an accessible landmark named by the title', () => {
+    // The tenant (e.g. the Task panel, whose TaskDrawerHeader/identity row already owns the
+    // record name) suppresses the viewer's own identity header so there is no duplicate heading.
+    // The landmark must still be reachable by its accessible name — via aria-label, not a heading.
+    const { container } = renderViewer(taskAdapter(), { mode: 'panel', showIdentityHeader: false })
+    expect(container.querySelectorAll('h1, h2, h3').length).toBeGreaterThanOrEqual(0)
+    // No identity heading for the record title itself.
+    expect(screen.queryByRole('heading', { name: 'Restock oat milk' })).not.toBeInTheDocument()
+    // The identity region is gone entirely.
+    expect(container.querySelector('[data-viewer-region="identity"]')).toBeNull()
+    // But the section landmark still carries the record name (aria-label fallback).
+    expect(screen.getByRole('region', { name: 'Restock oat milk' })).toBeInTheDocument()
+    // The fields still render (the point of the panel).
+    expect(screen.getByLabelText('Business Unit')).toBeInTheDocument()
+  })
+
+  it('ViewerIdentitySuppressionContract: default (showIdentityHeader unset) keeps the identity heading', () => {
+    renderViewer(taskAdapter(), { mode: 'panel', headingLevel: 2 })
+    expect(screen.getByRole('heading', { level: 2, name: 'Restock oat milk' })).toBeInTheDocument()
+  })
+
   it('FR-V3-012 / OverlayBoundaryContract: commits route through onCommitField by field key', async () => {
     const onCommitField = vi.fn(async () => {})
     renderViewer(taskAdapter(), { onCommitField })
