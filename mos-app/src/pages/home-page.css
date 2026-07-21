@@ -2,7 +2,7 @@
    HomePage — layout only (Task 4.4/§4.5). Two stacked KPI rows (finance row is
    role-guarded and absent entirely for non-finance/admin viewers) reflowing
    auto-fit 160px→1fr, a FreshnessLabel, then the MyWeekPanel below. Token-only
-   (DESIGN.md spacing scale) — mirrors sales-dashboard-page.css's KPI grid.
+   (DESIGN.md spacing scale) — the canonical Home KPI grid.
    ════════════════════════════════════════════════════════════════════════════ */
 .home-kpi-grid {
   display: grid;

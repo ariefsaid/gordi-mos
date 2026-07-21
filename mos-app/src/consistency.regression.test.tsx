@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
@@ -64,6 +64,18 @@ const SRC = resolve(process.cwd(), 'src')
 function readSrc(rel: string): string {
   return readFileSync(resolve(SRC, rel), 'utf8')
 }
+
+describe('RI-IA-9: retired route implementations leave no parallel page grammar', () => {
+  it('removes the unreachable Sales dashboard page after /sales became a query-preserving /money redirect', () => {
+    for (const rel of [
+      'pages/sales-dashboard-page.tsx',
+      'pages/sales-dashboard-page.css',
+      'pages/sales-dashboard-page.test.tsx',
+    ]) {
+      expect(existsSync(resolve(SRC, rel)), rel).toBe(false)
+    }
+  })
+})
 
 /** Recursively list non-test .tsx AND .css files under a directory. */
 function listNonTestSource(dir: string, acc: string[] = []): string[] {
@@ -192,28 +204,24 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
   })
 })
 
-describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () => {
-  // inbox-page.tsx migrated to the V3 workspace PageFamilyFrame (Issue 11), which owns the
-  // content-header chrome via its family contract — the page-family-migration guard enforces
-  // its PageFamilyFrame use, so it is no longer scanned for a raw <PageHead variant="content">.
+describe('RI-IA-2: migrated data/list pages use their declared V3 family frame', () => {
   const targets = [
-    'pages/follow-ups-page.tsx',
-    'pages/sales-dashboard-page.tsx',
-    'pages/pricing-page.tsx',
-    'pages/budget-page.tsx',
-    'components/catalog/catalog-manager.tsx',
-  ]
+    ['pages/follow-ups-page.tsx', 'workspace'],
+    ['pages/pricing-page.tsx', 'workspace'],
+    ['pages/budget-page.tsx', 'workspace'],
+    ['components/catalog/catalog-manager.tsx', 'management'],
+  ] as const
 
-  for (const file of targets) {
-    it(`${file} renders PageHead variant="content"`, () => {
-      expect(readSrc(file)).toMatch(/<PageHead[\s\S]{0,160}variant="content"/)
+  for (const [file, family] of targets) {
+    it(`${file} renders PageFamilyFrame family="${family}"`, () => {
+      expect(readSrc(file)).toMatch(new RegExp(`<PageFamilyFrame[\\s\\S]{0,160}family="${family}"`))
+      expect(readSrc(file)).not.toMatch(/<PageHead\b|<PageFrame\b/)
     })
   }
 })
 
 describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {
   const pageFiles = [
-    'pages/sales-dashboard-page.tsx',
     'pages/budget-page.tsx',
     'pages/pricing-page.tsx',
     'pages/inbox-page.tsx',
@@ -452,7 +460,6 @@ describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit',
     // + state kit, never a private list grammar — still holds; it just now lives
     // one hop away via the extracted component.
     'components/follow-ups/follow-up-queue-table.tsx',
-    'pages/sales-dashboard-page.tsx',
     'pages/kitchen-stock-page.tsx',
     'pages/kitchen-pushes-page.tsx',
     'pages/kitchen-plan-page.tsx',
