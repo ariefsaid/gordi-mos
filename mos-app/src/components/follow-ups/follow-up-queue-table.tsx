@@ -9,6 +9,7 @@ import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
+import { TextInput } from '@/components/ui/text-input'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 import { isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
@@ -42,28 +43,28 @@ export function FollowUpQueueTable({ queue }: { queue: FollowUpQueueState }) {
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {verb === 'promise' ? (
-          <input
-            aria-label={t('followUps.promiseDate')}
+          <TextInput
+            label={t('followUps.promiseDate')}
             type="date"
             value={form.promise_date}
             onChange={(e) => setForm({ ...form, promise_date: e.target.value })}
           />
         ) : (
           <>
-            <input
-              aria-label={t('followUps.amountInput')}
+            <TextInput
+              label={t('followUps.amountInput')}
               type="number"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <input
-              aria-label={t('followUps.cashInDate')}
+            <TextInput
+              label={t('followUps.cashInDate')}
               type="date"
               value={form.cash_in_date}
               onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })}
             />
-            <input
-              aria-label={t('followUps.evidence')}
+            <TextInput
+              label={t('followUps.evidence')}
               placeholder={t('followUps.evidence')}
               value={form.evidence}
               onChange={(e) => setForm({ ...form, evidence: e.target.value })}

@@ -135,8 +135,9 @@ describe('FollowUpsPage', () => {
 
   it('AC-521: keeps settle disabled until amount, cash-in date, and evidence are present', async () => {
     const user = userEvent.setup()
-    render(createElement(FollowUpsPage), { wrapper })
+    const { container } = render(createElement(FollowUpsPage), { wrapper })
     await user.click(await screen.findByRole('button', { name: 'Settle' }))
+    expect(container.querySelectorAll('.mk-textinput')).toHaveLength(3)
     const submit = screen.getByRole('button', { name: 'Submit' })
     expect(submit).toBeDisabled()
     await user.type(screen.getByLabelText('Cash-in date'), '2026-07-02')
