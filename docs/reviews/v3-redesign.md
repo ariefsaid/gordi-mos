@@ -776,3 +776,34 @@ above the fold; (c) Table/Card tabs (`view-tabs.css` 40→44px) and saved-view c
 Evidence: `src/components/tasks` + `src/pages` targeted suite green, `npm run typecheck` clean,
 `npm run lint` (ESLint --max-warnings=0 + stylelint) clean. Rendered 390px getBoundingClientRect
 measurements recorded in the lane report.
+
+## Audit-fix rank closed + route seam landed (2026-07-22 early)
+
+- **R-T-4 route seam MERGED** (`01fceae` + harness fix `93903cf`): GLM-authored `4528fea` (949
+  insertions, 568 test lines) — historyDriver wired to react-router in the shell, URL markers,
+  browser-POP guarded transaction, openPage navigation, deep-link restore. Merge conflict in
+  app-shell.tsx resolved by union (Deputy coexistence + OverlayHostRoot). Post-merge shell suite
+  329/329. Note for the record: the GLM lane was working silently (pi parent idles at 0% CPU;
+  output buffers until exit) — killed mid-final-verify, work already committed. Liveness heuristic
+  corrected: judge lanes by worktree commits/mtime, never pi-parent CPU.
+- **Luna Tasks BLOCKs fixed + merged** (`320bebd`): Team-work chip + view=team plumbing removed and
+  the panel Team field un-rendered per §Task-11, with the exported `teamOwnershipField` seam for
+  Issue-8 re-enable (RATIFY line recorded); 390 fixes measured live — chips/tabs 44px, contained
+  chip-strip scroll (Follow-ups unclipped), View-&-filters phone disclosure (first card above the
+  fold), single creation door (FAB on phone). 849/849 task/page tests.
+- **Luna Signals/Home FIXes merged** (`8f3c72d`): Urgent re-toned to the warning/amber family per
+  DESIGN.md ("attention is warning/amber, never destructive/red") with a leading warning dot for
+  tier; signals routes joined the family-frame suppression registry (exactly one job sentence);
+  feed-card open affordance accessibly named (en+id); Home attention rows carry PIC + Team/BU meta;
+  the open-tasks KPI links to /work/tasks?view=my-work.
+- **Director dark-mode catch (`ed73e49`):** the later `:root` semantic block re-pinned
+  `--warning-foreground`, clobbering the `.dark` override (equal specificity, later-order wins) —
+  dark-mode attention pills rendered unreadable dark-on-dark. Fixed by deleting the redefinition;
+  verified live via HMR (text now display-p3 0.85/0.75/0.45); guard suites 135/135.
+- Both audit-fix lanes observed the killed-GLM "silent concurrent writer" pattern; in each case the
+  Claude lane verified and absorbed the coherent edits — trees green, single commits.
+
+Unblocked by the route seam (next rank): tasks/signals record opening through the host with real
+URLs; follow-up queue drawer door (I1); Inbox `pageTo`/promotion. Then: seeded-notification Inbox
+triage proof (Issue 9 acceptance), Issue 10 (owner ADR), Issue 12 closure + curated e2e, review
+battery + pre-merge gate + the owner's rendered three-width walkthrough.
