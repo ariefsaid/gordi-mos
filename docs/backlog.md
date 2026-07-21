@@ -4,7 +4,9 @@
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; Tasks live-engine adoption and the single production overlay-host mount are
-> in isolated NIM worktrees pending independent review. The exact active state and continuation
+> in isolated NIM worktrees pending independent review. Issue-12 cleanup has also removed the
+> unreachable legacy Sales and My Week page implementations rather than preserving their parallel
+> page-head/CSS grammar. The exact active state and continuation
 > order are in [`docs/agent-context.md`](agent-context.md); the governing delivery sequence remains
 > [`docs/specs/v3-redesign.spec.md`](specs/v3-redesign.spec.md) §12;
 > the deterministic proof is [`docs/reference/v3-storybook-matrix.md`](reference/v3-storybook-matrix.md)

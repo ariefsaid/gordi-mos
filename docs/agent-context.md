@@ -30,7 +30,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
 > **CURRENT WORKSTREAM (2026-07-21): V3 live application convergence**, branch `v3-redesign`,
-> local tip `0a23ceb` at this checkpoint; nothing has been pushed. E7 owns visual styling while the
+> local tip `eb32fd4` at this checkpoint; nothing has been pushed. E7 owns visual styling while the
 > composite owner oracle owns IA/IxD. Page-family migration now covers Home, catalog, Money, Café,
 > and Follow-ups in addition to the prior wave. Tasks and Signals share the visible collection
 > control grammar; the remaining load-bearing work is making live Tasks consume the engine and
@@ -40,9 +40,13 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `eb47a61` catalog frames; `f13c7a8` Home frame; `ef3314d` inventory composition; `15a9571` +
 > `a6fb3fe` + `60ecf24` + `73ed343` + `8266553` one ModalShell for confirmations, command,
 > Signal capture, assignment, Add Person, Role Editor, and show-once password reveal; `bce94fe` +
-> `0a23ceb` Follow-ups Workspace frame and shared labeled inputs. Modal/command/composer focused
+> `0a23ceb` Follow-ups Workspace frame and shared labeled inputs; `a83750f` + `eb32fd4` delete the
+> unreachable legacy Sales and My Week page implementations/tests while preserving `/sales` →
+> Money and the current Home/MyWeekPanel behavior. Modal/command/composer focused
 > battery: 136 tests green; follow-up/page-family/inventory batteries green; typecheck and changed
-> ESLint green. This is not yet the final full-suite/rendered acceptance gate.
+> ESLint green. Legacy-page cleanup: 1,313 deleted lines, route/cohesion 71/71, current Home/task
+> 70/70, inventory 10/10, typecheck/changed lint green. This is not yet the final full-suite/rendered
+> acceptance gate.
 >
 > **In flight in isolated worktrees (NIM provider, not GLM Coding Plan quota):**
 > `v3/task-live-migration` is migrating the real `TasksWorkspace` loader/projection onto

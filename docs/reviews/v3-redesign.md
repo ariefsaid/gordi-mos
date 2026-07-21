@@ -592,3 +592,12 @@ engine) and `v3/record-viewer-live` (one production shell overlay provider/slot)
 the sole local Supabase. Do not claim either complete until its process exits and the Director
 reviews and reruns its proof. Structured content correctly stopped at its hard dependency preflight;
 no orphan JSONB subsystem was started.
+
+Issue-12 stale-grammar cleanup then removed two unreachable page implementations that survived only
+as old-app source/test islands: `SalesDashboardPage` (the live `/sales` door already redirects
+directly to canonical Money) and `MyWeek` (no production route imported it; current Home composes the
+reused `MyWeekPanel` with retired cadence cards hidden). The shared reporting selectors/components,
+Home panel, and current behavioral coverage remain. Locking `RI-IA-9` fails if either retired page or
+its private page tests/CSS return. Evidence: route/cohesion 71/71, Home/MyTasks/cohesion 70/70,
+inventory 10/10 and 73 CSS families, typecheck and changed ESLint/Stylelint green. Commits `a83750f`
+and `eb32fd4`; 1,313 legacy lines deleted across the two checkpoints.
