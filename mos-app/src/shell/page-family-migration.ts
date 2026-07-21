@@ -42,6 +42,18 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
     symbol: 'ProfilePage',
   },
   {
+    path: '/work/objectives',
+    family: 'management',
+    sourceFile: 'src/components/catalog/catalog-manager.tsx',
+    symbol: 'CatalogManager',
+  },
+  {
+    path: '/work/projects',
+    family: 'management',
+    sourceFile: 'src/components/catalog/catalog-manager.tsx',
+    symbol: 'CatalogManager',
+  },
+  {
     path: '/events',
     family: 'workspace',
     sourceFile: 'src/pages/events-page.tsx',
@@ -137,8 +149,6 @@ export const ISSUE_3_DEFERRED_PAGE_ROUTES = [
   '/',
   '/money/follow-ups',
   '/work/follow-ups/:id',
-  '/work/objectives',
-  '/work/projects',
   '/work/signals',
   '/work/signals/:signalId',
   '/work/tasks/new',

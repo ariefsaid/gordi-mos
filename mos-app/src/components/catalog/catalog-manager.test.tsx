@@ -10,7 +10,7 @@ function setup(overrides: Partial<Parameters<typeof CatalogManager>[0]> = {}) {
   const rename = vi.fn().mockResolvedValue(undefined)
   const setArchived = vi.fn().mockResolvedValue(undefined)
   const props = {
-    title: 'Objectives', subtitle: 'sub', noun: 'objective',
+    title: 'Objectives', subtitle: 'sub', jobSentence: 'Track committed objectives.', noun: 'objective',
     load, create, rename, setArchived, ...overrides,
   }
   render(<CatalogManager {...props} />)

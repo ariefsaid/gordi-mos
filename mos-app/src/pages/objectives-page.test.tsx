@@ -83,11 +83,12 @@ describe('AC-406: ObjectivesPage down-trace (FR-422)', () => {
 })
 
 describe('Catalog-Manage archetype conformance (Wave 2: W2-1, W2-2)', () => {
-  it('W2-1: the frame is full-bleed — no 1080 prose cap', async () => {
+  it('V3: the catalog uses the shared Management family measure', async () => {
     const { container } = renderPage()
     await screen.findByText('Grow revenue')
-    const inner = container.querySelector('main > div') as HTMLElement
-    expect(inner.style.maxWidth).toBe('none')
+    const main = container.querySelector('main')
+    expect(main).toHaveAttribute('data-page-family', 'management')
+    expect(main?.querySelector(':scope > .page-frame__content')).toBeTruthy()
   })
 
   it('W2-1: the content head renders the count pill and the inline Add form still renders', async () => {

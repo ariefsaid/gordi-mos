@@ -4,6 +4,7 @@
 // an up-trace read (FR-422): each work_line shows its parent objective(s) + task count, inferred
 // from task linkage (work_lines has no objective_id column) over listTasks + listObjectivesAll.
 import { useEffect, useState } from 'react'
+import { useT } from '@/i18n/use-t'
 import { CatalogManager, type CatalogItem, type CatalogTrace } from '@/components/catalog/catalog-manager'
 import {
   listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
@@ -67,11 +68,13 @@ function useWorkLineUpTrace(): (item: CatalogItem) => CatalogTrace | undefined {
 }
 
 export function ProjectsProcessesPage() {
+  const t = useT()
   const traceFor = useWorkLineUpTrace()
   return (
     <CatalogManager
       title="Projects & Processes"
       subtitle="The work-systems that move goals. Managed by ops leads and admins."
+      jobSentence={t('job.projects')}
       noun="project / process"
       nounPlural="projects & processes"
       load={async () =>

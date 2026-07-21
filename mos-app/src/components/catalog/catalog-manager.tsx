@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useId } from 'react'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
@@ -34,6 +33,7 @@ export interface CatalogTrace {
 export interface CatalogManagerProps {
   title: string
   subtitle: string
+  jobSentence: string
   /** Singular lower-case noun for copy, e.g. "objective". */
   noun: string
   /** Plural form for list/empty/error copy (naive +s is wrong for "project / process"). */
@@ -50,7 +50,7 @@ export interface CatalogManagerProps {
 type LoadState = 'loading' | 'loaded' | 'error'
 
 export function CatalogManager({
-  title, subtitle, noun, nounPlural, load, create, rename, setArchived, typeField, traceFor,
+  title, subtitle, jobSentence, noun, nounPlural, load, create, rename, setArchived, typeField, traceFor,
 }: CatalogManagerProps) {
   const plural = nounPlural ?? `${noun}s`
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -146,15 +146,16 @@ export function CatalogManager({
   const archived = items.filter((i) => i.archived_at != null)
 
   return (
-    <PageFrame variant="data">
+    <PageFamilyFrame
+      family="management"
+      title={title}
+      jobSentence={jobSentence}
+      count={loadState === 'loaded' ? active.length : null}
+      meta={<span>{subtitle}</span>}
+      state={loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : items.length === 0 ? 'empty' : adding || savingId ? 'saving' : addError || editError ? 'validation' : 'default'}
+    >
       {/* Catalog-Manage archetype (State-Kit Rule): the inline Add form below IS the one
           create affordance — the head carries NO `action` (no duplicate create CTA). */}
-      <PageHead
-        variant="content"
-        title={title}
-        count={loadState === 'loaded' ? active.length : null}
-        meta={<span>{subtitle}</span>}
-      />
 
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 
@@ -270,6 +271,6 @@ export function CatalogManager({
           </>
         )
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

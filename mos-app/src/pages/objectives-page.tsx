@@ -3,6 +3,7 @@
 // down-trace read (FR-422): each objective shows its child work_lines + the non-archived task count
 // per work_line, computed over listTasks + listWorkLinesAll (no schema change — NFR-404 reuse).
 import { useEffect, useState } from 'react'
+import { useT } from '@/i18n/use-t'
 import { CatalogManager, type CatalogItem, type CatalogTrace } from '@/components/catalog/catalog-manager'
 import {
   listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
@@ -53,11 +54,13 @@ function useObjectiveDownTrace(): (item: CatalogItem) => CatalogTrace | undefine
 }
 
 export function ObjectivesPage() {
+  const t = useT()
   const traceFor = useObjectiveDownTrace()
   return (
     <CatalogManager
       title="Objectives"
       subtitle="Yearly goals that work rolls up to. Admin-managed."
+      jobSentence={t('job.objectives')}
       noun="objective"
       load={listObjectivesAll}
       create={(name) => createObjective(name)}

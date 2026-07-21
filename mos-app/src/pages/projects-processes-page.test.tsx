@@ -90,11 +90,12 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
 })
 
 describe('Catalog-Manage archetype conformance (Wave 2: W2-1)', () => {
-  it('W2-1: the typed-field surface shares the full-bleed data frame (no 1080 cap)', async () => {
+  it('V3: the typed-field surface uses the shared Management family measure', async () => {
     vi.mocked(listTasks).mockResolvedValue([])
     const { container } = renderPage()
     await screen.findByText('Menu launch')
-    const inner = container.querySelector('main > div') as HTMLElement
-    expect(inner.style.maxWidth).toBe('none')
+    const main = container.querySelector('main')
+    expect(main).toHaveAttribute('data-page-family', 'management')
+    expect(main?.querySelector(':scope > .page-frame__content')).toBeTruthy()
   })
 })
