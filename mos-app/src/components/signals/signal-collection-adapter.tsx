@@ -442,7 +442,7 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
         sortKeys: ['sort'],
         groupKeys: ['groupBy'],
         savedViews: true,
-        selection: true,
+        selection: false,
         recordOpening: true,
         bulkActions: [],
       },
