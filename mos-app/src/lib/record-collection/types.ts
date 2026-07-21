@@ -165,6 +165,13 @@ export interface RecordCollectionDescriptor<
     >
   >>
   load(args: { query: TQuery; viewerId: string | null }): Promise<CollectionData<TRecord, TContext>>
+  /**
+   * The query keys whose change requires a fresh `load()`. When omitted, EVERY `setQuery` reloads
+   * (the conservative default). A descriptor that filters/sorts/groups purely client-side in
+   * `project()` declares only its genuine server dependencies here, so a filter/sort/view change
+   * reprojects the existing snapshot instead of refetching the whole dataset (and its lookup tables).
+   */
+  readonly loadKeys?: readonly QueryKey<TQuery>[]
   project(
     data: CollectionData<TRecord, TContext>,
     query: TQuery,

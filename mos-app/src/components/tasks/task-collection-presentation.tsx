@@ -25,7 +25,6 @@ import { TaskRow } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
 import { DueRunsTrigger } from '@/components/processes/due-runs-trigger'
-import { DueRunsList } from '@/components/processes/due-runs-list'
 import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import type {
   CollectionPresentationProps,
@@ -272,8 +271,8 @@ function buildWorkloadSummary(
   leafTasks: readonly TaskListRow[],
   context: TaskCollectionContext,
 ): WorkloadSummary | null {
-  if (query.groupBy !== 'workline' || !query.picId) return null
-  const person = context.people.find((candidate) => candidate.id === query.picId)
+  if (query.groupBy !== 'workline' || !query.personId) return null
+  const person = context.people.find((candidate) => candidate.id === query.personId)
   if (!person) return null
   const projectIds = new Set<string>()
   const dailyIds = new Set<string>()
@@ -289,7 +288,7 @@ function buildWorkloadSummary(
     if (type === 'process') dailyIds.add(task.work_line_id)
   }
   return {
-    isSelf: query.picId === context.viewerId,
+    isSelf: query.personId === context.viewerId,
     firstName: person.full_name.split(' ')[0] ?? person.full_name,
     projectCount: projectIds.size,
     dailyCount: dailyIds.size,
@@ -512,13 +511,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         createHref={runtime.createHref}
         onAssignPending={runtime.canResolvePending ? occurrence.open : undefined}
         provenanceByTaskDefId={new Map(context.provenanceByTaskDefId)}
-      />
-      <DueRunsList
-        due={runtime.dueRuns.due}
-        expanded={runtime.dueRuns.expanded}
-        startingKey={runtime.dueRuns.startingKey}
-        startError={runtime.dueRuns.startError}
-        onStart={runtime.dueRuns.handleStart}
       />
       {occurrence.runId && (
         <OccurrenceAssignDialog

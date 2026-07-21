@@ -12,6 +12,7 @@ import type { PageFamilyState } from '@/shell/page-families'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { useDueRuns } from '@/components/processes/use-due-runs'
+import { DueRunsList } from '@/components/processes/due-runs-list'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 import { TasksToolbar } from './tasks-toolbar'
@@ -184,7 +185,7 @@ export function TasksWorkspace({
   }, [currentSearch, navigate])
   const onClearFilters = useCallback(() => {
     setQuery({
-      q: '', businessUnitId: null, status: null, picId: null, supervisorId: null,
+      q: '', businessUnitId: null, status: null, picId: null, supervisorId: null, personId: null,
       overdueOnly: false, includeArchived: false, view: query.view === 'overdue' ? 'all' : query.view,
     })
   }, [query.view, setQuery])
@@ -333,6 +334,16 @@ export function TasksWorkspace({
               }}
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
+            />
+            {/* The due-runs list renders AFTER the surface (table stays first content) and, unlike
+                the presentation, on EVERY state — a capable viewer with due work but zero tasks yet
+                must still be able to expand and start a run. */}
+            <DueRunsList
+              due={dueRuns.due}
+              expanded={dueRuns.expanded}
+              startingKey={dueRuns.startingKey}
+              startError={dueRuns.startError}
+              onStart={dueRuns.handleStart}
             />
           </TaskCollectionRuntimeProvider>
         </section>

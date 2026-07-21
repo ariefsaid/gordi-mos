@@ -67,6 +67,20 @@ export interface RecordCollectionController<
   archiveSavedView(id: string): Promise<void>
 }
 
+/**
+ * Whether a `setQuery` must trigger a fresh load. Absent an explicit `loadKeys` allow-list the
+ * engine reloads on any change (conservative default); otherwise it reloads only when one of the
+ * declared server-dependency keys actually changed value.
+ */
+function loadKeysChanged<TQuery extends object>(
+  loadKeys: readonly Extract<keyof TQuery, string>[] | undefined,
+  previous: TQuery,
+  next: TQuery,
+): boolean {
+  if (!loadKeys) return true
+  return loadKeys.some((key) => previous[key] !== next[key])
+}
+
 function deriveStatus<TAction extends string>(
   access: CollectionAccess<TAction>,
   projection: CollectionProjection<unknown, unknown> | null,
@@ -206,9 +220,15 @@ export function createRecordCollectionController<
       overlayHost = host
     },
     setQuery(next) {
-      set({ query: descriptor.query.normalize(next), queryIssues: [] })
+      const previous = state.query
+      const normalized = descriptor.query.normalize(next)
+      set({ query: normalized, queryIssues: [] })
       reproject()
-      runLoad(true)
+      // Only re-fetch when a genuine server dependency changed. A descriptor that does its
+      // filtering/sorting/grouping client-side in `project()` (declaring its real `loadKeys`) can
+      // reproject the existing snapshot on a filter/sort/view change without refetching the dataset
+      // and its lookup tables. Absent `loadKeys`, every change reloads (conservative default).
+      if (loadKeysChanged(descriptor.loadKeys, previous, normalized)) runLoad(true)
     },
     switchPresentation(next) {
       const result = checkPresentationCompatibility<TQuery, TPresentation>({
