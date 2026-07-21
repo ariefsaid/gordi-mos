@@ -53,8 +53,8 @@ Read these in order on a cold start:
 
 ## Current branch state
 
-Target branch: `v3-redesign`, local only, current tip `9e2a8d1` (`test(v3): remove overlay test
-whitespace drift`). The branch includes the prior page-family/collection/modal/legacy-page
+Target branch: `v3-redesign`, local only, current tip `70deafc` (`docs(v3): record overlay host
+verification`). The branch includes the prior page-family/collection/modal/legacy-page
 cleanup wave through `9695fd2`, the independently reviewed auth migration `93555ac`, and this
 handoff. Nothing has been pushed, merged, or deployed.
 

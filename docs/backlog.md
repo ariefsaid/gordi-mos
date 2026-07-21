@@ -1,6 +1,6 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign` (tip `9e2a8d1`).**
+> **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign` (tip `70deafc`).**
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.
