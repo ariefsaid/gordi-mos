@@ -10,6 +10,7 @@ import { PageHead } from './page-head'
 export interface PageFamilyFrameProps {
   family: PageFamily
   title: string
+  subtitle?: string
   jobSentence: string
   count?: number | null
   meta?: ReactNode
@@ -22,6 +23,7 @@ export interface PageFamilyFrameProps {
 export function PageFamilyFrame({
   family,
   title,
+  subtitle,
   jobSentence,
   count,
   meta,
@@ -43,6 +45,7 @@ export function PageFamilyFrame({
         family={family}
         variant={contract.headVariant}
         title={title}
+        subtitle={subtitle}
         jobSentence={jobSentence}
         count={count}
         meta={meta}

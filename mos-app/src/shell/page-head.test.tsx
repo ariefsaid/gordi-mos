@@ -43,6 +43,14 @@ describe('PageHead — shared header invariant (RI-IA-1)', () => {
 })
 
 describe('PageHead — content-header variant (mockup chrome)', () => {
+  it('preserves the E7 orientation subtitle as a full-width secondary line', () => {
+    const { container } = render(
+      <PageHead variant="content" title="Good afternoon, Arief" subtitle="Director" />,
+    )
+    expect(screen.getByText('Director')).toBeInTheDocument()
+    expect(container.querySelector('.ch-subtitle')).toHaveTextContent('Director')
+  })
+
   it('renders the page-head testid + an h1 title (RI-IA-1 holds in content variant)', () => {
     render(<PageHead variant="content" title="Tasks" count={42} />)
     expect(screen.getByTestId('page-head')).toBeInTheDocument()

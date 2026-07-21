@@ -36,6 +36,12 @@ export const ISSUE_3_REPRESENTATIVE_ROUTES: readonly PageFamilyMigrationEntry[] 
  */
 export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
   {
+    path: '/',
+    family: 'workspace',
+    sourceFile: 'src/pages/home-page.tsx',
+    symbol: 'HomePage',
+  },
+  {
     path: '/profile',
     family: 'management',
     sourceFile: 'src/pages/profile-page.tsx',
@@ -146,7 +152,6 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
 ]
 
 export const ISSUE_3_DEFERRED_PAGE_ROUTES = [
-  '/',
   '/money/follow-ups',
   '/work/follow-ups/:id',
   '/work/signals',

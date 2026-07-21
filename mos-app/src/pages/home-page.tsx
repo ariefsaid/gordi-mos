@@ -24,8 +24,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -198,23 +197,24 @@ export function HomePage() {
   )
 
   return (
-    <PageFrame surfaceWash>
+    <PageFamilyFrame
+      family="workspace"
+      surfaceWash
+      title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
+      subtitle={viewer && viewer.roles.length > 0
+        ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
+        : t('home.subtitle')}
+      jobSentence={t('job.home')}
+      meta={
+        order === 'personal-first' && personId ? (
+          <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n })}</a>
+        ) : undefined
+      }
+    >
       {/* e7 TRANSPLANT (e7-views.js:143, ported not re-interpreted): head = personal greeting,
           subtitle = role identity — the warmth the build lost (parity finding R1). Only
           adaptation: a live clock picks the greeting (WIB); e7's static mock froze "morning".
           Falls back to the generic head when unauthenticated (e7 has no such state). */}
-      <PageHead
-        title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
-        subtitle={viewer && viewer.roles.length > 0
-          ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
-          : t('home.subtitle')}
-        meta={
-          order === 'personal-first' && personId ? (
-            <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n })}</a>
-          ) : undefined
-        }
-      />
-
       {/* Home order toggle (OD-REDESIGN-18, RATIFY-2) — user-only; not rendered until a viewer
           is resolved (FR-508). Never removes the attention region, only reorders it. At ≤390px
           (RI-2, Q2/Rule 8, ratified Option B) it folds behind a single compact "View options"
@@ -244,6 +244,6 @@ export function HomePage() {
       <div className="home-regions" data-region-order={order}>
         {order === 'attention-first' ? [attentionRegion, personalCanvasRegion] : [personalCanvasRegion, attentionRegion]}
       </div>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

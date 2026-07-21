@@ -4769,13 +4769,13 @@
       "family": "shell/page-head",
       "scope": "shell",
       "literalKinds": {
-        "font-size": 5,
-        "line-height": 3,
+        "font-size": 6,
+        "line-height": 4,
         "padding": 1,
-        "margin": 3,
+        "margin": 4,
         "gap": 3,
         "width": 2,
-        "height": 4
+        "height": 5
       },
       "breakpoints": [
         "@media (max-width: 767.98px)"
@@ -4899,13 +4899,13 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 345,
-      "line-height": 38,
+      "font-size": 346,
+      "line-height": 39,
       "padding": 279,
-      "margin": 80,
+      "margin": 81,
       "gap": 219,
       "width": 332,
-      "height": 256
+      "height": 257
     },
     "examples": {
       "font-size": [

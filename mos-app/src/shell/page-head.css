@@ -57,9 +57,17 @@
   flex-wrap: wrap;
 }
 
-.page-head--v3 .page-head-job {
+.content-header .ch-subtitle {
   flex: 0 0 100%;
   margin: -4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.page-head--v3 .page-head-job {
+  flex: 0 0 100%;
+  margin: 0;
   color: var(--muted-foreground);
   font-size: 14px;
   line-height: 1.45;

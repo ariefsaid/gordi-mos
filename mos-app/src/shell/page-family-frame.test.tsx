@@ -20,6 +20,7 @@ describe('PageFamilyFrame — V3 page-family contract', () => {
       <PageFamilyFrame
         family="workspace"
         title="Tasks"
+        subtitle="Roastery Team"
         jobSentence={jobSentence}
       >
         <section data-testid="typed-task-body">Task rows</section>
@@ -33,6 +34,7 @@ describe('PageFamilyFrame — V3 page-family contract', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument()
     expect(screen.getByText(jobSentence)).toBeInTheDocument()
+    expect(screen.getByText('Roastery Team')).toBeInTheDocument()
     expect(screen.getByTestId('typed-task-body')).toHaveTextContent('Task rows')
 
     for (const internalFamilyName of ['Workspace', 'Focused record', 'Management']) {

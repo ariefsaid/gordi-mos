@@ -66,6 +66,7 @@ export function PageHead({
         {/* Overdue/blocked subtotals + clearable filter chips ride beside the pill */}
         {meta && <span className="ch-meta">{meta}</span>}
         {action && <span className="ch-action">{action}</span>}
+        {subtitle && <p className="ch-subtitle">{subtitle}</p>}
         {jobSentence && <p className="page-head-job">{jobSentence}</p>}
       </div>
     )
