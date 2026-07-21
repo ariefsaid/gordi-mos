@@ -74,7 +74,7 @@ Read these in order on a cold start:
 
 ## Current branch state
 
-Target branch: `v3-redesign`, local only, implementation checkpoint `15924dc` plus subsequent
+Target branch: `v3-redesign`, local only, implementation checkpoint `3250aa8` plus subsequent
 documentation state commits. The branch includes the prior page-family/collection/modal/legacy-page
 cleanup wave through `9695fd2`, the independently reviewed auth migration `93555ac`, and this
 handoff. Nothing has been pushed, merged, or deployed.
@@ -90,6 +90,13 @@ ESLint, Stylelint, `git diff --check`, and the 10-test RecordCollection conforma
 The worker's docs edits were intentionally not taken during cherry-pick because this handoff and
 ledger are the newer canonical state; the evidence is recorded here instead. RecordViewer opening,
 Inbox/Deputy host consumers, and rendered three-width acceptance remain open.
+
+Signal collection convergence is landed at `5ab6a51` plus integration correction `3250aa8` (source
+`30e816f`). The production Signal collection now visibly renders controlled grouping/collapse,
+uses the injected opener while preserving collection query state, removes phantom selection and
+misleading ambient Create Task actions, and separates archive workspace from direct focused-record
+page family. Independent integrated proof: 56 focused Signal tests, typecheck, ESLint, Stylelint,
+and `git diff --check` pass. Rendered owner review remains part of the final representative gate.
 
 Auth control grammar is landed at `93555ac` (source commit `c4bf105`):
 
@@ -126,7 +133,7 @@ after its process exits.
 | Lane | Substrate | Worktree / branch | Current state | Dependency / review rule |
 |---|---|---|---|---|
 | Overlay host | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-record-viewer-live` / `v3/record-viewer-live` | Complete; cherry-picked as `9e2a8d1` and independently verified | Host is landed; consumer RecordViewer/Inbox/Deputy migrations remain separate |
-| Signal collection | NIM Nemotron 3 Ultra 550B → Luna xhigh verifier | `.claude/worktrees/v3-signals-frame` / `v3/signals-frame`; verifier thread `019f843e-6dd0-76d0-b4f0-9bed74b4b2d3` | Active; provider-interrupted WIP is checkpointed and under bounded review | Must prove real grouping headers/collapse, opener/query preservation, no phantom selection, archive-vs-focused page families; do not accept adapter-only tests |
+| Signal collection | NIM Nemotron 3 Ultra 550B → Luna xhigh verifier | `.claude/worktrees/v3-signals-frame` / `v3/signals-frame`; verifier thread `019f843e-6dd0-76d0-b4f0-9bed74b4b2d3` | Complete at source `30e816f`; integrated as `5ab6a51` + `3250aa8`; independently verified | 56 focused tests, typecheck/lint/style/diff green; final rendered owner review remains in Issue 9 |
 | Tasks live collection | Luna xhigh | Source thread `019f8423-d2c9-7523-88cc-c470c2597a3e` | Complete at `542002b`; cherry-picked as `15924dc`, independently verified | Production `TasksWorkspace` uses one typed collection loader/projection and `RecordCollectionSurface`; RecordViewer remains separate |
 | Home / People / More | Luna xhigh | Worktree `/Users/ariefsaid/.codex/worktrees/aaca/gordi-mos`; thread `019f844c-a942-7c12-992f-ae86618cfc88` | Active; owner-fast-path implementation | Must fix Home retry/projection duplication, People ViewTabs keyboard behavior, More focus return, and visible legacy `/tasks` links; no RecordViewer/Signal/Inbox/Café scope |
 | Auth controls | Luna xhigh | Codex worktree from `v3/auth-control-grammar` (thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d`) | Complete; source commit `c4bf105` cherry-picked as `93555ac` | Already independently re-verified; do not duplicate |
@@ -138,7 +145,7 @@ RecordViewer, and Home/People/More worker results, then owning the remaining cro
 
 | Owner | Claimed work | Acceptance handoff |
 |---|---|---|
-| Signal worker | Signal collection grouping/collapse, opener/query preservation, dead selection/Create Task removal, archive-vs-focused page family | Director focused tests, typecheck/lint/diff, then rendered review |
+| Signal worker | **Complete** — integrated `5ab6a51` + `3250aa8`; grouping/collapse, opener/query preservation, dead selection/Create Task removal, archive-vs-focused page family | Director independently reran 56 focused tests, typecheck/lint/style/diff; rendered review remains Issue 9 |
 | RecordViewer worker | Task/Signal viewer bridge, drawer-first host opening, focus return, canonical page parity | Director focused tests, typed adapter inspection, then rendered review |
 | Home/People/More worker | Retry callback, shared Tasks projection direction, ViewTabs keyboard contract, mobile More focus, canonical links | Director focused tests, keyboard journey, then rendered review |
 | Director | Integration/review of all three lanes; representative gate; final docs and owner walkthrough | No push/merge/deploy until the owner sees the rendered representative slice |
@@ -234,8 +241,8 @@ Proxy checks include standalone InboxTriage tests while production renders Inbox
 
 ## Dependency-ordered next work
 
-1. Review and cherry-pick the exiting Signal collection lane independently. Run focused tests,
-   typecheck/lint/style, and inspect the actual rendered/keyboard contracts.
+1. Treat Signal collection convergence as complete at the bounded code/keyboard proof recorded
+   above; final rendered owner review remains Issue 9 work.
 2. Treat the Tasks live collection migration as complete only at the bounded unit/conformance
    layer proven above; rendered owner acceptance and RecordViewer opening remain separate.
 3. Migrate Task and Signal record opening to the shared RecordViewer only after the host and live

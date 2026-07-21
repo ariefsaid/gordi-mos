@@ -1,13 +1,13 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
 > **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign`; implementation
-> checkpoint `15924dc` plus documentation state commits, all local and unpushed.**
+> checkpoint `3250aa8` plus documentation state commits, all local and unpushed.**
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.
 > Tasks live-engine adoption is now integrated and independently re-verified at `15924dc`; Signal
-> collection correctness and Home/People/More interaction cleanup are delegated to isolated Luna
-> lanes for independent review. The single production overlay-host mount is integrated and
+> collection convergence is integrated and independently re-verified at `5ab6a51` + `3250aa8`. Home/
+> People/More interaction cleanup remains preserved WIP for the next agent. The single production overlay-host mount is integrated and
 > independently verified. The Director claims integration/review plus Inbox/Deputy, Follow-ups/Café,
 > geometry, and final rendered owner acceptance.
 > Issue-12 cleanup has also removed the

@@ -668,3 +668,14 @@ and does not weaken integration, security, schema, or final rendered gates.
   Follow-ups/Café, geometry/legacy cleanup, representative rendered gate, and owner walkthrough.
 
 No lane may claim another lane's acceptance, use Supabase, or fan out broad/full browser suites.
+
+### Signal collection convergence — independently verified (2026-07-21)
+
+Source `30e816f` was independently reviewed and integrated as `5ab6a51`; the missing descriptor
+capability correction was applied as `3250aa8`. Signal collection now has controlled group
+headers/collapse, injected record opening with query preservation, no phantom selection capability,
+no misleading ambient Create Task action, and workspace-vs-focused page-family separation.
+
+Evidence on the integrated branch: 56 focused Signal tests, typecheck, ESLint, Stylelint, and
+`git diff --check` pass. The final rendered owner-eye judgment remains owned by Issue 9 and is not
+claimed by this bounded implementation checkpoint.

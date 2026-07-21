@@ -31,7 +31,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
 > **CURRENT WORKSTREAM (2026-07-21): V3 live application convergence**, branch `v3-redesign`,
-> local implementation checkpoint `15924dc` plus subsequent documentation state commits; nothing has
+> local implementation checkpoint `3250aa8` plus subsequent documentation state commits; nothing has
 > been pushed. The durable goal, audit ledger,
 > provider failures, active worker/thread map, and exact next dependencies are in
 > [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](reviews/v3-redesign-convergence-handoff-2026-07-21.md).
@@ -39,7 +39,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > composite owner oracle owns IA/IxD. Page-family migration now covers Home, catalog, Money, Café,
 > and Follow-ups in addition to the prior wave. Tasks and Signals share the visible collection
 > control grammar; live Tasks now consume the engine at `15924dc`, while Signal collection
-> correctness remains under independent review. The production overlay host is mounted before
+> convergence is integrated at `5ab6a51` + `3250aa8`. The production overlay host is mounted before
 > Task/Signal records move onto RecordViewer.
 >
 > **New local checkpoints after `d85126f`:** `2351e26` Café frames; `cb2d239` Money frames;
@@ -58,9 +58,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > The production overlay host is now integrated and independently verified at `9e2a8d1` (36 focused
 > shell/overlay tests, typecheck, ESLint, Stylelint, diff clean). Live Tasks collection migration is
 > integrated and independently re-verified at `15924dc` (70 focused tests, typecheck, ESLint,
-> Stylelint, conformance guard, diff clean). `v3/signals-frame` (NIM Nemotron) is fixing real Signal
-> grouping/opening/selection/page-family behavior; Luna verifier thread `019f843e-6dd0-76d0-b4f0-9bed74b4b2d3`
-> is reviewing its provider-interrupted checkpoint. Luna thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d` landed
+> Stylelint, conformance guard, diff clean). Signal grouping/opening/selection/page-family behavior
+> is integrated at `5ab6a51` + `3250aa8`; Luna thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d` landed
 > auth controls as `93555ac`. Luna thread `019f844c-a942-7c12-992f-ae86618cfc88` now owns the
 > bounded Home/People/More interaction slice. All active work must be independently reviewed before
 > cherry-pick.
@@ -68,8 +67,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > fan-out, and inspect redirected logs only once after a process exits. The full active map and failed
 > provider attempts are recorded in the convergence handoff.
 >
-> **Next action:** finish and independently verify Signal, RecordViewer, and Home/People/More in
-> their claimed lanes; I (Director) then own Inbox/Deputy, Follow-ups/Café, geometry, and final
+> **Next action:** the next agent resumes the preserved RecordViewer and Home/People/More WIP; I
+> (Director) then own Inbox/Deputy, Follow-ups/Café, geometry, and final
 > three-width acceptance in the dependency order in the
 > convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host
 > dependencies and Issues 7–9 are actually complete.
