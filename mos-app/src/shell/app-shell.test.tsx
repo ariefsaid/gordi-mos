@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
@@ -38,6 +38,8 @@ import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
 import { AppShell } from './app-shell'
+import { useOverlayHost } from './overlay-host'
+import { readOverlayMarker } from './overlay-navigation'
 
 // AC-T01/T03 (plan §4.4): the shell renders a tabbar grid row + <BottomTabBar/>
 // only at narrow viewport. Real matchMedia-backed useIsNarrow is exercised by
@@ -295,5 +297,153 @@ describe('AC-V3-Overlay: production shell overlay host mount', () => {
     const overlayHostElements = document.querySelectorAll('[data-overlay-host="true"]')
     expect(overlayHostElements).toHaveLength(0) // initially closed
     // The actual open test will work once the provider is mounted
+  })
+})
+
+// R-T-4 route seam: the production shell wires OverlayHostProvider to react-router so a route
+// session pushes a serializable __mosOverlay marker into the browser URL, and a guarded
+// openPage lands on the canonical page. This is the end-to-end wiring proof (the controller's
+// own contract is proven in overlay-host.test.tsx with an injected driver).
+describe('R-T-4 route seam: production shell wires the overlay host to react-router', () => {
+  function OverlayOpener({ owner = 'shell' }: { owner?: 'shell' }) {
+    const api = useOverlayHost()
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          void api.openRoot(
+            {
+              key: 'record:1',
+              owner,
+              tenant: 'record',
+              label: 'Record 1',
+              pageTo: '/work/tasks/1',
+              content: <div>record body</div>,
+            },
+            'route',
+          )
+        }
+      >
+        open record
+      </button>
+    )
+  }
+
+  function renderShellWithRouter(path = '/') {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: '40000000-0000-0000-0000-000000000001',
+          org_id: '10000000-0000-0000-0000-000000000001',
+          user_id: 'auth-user-001',
+          full_name: 'Cahya Cafe',
+          email: 'cahya@gordi.id',
+          archived_at: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        roles: [],
+        isManager: false,
+        accessRoles: [],
+      },
+      signOut: vi.fn(),
+    })
+    const router = createMemoryRouter(
+      [{ path: '/', element: <AppShell />, children: [{ index: true, element: <OverlayOpener /> }] }],
+      { initialEntries: [path] },
+    )
+    return { router, ...render(<I18nProvider><RouterProvider router={router} /></I18nProvider>) }
+  }
+
+  it('R-T-4: opening a route session through the wired shell pushes a __mosOverlay marker into the URL', async () => {
+    const { router } = renderShellWithRouter()
+    fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+    await waitFor(() => {
+      const marker = readOverlayMarker(router.state.location.state)
+      expect(marker).not.toBeNull()
+      expect(marker?.entryKey).toBe('record:1')
+      expect(marker?.mode).toBe('route')
+    })
+    // Exactly one physical host renders in the shell slot.
+    expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(1)
+  })
+
+  it('R-T-4: openPage from the wired shell navigates to the canonical page URL', async () => {
+    function OpenerWithPage() {
+      const api = useOverlayHost()
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() =>
+              void api.openRoot(
+                {
+                  key: 'record:1',
+                  owner: 'shell',
+                  tenant: 'record',
+                  label: 'Record 1',
+                  pageTo: '/work/tasks/1',
+                  content: <div>record body</div>,
+                },
+                'route',
+              )
+            }
+          >
+            open record
+          </button>
+          <button type="button" onClick={() => void api.openPage('/work/tasks/1')}>
+            go full page
+          </button>
+        </>
+      )
+    }
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: '40000000-0000-0000-0000-000000000001',
+          org_id: '10000000-0000-0000-0000-000000000001',
+          user_id: 'auth-user-001',
+          full_name: 'Cahya Cafe',
+          email: 'cahya@gordi.id',
+          archived_at: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        roles: [],
+        isManager: false,
+        accessRoles: [],
+      },
+      signOut: vi.fn(),
+    })
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppShell />,
+          children: [
+            { index: true, element: <OpenerWithPage /> },
+            { path: 'work/tasks/1', element: <div role="main">task page</div> },
+          ],
+        },
+      ],
+      { initialEntries: ['/'] },
+    )
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+    })
+    await waitFor(() => expect(readOverlayMarker(router.state.location.state)).not.toBeNull())
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'go full page' }))
+    })
+    await waitFor(() => {
+      expect(router.state.location.pathname + router.state.location.search).toBe('/work/tasks/1')
+    })
+    // The page URL carries no overlay marker.
+    expect(readOverlayMarker(router.state.location.state)).toBeNull()
   })
 })

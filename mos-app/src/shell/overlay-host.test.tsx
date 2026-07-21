@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import {
   OverlayHostProvider,
@@ -8,7 +8,10 @@ import {
   useOverlayHost,
   type OverlayEntry,
   type OverlayHostApi,
+  type OverlayDeepLinkResolver,
+  type OverlayHistoryDriver,
 } from './overlay-host'
+import { readOverlayMarker, type OverlayHistoryMarker } from './overlay-navigation'
 import type {
   OverlayLeaveDecision,
   OverlayLeaveGuard,
@@ -328,5 +331,414 @@ describe('overlay host — clean transitions (Task 3 step 4 replacement + stack)
     await act(() => getApi().replaceRoot(makeEntry({ key: 'quick:1', tenant: 'quick' })))
     expect(getApi().session?.mode).toBe('ephemeral')
     expect(getApi().session?.frames.at(-1)?.entry.key).toBe('quick:1')
+  })
+})
+
+// ── ROUTE SEAM (R-T-4): URL markers, openPage navigation, browser POP transaction,
+//    deep-link restore, approval-token single-use. These use createMemoryRouter +
+//    RouterProvider so the controller's useLocation/useNavigationType observe real POPs,
+//    and an injected OverlayHistoryDriver whose `go` drives the router. ───────────────
+function makeRouterHarness(options: {
+  historyDriver?: OverlayHistoryDriver
+  deepLinkResolver?: OverlayDeepLinkResolver
+  initialEntries?: (string | { pathname: string; state?: unknown })[]
+  initialIndex?: number
+}) {
+  let api!: OverlayHostApi
+  const probe = (
+    <OverlayHostProvider
+      historyDriver={options.historyDriver}
+      deepLinkResolver={options.deepLinkResolver}
+    >
+      <ApiProbe onReady={(value) => {
+        api = value
+      }} />
+    </OverlayHostProvider>
+  )
+  const router = createMemoryRouter([{ path: '*', element: probe }], {
+    initialEntries: options.initialEntries ?? ['/work/tasks'],
+    initialIndex: options.initialIndex ?? 0,
+  })
+  const utils = render(<RouterProvider router={router} />)
+  return { ...utils, router, getApi: () => api }
+}
+
+// A driver whose `go` is wired to the router AFTER creation (router is built first). `index`
+// returns a monotonically increasing stamp so every pushed marker carries a distinct,
+// observable historyIndex (deny assertions compare the preserved marker).
+function wireDriver() {
+  let counter = 0
+  const goImpl: { current: (delta: number) => void } = { current: () => {} }
+  const driver: OverlayHistoryDriver = {
+    index: () => {
+      counter += 1
+      return counter
+    },
+    go: (delta: number) => goImpl.current(delta),
+  }
+  return { driver, connect: (router: ReturnType<typeof createMemoryRouter>) => {
+    goImpl.current = (delta) => router.navigate(delta)
+  } }
+}
+
+describe('overlay host — route seam (markers, openPage, deep-link)', () => {
+  it('R-T-4 / FR-V3-005: openRoot(route) pushes a __mosOverlay marker into the URL state', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    const marker = readOverlayMarker(router.state.location.state)
+    expect(marker).not.toBeNull()
+    expect(marker).toMatchObject({
+      sessionId: getApi().session?.id,
+      depth: 0,
+      entryKey: 'record:1',
+      mode: 'route',
+    })
+    expect(typeof marker?.historyIndex).toBe('number')
+  })
+
+  it('R-T-4 / FR-V3-005: a linked-record push pushes a deeper marker (depth follows the stack)', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    await act(() => getApi().push(makeEntry({ key: 'record:2' })))
+    expect(readOverlayMarker(router.state.location.state)?.depth).toBe(1)
+    expect(readOverlayMarker(router.state.location.state)?.entryKey).toBe('record:2')
+  })
+
+  it('R-T-4 / FR-V3-005: ephemeral open pushes NO marker (Deputy/quick have no canonical URL)', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'deputy:1', tenant: 'deputy' }), 'ephemeral'))
+    expect(readOverlayMarker(router.state.location.state)).toBeNull()
+    expect(getApi().session?.mode).toBe('ephemeral')
+  })
+
+  it('R-T-4: openPage navigates to the canonical page URL after a guarded leave commits', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() =>
+      getApi().openRoot(makeEntry({ key: 'record:1', pageTo: '/work/tasks/1' }), 'route'),
+    )
+    const result = await act(() => getApi().openPage('/work/tasks/1'))
+    expect(result).toEqual({ status: 'committed' })
+    expect(getApi().session).toBeNull()
+    expect(router.state.location.pathname + router.state.location.search).toBe('/work/tasks/1')
+    // The panel marker is cleared on page promotion.
+    expect(readOverlayMarker(router.state.location.state)).toBeNull()
+  })
+
+  it('R-T-4: openPage navigation still fires the guard when the entry is dirty, then navigates on allow', async () => {
+    const decision = deferred<OverlayLeaveDecision>()
+    const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() =>
+      getApi().openRoot(
+        makeEntry({ key: 'synthetic:draft', tenant: 'quick', pageTo: '/work/tasks/1', leaveGuard }),
+        'route',
+      ),
+    )
+    let pagePromise!: Promise<{ status: string }>
+    act(() => {
+      pagePromise = getApi().openPage('/work/tasks/1')
+    })
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalled())
+    expect(leaveGuard).toHaveBeenCalledWith(expect.objectContaining({ kind: 'open-page' }))
+    // Not navigated yet while the guard is pending.
+    expect(router.state.location.pathname).toBe('/work/tasks')
+
+    await act(async () => {
+      decision.resolve({ decision: 'allow' })
+      await pagePromise
+    })
+    expect(router.state.location.pathname + router.state.location.search).toBe('/work/tasks/1')
+    expect(getApi().session).toBeNull()
+  })
+
+  it('R-T-4 deep-link: arriving on a URL carrying an overlay marker opens the session via the resolver', async () => {
+    const marker: OverlayHistoryMarker = {
+      sessionId: 'deep-1',
+      depth: 0,
+      entryKey: 'record:deep',
+      mode: 'route',
+      historyIndex: 9,
+    }
+    const deepLinkResolver: OverlayDeepLinkResolver = (m) =>
+      makeEntry({ key: m.entryKey, owner: 'shell', label: 'Deep record' })
+    const { getApi } = makeRouterHarness({
+      deepLinkResolver,
+      initialEntries: [{ pathname: '/work/tasks', state: { __mosOverlay: marker } }],
+    })
+
+    await waitFor(() => expect(getApi().session).not.toBeNull())
+    expect(getApi().session?.id).toBe('deep-1')
+    expect(getApi().session?.mode).toBe('route')
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('record:deep')
+  })
+
+  it('R-T-4 deep-link: no resolver → marker is observed but no session is fabricated', async () => {
+    const marker: OverlayHistoryMarker = {
+      sessionId: 'deep-2',
+      depth: 0,
+      entryKey: 'record:x',
+      mode: 'route',
+      historyIndex: 1,
+    }
+    const { getApi } = makeRouterHarness({
+      initialEntries: [{ pathname: '/work/tasks', state: { __mosOverlay: marker } }],
+    })
+    // The seam reads the marker; without a tenant resolver it must not invent content.
+    expect(getApi().session).toBeNull()
+  })
+})
+
+describe('overlay host — browser POP transaction (clean + dirty)', () => {
+  it('R-T-4 clean Back: a browser Back re-syncs the session to the shallower marker depth', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    await act(() => getApi().push(makeEntry({ key: 'record:2' })))
+    expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual(['record:1', 'record:2'])
+    expect(readOverlayMarker(router.state.location.state)?.depth).toBe(1)
+
+    await act(() => router.navigate(-1)) // browser Back → depth-0 marker
+    expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual(['record:1'])
+    expect(readOverlayMarker(router.state.location.state)?.depth).toBe(0)
+  })
+
+  it('R-T-4 clean Forward: a matching Forward restores the cached frame (no lost history entry)', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    await act(() => getApi().push(makeEntry({ key: 'record:2' })))
+    await act(() => router.navigate(-1)) // Back → record:1
+    expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual(['record:1'])
+
+    await act(() => router.navigate(1)) // Forward → record:2 restored
+    expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual(['record:1', 'record:2'])
+  })
+
+  it('R-T-4 clean Back past root: a marker-free location closes the session', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))
+    expect(getApi().session).not.toBeNull()
+    await act(() => router.navigate(-1)) // Back past the root marker → collection
+    expect(getApi().session).toBeNull()
+    expect(readOverlayMarker(router.state.location.state)).toBeNull()
+  })
+
+  it('R-T-4 / FR-V3-012 dirty Back DENY: keeps the URL marker, the frame, and the focus; guard called once', async () => {
+    const decision = deferred<OverlayLeaveDecision>()
+    const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() =>
+      getApi().openRoot(
+        makeEntry({ key: 'synthetic:draft', tenant: 'quick', leaveGuard }),
+        'route',
+      ),
+    )
+    const markerBefore = readOverlayMarker(router.state.location.state)
+    expect(markerBefore).not.toBeNull()
+
+    // Focus the draft control so we can assert focus is retained on deny.
+    const draftControl = screen.getByRole('button', { name: 'synthetic:draft control' })
+    draftControl.focus()
+    expect(document.activeElement).toBe(draftControl)
+
+    await act(() => router.navigate(-1)) // browser Back → collection
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalled())
+    expect(leaveGuard).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'browser-pop', direction: 'back', delta: -1 }),
+    )
+
+    await act(async () => {
+      decision.resolve({ decision: 'deny' })
+    })
+    // URL + marker preserved (the dirty draft stays visible at its original history entry).
+    expect(readOverlayMarker(router.state.location.state)).toEqual(markerBefore)
+    expect(router.state.location.pathname + router.state.location.search).toBe('/work/tasks')
+    // Frame + session preserved.
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('synthetic:draft')
+    expect(screen.getByRole('button', { name: 'synthetic:draft control' })).toBeInTheDocument()
+    // The host did not steal focus away from the draft on denial.
+    expect(document.activeElement).toBe(draftControl)
+    // Single-use: the guard was consulted exactly once for this transition.
+    expect(leaveGuard).toHaveBeenCalledTimes(1)
+  })
+
+  it('R-T-4 / FR-V3-012 dirty Back ALLOW: commits the session change and lands on the target', async () => {
+    const decision = deferred<OverlayLeaveDecision>()
+    const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() =>
+      getApi().openRoot(
+        makeEntry({ key: 'synthetic:draft', tenant: 'quick', leaveGuard }),
+        'route',
+      ),
+    )
+    await act(() => router.navigate(-1)) // browser Back
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalled())
+
+    await act(async () => {
+      decision.resolve({ decision: 'allow' })
+    })
+    // Allow commits the close and the URL lands on the marker-free collection.
+    expect(getApi().session).toBeNull()
+    expect(readOverlayMarker(router.state.location.state)).toBeNull()
+  })
+
+  it('R-T-4 / FR-V3-012 dirty Back DENY then explicit Close: re-guards (approval token is one-use)', async () => {
+    const decision1 = deferred<OverlayLeaveDecision>()
+    const decision2 = deferred<OverlayLeaveDecision>()
+    const seen: string[] = []
+    // A queue of in-flight decisions so the implementation (seen.push) ALWAYS runs —
+    // mockReturnValueOnce would bypass it and hide the intent.
+    const queue: Promise<OverlayLeaveDecision>[] = [decision1.promise, decision2.promise]
+    const leaveGuard: OverlayLeaveGuard = vi.fn((intent) => {
+      seen.push(intent.kind)
+      return queue.shift() ?? Promise.resolve<OverlayLeaveDecision>({ decision: 'deny' })
+    })
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() =>
+      getApi().openRoot(
+        makeEntry({ key: 'synthetic:draft', tenant: 'quick', leaveGuard }),
+        'route',
+      ),
+    )
+    await act(() => router.navigate(-1)) // browser Back → first guard (browser-pop)
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      decision1.resolve({ decision: 'deny' }) // denied: draft still mounted
+    })
+    // Ensure the in-flight request has fully cleared before the next leave.
+    await waitFor(() => expect(getApi().pendingLeave).toBeNull())
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('synthetic:draft')
+
+    // A brand-new leave after the token cleared MUST consult the guard again.
+    let closePromise!: Promise<{ status: string }>
+    act(() => {
+      closePromise = getApi().close('explicit-close')
+    })
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalledTimes(2))
+    expect(seen.at(-1)).toBe('close')
+    await act(async () => {
+      decision2.resolve({ decision: 'allow' })
+      await closePromise
+    })
+    expect(getApi().session).toBeNull()
+  })
+
+  it('R-T-4 / FR-V3-012: a repeated browser POP while a guard is pending never starts a second guard', async () => {
+    const decision = deferred<OverlayLeaveDecision>()
+    const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(() =>
+      getApi().openRoot(
+        makeEntry({ key: 'synthetic:draft', tenant: 'quick', leaveGuard }),
+        'route',
+      ),
+    )
+    await act(() => router.navigate(-1)) // browser Back → guard pending
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalledTimes(1))
+    expect(getApi().pendingLeave?.intent.kind).toBe('browser-pop')
+
+    // A second pop while the first is still pending is coalesced — no second guard call.
+    await act(() => router.navigate(1))
+    await act(() => router.navigate(-1))
+    expect(leaveGuard).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      decision.resolve({ decision: 'deny' })
+    })
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('synthetic:draft')
+  })
+
+  it('R-T-4: a marker from a different session cannot steal the active host', async () => {
+    const otherMarker: OverlayHistoryMarker = {
+      sessionId: 'other-session',
+      depth: 0,
+      entryKey: 'someone-else',
+      mode: 'route',
+      historyIndex: 0,
+    }
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({
+      historyDriver: driver,
+      initialEntries: [
+        { pathname: '/work/tasks', state: { __mosOverlay: otherMarker } }, // index 0
+        '/work/tasks', // index 1
+      ],
+      initialIndex: 1,
+    })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route')) // index 2 (ours)
+    const ours = getApi().session?.id
+    expect(ours).not.toBe('other-session')
+
+    await act(() => router.navigate(-2)) // POP back to the other-session marker
+    // The active session is untouched — the foreign marker did not steal it.
+    expect(getApi().session?.id).toBe(ours)
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('record:1')
+  })
+
+  it('R-T-4 no-index fallback: when index() is unavailable the dirty Back DENY still restores the marker', async () => {
+    const decision = deferred<OverlayLeaveDecision>()
+    const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
+    const goImpl: { current: (delta: number) => void } = { current: () => {} }
+    const driver: OverlayHistoryDriver = {
+      index: () => null, // browser history index unavailable
+      go: (delta) => goImpl.current(delta),
+    }
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    goImpl.current = (delta) => router.navigate(delta)
+
+    await act(() =>
+      getApi().openRoot(
+        makeEntry({ key: 'synthetic:draft', tenant: 'quick', leaveGuard }),
+        'route',
+      ),
+    )
+    const markerBefore = readOverlayMarker(router.state.location.state)
+    expect(markerBefore).not.toBeNull()
+
+    await act(() => router.navigate(-1))
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalled())
+    await act(async () => {
+      decision.resolve({ decision: 'deny' })
+    })
+    // Deny still leaves the original marker in place even with no readable history index.
+    expect(readOverlayMarker(router.state.location.state)).toEqual(markerBefore)
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('synthetic:draft')
   })
 })
