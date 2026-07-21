@@ -14,7 +14,7 @@
  * unconditionally even when the flag is off and no provider is mounted — no try/catch needed.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { MosNativeRuntime } from './mosNativeRuntime'
 import type { AgentRuntime } from './port'
@@ -87,9 +87,45 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
     }
   }, [open])
 
-  const openPanel = useCallback(() => setOpen(true), [])
-  const closePanel = useCallback(() => setOpen(false), [])
-  const togglePanel = useCallback(() => setOpen((v) => !v), [])
+  // Opener focus return (Interaction Contract I2): capture the element that launched Deputy (the
+  // top-bar launcher or a command item) so closing the panel — by ✕, Esc, or toggle — returns
+  // focus to it. The keep-mounted panel goes inert on close, so without this the focus would fall
+  // to <body> and a keyboard/SR user would lose their place.
+  const openerRef = useRef<HTMLElement | null>(null)
+  const openRef = useRef(open)
+  openRef.current = open
+
+  const captureOpener = useCallback(() => {
+    if (typeof document !== 'undefined') {
+      openerRef.current = (document.activeElement as HTMLElement | null) ?? null
+    }
+  }, [])
+
+  const restoreOpener = useCallback(() => {
+    const opener = openerRef.current
+    openerRef.current = null
+    if (opener && typeof opener.focus === 'function') opener.focus()
+  }, [])
+
+  const openPanel = useCallback(() => {
+    captureOpener()
+    setOpen(true)
+  }, [captureOpener])
+
+  const closePanel = useCallback(() => {
+    setOpen(false)
+    restoreOpener()
+  }, [restoreOpener])
+
+  const togglePanel = useCallback(() => {
+    if (openRef.current) {
+      setOpen(false)
+      restoreOpener()
+    } else {
+      captureOpener()
+      setOpen(true)
+    }
+  }, [captureOpener, restoreOpener])
 
   const value = useMemo<AgentRuntimeContextValue>(
     () => ({ runtime: resolvedRuntime, open, openPanel, closePanel, togglePanel }),

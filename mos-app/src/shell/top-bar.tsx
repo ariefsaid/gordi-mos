@@ -6,6 +6,8 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
+import { useOptionalOverlayHost } from './overlay-host'
+import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 
 type TopBarProps = {
   /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
@@ -134,14 +136,39 @@ function AssistantTopBarButton() {
   )
 }
 
-// The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Inbox is
-// always live (Step 2, D-1). Uses the dedicated useUnreadCount hook (CQ#2) so the badge is backed
-// by the unread-only index, not the full list.
+// The notification bell (T16) — the Inbox door with an unread badge (ADR-0019 D9). Inbox is always
+// live (Step 2, D-1). Two honest doors (Issue 7): on desktop it quick-opens the SAME InboxTriage
+// surface as an ephemeral root in the shared overlay host (no URL mutation), so a manager triages in
+// context and the host returns focus to the bell on close; on phone (and whenever no host is mounted,
+// e.g. isolated tests) it falls back to the full `/inbox` route. Uses the dedicated useUnreadCount
+// hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
 function NotificationBell() {
   const navigate = useNavigate()
   const t = useT()
+  const isNarrow = useIsNarrow()
+  const host = useOptionalOverlayHost()
   const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
+
+  const openInbox = () => {
+    // Phone → full route; desktop with a mounted host → ephemeral quick triage in context.
+    if (isNarrow || !host) {
+      navigate('/inbox')
+      return
+    }
+    void host.openRoot(
+      {
+        key: 'inbox-quick',
+        owner: 'shell',
+        tenant: 'quick',
+        label: t('inbox.quickTitle'),
+        title: t('inbox.quickTitle'),
+        content: <InboxTriageConnected mode="quick" />,
+      },
+      'ephemeral',
+    )
+  }
+
   return (
     <button
       type="button"
@@ -149,7 +176,7 @@ function NotificationBell() {
       title={label}
       className="tap-target-phone tap-target-phone--icon relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
       style={{ width: 32, height: 32 }}
-      onClick={() => navigate('/inbox')}
+      onClick={openInbox}
     >
       <BellIcon />
       {unreadCount > 0 ? (

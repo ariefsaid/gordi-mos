@@ -1,0 +1,139 @@
+/* eslint-disable react-refresh/only-export-components */
+import './inbox.css'
+import type { To } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useT } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
+import { Button } from '@/components/ui/button'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import { SHOW_FOLLOWUPS } from '@/config/features'
+import type { NotificationRow } from '@/lib/db/notifications'
+import type {
+  NotificationTargetRef,
+  NotificationTargetType,
+  ResolveTargetDeps,
+  TargetRegistry,
+} from './inbox-target'
+import type { OverlayEntryDraft } from './inbox-host-contracts'
+
+/**
+ * inbox-record-door — the Issue 7 seam that turns a resolved notification target into a real,
+ * openable overlay entry, and the small in-context record surface it opens.
+ *
+ * Scope boundary (docs/plans/2026-07-20-v3-inbox-deputy.md): the full Issue 5 RecordViewer render
+ * (typed field/relation/activity hierarchy) is NOT re-implemented here — record-viewer and
+ * task/signal collection code are out of this slice. This door renders the notification's arrival
+ * context (why it landed) inside the shared host and offers the ONE canonical door to the full
+ * record page. Opening in-context keeps the queue behind the panel; "Open full record" navigates to
+ * the canonical route and closes the overlay.
+ *
+ * The producer `entity.route` is never used as authority — `CANONICAL_ROUTE` is the only route
+ * source, keyed by the typed `{ type }`. `follow_up` is intentionally absent from the registry so
+ * the resolver fails closed (feature-off) while `SHOW_FOLLOWUPS` is false.
+ */
+
+/** The ONLY canonical route authority, keyed by typed target type (never the producer route). */
+const CANONICAL_ROUTE: Partial<Record<NotificationTargetType, (id: string) => To>> = {
+  task: (id) => ({ pathname: `/work/tasks/${id}` }),
+  signal: (id) => ({ pathname: `/work/signals/${id}` }),
+}
+
+const TYPE_LABEL_KEY: Record<NotificationTargetType, MessageKey> = {
+  task: 'inbox.target.type.task',
+  signal: 'inbox.target.type.signal',
+  follow_up: 'inbox.target.type.followUp',
+}
+
+const SEVERITY_KEY = {
+  info: 'inbox.severity.info',
+  warning: 'inbox.severity.warning',
+  critical: 'inbox.severity.critical',
+} as const
+
+/**
+ * The in-context record door rendered inside the shared overlay host. Shows the arrival context
+ * (type · title · body · severity) so a triager understands why the item landed (J06), then offers
+ * the canonical full-record door. Navigation closes the overlay first (host route seam is not wired
+ * here) so the queue is not left stacked behind a page change.
+ */
+export function InboxRecordDoor({
+  row,
+  targetRef,
+  pageTo,
+}: {
+  row: NotificationRow
+  targetRef: NotificationTargetRef
+  pageTo: To
+}) {
+  const t = useT()
+  const navigate = useNavigate()
+  const host = useOptionalOverlayHost()
+
+  const openFull = () => {
+    void host?.close()
+    navigate(pageTo)
+  }
+
+  return (
+    <div className="inbox-record-door">
+      <p className="inbox-record-door__type">
+        <span
+          className={`inbox-row__dot inbox-row__dot--${row.severity}`}
+          aria-label={t(SEVERITY_KEY[row.severity])}
+        />
+        {t(TYPE_LABEL_KEY[targetRef.type])}
+      </p>
+      <h3 className="inbox-record-door__title">{row.title}</h3>
+      {row.body ? <p className="inbox-record-door__body">{row.body}</p> : null}
+      <div className="inbox-record-door__actions">
+        <Button variant="primary" onClick={openFull}>
+          {t('inbox.openRecord')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Localized record-type label used as the host chrome title (a node so the host can render it). */
+function RecordDoorTitle({ type }: { type: NotificationTargetType }) {
+  const t = useT()
+  return <>{t(TYPE_LABEL_KEY[type])}</>
+}
+
+/**
+ * Build the fail-closed resolver dependencies for one notification row. The registry is bound to the
+ * row so the door content can render its arrival context. `task` and `signal` are wired to their
+ * canonical routes; `follow_up` is deliberately omitted so the resolver returns `feature-off` while
+ * the flag is dark. RLS is the real read gate (a notification is owner-scoped), so `canOpen` /
+ * `isSameOrg` / `recordExists` are permissive here and the canonical page enforces the rest.
+ */
+export function buildInboxTargetDeps(row: NotificationRow): ResolveTargetDeps {
+  const registry: TargetRegistry = {}
+  for (const type of ['task', 'signal'] as const) {
+    const toRoute = CANONICAL_ROUTE[type]
+    if (!toRoute) continue
+    registry[type] = {
+      buildEntry(targetRef: NotificationTargetRef): OverlayEntryDraft {
+        const pageTo = toRoute(targetRef.id)
+        return {
+          key: `${targetRef.type}:${targetRef.id}`,
+          owner: 'shell',
+          tenant: 'record',
+          label: row.title,
+          title: <RecordDoorTitle type={targetRef.type} />,
+          // pageTo is intentionally omitted: the host's Open-full-page chrome routes through the
+          // unwired openPage seam (Task 5). The door content owns navigation instead, so no dead
+          // affordance is rendered.
+          content: <InboxRecordDoor row={row} targetRef={targetRef} pageTo={pageTo} />,
+        }
+      },
+    }
+  }
+  return {
+    registry,
+    canOpen: () => true,
+    isSameOrg: () => true,
+    recordExists: () => true,
+    isFeatureEnabled: (type) => (type === 'follow_up' ? SHOW_FOLLOWUPS : true),
+  }
+}
