@@ -10,8 +10,9 @@
 // Chrome: the shared --scrim dim + --z-modal tier (so a confirm always outranks any drawer it
 //   can be launched from — the confirm-behind-drawer bug, cohesion-debt item #3).
 
-import { useState, useId, useRef, useEffect } from 'react'
+import { useState, useId } from 'react'
 import { ErrorState } from '@/components/ui/state-kit'
+import { ModalShell } from '@/components/ui/modal-shell'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -52,53 +53,6 @@ export function ConfirmDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const titleId = useId()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const cancelBtnRef = useRef<HTMLButtonElement>(null)
-  // Capture invoker for focus return
-  const invokerRef = useRef<HTMLElement | null>(null)
-
-  // Capture the active element before open, return it on close
-  useEffect(() => {
-    if (open) {
-      invokerRef.current = document.activeElement as HTMLElement | null
-      // Auto-focus Cancel (safe default — never auto-focus the action button)
-      requestAnimationFrame(() => {
-        cancelBtnRef.current?.focus()
-      })
-    } else {
-      invokerRef.current?.focus?.()
-    }
-  }, [open])
-
-  // Esc → cancel; Tab trap
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onCancel()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const container = containerRef.current
-      if (!container) return
-      const FOCUSABLE =
-        'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault(); last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault(); first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
 
   if (!open) return null
 
@@ -115,24 +69,15 @@ export function ConfirmDialog({
   }
 
   return (
-    <div
-      className="scrim fixed inset-0 flex items-center justify-center"
-      style={{ zIndex: 'var(--z-modal)' }}
-      onClick={(e) => { if (e.target === e.currentTarget && !busy) onCancel() }}
+    <ModalShell
+      open={open}
+      onClose={onCancel}
+      ariaLabelledBy={titleId}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
     >
       <div
-        ref={containerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="relative w-full max-w-md rounded-lg p-6"
-        style={{
-          background: 'var(--card)',
-          boxShadow: 'var(--shadow-overlay)',
-          border: '1px solid var(--input)',
-          borderRadius: 'var(--radius)',
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="p-6"
       >
         <h2
           id={titleId}
@@ -157,7 +102,6 @@ export function ConfirmDialog({
         <div className="flex items-center justify-end gap-2">
           {/* Native button with CSS class so we can attach a ref for auto-focus */}
           <button
-            ref={cancelBtnRef}
             type="button"
             className="btn btn-outline"
             onClick={onCancel}
@@ -175,6 +119,6 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

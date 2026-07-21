@@ -1,0 +1,60 @@
+.modal-shell__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--scrim);
+}
+
+.modal-shell__surface {
+  width: min(100%, 32rem);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  outline: none;
+}
+
+.modal-shell__surface[data-surface='sheet'] {
+  align-self: end;
+  width: min(100%, 40rem);
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+@media (max-width: 640px) {
+  .modal-shell__surface[data-phone-mode='fullscreen'] {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .modal-shell__scrim:has(.modal-shell__surface[data-phone-mode='fullscreen']) {
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-shell__scrim {
+    animation: modal-shell-fade 120ms ease-out;
+  }
+
+  .modal-shell__surface {
+    animation: modal-shell-enter 140ms ease-out;
+  }
+}
+
+@keyframes modal-shell-fade {
+  from { opacity: 0; }
+}
+
+@keyframes modal-shell-enter {
+  from { transform: translateY(4px); opacity: 0; }
+}

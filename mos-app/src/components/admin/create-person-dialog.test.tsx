@@ -225,6 +225,33 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   })
 
+  it('uses one shared modal shell and Escape closes only the dismissible form phase', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderDialog({ onClose })
+
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the show-once password protected from Escape dismissal', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPwProtected')
+    renderDialog({ onClose })
+
+    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+    await screen.findByText('TempPwProtected')
+    await user.keyboard('{Escape}')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+  })
+
   it('AC-011: validation — empty name shows an error, createPerson not called', async () => {
     const user = userEvent.setup()
     renderDialog()
@@ -262,11 +289,10 @@ describe('CreatePersonDialog (AC-011)', () => {
     await screen.findByText(/couldn't create/i)
   })
 
-  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
-  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+  // FIX B1 regression — the canonical shell owns the visible Single-Border Rule.
+  it('FIX-B1: dialog card uses the canonical bordered modal surface', () => {
     renderDialog()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.style.border).toBeTruthy()
-    expect(dialog.style.border).not.toBe('')
+    expect(dialog).toHaveClass('modal-shell__surface')
   })
 })

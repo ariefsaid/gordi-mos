@@ -95,6 +95,16 @@ describe('OccurrenceAssignDialog (C2 — the pending-resolution host mounted fro
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('uses the shared modal interaction contract: Escape closes and one scrim owns the surface', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderDialog({ onClose })
+
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('CQ IMPORTANT-1: a resolution failure surfaces its own inline error, distinct from the dialog fetch-error banner', async () => {
     const { resolvePendingTask } = await import('@/lib/db/processes')
     vi.mocked(resolvePendingTask).mockRejectedValue(new Error('already resolved'))

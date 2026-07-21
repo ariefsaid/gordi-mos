@@ -11,12 +11,13 @@
 //   item 11: dead useAuth() removed; isDisabled simplified to isSubmitting
 //   item 13: heading uses .heading CSS class instead of fontSize: '20px'
 
-import { useState, useEffect, useId, useRef } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { TextInput } from '@/components/ui/text-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { PasswordReveal } from './password-reveal'
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
@@ -61,62 +62,10 @@ export function CreatePersonDialog({
   const nameId = useId()
   const emailId = useId()
   const titleId = useId()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const invokerRef = useRef<HTMLElement | null>(null)
 
   // Derived synthetic email
   const syntheticEmail =
     noEmail && fullName.trim() ? synthesizeEmail(fullName.trim(), takenEmails) : null
-
-  // Capture invoker + return focus on close
-  useEffect(() => {
-    if (open) {
-      invokerRef.current = document.activeElement as HTMLElement | null
-    } else {
-      invokerRef.current?.focus?.()
-    }
-  }, [open])
-
-  // Move focus into dialog on open; Tab trap + Esc on close (non-reveal phase only)
-  useEffect(() => {
-    if (!open || phase === 'reveal') return
-    const container = containerRef.current
-    if (!container) return
-
-    requestAnimationFrame(() => {
-      const first = container.querySelector<HTMLElement>(
-        'input:not([disabled]), button:not([disabled])',
-      )
-      first?.focus()
-    })
-
-    const FOCUSABLE =
-      'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && phase !== 'submitting') {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const focusable = Array.from(container!.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, phase, onClose])
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -196,48 +145,29 @@ export function CreatePersonDialog({
   const isReveal = phase === 'reveal'
 
   return (
-    // Overlay — standard confirm-overlay scrim
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'var(--scrim)', zIndex: 'var(--z-modal)' }}
-      // Backdrop click intentionally disabled during reveal (design-plan §4.4)
-      onClick={
-        isReveal
-          ? undefined
-          : (e) => {
-              if (e.target === e.currentTarget && !isSubmitting) onClose()
-            }
-      }
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      role={isReveal ? 'alertdialog' : 'dialog'}
+      ariaLabelledBy={isReveal ? REVEAL_HEADING_ID : titleId}
+      ariaDescribedBy={isReveal ? REVEAL_WARNING_ID : undefined}
+      closeOnBackdrop={!isSubmitting && !isReveal}
+      closeOnEscape={!isSubmitting && !isReveal}
+      phoneMode="centered"
     >
-      <div
-        ref={containerRef}
-        role={isReveal ? 'alertdialog' : 'dialog'}
-        aria-modal="true"
-        aria-labelledby={isReveal ? REVEAL_HEADING_ID : titleId}
-        aria-describedby={isReveal ? REVEAL_WARNING_ID : undefined}
-        className="relative w-full max-w-md overflow-hidden rounded-lg"
-        style={{
-          background: 'var(--card)',
-          boxShadow: 'var(--shadow-overlay)',
-          border: '1px solid var(--input)',
-          borderRadius: 'var(--radius)',
-        }}
-        // Prevent bubbling to the backdrop
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isReveal && revealData ? (
-          <div className="p-6">
-            <PasswordReveal
-              personName={revealData.personName}
-              password={revealData.password}
-              email={revealData.email}
-              context="create"
-              onDone={handleRevealDone}
-              headingId={REVEAL_HEADING_ID}
-              warningId={REVEAL_WARNING_ID}
-            />
-          </div>
-        ) : (
+      {isReveal && revealData ? (
+        <div className="p-6">
+          <PasswordReveal
+            personName={revealData.personName}
+            password={revealData.password}
+            email={revealData.email}
+            context="create"
+            onDone={handleRevealDone}
+            headingId={REVEAL_HEADING_ID}
+            warningId={REVEAL_WARNING_ID}
+          />
+        </div>
+      ) : (
           <form onSubmit={handleSubmit} noValidate>
             {/* Header — considered title + caption, hairline divider seams it to the body */}
             <div className="px-6 pt-6 pb-4">
@@ -441,9 +371,8 @@ export function CreatePersonDialog({
                 {isSubmitting ? 'Creating…' : 'Create person'}
               </Button>
             </div>
-          </form>
-        )}
-      </div>
-    </div>
+        </form>
+      )}
+    </ModalShell>
   )
 }

@@ -1,5 +1,6 @@
 import { useT } from '@/i18n/use-t'
 import { ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { PendingResolution } from '@/components/processes/pending-resolution'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { PersonOption } from '@/lib/db/directory'
@@ -9,7 +10,7 @@ import './occurrence-assign-dialog.css'
 // occurrence group header's "N to assign" affordance (group-header-row.tsx) is clicked — it lists
 // every unresolved process_run_pending_tasks row for that occurrence, each rendered via the
 // existing PendingResolution surface (B7, Rule 11 — never a second resolution UI). Mirrors the
-// hand-rolled role="dialog" overlay idiom (confirm-archive.tsx) rather than a new modal primitive.
+// shared centered-modal interaction contract.
 
 export interface OccurrenceAssignDialogProps {
   pending: PendingTaskRow[]
@@ -28,7 +29,13 @@ export function OccurrenceAssignDialog({
 }: OccurrenceAssignDialogProps) {
   const t = useT()
   return (
-    <div role="dialog" aria-modal="true" aria-label={t('processes.pending.title')} className="occ-assign-overlay">
+    <ModalShell
+      open
+      onClose={onClose}
+      ariaLabel={t('processes.pending.title')}
+      closeOnEscape
+      closeOnBackdrop={false}
+    >
       <div className="occ-assign-box">
         <div className="occ-assign-head">
           <button type="button" className="btn btn-outline" onClick={onClose}>
@@ -58,6 +65,6 @@ export function OccurrenceAssignDialog({
           </div>
         )}
       </div>
-    </div>
+    </ModalShell>
   )
 }
