@@ -127,6 +127,20 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > multimodal blocker); (c) Issue 10 structured-content schema/editor (ADR-0052 + plan exist);
 > (d) final whole-app acceptance, stale-style cleanup, docs closure, owner walkthrough.
 >
+> **KNOWN PRE-EXISTING FAILURES (5 tests, 3 files — NOT caused by third-session lanes; verified
+> ancestors of session-2 tip `8cd1053`):** all in the Task record/detail area, all Wave-2c
+> (`8ab3235`) + typed-ownership rework (`4e4a952`) fallout. Do NOT re-diagnose without reading
+> this list first:
+> - `src/pages/task-detail.test.tsx` AC-070 — `/sat 20 jun/i` date format not found (date render changed)
+> - `src/pages/task-detail.test.tsx` AC-072 — `Reassign PIC` button not found by accessible name in full TaskSurface view (exists in isolation in task-ownership-card.test.tsx → wiring question, not a missing component)
+> - `src/pages/task-detail.test.tsx` I2 — same `Reassign PIC` issue
+> - `src/components/tasks/cascade-d4.test.tsx` FR-249 — expected ≥3 em-dashes (work-line/objective/due null placeholders), only 2 found. REAL signal: a null field stopped rendering its "—" — investigate before touching the assertion (BDD rule: don't bend to app state)
+> - `src/components/tasks/task-record-redesign.test.tsx` OD-REDESIGN-62 — `Cahya Cafe` found multiple times (drawer-first duplicate-text pattern; likely the same fix pattern as B4's follow-ups-page test — `getAllByText(...).length === N`)
+>
+> Full battery at tip `51eaff0`: **3191 passed / 5 failed / 319 total files.** Typecheck, eslint,
+> stylelint all clean. The 5 failures are scoped to Task record rendering; all third-session lanes
+> (A1, B1, B2, B3, B4) are green in their owning suites.
+>
 > **INTEGRATION RULES for whoever resumes:** ONE full battery (full vitest + lint + build +
 > conformance guards + pgTAP if schema touched) on the final tip only (memory-frugal — the machine
 > has OOMed); the review battery + `bash scripts/pre-merge-check.sh` + the owner's rendered
