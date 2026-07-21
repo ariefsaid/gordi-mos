@@ -98,8 +98,8 @@ export function RecordPanelHost({
     }
   }, [focusKey, isModal])
 
-  // Modal-only: focus trap (on the panel) + Esc (on the document, since the modal owns the
-  // whole screen and focus may rest on the body/scrim).
+  // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
+  // owns the whole screen; the split regime keeps the page live, so no trap there.
   useEffect(() => {
     if (!isModal) return
     const panel = panelRef.current
@@ -118,15 +118,24 @@ export function RecordPanelHost({
         e.preventDefault(); firstEl.focus()
       }
     }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onClose('escape') }
-    }
     panel.addEventListener('keydown', onTrapKeyDown)
-    document.addEventListener('keydown', onEsc)
-    return () => {
-      panel.removeEventListener('keydown', onTrapKeyDown)
-      document.removeEventListener('keydown', onEsc)
+    return () => panel.removeEventListener('keydown', onTrapKeyDown)
+  }, [isModal, focusKey])
+
+  // Escape closes in BOTH regimes (plan 2026-07-20-v3-overlay-host Task 4 deliberate change):
+  // Esc returns one navigation level via onClose('escape'), routed through the host's leaveGuard.
+  // Modal listens on the document (it owns the whole screen; focus may rest on body/scrim);
+  // the split regime listens on the panel so only a panel-focused Esc closes and the live page
+  // keeps its own Esc semantics.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    const onEsc: EventListener = (e) => {
+      if ((e as KeyboardEvent).key === 'Escape') { e.preventDefault(); onClose('escape') }
     }
+    const target: Document | HTMLElement = isModal ? document : panel
+    target.addEventListener('keydown', onEsc)
+    return () => target.removeEventListener('keydown', onEsc)
   }, [isModal, focusKey, onClose])
 
   // Overlay-host oracle: only the OverlayHostSlot sets `owner`, so a bare tenant render
@@ -209,8 +218,10 @@ export function RecordPanelHost({
     expanded ? 'expanded' : '',
   ].filter(Boolean).join(' ')
 
+  // The oracle attrs ride the sheet <aside> (the panel itself), matching the split regime,
+  // so a Playwright geometry check measures the sheet — not the full-viewport modal root.
   return (
-    <div className={rootClass} {...overlayAttrs}>
+    <div className={rootClass}>
       <div className="drawer-scrim" onClick={() => onClose('explicit-close')} aria-hidden="true" />
       <aside
         ref={panelRef}
@@ -218,6 +229,7 @@ export function RecordPanelHost({
         role="dialog"
         aria-modal="true"
         aria-label={label}
+        {...overlayAttrs}
       >
         {body}
       </aside>
