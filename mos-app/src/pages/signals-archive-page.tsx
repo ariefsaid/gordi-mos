@@ -1,6 +1,5 @@
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { PageFrame } from '@/shell/page-frame'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
@@ -54,9 +53,12 @@ export function SignalsArchivePage() {
     controller.setQuery({ ...query, ...patch })
   }
 
-  function openRecord(signalId: string) {
+  // Collection contract onOpenRecord — navigates to ?record= preserving all query state.
+  // This replaces the old actions.onOpen. The controller's openRecord requires an overlay host
+  // (Issue 4), so we provide a page-level implementation here (Option A).
+  function onOpenRecord(record: { id: string }) {
     const next = new URLSearchParams(params)
-    next.set('record', signalId)
+    next.set('record', record.id)
     setParams(next)
   }
 
@@ -67,8 +69,6 @@ export function SignalsArchivePage() {
   }
 
   const actions: SignalCollectionActions = {
-    onOpen: openRecord,
-    onCreateTask: openRecord,
     onCategorize: (signalId, category) => { void handleCategorize(signalId, category) },
     onShareClick: openSignalComposer,
   }
@@ -159,7 +159,7 @@ export function SignalsArchivePage() {
           id: 'team', label: t('signals.archive.filterTeam'), value: query.teamId ?? '',
           options: [
             { value: '', label: t('signals.archive.filterAnyTeam') },
-            ...[...(context?.teamNamesById ?? new Map())].map(([value, label]) => ({ value, label })),
+            ...Array.from(context?.teamNamesById ?? new Map()).map(([value, label]) => ({ value, label })),
           ],
           onChange: (teamId) => setQuery({ teamId: teamId || null }),
         },
@@ -232,6 +232,7 @@ export function SignalsArchivePage() {
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
               loadingLabel={t('signals.archive.loading')}
+              onOpenRecord={onOpenRecord}
             />
           </div>
 
@@ -268,8 +269,12 @@ export function SignalRecordPage() {
   const { signalId } = useParams<{ signalId: string }>()
   if (!signalId) return <Navigate to="/work/signals" replace />
   return (
-    <PageFrame variant="data">
+    <PageFamilyFrame
+      family="focused-record"
+      title="Signal"
+      jobSentence="Search and revisit the Signals your Teams have shared."
+    >
       <SignalRecordHost signalId={signalId} mode="page" />
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

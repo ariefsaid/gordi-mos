@@ -1,6 +1,8 @@
 // Feed presentation for the Signal collection (Issue 6). It reuses the existing SignalFeed/SignalCard
 // grammar and reads the React-scoped open/categorize/compose callbacks from the collection ACTIONS
 // context, so the module-level descriptor can render it without threading router/composer state.
+// The collection contract also provides onOpenRecord — wire it through so browser Back preserves
+// the collection query state (FR-V3-OPENER).
 import { SignalFeed } from './signal-feed'
 import { useSignalCollectionActions } from './signal-collection-actions'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -14,6 +16,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 export function SignalFeedPresentation({
   projection,
   context,
+  onOpenRecord,
 }: CollectionPresentationProps<
   SignalRow,
   SignalCollectionQuery,
@@ -30,8 +33,7 @@ export function SignalFeedPresentation({
       siteNamesByTeamId={namesToRecord(context.siteNamesByTeamId)}
       onShareClick={actions.onShareClick}
       onCategorize={actions.onCategorize}
-      onCreateTask={actions.onCreateTask}
-      onOpen={actions.onOpen}
+      onOpen={onOpenRecord ? (signal) => onOpenRecord(signal) : undefined}
     />
   )
 }

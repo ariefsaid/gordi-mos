@@ -45,7 +45,6 @@ const SIGNAL_TABLE_CLASSES = [
   'signal-table-attention',
   ...ATTENTION_VALUES.map((a) => `signal-table-attention--${attentionSlug(a)}`),
   'signal-table-row--retracted',
-  'signal-table-row--selected',
 ]
 
 interface Suite { component: string; css: string[]; extraClasses?: string[]; ignoreClasses?: string[] }

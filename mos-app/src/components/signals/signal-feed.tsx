@@ -17,13 +17,12 @@ export interface SignalFeedProps {
   siteNamesByTeamId?: Record<string, string>
   onShareClick?: () => void
   onCategorize?: (signalId: string, category: SignalCategory) => void
-  onCreateTask?: (signalId: string) => void
-  onOpen?: (signalId: string) => void
+  onOpen?: (signal: SignalRow) => void
 }
 
 export function SignalFeed({
   signals, authorNamesById, teamNamesById, siteNamesByTeamId = {},
-  onShareClick, onCategorize, onCreateTask, onOpen,
+  onShareClick, onCategorize, onOpen,
 }: SignalFeedProps) {
   const t = useT()
   const ordered = orderSignalsForFeed(signals)
@@ -45,8 +44,7 @@ export function SignalFeed({
             teamName={teamNamesById[signal.owning_team_id] ?? ''}
             siteName={siteNamesByTeamId[signal.owning_team_id]}
             onCategorize={onCategorize ? (category) => onCategorize(signal.id, category) : undefined}
-            onCreateTask={onCreateTask ? () => onCreateTask(signal.id) : undefined}
-            onOpen={onOpen ? () => onOpen(signal.id) : undefined}
+            onOpen={onOpen ? () => onOpen(signal) : undefined}
           />
         ))
       )}

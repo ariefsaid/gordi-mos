@@ -5,7 +5,7 @@
 //
 // Optional row GROUPING (OD-P3-6 group-header row): when `groups` is provided the
 // table renders grouped mode — a hairline group-header row (caret toggle + 13px/700
-// navy label + muted tabular count) per non-null group, with internal collapse state.
+// navy label + muted tabular count) per non-null group, with internal or caller-controlled collapse state.
 // Flat `rows` mode is 100% unchanged when `groups` is absent; if both are given,
 // `groups` wins. Callers pass exactly one of `rows` (flat) / `groups` (grouped).
 import { Fragment, useState, type ReactNode } from 'react'
@@ -52,6 +52,9 @@ export interface DataTableProps<Row> {
   rows: Row[]
   /** grouped mode (OD-P3-6 group-header row). When provided, `groups` wins over `rows`. */
   groups?: DataTableGroup<Row>[]
+  /** Controlled grouped-collapse state for collection engines that persist it across views. */
+  collapsedGroupKeys?: ReadonlySet<string>
+  onToggleGroup?: (key: string) => void
   rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
@@ -84,6 +87,8 @@ export function DataTable<Row extends object>({
   columns,
   rows,
   groups,
+  collapsedGroupKeys,
+  onToggleGroup: onToggleGroupProp,
   rowClassName,
   sort,
   onSortChange,
@@ -98,15 +103,20 @@ export function DataTable<Row extends object>({
   // with a different isDesktop keeps the same groups open/closed. All-expanded by
   // default. INTERNAL: callers do not control it. (useState is called before the
   // error early-return to satisfy the rules-of-hooks order invariant.)
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  const [internalCollapsed, setInternalCollapsed] = useState<Set<string>>(() => new Set())
   const toggleGroup = (key: string) => {
-    setCollapsed(prev => {
+    if (onToggleGroupProp) {
+      onToggleGroupProp(key)
+      return
+    }
+    setInternalCollapsed(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
     })
   }
+  const collapsed = collapsedGroupKeys ?? internalCollapsed
 
   if (state === 'error') {
     return (
@@ -164,7 +174,7 @@ interface DesktopTableProps<Row> {
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
-  collapsed: Set<string>
+  collapsed: ReadonlySet<string>
   onToggleGroup: (key: string) => void
 }
 
@@ -361,7 +371,7 @@ interface PhoneCardsProps<Row> {
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
-  collapsed: Set<string>
+  collapsed: ReadonlySet<string>
   onToggleGroup: (key: string) => void
 }
 

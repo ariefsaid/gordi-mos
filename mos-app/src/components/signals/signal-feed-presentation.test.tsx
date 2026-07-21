@@ -27,7 +27,11 @@ const CONTEXT: SignalCollectionContext = {
   viewerId: 'p-me',
 }
 
-function renderFeed(rows: readonly SignalRow[], actions: SignalCollectionActions) {
+function renderFeed(
+  rows: readonly SignalRow[],
+  actions: SignalCollectionActions,
+  onOpenRecord = vi.fn(),
+) {
   const projection: CollectionProjection<SignalRow, SignalRenderGroup> = {
     visibleRecords: rows,
     groups: [{ key: 'all', label: null, rows }],
@@ -46,7 +50,7 @@ function renderFeed(rows: readonly SignalRow[], actions: SignalCollectionActions
     context: CONTEXT,
     selectedIds: new Set<string>(),
     onToggleSelected: vi.fn(),
-    onOpenRecord: vi.fn(),
+    onOpenRecord,
     onToggleGroup: vi.fn(),
     isGroupCollapsed: () => false,
   }
@@ -67,21 +71,18 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
   })
 
-  it('wires the context actions (share / open / create task) to the cards', async () => {
+  it('wires Share and the injected collection opener while hiding unavailable Task creation', async () => {
+    const onOpenRecord = vi.fn()
     const actions: SignalCollectionActions = {
       onShareClick: vi.fn(),
-      onOpen: vi.fn(),
-      onCreateTask: vi.fn(),
     }
-    renderFeed([row({ id: 'signal-9' })], actions)
+    renderFeed([row({ id: 'signal-9' })], actions, onOpenRecord)
 
     await userEvent.click(screen.getByRole('button', { name: /share a signal/i }))
     expect(actions.onShareClick).toHaveBeenCalledTimes(1)
 
     await userEvent.click(screen.getByRole('button', { name: 'The freezer alarm went off' }))
-    expect(actions.onOpen).toHaveBeenCalledWith('signal-9')
-
-    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
-    expect(actions.onCreateTask).toHaveBeenCalledWith('signal-9')
+    expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
+    expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
   })
 })

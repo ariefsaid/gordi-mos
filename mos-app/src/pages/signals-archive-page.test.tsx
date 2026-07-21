@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { PersonOption } from '@/lib/db/directory'
@@ -57,11 +57,23 @@ function renderPage(initialPath = '/work/signals') {
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Routes>
           <Route path="/work/signals" element={<SignalsArchivePage />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
+  )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="location">{location.pathname + location.search}</output>
+      <button type="button" onClick={() => navigate(-1)}>Back</button>
+    </>
   )
 }
 
@@ -129,12 +141,50 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
   })
 
-  it('each row links to the canonical record URL, surviving via query params', async () => {
-    renderPage()
+  it('renders the selected Team grouping in the real table with accessible collapse state', async () => {
+    renderPage('/work/signals?group=team&saved=team-view')
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    const link = screen.getByText('The freezer alarm went off').closest('a')
-    expect(link).toHaveAttribute('href', '/work/signals?record=signal-1')
-    expect(link).toHaveAttribute('data-canonical', '/work/signals?record=signal-1')
+
+    const hqToggle = screen.getByRole('button', { name: /collapse hq operations/i })
+    expect(document.querySelector('main[data-page-family="workspace"]')).toBeInTheDocument()
+    expect(hqToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /collapse radiant operations/i })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('group=team')
+    expect(screen.getByTestId('location')).toHaveTextContent('saved=team-view')
+
+    await userEvent.click(hqToggle)
+    expect(screen.getByRole('button', { name: /expand hq operations/i })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
+  })
+
+  it('Feed and Table use the injected opener and preserve collection query state through Back', async () => {
+    renderPage('/work/signals?q=espresso&attention=Needs%20attention&group=team&saved=view-1')
+    await waitFor(() => expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('Espresso machine repaired'))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('record=signal-2'))
+    expect(screen.getByTestId('location')).toHaveTextContent('q=espresso')
+    expect(screen.getByTestId('location')).toHaveTextContent('attention=Needs+attention')
+    expect(screen.getByTestId('location')).toHaveTextContent('group=team')
+    expect(screen.getByTestId('location')).toHaveTextContent('saved=view-1')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('record='))
+    expect(screen.getByTestId('location')).toHaveTextContent('q=espresso')
+    expect(screen.getByTestId('location')).toHaveTextContent('group=team')
+    expect(screen.getByTestId('location')).toHaveTextContent('saved=view-1')
+  })
+
+  it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {
+    renderPage('/work/signals?layout=feed&q=espresso&saved=view-1')
+    await waitFor(() => expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument())
+
+    expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Espresso machine repaired' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('record=signal-2'))
+    expect(screen.getByTestId('location')).toHaveTextContent('layout=feed')
+    expect(screen.getByTestId('location')).toHaveTextContent('q=espresso')
+    expect(screen.getByTestId('location')).toHaveTextContent('saved=view-1')
   })
 
   it('restores the search term from the URL on load (Back/refresh/new-tab, Rule 4)', async () => {

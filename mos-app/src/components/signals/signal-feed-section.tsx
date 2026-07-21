@@ -15,8 +15,8 @@ import { SignalFeed } from './signal-feed'
 // with the Signals archive (FR-V3-013 — no second Signal loader): it drives the descriptor in
 // urlMode="fixed" with a fixed, non-retracted Feed query, so it never steals the Home route's URL.
 // The engine owns loading/error/empty; Home keeps its existing quiet-degradation policy (render the
-// feed + composer row even when the fetch fails). "Create Task" navigates to the canonical record,
-// where the real Create-follow-up-Task flow lives (Rule 11 — one implementation, not a second flow).
+// feed + composer row even when the fetch fails). Task creation remains on the focused Signal
+// record where the real follow-up Task flow lives; this ambient card does not advertise a dead action.
 
 // The fixed embedded query: Feed presentation, no retracted tombstones, no saved-view identity.
 const HOME_FEED_QUERY: SignalCollectionQuery = {
@@ -72,8 +72,7 @@ export function SignalFeedSection() {
       teamNamesById={data ? namesToRecord(data.context.teamNamesById) : {}}
       onShareClick={openSignalComposer}
       onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
-      onCreateTask={openRecord}
-      onOpen={openRecord}
+      onOpen={(signal) => openRecord(signal.id)}
     />
   )
 }

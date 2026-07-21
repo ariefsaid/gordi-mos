@@ -59,12 +59,9 @@ describe('SignalCard — posted-card grammar (AC-424)', () => {
     expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
   })
 
-  it('renders Create Task on the card (not requiring a composer)', async () => {
-    const onCreateTask = vi.fn()
-    renderCard({ onCreateTask })
-    const createTaskButton = screen.getByRole('button', { name: /create task/i })
-    await userEvent.click(createTaskButton)
-    expect(onCreateTask).toHaveBeenCalledTimes(1)
+  it('does not advertise Task creation when the card cannot create a Task directly', () => {
+    renderCard()
+    expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
   })
 })
 
@@ -93,7 +90,6 @@ describe('SignalCard — retraction tombstone (AC-425)', () => {
   it('renders only the tombstone + reason, no body/actions, for a retracted Signal', () => {
     renderCard({
       signal: baseSignal({ retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate report' }),
-      onCreateTask: vi.fn(),
     })
 
     expect(screen.getByText(/retracted/i)).toBeInTheDocument()

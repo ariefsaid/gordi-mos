@@ -62,26 +62,22 @@ describe('SignalFeed — Home ambient feed (AC-426)', () => {
     expect(screen.queryByText(/No Signals yet/i)).not.toBeInTheDocument()
   })
 
-  it('wires per-card onCategorize/onCreateTask/onOpen to the correct Signal id, and resolves unknown-author/team fallbacks', async () => {
+  it('wires per-card onCategorize/onOpen to the correct Signal id, and resolves unknown-author/team fallbacks', async () => {
     const onCategorize = vi.fn()
-    const onCreateTask = vi.fn()
     const onOpen = vi.fn()
     renderFeed({
       signals: [row('s1', 'FYI', '2026-07-16T02:00:00Z', 'Something happened')],
       authorNamesById: {}, // forces the unknownAuthor fallback
       teamNamesById: {}, // forces the '' fallback
-      onCategorize, onCreateTask, onOpen,
+      onCategorize, onOpen,
     })
 
     await userEvent.click(screen.getByRole('button', { name: /add category/i }))
     await userEvent.click(screen.getByRole('option', { name: 'Process' }))
     expect(onCategorize).toHaveBeenCalledWith('s1', 'Process')
 
-    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
-    expect(onCreateTask).toHaveBeenCalledWith('s1')
-
     await userEvent.click(screen.getByRole('button', { name: 'Something happened' }))
-    expect(onOpen).toHaveBeenCalledWith('s1')
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }))
 
     expect(screen.getByText('Someone')).toBeInTheDocument() // unknown-author fallback
   })

@@ -1,6 +1,6 @@
 /* Signal archive TABLE presentation (Issue 6). Rides on the generic DataTable (.dt-*) chrome; these
    rules only skin the Signal-specific cells: the message link, the retracted tombstone, the attention
-   pill, the row-selection control, and the retracted/selected row states. E7 tokens only. */
+   pill, and the retracted row state. E7 tokens only. */
 
 .signal-table-message {
   color: var(--foreground);
@@ -42,17 +42,6 @@
   color: var(--status-lost-text);
 }
 
-.signal-table-select {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-}
-
 .signal-table-row--retracted {
   color: var(--muted-foreground);
-}
-.signal-table-row--selected {
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }

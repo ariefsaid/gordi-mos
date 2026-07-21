@@ -129,7 +129,7 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     const feedKeys = signalCollectionDescriptor.presentations.feed.compatibleQueryKeys
     expect(feedKeys).not.toContain('sort')
     expect(feedKeys).not.toContain('groupBy')
-    expect(signalCollectionDescriptor.presentations.table.capabilities.selection).toBe(true)
+    expect(signalCollectionDescriptor.presentations.table.capabilities.selection).toBe(false)
   })
 
   it('FR-V3-003/004/006 seam: the viewer builds a Signal-owned panel entry + a canonical page target', () => {
@@ -176,5 +176,16 @@ describe('signalCollectionSavedViews — typed Signal saved-view lifecycle (FR-V
     expect(applied.presentation).toBe('table')
     expect(applied.query.q).toBe('oat')
     expect(applied.query.attention).toBe('FYI')
+  })
+
+  it('preserves a Signal grouping in a saved view and restores it when applied', () => {
+    const spec = signalCollectionSavedViews.buildSpec({
+      query: query({ groupBy: 'category', savedViewId: 'view-category' }),
+      presentation: 'table',
+    })
+
+    expect(spec.grouping).toEqual({ field: 'category' })
+    const applied = signalCollectionSavedViews.applySpec(spec)
+    expect(applied.query.groupBy).toBe('category')
   })
 })

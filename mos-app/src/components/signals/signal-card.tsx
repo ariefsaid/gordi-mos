@@ -1,14 +1,13 @@
 import { useT } from '@/i18n/use-t'
-import { Button } from '@/components/ui/button'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
 import './signal-card.css'
 
 // Posted Signal card (PORT convergence `sigCard` — Rule 11). FB grammar: avatar+name+occurred-at+
-// attention pill; body; Site/time meta; the visibility/shield line; "Add category" (until set); and
-// "Create Task" — the follow-up bridge lives on the card, NOT the composer (D25/OD-39). A retracted
-// Signal renders only the tombstone + reason (D31) — no body, no actions.
+// attention pill; body; Site/time meta; the visibility/shield line; and "Add category" (until set).
+// Task creation belongs to the focused Signal record, not this ambient card. A retracted Signal
+// renders only the tombstone + reason (D31) — no body, no actions.
 
 export interface SignalCardProps {
   signal: SignalRow
@@ -17,7 +16,6 @@ export interface SignalCardProps {
   siteName?: string | null
   shieldLine?: string
   onCategorize?: (category: SignalCategory) => void
-  onCreateTask?: () => void
   onOpen?: () => void
 }
 
@@ -26,7 +24,7 @@ function initials(name: string): string {
 }
 
 export function SignalCard({
-  signal, authorName, teamName, siteName, shieldLine, onCategorize, onCreateTask, onOpen,
+  signal, authorName, teamName, siteName, shieldLine, onCategorize, onOpen,
 }: SignalCardProps) {
   const t = useT()
 
@@ -68,12 +66,6 @@ export function SignalCard({
 
       <div className="signal-actions">
         <SignalCategoryPicker category={signal.category} onCategorize={onCategorize} />
-        <span className="signal-actions-spacer" />
-        {onCreateTask && (
-          <Button variant="outline" onClick={onCreateTask}>
-            {t('signals.record.createTask')}
-          </Button>
-        )}
       </div>
     </div>
   )

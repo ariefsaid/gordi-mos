@@ -3,7 +3,6 @@
 // message, author, Team, occurred-at, attention, and category. A retracted Signal renders an explicit
 // tombstone (message + reason), and it is present in the projection only when the typed query asks
 // for it. Signals have NO PIC, Supervisor, or Task Status columns — the adapter never invents them.
-import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -21,20 +20,15 @@ type SignalTableProps = CollectionPresentationProps<
   string
 >
 
-/** The canonical in-list panel URL for a Signal (`?record=<id>`) — the existing FR-416 seam. */
-function recordHref(signalId: string): string {
-  return `/work/signals?record=${signalId}`
-}
-
 export function SignalTablePresentation({
   projection,
   context,
-  selectedIds,
-  onToggleSelected,
+  onOpenRecord,
+  onToggleGroup,
+  isGroupCollapsed,
 }: SignalTableProps) {
   const t = useT()
   const isDesktop = useIsDesktop()
-  const rows = projection.visibleRecords
 
   const columns: DataTableColumn<SignalRow>[] = [
     {
@@ -48,9 +42,15 @@ export function SignalTablePresentation({
             {signal.retract_reason ? <span className="signal-table-reason"> {signal.retract_reason}</span> : null}
           </span>
         ) : (
-          <Link className="signal-table-message" to={recordHref(signal.id)} data-canonical={recordHref(signal.id)}>
+          <span
+            className="signal-table-message"
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpenRecord(signal)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenRecord(signal); } }}
+          >
             {signal.body}
-          </Link>
+          </span>
         ),
     },
     {
@@ -85,32 +85,29 @@ export function SignalTablePresentation({
       header: t('signals.table.category'),
       render: (signal) => signal.category ?? <span aria-hidden="true">—</span>,
     },
-    {
-      key: 'select',
-      header: t('signals.table.select'),
-      render: (signal) => (
-        <label className="signal-table-select">
-          <input
-            type="checkbox"
-            checked={selectedIds.has(signal.id)}
-            onChange={() => onToggleSelected(signal.id)}
-            aria-label={t('signals.table.selectRow', { body: signal.body })}
-          />
-        </label>
-      ),
-    },
   ]
+
+  // Convert SignalRenderGroup to DataTableGroup
+  const groups = projection.groups?.map((group) => ({
+    key: group.key,
+    label: group.label,
+    count: group.rows.length,
+    rows: [...group.rows], // convert readonly to mutable
+  })) ?? []
 
   return (
     <DataTable
       columns={columns}
-      rows={[...rows]}
+      rows={[]}
+      groups={groups.length > 0 ? groups : undefined}
+      collapsedGroupKeys={new Set(groups.filter((group) => isGroupCollapsed(group.key)).map((group) => group.key))}
+      onToggleGroup={onToggleGroup}
       isDesktop={isDesktop}
-      state={rows.length === 0 ? 'empty' : 'ready'}
+      state={projection.visibleRecords.length === 0 ? 'empty' : 'ready'}
       emptyLabel={t('signals.table.empty')}
       caption={t('signals.table.caption')}
       rowClassName={(signal) =>
-        [signal.retracted_at ? 'signal-table-row--retracted' : undefined, selectedIds.has(signal.id) ? 'signal-table-row--selected' : undefined]
+        [signal.retracted_at ? 'signal-table-row--retracted' : undefined]
           .filter(Boolean)
           .join(' ') || undefined
       }

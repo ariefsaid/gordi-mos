@@ -133,11 +133,10 @@ describe('SignalFeedSection — Home ambient feed wiring (AC-426/FR-414)', () =>
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
   })
 
-  it('Create Task on the card navigates to the canonical record, where the real follow-up flow lives (Rule 11 — no duplicate flow)', async () => {
+  it('does not advertise Create Task until the card can create a Task directly', async () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    await userEvent.click(screen.getByRole('button', { name: 'Create Task' }))
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
+    expect(screen.queryByRole('button', { name: 'Create Task' })).not.toBeInTheDocument()
   })
 
   it('shows the empty-state when there are no readable Signals', async () => {

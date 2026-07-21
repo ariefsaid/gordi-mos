@@ -26,6 +26,8 @@ export interface RecordCollectionSurfaceProps<
   filteredEmpty: { title: string; copy?: string; clear: () => void; create?: ReactNode }
   error: { message: string; retry: () => void }
   loadingLabel: string
+  /** Page-level route seam for opening a record while preserving collection URL state. */
+  onOpenRecord?: (record: TRecord) => void
 }
 
 export function RecordCollectionSurface<
@@ -39,7 +41,7 @@ export function RecordCollectionSurface<
 >(
   props: RecordCollectionSurfaceProps<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
 ): ReactElement {
-  const { controller, controls, selectionBar, empty, filteredEmpty, error, loadingLabel } = props
+  const { controller, controls, selectionBar, empty, filteredEmpty, error, loadingLabel, onOpenRecord } = props
   const { state, descriptor } = controller
 
   if (state.status === 'loading') {
@@ -122,7 +124,7 @@ export function RecordCollectionSurface<
     context,
     selectedIds: state.selectedIds,
     onToggleSelected: (id) => controller.toggleSelected(id),
-    onOpenRecord: (record) => controller.openRecord(record),
+    onOpenRecord: onOpenRecord ?? ((record) => controller.openRecord(record)),
     onToggleGroup: (groupId) => controller.toggleGroup(groupId),
     isGroupCollapsed: (groupId) => state.collapsedGroupIds.has(groupId),
   }
