@@ -112,6 +112,17 @@ describe('load — DAL wiring and context', () => {
     expect(mock(listRunRollups)).not.toHaveBeenCalled()
     expect(mock(listTaskDefs)).not.toHaveBeenCalled()
   })
+
+  it('FR-V3-013: context.rowsById bridges each projected id back to its raw TaskListRow (single-loader render seam)', async () => {
+    seedDirectory()
+    const raw = rawTask({ id: 't-1', title: 'Fix the coffee machine', responsible_person_id: 'p-raka', accountable_person_id: 'p-sari' })
+    mock(listTasks).mockResolvedValue([raw])
+    const data = await taskCollectionDescriptor.load({ query: q(), viewerId: 'p-raka' })
+    // The workspace maps a projected record id → the full raw row for its TaskListRow render stack,
+    // so the descriptor stays the ONLY loader (no parallel listTasks fetch in the workspace).
+    expect(data.context.rowsById.get('t-1')).toEqual(raw)
+    expect(data.records[0].id).toBe('t-1')
+  })
 })
 
 describe('NFR-V3-001: no typed bulk capability is granted', () => {
@@ -192,7 +203,7 @@ describe('table presentation (shared-surface fallback renderer)', () => {
       businessUnits: [], people: [],
       businessUnitNamesById: new Map(), personNamesById: new Map([['p-raka', 'Raka'], ['p-sari', 'Sari']]),
       workLinesById: new Map(), workLineTypeById: new Map(), objectivesById: new Map(),
-      runRollupsByRunId: new Map(), provenanceByTaskDefId: new Map(),
+      runRollupsByRunId: new Map(), provenanceByTaskDefId: new Map(), rowsById: new Map(),
       viewerId: 'p-raka', statusOverrides: new Map(), now: new Date('2026-07-21T03:00:00Z'), refresh: () => {},
     }
     return { records, context }

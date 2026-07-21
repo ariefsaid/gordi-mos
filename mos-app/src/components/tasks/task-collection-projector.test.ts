@@ -93,6 +93,7 @@ function makeContext(over: Partial<TaskCollectionContext> = {}): TaskCollectionC
     objectivesById: new Map(),
     runRollupsByRunId: new Map(),
     provenanceByTaskDefId: new Map(),
+    rowsById: new Map(),
     viewerId: P_RAKA,
     statusOverrides: new Map(),
     now: NOW,

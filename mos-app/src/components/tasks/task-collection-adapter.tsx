@@ -284,6 +284,8 @@ export interface TaskCollectionContext {
   runRollupsByRunId: ReadonlyMap<string, ProcessRunRollup>
   /** task_def_id → binding pic_role NAME, backing the "via <role>" PIC provenance line. */
   provenanceByTaskDefId: ReadonlyMap<string, string>
+  /* upgrade path: goes away when the render stack converts to TaskCollectionRecord and the table moves into presentations.render (per the standing technical RATIFY) — until then this is the sanctioned bridge keeping one loader */
+  rowsById: ReadonlyMap<string, TaskListRow>
   viewerId: string | null
   /** Optimistic per-row status overrides fed by an open drawer (AC-103). */
   statusOverrides: ReadonlyMap<string, TaskStatus>
@@ -745,6 +747,7 @@ async function loadTaskCollection(args: {
     objectivesById: toNameMap(objectives, (o) => o.name),
     runRollupsByRunId,
     provenanceByTaskDefId,
+    rowsById: new Map(rows.map((row) => [row.id, row])),
     viewerId: args.viewerId,
     // Optimistic status overrides + refresh stay workspace-owned (Option B non-collection concerns);
     // load seeds them empty/no-op so the projection is a pure function of the fetched rows.
