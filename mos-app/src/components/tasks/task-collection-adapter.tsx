@@ -2,19 +2,46 @@
 // The full descriptor (load/project/presentations/viewer) is layered on in the migration task; this
 // module owns the typed Task query <-> URL schema and the vocabulary guard (PIC / Supervisor /
 // Business Unit — never RACI, never a role-free `person`, never a Team before Issue 8's team_id).
+import type { ReactNode } from 'react'
+import { listTasks, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
+import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
+import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 import { isOverdue } from '@/lib/due-status'
 import { STATUS_ORDER } from './task-formatters'
+import { StatusPill } from './status-pill'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
+import {
+  createCollectionView,
+  getCollectionView,
+  listCollectionViews,
+  renameCollectionView,
+  archiveCollectionView,
+} from '@/lib/db/user-views-collection'
+import {
+  parseCollectionViewSpec,
+  COLLECTION_VIEW_SPEC_VERSION,
+  type CollectionViewSpec,
+  type TaskCollectionVisibleField,
+} from '@/lib/record-collection/collection-view-spec'
 import type {
+  CollectionAccess,
   CollectionData,
+  CollectionPresentationDescriptor,
+  CollectionPresentationProps,
   CollectionProjection,
   CollectionQueryIssue,
   CollectionQueryParse,
   CollectionQuerySchema,
+  CollectionSavedViewDescriptor,
+  CollectionViewStore,
   QueryKey,
+  RecordCollectionDescriptor,
+  RecordViewerOpeningContract,
 } from '@/lib/record-collection/types'
 
 export type TaskCollectionPresentation = 'table' | 'card'
@@ -482,4 +509,296 @@ export function projectTaskCollection(
     totalRecords: data.records.length,
     visibleRecordsAreFiltered: taskFiltersAreActive(query),
   }
+}
+
+// ── Persisted saved-view mapping (Work context) ───────────────────────────────────────────────────
+// Built-in chips live in the URL `view` key (owned by the query schema); the persisted DAL lifecycle
+// below is wired but has NO save/apply UI in this slice (the later saved-views.tsx run owns that).
+const TASK_VISIBLE_FIELDS: readonly TaskCollectionVisibleField[] = [
+  'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
+]
+
+/** A CollectionViewStore backed by the typed `mos.user_views` collection DAL (Tasks 8/9). */
+const taskCollectionViewStore: CollectionViewStore = {
+  list: (collectionId) => listCollectionViews(collectionId),
+  get: (id) => getCollectionView(id),
+  create: ({ name, scope, spec }) => createCollectionView({ name, scope, spec }),
+  rename: (id, name) => renameCollectionView(id, name),
+  archive: (id) => archiveCollectionView(id),
+}
+
+/** Map the live typed query + presentation into a persisted, schema-versioned Task view spec. */
+function buildTaskViewSpec(args: {
+  query: TaskCollectionQuery
+  presentation: TaskCollectionPresentation
+}): CollectionViewSpec {
+  const { query, presentation } = args
+  return {
+    kind: 'collection',
+    version: COLLECTION_VIEW_SPEC_VERSION,
+    collectionId: 'tasks',
+    domain: 'tasks',
+    presentation,
+    visibleFields: TASK_VISIBLE_FIELDS,
+    query: {
+      view: query.view,
+      q: query.q,
+      businessUnitId: query.businessUnitId,
+      status: query.status,
+      picId: query.picId,
+      supervisorId: query.supervisorId,
+      includeArchived: query.includeArchived,
+      overdueOnly: query.overdueOnly,
+      occurrenceId: query.occurrenceId,
+    },
+    sort: { field: query.sort, direction: query.direction },
+    grouping: query.groupBy === 'none' ? null : { field: query.groupBy },
+    layout: { density: 'compact' },
+  }
+}
+
+/** Reverse of buildTaskViewSpec: a validated spec → the typed query + presentation to apply. */
+function applyTaskViewSpec(spec: CollectionViewSpec): {
+  query: TaskCollectionQuery
+  presentation: TaskCollectionPresentation
+} {
+  if (spec.collectionId !== 'tasks') {
+    // The engine only ever hands a validated Tasks spec here; guard keeps the type narrow.
+    return { query: { ...TASK_COLLECTION_NEUTRAL_QUERY }, presentation: 'table' }
+  }
+  const query: TaskCollectionQuery = {
+    ...TASK_COLLECTION_NEUTRAL_QUERY,
+    ...spec.query,
+    layout: spec.presentation,
+    groupBy: spec.grouping ? spec.grouping.field : 'none',
+    sort: spec.sort.field,
+    direction: spec.sort.direction,
+  }
+  return { query, presentation: spec.presentation }
+}
+
+export const taskCollectionSavedViews: CollectionSavedViewDescriptor<
+  TaskCollectionQuery,
+  TaskCollectionPresentation
+> = {
+  enabled: true,
+  store: taskCollectionViewStore,
+  operations: ['save', 'apply', 'rename', 'archive'],
+  buildSpec: buildTaskViewSpec,
+  parseAndValidate: (input) => parseCollectionViewSpec(input),
+  applySpec: applyTaskViewSpec,
+}
+
+// ── Presentations ─────────────────────────────────────────────────────────────────────────────────
+// Option B (Director ruling 2026-07-21): the LIVE Task table is rendered workspace-owned so its
+// virtualization + j/k keyboard cursor stay wired as-is. These descriptor presentations are the
+// shared-surface fallback + conformance renderer (read-only grouped list); they are NOT the live
+// Task grid. Upgrade path: move the workspace table body in here once a virtualization/keyboard seam
+// exists on CollectionPresentationProps.
+type TaskPresentationProps = CollectionPresentationProps<
+  TaskCollectionRecord,
+  TaskCollectionQuery,
+  CollectionProjection<TaskCollectionRecord, TaskRenderGroup>,
+  TaskCollectionContext,
+  string
+>
+
+function renderTaskGroups(props: TaskPresentationProps, variant: TaskCollectionPresentation): ReactNode {
+  const { projection, context, onOpenRecord } = props
+  const name = (id: string) => context.personNamesById.get(id) ?? ''
+  return (
+    <div className={`task-collection-fallback task-collection-fallback--${variant}`}>
+      {projection.groups.map((group) => (
+        <section key={group.key} className="task-collection-group" aria-label={group.label || undefined}>
+          {group.label ? (
+            <h3 className="task-collection-group-head">
+              {group.label} <span className="tabular-nums">({group.rows.length})</span>
+            </h3>
+          ) : null}
+          <ul className="task-collection-rows">
+            {group.rows.map((row) => (
+              <li key={row.id}>
+                <button type="button" className="task-collection-row" onClick={() => onOpenRecord(row)}>
+                  <span className="task-collection-title">{row.title}</span>
+                  <StatusPill status={row.status} />
+                  <span className="task-collection-pic">{name(row.picId)}</span>
+                  <span className="task-collection-supervisor">{name(row.supervisorId) || '—'}</span>
+                  <span className="task-collection-due tabular-nums">{row.dueDate ?? '—'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+// Capability KEYS are query keys (like the Inbox fixture), not the value unions. `sort`/`groupBy`
+// are the single sortable/groupable query keys; their supported VALUE sets live in the toolbar.
+const TASK_CAPABILITIES = {
+  search: true,
+  filterKeys: ['businessUnitId', 'status', 'picId', 'supervisorId', 'overdueOnly'] as const,
+  sortKeys: ['sort'] as const,
+  groupKeys: ['groupBy'] as const,
+  savedViews: true,
+  selection: true,
+  recordOpening: true,
+  bulkActions: [] as const,
+}
+
+type TaskPresentationDescriptor = CollectionPresentationDescriptor<
+  TaskCollectionRecord,
+  string,
+  TaskCollectionQuery,
+  CollectionProjection<TaskCollectionRecord, TaskRenderGroup>,
+  TaskCollectionContext,
+  TaskCollectionAction,
+  TaskCollectionPresentation
+>
+
+const taskTablePresentation: TaskPresentationDescriptor = {
+  id: 'table',
+  label: 'Table',
+  compatibleQueryKeys: TASK_QUERY_KEYS,
+  capabilities: {
+    ...TASK_CAPABILITIES,
+    filterKeys: [...TASK_CAPABILITIES.filterKeys],
+    sortKeys: [...TASK_CAPABILITIES.sortKeys],
+    groupKeys: [...TASK_CAPABILITIES.groupKeys],
+    bulkActions: [...TASK_CAPABILITIES.bulkActions],
+  },
+  render: (props) => renderTaskGroups(props, 'table'),
+}
+
+const taskCardPresentation: TaskPresentationDescriptor = {
+  id: 'card',
+  label: 'Card',
+  compatibleQueryKeys: TASK_QUERY_KEYS,
+  capabilities: {
+    ...TASK_CAPABILITIES,
+    filterKeys: [...TASK_CAPABILITIES.filterKeys],
+    sortKeys: [...TASK_CAPABILITIES.sortKeys],
+    groupKeys: [...TASK_CAPABILITIES.groupKeys],
+    bulkActions: [...TASK_CAPABILITIES.bulkActions],
+  },
+  render: (props) => renderTaskGroups(props, 'card'),
+}
+
+// ── Load ────────────────────────────────────────────────────────────────────────────────────────
+function toNameMap<T extends { id: string }>(rows: readonly T[], nameOf: (r: T) => string): Map<string, string> {
+  const m = new Map<string, string>()
+  for (const r of rows) m.set(r.id, nameOf(r))
+  return m
+}
+
+async function loadTaskCollection(args: {
+  query: TaskCollectionQuery
+  viewerId: string | null
+}): Promise<CollectionData<TaskCollectionRecord, TaskCollectionContext>> {
+  // BU/Status filtering is client-side in the projector (honest empty-vs-filtered-empty); only
+  // `includeArchived` is a server concern (archived rows are excluded by default).
+  const filters: TaskListFilters = { includeArchived: args.query.includeArchived }
+  const [rows, businessUnits, people, objectives, workLines] = await Promise.all([
+    listTasks(filters),
+    getBusinessUnits(),
+    getPeople(),
+    listObjectives(),
+    listWorkLines(),
+  ])
+  const records = rows.map(toTaskCollectionRecord)
+
+  // Occurrence roll-ups + PIC provenance are fetched ONLY for the occurrence grouping (Director
+  // ruling 1) — the exact runs/defs in view, mirroring the legacy useOccurrenceGroups fetch scope.
+  let runRollupsByRunId: ReadonlyMap<string, ProcessRunRollup> = new Map()
+  let provenanceByTaskDefId: ReadonlyMap<string, string> = new Map()
+  if (args.query.groupBy === 'occurrence') {
+    const runIds = [...new Set(records.map((r) => r.processRunId).filter((id): id is string => Boolean(id)))].sort()
+    if (runIds.length > 0) {
+      const rollups = await listRunRollups(runIds).catch(() => [])
+      runRollupsByRunId = new Map(rollups.map((r) => [r.process_run_id, r]))
+    }
+    const defIds = [...new Set(records.map((r) => r.generatedFromTaskDefinitionId).filter((id): id is string => Boolean(id)))].sort()
+    if (defIds.length > 0) {
+      const defs = await listTaskDefs(defIds).catch(() => [])
+      const roleIds = [...new Set(defs.map((d) => d.pic_role_id).filter((id): id is string => Boolean(id)))]
+      if (roleIds.length > 0) {
+        const roles = await listRoleNames(roleIds).catch(() => [])
+        const nameByRoleId = new Map(roles.map((role) => [role.id, role.name]))
+        const provenance = new Map<string, string>()
+        for (const def of defs) {
+          const roleName = def.pic_role_id ? nameByRoleId.get(def.pic_role_id) : undefined
+          if (roleName) provenance.set(def.id, roleName)
+        }
+        provenanceByTaskDefId = provenance
+      }
+    }
+  }
+
+  const context: TaskCollectionContext = {
+    businessUnits,
+    people,
+    businessUnitNamesById: toNameMap(businessUnits, (b) => b.name),
+    personNamesById: toNameMap(people, (p) => p.full_name),
+    workLinesById: toNameMap(workLines, (w) => w.name),
+    workLineTypeById: new Map(workLines.map((w) => [w.id, w.type])),
+    objectivesById: toNameMap(objectives, (o) => o.name),
+    runRollupsByRunId,
+    provenanceByTaskDefId,
+    viewerId: args.viewerId,
+    // Optimistic status overrides + refresh stay workspace-owned (Option B non-collection concerns);
+    // load seeds them empty/no-op so the projection is a pure function of the fetched rows.
+    statusOverrides: new Map(),
+    now: new Date(),
+    refresh: () => {},
+  }
+  return { records, context }
+}
+
+// ── Access + viewer opening seam ──────────────────────────────────────────────────────────────────
+function getTaskAccess(): CollectionAccess<TaskCollectionAction> {
+  // Tasks are org-readable and member-writable (RLS is the real gate). TaskCollectionAction = never,
+  // so no collection-level bulk mutation is exposed (selection stays live; its action slot is absent).
+  return { mode: 'full', visibleActions: [] }
+}
+
+/**
+ * The Issue-5 opening seam. `toCanonicalPage` is the real full-page escalation (`/work/tasks/:id`
+ * preserving the collection's search). `buildPanelEntry` yields the overlay entry; under Option B the
+ * LIVE Task opening stays route/Link-based in the workspace this slice, so the entry's `content` is
+ * null (the Issue-5 RecordViewer renderer owns panel content) and `pageTo` carries the canonical route.
+ */
+const taskViewerOpeningContract: RecordViewerOpeningContract<TaskCollectionRecord> = {
+  recordType: 'task',
+  buildPanelEntry: (record, source) => ({
+    key: `task:${record.id}`,
+    owner: 'tasks',
+    tenant: 'record',
+    label: record.title,
+    pageTo: { pathname: `/work/tasks/${record.id}`, search: source.search },
+    content: null,
+  }),
+  toCanonicalPage: (recordId, source) => ({ pathname: `/work/tasks/${recordId}`, search: source.search }),
+}
+
+// ── The descriptor ────────────────────────────────────────────────────────────────────────────────
+export const taskCollectionDescriptor: RecordCollectionDescriptor<
+  TaskCollectionRecord,
+  string,
+  TaskCollectionQuery,
+  TaskCollectionContext,
+  TaskRenderGroup,
+  TaskCollectionAction,
+  TaskCollectionPresentation
+> = {
+  id: 'tasks',
+  defaultPresentation: 'table',
+  query: taskCollectionQuery,
+  savedViews: taskCollectionSavedViews,
+  presentations: { table: taskTablePresentation, card: taskCardPresentation },
+  load: loadTaskCollection,
+  project: (data, query) => projectTaskCollection(data, query),
+  getId: (record) => record.id,
+  getAccess: getTaskAccess,
+  viewer: taskViewerOpeningContract,
 }
