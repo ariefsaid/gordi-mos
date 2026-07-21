@@ -143,6 +143,18 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
     sourceFile: 'src/pages/slice-stub-page.tsx',
     symbol: 'SliceStubPage',
   },
+  {
+    path: '/money/follow-ups',
+    family: 'workspace',
+    sourceFile: 'src/pages/follow-ups-page.tsx',
+    symbol: 'FollowUpsPage',
+  },
+  {
+    path: '/work/follow-ups/:id',
+    family: 'workspace',
+    sourceFile: 'src/pages/follow-ups-page.tsx',
+    symbol: 'FollowUpsPage',
+  },
 ]
 
 /** Every route whose page head owns the job sentence (representatives + Issue 11 migrations). */
@@ -152,8 +164,6 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
 ]
 
 export const ISSUE_3_DEFERRED_PAGE_ROUTES = [
-  '/money/follow-ups',
-  '/work/follow-ups/:id',
   '/work/signals',
   '/work/signals/:signalId',
   '/work/tasks/new',

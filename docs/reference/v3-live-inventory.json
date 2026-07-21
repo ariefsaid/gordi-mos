@@ -3695,7 +3695,7 @@
         "padding": 8,
         "margin": 1,
         "gap": 3,
-        "width": 7,
+        "width": 6,
         "height": 4
       },
       "breakpoints": [
@@ -4243,8 +4243,8 @@
         "padding": 1,
         "margin": 1,
         "gap": 1,
-        "width": 2,
-        "height": 1
+        "width": 0,
+        "height": 0
       },
       "breakpoints": []
     },
@@ -4399,6 +4399,24 @@
         "height": 2
       },
       "breakpoints": []
+    },
+    {
+      "path": "mos-app/src/components/ui/modal-shell.css",
+      "family": "components/ui/modal-shell",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 0,
+        "line-height": 0,
+        "padding": 2,
+        "margin": 0,
+        "gap": 0,
+        "width": 5,
+        "height": 3
+      },
+      "breakpoints": [
+        "@media (max-width: 640px)",
+        "@media (prefers-reduced-motion: no-preference)"
+      ]
     },
     {
       "path": "mos-app/src/components/ui/Pill.css",
@@ -4827,7 +4845,7 @@
         "margin": 1,
         "gap": 1,
         "width": 2,
-        "height": 2
+        "height": 3
       },
       "breakpoints": []
     }
@@ -4890,6 +4908,7 @@
       "mos-app/src/components/ui/Checkbox.css",
       "mos-app/src/components/ui/Chip.css",
       "mos-app/src/components/ui/IconButton.css",
+      "mos-app/src/components/ui/modal-shell.css",
       "mos-app/src/components/ui/Pill.css",
       "mos-app/src/components/ui/Select.css",
       "mos-app/src/components/ui/Tag.css",
@@ -4921,11 +4940,11 @@
     "countsByKind": {
       "font-size": 346,
       "line-height": 39,
-      "padding": 279,
+      "padding": 281,
       "margin": 81,
       "gap": 219,
-      "width": 332,
-      "height": 257
+      "width": 334,
+      "height": 260
     },
     "examples": {
       "font-size": [
@@ -5328,7 +5347,7 @@
     "pageRouteCount": 29,
     "redirectCount": 25,
     "devRouteCount": 4,
-    "cssFileCount": 73,
+    "cssFileCount": 74,
     "componentCount": 13,
     "duplicateJobCount": 13
   },

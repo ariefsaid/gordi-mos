@@ -91,6 +91,13 @@ beforeEach(() => {
 })
 
 describe('FollowUpsPage', () => {
+  it('uses the V3 Workspace family and states the collection job once', async () => {
+    const { container } = render(createElement(FollowUpsPage), { wrapper })
+    await screen.findByText('PT Big Buyer')
+    expect(container.querySelector('[data-page-family="workspace"]')).toBeTruthy()
+    expect(screen.getByText('Chase, settle, and confirm invoice-grain commitments')).toBeInTheDocument()
+  })
+
   it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
     const { container } = render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
