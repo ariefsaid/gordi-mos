@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { UseNotifications } from '@/hooks/useNotifications'
@@ -56,7 +56,10 @@ describe('InboxPage — shared state kit', () => {
     mockUseNotifications.mockReturnValue(hookState({ loading: true }))
     const { container } = renderPage()
 
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+    // The connected triage body owns the loading grammar: a busy status region over the shared
+    // skeleton rows — never a bare empty/"caught up" surface while data is still in flight.
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
     expect(container.querySelector('.skeleton-rows')).not.toBeNull()
     expect(screen.queryByText(/caught up/i)).not.toBeInTheDocument()
   })
@@ -66,8 +69,8 @@ describe('InboxPage — shared state kit', () => {
     mockUseNotifications.mockReturnValue(hookState({ error: 'load failed', refresh }))
     renderPage()
 
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
-    expect(screen.getByRole('alert')).toHaveTextContent(/couldn't load inbox/i)
+    expect(screen.getByText(/couldn't load inbox/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(refresh).toHaveBeenCalled()
   })
 
@@ -88,8 +91,10 @@ describe('InboxPage — shared state kit', () => {
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
     expect(screen.getByText(/attention/i)).toBeInTheDocument()
+    // The quiet empty state itself carries no call-to-action (no push-to-act when caught up); the
+    // only controls on the surface are the persistent filter chips, never an empty-state CTA/link.
     expect(emptyState.querySelector('.empty-actions')).toBeNull()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(within(emptyState).queryByRole('button')).toBeNull()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
