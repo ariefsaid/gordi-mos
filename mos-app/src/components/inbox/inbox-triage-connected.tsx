@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
+import { useAuth } from '@/auth/use-auth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { OverlayEntry } from '@/shell/overlay-host'
@@ -30,6 +31,8 @@ export function InboxTriageConnected({ mode }: { mode: 'page' | 'quick' }) {
   const t = useT()
   const { notifications, loading, error, refresh, markRead } = useNotifications()
   const host = useOptionalOverlayHost()
+  const auth = useAuth()
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const [filter, setFilter] = useState<InboxFilter>('all')
   const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
 
@@ -45,7 +48,7 @@ export function InboxTriageConnected({ mode }: { mode: 'page' | 'quick' }) {
 
   const onOpen = (row: TriageNotificationRow) => {
     setUnavailableKey(null)
-    const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row))
+    const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles))
     // Opening marks READ only (never handled) — the queue truth updates even when the target
     // cannot be shown, because the person has now seen the notification.
     void markRead(row.id)

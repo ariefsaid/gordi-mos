@@ -7,6 +7,7 @@ import type { MessageKey } from '@/i18n/messages'
 import { Button } from '@/components/ui/button'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { SHOW_FOLLOWUPS } from '@/config/features'
+import { can } from '@/lib/capabilities'
 import type { NotificationRow } from '@/lib/db/notifications'
 import type {
   NotificationTargetRef,
@@ -101,13 +102,41 @@ function RecordDoorTitle({ type }: { type: NotificationTargetType }) {
 }
 
 /**
+ * Per-target-type capability gates for the door. The VALUE is the `can()` capability a viewer must
+ * hold to open that target's record from a notification; `undefined` means "no client gate — RLS is
+ * the authority". None of the current openable types (task/signal) carry a client-open capability:
+ * a notification is owner-scoped via RLS (the viewer only ever sees their own rows), and reading
+ * one's own task/signal is RLS-permitted by construction. Should a future target type need a real
+ * client gate (e.g. a finance-scoped notification), add it here and `canOpen` below will enforce it
+ * automatically — no other change required.
+ */
+const TARGET_OPEN_CAPABILITY: Partial<Record<NotificationTargetType, string>> = {
+  // task:   undefined — RLS gates the read (FR-333); the canonical Task page renders not-found for
+  //                   archived/deleted targets, so the door does not need a separate existence check.
+  // signal: undefined — same reasoning; Signal page handles its own not-found/archived state.
+}
+
+/**
  * Build the fail-closed resolver dependencies for one notification row. The registry is bound to the
  * row so the door content can render its arrival context. `task` and `signal` are wired to their
  * canonical routes; `follow_up` is deliberately omitted so the resolver returns `feature-off` while
- * the flag is dark. RLS is the real read gate (a notification is owner-scoped), so `canOpen` /
- * `isSameOrg` / `recordExists` are permissive here and the canonical page enforces the rest.
+ * the flag is dark.
+ *
+ * The three predicates are structured as follows (each is honest, not decorative):
+ *  - `canOpen` consults the viewer's real `accessRoles` via `can()` for the target's open-capability
+ *    (TARGET_OPEN_CAPABILITY). Currently no openable type carries one, so this returns true — but
+ *    the wiring is real, so adding a gated type works without touching this function.
+ *  - `isSameOrg` returns true because notifications are owner-private + org-scoped via RLS
+ *    (notifications.ts §"Data layer": "RLS is the authority (owner-private, org-scoped)"). A
+ *    cross-org notification is structurally invisible to this viewer — the row would never arrive.
+ *  - `recordExists` returns true because the canonical Task/Signal page renders an honest
+ *    `not-found-panel` (task-surface.tsx) / archived state for a deleted/archived target, so the
+ *    door does not pretend the record is gone before the viewer sees the destination's own handling.
  */
-export function buildInboxTargetDeps(row: NotificationRow): ResolveTargetDeps {
+export function buildInboxTargetDeps(
+  row: NotificationRow,
+  accessRoles: readonly string[] = [],
+): ResolveTargetDeps {
   const registry: TargetRegistry = {}
   for (const type of ['task', 'signal'] as const) {
     const toRoute = CANONICAL_ROUTE[type]
@@ -131,9 +160,12 @@ export function buildInboxTargetDeps(row: NotificationRow): ResolveTargetDeps {
   }
   return {
     registry,
-    canOpen: () => true,
-    isSameOrg: () => true,
-    recordExists: () => true,
+    canOpen: (ref) => {
+      const capability = TARGET_OPEN_CAPABILITY[ref.type]
+      return capability == null ? true : can(accessRoles, capability)
+    },
+    isSameOrg: () => true, // RLS-attested: notifications are owner-private + org-scoped at the DB.
+    recordExists: () => true, // Canonical page renders its own not-found/archived state.
     isFeatureEnabled: (type) => (type === 'follow_up' ? SHOW_FOLLOWUPS : true),
   }
 }
