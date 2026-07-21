@@ -13,6 +13,7 @@ import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
+import { OverlayHostProvider, OverlayHostSlot } from './overlay-host'
 
 function ShellContent() {
   const isNarrow = useIsNarrow()
@@ -76,6 +77,17 @@ function ShellContent() {
             onOpenActionLauncher={() => setSearchOpen(true)}
           />
         )}
+
+        {/*
+          The single physical OverlayHostSlot owned by the shell (V3 Issue 4 / FR-V3-007).
+          It is a direct child of the shell grid so the test can verify its presence and
+          parentage. It renders no children (the shell UI is already rendered as grid siblings);
+          it only conditionally renders the RecordPanelHost when the active overlay session's
+          top frame has owner="shell". Collection-owned entries (tasks, signals, deputy) use
+          the SAME shell slot — the OverlayHostSlot's owner filter ensures only one physical
+          host exists at a time. The slot uses display:contents so it doesn't create a grid item.
+        */}
+        <OverlayHostSlot owner="shell" />
       </div>
 
       {/* Mobile drawer — rendered outside the grid so it can be fixed/overlaid.
@@ -107,17 +119,28 @@ export function AppShell() {
   //
   // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
   // Flag-off skips the provider entirely so no assistant context/state mounts.
+  //
+  // The OverlayHostProvider wraps the narrowest shell boundary that covers TopBar, Outlet
+  // collections, Inbox/Deputy, command/composer, and the physical host slot (V3 Issue 4).
+  // It sits INSIDE SignalComposerHost/AgentRuntimeProvider so those providers are available
+  // to any overlay content (tasks, signals, deputy).
+  const shellWithOverlay = (
+    <OverlayHostProvider>
+      <ShellContent />
+    </OverlayHostProvider>
+  )
+
   if (!SHOW_ASSISTANT) {
     return (
       <SignalComposerHost>
-        <ShellContent />
+        {shellWithOverlay}
       </SignalComposerHost>
     )
   }
   return (
     <AgentRuntimeProvider>
       <SignalComposerHost>
-        <ShellContent />
+        {shellWithOverlay}
       </SignalComposerHost>
     </AgentRuntimeProvider>
   )

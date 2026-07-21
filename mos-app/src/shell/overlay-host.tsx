@@ -352,7 +352,7 @@ export function OverlayHostSlot({
   const pageTo = active?.entry.pageTo
 
   return (
-    <>
+    <span data-overlay-host-slot={owner} style={{ display: 'contents' }}>
       {children}
       {active && (
         <RecordPanelHost
@@ -371,6 +371,6 @@ export function OverlayHostSlot({
           {active.entry.content}
         </RecordPanelHost>
       )}
-    </>
+    </span>
   )
 }
