@@ -132,6 +132,45 @@ and DeepSeek V4 Pro; DeepSeek V4 Flash, Llama 3.1
 authorship/sign-off of security/RLS/RPC/auth/money/schema changes, and the Director still verifies
 every claim. If NIM is unavailable, fall to the configured alternatives below.
 
+#### NIM multimodal models — `minimaxai/minimax-m3` and `thinkingmachines/inkling` (owner-supplied slugs, 2026-07-21)
+
+These are **multimodal** NIM models for rendered UI / visual / IxD judgment when Luna is unavailable
+(they trade some general intelligence for vision — verify their work more tightly than a text
+workhorse). They live on the same `https://integrate.api.nvidia.com/v1/chat/completions` endpoint
+but use **different slugs** and (for Inkling) a **required `reasoning_effort`** field:
+
+| Slug | Use for | Required params |
+|---|---|---|
+| `minimaxai/minimax-m3` | multimodal integration-gap / page-grammar / visual sweeps | `temperature:1, top_p:0.95, max_tokens:8192, stream:false` |
+| `thinkingmachines/inkling` | interaction-door / IxD sweep — **requires `reasoning_effort`** (`"high"` or `"max"`); without it the call mis-routes | `temperature:1, top_p:0.95, max_tokens:8192, reasoning_effort:"high", stream:false` |
+
+**⚠ These slugs are NOT registered in pi's `~/.pi/agent/models.json`** under the `nvidia` provider,
+so `pi --provider nvidia --model minimaxai/minimax-m3` **404s** ("Model not found — using custom
+model id" → upstream 404 page-not-found, as observed 2026-07-21). Until they're registered there,
+**call them directly via curl** to the NIM endpoint (owner-supplied envelope; `$NVIDIA_API_KEY` is
+read from the environment — fetch via `op-get.sh` if a live run is needed; never read `auth.json`):
+
+```bash
+# minimax-m3 — multimodal / visual-integration sweep (attach images as base64 in the messages array)
+curl -s https://integrate.api.nvidia.com/v1/chat/completions \
+  -H "Authorization: Bearer $NVIDIA_API_KEY" -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  --data '{"model":"minimaxai/minimax-m3","messages":[{"role":"user","content":"…"}],
+           "temperature":1,"top_p":0.95,"max_tokens":8192,"stream":false}'
+
+# inkling — interaction-door sweep (reasoning_effort is REQUIRED or the call mis-routes)
+curl -s https://integrate.api.nvidia.com/v1/chat/completions \
+  -H "Authorization: Bearer $NVIDIA_API_KEY" -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  --data '{"model":"thinkingmachines/inkling","messages":[{"role":"user","content":"…"}],
+           "temperature":1,"top_p":0.95,"max_tokens":8192,"reasoning_effort":"high","stream":false}'
+```
+
+> **Verification status (2026-07-21).** Slugs + payload shapes are owner-supplied and correct; a
+> live smoke from the Director session could not complete because `$NVIDIA_API_KEY` was not present
+> in the shell (the Director never reads it). Treat the envelope as owner-attested until a live run
+> confirms; do not claim "smoke OK" without one. Same 40-RPM shared-key cap below applies.
+
 > **⚑ RATE LIMIT — 40 RPM (free account).** The NIM key is a free-tier account capped at **40 API
 > requests/minute**. A single sequential pi worker never approaches this. The risk is **fan-out**: a
 > GLM/pi orchestrator spawning parallel sub-workers on NIM, a loop-until-count, or several NIM
