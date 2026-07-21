@@ -308,11 +308,15 @@ describe('AdminUsersPage — password reveal a11y', () => {
     await screen.findByText('TmpPw9999')
 
     const alertdialog = screen.getByRole('alertdialog')
+    expect(alertdialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
     const describedById = alertdialog.getAttribute('aria-describedby')
     expect(describedById).toBeTruthy()
     const describedByEl = document.getElementById(describedById!)
     expect(describedByEl).not.toBeNull()
     expect(describedByEl!.textContent).toMatch(/copy this now/i)
+
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   })
 })
-

@@ -20,6 +20,7 @@ import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
 import { RoleEditor } from '@/components/admin/role-editor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import {
@@ -307,22 +308,16 @@ export function AdminUsersPage() {
           The alertdialog element owns aria-labelledby/describedby (item 7 fix):
           previously these were only on the inner wrapper div, not the alertdialog element. */}
       {reveal && (
-        <div
-          className="fixed inset-0 flex items-center justify-center"
-          style={{ background: 'var(--scrim)', zIndex: 'var(--z-modal)' }}
-          // No backdrop dismiss on reveal — intentional (design-plan §4.4)
+        <ModalShell
+          open
+          onClose={handleRevealDone}
+          role="alertdialog"
+          ariaLabelledBy={revealHeadingId}
+          ariaDescribedBy={revealWarningId}
+          closeOnBackdrop={false}
+          closeOnEscape={false}
         >
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby={revealHeadingId}
-            aria-describedby={revealWarningId}
-            className="relative w-full max-w-md rounded-lg p-6"
-            style={{
-              background: 'var(--card)',
-              boxShadow: 'var(--shadow-overlay)',
-            }}
-          >
+          <div className="p-6">
             <PasswordReveal
               personName={reveal.personName}
               password={reveal.password}
@@ -333,7 +328,7 @@ export function AdminUsersPage() {
               warningId={revealWarningId}
             />
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* Success toast (item 6) */}

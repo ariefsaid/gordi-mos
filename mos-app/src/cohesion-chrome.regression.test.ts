@@ -82,6 +82,7 @@ describe('CHROME-Z: z-index tier scale', () => {
       'components/ui/confirm-dialog.tsx',
       'components/admin/create-person-dialog.tsx',
       'components/admin/role-editor.tsx',
+      'pages/admin-users-page.tsx',
     ]) {
       const body = readSrc(f)
       expect(body, `${f} must not ship the bare Tailwind z-50 overlay`).not.toMatch(/className="fixed inset-0 z-50/)
@@ -311,6 +312,7 @@ describe('CHROME-MODAL: modal consolidation', () => {
       'components/tasks/occurrence-assign-dialog.tsx',
       'components/admin/create-person-dialog.tsx',
       'components/admin/role-editor.tsx',
+      'pages/admin-users-page.tsx',
       'components/command/command-menu.tsx',
       'shell/signal-composer-host.tsx',
     ]
