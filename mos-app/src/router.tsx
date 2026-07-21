@@ -10,6 +10,7 @@ import { HomePage } from './pages/home-page'
 import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
 import { FollowUpsPage } from './pages/follow-ups-page'
+import { FollowUpRecordPage } from './pages/follow-up-record-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { InboxPage } from './pages/inbox-page'
 import { CafeOpeningPage } from './pages/cafe-opening-page'
@@ -132,7 +133,9 @@ export const routeConfig: RouteObject[] = [
           },
           { path: 'work/cascade', element: <Navigate to="/work/tasks" replace />, handle: v3Redirect('/work/tasks') },
           { path: 'work/follow-ups', element: <Navigate to="/work/tasks?view=followups" replace />, handle: v3Redirect('/work/tasks?view=followups') },
-          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace />, handle: v3Page('focused-record') },
+          // The follow-up RECORD door (focused-record) — the canonical FollowUpRecordHost via
+          // the shared RecordViewer, not the queue page's bespoke in-flow aside (audit fix).
+          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpRecordPage /> : <Navigate to="/" replace />, handle: v3Page('focused-record') },
 
           // ── Events / Money / Inbox (canonical) ──
           { path: 'events', element: <EventsPage />, handle: v3Page('workspace') },
@@ -144,7 +147,10 @@ export const routeConfig: RouteObject[] = [
               { path: 'money/detail', element: <DashboardPage defaultTab="detail" />, handle: v3Page('workspace') },
               { path: 'money/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
               { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
-              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace />, handle: v3Page('focused-record') },
+              // R-OWNER-5 (provisional Director ruling): the follow-ups QUEUE is a workspace
+              // destination — it renders a record count + overdue meta, which is workspace grammar.
+              // The follow-up RECORD (/work/follow-ups/:id) stays focused-record.
+              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
             ],
           },
           { path: 'inbox', element: <InboxPage />, handle: v3Page('workspace') },

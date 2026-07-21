@@ -151,9 +151,9 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
   },
   {
     path: '/work/follow-ups/:id',
-    family: 'workspace',
-    sourceFile: 'src/pages/follow-ups-page.tsx',
-    symbol: 'FollowUpsPage',
+    family: 'focused-record',
+    sourceFile: 'src/pages/follow-up-record-page.tsx',
+    symbol: 'FollowUpRecordPage',
   },
 ]
 
