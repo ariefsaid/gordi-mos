@@ -60,6 +60,36 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
     symbol: 'CafeOpeningPage',
   },
   {
+    path: '/cafe/log',
+    family: 'workspace',
+    sourceFile: 'src/pages/kitchen-log-page.tsx',
+    symbol: 'KitchenLogPage',
+  },
+  {
+    path: '/cafe/plan',
+    family: 'workspace',
+    sourceFile: 'src/pages/kitchen-plan-page.tsx',
+    symbol: 'KitchenPlanPage',
+  },
+  {
+    path: '/cafe/pushes',
+    family: 'workspace',
+    sourceFile: 'src/pages/kitchen-pushes-page.tsx',
+    symbol: 'KitchenPushesPage',
+  },
+  {
+    path: '/cafe/review',
+    family: 'workspace',
+    sourceFile: 'src/pages/kitchen-review-page.tsx',
+    symbol: 'KitchenReviewPage',
+  },
+  {
+    path: '/cafe/stock',
+    family: 'workspace',
+    sourceFile: 'src/pages/kitchen-stock-page.tsx',
+    symbol: 'KitchenStockPage',
+  },
+  {
     path: '/ecommerce',
     family: 'workspace',
     sourceFile: 'src/pages/slice-stub-page.tsx',
@@ -81,11 +111,6 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
 
 export const ISSUE_3_DEFERRED_PAGE_ROUTES = [
   '/',
-  '/cafe/log',
-  '/cafe/plan',
-  '/cafe/pushes',
-  '/cafe/review',
-  '/cafe/stock',
   '/money',
   '/money/budget',
   '/money/detail',

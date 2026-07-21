@@ -15,10 +15,10 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listActiveWipItems } from '@/lib/db/kitchen-logs'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
@@ -58,22 +58,27 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 export function KitchenPlanPage() {
   useDocumentTitle('Café Plan — Gordi MOS')
   const auth = useAuth()
+  const t = useT()
 
   // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const canEdit = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingShell count={3} /></PageFrame>
+    return (
+      <PageFamilyFrame family="workspace" title="Café · Plan" jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
+    )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Plan" jobSentence={t('job.cafe')} state="permission">
         <div className="kp-block kp-forbidden">
           <p className="kp-forbidden-msg">You need to sign in to view the kitchen plan.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
@@ -84,6 +89,7 @@ export function KitchenPlanPage() {
 // ops_lead / admin — the plan EDITOR (FR-030/031)
 // ════════════════════════════════════════════════════════════════════════════
 function PlanEditor() {
+  const t = useT()
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   const [action, setAction] = useState<KitchenActionType>('Production')
   const [items, setItems] = useState<WipItemOption[]>([])
@@ -241,13 +247,14 @@ function PlanEditor() {
   ]
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Café · Plan"
-        count={load.kind === 'ready' ? items.length : null}
-        meta={<span className="kp-date tabular">{logDate}</span>}
-      />
+    <PageFamilyFrame
+      family="workspace"
+      title="Café · Plan"
+      jobSentence={t('job.cafe')}
+      count={load.kind === 'ready' ? items.length : null}
+      meta={<span className="kp-date tabular">{logDate}</span>}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
+    >
 
       {/* Derived KPI strip (P-1) — only when populated (plan §4.4) */}
       {load.kind === 'ready' && items.length > 0 && (
@@ -312,7 +319,7 @@ function PlanEditor() {
           />
         </div>
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 
@@ -320,6 +327,7 @@ function PlanEditor() {
 // member — the read-only PESANAN horizon (FR-035 / AC-024)
 // ════════════════════════════════════════════════════════════════════════════
 function PesananView() {
+  const t = useT()
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -374,13 +382,14 @@ function PesananView() {
   ]
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Café · Pesanan"
-        count={load.kind === 'ready' ? rows.length : null}
-        meta={<span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>}
-      />
+    <PageFamilyFrame
+      family="workspace"
+      title="Café · Pesanan"
+      jobSentence={t('job.cafe')}
+      count={load.kind === 'ready' ? rows.length : null}
+      meta={<span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
+    >
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
@@ -407,6 +416,6 @@ function PesananView() {
           caption="Planned items — pesanan horizon"
         />
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

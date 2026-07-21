@@ -17,11 +17,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import {
   listActiveWipItems,
   fetchPlanMap,
@@ -107,6 +107,7 @@ type PageStatus =
 export function KitchenLogPage() {
   useDocumentTitle('Café Log — Gordi MOS')
   const auth = useAuth()
+  const t = useT()
   const isDesktop = useIsDesktop()
 
   const [actionType, setActionType] = useState<KitchenActionType>('Production')
@@ -273,42 +274,42 @@ export function KitchenLogPage() {
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Log" jobSentence={t('job.cafe')} state="loading">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Log" jobSentence={t('job.cafe')} state="permission">
         <div className="kl-page kl-unauth kl-block">
           <p className="kl-unauth-msg">You need to sign in to use the Café Log.</p>
           <Link to="/login" className="btn btn-primary btn-touch kl-touch">Sign in</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Data loading state — offline indicator surfaced here too (#2, RI-2) ──────
   if (status.kind === 'loading') {
     return (
-      <PageFrame variant="data">
+      <PageFamilyFrame family="workspace" title="Café · Log" jobSentence={t('job.cafe')} state="loading" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFrame variant="data">
+      <PageFamilyFrame family="workspace" title="Café · Log" jobSentence={t('job.cafe')} state="error" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -325,27 +326,22 @@ export function KitchenLogPage() {
             Retry
           </button>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFrame variant="data">
+      <PageFamilyFrame family="workspace" title="Café · Log" jobSentence={t('job.cafe')} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          <PageHead
-            variant="content"
-            title="Café · Log"
-            meta={<span className="kl-date tabular">{logDate}</span>}
-          />
           <EmptyState
             title="No active WIP items"
             copy="Ask an ops lead to add items."
           />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
@@ -445,15 +441,15 @@ export function KitchenLogPage() {
   ]
 
   return (
-    <PageFrame variant="data">
+    <PageFamilyFrame
+      family="workspace"
+      title="Café · Log"
+      jobSentence={t('job.cafe')}
+      meta={<span className="kl-date tabular">{logDate}</span>}
+      state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : submitError ? 'validation' : 'default'}
+    >
       <div className="kl-page">
         <OfflineBanner show={!isOnline} />
-
-        <PageHead
-          variant="content"
-          title="Café · Log"
-          meta={<span className="kl-date tabular">{logDate}</span>}
-        />
 
         {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}
         <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />
@@ -547,7 +543,7 @@ export function KitchenLogPage() {
           </div>
         </form>
       </div>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 

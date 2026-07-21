@@ -452,7 +452,9 @@
         "empty",
         "error/retry",
         "loading",
-        "permission/read-only"
+        "permission/read-only",
+        "saving/saved",
+        "validation"
       ],
       "cssFamilies": [
         "mos-app/src/index.css",
@@ -518,7 +520,8 @@
         "error/retry",
         "loading",
         "permission/read-only",
-        "saving/saved"
+        "saving/saved",
+        "validation"
       ],
       "cssFamilies": [
         "mos-app/src/index.css",
@@ -2937,13 +2940,13 @@
           "mos-app/src/pages/signals-archive-page.css"
         ],
         "literalKinds": {
-          "font-size": 6,
+          "font-size": 4,
           "line-height": 0,
-          "padding": 3,
+          "padding": 2,
           "margin": 0,
-          "gap": 4,
-          "width": 6,
-          "height": 3
+          "gap": 2,
+          "width": 4,
+          "height": 2
         }
       },
       "collection": {
@@ -2980,10 +2983,7 @@
         "pageFrameUse": true,
         "pageHeadUse": true,
         "symbols": [
-          "EmptyState",
-          "ErrorState",
-          "RecordPanelHost",
-          "SkeletonRows"
+          "RecordPanelHost"
         ]
       }
     },
@@ -3004,13 +3004,13 @@
           "mos-app/src/pages/signals-archive-page.css"
         ],
         "literalKinds": {
-          "font-size": 6,
+          "font-size": 4,
           "line-height": 0,
-          "padding": 3,
+          "padding": 2,
           "margin": 0,
-          "gap": 4,
-          "width": 6,
-          "height": 3
+          "gap": 2,
+          "width": 4,
+          "height": 2
         }
       },
       "collection": {
@@ -3043,10 +3043,7 @@
         "pageFrameUse": true,
         "pageHeadUse": true,
         "symbols": [
-          "EmptyState",
-          "ErrorState",
-          "RecordPanelHost",
-          "SkeletonRows"
+          "RecordPanelHost"
         ]
       }
     },
@@ -4045,6 +4042,23 @@
       "breakpoints": []
     },
     {
+      "path": "mos-app/src/components/record-collection/collection-toolbar.css",
+      "family": "components/record-collection/collection-toolbar",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 5,
+        "line-height": 0,
+        "padding": 7,
+        "margin": 0,
+        "gap": 7,
+        "width": 14,
+        "height": 11
+      },
+      "breakpoints": [
+        "@media (max-width: 767px)"
+      ]
+    },
+    {
       "path": "mos-app/src/components/record-collection/record-collection.css",
       "family": "components/record-collection/record-collection",
       "scope": "components",
@@ -4180,6 +4194,21 @@
         "gap": 9,
         "width": 0,
         "height": 3
+      },
+      "breakpoints": []
+    },
+    {
+      "path": "mos-app/src/components/signals/signal-table-presentation.css",
+      "family": "components/signals/signal-table-presentation",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 1,
+        "line-height": 0,
+        "padding": 1,
+        "margin": 0,
+        "gap": 0,
+        "width": 1,
+        "height": 2
       },
       "breakpoints": []
     },
@@ -4674,13 +4703,13 @@
       "family": "pages/signals-archive-page",
       "scope": "pages",
       "literalKinds": {
-        "font-size": 6,
+        "font-size": 4,
         "line-height": 0,
-        "padding": 3,
+        "padding": 2,
         "margin": 0,
-        "gap": 4,
-        "width": 6,
-        "height": 3
+        "gap": 2,
+        "width": 4,
+        "height": 2
       },
       "breakpoints": []
     },
@@ -4819,6 +4848,7 @@
       "mos-app/src/components/plan/fail-loud-badge.css",
       "mos-app/src/components/processes/due-runs.css",
       "mos-app/src/components/processes/pending-resolution.css",
+      "mos-app/src/components/record-collection/collection-toolbar.css",
       "mos-app/src/components/record-collection/record-collection.css",
       "mos-app/src/components/records/record-viewer.css",
       "mos-app/src/components/sales/daily-revenue-chart.css",
@@ -4828,6 +4858,7 @@
       "mos-app/src/components/signals/signal-mention-picker.css",
       "mos-app/src/components/signals/signal-record-host.css",
       "mos-app/src/components/signals/signal-record.css",
+      "mos-app/src/components/signals/signal-table-presentation.css",
       "mos-app/src/components/tasks/occurrence-assign-dialog.css",
       "mos-app/src/components/tasks/status-pill.css",
       "mos-app/src/components/tasks/TaskSurface.css",
@@ -4867,13 +4898,13 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 341,
+      "font-size": 345,
       "line-height": 38,
-      "padding": 272,
+      "padding": 279,
       "margin": 80,
-      "gap": 214,
-      "width": 319,
-      "height": 244
+      "gap": 219,
+      "width": 332,
+      "height": 256
     },
     "examples": {
       "font-size": [
@@ -5276,7 +5307,7 @@
     "pageRouteCount": 29,
     "redirectCount": 25,
     "devRouteCount": 4,
-    "cssFileCount": 71,
+    "cssFileCount": 73,
     "componentCount": 13,
     "duplicateJobCount": 13
   },

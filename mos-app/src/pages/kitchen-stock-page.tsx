@@ -9,8 +9,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
@@ -95,27 +94,32 @@ export function KitchenStockPage() {
 
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingShell count={3} /></PageFrame>
+    return (
+      <PageFamilyFrame family="workspace" title="Café · Stock" jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
+    )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Stock" jobSentence={t('job.cafe')} state="permission">
         <div className="ks-block ks-forbidden">
           <p className="ks-forbidden-msg">You need to sign in to view kitchen stock.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Café · Stock"
-        count={load.kind === 'ready' ? rows.length : null}
-        meta={<span className="ks-date tabular">{asOf}</span>}
-      />
+    <PageFamilyFrame
+      family="workspace"
+      title="Café · Stock"
+      jobSentence={t('job.cafe')}
+      count={load.kind === 'ready' ? rows.length : null}
+      meta={<span className="ks-date tabular">{asOf}</span>}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'}
+    >
 
       {/* Derived KPI strip (P-1, OQ-5 default ON) — only when populated */}
       {load.kind === 'ready' && rows.length > 0 && (
@@ -163,6 +167,6 @@ export function KitchenStockPage() {
           />
         </div>
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

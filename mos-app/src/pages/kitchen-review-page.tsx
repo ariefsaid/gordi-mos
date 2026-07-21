@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
@@ -260,6 +260,7 @@ type LoadState =
 
 export function KitchenReviewPage() {
   useDocumentTitle('Café Review — Gordi MOS')
+  const t = useT()
   const auth = useAuth()
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -524,23 +525,26 @@ export function KitchenReviewPage() {
   ]
 
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingShell count={3} /></PageFrame>
+    return (
+      <PageFamilyFrame family="workspace" title="Café · Review" jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
+    )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Review" jobSentence={t('job.cafe')} state="permission">
         <div className="kr-block kr-forbidden">
           <p className="kr-forbidden-msg">You need to sign in to review kitchen logs.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   if (!allowed) {
     return (
-      <PageFrame>
-        <PageHead variant="content" title="Café · Review" count={null} />
+      <PageFamilyFrame family="workspace" title="Café · Review" jobSentence={t('job.cafe')} state="permission">
         <div className="kr-block kr-forbidden" role="region" aria-label="Access restricted">
           <p className="kr-forbidden-title">Review is available to ops leads only.</p>
           <p className="kr-forbidden-msg">
@@ -548,20 +552,21 @@ export function KitchenReviewPage() {
           </p>
           <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   const submittedCount = logs.length
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Café · Review"
-        count={load.kind === 'ready' ? submittedCount : null}
-        meta={<span className="kr-date tabular">{logDate}</span>}
-      />
+    <PageFamilyFrame
+      family="workspace"
+      title="Café · Review"
+      jobSentence={t('job.cafe')}
+      count={load.kind === 'ready' ? submittedCount : null}
+      meta={<span className="kr-date tabular">{logDate}</span>}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
+    >
 
       {load.kind === 'ready' && submittedCount > 0 && (
         <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
@@ -620,6 +625,6 @@ export function KitchenReviewPage() {
           caption="Submitted kitchen logs awaiting review"
         />
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

@@ -17,11 +17,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import { Tag } from '@/components/ui/tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
@@ -159,6 +159,7 @@ const pushColumns: DataTableColumn<EsbPushRow>[] = [
 
 export function KitchenPushesPage() {
   useDocumentTitle('Café Pushes — Gordi MOS')
+  const t = useT()
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
@@ -190,28 +191,27 @@ export function KitchenPushesPage() {
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="loading">
         <LoadingShell count={3} />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden">
           <p className="kpu-forbidden-msg">You need to sign in to view kitchen pushes.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <PageFrame>
-        <PageHead variant="content" title="Café · Pushes" count={null} />
+      <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden" role="region" aria-label="Access restricted">
           <p className="kpu-forbidden-title">Pushes is available to ops leads only.</p>
           <p className="kpu-forbidden-msg">
@@ -219,17 +219,18 @@ export function KitchenPushesPage() {
           </p>
           <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Café · Pushes"
-        count={load.kind === 'ready' ? rows.length : null}
-      />
+    <PageFamilyFrame
+      family="workspace"
+      title="Café · Pushes"
+      jobSentence={t('job.cafe')}
+      count={load.kind === 'ready' ? rows.length : null}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'}
+    >
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
@@ -266,7 +267,7 @@ export function KitchenPushesPage() {
           caption="Kitchen ESB push outbox"
         />
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 
