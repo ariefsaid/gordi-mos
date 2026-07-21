@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useT } from '@/i18n/use-t'
 import { useNotifications } from '@/hooks/useNotifications'
 import { InboxList } from '@/components/inbox/InboxList'
@@ -24,15 +23,26 @@ export function InboxPage() {
     if (route) navigate(route)
   }
 
+  // Shell state seam (V3 Workspace family): the notifications load maps to the shared
+  // PageFamilyState; the triage body keeps its own loading/empty/error grammar.
+  const frameState = loading
+    ? 'loading'
+    : error
+      ? 'error'
+      : notifications.length === 0
+        ? 'empty'
+        : 'default'
+
   return (
-    <PageFrame variant="data">
-      {/* Cohesion-debt 2026-07-19, item #5 (owner call): no surface-title glyph —
-          the ✉ was part of the inconsistent "several apps" title-icon set. */}
-      <PageHead
-        variant="content"
-        title={t('inbox.title')}
-        count={count}
-      />
+    // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence
+    // (no surface-title glyph — the ✉ was the "several apps" tell).
+    <PageFamilyFrame
+      family="workspace"
+      title={t('inbox.title')}
+      jobSentence={t('job.inbox')}
+      count={count}
+      state={frameState}
+    >
       {loading ? (
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={4} />
@@ -51,6 +61,6 @@ export function InboxPage() {
       ) : (
         <InboxList notifications={notifications} onOpen={onOpen} />
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

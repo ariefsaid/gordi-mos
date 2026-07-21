@@ -8,8 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib/db/cafe-opening'
@@ -67,10 +66,24 @@ export function CafeOpeningPage() {
 
   useEffect(() => { load() }, [load])
 
-  return (
-    <PageFrame>
-      <PageHead title={t('nav.cafe')} meta={wibToday()} />
+  // Shell state seam (V3 Workspace family): resolve the opening-fetch state to the shared
+  // PageFamilyState; the branch bodies below keep their own skeleton/empty/error grammar.
+  const frameState =
+    state === 'loading' ? 'loading'
+    : state === 'error' ? 'error'
+    : state === 'no-process' || state === 'no-team' ? 'empty'
+    : 'default'
 
+  return (
+    // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence;
+    // "today" rides in the head meta slot as before.
+    <PageFamilyFrame
+      family="workspace"
+      title={t('nav.cafe')}
+      jobSentence={t('job.cafe')}
+      meta={wibToday()}
+      state={frameState}
+    >
       {state === 'loading' && <SkeletonRows count={2} />}
       {state === 'error' && <ErrorState message={t('tasks.error.load')} onRetry={load} />}
       {state === 'no-process' && (
@@ -93,6 +106,6 @@ export function CafeOpeningPage() {
           </nav>
         </>
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

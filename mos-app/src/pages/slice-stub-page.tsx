@@ -10,7 +10,7 @@
 import type { MessageKey } from '@/i18n/messages'
 import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { PageFrame } from '@/shell/page-frame'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 
 type Props = { jobKey: MessageKey; nameKey: MessageKey }
 
@@ -19,14 +19,12 @@ export function SliceStubPage({ jobKey, nameKey }: Props) {
   const name = t(nameKey)
   useDocumentTitle(`${name} — Gordi MOS`)
   return (
-    <PageFrame>
-      <h1 className="font-semibold text-foreground" style={{ fontSize: 26 }}>{name}</h1>
-      <p className="text-muted-foreground" style={{ marginTop: 8 }}>
-        <b>{t(jobKey)}</b>
-      </p>
+    // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence;
+    // the "not in this slice" line is the placeholder body.
+    <PageFamilyFrame family="workspace" title={name} jobSentence={t(jobKey)}>
       <p className="text-muted-foreground" style={{ marginTop: 16 }}>
         {t('stub.notInSlice')} — {t('stub.comingLater', { name })}
       </p>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

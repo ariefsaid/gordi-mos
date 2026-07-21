@@ -193,12 +193,14 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
 })
 
 describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () => {
+  // inbox-page.tsx migrated to the V3 workspace PageFamilyFrame (Issue 11), which owns the
+  // content-header chrome via its family contract — the page-family-migration guard enforces
+  // its PageFamilyFrame use, so it is no longer scanned for a raw <PageHead variant="content">.
   const targets = [
     'pages/follow-ups-page.tsx',
     'pages/sales-dashboard-page.tsx',
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
-    'pages/inbox-page.tsx',
     'components/catalog/catalog-manager.tsx',
   ]
 
