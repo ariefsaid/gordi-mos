@@ -12,8 +12,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { getBusinessUnits, getRoles } from '@/lib/db/directory'
 import type { BusinessUnitOption, RoleScopeRow } from '@/lib/db/directory'
@@ -76,8 +75,14 @@ export function StackedUnionHome() {
       : []
 
   return (
-    <PageFrame surfaceWash>
-      <PageHead title={t('home.title')} subtitle={t('home.subtitle')} />
+    <PageFamilyFrame
+      family="workspace"
+      surfaceWash
+      title={t('home.title')}
+      subtitle={t('home.subtitle')}
+      jobSentence={t('job.home')}
+      state={dirState === 'loading' ? 'loading' : dirState === 'error' ? 'error' : 'default'}
+    >
 
       {dirState === 'error' && (
         <div className="home-stack-error" role="alert">
@@ -96,7 +101,7 @@ export function StackedUnionHome() {
           now={now}
         />
       ))}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 

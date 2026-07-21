@@ -137,6 +137,18 @@ beforeEach(() => {
   mockListTasks.mockResolvedValue([])
 })
 
+describe('V3 Home page-family grammar', () => {
+  it('renders the conditional Home composition inside the same Workspace family as canonical Home', async () => {
+    const { container } = await renderStacked(
+      viewer({ roles: [BARISTA], accessRoles: ['member'] }),
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument())
+    expect(container.querySelectorAll('main')).toHaveLength(1)
+    expect(container.querySelector('main')).toHaveAttribute('data-page-family', 'workspace')
+    expect(screen.getAllByText('What needs my attention right now?')).toHaveLength(1)
+  })
+})
+
 describe('AC-HS10: dual BU-head → two function-cockpits + My Week, in order', () => {
   it('renders B2B Sales + Retail Ops function cockpits then My Week (BU-name order)', async () => {
     await renderStacked(
