@@ -254,8 +254,8 @@ describe('F-C / OD-REDESIGN-64 — member Home has no legacy dead-link cards', (
   })
 })
 
-describe('AC-H06: tasks tile links to /work/tasks (canonical) and shows the open-task count', () => {
-  it('shows the R/A non-Done count and links to /work/tasks', async () => {
+describe('AC-H06: tasks tile links to the My-work view and shows the open-task count', () => {
+  it('shows the R/A non-Done count and links to /work/tasks?view=my-work', async () => {
     mockListTasks.mockResolvedValue([
       {
         id: 't-1', org_id: 'org-1', title: 'Task 1', business_unit_id: 'bu-1',
@@ -275,7 +275,35 @@ describe('AC-H06: tasks tile links to /work/tasks (canonical) and shows the open
     const tile = screen.getByRole('group', { name: /open tasks/i })
     const link = tile.closest('a')
     expect(link).not.toBeNull()
-    expect(link!.getAttribute('href')).toBe('/work/tasks')
+    // The count is a direct link to the viewer's own task list (Luna: "My open tasks"
+    // must land on the my-work view, not the unfiltered all-tasks list).
+    expect(link!.getAttribute('href')).toBe('/work/tasks?view=my-work')
+  })
+})
+
+describe('Home decision context — an overdue attention row shows its PIC + owning-BU caption (Luna J01/J02)', () => {
+  it('decorates the overdue task row with the Responsible person name and the BU caption from the directory', async () => {
+    const viewerId = financeViewer.status === 'authenticated' ? financeViewer.viewer.person.id : ''
+    mockListTasks.mockResolvedValue([
+      {
+        id: 't-late', org_id: 'org-1', title: 'Restock oat milk', business_unit_id: 'bu-cafe',
+        status: 'In Progress', responsible_person_id: viewerId,
+        accountable_person_id: 'other-1', consulted_person_ids: [], informed_person_ids: [],
+        description: null, due_date: '2020-01-01', objective_id: null, work_line_id: null,
+        last_activity_at: '2026-06-30T00:00:00Z', archived_at: null, created_by: 'x',
+        created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-30T00:00:00Z',
+      },
+    ])
+    mockGetPeople.mockResolvedValue([{ id: viewerId, full_name: 'Cahya Cafe' }])
+    mockGetBUs.mockResolvedValue([{ id: 'bu-cafe', name: 'Café' }])
+
+    await renderHome(financeViewer)
+
+    const region = await screen.findByRole('region', { name: 'Needs attention' })
+    const row = await within(region).findByText('Restock oat milk')
+    const link = row.closest('a')!
+    await waitFor(() => expect(within(link).getByText('Cahya Cafe')).toBeInTheDocument())
+    expect(within(link).getByText('Café')).toBeInTheDocument()
   })
 })
 

@@ -81,7 +81,8 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     await userEvent.click(screen.getByRole('button', { name: /share a signal/i }))
     expect(actions.onShareClick).toHaveBeenCalledTimes(1)
 
-    await userEvent.click(screen.getByRole('button', { name: 'The freezer alarm went off' }))
+    // The record-open affordance is now accessibly named ("Open signal: <body>") — Luna (c).
+    await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
     expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
     expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
   })

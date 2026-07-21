@@ -84,9 +84,16 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(screen.queryByText('What needs my attention right now?')).not.toBeInTheDocument()
   })
 
-  it('AC-013: shows the Signals job sentence at /work/signals', () => {
+  it('R-OWNER-1: suppresses the Signals job sentence at the migrated /work/signals route (region 3 owns it)', () => {
+    // Signals migrated onto PageFamilyFrame (the Luna single-job-sentence correction): the archive's
+    // region-3 page head owns the sentence, so ContextRow must NOT emit a duplicate copy.
     renderCtx('/work/signals')
-    expect(screen.getByText('Search and revisit the Signals your Teams have shared.')).toBeInTheDocument()
+    expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).not.toBeInTheDocument()
+  })
+
+  it('R-OWNER-1: suppresses the Signals job sentence at the migrated record route /work/signals/:id', () => {
+    renderCtx('/work/signals/sig-1')
+    expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).not.toBeInTheDocument()
   })
 
   it('R-OWNER-1: suppresses the Tasks job sentence at the migrated /work/tasks route (region 3 owns it)', () => {
@@ -142,10 +149,12 @@ describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-f
   })
 
   it('keeps the ContextRow job sentence on an unmigrated route (there it is the only job sentence)', () => {
-    // `/work/signals` is a deferred (unmigrated) route — no region-3 sentence — so ContextRow stays
-    // its sole owner. (`/money` was moved here as a migrated route in Issue 11; region 3 owns it now.)
-    renderCtx('/work/signals')
-    expect(screen.getByText('Search and revisit the Signals your Teams have shared.')).toBeInTheDocument()
+    // An unmigrated route with no PageFamilyFrame region-3 sentence (e.g. an admin sub-route that
+    // falls back to the Home job key) — ContextRow stays the sole owner and must NOT be globally
+    // suppressed. (`/work/signals` was moved to a migrated route in the Luna single-job-sentence
+    // correction; region 3 owns it there now.)
+    renderCtx('/admin/roles')
+    expect(screen.getByText('What needs my attention right now?')).toBeInTheDocument()
   })
 
   it('still renders the Context region (with scope) on a migrated route', () => {

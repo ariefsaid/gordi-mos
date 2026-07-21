@@ -65,6 +65,25 @@ describe('SignalCard — posted-card grammar (AC-424)', () => {
   })
 })
 
+describe('SignalCard — discoverable record-open affordance (Luna FIX-THEN-SHIP (c))', () => {
+  it('renders an explicit, accessibly-named "Open" control (not a title-only click) that calls onOpen', async () => {
+    const onOpen = vi.fn()
+    renderCard({ onOpen })
+
+    // A persistent, labelled affordance — discoverable without hovering the body text.
+    const openControl = screen.getByRole('button', { name: /open signal/i })
+    expect(openControl).toBeInTheDocument()
+
+    await userEvent.click(openControl)
+    expect(onOpen).toHaveBeenCalledOnce()
+  })
+
+  it('shows no open affordance when the card is not openable (no onOpen)', () => {
+    renderCard()
+    expect(screen.queryByRole('button', { name: /open signal/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('SignalCard — phone stacking contract (≤480px: message above a compact metadata line)', () => {
   // jsdom can't evaluate the ≤480px media query (computed order is design-reviewer-verified),
   // but the CSS stack depends on this DOM contract: the message body and the author/time

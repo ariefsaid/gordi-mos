@@ -31,6 +31,7 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listNotifications } from '@/lib/db/notifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 import { ViewTabs } from '@/components/ui/view-tabs'
@@ -39,7 +40,7 @@ import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { openTaskCount } from '@/lib/home-kpis'
 import {
   overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday,
-  type AttentionItem, type AttentionLane,
+  type AttentionItem, type AttentionLane, type AttentionDirectory,
 } from '@/lib/home-attention'
 import { resolveRegionOrder, setRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
 import { AttentionBrief } from '@/components/home/attention-brief'
@@ -186,6 +187,26 @@ export function HomePage() {
     loadFailedChecks()
   }, [loadFailedChecks])
 
+  // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the personal
+  // canvas already uses (my-tasks-card loads getPeople/getBusinessUnits). Best-effort ENRICHMENT
+  // only: it decorates the overdue/due-today rows with the PIC (Responsible) + owning-BU caption,
+  // and its absence never blocks or errors a lane (the rows just render without the meta line).
+  const [directory, setDirectory] = useState<AttentionDirectory>({})
+  useEffect(() => {
+    if (!personId) return
+    let live = true
+    Promise.all([getPeople(), getBusinessUnits()])
+      .then(([people, bus]) => {
+        if (!live || !isMountedRef.current) return
+        setDirectory({
+          people: new Map(people.map(p => [p.id, p.full_name])),
+          businessUnits: new Map(bus.map(b => [b.id, b.name])),
+        })
+      })
+      .catch(() => { /* enrichment is optional — a failed directory read leaves rows undecorated */ })
+    return () => { live = false }
+  }, [personId])
+
   // ── Attention brief lanes (Step 5, spec §2/§4) ─────────────────────────────────
   const today = useMemo(() => wibToday(), [])
   const lanes: AttentionLane[] = useMemo(() => {
@@ -193,12 +214,12 @@ export function HomePage() {
     return [
       // Overdue + due-today share the SAME `loadTasks` reference (the one tasks
       // projection) — retrying either lane refreshes both, never a duplicate fetch.
-      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today, locale) : [], onRetry: loadTasks },
-      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today, locale) : [], onRetry: loadTasks },
+      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today, locale, directory) : [], onRetry: loadTasks },
+      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today, locale, directory) : [], onRetry: loadTasks },
       { kind: 'failed-checks', state: failedChecksState, items: failedChecksState === 'ready' ? failedChecks : [], onRetry: loadFailedChecks },
       { kind: 'mentions', state: notificationsState, items: notificationsState === 'ready' ? unreadMentions(notifications) : [], onRetry: loadNotifications },
     ]
-  }, [personId, taskState, tasks, today, locale, failedChecksState, failedChecks, notificationsState, notifications, loadTasks, loadFailedChecks, loadNotifications])
+  }, [personId, taskState, tasks, today, locale, directory, failedChecksState, failedChecks, notificationsState, notifications, loadTasks, loadFailedChecks, loadNotifications])
 
   // ── Region order (OD-REDESIGN-18, Step 5) — per-user, default attention-first ──
   const [order, setOrder] = useState<HomeRegionOrder>('attention-first')
@@ -220,7 +241,7 @@ export function HomePage() {
 
       {/* Everyone row — tasks (always). */}
       <div className="home-kpi-grid">
-        <Link to="/work/tasks" className="home-kpi-link">
+        <Link to="/work/tasks?view=my-work" className="home-kpi-link">
           <KPITile
             label={t('home.kpi.tasks')}
             value={taskState === 'ready' ? String(taskCount) : '—'}

@@ -51,7 +51,14 @@ export function SignalCard({
 
       <div className="signal-body">
         {onOpen ? (
-          <button type="button" className="signal-body-link" onClick={onOpen}>{signal.body}</button>
+          <button
+            type="button"
+            className="signal-body-link"
+            onClick={onOpen}
+            aria-label={t('signals.card.openSignal', { body: signal.body })}
+          >
+            {signal.body}
+          </button>
         ) : (
           signal.body
         )}

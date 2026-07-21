@@ -139,6 +139,43 @@ describe('Minors — per-lane item count in the lane title (RI-6d)', () => {
   })
 })
 
+describe('Decision context — each task row shows its PIC (avatar + name) and owning Team/BU caption (Luna J01/J02)', () => {
+  it('renders the PIC name, avatar initials, and the BU caption on a compact meta line within the row link', () => {
+    const lanes: AttentionLane[] = [
+      {
+        kind: 'overdue',
+        state: 'ready',
+        items: [{
+          id: 'o1',
+          title: 'Restock oat milk',
+          route: '/work/tasks/o1',
+          meta: 'Thu, 16 Jul',
+          pic: { name: 'Rara Owner', initials: 'RO' },
+          caption: 'Café',
+        }],
+      },
+    ]
+    renderBrief(lanes)
+
+    const link = screen.getByText('Restock oat milk').closest('a')!
+    // The decision context lives inside the same drill-link (one compact meta line).
+    expect(within(link).getByText('Rara Owner')).toBeInTheDocument()
+    expect(within(link).getByText('RO')).toBeInTheDocument()   // avatar initials
+    expect(within(link).getByText('Café')).toBeInTheDocument() // owning-BU caption
+    expect(within(link).getByText('Thu, 16 Jul')).toBeInTheDocument()
+  })
+
+  it('renders no avatar/caption when a row carries no decision context (mentions stay clean)', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'mentions', state: 'ready', items: [{ id: 'm1', title: 'A mention', route: '/inbox' }] },
+    ]
+    renderBrief(lanes)
+
+    const link = screen.getByText('A mention').closest('a')!
+    expect(link.querySelector('.attention-lane-avatar')).toBeNull()
+  })
+})
+
 describe('AC-511: ≤390px first content is attention, not config', () => {
   it('shows the attention item first and renders no configuration control inside the region', () => {
     const lanes: AttentionLane[] = [

@@ -40,8 +40,14 @@
   border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; white-space: nowrap;
 }
 .signal-row-attention--urgent {
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
-  color: var(--status-lost-text);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+/* DESIGN.md §Status and Signal semantics: attention is warning/amber, never destructive/red.
+   Urgent = top attention tier, escalated with the leading amber dot (§569 marker). */
+.signal-row-attention--urgent::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
+  border-radius: var(--radius-pill); background: var(--warning);
 }
 .signal-row-attention--needs-attention {
   background: color-mix(in srgb, var(--warning) 18%, transparent);

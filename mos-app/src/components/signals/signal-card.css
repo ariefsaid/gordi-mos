@@ -32,16 +32,24 @@
 .signal-who { font-weight: 600; font-size: 13.5px; color: var(--foreground); }
 .signal-when { font-size: 12px; color: var(--muted-foreground); }
 
-/* ── Attention weight (CRITICAL-2) — Tinted-Status pattern (DESIGN.md §Tinted-Status):
-   Urgent = destructive family, Needs attention = warning family, FYI = neutral. ── */
+/* ── Attention weight (CRITICAL-2) — Tinted-Status pattern (DESIGN.md §Status and Signal
+   semantics): an attention or late condition is warning/amber, NEVER destructive/red. Urgent is
+   the TOP attention tier: the same amber family as Needs attention, escalated with a leading 6px
+   `warning` dot (the DESIGN.md §569 "Home ops-strip amber = warning dot" attention marker) so it
+   reads as attention-priority, not failure. FYI is neutral. No --destructive / --status-lost-text. ── */
 .signal-attention {
   margin-left: auto; flex: none; display: inline-flex; align-items: center;
   height: 22px; padding: 0 9px; border-radius: var(--radius-pill);
   font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .signal-attention--urgent {
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
-  color: var(--status-lost-text);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+/* The leading amber dot marks Urgent as the flagged-for-attention tier (DESIGN.md §569). */
+.signal-attention--urgent::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
+  border-radius: var(--radius-pill); background: var(--warning);
 }
 .signal-attention--needs-attention {
   background: color-mix(in srgb, var(--warning) 18%, transparent);

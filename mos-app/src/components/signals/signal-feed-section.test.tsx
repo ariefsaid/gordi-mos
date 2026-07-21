@@ -129,7 +129,8 @@ describe('SignalFeedSection — Home ambient feed wiring (AC-426/FR-414)', () =>
   it('opening a card navigates to the canonical record URL', async () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    await userEvent.click(screen.getByRole('button', { name: 'The freezer alarm went off' }))
+    // The record-open affordance is now accessibly named ("Open signal: <body>") — Luna (c).
+    await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
   })
 
