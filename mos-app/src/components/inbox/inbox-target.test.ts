@@ -142,6 +142,16 @@ describe('resolveNotificationTarget — typed, fail-closed notification doors (F
     expect(res).toMatchObject({ status: 'unavailable', reason: 'feature-off' })
   })
 
+  it('is unavailable (feature-off) when the feature is ON but the registry has no adapter for the type', () => {
+    // Fail closed on a half-wired door: an allow-listed, feature-enabled type whose viewer adapter
+    // is missing from the registry must NOT resolve to a broken/absent entry.
+    const res = resolveNotificationTarget(
+      row({ entity: { type: 'signal', id: 's1' } }),
+      deps({ registry: { task: adapterFor('task') }, isFeatureEnabled: () => true }),
+    )
+    expect(res).toMatchObject({ status: 'unavailable', reason: 'feature-off' })
+  })
+
   it('is unavailable (cross-org) when the target is not in the viewer org', () => {
     const res = resolveNotificationTarget(
       row({ entity: { type: 'task', id: 't1' } }),
