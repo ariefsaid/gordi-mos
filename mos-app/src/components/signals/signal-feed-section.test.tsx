@@ -92,6 +92,13 @@ describe('SignalFeedSection — Home ambient feed wiring (AC-426/FR-414)', () =>
     expect(mockListReadableSignals).toHaveBeenCalledTimes(2)
   })
 
+  it('FR-V3-013: loads through the shared signalCollectionDescriptor (includeRetracted), not a second loader', async () => {
+    renderSection()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    // The descriptor's load signature — a second bespoke Home loader would call listReadableSignals({}).
+    expect(mockListReadableSignals).toHaveBeenCalledWith({ includeRetracted: true })
+  })
+
   it('fetches and renders readable Signals with resolved author/Team names', async () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())

@@ -74,3 +74,26 @@
 .signal-row--retracted {
   color: var(--muted-foreground); font-style: italic; font-size: 13px; gap: 8px;
 }
+
+/* Feed / Table presentation tabs (Issue 6 — V3 RecordCollection presentation switch). */
+.signals-archive-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.signals-archive-tab {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.signals-archive-tab[aria-pressed='true'] {
+  background: var(--secondary);
+  color: var(--foreground);
+  border-color: var(--foreground);
+}
