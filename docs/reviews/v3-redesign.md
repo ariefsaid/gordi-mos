@@ -705,3 +705,28 @@ Merged lanes 97bb7bf (follow-ups/Café) · 0739a92 (geometry) · 6e6cb14 (Inbox 
 
 Also running: multimodal integration-gap hunts (minimax-m3 page-grammar sweep · inkling
 interaction-door sweep) against the integrated tip; findings feed the next fix batch.
+
+### Third-session status (2026-07-21, current Director session)
+
+> The "dispatched" GLM-5.2 lanes above (`v3/inbox-failclosed`, `v3/route-seam`) **were never
+> started** — both branches had zero commits, zero dirty files, zero reflog movement when the
+> third session resumed. The collision-avoidance "QUEUED" items (Bell shell-slot, Deputy guard,
+> inbox pageTo, follow-up panel-first) were likewise not started. All five findings above have
+> since been resolved directly by the Director on `v3-redesign`:
+
+| Finding | Lane | Commit | Resolution |
+|---|---|---|---|
+| CRITICAL C — `buildInboxTargetDeps` hardcodes true | A1 | `4de6339` | Real `can()` capability wiring + structural-cause documentation (RLS gates org, canonical page handles not-found); 6 production-deps tests |
+| C — Inbox record door bypasses pageTo | B3 | `3ad5d9d` | `pageTo` added to `OverlayEntryDraft`; bespoke `openFull` nav button retained as explicit R-T-4 route-seam fallback |
+| A — Follow-up queue row links directly to record page | B4 | `f9c0d26` | `FollowUpRow` opens via shared host (`openRoot` + `FollowUpRecordHost mode="panel"`); drawer-first test proven (counterparty name appears twice = queue row + panel title) |
+| C — Bell shell-slot unpositioned aside | B1 | `1c7da9b` | `OverlayHostSlot` passes `rootClassName="drawer-shell-split"` when `owner === "shell"`; new desktop CSS rule (right-anchored, `min(44%, 480px)`, full-height). Geometry verified: `x=800, width=480` |
+| C — Deputy can coexist with a Bell panel | B2 | `7cc45f2` | `useDeputyOverlayCoexistence()` hook; single-effect newest-intent-wins reconciliation; collection overlays coexist (grid pane vs floating). 4 new + 401 existing tests pass |
+
+The stale-base hazard (rv-live and taskspage-fix branched pre-Inbox-live-merge) was resolved by
+rebasing both onto the post-Inbox-live tip and merging cleanly (`e211c64`, `c9122b3`). Tip is
+now `7cc45f2`.
+
+**Multimodal re-audit still BLOCKED** — NIM minimax-m3 hangs on image input (0% CPU after 3+ min);
+all 5 pi providers show unauthed since the prior session's tokens expired. The Wave-2c 4-lens
+audit and the three-width representative gate are queued behind owner re-auth or NIM recovery.
+Geometry + diff stand in for the B1/B2 visual audits in the interim.

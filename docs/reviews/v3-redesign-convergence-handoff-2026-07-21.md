@@ -1,5 +1,36 @@
 # V3 redesign convergence handoff — 2026-07-21
 
+## Third-session correction (2026-07-21, current Director session)
+
+The second-session handoff below claimed `v3/route-seam` and `v3/inbox-failclosed` were dispatched
+to GLM-5.2 workers. **That was drift — both branches had ZERO commits, ZERO dirty files, ZERO
+reflog movement. They were never started.** Treated as never-started; the Director implemented
+their intended work directly across the third session:
+
+- Lane A1 (inbox fail-closed) — `4de6339` (real `can()` wiring + 6 production-deps tests)
+- Lane B3 (inbox pageTo + route-seam fallback) — `3ad5d9d` (`pageTo` on `OverlayEntryDraft`,
+  bespoke `openFull` button retained as R-T-4 fallback)
+- Lane B4 (follow-up drawer-first) — `f9c0d26` (`FollowUpRow` opens via shared host; drawer-first
+  test proven)
+- Lane B1 (Bell shell-slot 44% track) — `1c7da9b` (`drawer-shell-split` CSS, right-anchored track)
+- Lane B2 (Deputy ↔ shell-overlay mutual-exclusion) — `7cc45f2` (`useDeputyOverlayCoexistence`
+  hook; newest-intent-wins reconciliation)
+
+The stale-base hazard (`v3/rv-live` and `v3/taskspage-fix` branched before the Inbox-live merge,
+which a naive merge would have deleted) was resolved by rebasing both onto the post-Inbox-live
+tip and merging cleanly (`e211c64`, `c9122b3`). Tip is now `7cc45f2`.
+
+The second-session "ACTIVE LANES" and "QUEUED BEHIND route-seam" blocks in `docs/agent-context.md`
+have been rewritten to match this reality. The claims table below stands as written evidence of
+the second session's intent; the lane-state column should be read against the correction above.
+
+**Multimodal audit blocker:** all three multimodal paths (NIM minimax-m3, NIM inkling, pi
+gpt-5.6-luna) are currently unusable — NIM minimax-m3 hangs on image input (0% CPU after 3+ min),
+and all 5 pi providers show unauthed since the prior session's tokens expired. The Wave-2c
+4-lens audit and three-width representative gate are blocked on this. Geometry + diff evidence
+stands in for the B1/B2 visual audits in the meantime; a batched re-audit is queued for when
+owner re-auths pi or NIM recovers.
+
 ## Purpose
 
 This is the resumable handoff for the current V3 redesign convergence wave. It exists so a new
