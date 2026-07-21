@@ -367,6 +367,12 @@ export function OverlayHostSlot({
           onBack={canGoBack ? () => void back() : undefined}
           onOpenPage={pageTo ? () => void openPage(pageTo) : undefined}
           onClose={(via) => void close(via)}
+          // The shell slot sits above the page Outlet (no page-level .record-split grid wrapper),
+          // so the panel would render unpositioned (Luna audit B1: "bare .drawer aside, no 44%
+          // track"). owner-shell gives RecordPanelHost a shell-specific right-anchored track at
+          // desktop via .drawer-shell-split (reuses the minmax(360px, 44%) token, Rule 11 — one
+          // width). Collection slots don't need this; their pages wrap the slot in .record-split.
+          rootClassName={owner === 'shell' ? 'drawer-shell-split' : undefined}
         >
           {active.entry.content}
         </RecordPanelHost>

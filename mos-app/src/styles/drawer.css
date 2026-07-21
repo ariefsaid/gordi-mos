@@ -36,6 +36,33 @@
 }
 .drawer.expanded { border: 0; background: transparent; }
 
+/* ── Shell-mounted split panel (Luna audit B1) ───────────────────────────────
+   The shell OverlayHostSlot sits above the page Outlet (no page-level .record-split wrapper),
+   so a shell-owned non-modal panel (Bell quick-triage, future shell overlays) would otherwise
+   render as an unpositioned auto-width <aside>. This rule gives it the SAME right-anchored
+   desktop track as a collection .record-split panel — reusing minmax(360px, 44%) via the
+   clamp (Rule 11 — one width; no new token). It floats over the main content (z-drawer) so the
+   underlying page stays mounted and interactive. Below the split threshold RecordPanelHost
+   switches to its modal regime (.drawer-modal), so this rule is desktop-only. */
+@media (min-width: 1100px) {
+  .drawer-shell-split {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(44%, 480px);
+    min-width: 360px;
+    z-index: var(--z-drawer);
+    border-radius: 0;
+    border-top: 0; border-right: 0; border-bottom: 0;
+    box-shadow: var(--shadow-rest);
+    display: flex;
+    flex-direction: column;
+  }
+  .drawer-shell-split > * { flex: 0 0 auto; }
+  .drawer-shell-split > :last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
+}
+
 /* ── Modal regime (overlay 920–1100 + mobile <768, AC-110, design-plan §4/§5) ──
    Below the split threshold the squashed table is too cramped to keep live, so
    the drawer floats over it with a scrim (focus-trap + Esc handled by the host).
