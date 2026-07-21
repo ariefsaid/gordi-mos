@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-export type TasksSavedViewChip = 'mine' | 'team' | 'overdue' | 'followups'
+// §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
+export type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
 export type TasksSavedViewKey = TasksSavedViewChip | 'all' | 'unknown'
 export type TasksSavedViewSegment = 'mine' | 'all'
 
@@ -14,7 +15,7 @@ export type TasksSavedView = {
   search: string
 }
 
-const KNOWN_VIEWS = new Set<TasksSavedViewChip | 'all'>(['mine', 'team', 'overdue', 'followups', 'all'])
+const KNOWN_VIEWS = new Set<TasksSavedViewChip | 'all'>(['mine', 'overdue', 'followups', 'all'])
 
 export function useTasksSavedView() {
   const location = useLocation()
@@ -32,8 +33,6 @@ export function useTasksSavedView() {
     switch (view) {
       case 'mine':
         return { view, activeChip: 'mine', segment: 'mine', overdueOnly: false, reserved: null, search: location.search }
-      case 'team':
-        return { view, activeChip: 'team', segment: 'all', overdueOnly: false, reserved: null, search: location.search }
       case 'overdue':
         return { view, activeChip: 'overdue', segment: 'all', overdueOnly: true, reserved: null, search: location.search }
       case 'followups':

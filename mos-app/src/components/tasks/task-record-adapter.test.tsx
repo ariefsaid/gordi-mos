@@ -9,6 +9,7 @@ import {
   createTaskRecordAdapter,
   createTaskPanelAdapter,
   createTaskFieldCommit,
+  teamOwnershipField,
   type TaskRecordAdapterInput,
 } from './task-record-adapter'
 import type { RecordFieldSpec, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -93,29 +94,31 @@ describe('createTaskPanelAdapter (metadata-only, for the live RecordDetailsPanel
     expect(fieldsOf(adapter).find((f) => f.key === 'status')).toBeUndefined()
   })
 
-  it('TaskVocabularyContract: Business Unit and Team are distinct; missing Team is an honest read-only state, never the BU value', () => {
+  it('§Task-11 (Issue-8 gate): Business Unit renders; NO Team field is rendered before the real team_id contract', () => {
+    // DELIBERATE goal change (record-collection plan §Task-11): the Task collection has no visible
+    // Team field until Issue 8 lands the real mos.tasks.team_id contract. Business Unit stays; the
+    // legacy honest-missing "Team not assigned yet" field must not appear in the record panel.
     const adapter = createTaskPanelAdapter({ task: makeTask(), editable: true, people, businessUnits })
     const bu = fieldByKey(adapter, 'businessUnit')
-    const team = fieldByKey(adapter, 'team')
     expect(bu.label).toBe('Business Unit')
     expect(bu.displayValue).toBe('Retail Ops')
-    expect(team.label).toBe('Team')
-    expect(team.editable).toBe(false)
-    expect(team.displayValue).not.toBe('Retail Ops')
-    expect(team.displayValue).toMatch(/not assigned/i)
+    // The Team field is not rendered (Issue-8 gate); Business Unit is never relabelled Team.
+    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
+    for (const f of fieldsOf(adapter)) expect(f.label).not.toMatch(/^team$/i)
     // No RACI vocabulary anywhere.
     for (const f of fieldsOf(adapter)) {
       expect(f.label).not.toMatch(/responsible|accountable|consulted|informed|raci/i)
     }
   })
 
-  it('a real Team-backed lookup shows the Team label (never the honest-missing state)', () => {
+  it('§Task-11 (Issue-8 gate): even a real Team lookup renders no Team field yet (internal model preserved, not rendered)', () => {
+    // DELIBERATE goal change (§Task-11): the adapter still ACCEPTS a TaskTeamView input (the internal
+    // model stays honest for Issue 8) but must not render a Team field until Issue 8.
     const adapter = createTaskPanelAdapter({
       task: makeTask(), editable: true, people, businessUnits,
       team: { id: 'team-hq', label: 'HQ Kitchen' },
     })
-    const team = fieldByKey(adapter, 'team')
-    expect(team.displayValue).toBe('HQ Kitchen')
+    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
   })
 
   it('AC-V3-009: a non-editor sees read-only fields with the permission reason', () => {
@@ -152,16 +155,13 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.actions.map((a) => a.id)).toContain('complete')
   })
 
-  it('TaskVocabularyContract: PIC/Supervisor labels, BU separate from Team-not-assigned, no RACI, checklist inherits ownership', () => {
+  it('§Task-11: PIC/Supervisor labels, Business Unit present, NO Team field before Issue 8, no RACI, checklist inherits ownership', () => {
     const adapter = createTaskRecordAdapter(makeInput())
     const bu = fieldByKey(adapter, 'businessUnit')
-    const team = fieldByKey(adapter, 'team')
     expect(bu.label).toBe('Business Unit')
-    expect(team.label).toBe('Team')
-    // The missing-Team honesty: Team is NOT relabeled from Business Unit.
-    expect(team.displayValue).not.toBe(bu.displayValue)
-    expect(team.displayValue).toMatch(/not assigned yet/i)
-    expect(team.editable).toBe(false)
+    // DELIBERATE goal change (§Task-11): no visible Team field until Issue 8's team_id contract.
+    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
+    for (const f of fieldsOf(adapter)) expect(f.label).not.toMatch(/^team$/i)
 
     expect(fieldByKey(adapter, 'pic').label).toBe('Person in charge (PIC)')
     expect(fieldByKey(adapter, 'supervisor').label).toBe('Supervisor')
@@ -178,13 +178,12 @@ describe('createTaskRecordAdapter', () => {
     expect(screen.queryByText('Supervisor')).not.toBeInTheDocument()
   })
 
-  it('a real task.team_id lookup populates a read-only Team field distinct from Business Unit', () => {
+  it('§Task-11 (Issue-8 gate): a real Team lookup is accepted but renders no Team field yet', () => {
+    // DELIBERATE goal change (§Task-11): the adapter still accepts a team input (internal model
+    // preserved) but does not render a Team field until Issue 8's team_id contract lands.
     const adapter = createTaskRecordAdapter(makeInput({ team: { id: 't-1', label: 'Café Operations' } }))
-    const team = fieldByKey(adapter, 'team')
-    expect(team.displayValue).toBe('Café Operations')
-    expect(team.displayValue).not.toBe(fieldByKey(adapter, 'businessUnit').displayValue)
-    // Issue 5 has no team write path — the field stays read-only.
-    expect(team.editable).toBe(false)
+    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
+    expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
   })
 
   it('AC-V3-009: an archived Task is read-only, keeps hierarchy, and only offers unarchive', () => {
@@ -206,6 +205,22 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.permission.readOnly).toBe(true)
     expect(fieldByKey(adapter, 'pic').editable).toBe(false)
     expect(adapter.permission.reason).toMatch(/permission/i)
+  })
+})
+
+describe('teamOwnershipField — the preserved Issue-8 internal model (not rendered until Issue 8)', () => {
+  it('§Task-11: the honest Team model is preserved (missing → migration state; real lookup → label)', () => {
+    // The adapter's internal Team model stays honest for Issue 8 even though ownershipFields does
+    // not render it yet. This proves the seam that Issue 8 re-enables at the render site.
+    const missing = teamOwnershipField(null)
+    expect(missing.key).toBe('team')
+    expect(missing.editable).toBe(false)
+    expect(String(missing.displayValue)).toMatch(/not assigned yet/i)
+
+    const real = teamOwnershipField({ id: 't-1', label: 'HQ Kitchen' })
+    expect(real.value).toBe('t-1')
+    expect(real.displayValue).toBe('HQ Kitchen')
+    expect(real.editable).toBe(false)
   })
 })
 

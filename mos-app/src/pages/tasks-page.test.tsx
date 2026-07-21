@@ -124,12 +124,10 @@ function LocationCapture() {
   return null
 }
 
-function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+function makeSavedView(view: 'mine' | 'overdue' | 'followups' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
   switch (view) {
     case 'mine':
       return { view: 'mine', activeChip: 'mine', segment: 'mine', overdueOnly: false, reserved: null, search: '?view=mine' }
-    case 'team':
-      return { view: 'team', activeChip: 'team', segment: 'all', overdueOnly: false, reserved: null, search: '?view=team' }
     case 'overdue':
       return { view: 'overdue', activeChip: 'overdue', segment: 'all', overdueOnly: true, reserved: null, search: '?view=overdue' }
     case 'followups':
@@ -140,12 +138,13 @@ function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' =
   }
 }
 
+// §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  const options = screen.queryByRole('button', { name: /view options/i })
+  const options = screen.queryByRole('button', { name: /view & filters|view options/i })
   if (options?.getAttribute('aria-expanded') === 'false') fireEvent.click(options)
-  fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+  fireEvent.click(screen.getByRole('button', { name: 'All' }))
   await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
   })
 }
 
@@ -160,7 +159,7 @@ function renderPage(auth: AuthState = authedState, props: Partial<React.Componen
         <TasksWorkspace
           {...props}
           savedView={savedView}
-          onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'mine' || next === 'team' || next === 'overdue' || next === 'followups' ? next : 'all')))}
+          onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' || next === 'followups' ? next : 'all')))}
         />
         <LocationCapture />
       </>
@@ -484,16 +483,18 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('AC-064: the saved-view chip row renders My work / Team work / Overdue / Follow-ups', async () => {
+  it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue / Follow-ups — no Team-work chip', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
+    expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Team work' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeTruthy()
+    // DELIBERATE goal change (record-collection plan §Task-11): no Team-work chip until Issue 8.
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
   })
 
-  it('AC-064: "Team work" shows every loaded row regardless of ownership scope', async () => {
+  it('AC-064 / §Task-11: "All" shows every loaded row regardless of ownership scope', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
 
@@ -593,7 +594,8 @@ describe('a11y — aria roles and labels', () => {
     await waitFor(() => screen.getByRole('button', { name: 'My work' }))
     expect(screen.getByRole('group', { name: /tasks saved views/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByRole('button', { name: 'Team work' }).getAttribute('aria-pressed')).toBe('false')
+    // §Task-11: the All chip carries default-view pressed state; the Team-work chip is gone.
+    expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('loading region has aria-busy and a visually-hidden loading message', async () => {
@@ -1102,7 +1104,7 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
         <>
           <TasksWorkspace
             savedView={savedView}
-            onSavedViewChange={(next) => setSavedView(makeSavedView(next === 'mine' || next === 'team' || next === 'overdue' || next === 'followups' ? next : 'all'))}
+            onSavedViewChange={(next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' || next === 'followups' ? next : 'all'))}
           />
           <LocationCapture />
         </>

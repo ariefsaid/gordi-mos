@@ -104,12 +104,10 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
-function makeSavedView(view: 'mine' | 'team' | 'overdue' | 'followups' | 'all' | 'unknown'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+function makeSavedView(view: 'mine' | 'overdue' | 'followups' | 'all' | 'unknown'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
   switch (view) {
     case 'mine':
       return { view, activeChip: 'mine' as const, segment: 'mine' as const, overdueOnly: false, reserved: null, search: '?view=mine' }
-    case 'team':
-      return { view, activeChip: 'team' as const, segment: 'all' as const, overdueOnly: false, reserved: null, search: '?view=team' }
     case 'overdue':
       return { view, activeChip: 'overdue' as const, segment: 'all' as const, overdueOnly: true, reserved: null, search: '?view=overdue' }
     case 'followups':
@@ -185,7 +183,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('First mobile work item'))
 
-    const options = screen.getByRole('button', { name: /view options/i })
+    const options = screen.getByRole('button', { name: /view & filters|view options/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
@@ -205,7 +203,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     for (const name of [/group/i, /business unit/i, /status/i, /person/i]) {
       expect(screen.queryByRole('combobox', { name })).toBeNull()
     }
-    const options = screen.getByRole('button', { name: /view options/i })
+    const options = screen.getByRole('button', { name: /view & filters|view options/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(options).toHaveAttribute('aria-controls', 'mobile-task-options-panel')
 
@@ -217,15 +215,21 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     }
   })
 
-  it('AC-W1-A: manager phone keeps the dense toolbar visible', async () => {
+  // RATIFY-BEFORE-MERGE: Luna 390 audit (b) — manager phones now ALSO collapse the View & filters
+  // config behind the single disclosure so the first task card is above the fold. This reverses
+  // OD-REDESIGN-61's member-only "manager keeps the dense toolbar" exemption at phone width.
+  it('AC-W1-A (Luna 390): manager phone collapses config behind the View & filters disclosure so the first card leads', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Manager mobile work item' })])
 
     renderTable({}, managerState)
     await waitFor(() => screen.getByText('Manager mobile work item'))
 
-    expect(screen.queryByRole('button', { name: /view options/i })).toBeNull()
-    expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
+    const options = screen.getByRole('button', { name: /view & filters|view options/i })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    // Collapsed: the dense toolbar's filter comboboxes are out of the DOM; the first card leads.
+    expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
+    expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('Manager mobile work item'))
   })
 
   it('AC-W1-B: member phone keeps overdue filter and clear controls behind View options', async () => {
@@ -241,11 +245,32 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.queryByRole('button', { name: /filter to.*overdue/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /view options/i }))
+    fireEvent.click(screen.getByRole('button', { name: /view & filters|view options/i }))
     expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /filter to.*overdue/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue filter/i })).toBeInTheDocument())
+  })
+
+  // RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door. The header "+ Create task" is the
+  // DESKTOP door; on phone the single door is the global Action Launcher FAB (DESIGN.md one-launcher
+  // rule), so the in-page header create button is hidden at phone width to kill the duplicate door.
+  it('AC-W1-D (Luna 390): desktop shows the header "+ Create task" door; phone hides it (single FAB door)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
+
+    // Desktop: the header create door is present.
+    stubMatchMedia(true, true)
+    const desktop = renderTable()
+    await waitFor(() => screen.getByText('Only work item'))
+    expect(screen.getByRole('link', { name: '+ Create task' })).toBeInTheDocument()
+    desktop.unmount()
+
+    // Phone: no in-page header create button — the single phone create door is the global FAB
+    // (rendered by the app shell, not this component).
+    stubMatchMedia(false, false)
+    renderTable()
+    await waitFor(() => screen.getByText('Only work item'))
+    expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
@@ -256,8 +281,8 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('Pekerjaan pertama'))
 
-    expect(screen.getByRole('button', { name: 'Opsi tampilan' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Opsi tampilan' }))
+    expect(screen.getByRole('button', { name: 'Tampilan & filter' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tampilan & filter' }))
     expect(screen.getByRole('button', { name: 'Pekerjaan saya' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Kelompok' })).toBeInTheDocument()
     localStorage.removeItem('mos.locale')
@@ -426,14 +451,17 @@ describe('Task 9 — group-by control in toolbar', () => {
 // ── Task 10 — saved-view mapping + reserved state ─────────────────────────────
 
 describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
-  it('renders My work / Team work / Overdue / Follow-ups chips', async () => {
+  it('§Task-11: renders All / My work / Overdue / Follow-ups chips — NO Team-work chip (Issue-8 gate)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeInTheDocument()
+    // DELIBERATE goal change (record-collection plan §Task-11): the legacy Team-work chip is removed
+    // until Issue 8 lands the real Task team_id contract.
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
   })
 
   it('AC-301: view=mine seeds the shipped mine scope', async () => {
@@ -459,15 +487,18 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     expect(screen.getByRole('button', { name: /clear overdue filter/i })).toBeInTheDocument()
   })
 
-  it('AC-303: view=team reuses the org-visible task set', async () => {
+  it('§Task-11: the org-visible task set is the All view (the removed Team-work chip is gone)', async () => {
+    // DELIBERATE goal change (§Task-11): "Team work" no longer exists as a saved view; the
+    // org-visible set is reached via All, which is the default view.
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'mine', title: 'Mine task' }),
       makeTask({ id: 'shared', title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' }),
     ])
-    renderTable({ savedView: makeSavedView('team') })
+    renderTable({ savedView: makeSavedView('all') })
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.getByText('Shared task')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
   })
 
   it('AC-311: view=followups shows reserved-state copy instead of task rows', async () => {
@@ -653,13 +684,14 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
 
-// Helper: switch to the org-visible saved view so non-viewer tasks are visible.
+// Helper: switch to the org-visible All saved view so non-viewer tasks are visible.
+// (§Task-11: the Team-work chip was removed; All is the org-visible set.)
 async function switchToAll() {
-  const options = screen.queryByRole('button', { name: /view options/i })
+  const options = screen.queryByRole('button', { name: /view & filters|view options/i })
   if (options?.getAttribute('aria-expanded') === 'false') fireEvent.click(options)
-  fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+  fireEvent.click(screen.getByRole('button', { name: 'All' }))
   await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
   })
 }
 

@@ -32,7 +32,8 @@ import {
 } from './task-collection-presentation'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 
-type TasksSavedViewChip = 'mine' | 'team' | 'overdue' | 'followups'
+// §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
+type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
 const EMPTY_ACCESS_ROLES: readonly string[] = []
 const EMPTY_RECORDS: never[] = []
 const EMPTY_STATUS_OVERRIDES = new Map<string, TaskStatus>()
@@ -66,13 +67,11 @@ function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskC
   if (!savedView) return undefined
   const view: TaskCollectionView = savedView.view === 'mine'
     ? 'my-work'
-    : savedView.view === 'team'
-      ? 'team'
-      : savedView.view === 'overdue'
-        ? 'overdue'
-        : savedView.view === 'followups'
-          ? 'followups'
-          : 'all'
+    : savedView.view === 'overdue'
+      ? 'overdue'
+      : savedView.view === 'followups'
+        ? 'followups'
+        : 'all'
   return {
     ...TASK_COLLECTION_NEUTRAL_QUERY,
     view,
@@ -84,14 +83,12 @@ function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
   if (view === 'my-work') return 'mine'
   if (view === 'overdue') return 'overdue'
   if (view === 'followups') return 'followups'
-  if (view === 'team') return 'team'
   return 'all'
 }
 
 function viewLabel(view: TaskCollectionView, t: ReturnType<typeof useT>): string {
   switch (view) {
     case 'my-work': return t('tasks.saved.mine')
-    case 'team': return t('tasks.saved.team')
     case 'overdue': return t('tasks.saved.overdue')
     case 'followups': return t('tasks.saved.followups')
     default: return t('tasks.saved.all')
@@ -117,8 +114,9 @@ export function TasksWorkspace({
   const isDesktop = useIsDesktop()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
-  const isManager = auth.status === 'authenticated' && auth.viewer.isManager
-  const captureFirstMobile = !isDesktop && !isManager
+  // Block 2(b) (Luna 390 audit): on phone, collapse the View & filters config behind ONE
+  // disclosure so the first task card is visible above the fold. Desktop renders it inline.
+  const captureFirstMobile = !isDesktop
   const currentSearch = location.search
   const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -158,7 +156,7 @@ export function TasksWorkspace({
   const handleViewChange = useCallback((view: TaskCollectionView) => {
     setQuery({
       view,
-      overdueOnly: view === 'overdue' ? true : view === 'all' || view === 'team' ? false : controller.state.query.overdueOnly,
+      overdueOnly: view === 'overdue' ? true : view === 'all' ? false : controller.state.query.overdueOnly,
     })
     onSavedViewChange?.(legacyViewFor(view))
   }, [controller.state.query.overdueOnly, onSavedViewChange, setQuery])
@@ -208,7 +206,10 @@ export function TasksWorkspace({
         overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
       }
   const hasRows = projection !== null && projection.visibleRecords.length > 0
-  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups'
+  // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
+  // the single create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one
+  // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
+  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups' && isDesktop
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -279,7 +280,7 @@ export function TasksWorkspace({
       <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
-      label={t('tasks.viewOptions')}
+      label={t('tasks.viewAndFilters')}
       summary={viewLabel(query.view, t)}
       panelId="mobile-task-options-panel"
       className="mobile-task-options"

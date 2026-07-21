@@ -20,12 +20,20 @@
 .collection-toolbar__views {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
   min-height: 32px;
   padding: 3px;
   border-radius: var(--radius-sm);
   background: var(--secondary);
+  flex-wrap: nowrap;
   overflow-x: auto;
+  scrollbar-width: none; /* Firefox — the chip strip is a quiet scroll region, not a visible one */
+  -webkit-overflow-scrolling: touch;
 }
+/* Block 2(a) (Luna 390 audit): the saved-view chip strip is a proper horizontal scroll region —
+   it never clips a chip ('Follow-ups') and never overflows the page. Hide the scrollbar webkit. */
+.collection-toolbar__views::-webkit-scrollbar { display: none; }
 
 .collection-toolbar__view {
   min-height: 26px;
@@ -149,7 +157,7 @@
   .collection-toolbar__query > * { min-height: 44px; }
   .collection-toolbar__select .mk-select__box { height: 44px; max-width: min(220px, 70vw); }
   .collection-toolbar__search { min-height: 44px; max-width: none; }
-  .collection-toolbar__view { min-height: 38px; }
+  .collection-toolbar__view { min-height: 44px; }
   .collection-toolbar__saved .btn { min-height: 44px; }
   .collection-toolbar__save { align-items: stretch; flex-wrap: wrap; }
   .collection-toolbar__save-field { flex: 1 1 100%; }

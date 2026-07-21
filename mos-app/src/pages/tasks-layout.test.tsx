@@ -202,11 +202,15 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 
-  it('AC-303: /work/tasks?view=team activates Team work without mounting a second host', async () => {
+  it('§Task-11: /work/tasks?view=team degrades to the org-visible All set with no Team-work chip (Issue-8 gate)', async () => {
+    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
+    // view; it is rejected on parse and falls back to the org-visible All set. No Team-work chip
+    // exists until Issue 8 lands the real Task team_id contract.
     mockListTasks.mockResolvedValue([makeTask({ title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=team')
     await waitFor(() => screen.getByText('Shared task'))
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
   })
@@ -216,7 +220,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?view=bogus')
     await waitFor(() => screen.getByText('Fallback task'))
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'false')
+    // §Task-11: no Team-work chip exists.
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Follow-ups' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)

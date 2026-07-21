@@ -44,10 +44,10 @@ const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'statu
   { value: 'occurrence', key: 'occurrence' },
 ]
 
-const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'team' | 'overdue' | 'followups' }[] = [
+// §Task-11 (Issue-8 gate): no Team-work chip until Issue 8 lands the real Task team_id contract.
+const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'overdue' | 'followups' }[] = [
   { value: 'all', key: 'all' },
   { value: 'my-work', key: 'my-work' },
-  { value: 'team', key: 'team' },
   { value: 'overdue', key: 'overdue' },
   { value: 'followups', key: 'followups' },
 ]
@@ -78,7 +78,6 @@ export function TasksToolbar({
   const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) => {
     if (key === 'all') return t('tasks.saved.all')
     if (key === 'my-work') return t('tasks.saved.mine')
-    if (key === 'team') return t('tasks.saved.team')
     if (key === 'overdue') return t('tasks.saved.overdue')
     return t('tasks.saved.followups')
   }

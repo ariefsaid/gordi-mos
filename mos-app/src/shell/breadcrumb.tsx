@@ -9,9 +9,10 @@ import { useT } from '@/i18n/use-t'
 // prefix (brand lives in TopBar — OD-P4-11 dedup). Resolves the new destinations +
 // Work children + the `?view=` saved-view leaf; a record route pushes the resolved
 // task title via BreadcrumbTitleProvider (AC-019). Unknown/404 routes render nothing.
+// §Task-11 (Issue-8 gate): no `team` leaf — the Team-work view was removed until Issue 8 lands the
+// real Task team_id contract.
 const VIEW_LEAF: Record<string, string> = {
   mine: 'My work',
-  team: 'Team work',
   overdue: 'Overdue',
   followups: 'Follow-ups',
 }

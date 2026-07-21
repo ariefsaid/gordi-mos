@@ -116,17 +116,15 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
-function makeSavedView(view: 'team' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
-  if (view === 'team') {
-    return { view: 'team', activeChip: 'team', segment: 'all', overdueOnly: false, reserved: null, search: '?view=team' }
-  }
+function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
   return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
 }
 
+// §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+  fireEvent.click(screen.getByRole('button', { name: 'All' }))
   await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
   })
 }
 
@@ -137,7 +135,7 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
       <TasksWorkspace
         {...props}
         savedView={savedView}
-        onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'team' ? 'team' : 'all')))}
+        onSavedViewChange={props.onSavedViewChange ?? (() => setSavedView(makeSavedView()))}
       />
     )
   }

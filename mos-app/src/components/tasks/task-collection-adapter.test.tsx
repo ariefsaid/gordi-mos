@@ -194,6 +194,26 @@ describe('FR-V3-007: saved-view spec mapping', () => {
   })
 })
 
+describe('§Task-11: the Team-work view is removed until Issue 8', () => {
+  it('§Task-11: ?view=team is rejected on parse and degrades to the org-visible All view', () => {
+    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
+    // saved-view identity; it is rejected before it can enter collection state and never aliased to a
+    // Business Unit filter — the query degrades to the neutral org-visible All view.
+    const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=team'), 'table')
+    expect(parsed.ok).toBe(false)
+    if (parsed.ok) throw new Error('view=team must be rejected')
+    expect(parsed.query?.view).toBe('all')
+    expect(parsed.issues.some((issue) => issue.key === 'view')).toBe(true)
+  })
+
+  it('§Task-11: a supported view (?view=my-work) still parses cleanly', () => {
+    const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=my-work'), 'table')
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) throw new Error('view=my-work must parse')
+    expect(parsed.query.view).toBe('my-work')
+  })
+})
+
 describe('table presentation (shared-surface fallback renderer)', () => {
   function makeData(): CollectionData<TaskCollectionRecord, TaskCollectionContext> {
     const records = [
