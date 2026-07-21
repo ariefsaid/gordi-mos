@@ -31,7 +31,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
 > **CURRENT WORKSTREAM (2026-07-21): V3 live application convergence**, branch `v3-redesign`,
-> local tip `e4bcc0d` at this checkpoint; nothing has been pushed. The durable goal, audit ledger,
+> local tip `9e2a8d1` at this checkpoint; nothing has been pushed. The durable goal, audit ledger,
 > provider failures, active worker/thread map, and exact next dependencies are in
 > [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](reviews/v3-redesign-convergence-handoff-2026-07-21.md).
 > E7 owns visual styling while the
@@ -53,16 +53,16 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > acceptance gate.
 >
 > **In flight in isolated worktrees/threads:**
-> `v3/record-viewer-live` (NIM Nemotron) is mounting exactly one shell-level
-> `OverlayHostProvider`/`OverlayHostSlot`; `v3/signals-frame` (NIM Nemotron) is fixing real Signal
-> grouping/opening/selection/page-family behavior; Luna thread `019f8423-d2c9-7523-88cc-c470c2597a3e`
+> The production overlay host is now integrated and independently verified at `9e2a8d1` (36 focused
+> shell/overlay tests, typecheck, ESLint, Stylelint, diff clean). `v3/signals-frame` (NIM Nemotron)
+> is fixing real Signal grouping/opening/selection/page-family behavior; Luna thread `019f8423-d2c9-7523-88cc-c470c2597a3e`
 > is migrating the live TasksWorkspace; Luna thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d` landed
 > auth controls as `93555ac`. All active work must be independently reviewed before cherry-pick.
 > Only one local Supabase exists; no active lane may start it. Keep memory bounded, avoid browser/full-suite
 > fan-out, and inspect redirected logs only once after a process exits. The full active map and failed
 > provider attempts are recorded in the convergence handoff.
 >
-> **Next action:** review and cherry-pick the exiting Overlay, Signal, and Tasks results onto `93555ac`;
+> **Next action:** review and cherry-pick the exiting Signal and Tasks results onto `9e2a8d1`;
 > rerun their focused proofs; then migrate Task/Signal RecordViewer openings, Inbox/Deputy, Follow-ups,
 > Café, Home/People/More, geometry, and final three-width acceptance in the dependency order in the
 > convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host

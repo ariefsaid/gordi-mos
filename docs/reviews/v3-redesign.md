@@ -628,3 +628,11 @@ Two read-only Luna audits then found unclosed interaction debts that source/adap
 
 These findings are not marked fixed. The current Overlay, Signal, and Tasks lanes remain isolated
 and require exit, diff review, focused proof, and cherry-pick before the next dependency wave.
+
+The production overlay-host lane subsequently committed `8934353`; after a whitespace-only test
+cleanup (`9e2a8d1`) the Director cherry-picked it onto `v3-redesign`. The shell now mounts exactly
+one `OverlayHostProvider` and one physical `OverlayHostSlot owner="shell"`, preserving provider
+ordering, assistant feature-flag behavior, and display-contents geometry. Independent proof is 36
+focused shell/overlay tests, typecheck, ESLint, Stylelint, and diff clean. This establishes the host
+only; Task/Signal RecordViewer consumers, Inbox/Deputy, and phone/back/focus consumer journeys remain
+open and must not be inferred from the mount tests.

@@ -53,8 +53,8 @@ Read these in order on a cold start:
 
 ## Current branch state
 
-Target branch: `v3-redesign`, local only, current tip `4a724a2` (`docs(v3): refresh convergence
-handoff tip`). The branch includes the prior page-family/collection/modal/legacy-page
+Target branch: `v3-redesign`, local only, current tip `9e2a8d1` (`test(v3): remove overlay test
+whitespace drift`). The branch includes the prior page-family/collection/modal/legacy-page
 cleanup wave through `9695fd2`, the independently reviewed auth migration `93555ac`, and this
 handoff. Nothing has been pushed, merged, or deployed.
 
@@ -73,6 +73,13 @@ Auth control grammar is landed at `93555ac` (source commit `c4bf105`):
   checks green. Director re-run on integrated `v3-redesign`: Login/Recovery 36 tests, typecheck,
   ESLint, and Stylelint green.
 
+The production overlay host is landed at `9e2a8d1` (source `8934353` plus a whitespace-only gate
+fix). `AppShell` now mounts exactly one shell-level `OverlayHostProvider` and one physical
+`OverlayHostSlot owner="shell"`, preserving provider ordering, SHOW_ASSISTANT behavior, and
+display-contents shell geometry. Director re-run: 36 shell/overlay tests, typecheck, ESLint,
+Stylelint, and diff checks green. RecordViewer consumer migration is still pending; this commit
+only establishes the production host.
+
 Prior verified local wave (before `93555ac`) includes V3 page-family migration across Home,
 catalog, Money, Café, and Follow-ups; shared collection controls for Tasks/Signals; ModalShell
 convergence; deletion of unreachable Sales and My Week page islands; and deterministic inventory /
@@ -87,7 +94,7 @@ after its process exits.
 
 | Lane | Substrate | Worktree / branch | Current state | Dependency / review rule |
 |---|---|---|---|---|
-| Overlay host | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-record-viewer-live` / `v3/record-viewer-live` | Active; production edits in `app-shell.tsx`, `overlay-host.tsx`, tests, plus setup lockfile drift | Must prove exactly one shell-level provider/slot, owner-agnostic host, focus/Back/phone behavior; review before cherry-pick |
+| Overlay host | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-record-viewer-live` / `v3/record-viewer-live` | Complete; cherry-picked as `9e2a8d1` and independently verified | Host is landed; consumer RecordViewer/Inbox/Deputy migrations remain separate |
 | Signal collection | NIM Nemotron 3 Ultra 550B | `.claude/worktrees/v3-signals-frame` / `v3/signals-frame` | Active; production and test edits | Must prove real grouping headers/collapse, opener/query preservation, no phantom selection, archive-vs-focused page families; do not accept adapter-only tests |
 | Tasks live collection | Luna xhigh | Codex worktree from `v3/task-live-migration` (thread `019f8423-d2c9-7523-88cc-c470c2597a3e`) | Active; narrowing onto the live wiring seams | Must make production `TasksWorkspace` use one collection loader/projection and `RecordCollectionSurface`, preserve mature Task table/card/group/keyboard behavior, and avoid shell/RecordViewer scope |
 | Auth controls | Luna xhigh | Codex worktree from `v3/auth-control-grammar` (thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d`) | Complete; source commit `c4bf105` cherry-picked as `93555ac` | Already independently re-verified; do not duplicate |
@@ -201,8 +208,8 @@ browser/full-suite fan-out in parallel. The owner must still see the rendered ap
 
 ## Current handoff truth
 
-At the time of writing, only auth and this documentation handoff are landed on `v3-redesign`
-(`93555ac`, `e4bcc0d`, and `4a724a2`). Overlay and Signal have
+At the time of writing, auth, the production overlay host, and this documentation handoff are
+landed on `v3-redesign` (`93555ac`, `9e2a8d1`, and the docs checkpoints). Signal has
 uncommitted active work in their isolated branches; Tasks and auth follow-up have active Luna
 threads. No production merge, push, deploy, or owner walkthrough has occurred. A future agent must
 update this section and `docs/agent-context.md` immediately after each reviewed cherry-pick.
