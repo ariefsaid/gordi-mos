@@ -730,3 +730,24 @@ now `7cc45f2`.
 all 5 pi providers show unauthed since the prior session's tokens expired. The Wave-2c 4-lens
 audit and the three-width representative gate are queued behind owner re-auth or NIM recovery.
 Geometry + diff stand in for the B1/B2 visual audits in the interim.
+
+## 4-lens multimodal audit — Luna vision on 5 live screenshots (2026-07-21 night)
+
+Director rendered pass + Luna 4-lens (Visual/IxD/IA/JTBD) on the integrated tip (`e006c3a`+):
+inkling's earlier two findings verified STALE (Feed tab switches with URL+aria; Escape returns focus
+to the exact opener) — fixed by the intervening merges. Panel split measured coherent (~44% of
+content, E7 grammar). Surface verdicts:
+
+| Surface | Verdict | Driving findings |
+|---|---|---|
+| Home 1280 | FIX-THEN-SHIP | attention rows lack PIC/source/action decision context; naked count |
+| Tasks + panel 1280 | **BLOCK** | **Team-work chip + visible Team field violate plan §Task-11 / Issue-8 sequencing (no Team UI before real team_id)** — Session A's migration kept the chip; treated as stop-ship |
+| Signals Feed 1280 | FIX-THEN-SHIP | red Urgent treatment semantically misleading; duplicated job copy; no visible canonical-open affordance |
+| Inbox empty 1280 | **BLOCK** | triage-to-source journey unproven (Director has zero notifications — needs seeded-notification proof, Issue 9 acceptance) |
+| Tasks 390 | **BLOCK** | clipped Follow-ups chip; 5-chip strip cramped; configuration precedes first work item; Table/Card ~36-38px < 44px floor risk; duplicate creation doors |
+
+Routing: `v3/tasks-contract` (GLM-5.2) — remove Team-work chip + Team visible field until Issue 8
+(the plan's own rule; the RATIFY'd removal my superseded v3/tasks lane never landed) + the 390 fixes
+(scrollable chip strip, view-and-filters collapse, single creation door, 44px floors). 
+`v3/sig-home-polish` (GLM-5.2) — Signals attention semantics + duplicate job copy; Home attention-row
+decision context. Inbox seeded-notification proof queued to Issue 9 acceptance prep.
