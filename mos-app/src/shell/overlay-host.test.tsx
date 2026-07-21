@@ -9,7 +9,12 @@ import {
   type OverlayEntry,
   type OverlayHostApi,
 } from './overlay-host'
-import type { OverlayLeaveDecision, OverlayLeaveGuard } from './overlay-navigation'
+import type {
+  OverlayLeaveDecision,
+  OverlayLeaveGuard,
+  OverlayLeaveIntent,
+  OverlayTransitionResult,
+} from './overlay-navigation'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -223,6 +228,52 @@ describe('overlay host — leave guard transaction', () => {
     // No React node, dirty flag, or domain row leaked into the intent summary.
     const summary = (seen.at(-1) as { from: Record<string, unknown> }).from
     expect(Object.keys(summary).sort()).toEqual(['key', 'owner'])
+  })
+
+  it('leave-guard intent matrix: every leave-like action is denied with its exact typed intent and re-guards after each deny', async () => {
+    const seen: OverlayLeaveIntent[] = []
+    const leaveGuard: OverlayLeaveGuard = vi.fn((intent) => {
+      seen.push(intent)
+      return Promise.resolve({ decision: 'deny' as const })
+    })
+    const dirtyEntry = makeEntry({
+      key: 'synthetic:draft',
+      tenant: 'quick',
+      pageTo: '/work/tasks/1',
+      content: <button type="button">Draft control</button>,
+      leaveGuard,
+    })
+    const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
+    await act(() => getApi().openRoot(dirtyEntry, 'ephemeral'))
+
+    // Each leave-like action, fired SEPARATELY (never coalesced): the guard receives the exact
+    // intent kind + via, the deny leaves the guarded draft frame in place, and — the re-guard proof —
+    // the guard is invoked once more for the very next action after the prior deny cleared.
+    const cases: { fire: () => Promise<OverlayTransitionResult>; kind: OverlayLeaveIntent['kind']; via: string }[] = [
+      { fire: () => getApi().close('explicit-close'), kind: 'close', via: 'explicit-close' },
+      { fire: () => getApi().close('escape'), kind: 'close', via: 'escape' },
+      { fire: () => getApi().back(), kind: 'back', via: 'internal-back' },
+      { fire: () => getApi().replaceRoot(makeEntry({ key: 'synthetic:root' })), kind: 'replace', via: 'replace-root' },
+      { fire: () => getApi().replaceCurrent(makeEntry({ key: 'synthetic:cur' })), kind: 'replace', via: 'replace-current' },
+      { fire: () => getApi().push(makeEntry({ key: 'synthetic:next' })), kind: 'replace', via: 'push' },
+      { fire: () => getApi().openPage('/work/tasks/1'), kind: 'open-page', via: 'open-page' },
+    ]
+
+    for (const [index, testCase] of cases.entries()) {
+      const result = await act(() => testCase.fire())
+      // Denied: nothing committed, the guarded draft is still the live top frame.
+      expect(result).toEqual({ status: 'denied' })
+      expect(getApi().session?.frames.at(-1)?.entry.key).toBe('synthetic:draft')
+      expect(getApi().pendingLeave).toBeNull()
+      // Re-guard-after-deny: this action invoked the guard exactly once more…
+      expect(leaveGuard).toHaveBeenCalledTimes(index + 1)
+      // …with its exact typed intent and a key/owner-only source summary.
+      expect(seen.at(-1)).toMatchObject({
+        kind: testCase.kind,
+        via: testCase.via,
+        from: { key: 'synthetic:draft', owner: 'shell' },
+      })
+    }
   })
 
   it('leave-guard unguarded: a clean entry commits synchronously without a guard', async () => {
