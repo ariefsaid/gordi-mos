@@ -60,10 +60,18 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
           }
 
           if (lane.state === 'error') {
+            // Home retry/projection convergence (2026-07-21): wire the lane's own
+            // retry callback (HomePage supplies the SAME function reference for
+            // overdue/due-today since both read the one tasks projection) so
+            // "Refresh to try again" is an actual, idempotent action — not dead copy.
             return (
               <div key={lane.kind} className="attention-lane">
                 <h3 className="attention-lane-title">{laneTitle}</h3>
-                <ErrorState message={t('home.attention.laneError')} />
+                <ErrorState
+                  message={t('home.attention.laneError')}
+                  onRetry={lane.onRetry}
+                  retryLabel={t('home.attention.retry')}
+                />
               </div>
             )
           }

@@ -2,7 +2,7 @@
 // Fetches tasks where the viewer is PIC or Supervisor, sorts off-track-first, and
 // renders the typed Team/PIC/Supervisor grammar (OD-62, AC-W02).
 // Loading: skeleton rows; Error: scoped inline Retry (rest of My Week unaffected).
-// Empty: "you're clear" copy (AC-W03). Name chip-link to /tasks/:id (AC-W01/W06).
+// Empty: "you're clear" copy (AC-W03). Name chip-link to /work/tasks/:id (canonical, AC-W01/W06).
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { listTasks } from '@/lib/db/tasks'
@@ -82,7 +82,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
         meta={t('tasks.myMeta')}
         action={
           <Link
-            to="/tasks"
+            to="/work/tasks"
             className="font-semibold text-primary no-underline"
             style={{ fontSize: 15 }}
           >
@@ -199,7 +199,7 @@ function MiniTaskRow({ task, now, personMap, teamMap }: MiniTaskRowProps) {
       <td className="mini-td">
         {/* AC-W01/W06: Chip-link, truncate + title (no-bleed) */}
         <Link
-          to={`/tasks/${task.id}`}
+          to={`/work/tasks/${task.id}`}
           className="mini-name-chip truncate"
           title={task.title}
         >
@@ -257,7 +257,7 @@ function MobileTaskCard({ task, now, personMap, teamMap }: MiniTaskRowProps) {
 
   return (
     <article className="mini-mobile-card">
-      <Link to={`/tasks/${task.id}`} className="mini-name-chip" title={task.title}>
+      <Link to={`/work/tasks/${task.id}`} className="mini-name-chip" title={task.title}>
         {task.title}
       </Link>
       <div className="mini-mobile-grid">

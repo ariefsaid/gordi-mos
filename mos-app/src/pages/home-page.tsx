@@ -19,7 +19,7 @@
 //
 // When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
 // documented default (docs/specs/home-v1.spec.md).
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -67,79 +67,138 @@ export function HomePage() {
   const isPhone = useIsPhone()
   const [orderPanelOpen, setOrderPanelOpen] = useState(false)
 
+  // isMountedRef — shared unmount guard for every retryable loader below (never
+  // setState after unmount). The flag is set true in the EFFECT BODY itself, not just
+  // at useRef's initial value — StrictMode's dev-only mount→cleanup→remount cycle runs
+  // the cleanup (setting it false) and then the setup again, and a setup that doesn't
+  // restore `true` leaves every retryable loader believing the page is unmounted
+  // forever after that first synthetic cycle (a real, observed regression: every
+  // attention lane stuck on its loading skeleton — caught by rendered inspection).
+  const isMountedRef = useRef(false)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
+
   // ── Tasks (everyone) — the tasks-count tile AND the overdue/due-today attention lanes ──
+  // Home retry/projection convergence (convergence-audit 2026-07-21): this ONE fetch is
+  // the single projection behind BOTH the overdue and due-today attention lanes — never
+  // two independent fetches for the same data. `loadTasks` is retry-safe: `tasksInFlightRef`
+  // makes a concurrent call while one is already in flight an idempotent no-op, and
+  // `tasksTokenRef` invalidates a stale in-flight response if the viewer identity changes
+  // mid-fetch (a fresh load always wins, never a stale write).
   const [tasks, setTasks] = useState<TaskListRow[]>([])
   const [taskState, setTaskState] = useState<FetchState>('loading')
+  const tasksInFlightRef = useRef(false)
+  const tasksTokenRef = useRef(0)
 
-  useEffect(() => {
-    if (!personId) return
-    let cancelled = false
+  const loadTasks = useCallback(() => {
+    if (!personId || tasksInFlightRef.current) return
+    tasksInFlightRef.current = true
+    const token = ++tasksTokenRef.current
     setTaskState('loading')
     listTasks({})
       .then(rows => {
-        if (cancelled) return
+        if (!isMountedRef.current || tasksTokenRef.current !== token) return
         setTasks(rows)
         setTaskState('ready')
       })
       .catch(() => {
-        if (!cancelled) setTaskState('error')
+        if (!isMountedRef.current || tasksTokenRef.current !== token) return
+        setTaskState('error')
       })
-    return () => { cancelled = true }
+      .finally(() => {
+        // Only the CURRENT request clears the flight flag — a stale/superseded
+        // request resolving late must not falsely mark the latest one as idle.
+        if (tasksTokenRef.current === token) tasksInFlightRef.current = false
+      })
   }, [personId])
+
+  useEffect(() => {
+    tasksTokenRef.current += 1 // a personId change (or mount) always supersedes any prior fetch
+    tasksInFlightRef.current = false
+    loadTasks()
+  }, [loadTasks])
 
   const taskCount = personId ? openTaskCount(tasks, personId) : 0
 
   // ── Notifications (mentions lane) — reuses Inbox's own "what asked for me" read (Step 5) ──
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [notificationsState, setNotificationsState] = useState<FetchState>('loading')
+  const notificationsInFlightRef = useRef(false)
+  const notificationsTokenRef = useRef(0)
 
-  useEffect(() => {
-    if (!personId) return
-    let cancelled = false
+  const loadNotifications = useCallback(() => {
+    if (!personId || notificationsInFlightRef.current) return
+    notificationsInFlightRef.current = true
+    const token = ++notificationsTokenRef.current
     setNotificationsState('loading')
     listNotifications()
       .then(rows => {
-        if (cancelled) return
+        if (!isMountedRef.current || notificationsTokenRef.current !== token) return
         setNotifications(rows)
         setNotificationsState('ready')
       })
       .catch(() => {
-        if (!cancelled) setNotificationsState('error')
+        if (!isMountedRef.current || notificationsTokenRef.current !== token) return
+        setNotificationsState('error')
       })
-    return () => { cancelled = true }
+      .finally(() => {
+        if (notificationsTokenRef.current === token) notificationsInFlightRef.current = false
+      })
   }, [personId])
+
+  useEffect(() => {
+    notificationsTokenRef.current += 1
+    notificationsInFlightRef.current = false
+    loadNotifications()
+  }, [loadNotifications])
 
   // ── Failed checks (café rejected logs, RATIFY-3, Step 5) ──────────────────────
   const [failedChecks, setFailedChecks] = useState<AttentionItem[]>([])
   const [failedChecksState, setFailedChecksState] = useState<FetchState>('loading')
+  const failedChecksInFlightRef = useRef(false)
+  const failedChecksTokenRef = useRef(0)
 
-  useEffect(() => {
-    if (!personId) return
-    let cancelled = false
+  const loadFailedChecks = useCallback(() => {
+    if (!personId || failedChecksInFlightRef.current) return
+    failedChecksInFlightRef.current = true
+    const token = ++failedChecksTokenRef.current
     setFailedChecksState('loading')
     loadFailedChecksForViewer()
       .then(items => {
-        if (cancelled) return
+        if (!isMountedRef.current || failedChecksTokenRef.current !== token) return
         setFailedChecks(items)
         setFailedChecksState('ready')
       })
       .catch(() => {
-        if (!cancelled) setFailedChecksState('error')
+        if (!isMountedRef.current || failedChecksTokenRef.current !== token) return
+        setFailedChecksState('error')
       })
-    return () => { cancelled = true }
+      .finally(() => {
+        if (failedChecksTokenRef.current === token) failedChecksInFlightRef.current = false
+      })
   }, [personId])
+
+  useEffect(() => {
+    failedChecksTokenRef.current += 1
+    failedChecksInFlightRef.current = false
+    loadFailedChecks()
+  }, [loadFailedChecks])
 
   // ── Attention brief lanes (Step 5, spec §2/§4) ─────────────────────────────────
   const today = useMemo(() => wibToday(), [])
   const lanes: AttentionLane[] = useMemo(() => {
     if (!personId) return []
     return [
-      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today, locale) : [] },
-      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today, locale) : [] },
-      { kind: 'failed-checks', state: failedChecksState, items: failedChecksState === 'ready' ? failedChecks : [] },
-      { kind: 'mentions', state: notificationsState, items: notificationsState === 'ready' ? unreadMentions(notifications) : [] },
+      // Overdue + due-today share the SAME `loadTasks` reference (the one tasks
+      // projection) — retrying either lane refreshes both, never a duplicate fetch.
+      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today, locale) : [], onRetry: loadTasks },
+      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today, locale) : [], onRetry: loadTasks },
+      { kind: 'failed-checks', state: failedChecksState, items: failedChecksState === 'ready' ? failedChecks : [], onRetry: loadFailedChecks },
+      { kind: 'mentions', state: notificationsState, items: notificationsState === 'ready' ? unreadMentions(notifications) : [], onRetry: loadNotifications },
     ]
-  }, [personId, taskState, tasks, today, locale, failedChecksState, failedChecks, notificationsState, notifications])
+  }, [personId, taskState, tasks, today, locale, failedChecksState, failedChecks, notificationsState, notifications, loadTasks, loadFailedChecks, loadNotifications])
 
   // ── Region order (OD-REDESIGN-18, Step 5) — per-user, default attention-first ──
   const [order, setOrder] = useState<HomeRegionOrder>('attention-first')
@@ -161,7 +220,7 @@ export function HomePage() {
 
       {/* Everyone row — tasks (always). */}
       <div className="home-kpi-grid">
-        <Link to="/tasks" className="home-kpi-link">
+        <Link to="/work/tasks" className="home-kpi-link">
           <KPITile
             label={t('home.kpi.tasks')}
             value={taskState === 'ready' ? String(taskCount) : '—'}

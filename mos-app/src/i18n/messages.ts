@@ -555,6 +555,7 @@ export const messages = {
     'home.attention.lane.mentions': 'Mentions',
     'home.attention.lane.failedChecks': 'Failed checks',
     'home.attention.laneError': "Couldn't load this list. Refresh to try again.",
+    'home.attention.retry': 'Retry',
     // Minor (d) — per-lane item count in the lane title ("Overdue · 2"). Punctuation-only
     // template, en/id share the same shape by design.
     'home.attention.laneTitleCount': '${title} · ${count}',
@@ -1169,6 +1170,7 @@ export const messages = {
     'home.attention.lane.mentions': 'Sebutan',
     'home.attention.lane.failedChecks': 'Pemeriksaan gagal',
     'home.attention.laneError': 'Gagal memuat. Muat ulang untuk mencoba lagi.',
+    'home.attention.retry': 'Coba lagi',
     'home.attention.laneTitleCount': '${title} · ${count}',
     'home.attention.summary': 'Perlu perhatian · ${n} →',
     'home.order.toggle': 'Urutan Beranda',

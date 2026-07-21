@@ -21,6 +21,7 @@ import type { TagColor } from '@/components/ui/tag'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/state-kit'
+import { ViewTabs } from '@/components/ui/view-tabs'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { roleLabel } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow, LoginStatus } from '@/lib/db/admin-users.types'
@@ -308,8 +309,17 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
   }, [open])
 
   // Return focus to the trigger when the menu closes (Esc / outside-click / select).
+  // Guarded by `wasOpenRef` so this never fires on a component's FIRST mount (e.g. a
+  // row entering the filtered set for the first time, `open` starts false too) — that
+  // stole focus away from whatever the user was actually interacting with (I7 defect,
+  // caught by the People status-filter roving-tabindex/Arrow/Home/End journey).
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) triggerRef.current?.focus()
+    if (open) {
+      wasOpenRef.current = true
+      return
+    }
+    if (wasOpenRef.current) triggerRef.current?.focus()
   }, [open])
 
   return (
@@ -373,9 +383,15 @@ function MobileManageSheet({ person, people, onAction }: MobileManageSheetProps)
   // Home/End, Esc, outside-click) — the sheet IS the menu container here.
   useMenuPopover(open, close, sheetRef, triggerRef)
 
-  // Return focus to the trigger on close
+  // Return focus to the trigger on close. Guarded by `wasOpenRef` so this never fires
+  // on first mount (same I7 defect class as the desktop ⋯ menu above).
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) triggerRef.current?.focus()
+    if (open) {
+      wasOpenRef.current = true
+      return
+    }
+    if (wasOpenRef.current) triggerRef.current?.focus()
   }, [open])
 
   return (
@@ -678,26 +694,19 @@ function PeopleToolbar({ segment, onSegmentChange, searchQuery, onSearchChange }
 
       <div className="people-tb-spacer" />
 
-      {/* Segmented status filter */}
-      <div
-        role="tablist"
-        aria-label="Status filter"
-        className="people-seg"
-      >
-        {SEGMENT_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            role="tab"
-            aria-selected={segment === opt.value}
-            className="people-seg-btn"
-            onClick={() => {
-              if (segment !== opt.value) onSegmentChange(opt.value)
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
+      {/* Segmented status filter — the shared ViewTabs primitive (interaction-contract
+          I7): roving tabindex + Arrow/Home/End across the segments, same grammar as
+          every other tab strip in the app (Rule 11 — never a bespoke tablist). The
+          `.people-status-tabs` reset mirrors the collection-toolbar's own `.view-tabs`
+          reset (static/no border/transparent) since this strip sits inline in a
+          compact toolbar row, not as the full-bleed sticky page strip. */}
+      <div className="people-status-tabs">
+        <ViewTabs
+          ariaLabel="Status filter"
+          tabs={SEGMENT_OPTIONS.map((opt) => ({ id: opt.value, label: opt.label }))}
+          active={segment}
+          onChange={(id) => onSegmentChange(id as StatusSegment)}
+        />
       </div>
     </div>
   )

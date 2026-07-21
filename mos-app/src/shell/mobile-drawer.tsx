@@ -38,8 +38,10 @@ function moreDestinations(accessRoles: string[], roleNames: string[]): Destinati
 /**
  * MobileDrawer — Redesign Step 2 (T15). The phone "More" menu: a focus-trapped
  * dialog listing every authorized non-primary destination as plain links (no
- * aria-current — the bottom-nav owns the single `page`). Esc closes + returns
- * focus; clicking a link navigates + closes.
+ * aria-current — the bottom-nav owns the single `page`). Every close path — Esc,
+ * backdrop click, the ✕, and clicking a destination link — routes through the
+ * SAME `closeAndReturn` so focus always returns to the launcher (interaction-
+ * contract I2), never left dangling on a link about to unmount.
  */
 export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -138,7 +140,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
               <Link
                 key={d.id}
                 to={href}
-                onClick={onClose}
+                onClick={closeAndReturn}
                 className="flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
                 style={{ height: 36 }}
               >

@@ -2,8 +2,9 @@
 // Presentation-only: takes `lanes` as props (HomePage does the fetching). Mirrors home-page.test.tsx's
 // MemoryRouter + I18nProvider wrapper.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -77,6 +78,32 @@ describe('AC-510: per-lane error is fail-soft', () => {
     expect(screen.getByText('Overdue task').closest('a')).not.toBeNull()
     // Minor (b) — the errored lane keeps its title visible ("which list failed?").
     expect(screen.getByRole('heading', { name: 'Mentions', level: 3 })).toBeInTheDocument()
+  })
+
+  // Home retry/projection convergence (2026-07-21): the error lane's "Refresh to try
+  // again" copy previously had no wired retry callback at all — clicking nothing ever
+  // re-fetched the errored projection. AttentionBrief is presentation-only, so it just
+  // forwards `lane.onRetry` to the shared ErrorState Retry button.
+  it('a lane error renders a Retry button that calls the lane\'s onRetry', async () => {
+    const user = userEvent.setup()
+    const onRetry = vi.fn()
+    const lanes: AttentionLane[] = [
+      { kind: 'overdue', state: 'ready', items: [{ id: 'o1', title: 'Overdue task', route: '/work/tasks/o1' }] },
+      { kind: 'mentions', state: 'error', items: [], onRetry },
+    ]
+    renderBrief(lanes)
+
+    const retryButton = screen.getByRole('button', { name: /retry/i })
+    await user.click(retryButton)
+    expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('an error lane with no onRetry renders no Retry button (never a dead-end control)', () => {
+    const lanes: AttentionLane[] = [
+      { kind: 'mentions', state: 'error', items: [] },
+    ]
+    renderBrief(lanes)
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
   })
 
   it('a loading lane shows an aria-busy skeleton without blocking a ready sibling', () => {
