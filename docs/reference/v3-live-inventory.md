@@ -547,21 +547,21 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 ### `/work/objectives`
 - Kind/status/auth: page / canonical / capability-gated
 - Component/source: ObjectivesPage — `mos-app/src/pages/objectives-page.tsx` :: `ObjectivesPage`; router literal `work/objectives`
-- Page family/frame/head: management / bespoke-or-missing / bespoke-or-missing
+- Page family/frame/head: management / shared-page-frame / shared-page-head
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
 - Collection grammar: route-local collection/view state is present; presentations: —; owns view state: yes
 - Record opening: default not observed; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: none observed; states: default; CSS families: mos-app/src/index.css
+- Overlays: none observed; states: default, empty, error/retry, loading, permission/read-only, saving/saved, validation; CSS families: mos-app/src/index.css
 - Notes: RequireCapability objective.manage.
 
 ### `/work/projects`
 - Kind/status/auth: page / canonical / capability-gated
 - Component/source: ProjectsProcessesPage — `mos-app/src/pages/projects-processes-page.tsx` :: `ProjectsProcessesPage`; router literal `work/projects`
-- Page family/frame/head: management / bespoke-or-missing / bespoke-or-missing
+- Page family/frame/head: management / shared-page-frame / shared-page-head
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
 - Collection grammar: route-local collection/view state is present; presentations: —; owns view state: yes
 - Record opening: default not observed; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: none observed; states: default; CSS families: mos-app/src/index.css
+- Overlays: none observed; states: default, empty, error/retry, loading, permission/read-only, saving/saved, validation; CSS families: mos-app/src/index.css
 - Notes: RequireCapability workline.manage.
 
 ### `/work/projects-processes`

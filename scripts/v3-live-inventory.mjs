@@ -13,6 +13,13 @@ const INVENTORY_JSON_PATH = 'docs/reference/v3-live-inventory.json'
 const INVENTORY_MARKDOWN_PATH = 'docs/reference/v3-live-inventory.md'
 const CSS_LITERAL_KINDS = ['font-size', 'line-height', 'padding', 'margin', 'gap', 'width', 'height']
 
+// Route components may deliberately delegate the complete page-family shell to one shared
+// composition component. Follow only this explicit allow-list: it keeps the inventory honest
+// without pretending every arbitrary imported child owns the route frame.
+const COMPOSED_PAGE_SHELLS = [
+  { symbol: 'CatalogManager', file: 'mos-app/src/components/catalog/catalog-manager.tsx' },
+]
+
 const DESIGN_ACTIVE_FORBIDDEN_PATTERNS = [
   { pattern: /Mine\/RACI\/All/i, label: 'Mine/RACI/All Task toolbar grammar' },
   { pattern: /Task RACI/i, label: 'Task RACI' },
@@ -425,22 +432,29 @@ function sourceSymbols(sourceText, names) {
 
 function scanSourceEvidence(repoRoot, sourceFile, routeSpec) {
   const sourceText = readText(repoRoot, sourceFile)
-  const localCssFiles = localCssImports(repoRoot, sourceFile, sourceText)
+  const composedShells = COMPOSED_PAGE_SHELLS.filter(({ symbol }) =>
+    hasWord(sourceText, symbol) && new RegExp(`<${symbol}\\b`).test(sourceText))
+  const composedSources = composedShells.map(({ file }) => ({ file, text: readText(repoRoot, file) }))
+  const evidenceText = [sourceText, ...composedSources.map(({ text }) => text)].join('\n')
+  const localCssFiles = [...new Set([
+    ...localCssImports(repoRoot, sourceFile, sourceText),
+    ...composedSources.flatMap(({ file, text }) => localCssImports(repoRoot, file, text)),
+  ])].sort()
   const cssText = localCssFiles.map((file) => readText(repoRoot, file)).join('\n')
   const literalKinds = countCssLiterals(cssText)
   // V3 Issue 3: PageFamilyFrame is the shared composition helper that renders exactly
   // one PageFrame + one PageHead. A representative that adopts it therefore still uses
   // the shared frame AND the shared head, so it counts as evidence for both.
-  const hasPageFamilyFrame = hasWord(sourceText, 'PageFamilyFrame') && /<PageFamilyFrame\b/.test(sourceText)
-  const hasPageFrame = hasPageFamilyFrame || (hasWord(sourceText, 'PageFrame') && /<PageFrame\b/.test(sourceText))
-  const hasPageHead = hasPageFamilyFrame || (hasWord(sourceText, 'PageHead') && /<PageHead\b/.test(sourceText))
+  const hasPageFamilyFrame = hasWord(evidenceText, 'PageFamilyFrame') && /<PageFamilyFrame\b/.test(evidenceText)
+  const hasPageFrame = hasPageFamilyFrame || (hasWord(evidenceText, 'PageFrame') && /<PageFrame\b/.test(evidenceText))
+  const hasPageHead = hasPageFamilyFrame || (hasWord(evidenceText, 'PageHead') && /<PageHead\b/.test(evidenceText))
   const states = ['default']
-  if (sourceSymbols(sourceText, ['LoadingShell', 'SkeletonRows', 'isLoading', 'loading']).length) states.push('loading')
-  if (sourceSymbols(sourceText, ['EmptyState', 'isEmpty', 'filteredEmpty']).length) states.push('empty')
-  if (sourceSymbols(sourceText, ['ErrorState', 'ErrorFallback', 'error', 'onRetry']).length) states.push('error/retry')
-  if (sourceSymbols(sourceText, ['readOnly', 'canEdit', 'disabled']).length) states.push('permission/read-only')
-  if (sourceSymbols(sourceText, ['saving', 'isSaving', 'Saved', 'saved']).length) states.push('saving/saved')
-  if (sourceSymbols(sourceText, ['validation', 'invalid', 'fieldError']).length) states.push('validation')
+  if (sourceSymbols(evidenceText, ['LoadingShell', 'SkeletonRows', 'isLoading', 'loading']).length) states.push('loading')
+  if (sourceSymbols(evidenceText, ['EmptyState', 'isEmpty', 'filteredEmpty']).length) states.push('empty')
+  if (sourceSymbols(evidenceText, ['ErrorState', 'ErrorFallback', 'error', 'onRetry']).length) states.push('error/retry')
+  if (sourceSymbols(evidenceText, ['readOnly', 'canEdit', 'disabled']).length) states.push('permission/read-only')
+  if (sourceSymbols(evidenceText, ['saving', 'isSaving', 'Saved', 'saved']).length) states.push('saving/saved')
+  if (sourceSymbols(evidenceText, ['validation', 'invalid', 'fieldError']).length) states.push('validation')
 
   const presentations = []
   const presentationPatterns = [
@@ -453,9 +467,9 @@ function scanSourceEvidence(repoRoot, sourceFile, routeSpec) {
     ['Board', 'Board'],
     ['RecordFeed', 'Record activity feed'],
   ]
-  for (const [needle, label] of presentationPatterns) if (hasWord(sourceText, needle)) presentations.push(label)
+  for (const [needle, label] of presentationPatterns) if (hasWord(evidenceText, needle)) presentations.push(label)
   if (!presentations.length && routeSpec.pageFamily === 'workspace') presentations.push('page-local / not observed')
-  const ownsViewState = /search|filter|sort|group|savedView|saved view|query|record=|selectedId/i.test(sourceText)
+  const ownsViewState = /search|filter|sort|group|savedView|saved view|query|record=|selectedId/i.test(evidenceText)
   const overlays = []
   if (hasWord(sourceText, 'CommandMenu') || /command|search/i.test(sourceText)) overlays.push('centered search/command candidate')
   if (hasWord(sourceText, 'RecordPanelHost') || hasWord(sourceText, 'TaskDrawer')) overlays.push('record drawer/panel')
@@ -493,7 +507,7 @@ function scanSourceEvidence(repoRoot, sourceFile, routeSpec) {
     sourceEvidence: {
       pageFrameUse: hasPageFrame,
       pageHeadUse: hasPageHead,
-      symbols: sourceSymbols(sourceText, ['EmptyState', 'ErrorState', 'SkeletonRows', 'LoadingShell', 'DataTable', 'TasksWorkspace', 'RecordPanelHost', 'TaskDrawer', 'CommandMenu', 'ConfirmDialog', 'useIsDesktop', 'useIsNarrow', 'useIsPhone']).sort(),
+      symbols: sourceSymbols(evidenceText, ['EmptyState', 'ErrorState', 'SkeletonRows', 'LoadingShell', 'DataTable', 'TasksWorkspace', 'RecordPanelHost', 'TaskDrawer', 'CommandMenu', 'ConfirmDialog', 'useIsDesktop', 'useIsNarrow', 'useIsPhone']).sort(),
     },
   }
 }

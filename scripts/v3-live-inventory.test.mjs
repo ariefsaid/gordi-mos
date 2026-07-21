@@ -35,7 +35,7 @@ test('V3 inventory counts PageFamilyFrame as shared frame + head evidence for th
   const byPath = new Map(inventory.routes.map((route) => [route.path, route]))
   // The three Issue 3 representatives adopt the shared PageFamilyFrame helper, so the
   // scanner must still credit them with the shared frame AND the shared head.
-  for (const path of ['/work/tasks', '/admin/people']) {
+  for (const path of ['/work/tasks', '/admin/people', '/work/objectives', '/work/projects']) {
     const route = byPath.get(path)
     assert.ok(route, `missing representative route ${path}`)
     assert.equal(route.frame, 'shared-page-frame', `${path} must keep shared frame evidence`)
