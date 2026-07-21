@@ -76,6 +76,21 @@ final-visual-taste + merge/git duties are unchanged. pi agents drive rendered UI
 `agent-browser` CLI. Fall back to Claude role agents (the Agent tool, `.claude/agents/`) if pi or a
 provider is unavailable — the loop is substrate-agnostic.
 
+**pi output discipline (owner-directed):** always redirect a pi run's stdout/stderr to a file. Never
+stream, tail, poll, or repeatedly read that file while the run is live; this burns context without
+improving the result. After launch, leave the process alone and wait for the harness notification or
+tracked process completion. Only after it has exited, read the log once (sentinel + load-bearing
+claims), then inspect the diff and independently verify the work. A silent redirected log while pi is
+running is expected and is not a reason to poll it.
+
+**OOM discipline (owner-directed):** Codex/Claude desktop memory is a hard constraint. Run at most one
+pi worker at a time; never combine a pi worker with parallel browser/test workers; redirect output and
+do not hold a long-lived streamed tool wait in the app. Prefer small sequential test targets
+(`--maxWorkers=1`), one screenshot at a time, and bounded file reads. Check the worker once after about
+two minutes only to confirm it is alive, then leave it alone until exit. If app/system memory spikes or
+the desktop app crashes, terminate surviving child workers before inspecting partial work; resume as a
+completion pass rather than blindly restarting the same run.
+
 ## Quality gates & checkpoints (binding from Phase 1 on)
 - **Coverage:** ≥80% lines on changed code to merge; tests assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (`--max-warnings=0`). Both block merge.

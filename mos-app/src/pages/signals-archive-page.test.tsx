@@ -79,12 +79,34 @@ beforeEach(() => {
 })
 
 describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', () => {
+  it('FR-V3-007: uses the shared collection toolbar and exposes real Signal query capabilities', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Needs attention' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Attention' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Saved views' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /board|calendar/i })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Feed' }))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true'))
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Sort' })).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+  })
+
   it('lists readable Signals with author · Team · attention', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
     expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
     expect(screen.getAllByText(/Cahya Cafe/)[0]).toBeInTheDocument()
-    expect(screen.getByText(/HQ Operations/)).toBeInTheDocument()
+    expect(screen.getAllByText(/HQ Operations/).some((node) => node.closest('td'))).toBe(true)
   })
 
   it('entering a search term updates the URL query (?q=) and filters rows by text', async () => {

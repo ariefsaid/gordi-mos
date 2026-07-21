@@ -1,7 +1,7 @@
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -10,6 +10,8 @@ import { Toggle } from '@/components/ui/toggle'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
+import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
+import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
 import {
   signalCollectionDescriptor,
   type SignalCollectionQuery,
@@ -46,6 +48,7 @@ export function SignalsArchivePage() {
   })
   const query = controller.state.query
   const projection = controller.state.projection
+  const context = controller.state.data?.context
 
   function setQuery(patch: Partial<SignalCollectionQuery>) {
     controller.setQuery({ ...query, ...patch })
@@ -106,64 +109,125 @@ export function SignalsArchivePage() {
   const clearFilters = () =>
     setQuery({ q: '', attention: null, category: null, teamId: null, view: 'all' })
 
-  return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title={t('nav.work.signals')}
-        subtitle={t('job.signals')}
-        count={projection ? projection.visibleRecords.length : null}
-      />
+  const signalToolbar = (
+    <CollectionToolbar
+      presentation={{
+        label: t('signals.archive.presentationLabel'),
+        value: controller.state.presentation,
+        options: [
+          { value: 'table', label: t('signals.archive.table') },
+          { value: 'feed', label: t('signals.archive.feed') },
+        ],
+        onChange: (next) => { controller.switchPresentation(next) },
+      }}
+      views={{
+        label: t('signals.archive.viewsLabel'),
+        value: query.view,
+        options: [
+          { value: 'all', label: t('signals.archive.viewAll') },
+          { value: 'needs-attention', label: t('signals.archive.viewAttention') },
+          { value: 'retracted', label: t('signals.archive.viewRetracted') },
+        ],
+        onChange: (view) => setQuery({ view }),
+      }}
+      search={{
+        label: t('signals.archive.searchLabel'),
+        placeholder: t('signals.archive.searchPlaceholder'),
+        value: query.q,
+        onChange: (q) => setQuery({ q }),
+      }}
+      filters={[
+        {
+          id: 'attention', label: t('signals.archive.filterAttention'), value: query.attention ?? '',
+          options: [
+            { value: '', label: t('signals.archive.filterAnyAttention') },
+            { value: 'FYI', label: 'FYI' },
+            { value: 'Needs attention', label: t('signals.archive.viewAttention') },
+            { value: 'Urgent', label: t('signals.archive.attentionUrgent') },
+          ],
+          onChange: (attention) => setQuery({ attention: attention ? attention as SignalCollectionQuery['attention'] : null }),
+        },
+        {
+          id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
+          options: [
+            { value: '', label: t('signals.archive.filterAnyCategory') },
+            ...SIGNAL_CATEGORIES.map((category) => ({ value: category, label: category })),
+          ],
+          onChange: (category) => setQuery({ category: category ? category as SignalCollectionQuery['category'] : null }),
+        },
+        {
+          id: 'team', label: t('signals.archive.filterTeam'), value: query.teamId ?? '',
+          options: [
+            { value: '', label: t('signals.archive.filterAnyTeam') },
+            ...[...(context?.teamNamesById ?? new Map())].map(([value, label]) => ({ value, label })),
+          ],
+          onChange: (teamId) => setQuery({ teamId: teamId || null }),
+        },
+        ...(controller.state.presentation === 'table' ? [
+          {
+            id: 'group', label: t('signals.archive.groupLabel'), value: query.groupBy,
+            options: [
+              { value: 'none', label: t('signals.archive.groupNone') },
+              { value: 'team', label: t('signals.archive.filterTeam') },
+              { value: 'attention', label: t('signals.archive.filterAttention') },
+              { value: 'category', label: t('signals.archive.filterCategory') },
+            ],
+            onChange: (groupBy: string) => setQuery({ groupBy: groupBy as SignalCollectionQuery['groupBy'] }),
+          },
+          {
+            id: 'sort', label: t('signals.archive.sortLabel'),
+            value: `${query.sort}:${query.direction}`,
+            options: [
+              { value: 'occurredAt:descending', label: t('signals.archive.sortNewest') },
+              { value: 'occurredAt:ascending', label: t('signals.archive.sortOldest') },
+              { value: 'attention:descending', label: t('signals.archive.sortUrgent') },
+            ],
+            onChange: (value: string) => {
+              const [sort, direction] = value.split(':')
+              setQuery({
+                sort: sort as SignalCollectionQuery['sort'],
+                direction: direction as SignalCollectionQuery['direction'],
+              })
+            },
+          },
+        ] : []),
+      ]}
+      toggles={(
+        <label className="collection-toolbar__toggle">
+          <Toggle
+            size="small"
+            value={query.showRetracted}
+            onChange={(showRetracted) => setQuery({ showRetracted })}
+            aria-label={t('signals.archive.showRetracted')}
+          />
+          <span>{t('signals.archive.showRetracted')}</span>
+        </label>
+      )}
+      savedViews={{
+        label: t('signals.archive.savedViews'),
+        selectedId: query.savedViewId,
+        operation: controller.state.savedViews.operation,
+        items: controller.state.savedViews.items,
+        onLoad: () => { void controller.loadSavedViews() },
+        onApply: async (id) => { await controller.applySavedView(id) },
+        onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
+      }}
+    />
+  )
 
+  return (
+    <PageFamilyFrame
+      family="workspace"
+      title={t('nav.work.signals')}
+      jobSentence={t('job.signals')}
+      count={projection ? projection.visibleRecords.length : null}
+    >
       <SignalCollectionActionsProvider actions={actions}>
         <div className={splitOpen ? 'record-split' : undefined}>
           <div className="signals-archive-main">
-            <div className="signals-archive-toolbar">
-              <div className="signals-searchbar">
-                <input
-                  type="search"
-                  role="searchbox"
-                  aria-label={t('signals.archive.searchLabel')}
-                  placeholder={t('signals.archive.searchPlaceholder')}
-                  value={query.q}
-                  onChange={(e) => setQuery({ q: e.target.value })}
-                />
-              </div>
-              <div className="signals-archive-retracted-toggle">
-                <Toggle
-                  size="small"
-                  value={query.showRetracted}
-                  onChange={(next) => setQuery({ showRetracted: next })}
-                  aria-label={t('signals.archive.showRetracted')}
-                />
-                <span aria-hidden="true">{t('signals.archive.showRetracted')}</span>
-              </div>
-              <div
-                className="signals-archive-tabs"
-                role="group"
-                aria-label={t('signals.archive.presentationLabel')}
-              >
-                <button
-                  type="button"
-                  className="signals-archive-tab"
-                  aria-pressed={controller.state.presentation === 'table'}
-                  onClick={() => controller.switchPresentation('table')}
-                >
-                  {t('signals.archive.table')}
-                </button>
-                <button
-                  type="button"
-                  className="signals-archive-tab"
-                  aria-pressed={controller.state.presentation === 'feed'}
-                  onClick={() => controller.switchPresentation('feed')}
-                >
-                  {t('signals.archive.feed')}
-                </button>
-              </div>
-            </div>
-
             <RecordCollectionSurface
               controller={controller}
+              controls={signalToolbar}
               empty={{ title: t('signals.archive.empty', { query: query.q }) }}
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
@@ -188,7 +252,7 @@ export function SignalsArchivePage() {
           )}
         </div>
       </SignalCollectionActionsProvider>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 

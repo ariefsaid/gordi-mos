@@ -5,28 +5,6 @@
    record panel at >=1100px (the .record-split grid track lives in styles/drawer.css). */
 .signals-archive-main { min-width: 0; }
 
-.signals-archive-toolbar {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
-}
-
-.signals-searchbar {
-  flex: 1; min-width: 220px; display: flex; align-items: center;
-  height: 36px; padding: 0 12px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.signals-searchbar:focus-within { border-color: var(--ring); }
-.signals-searchbar input {
-  width: 100%; border: none; background: transparent; outline: none;
-  font: inherit; font-size: 14px; color: var(--foreground);
-}
-.signals-searchbar input::placeholder { color: var(--text-light); }
-
-.signals-archive-retracted-toggle {
-  display: inline-flex; align-items: center; gap: 8px; flex: none;
-  font-size: 13px; color: var(--muted-foreground);
-}
-
 .signals-archive-list {
   display: flex; flex-direction: column;
   border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -73,27 +51,4 @@
 
 .signal-row--retracted {
   color: var(--muted-foreground); font-style: italic; font-size: 13px; gap: 8px;
-}
-
-/* Feed / Table presentation tabs (Issue 6 — V3 RecordCollection presentation switch). */
-.signals-archive-tabs {
-  display: inline-flex;
-  gap: 4px;
-  margin-left: auto;
-}
-.signals-archive-tab {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.signals-archive-tab[aria-pressed='true'] {
-  background: var(--secondary);
-  color: var(--foreground);
-  border-color: var(--foreground);
 }

@@ -45,6 +45,7 @@ export function RecordCollectionSurface<
   if (state.status === 'loading') {
     return (
       <div className="record-collection" data-collection-status="loading">
+        {controls}
         <LoadingShell label={loadingLabel} />
       </div>
     )
@@ -53,6 +54,7 @@ export function RecordCollectionSurface<
   if (state.status === 'error') {
     return (
       <div className="record-collection" data-collection-status="error">
+        {controls}
         <ErrorState message={error.message} onRetry={error.retry} />
       </div>
     )
