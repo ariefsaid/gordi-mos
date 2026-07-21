@@ -7,8 +7,7 @@
  * proving the Rule-10 extension path (destinations.tsx / job-sentences.ts / breadcrumb.tsx
  * are untouched by this file).
  */
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState } from '@/components/ui/state-kit'
@@ -19,15 +18,14 @@ export function EventsPage() {
   useDocumentTitle(`${title} — Gordi MOS`)
 
   return (
-    <PageFrame variant="data">
-      {/* Cohesion-debt 2026-07-19, item #5 (owner call): no surface-title glyph
-          (consistent = none — the "several apps" title-icon tell). */}
-      <PageHead variant="content" title={title} />
+    // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence
+    // (no surface-title glyph — consistent = none). The sanctioned EmptyState is the body.
+    <PageFamilyFrame family="workspace" title={title} jobSentence={t('job.events')}>
       <EmptyState
         variant="blank"
         title={t('events.empty.title')}
         copy={t('events.empty.copy')}
       />
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

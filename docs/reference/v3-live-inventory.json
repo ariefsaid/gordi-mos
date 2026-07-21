@@ -1023,7 +1023,7 @@
       "symbol": "SliceStubPage",
       "pageFamily": "workspace",
       "frame": "shared-page-frame",
-      "head": "bespoke-or-missing",
+      "head": "shared-page-head",
       "typographySpacing": {
         "source": "shared mos-app/src/index.css and DESIGN.md",
         "localCssFiles": [],
@@ -1064,7 +1064,7 @@
       "sourceLiteral": "ecommerce",
       "sourceEvidence": {
         "pageFrameUse": true,
-        "pageHeadUse": false,
+        "pageHeadUse": true,
         "symbols": []
       }
     },
@@ -2292,7 +2292,7 @@
       "symbol": "SliceStubPage",
       "pageFamily": "workspace",
       "frame": "shared-page-frame",
-      "head": "bespoke-or-missing",
+      "head": "shared-page-head",
       "typographySpacing": {
         "source": "shared mos-app/src/index.css and DESIGN.md",
         "localCssFiles": [],
@@ -2333,7 +2333,7 @@
       "sourceLiteral": "roastery",
       "sourceEvidence": {
         "pageFrameUse": true,
-        "pageHeadUse": false,
+        "pageHeadUse": true,
         "symbols": []
       }
     },
@@ -3873,13 +3873,13 @@
       "family": "components/inbox/inbox",
       "scope": "components",
       "literalKinds": {
-        "font-size": 3,
+        "font-size": 5,
         "line-height": 3,
-        "padding": 2,
-        "margin": 1,
-        "gap": 3,
-        "width": 3,
-        "height": 4
+        "padding": 5,
+        "margin": 2,
+        "gap": 6,
+        "width": 4,
+        "height": 7
       },
       "breakpoints": []
     },
@@ -4043,6 +4043,38 @@
         "height": 0
       },
       "breakpoints": []
+    },
+    {
+      "path": "mos-app/src/components/record-collection/record-collection.css",
+      "family": "components/record-collection/record-collection",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 1,
+        "line-height": 0,
+        "padding": 3,
+        "margin": 1,
+        "gap": 2,
+        "width": 2,
+        "height": 2
+      },
+      "breakpoints": []
+    },
+    {
+      "path": "mos-app/src/components/records/record-viewer.css",
+      "family": "components/records/record-viewer",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 7,
+        "line-height": 0,
+        "padding": 3,
+        "margin": 5,
+        "gap": 8,
+        "width": 5,
+        "height": 7
+      },
+      "breakpoints": [
+        "@media (max-width: 767.98px)"
+      ]
     },
     {
       "path": "mos-app/src/components/sales/daily-revenue-chart.css",
@@ -4787,6 +4819,8 @@
       "mos-app/src/components/plan/fail-loud-badge.css",
       "mos-app/src/components/processes/due-runs.css",
       "mos-app/src/components/processes/pending-resolution.css",
+      "mos-app/src/components/record-collection/record-collection.css",
+      "mos-app/src/components/records/record-viewer.css",
       "mos-app/src/components/sales/daily-revenue-chart.css",
       "mos-app/src/components/signals/signal-card.css",
       "mos-app/src/components/signals/signal-composer.css",
@@ -4833,13 +4867,13 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 331,
+      "font-size": 341,
       "line-height": 38,
-      "padding": 263,
-      "margin": 73,
-      "gap": 201,
-      "width": 311,
-      "height": 232
+      "padding": 272,
+      "margin": 80,
+      "gap": 214,
+      "width": 319,
+      "height": 244
     },
     "examples": {
       "font-size": [
@@ -5242,7 +5276,7 @@
     "pageRouteCount": 29,
     "redirectCount": 25,
     "devRouteCount": 4,
-    "cssFileCount": 69,
+    "cssFileCount": 71,
     "componentCount": 13,
     "duplicateJobCount": 13
   },

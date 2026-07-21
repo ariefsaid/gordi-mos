@@ -1,6 +1,6 @@
 import { matchPath, useLocation } from 'react-router-dom'
 import { jobKeyForPath } from './job-sentences'
-import { ISSUE_3_REPRESENTATIVE_ROUTES } from './page-family-migration'
+import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
@@ -13,7 +13,7 @@ import { useT } from '@/i18n/use-t'
  * (`v3Page` + PageFamilyFrame) from deferred (`v3Page`, no region-3 sentence) apart.
  */
 function pageOwnsJobSentence(pathname: string): boolean {
-  return ISSUE_3_REPRESENTATIVE_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
+  return PAGE_FAMILY_FRAME_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
 }
 
 function resolveViewerScope(roleName: string | undefined, accessRoles: readonly string[]): string {

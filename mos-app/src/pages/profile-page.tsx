@@ -14,8 +14,7 @@ import type { Locale } from '@/i18n/messages'
 import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { Select } from '@/components/ui/select'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 
 function ProfileCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -61,10 +60,13 @@ export function ProfilePage() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
   return (
-    <PageFrame>
-      {/* Shared page grammar (Rule 11 / RI-IA-1) — audit F7: no bespoke <h1>. */}
-      <PageHead title={t('dest.profile')} subtitle={t('job.profile')} />
-
+    // V3 Management family (Issue 11): the shared frame owns the h1 + job sentence
+    // (audit F7 — no bespoke <h1>). Identity + Language cards are the typed body.
+    <PageFamilyFrame
+      family="management"
+      title={t('dest.profile')}
+      jobSentence={t('job.profile')}
+    >
       <div className="flex flex-col" style={{ gap: 16 }}>
         {viewer && (
           <ProfileCard title={t('profile.identity')}>
@@ -98,6 +100,6 @@ export function ProfilePage() {
           </Select>
         </ProfileCard>
       </div>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

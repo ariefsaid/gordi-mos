@@ -7,6 +7,8 @@ import { collectV3Routes } from './route-classification'
 import {
   ISSUE_3_DEFERRED_PAGE_ROUTES,
   ISSUE_3_REPRESENTATIVE_ROUTES,
+  ISSUE_11_MIGRATED_ROUTES,
+  PAGE_FAMILY_FRAME_ROUTES,
   assertPageFamilyMigration,
   type PageFamilyMigrationEntry,
 } from './page-family-migration'
@@ -22,9 +24,9 @@ function productPagePaths() {
 }
 
 describe('V3 page-family migration guard', () => {
-  it('requires the representative plus deferred union to equal classified product pages', () => {
+  it('requires the representative + migrated + deferred union to equal classified product pages', () => {
     expect(() => assertPageFamilyMigration(
-      ISSUE_3_REPRESENTATIVE_ROUTES,
+      [...ISSUE_3_REPRESENTATIVE_ROUTES, ...ISSUE_11_MIGRATED_ROUTES],
       ISSUE_3_DEFERRED_PAGE_ROUTES,
       productPagePaths(),
     )).not.toThrow()
@@ -58,8 +60,8 @@ describe('V3 page-family migration guard', () => {
     )).toThrow(/family/i)
   })
 
-  it('keeps representative consumers on PageFamilyFrame with no raw frame/head pair', () => {
-    for (const entry of ISSUE_3_REPRESENTATIVE_ROUTES) {
+  it('keeps every migrated consumer on PageFamilyFrame with no raw frame/head pair', () => {
+    for (const entry of PAGE_FAMILY_FRAME_ROUTES) {
       const source = readSource(entry.sourceFile)
       expect(source).toContain('PageFamilyFrame')
       expect(source).not.toMatch(/<PageFrame\b/)

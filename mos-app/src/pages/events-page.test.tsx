@@ -67,6 +67,9 @@ describe('AC-1003 (events-stub): sanctioned quiet EmptyState, no fake action', (
   })
 })
 
+// Post Issue-11: EventsPage is on the V3 Workspace PageFamilyFrame, so its own page head
+// (region 3) owns the Rule-1 job sentence and ContextRow (region 2) suppresses the duplicate.
+// The goal-oracle is unchanged: the job sentence is visible above the page exactly once.
 describe('AC-1002 (events-stub): the Rule-1 job sentence renders above EventsPage', () => {
   beforeEach(() => {
     mockUseAuth.mockReturnValue({
