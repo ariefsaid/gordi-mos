@@ -14,6 +14,7 @@ import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { OverlayHostProvider, OverlayHostSlot } from './overlay-host'
+import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 
 function ShellContent() {
   const isNarrow = useIsNarrow()
@@ -21,6 +22,13 @@ function ShellContent() {
   const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
   const { open: openSignalComposer } = useSignalComposer()
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
+
+  // Lane B2 — reconcile Deputy (right-floating slide-over) with any shell-owner overlay (Inbox
+  // quick-triage), which share the same right-edge z-drawer track. Mounted here because
+  // ShellContent sits inside both AgentRuntimeProvider and OverlayHostProvider, so the hook can
+  // see both controllers. Collection-owner overlays (Tasks/Signals records) sit in the page grid
+  // and coexist with Deputy normally — the hook only acts on owner==='shell'.
+  useDeputyOverlayCoexistence()
 
   return (
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
