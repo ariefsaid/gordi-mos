@@ -29,7 +29,6 @@ vi.mock('./lib/db/weekly-updates', () => ({
 }))
 vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 
-import { MyWeek } from './pages/my-week'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
 
@@ -71,6 +70,9 @@ describe('RI-IA-9: retired route implementations leave no parallel page grammar'
       'pages/sales-dashboard-page.tsx',
       'pages/sales-dashboard-page.css',
       'pages/sales-dashboard-page.test.tsx',
+      'pages/my-week.tsx',
+      'pages/my-week.test.tsx',
+      'pages/my-week.hidden.test.tsx',
     ]) {
       expect(existsSync(resolve(SRC, rel)), rel).toBe(false)
     }
@@ -189,12 +191,6 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     expect(container.querySelector('[class*="page-title"]')).toBeNull()
   })
 
-  it('/ (MyWeek) renders the shared PageHead and no bespoke page-title element', () => {
-    const { container } = withAuth(<MemoryRouter><MyWeek /></MemoryRouter>)
-    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
-    expect(container.querySelector('[class*="page-title"]')).toBeNull()
-  })
-
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
     const { container } = withAuth(
       <MemoryRouter initialEntries={['/tasks']}><TasksLayout /></MemoryRouter>,
@@ -286,16 +282,6 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
 // the Ops source badge re-skin onto <Pill>; the weekly <StatePill> does too.
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
-  // Home v1 (Task 4.1) extracted the My Week strips out of pages/my-week.tsx into
-  // components/weekly/my-week-panel.tsx — the <Pill> usage (and the "no bespoke
-  // pillStyle" guarantee) moved with them. my-week.tsx is now a thin frame wrapper
-  // with no pill usage of its own; the goal (no hand-rolled pillStyle) is asserted
-  // against the strips' new home.
-  it('my-week.tsx has no hand-rolled pillStyle object (it is a thin frame wrapper now)', () => {
-    const src = readSrc('pages/my-week.tsx')
-    expect(src).not.toMatch(/\bpillStyle\b/)
-  })
-
   it('my-week-panel.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
     const src = readSrc('components/weekly/my-week-panel.tsx')
     expect(src).not.toMatch(/\bpillStyle\b/)
