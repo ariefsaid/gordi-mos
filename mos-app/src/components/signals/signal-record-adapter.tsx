@@ -192,3 +192,33 @@ export function createSignalRecordAdapter(input: SignalRecordAdapterInput): Reco
 function renderBody(body: string): ReactNode {
   return <p className="record-signal-body">{body}</p>
 }
+
+/**
+ * The LIVE Signal host wrapper (V3 Issue 5 tenant half). Unlike createSignalRecordAdapter — which
+ * projects Signal metadata/actions into the shared grammar for a future full RecordViewer Signal
+ * presentation — the live SignalRecordHost keeps its object-specific SignalRecord subtree (author,
+ * team, mentions, category picker, comments, follow-up, link, linked-work, retraction tombstone).
+ * This wrapper renders that subtree THROUGH RecordViewer as a single typed Signal content slot: the
+ * viewer supplies the record-viewer landmark/kind grammar while SignalRecord keeps ownership of the
+ * Signal's own display, so none of its 24 goal behaviors are duplicated or lost. Identity is
+ * suppressed by the host (SignalRecord already shows the body/heading) and the retraction reason
+ * stays SignalRecord's tombstone (not re-rendered here) to avoid a duplicate.
+ */
+export function wrapSignalRecord(detail: SignalDetail, hostContent: ReactNode): RecordViewerAdapter {
+  const signal = detail.signal
+  const retracted = signal.retracted_at !== null
+  return {
+    kind: 'signal',
+    id: signal.id,
+    title: deriveTitle(signal.body),
+    typeLabel: 'Signal',
+    eyebrow: signal.attention,
+    metadata: [],
+    relations: [],
+    contentSlots: [{ id: 'signal', label: 'Signal', render: () => hostContent }],
+    activity: [],
+    actions: [],
+    permission: { readOnly: retracted, allowedActionIds: [] },
+    state: 'ready',
+  }
+}
