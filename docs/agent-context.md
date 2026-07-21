@@ -31,7 +31,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
 > **CURRENT WORKSTREAM (2026-07-21): V3 live application convergence**, branch `v3-redesign`,
-> local tip `70deafc` at this checkpoint; nothing has been pushed. The durable goal, audit ledger,
+> local implementation checkpoint `9e2a8d1` plus subsequent documentation state commits; nothing has
+> been pushed. The durable goal, audit ledger,
 > provider failures, active worker/thread map, and exact next dependencies are in
 > [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](reviews/v3-redesign-convergence-handoff-2026-07-21.md).
 > E7 owns visual styling while the
