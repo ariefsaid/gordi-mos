@@ -529,3 +529,22 @@ Management all render correctly at 1280 and 390 — one h1 + ONE job sentence ea
 suppression verified in the real DOM), PIC/Supervisor vocabulary, phone card regime + tab bar, no
 horizontal overflow. Minor visual notes: legacy "Admin" ContextRow scope chip content (pre-wave
 behavior, for the design lens); panel geometry is the known deferred R-T-5.
+
+### Fix batch merged + independent rendered audit (2026-07-21)
+
+`v3/fix` merged (5 commits): the engine open-dispatch bug fixed properly — dispatch now keys off the
+LIVE overlay session (`bindOverlayHost` re-bound per render; `openRoot` vs `push` decided by actual
+frame count, `openCount` removed) with a red-first close-then-open test; the 44px assertion now
+reads the CSS; the compatibility-guard test actually calls the guard; the plan-Task-14 deterministic
+conformance guard exists (9/9 node tests, `--check` 0) and is wired into `pre-merge-check.sh`; the
+i4 intent-matrix (all 7 intents, exact kind+via, re-guard-after-deny) and the two boundary tests
+landed. Guard scoping note: the no-legacy-hooks/no-soon-tab assertions are scoped to the delivered
+engine boundary until the Task-page migration lands (documented in the script header) — tighten
+app-wide when `v3/pages` merges. Post-merge: targeted suites 150/150, typecheck 0, guard OK.
+
+**Independent rendered audit (NIM inkling, agent-browser, real login):** all checks PASS across
+/work/tasks (+panel), /admin/people at 1280+390 — single job sentence, single h1, no overflow,
+coherent frames; "Admin" label confirmed an intentional scope chip. Its one FAIL (invisible focus
+ring) was REFUTED by the Director with a real keyboard Tab: `:focus-visible` yields the standard
+2px accent ring at 2px offset; the audit's probe used programmatic focus, which never sets
+`:focus-visible` — measurement artifact, recorded here so the next audit doesn't repeat it.
