@@ -679,3 +679,29 @@ no misleading ambient Create Task action, and workspace-vs-focused page-family s
 Evidence on the integrated branch: 56 focused Signal tests, typecheck, ESLint, Stylelint, and
 `git diff --check` pass. The final rendered owner-eye judgment remains owned by Issue 9 and is not
 claimed by this bounded implementation checkpoint.
+
+## Second-session convergence lanes — Luna cross-family review (2026-07-21 late)
+
+Merged lanes 97bb7bf (follow-ups/Café) · 0739a92 (geometry) · 6e6cb14 (Inbox live): Luna verdicts
+**BLOCK / BLOCK / BLOCK** — all three carry real findings; fixes routed:
+
+- **CRITICAL (C): `buildInboxTargetDeps` hardcodes canOpen/isSameOrg/recordExists=true** — the
+  fail-closed resolver is decorative in the live open path. Fix lane `v3/inbox-failclosed`
+  (GLM-5.2) dispatched: real can()/org/existence sourcing + production-deps tests for
+  permission-denied / cross-org / missing-record.
+- (B) TasksWorkspace `.split` still 33vw (Rule 11 parity): already owned by the `v3/taskspage-fix`
+  lane (its Task 2).
+- (C) Bell shell-slot renders an unpositioned aside (no 44% track); Deputy can coexist with a Bell
+  panel (guard only bans RecordPanelHost strings); Inbox record door bypasses the host
+  page-promotion seam (pageTo omitted). All three sit in shell files the `v3/route-seam` lane
+  (GLM-5.2, R-T-4) is actively editing — QUEUED as its consumer-wiring follow-ups, not dispatched
+  in parallel (collision avoidance).
+- (A) Follow-up queue row links directly to the record page (I1) — flag-dark today; lands with the
+  route-seam consumer wiring (panel mode already exists on FollowUpRecordHost).
+- Luna independently confirmed: adapter money-shaped, RecordKind extension sanctioned, registry
+  consistency, rail 232/sheet 45vw/oracle placement, Escape-via-leaveGuard, read-only-not-handled
+  semantics, and that the 3 context-row failures pre-date all three commits (blamed to
+  4a05327a/bbed3f26 — owned by `v3/taskspage-fix` Task 3).
+
+Also running: multimodal integration-gap hunts (minimax-m3 page-grammar sweep · inkling
+interaction-door sweep) against the integrated tip; findings feed the next fix batch.
