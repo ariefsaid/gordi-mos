@@ -5,8 +5,7 @@
 //
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useT } from '@/i18n/use-t'
 import { formatDayMonthYear } from '@/lib/format/date'
@@ -78,39 +77,36 @@ export function PricingPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFrame variant="data">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={3} />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
   if (load.kind === 'error') {
     return (
-      <PageFrame variant="data">
-        <PageHead variant="content" title={t('plan.pricing.title')} count={null} />
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} state="error">
         <ErrorState
           message="Couldn't load budgets. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
   if (budgets.length === 0) {
     return (
-      <PageFrame variant="data">
-        <PageHead variant="content" title={t('plan.pricing.title')} count={0} />
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} count={0} state="empty">
         <EmptyState
           title="No budgets captured yet"
           copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead variant="content" title={t('plan.pricing.title')} count={budgets.length} />
+    <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} count={budgets.length} state="read-only">
 
       <section className="pp-section" aria-label="Pricing pre-flight">
         <p className="pp-help">
@@ -186,7 +182,7 @@ export function PricingPage() {
           </div>
         )}
       </section>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 

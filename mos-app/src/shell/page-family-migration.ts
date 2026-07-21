@@ -54,6 +54,30 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
     symbol: 'InboxPage',
   },
   {
+    path: '/money',
+    family: 'workspace',
+    sourceFile: 'src/pages/dashboard-page.tsx',
+    symbol: 'DashboardPage',
+  },
+  {
+    path: '/money/budget',
+    family: 'workspace',
+    sourceFile: 'src/pages/budget-page.tsx',
+    symbol: 'BudgetPage',
+  },
+  {
+    path: '/money/detail',
+    family: 'workspace',
+    sourceFile: 'src/pages/dashboard-page.tsx',
+    symbol: 'DashboardPage',
+  },
+  {
+    path: '/money/pricing',
+    family: 'workspace',
+    sourceFile: 'src/pages/pricing-page.tsx',
+    symbol: 'PricingPage',
+  },
+  {
     path: '/cafe',
     family: 'workspace',
     sourceFile: 'src/pages/cafe-opening-page.tsx',
@@ -111,11 +135,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
 
 export const ISSUE_3_DEFERRED_PAGE_ROUTES = [
   '/',
-  '/money',
-  '/money/budget',
-  '/money/detail',
   '/money/follow-ups',
-  '/money/pricing',
   '/work/follow-ups/:id',
   '/work/objectives',
   '/work/projects',

@@ -321,7 +321,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Typography/spacing source: route-local CSS plus shared mos-app/src/index.css; local CSS: mos-app/src/pages/budget-page.css
 - Collection grammar: route-local collection/view state is present; presentations: page-local / not observed; owns view state: yes
 - Record opening: default not observed; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: anchored menu/picker candidate; states: default, empty, error/retry, loading, permission/read-only, saving/saved; CSS families: mos-app/src/index.css, mos-app/src/pages/budget-page.css
+- Overlays: anchored menu/picker candidate; states: default, empty, error/retry, loading, permission/read-only, saving/saved, validation; CSS families: mos-app/src/index.css, mos-app/src/pages/budget-page.css
 - Notes: SHOW_PLAN_BUDGET flag plus finance/admin role gate.
 
 ### `/money/detail`

@@ -1641,7 +1641,8 @@
         "error/retry",
         "loading",
         "permission/read-only",
-        "saving/saved"
+        "saving/saved",
+        "validation"
       ],
       "cssFamilies": [
         "mos-app/src/index.css",

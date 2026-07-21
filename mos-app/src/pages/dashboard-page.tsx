@@ -15,9 +15,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { SHOW_FOLLOWUPS } from '@/config/features'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listSalesDailyRevenue, latestReportingDate } from '@/lib/db/reporting'
 import { listSalesMarginDaily, latestMarginReportingDate } from '@/lib/db/reporting-margin'
@@ -70,6 +70,7 @@ interface DashboardTableRow {
 
 export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summary' | 'detail' }) {
   useDocumentTitle('Money — Gordi MOS')
+  const t = useT()
   const isDesktop = useIsDesktop()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -174,10 +175,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (load === 'loading') {
     return (
-      <PageFrame variant="data">
-        <div className="dash-head">
-          <PageHead variant="content" title="Money" count={null} />
-        </div>
+      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} state="loading">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
@@ -196,17 +194,14 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           </div>
           <SkeletonRows count={4} />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Error ────────────────────────────────────────────────────────────────────
   if (load === 'error') {
     return (
-      <PageFrame variant="data">
-        <div className="dash-head">
-          <PageHead variant="content" title="Money" count={null} />
-        </div>
+      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} state="error">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
@@ -217,17 +212,14 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           message="Couldn't load sales reporting. Try again."
           onRetry={() => setRetryKey(k => k + 1)}
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Empty (no snapshot rows) ─────────────────────────────────────────────────
   if (revenueRows.length === 0 || !latestDate || !rev7d || !rev30d || !revKpis) {
     return (
-      <PageFrame variant="data">
-        <div className="dash-head">
-          <PageHead variant="content" title="Money" count={0} />
-        </div>
+      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} count={0} state="empty">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
@@ -239,7 +231,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           title="No sales snapshot data yet"
           copy="No sales snapshot rows are available yet. The next warehouse snapshot will populate this page."
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
@@ -258,15 +250,13 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   const windowLabel = windowSpec.kind === 'preset' ? `${windowSpec.days}d` : 'custom'
 
   return (
-    <PageFrame variant="data">
-      <div className="dash-head">
-        <PageHead
-          variant="content"
-          title="Money"
-          count={cutRows.length}
-          meta={snapshotAsOf ? <span className="dash-fresh">as of {snapshotAsOf}</span> : undefined}
-        />
-      </div>
+    <PageFamilyFrame
+      family="workspace"
+      title="Money"
+      jobSentence={t('job.money')}
+      count={cutRows.length}
+      meta={snapshotAsOf ? <span className="dash-fresh">as of {snapshotAsOf}</span> : undefined}
+    >
 
       <DashboardChrome
         cut={cut} onCut={setCut}
@@ -412,7 +402,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           </p>
         </div>
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 

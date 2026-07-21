@@ -6,8 +6,7 @@
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
 // States: loading skeleton, empty (no BOM), error+retry (non-secret), populated.
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -164,39 +163,42 @@ export function BudgetPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFrame variant="data">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={4} />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
   if (load.kind === 'error') {
     return (
-      <PageFrame variant="data">
-        <PageHead variant="content" title={t('plan.budget.title')} count={null} />
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} state="error">
         <ErrorState
           message="Couldn't load the BOM + ingredient cost lines. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
   if (bom.length === 0) {
     return (
-      <PageFrame variant="data">
-        <PageHead variant="content" title={t('plan.budget.title')} count={0} />
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} count={0} state="empty">
         <EmptyState
           title="No BOM snapshot data yet"
           copy="No BOM rows are available yet. The next warehouse snapshot will populate this page."
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead variant="content" title={t('plan.budget.title')} count={budgets.length} />
+    <PageFamilyFrame
+      family="workspace"
+      title={t('plan.budget.title')}
+      jobSentence={t('job.money')}
+      count={budgets.length}
+      state={saving ? 'saving' : savedId ? 'saved' : saveError ? 'validation' : 'default'}
+    >
       {/* The section is a single-field wrapper — no aria-label landmark: a region named
           identically to its sole field ("Menu item") made `getByLabel('Menu item')` ambiguous
           (section + select) and created a duplicate accessible name for screen-reader users.
@@ -394,7 +396,7 @@ export function BudgetPage() {
           </tbody>
         </table>
       </section>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 
