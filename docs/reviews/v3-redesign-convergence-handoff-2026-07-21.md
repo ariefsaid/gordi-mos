@@ -141,7 +141,10 @@ RecordViewer, and Home/People/More worker results, then owning the remaining cro
 | Signal worker | Signal collection grouping/collapse, opener/query preservation, dead selection/Create Task removal, archive-vs-focused page family | Director focused tests, typecheck/lint/diff, then rendered review |
 | RecordViewer worker | Task/Signal viewer bridge, drawer-first host opening, focus return, canonical page parity | Director focused tests, typed adapter inspection, then rendered review |
 | Home/People/More worker | Retry callback, shared Tasks projection direction, ViewTabs keyboard contract, mobile More focus, canonical links | Director focused tests, keyboard journey, then rendered review |
-| Director | Integration/review of all three lanes; Inbox/Bell + Deputy; Follow-ups/Café; geometry/legacy cleanup; representative gate; final docs and owner walkthrough | No push/merge/deploy until the owner sees the rendered representative slice |
+| Director | Integration/review of all three lanes; representative gate; final docs and owner walkthrough | No push/merge/deploy until the owner sees the rendered representative slice |
+| Inbox/Bell + Deputy | Claude opus (second Director session, owner-directed 2026-07-21) | `.claude/worktrees/v3-inbox-deputy` / `v3/inbox-deputy` | ACTIVE; owner-fast-path | Wire InboxTriage into production + Bell quick-open via the mounted host; Deputy focus-return via opener ref; shared state semantics; no Signal/Home/People scope |
+| Follow-ups + Café | Claude opus (second Director session) | `.claude/worktrees/v3-cafe-followups` / `v3/cafe-followups` | ACTIVE; owner-fast-path | Typed Follow-up viewer adapter + drawer-first opening + URL door; R-OWNER-5 provisional reclassification; Café copy/nouns/routes centralization; no Signal/Home/People scope |
+| Geometry/legacy | Claude opus (second Director session) | `.claude/worktrees/v3-geometry` / `v3/geometry` | ACTIVE; owner-fast-path | Rail 236→232 binding parity; RecordPanelHost 40–45% track / intermediate sheet / phone geometry + split-Escape (R-T-5); no engine/adapter scope |
 
 No worker may claim another lane's acceptance, and no lane may start Supabase or broad browser/full-suite
 fan-out. A worker's green result is a handoff, not completion; the Director owns the final visual/IxD
