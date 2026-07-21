@@ -323,6 +323,10 @@ describe('CHROME-MODAL: modal consolidation', () => {
         /document\.addEventListener\(['"]keydown/,
       )
     }
+    expect(
+      readSrc('components/admin/password-reveal.tsx'),
+      'modal content must not retain its own Tab/focus document listener',
+    ).not.toMatch(/document\.addEventListener\(['"]keydown/)
   })
 
   it('CHROME-MODAL: the admin ConfirmDialog module re-exports the shared primitive (no second copy)', () => {
