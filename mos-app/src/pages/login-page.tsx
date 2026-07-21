@@ -2,6 +2,8 @@ import { useState, useId, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
+import { Button } from '@/components/ui/button'
+import { TextInput } from '@/components/ui/text-input'
 import { DemoLogin } from './demo-login'
 import { DEMO_PASSWORD } from './demo-personas'
 
@@ -272,15 +274,9 @@ export function LoginPage() {
         <form onSubmit={handleSignIn} noValidate>
           {/* Email field */}
           <div className="mb-4">
-            <label
-              htmlFor={emailId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
-            >
-              Email
-            </label>
-            <input
+            <TextInput
               id={emailId}
+              label="Email"
               type="email"
               autoComplete="email"
               placeholder="you@gordi.id"
@@ -290,16 +286,10 @@ export function LoginPage() {
                 if (emailError) setEmailError('')
               }}
               disabled={isDisabled}
-              aria-invalid={emailError ? 'true' : undefined}
+              error={Boolean(emailError)}
+              fullWidth
+              aria-required="true"
               aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
-              className="w-full bg-background text-foreground rounded-sm px-2.5 border"
-              style={{
-                height: 32,
-                fontSize: 16,
-                borderColor: emailError ? 'var(--destructive)' : 'var(--input)',
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
             />
             {/* fix-2: inline field error below email input */}
             {emailError && (
@@ -316,27 +306,16 @@ export function LoginPage() {
           {/* Password field — design-plan §1 layout: label on its own row, field below */}
           {/* fix-4: "Forgot password?" moved OUT of the label row, placed AFTER the password field */}
           <div className="mb-5">
-            <label
-              htmlFor={passwordId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
-            >
-              Password
-            </label>
-            <input
+            <TextInput
               id={passwordId}
+              label="Password"
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
-              style={{
-                height: 32,
-                fontSize: 16,
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
+              fullWidth
+              aria-required="true"
               aria-describedby={error ? errorId : undefined}
             />
             {/* fix-4: Forgot password link AFTER the password field (DOM order = tab order) */}
@@ -367,18 +346,11 @@ export function LoginPage() {
           </div>
 
           {/* Primary submit — the ONE filled primary button (One Blue Rule) */}
-          <button
+          <Button
             type="submit"
             disabled={isDisabled}
             aria-busy={loading === 'sign-in'}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
-            style={{
-              height: 32,
-              fontSize: 16,
-              boxShadow: '0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)',
-              opacity: (isDisabled && loading !== 'sign-in') ? 0.5 : 1,
-              cursor: isDisabled ? 'not-allowed' : undefined,
-            }}
+            className="w-full btn-touch"
           >
             {loading === 'sign-in' ? (
               <>
@@ -390,7 +362,7 @@ export function LoginPage() {
             ) : (
               'Sign in'
             )}
-          </button>
+          </Button>
         </form>
 
         {/* "or" divider — single 1px border hairline (Single-Border Rule) */}

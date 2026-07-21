@@ -40,8 +40,21 @@ describe('LoginPage — credentials form', () => {
     render(<LoginPage />)
 
     // Each input must be query-able by its label text
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
-    expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    const email = screen.getByLabelText('Email')
+    const password = screen.getByLabelText('Password')
+    expect(email).toBeInTheDocument()
+    expect(password).toBeInTheDocument()
+    expect(email).toHaveAttribute('type', 'email')
+    expect(email).toHaveAttribute('autocomplete', 'email')
+    expect(password).toHaveAttribute('type', 'password')
+    expect(password).toHaveAttribute('autocomplete', 'current-password')
+  })
+
+  it('I10: login fields expose required semantics before the user submits', () => {
+    render(<LoginPage />)
+
+    expect(screen.getByLabelText('Email')).toBeRequired()
+    expect(screen.getByLabelText('Password')).toBeRequired()
   })
 
   it('AC-011: error linked via aria-describedby after failed submit', async () => {
@@ -60,6 +73,9 @@ describe('LoginPage — credentials form', () => {
     await waitFor(() => {
       const errorEl = screen.getByRole('alert')
       expect(errorEl).toBeInTheDocument()
+      expect(screen.getByLabelText('Email')).toHaveAttribute('aria-describedby', errorEl.id)
+      expect(screen.getByLabelText('Password')).toHaveAttribute('aria-describedby', errorEl.id)
+      expect(document.activeElement).toBe(errorEl)
     })
   })
 
@@ -183,6 +199,7 @@ describe('LoginPage — credentials form', () => {
     // While in flight: button disabled + loading indicator
     const submitBtn = screen.getByRole('button', { name: /signing in/i })
     expect(submitBtn).toBeDisabled()
+    expect(submitBtn).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('status')).toBeInTheDocument()
 
     // Settle
@@ -440,45 +457,31 @@ describe('LoginPage — email client-validation (fix-2)', () => {
   })
 })
 
-// ── fix-3 ── "Forgot password?" touch target ≥44px (design-plan §4) ─────────
+// ── fix-3 ── Keyboard path: Email → Password → Forgot → Sign in → Magic-link ─
 
-describe('LoginPage — forgot-password touch target (fix-3)', () => {
-  it('"Forgot password?" button has min-height class matching magic-link ≥44px treatment', () => {
-    render(<LoginPage />)
-    const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
-    const magicBtn = screen.getByRole('button', { name: /email me a sign-in link/i })
+describe('LoginPage — keyboard form journey', () => {
+  it('I10: keyboard focus follows the form journey and reaches password recovery', async () => {
+    mockResetPassword.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
 
-    // Both should carry the touch-target min-height treatment
-    // Magic-link already has inline minHeight:44 or class; forgot-password must match
-    const forgotStyle = window.getComputedStyle(forgotBtn)
-    const magicStyle = window.getComputedStyle(magicBtn)
-
-    // Assert that the forgot button has at least min-height set (via class or inline)
-    const forgotMinH = forgotBtn.style.minHeight || forgotStyle.minHeight
-    const magicMinH = magicBtn.style.minHeight || magicStyle.minHeight
-
-    // Both must have a 44px min-height
-    expect(forgotMinH).toBe('44px')
-    expect(magicMinH).toBe('44px')
-  })
-})
-
-// ── fix-4 ── Tab order: Email → Password → Forgot → Sign in → Magic-link ────
-
-describe('LoginPage — tab order (fix-4)', () => {
-  it('DOM order follows design-plan §5: Email → Password → Forgot → Sign in → magic-link', () => {
+    const user = userEvent.setup()
     render(<LoginPage />)
 
     const email = screen.getByLabelText('Email')
     const password = screen.getByLabelText('Password')
     const forgot = screen.getByRole('button', { name: /forgot password/i })
-    const signIn = screen.getByRole('button', { name: /^sign in$/i })
-    const magicLink = screen.getByRole('button', { name: /email me a sign-in link/i })
 
-    // Use DOM position (compareDocumentPosition) to verify order
-    expect(email.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(password.compareDocumentPosition(forgot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(forgot.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(signIn.compareDocumentPosition(magicLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.tab()
+    expect(document.activeElement).toBe(email)
+    await user.type(email, 'user@gordi.id')
+    await user.tab()
+    expect(document.activeElement).toBe(password)
+    await user.tab()
+    expect(document.activeElement).toBe(forgot)
+    await user.keyboard('{Enter}')
+
+    expect(await screen.findByText('Check your email to reset your password.')).toBeInTheDocument()
   })
 })

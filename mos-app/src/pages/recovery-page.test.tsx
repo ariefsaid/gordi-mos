@@ -45,8 +45,21 @@ describe('RecoveryPage', () => {
   // FR-005: form renders a labelled new-password input
   it('FR-005: recovery set-new-password — form renders labelled new-password input', () => {
     render(<RecoveryPage />)
-    expect(screen.getByLabelText('New password')).toBeInTheDocument()
-    expect(screen.getByLabelText('Confirm password')).toBeInTheDocument()
+    const newPassword = screen.getByLabelText('New password')
+    const confirmPassword = screen.getByLabelText('Confirm password')
+    expect(newPassword).toBeInTheDocument()
+    expect(confirmPassword).toBeInTheDocument()
+    expect(newPassword).toHaveAttribute('type', 'password')
+    expect(newPassword).toHaveAttribute('autocomplete', 'new-password')
+    expect(confirmPassword).toHaveAttribute('type', 'password')
+    expect(confirmPassword).toHaveAttribute('autocomplete', 'new-password')
+  })
+
+  it('I10: recovery fields expose required semantics before the user submits', () => {
+    render(<RecoveryPage />)
+
+    expect(screen.getByLabelText('New password')).toBeRequired()
+    expect(screen.getByLabelText('Confirm password')).toBeRequired()
   })
 
   it('FR-005: recovery link exchange — form waits until PASSWORD_RECOVERY is active', () => {
@@ -110,6 +123,10 @@ describe('RecoveryPage', () => {
     await waitFor(() => {
       expect(screen.getByText("Passwords don't match.")).toBeInTheDocument()
     })
+    const confirmPassword = screen.getByLabelText('Confirm password')
+    const mismatch = screen.getByText("Passwords don't match.")
+    expect(confirmPassword).toHaveAttribute('aria-invalid', 'true')
+    expect(confirmPassword).toHaveAttribute('aria-describedby', mismatch.id)
     expect(mockUpdateUser).not.toHaveBeenCalled()
   })
 
@@ -193,8 +210,13 @@ describe('RecoveryPage', () => {
     // While in flight
     const saveBtn = screen.getByRole('button', { name: /saving/i })
     expect(saveBtn).toBeDisabled()
+    expect(saveBtn).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('status')).toBeInTheDocument()
 
     resolve!({ data: { user: null }, error: null } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save password/i })).not.toBeDisabled()
+    })
   })
 })

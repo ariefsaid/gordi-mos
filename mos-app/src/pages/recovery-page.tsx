@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { useAuth } from '@/auth/use-auth'
+import { Button } from '@/components/ui/button'
+import { TextInput } from '@/components/ui/text-input'
 
 const ERR_MISMATCH = "Passwords don't match."
 const ERR_EXPIRED = 'That link has expired — request a new one.'
@@ -172,56 +174,33 @@ export function RecoveryPage() {
         <form onSubmit={handleSubmit} noValidate>
           {/* New password */}
           <div className="mb-4">
-            <label
-              htmlFor={newPasswordId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
-            >
-              New password
-            </label>
-            <input
+            <TextInput
               id={newPasswordId}
+              label="New password"
               type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
-              style={{
-                height: 32,
-                fontSize: 16,
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
+              fullWidth
+              aria-required="true"
             />
           </div>
 
           {/* Confirm password */}
           <div className="mb-5">
-            <label
-              htmlFor={confirmPasswordId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
-            >
-              Confirm password
-            </label>
-            <input
+            <TextInput
               id={confirmPasswordId}
+              label="Confirm password"
               type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={isDisabled}
-              aria-invalid={mismatchError ? 'true' : undefined}
+              error={Boolean(mismatchError)}
+              fullWidth
+              aria-required="true"
               aria-describedby={mismatchError ? mismatchErrorId : undefined}
-              className="w-full bg-background text-foreground border rounded-sm px-2.5"
-              style={{
-                height: 32,
-                fontSize: 16,
-                borderColor: mismatchError ? 'var(--destructive)' : 'var(--input)',
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
             />
             {mismatchError && (
               <p
@@ -235,17 +214,11 @@ export function RecoveryPage() {
           </div>
 
           {/* Primary submit */}
-          <button
+          <Button
             type="submit"
             disabled={isDisabled}
             aria-busy={loading}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
-            style={{
-              height: 32,
-              fontSize: 16,
-              opacity: isDisabled ? 0.5 : 1,
-              cursor: isDisabled ? 'not-allowed' : undefined,
-            }}
+            className="w-full btn-touch"
           >
             {loading ? (
               <>
@@ -256,7 +229,7 @@ export function RecoveryPage() {
             ) : (
               'Save password'
             )}
-          </button>
+          </Button>
         </form>
       </AuthCard>
     </AuthShell>
