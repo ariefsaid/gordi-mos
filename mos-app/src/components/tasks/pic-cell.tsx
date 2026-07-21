@@ -1,7 +1,7 @@
 import { firstName, initials } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 
-type OwnerCellProps = {
+type PicCellProps = {
   /** The task's typed PIC display name. */
   fullName: string
   /**
@@ -13,7 +13,12 @@ type OwnerCellProps = {
   provenance?: string
 }
 
-export function OwnerCell({ fullName, provenance }: OwnerCellProps) {
+/**
+ * The typed PIC display cell (V3 Issue 6: renamed from the legacy `OwnerCell` primitive — no
+ * `OwnerCell`/owner label crosses the Task collection UI contract; PIC is the person expected to
+ * perform and close the Task).
+ */
+export function PicCell({ fullName, provenance }: PicCellProps) {
   const t = useT()
   const label = provenance
     ? `${t('tasks.pic')}: ${fullName} (${t('tasks.pic.via', { role: provenance })})`

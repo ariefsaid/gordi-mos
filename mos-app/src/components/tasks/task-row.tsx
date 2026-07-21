@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { StatusPill } from './status-pill'
-import { OwnerCell } from './owner-cell'
+import { PicCell } from './pic-cell'
 import { formatDate } from './task-formatters'
 import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
@@ -107,7 +107,7 @@ export function TaskRow({
       </td>
       <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
       <td className="td-cell td-owner">
-        <OwnerCell fullName={ownerName} provenance={provenanceRoleName} />
+        <PicCell fullName={ownerName} provenance={provenanceRoleName} />
       </td>
       {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
           the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).

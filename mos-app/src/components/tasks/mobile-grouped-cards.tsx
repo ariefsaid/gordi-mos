@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { OwnerCell } from './owner-cell'
+import { PicCell } from './pic-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
@@ -121,7 +121,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
         <dl className="task-card-meta">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
-            <dd><OwnerCell fullName={rName} provenance={provenanceRoleName} /></dd>
+            <dd><PicCell fullName={rName} provenance={provenanceRoleName} /></dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>
