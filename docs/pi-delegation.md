@@ -26,7 +26,9 @@ merge — the release-engineer flow and the Director merge gate (playbook §6) a
 
 ## 2. Model routing (by task complexity)
 
-> **Owner routing update (2026-07-21).** Treat GLM-5.2, Nemotron-3-Ultra, and DeepSeek-V4-Pro as
+> **Owner routing update (2026-07-21).** Quotas are provider-specific: `zai/glm-5.2` consumes the
+> **GLM Coding Plan** quota, while `nvidia/z-ai/glm-5.2` consumes NVIDIA NIM capacity and does not
+> touch the Coding Plan quota. Treat GLM-5.2, Nemotron-3-Ultra, and DeepSeek-V4-Pro as
 > text-only workhorse coding models in roughly the gpt-5.4 capability class. Use Inkling or MiniMax
 > v3 when multimodal/rendered-image judgment is required; they trade somewhat lower general
 > intelligence for vision capability, so verify their work more tightly. Provider cost/availability
@@ -36,10 +38,10 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 
 | Substrate | Use for | Claude analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **OPUS TIER (owner-directed 2026-07-07, re-confirmed 2026-07-13 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth), **hard/cross-cutting build slices**; orchestrator/Director of a parallel pi team (§3e) | opus |
+| `zai` / `glm-5.2` (**GLM Coding Plan**) | **OPUS TIER (owner-directed 2026-07-07, re-confirmed 2026-07-13 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth), **hard/cross-cutting build slices**; orchestrator/Director of a parallel pi team (§3e). This path consumes the GLM Coding Plan quota. | opus |
 | `zai` / `glm-4.7` | Sonnet-alt **implementer** — routine build slices, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.6-luna` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders. **Owner-directed 2026-07-15: gpt-5.6-luna supersedes the former gpt-5.4 for all reviews AND is the z.ai-cap build fallback; ALWAYS dispatch Luna at MAX reasoning effort (see below).** | opus reviewers |
-| `nvidia` / **`nvidia/nemotron-3-ultra` or `deepseek-v4-pro` (NIM)** | Text-only workhorse coding and overflow capacity. Suitable for substantial implementation, with Director verification; **never sole author/sign-off for security/RLS/RPC/auth/money-path or schema**. | workhorse-impl |
+| `nvidia` / **NIM-hosted GLM-5.2, Nemotron 3 Ultra, or DeepSeek V4 Pro** | Independent NIM capacity for text-only workhorse coding. NIM-hosted GLM-5.2 does **not** consume the GLM Coding Plan quota. Suitable for substantial implementation, with Director verification; **never sole author/sign-off for security/RLS/RPC/auth/money-path or schema**. | workhorse-impl |
 | configured multimodal provider / **Inkling or MiniMax v3** | Rendered UI/image inspection and multimodal implementation support when Luna is unavailable. Slightly lower general capability than the text workhorses; verify more tightly. | multimodal-alt |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback (after NIM) — keeps the loop moving on a 429. Note: OpenRouter Nemotron can 404 on account data-policy guardrails (`openrouter.ai/settings/privacy`); prefer the `nvidia` NIM provider above | best-effort |
 
@@ -110,7 +112,9 @@ not rewrite them; Luna is the go-forward model.
 ### NIM (NVIDIA Inference Microservices) — `nvidia` provider (added 2026-07-14, owner-directed)
 
 Direct NVIDIA-hosted models via pi's **`nvidia`** provider (`baseURL https://integrate.api.nvidia.com/v1`,
-configured in `~/.pi/agent/models.json`; key in pi `auth.json` — never read it). Preferred overflow
+configured in `~/.pi/agent/models.json`; key in pi `auth.json` — never read it). This is a separate
+provider and quota pool from the GLM Coding Plan (`zai`). A GLM model invoked with
+`--provider nvidia` consumes NIM capacity, **not** the GLM Coding Plan quota. Preferred overflow
 capacity over the free OpenRouter tier (which can 404 on account guardrails). Smoke-tested live
 2026-07-14: `nvidia/nemotron-3-ultra` returned OK.
 
@@ -119,8 +123,8 @@ pi --provider nvidia --model nvidia/nemotron-3-ultra -p --no-session \
   --append-system-prompt .claude/agents/<role>.md "<brief>" < /dev/null
 ```
 
-Available NIM models (from `models.json`): `nvidia/nemotron-3-ultra` (**Nemotron 3 Ultra**) and
-DeepSeek V4 Pro are owner-approved text-only workhorse coders; DeepSeek V4 Flash, Llama 3.1
+Owner-approved NIM text workhorses are GLM-5.2, `nvidia/nemotron-3-ultra` (**Nemotron 3 Ultra**),
+and DeepSeek V4 Pro; DeepSeek V4 Flash, Llama 3.1
 70B/405B, and Mixtral 8x22B remain secondary options. Workhorse status does not authorize sole
 authorship/sign-off of security/RLS/RPC/auth/money/schema changes, and the Director still verifies
 every claim. If NIM is unavailable, fall to the configured alternatives below.

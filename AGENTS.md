@@ -69,8 +69,9 @@ role-scoped authorization) can grow without another IA rewrite.
 Detailed runbook: `docs/director-playbook.md`. UI/UX cycle: `docs/design-workflow.md`.
 Binding charter + per-layer Definition of Done: `docs/product-expectations.md`.
 
-**Delegation substrate (ACTIVE):** dispatch role work via the **pi CLI** (multi-provider: z.ai/GLM
-builders + OpenAI/gpt-5.6-luna cross-family reviewers) per `docs/pi-delegation.md` — it changes *who
+**Delegation substrate (ACTIVE):** dispatch role work via the **pi CLI** (multi-provider: GLM Coding
+Plan through `zai`, independently metered NIM-hosted GLM/Nemotron/DeepSeek builders, and
+OpenAI/gpt-5.6-luna cross-family reviewers) per `docs/pi-delegation.md` — it changes *who
 executes a phase*, nothing else; the loop, gates, DoD, and the Director's verify-everything +
 final-visual-taste + merge/git duties are unchanged. pi agents drive rendered UI checks via the
 `agent-browser` CLI. Fall back to Claude role agents (the Agent tool, `.claude/agents/`) if pi or a
