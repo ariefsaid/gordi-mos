@@ -23,14 +23,18 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > threads, owner prompts verbatim, in-repo. Owner prefs, hard rules, multi-agent/git gotchas, and
 > the delegation posture below are **not** superseded and remain binding.
 >
-> **WHERE ARE WE RIGHT NOW → `docs/reviews/v3-redesign.md` and `docs/reference/v3-live-inventory.md`.**
+> **WHERE ARE WE RIGHT NOW → [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](reviews/v3-redesign-convergence-handoff-2026-07-21.md),**
+> then [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md) and [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md).
 > The active `v3-redesign` branch is now an implementation branch through V3 page families,
 > RecordCollection foundations, and the shared centered-modal grammar; the old Issue-2-only status
 > below is historical. The closed `docs/plans/AUTONOMOUS-RUN-STATE.md` /
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
 > **CURRENT WORKSTREAM (2026-07-21): V3 live application convergence**, branch `v3-redesign`,
-> local tip `eb32fd4` at this checkpoint; nothing has been pushed. E7 owns visual styling while the
+> local tip `93555ac` at this checkpoint; nothing has been pushed. The durable goal, audit ledger,
+> provider failures, active worker/thread map, and exact next dependencies are in
+> [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](reviews/v3-redesign-convergence-handoff-2026-07-21.md).
+> E7 owns visual styling while the
 > composite owner oracle owns IA/IxD. Page-family migration now covers Home, catalog, Money, Café,
 > and Follow-ups in addition to the prior wave. Tasks and Signals share the visible collection
 > control grammar; the remaining load-bearing work is making live Tasks consume the engine and
@@ -48,18 +52,21 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > 70/70, inventory 10/10, typecheck/changed lint green. This is not yet the final full-suite/rendered
 > acceptance gate.
 >
-> **In flight in isolated worktrees (NIM provider, not GLM Coding Plan quota):**
-> `v3/task-live-migration` is migrating the real `TasksWorkspace` loader/projection onto
-> `useRecordCollection` + `RecordCollectionSurface`; `v3/record-viewer-live` is mounting exactly one
-> shell-level `OverlayHostProvider`/`OverlayHostSlot`. Both use redirected non-streaming logs and
-> must be independently reviewed before cherry-pick. Only one local Supabase exists; neither worker
-> may start it. Keep at most 2–3 workers and avoid browser/full-suite fan-out after the prior OOM.
+> **In flight in isolated worktrees/threads:**
+> `v3/record-viewer-live` (NIM Nemotron) is mounting exactly one shell-level
+> `OverlayHostProvider`/`OverlayHostSlot`; `v3/signals-frame` (NIM Nemotron) is fixing real Signal
+> grouping/opening/selection/page-family behavior; Luna thread `019f8423-d2c9-7523-88cc-c470c2597a3e`
+> is migrating the live TasksWorkspace; Luna thread `019f8421-5176-7fe2-89e0-c3ad6a8cc30d` landed
+> auth controls as `93555ac`. All active work must be independently reviewed before cherry-pick.
+> Only one local Supabase exists; no active lane may start it. Keep memory bounded, avoid browser/full-suite
+> fan-out, and inspect redirected logs only once after a process exits. The full active map and failed
+> provider attempts are recorded in the convergence handoff.
 >
-> **Next action:** wait for those two workers to exit; inspect each result once; independently prove
-> the live Tasks engine and one-host invariants; cherry-pick reviewed commits onto this tip. Then run
-> separate bounded Task and Signal RecordViewer migrations, followed by Inbox/Deputy and Café. Issue
-> 10 structured content remains correctly gated until the live viewer/collection/host dependencies
-> and Issues 7–9 are actually complete.
+> **Next action:** review and cherry-pick the exiting Overlay, Signal, and Tasks results onto `93555ac`;
+> rerun their focused proofs; then migrate Task/Signal RecordViewer openings, Inbox/Deputy, Follow-ups,
+> Café, Home/People/More, geometry, and final three-width acceptance in the dependency order in the
+> convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host
+> dependencies and Issues 7–9 are actually complete.
 
 ### Historical planning-era V3 continuation map (2026-07-20; superseded by current state above)
 

@@ -601,3 +601,30 @@ Home panel, and current behavioral coverage remain. Locking `RI-IA-9` fails if e
 its private page tests/CSS return. Evidence: route/cohesion 71/71, Home/MyTasks/cohesion 70/70,
 inventory 10/10 and 73 CSS families, typecheck and changed ESLint/Stylelint green. Commits `a83750f`
 and `eb32fd4`; 1,313 legacy lines deleted across the two checkpoints.
+
+### 2026-07-21 convergence handoff and adversarial audits
+
+The durable continuation record is [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](v3-redesign-convergence-handoff-2026-07-21.md).
+It is the current plain-language source for the owner's goal, composite oracle, active worker/thread
+map, provider failures, audit findings, proxy-test warnings, dependency order, and completion standard.
+
+The Director independently reviewed and cherry-picked Luna auth commit `c4bf105` as `93555ac` on
+`v3-redesign`. Its 77-test Luna battery, typecheck, ESLint, Stylelint, build, and diff checks were
+green; the Director reran Login/Recovery at 36 focused tests plus typecheck, ESLint, and Stylelint.
+The migration uses shared E7 `TextInput`/`Button` controls while preserving auth-specific alerts,
+copy, focus, loading, recovery, and no-invented password-reveal behavior.
+
+Two read-only Luna audits then found unclosed interaction debts that source/adapter tests can miss:
+
+- Signal grouping was computed but flattened in the real table; table opening bypassed the injected
+  opener and dropped filter/group/saved-view query state; selection checkboxes had no bulk action;
+  direct Signal routes used the wrong page-family shell; runtime rail/row geometry and legacy links
+  still need computed/driven proof.
+- Inbox/Bell still renders the old standalone door instead of production `InboxTriage`; Deputy and
+  mobile More lose opener focus; Follow-ups remains a bespoke mini-app/detail aside; Café still
+  leaks Kitchen/Pesanan vocabulary and `/kitchen/*` links; Café/Inbox/Follow-ups state semantics are
+  not shared; Home's retry copy has no retry callback; Home duplicates the Tasks query/renderer;
+  People status filters lack the shared roving keyboard contract.
+
+These findings are not marked fixed. The current Overlay, Signal, and Tasks lanes remain isolated
+and require exit, diff review, focused proof, and cherry-pick before the next dependency wave.

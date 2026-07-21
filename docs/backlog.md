@@ -1,13 +1,16 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign`.**
+> **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign` (tip `93555ac`).**
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
-> implemented locally; Tasks live-engine adoption and the single production overlay-host mount are
-> in isolated NIM worktrees pending independent review. Issue-12 cleanup has also removed the
+> implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.
+> Tasks live-engine adoption, Signal collection correctness, and the single production overlay-host
+> mount remain isolated and pending independent review. Issue-12 cleanup has also removed the
 > unreachable legacy Sales and My Week page implementations rather than preserving their parallel
 > page-head/CSS grammar. The exact active state and continuation
-> order are in [`docs/agent-context.md`](agent-context.md); the governing delivery sequence remains
+> order are in [`docs/agent-context.md`](agent-context.md) and the detailed resumable handoff is
+> [`docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`](reviews/v3-redesign-convergence-handoff-2026-07-21.md);
+> the governing delivery sequence remains
 > [`docs/specs/v3-redesign.spec.md`](specs/v3-redesign.spec.md) §12;
 > the deterministic proof is [`docs/reference/v3-storybook-matrix.md`](reference/v3-storybook-matrix.md)
 > and the live inventory is [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md).
