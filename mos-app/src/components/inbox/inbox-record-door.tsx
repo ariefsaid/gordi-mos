@@ -53,9 +53,14 @@ const SEVERITY_KEY = {
 
 /**
  * The in-context record door rendered inside the shared overlay host. Shows the arrival context
- * (type · title · body · severity) so a triager understands why the item landed (J06), then offers
- * the canonical full-record door. Navigation closes the overlay first (host route seam is not wired
- * here) so the queue is not left stacked behind a page change.
+ * (type · title · body · severity) so a triager understands why the item landed (J06).
+ *
+ * Navigation: the entry carries `pageTo`, so the host chrome renders its own Open-full-page button
+ * (RecordPanelHost → host.openPage). HOWEVER host.openPage only closes the panel today — the actual
+ * navigation is performed by the route seam (R-T-4, plan 2026-07-20-v3-overlay-host Task 5), which
+ * is not yet wired. Until R-T-4 lands, this door also renders a primary "Open full record" button
+ * that closes the overlay and navigates directly, so the user is never stranded. When R-T-4 lands,
+ * remove this button + the navigate/pageTo props — the host chrome becomes the one door.
  */
 export function InboxRecordDoor({
   row,
@@ -150,9 +155,12 @@ export function buildInboxTargetDeps(
           tenant: 'record',
           label: row.title,
           title: <RecordDoorTitle type={targetRef.type} />,
-          // pageTo is intentionally omitted: the host's Open-full-page chrome routes through the
-          // unwired openPage seam (Task 5). The door content owns navigation instead, so no dead
-          // affordance is rendered.
+          // pageTo routes the Open-full-page action through the host's leave-guarded openPage seam
+          // (OverlayHostSlot reads active.entry.pageTo and renders the host-owned chrome button),
+          // matching Task (task-collection-adapter.tsx:755) and Signal (signal-collection-adapter.tsx:330).
+          // NOTE: host.openPage closes the panel but does NOT navigate until R-T-4 (route seam) lands;
+          // the door content below carries a fallback nav button until then.
+          pageTo,
           content: <InboxRecordDoor row={row} targetRef={targetRef} pageTo={pageTo} />,
         }
       },
