@@ -1,37 +1,24 @@
 /* ── Command palette (⌘K) — ADR-0013 D4 / design-plan §5. All raw values are
    DESIGN.md CSS-var tokens (no hex/rgb/hsl literals). Mirrors mock-command-menu.html. */
 
-.cm-root {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal); /* ⌘K is an I4 launcher — modal tier (cohesion-debt item #3) */
-}
-
-.cm-scrim {
-  position: absolute;
-  inset: 0;
-  background: var(--scrim); /* ONE scrim token (cohesion-debt item #1) */
-}
-
 .cm-panel {
-  position: absolute;
-  left: 50%;
-  top: 64px;
-  transform: translateX(-50%);
-  width: 560px;
-  max-width: calc(100% - 32px);
-  background: var(--surface-primary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg); /* e7 overlay radius 12 (parity A4) */
-  box-shadow: var(--shadow-strong); /* --ds-box-shadow-strong */
   overflow: hidden;
   /* Themed scope sets color explicitly so children don't inherit a body-baked
      light value (dark = invisible). ADR-0013 D2. */
   color: var(--text-primary);
 }
 
+.modal-shell__surface:has(> .cm-panel) {
+  align-self: start;
+  width: min(100%, 560px);
+  margin-top: 48px;
+  background: var(--surface-primary);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-strong);
+}
+
 @media (max-width: 600px) {
-  .cm-panel { top: 16px; }
+  .modal-shell__surface:has(> .cm-panel) { margin-top: 0; }
 }
 
 /* ── Input row ── */

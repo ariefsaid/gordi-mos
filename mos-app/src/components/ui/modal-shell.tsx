@@ -56,15 +56,13 @@ export function ModalShell({
   useEffect(() => {
     if (!open) return
     invokerRef.current = document.activeElement as HTMLElement | null
-    const frame = requestAnimationFrame(() => {
-      const dialog = dialogRef.current
-      if (!dialog) return
+    const dialog = dialogRef.current
+    if (dialog) {
       const [first] = focusableChildren(dialog)
       ;(first ?? dialog).focus()
-    })
+    }
 
     return () => {
-      cancelAnimationFrame(frame)
       invokerRef.current?.focus?.()
       invokerRef.current = null
     }

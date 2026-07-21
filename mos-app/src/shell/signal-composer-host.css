@@ -1,6 +1,8 @@
-/* SignalComposerHost — the Share-Signal drawer chrome around <SignalComposer>. The
-   surrounding .drawer/.drawer-modal/.drawer-sheet shell comes from styles/drawer.css
-   (global); this file owns only the host-local head bar (title + Close). */
+/* SignalComposerHost — capture content inside the shared centered ModalShell. */
+.signal-composer-host-panel {
+  min-height: 0;
+  overflow: hidden;
+}
 .signal-composer-host-head {
   display: flex; align-items: center; gap: 8px;
   padding: 12px 12px 0 16px; flex: none;

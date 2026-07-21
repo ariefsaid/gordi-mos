@@ -43,11 +43,11 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .modal-shell__scrim {
-    animation: modal-shell-fade 120ms ease-out;
+    animation: modal-shell-fade var(--dur-fast) ease-out;
   }
 
   .modal-shell__surface {
-    animation: modal-shell-enter 140ms ease-out;
+    animation: modal-shell-enter var(--dur-med) ease-out;
   }
 }
 

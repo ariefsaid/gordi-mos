@@ -31,16 +31,16 @@ Proof cell is a defect, not a gap.
 
 ## Conformance (2026-07-19 — honest state, not aspiration)
 
-> **I4/I7 update (2026-07-20, branch `cohesion/chrome`).** The overlay-chrome cohesion
-> pass hardened two classes: **I4** — centered confirms now compose ONE primitive
-> (`components/ui/confirm-dialog.tsx`: aria-modal · focus-trap · Esc-returns-focus · shared
-> `--scrim`/`--z-modal`); ConfirmArchive folded onto it (was a trap-less overlay). The
+> **I4/I7 update (2026-07-21, branch `v3-redesign`).** The overlay-chrome cohesion
+> pass hardened two classes: **I4** — command, Signal capture, confirmations, process assignment,
+> and Add Person now compose ONE `ModalShell` interaction owner (aria-modal · focus-trap ·
+> Esc/backdrop policy · focus return · shared `--scrim`/`--z-modal`). ConfirmArchive composes the
+> shared ConfirmDialog preset. The
 > z-index tier scale guarantees a modal always outranks a drawer (was: an admin confirm at
 > z-50 hidden behind a drawer at z-90). **I7** — Task rows emitted `aria-current="true"`
 > alongside the rail's `page`; the row's open/cursor state is now `aria-selected`, so
 > **exactly one** `aria-current` holds. Proof: `docs/reviews/cohesion-debt-2026-07-19.md`
-> overlay-half table. *(OccurrenceAssignDialog + CreatePersonDialog are still hand-rolled
-> overlays — a `ModalShell` follow-up, not yet I4-unified.)*
+> plus the `CHROME-MODAL` source guard and focused modal/command/composer suites.
 
 | Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
 |---|---|---|---|---|---|---|---|---|

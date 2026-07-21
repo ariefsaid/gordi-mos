@@ -10,6 +10,7 @@ import {
 import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 import './command-menu.css'
 
@@ -50,8 +51,6 @@ type RecordsState =
 // Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
 // Ask Deputy opens the AssistantPanel; Share Signal calls onShareSignal (opens the shared Signal
 // composer host, C1 — never a route navigation, AC-428/FR-417); Create Task navigates /work/tasks/new.
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
 function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
 }
@@ -68,9 +67,6 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   const [active, setActive] = useState(0)
   const [records, setRecords] = useState<RecordsState>({ status: 'idle' })
 
-  const panelRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const invokerRef = useRef<HTMLElement | null>(null)
   const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -170,33 +166,6 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     if (active > flatItems.length - 1) setActive(flatItems.length ? flatItems.length - 1 : 0)
   }, [flatItems.length, active])
 
-  // ── Focus on open + return focus on close ────────────────────────────────────
-  useEffect(() => {
-    if (!open) return
-    invokerRef.current = (document.activeElement as HTMLElement) ?? null
-    inputRef.current?.focus()
-    return () => { invokerRef.current?.focus?.() }
-  }, [open])
-
-  // ── Focus trap ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!open) return
-    const panel = panelRef.current
-    if (!panel) return
-    function onTrap(e: KeyboardEvent) {
-      if (e.key !== 'Tab') return
-      const focusable = Array.from(panel!.querySelectorAll<HTMLElement>(FOCUSABLE))
-        .filter((el) => el.offsetParent !== null || el === document.activeElement)
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-    }
-    panel.addEventListener('keydown', onTrap)
-    return () => panel.removeEventListener('keydown', onTrap)
-  }, [open])
-
   useEffect(() => {
     if (!open || !activeId) return
     optionRefs.current[activeId]?.scrollIntoView?.({ block: 'nearest' })
@@ -225,19 +194,19 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   }
 
   return (
-    <div className="cm-root">
-      <div className="cm-scrim" aria-hidden="true" onClick={onClose} />
-      <div
-        ref={panelRef}
-        className="cm-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('commandMenu.title')}
-      >
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      ariaLabel={t('commandMenu.title')}
+      closeOnBackdrop
+      closeOnEscape
+      surface="centered"
+      phoneMode="centered"
+    >
+      <div className="cm-panel">
         <div className="cm-input">
           <span className="cm-input-icon" aria-hidden="true">⌕</span>
           <input
-            ref={inputRef}
             type="text"
             role="combobox"
             aria-expanded="true"
@@ -315,6 +284,6 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
           <span><span className="cm-foot-key">esc</span> {t('commandMenu.footer.close')}</span>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

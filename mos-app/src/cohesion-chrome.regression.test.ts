@@ -72,18 +72,18 @@ describe('CHROME-Z: z-index tier scale', () => {
     expect(css).not.toMatch(/\.drawer-modal-root\s*\{[^}]*z-index:\s*90\b/)
   })
 
-  it('CHROME-Z: the command menu root uses --z-modal', () => {
-    const css = stripComments(readSrc('components/command/command-menu.css'))
-    expect(css).toMatch(/\.cm-root\s*\{[^}]*z-index:\s*var\(--z-modal\)/)
+  it('CHROME-Z: the shared modal root uses --z-modal', () => {
+    const css = stripComments(readSrc('components/ui/modal-shell.css'))
+    expect(css).toMatch(/\.modal-shell__scrim\s*\{[^}]*z-index:\s*var\(--z-modal\)/)
   })
 
   it('CHROME-Z: admin confirm/create/role dialogs use the modal tier, not a bare z-50', () => {
-    // The confirm primitive moved to components/ui (item #4); create/role dialogs stay in admin.
-    for (const f of ['components/ui/confirm-dialog.tsx', 'components/admin/create-person-dialog.tsx', 'components/admin/role-editor.tsx']) {
+    for (const f of ['components/ui/confirm-dialog.tsx', 'components/admin/create-person-dialog.tsx']) {
       const body = readSrc(f)
       expect(body, `${f} must not ship the bare Tailwind z-50 overlay`).not.toMatch(/className="fixed inset-0 z-50/)
-      expect(body, `${f} must reference the --z-modal tier`).toMatch(/var\(--z-modal\)/)
+      expect(body, `${f} must compose the shared modal tier`).toMatch(/<ModalShell/)
     }
+    expect(readSrc('components/admin/role-editor.tsx')).toMatch(/var\(--z-modal\)/)
   })
 
   it('CHROME-Z: the 9999 admin-portal outlier is capped onto the tier scale', () => {
@@ -115,9 +115,9 @@ describe('CHROME-SCRIM: one scrim token + utility', () => {
     expect(m![1]).toMatch(/background:\s*var\(--scrim\)/)
   })
 
-  it('CHROME-SCRIM: the ⌘K scrim uses the shared token, not the one-off --surface-overlay', () => {
-    const css = stripComments(readSrc('components/command/command-menu.css'))
-    const m = css.match(/\.cm-scrim\s*\{([^}]*)\}/)
+  it('CHROME-SCRIM: the shared modal scrim uses the shared token, not a one-off overlay', () => {
+    const css = stripComments(readSrc('components/ui/modal-shell.css'))
+    const m = css.match(/\.modal-shell__scrim\s*\{([^}]*)\}/)
     expect(m).toBeTruthy()
     expect(m![1]).toMatch(/background:\s*var\(--scrim\)/)
     expect(m![1]).not.toMatch(/--surface-overlay/)
@@ -290,18 +290,33 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
 })
 
 // ════════════════════════════════════════════════════════════════════════════
-// CHROME-MODAL: modal consolidation (cohesion-debt item #4). The admin ConfirmDialog
-// is promoted to the shared components/ui path; ConfirmArchive folds onto it and its
-// bespoke .confirm-* overlay CSS is deleted. (OccurrenceAssignDialog + CreatePersonDialog
-// are structurally different — a list host / a multi-phase form with an alertdialog
-// reveal — and are escalated for a ModalShell follow-up, not folded onto a confirm.)
+// CHROME-MODAL: one interaction owner for centered command/capture/confirm/form dialogs.
 // ════════════════════════════════════════════════════════════════════════════
 describe('CHROME-MODAL: modal consolidation', () => {
-  it('CHROME-MODAL: the shared ConfirmDialog primitive lives at components/ui and uses --scrim + --z-modal', () => {
-    const body = readSrc('components/ui/confirm-dialog.tsx')
-    expect(body).toMatch(/export function ConfirmDialog/)
-    expect(body).toMatch(/className="scrim/)
-    expect(body).toMatch(/var\(--z-modal\)/)
+  it('CHROME-MODAL: ModalShell owns the only shared scrim, modal tier, focus, and Escape contract', () => {
+    const body = readSrc('components/ui/modal-shell.tsx')
+    const css = readSrc('components/ui/modal-shell.css')
+    expect(body).toMatch(/export function ModalShell/)
+    expect(body).toMatch(/className="modal-shell__scrim scrim"/)
+    expect(body).toMatch(/document\.addEventListener\('keydown'/)
+    expect(css).toMatch(/z-index:\s*var\(--z-modal\)/)
+  })
+
+  it('CHROME-MODAL: every centered overlay composes ModalShell and keeps no second keyboard listener', () => {
+    const consumers = [
+      'components/ui/confirm-dialog.tsx',
+      'components/tasks/occurrence-assign-dialog.tsx',
+      'components/admin/create-person-dialog.tsx',
+      'components/command/command-menu.tsx',
+      'shell/signal-composer-host.tsx',
+    ]
+    for (const file of consumers) {
+      const body = readSrc(file)
+      expect(body, `${file} must compose the shared shell`).toMatch(/<ModalShell/)
+      expect(body, `${file} must not own a second document keydown listener`).not.toMatch(
+        /document\.addEventListener\(['"]keydown/,
+      )
+    }
   })
 
   it('CHROME-MODAL: the admin ConfirmDialog module re-exports the shared primitive (no second copy)', () => {

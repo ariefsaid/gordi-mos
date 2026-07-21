@@ -83,7 +83,10 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     renderHost(authedViewer)
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
     expect(screen.getByTestId('signal-composer-stub')).toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: /share signal/i })).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: /share signal/i })
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(dialog).toHaveAttribute('data-phone-mode', 'fullscreen')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 
   it('closing (the scrim / Close control) unmounts the composer', async () => {

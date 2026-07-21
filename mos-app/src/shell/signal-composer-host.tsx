@@ -1,13 +1,14 @@
 // Context files intentionally mix a Provider component with a reader hook —
 // the react-refresh rule is suppressed per the established pattern (breadcrumb-title.tsx).
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
 import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { CloseIcon } from '@/shell/icons'
 import './signal-composer-host.css'
 
@@ -39,7 +40,6 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
-  const panelRef = useRef<HTMLDivElement>(null)
 
   const close = useCallback(() => setIsOpen(false), [])
   const open = useCallback(() => setIsOpen(true), [])
@@ -61,30 +61,22 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [isOpen])
 
-  useEffect(() => {
-    if (!isOpen) return
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('keydown', onEsc)
-    return () => document.removeEventListener('keydown', onEsc)
-  }, [isOpen, close])
-
   const accessRoles = viewer?.accessRoles ?? []
 
   return (
     <SignalComposerContext.Provider value={{ open, postCount }}>
       {children}
       {isOpen && viewer && (
-        <div className="drawer-modal-root signal-composer-host-root">
-          <div className="drawer-scrim" aria-hidden="true" onClick={close} />
-          <aside
-            ref={panelRef}
-            className="drawer drawer-modal drawer-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('signals.action.share')}
-          >
+        <ModalShell
+          open
+          onClose={close}
+          ariaLabel={t('signals.action.share')}
+          closeOnBackdrop
+          closeOnEscape
+          surface="centered"
+          phoneMode="fullscreen"
+        >
+          <div className="signal-composer-host-panel">
             <div className="signal-composer-host-head">
               <h2 className="signal-composer-host-title">{t('signals.action.share')}</h2>
               <IconButton variant="tertiary" ariaLabel={t('signals.composer.close')} onClick={close}>
@@ -100,8 +92,8 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               buMembers={rosters.buMembers}
               onShared={handleShared}
             />
-          </aside>
-        </div>
+          </div>
+        </ModalShell>
       )}
     </SignalComposerContext.Provider>
   )

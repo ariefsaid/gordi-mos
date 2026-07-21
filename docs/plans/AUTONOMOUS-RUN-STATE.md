@@ -30,8 +30,10 @@ is the index over it. If the two disagree, **the ledger is ground truth** — fi
 - **Host P3/P4** — Inbox two-door (bell → quick-triage panel, OD-20) and Deputy chrome. Inbox still
   navigates away instead of opening in the shared panel: the last piece of the owner's original
   "inbox opens on top, task opens on the side" complaint.
-- **`ModalShell` follow-up** — OccurrenceAssignDialog + CreatePersonDialog are hand-rolled overlays;
-  correctly NOT forced onto the confirm primitive (they aren't confirms).
+- **`ModalShell` follow-up is now implemented on `v3-redesign`** — command launcher, Signal capture,
+  ConfirmDialog/ConfirmArchive, OccurrenceAssignDialog, and CreatePersonDialog share one interaction
+  owner while retaining their distinct content and dismissal policies. Overlay-host integration and
+  its synthetic leave-guard proof remain tracked separately under V3 Issue 4.
 - **The ratify list** — `docs/reviews/claude-redesign-buildout-completion-vdrd17.md` § Ratify before
   merge. Owner decisions, unchanged by any agent.
 - **The owner's walkthrough** — nobody has replaced it. Rendered evidence ≠ the owner's eyes.

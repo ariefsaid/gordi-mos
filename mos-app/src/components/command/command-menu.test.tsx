@@ -58,6 +58,8 @@ describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
     renderMenu()
     const dialog = screen.getByRole('dialog', { name: 'Command menu' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 
   it('AC-K07: Esc closes the menu', () => {

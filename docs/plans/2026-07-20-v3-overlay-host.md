@@ -810,19 +810,19 @@ The following master acceptance criteria are deliberately not Issue 4 claims. Ea
 
 **Files:** create `mos-app/src/components/ui/modal-shell.tsx`, `mos-app/src/components/ui/modal-shell.test.tsx`; modify `mos-app/src/components/command/command-menu.tsx`, `mos-app/src/components/command/command-menu.test.tsx`, `mos-app/src/shell/signal-composer-host.tsx`, `mos-app/src/shell/signal-composer-host.test.tsx`, `mos-app/src/components/ui/confirm-dialog.tsx`, `mos-app/src/components/admin/confirm-dialog.test.tsx`, `mos-app/src/components/tasks/confirm-archive.test.tsx`, `mos-app/src/components/tasks/occurrence-assign-dialog.tsx`, `mos-app/src/components/tasks/occurrence-assign-dialog.test.tsx`, `mos-app/src/components/admin/create-person-dialog.tsx`, and `mos-app/src/components/admin/create-person-dialog.test.tsx`.
 
-- [ ] **Step 1 (4 min):** Write red `ModalShell` tests for `aria-modal`, accessible name/description, first-control focus, Tab wrap, Escape, optional backdrop close, focus return, busy/reveal non-dismissal, phone full-screen, 16px centered phone gutter, and reduced-motion-safe classes.
+- [x] **Step 1 (4 min):** Write red `ModalShell` tests for `aria-modal`, accessible name/description, first-control focus, Tab wrap, Escape, optional backdrop close, focus return, busy/reveal non-dismissal, phone full-screen, 16px centered phone gutter, and reduced-motion-safe classes.
 
   ```sh
   npm test -- src/components/ui/modal-shell.test.tsx
   ```
 
-- [ ] **Step 2 (5 min):** Implement `ModalShell` from the exact interface above. It must render one `.scrim` at `--z-modal`, one labelled surface, and no duplicate document listeners when nested content changes. A modal with no focusable control focuses its labelled heading.
+- [x] **Step 2 (5 min):** Implement `ModalShell` from the exact interface above. It must render one `.scrim` at `--z-modal`, one labelled surface, and no duplicate document listeners when nested content changes. A modal with no focusable control focuses its labelled heading.
 
-- [ ] **Step 3 (4 min):** Wrap `CommandMenu` with `ModalShell surface="centered" phoneMode="centered"`. Preserve its current centered placement, query/search results, command activation, `onShareSignal`, `Ctrl+K`/`Meta+K`, and existing `AC-017` goal oracle. Remove only its duplicate shell focus/Escape/scrim code after the modal tests are green.
+- [x] **Step 3 (4 min):** Wrap `CommandMenu` with `ModalShell surface="centered" phoneMode="centered"`. Preserve its current centered placement, query/search results, command activation, `onShareSignal`, `Ctrl+K`/`Meta+K`, and existing `AC-017` goal oracle. Remove only its duplicate shell focus/Escape/scrim code after the modal tests are green.
 
-- [ ] **Step 4 (4 min):** Wrap `SignalComposerHost` with `ModalShell surface="centered" phoneMode="fullscreen"`; keep `useSignalComposer`, roster loading, post count, `SignalComposer`, and `onShared`. It is a centered capture job, not a record panel.
+- [x] **Step 4 (4 min):** Wrap `SignalComposerHost` with `ModalShell surface="centered" phoneMode="fullscreen"`; keep `useSignalComposer`, roster loading, post count, `SignalComposer`, and `onShared`. It is a centered capture job, not a record panel.
 
-- [ ] **Step 5 (5 min):** Make `ConfirmDialog` a `ModalShell` preset without changing `ConfirmDialogProps`, async busy/error behavior, Cancel-first focus, destructive tone, or `ConfirmArchive`/admin re-export. Wrap `OccurrenceAssignDialog` and `CreatePersonDialog` in `ModalShell` while preserving their current data/loading/error/reveal flows, roles, IDs, and dismiss-on-reveal rules. These are centered dialogs, not record tenants.
+- [x] **Step 5 (5 min):** Make `ConfirmDialog` a `ModalShell` preset without changing `ConfirmDialogProps`, async busy/error behavior, Cancel-first focus, destructive tone, or `ConfirmArchive`/admin re-export. Wrap `OccurrenceAssignDialog` and `CreatePersonDialog` in `ModalShell` while preserving their current data/loading/error/reveal flows, roles, IDs, and dismiss-on-reveal rules. These are centered dialogs, not record tenants.
 
 - [ ] **Step 6 (4 min):** Run the synthetic tenant proof from the interface section with the real `ModalShell`: mount its `leaveGuard`, trigger explicit Close/Escape/internal Back/browser Back/Forward/replaceRoot/replaceCurrent/openPage, assert the tenant-owned confirmation receives focus, click Stay and assert the draft/URL/marker/focus remain, then click Leave and assert the original transition completes with one approval-token consumption. This test owns the confirmation composition boundary; it must not mention Deputy dirty state or Inbox copy.
 
