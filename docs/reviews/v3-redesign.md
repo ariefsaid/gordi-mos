@@ -548,3 +548,26 @@ coherent frames; "Admin" label confirmed an intentional scope chip. Its one FAIL
 ring) was REFUTED by the Director with a real keyboard Tab: `:focus-visible` yields the standard
 2px accent ring at 2px offset; the audit's probe used programmatic focus, which never sets
 `:focus-visible` — measurement artifact, recorded here so the next audit doesn't repeat it.
+
+### Issue 11 first wave + collection DAL merged (2026-07-21)
+
+`v3/pages` (collection-view DAL, 13 red-first tests, validate-before-DAL enforced; pgTAP proof =
+suite 102, already green on the live stack) and `v3/routes` (Issue 11 wave 1: /profile Management;
+/events /inbox /cafe /ecommerce /roastery Workspace — registry-armed, ContextRow auto-suppressed,
+inventory regenerated 71 CSS families) merged. Post-merge: shell+pages 772/772, typecheck 0,
+inventory `--check` 0; Director visual pass on Profile/Events/Inbox at desktop: single h1 + job
+sentence, clean states. Honest skips recorded by the lane: follow-ups queue (classification tension
+— handle says focused-record, page needs a workspace count → NEW REGISTER LINE R-OWNER-5 below),
+/money dashboards (`.dash-head` freshness layout), kitchen/budget/pricing (deliberate no-head
+branches), objectives/projects (bespoke frames), Home.
+
+- **R-OWNER-5 (Issue 11): follow-ups queue family classification.** The route handle classifies
+  `/money/follow-ups` + `/work/follow-ups/:id` as focused-record (prose head, no count pill), but
+  the page is a queue whose head renders a count + overdue meta. Decide: reclassify as Workspace, or
+  extend the focused-record contract. Deferred unmigrated until ruled.
+- R-T-13 (Issue 11): `inbox-page.tsx` moved out of the RI-IA-2 raw-PageHead source scan — the
+  invariant now enforced by the migration guard instead (moved, not bent; documented inline).
+
+Lanes still building: `v3/sig` (Signal list→engine per Option A ruling — record-opening seam
+protected, R-T-4 gates the swap) and `v3/tasks` (TasksWorkspace descriptor rewrite under 4 Director
+rulings incl. the RATIFY'd Team-chip removal).
