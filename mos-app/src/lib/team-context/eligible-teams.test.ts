@@ -36,6 +36,11 @@ describe('filterEffectiveMemberships (effective-dated correction)', () => {
     expect(filterEffectiveMemberships(rows, today)).toHaveLength(1)
   })
 
+  it('keeps a membership that starts exactly today (effective_from boundary inclusive)', () => {
+    const rows = [membership({ team_id: 't1', effective_from: '2026-07-20', effective_to: null })]
+    expect(filterEffectiveMemberships(rows, today).map((r) => r.team_id)).toEqual(['t1'])
+  })
+
   it('drops a membership that has not started yet (effective_from in the future)', () => {
     const rows = [membership({ team_id: 't1', effective_from: '2026-08-01' })]
     expect(filterEffectiveMemberships(rows, today)).toHaveLength(0)

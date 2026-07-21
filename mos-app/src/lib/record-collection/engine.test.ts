@@ -34,15 +34,35 @@ const ROWS: FakeTask[] = [
   { id: 't-2', title: 'Finalise Q3 roastery output forecast', status: 'In Progress' },
 ]
 
+// A session-stateful fake host that mirrors the real Issue 4 controller closely enough to prove
+// the open dispatcher: openRoot starts a one-frame session, push stacks a frame, and closeSession
+// models the user closing the overlay (Close/Escape/Back-to-root). `session` is read live.
 function fakeHost(): CollectionOverlayHost & {
   openRoot: ReturnType<typeof vi.fn>
   push: ReturnType<typeof vi.fn>
   openPage: ReturnType<typeof vi.fn>
+  closeSession: () => void
 } {
+  let frames: { entry: unknown }[] = []
+  const committed = { status: 'committed' as const }
   return {
-    openRoot: vi.fn(async () => ({ status: 'committed' as const })),
-    push: vi.fn(async () => ({ status: 'committed' as const })),
-    openPage: vi.fn(async () => ({ status: 'committed' as const })),
+    get session() {
+      return frames.length
+        ? ({ id: 'ovs-fake', mode: 'route', frames } as unknown as CollectionOverlayHost['session'])
+        : null
+    },
+    openRoot: vi.fn(async (entry: unknown) => {
+      frames = [{ entry }]
+      return committed
+    }),
+    push: vi.fn(async (entry: unknown) => {
+      frames = [...frames, { entry }]
+      return committed
+    }),
+    openPage: vi.fn(async () => committed),
+    closeSession: () => {
+      frames = []
+    },
   }
 }
 
@@ -284,6 +304,26 @@ describe('RecordCollection engine', () => {
     await flush()
     expect(host.openRoot).toHaveBeenCalledTimes(1)
     expect(host.push).toHaveBeenCalledTimes(1)
+  })
+
+  it('FR-V3-003/004/006 seam: a fresh open after the overlay session closes opens a new root, never a no-op push', async () => {
+    const host = fakeHost()
+    const c = createRecordCollectionController(makeDescriptor({ host }), INITIAL)
+    await flush()
+    const source = { collectionId: 'tasks', presentation: 'table' as const, pathname: '/tasks', search: '', query: c.state.query }
+    c.openRecord(ROWS[0], source)
+    await flush()
+    expect(host.openRoot).toHaveBeenCalledTimes(1)
+
+    // The user closes the panel (Close/Escape/Back-to-root): the session is gone.
+    host.closeSession()
+
+    // Opening again must re-open a ROOT, not push onto the now-empty session (which the host would
+    // silently drop). This is the regression the local openCount caused.
+    c.openRecord(ROWS[1], source)
+    await flush()
+    expect(host.openRoot).toHaveBeenCalledTimes(2)
+    expect(host.push).not.toHaveBeenCalled()
   })
 
   it('FR-V3-007: incompatible presentation switch does not reload, clear selection, or rewrite URL state', async () => {

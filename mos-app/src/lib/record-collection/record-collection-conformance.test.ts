@@ -6,7 +6,12 @@ import {
   type NotificationRow,
 } from '@/test/fixtures/v3-record-collection'
 import type { CollectionOverlayHost } from './types'
-import { taskCollectionQuery, type TaskCollectionQuery } from '@/components/tasks/task-collection-adapter'
+import { checkPresentationCompatibility } from './query-state'
+import {
+  taskCollectionQuery,
+  type TaskCollectionPresentation,
+  type TaskCollectionQuery,
+} from '@/components/tasks/task-collection-adapter'
 
 const INBOX_INITIAL = {
   query: { layout: 'queue' as const, view: 'all' as const, sort: 'unread' as const, savedViewId: null },
@@ -15,11 +20,26 @@ const INBOX_INITIAL = {
   accessRoles: ['member'],
 }
 
+// Session-stateful fake host: openRoot starts a one-frame session, push stacks; `session` is read
+// live so the engine dispatches a first open to openRoot and a consecutive open to push.
 function fakeHost(): CollectionOverlayHost & { openRoot: ReturnType<typeof vi.fn>; push: ReturnType<typeof vi.fn> } {
+  let frames: { entry: unknown }[] = []
+  const committed = { status: 'committed' as const }
   return {
-    openRoot: vi.fn(async () => ({ status: 'committed' as const })),
-    push: vi.fn(async () => ({ status: 'committed' as const })),
-    openPage: vi.fn(async () => ({ status: 'committed' as const })),
+    get session() {
+      return frames.length
+        ? ({ id: 'ovs-fake', mode: 'route', frames } as unknown as CollectionOverlayHost['session'])
+        : null
+    },
+    openRoot: vi.fn(async (entry: unknown) => {
+      frames = [{ entry }]
+      return committed
+    }),
+    push: vi.fn(async (entry: unknown) => {
+      frames = [...frames, { entry }]
+      return committed
+    }),
+    openPage: vi.fn(async () => committed),
   }
 }
 
@@ -82,6 +102,32 @@ describe('RecordCollection conformance (test-only Inbox boundary)', () => {
     // The Task query grammar has no Signal `category` key at all — it cannot cross the boundary.
     expect('category' in taskCollectionQuery.neutral).toBe(false)
     expect(taskCollectionQuery.keys).not.toContain('category' as never)
+
+    // Actually run the Task guard on a query bearing a Signal `category` alongside a populated Task
+    // `groupBy` that the target presentation drops. The switch is REJECTED, and the alien Signal
+    // `category` is structurally invisible to the Task guard: it is neither honored nor surfaced as
+    // an issue — it cannot cross the boundary even to be evaluated as a Task key.
+    const rogue = {
+      ...taskCollectionQuery.neutral,
+      groupBy: 'occurrence',
+      category: 'Ops',
+    } as unknown as TaskCollectionQuery
+    const result = checkPresentationCompatibility<TaskCollectionQuery, TaskCollectionPresentation>({
+      query: rogue,
+      schema: taskCollectionQuery,
+      from: 'table',
+      to: 'card',
+      compatibleQueryKeys: {
+        table: taskCollectionQuery.keys,
+        card: taskCollectionQuery.keys.filter((k) => k !== 'groupBy'),
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.key === 'groupBy')).toBe(true)
+      // The Signal key never appears as a recognized/rejected Task key.
+      expect(result.issues.some((i) => i.key === 'category')).toBe(false)
+    }
   })
 
   it('NFR-V3-007: no universal record row or arbitrary JSON query crosses the adapter boundary', () => {

@@ -237,6 +237,9 @@ fi
 if [ -f scripts/v3-live-inventory.mjs ]; then
   node scripts/v3-live-inventory.mjs --check || { echo "FAIL: v3-live-inventory stale"; exit 1; }
 fi
+if [ -f scripts/v3-record-collection-conformance.mjs ]; then
+  node scripts/v3-record-collection-conformance.mjs --check || { echo "FAIL: v3-record-collection-conformance"; exit 1; }
+fi
 
 echo "PASS: all required reviews cleared. Safe to merge."
 echo ""
