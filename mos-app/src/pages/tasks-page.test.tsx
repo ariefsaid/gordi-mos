@@ -192,6 +192,11 @@ const DEFAULT_PEOPLE = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // clearAllMocks resets call history but NOT queued mockResolvedValueOnce values. The live engine
+  // now reloads only on load-affecting query keys (includeArchived/groupBy), so a per-filter second
+  // `Once` some tests queue is no longer consumed within its own test — fully reset listTasks so no
+  // leftover resolution leaks into the next test's initial load.
+  mockListTasks.mockReset()
   stubMatchMedia(true) // desktop by default
   mockGetBusinessUnits.mockResolvedValue(DEFAULT_BUS)
   mockGetPeople.mockResolvedValue(DEFAULT_PEOPLE)
@@ -392,9 +397,10 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
       expect(screen.queryByText('Roastery task')).toBeNull()
       expect(screen.getByText('Kitchen task')).toBeTruthy()
     })
-    expect(mockListTasks).toHaveBeenLastCalledWith(
-      expect.objectContaining({ businessUnitId: 'bu-kitchen' })
-    )
+    // NOTE: BU/Status filtering is now client-side in the collection projector (honest
+    // empty-vs-filtered-empty; only includeArchived is a server concern). The user goal — "selecting
+    // a BU shows only matching BU tasks" — is asserted by the row visibility above; the previous
+    // server-call assertion tested the retired server-side-filter implementation.
   })
 
   it('AC-063: Status filter — selecting a status shows only matching rows', async () => {
@@ -410,9 +416,8 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
       expect(screen.queryByText('Kitchen task')).toBeNull()
       expect(screen.getByText('Roastery task')).toBeTruthy()
     })
-    expect(mockListTasks).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: 'Blocked' })
-    )
+    // Status filtering is client-side in the projector now (see the BU-filter note above); the user
+    // goal is asserted by row visibility, not by the retired server-call shape.
   })
 
   it('AC-063: Person filter — selecting a person shows tasks where they are PIC or Supervisor', async () => {
@@ -1014,7 +1019,10 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
       id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
     })
-    mockListTasks.mockResolvedValueOnce([genTask])
+    // The workspace loads via the collection engine, which re-fetches on view/group changes; the
+    // baseline resolution is persistent so those benign reloads keep returning the same single row.
+    // A one-time override below simulates the post-resolve refresh returning the materialized Task.
+    mockListTasks.mockResolvedValue([genTask])
     const rollup: ProcessRunRollup = {
       process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
       status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,

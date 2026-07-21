@@ -134,20 +134,14 @@ export function TasksToolbar({
           onChange: (value) => onQueryChange({ status: (value || null) as TaskStatus | null }),
         },
         {
-          id: 'task-pic', label: `${t('tasks.pic')} (person)`, value: query.picId ?? '',
+          // Adopted mockup: ONE "Person" filter (Anyone default) that matches a person as PIC OR
+          // Supervisor — never a split PIC/Supervisor pair (that was a migration regression).
+          id: 'task-person', label: t('tasks.filter.person'), value: query.personId ?? '',
           options: [
             { value: '', label: t('tasks.filter.anyone') },
             ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
           ],
-          onChange: (value) => onQueryChange({ picId: value || null }),
-        },
-        {
-          id: 'task-supervisor', label: t('tasks.supervisor'), value: query.supervisorId ?? '',
-          options: [
-            { value: '', label: t('tasks.filter.anyone') },
-            ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
-          ],
-          onChange: (value) => onQueryChange({ supervisorId: value || null }),
+          onChange: (value) => onQueryChange({ personId: value || null }),
         },
         {
           id: 'task-sort', label: t('tasks.filter.sort'), value: `${query.sort}:${query.direction}`,

@@ -15,7 +15,7 @@
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(360px, 33vw, 480px); /* OD-P3-2 drawer width; minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport (min-width:auto blowout) */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 44%); /* Rule 11 "one width" — matches the RecordPanelHost .record-split track (drawer.css). minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport (min-width:auto blowout) */
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — no max-width cap.
      It fills PageFrame's 24px gutters, which equal the topbar's px-6 gutter, so the table's

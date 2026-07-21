@@ -59,6 +59,8 @@ export interface TaskCollectionQuery {
   status: TaskStatus | null
   picId: string | null
   supervisorId: string | null
+  /** The single "Person" filter (adopted mockup): matches a person as PIC *or* Supervisor. */
+  personId: string | null
   groupBy: TaskCollectionGroup
   sort: TaskCollectionSort
   direction: 'ascending' | 'descending'
@@ -100,6 +102,7 @@ export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
   status: null,
   picId: null,
   supervisorId: null,
+  personId: null,
   groupBy: 'none',
   sort: 'due',
   direction: 'ascending',
@@ -110,7 +113,7 @@ export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
 }
 
 const TASK_QUERY_KEYS: readonly QueryKey<TaskCollectionQuery>[] = [
-  'layout', 'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId',
+  'layout', 'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId', 'personId',
   'groupBy', 'sort', 'direction', 'includeArchived', 'overdueOnly', 'occurrenceId', 'savedViewId',
 ]
 
@@ -144,8 +147,14 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
   query.businessUnitId = params.get('bu')
   query.picId = params.get('pic')
   query.supervisorId = params.get('supervisor')
+  query.personId = params.get('person')
   query.occurrenceId = params.get('occurrence')
   query.savedViewId = params.get('saved')
+
+  // Arriving with `?occurrence=<runId>` (the Café panel deep-link, FR-704) lands on the Occurrence
+  // grouping so the run's caption is in view — reusing the same group-by, not a new mechanism. An
+  // explicit `group` param below still wins (parsed after this).
+  if (query.occurrenceId) query.groupBy = 'occurrence'
 
   const status = params.get('status')
   if (status !== null) {
@@ -196,6 +205,7 @@ function serializeTaskQuery(query: TaskCollectionQuery): URLSearchParams {
   if (query.status) p.set('status', SLUG_BY_STATUS[query.status])
   if (query.picId) p.set('pic', query.picId)
   if (query.supervisorId) p.set('supervisor', query.supervisorId)
+  if (query.personId) p.set('person', query.personId)
   if (query.groupBy !== 'none') p.set('group', query.groupBy)
   if (query.sort !== TASK_COLLECTION_NEUTRAL_QUERY.sort) p.set('sort', query.sort)
   if (query.direction !== TASK_COLLECTION_NEUTRAL_QUERY.direction) p.set('dir', query.direction)
@@ -326,6 +336,8 @@ function matchesTaskFilters(r: TaskCollectionRecord, query: TaskCollectionQuery,
   if (query.view === 'my-supervisor' && viewerId && r.supervisorId !== viewerId) return false
   if (query.picId && r.picId !== query.picId) return false
   if (query.supervisorId && r.supervisorId !== query.supervisorId) return false
+  // The single "Person" filter matches PIC *or* Supervisor (the person's whole involvement).
+  if (query.personId && r.picId !== query.personId && r.supervisorId !== query.personId) return false
   if (query.businessUnitId && r.businessUnitId !== query.businessUnitId) return false
   if (query.status && r.status !== query.status) return false
   if (query.q && !r.title.toLowerCase().includes(query.q.toLowerCase())) return false
@@ -342,6 +354,7 @@ function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
     query.status !== null ||
     query.picId !== null ||
     query.supervisorId !== null ||
+    query.personId !== null ||
     query.overdueOnly ||
     query.view === 'my-work' ||
     query.view === 'my-pic' ||
@@ -455,7 +468,7 @@ export function buildTaskGroups(
 
   // workline
   const byWl = partition(rows, (r) => r.workLineId ?? NO_WORKLINE_GROUP_KEY)
-  const suppressZeroWhenPic = query.picId !== null
+  const suppressZeroWhenPic = query.picId !== null || query.personId !== null
   const named: TaskRenderGroup[] = []
   for (const [id, name] of ctx.workLinesById) {
     const groupRows = byWl.get(id) ?? []
@@ -760,6 +773,11 @@ export const taskCollectionDescriptor: RecordCollectionDescriptor<
   query: taskCollectionQuery,
   savedViews: taskCollectionSavedViews,
   presentations: { table: taskTablePresentation, card: taskCardPresentation },
+  // Only `includeArchived` (server-side row scope) and `groupBy` (occurrence roll-up/provenance
+  // fetch) change what `load()` returns; every other filter/sort/view is applied client-side in the
+  // projector, so those changes reproject the snapshot without refetching tasks and the lookup
+  // tables (business units, people, objectives, work-lines).
+  loadKeys: ['includeArchived', 'groupBy'],
   load: loadTaskCollection,
   project: (data, query) => projectTaskCollection(data, query),
   getId: (record) => record.id,

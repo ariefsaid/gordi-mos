@@ -37,6 +37,29 @@ function renderCtx(path: string) {
   )
 }
 
+// Full anatomy render: region 2 (ContextRow) above region 3 (PageHead), exactly as a migrated
+// PageFamilyFrame route composes them. Used to prove the job sentence is shown EXACTLY ONCE and
+// owned by region 3 (ContextRow suppresses region 2) on migrated routes.
+function renderMigratedPage(path: string, title: string, jobSentence: string) {
+  return render(
+    <I18nProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <ContextRow />
+                <PageHead family="workspace" variant="content" title={title} jobSentence={jobSentence} />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   setAuth([])
@@ -49,9 +72,16 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(region).toHaveAttribute('data-anatomy', 'context-row')
   })
 
-  it('AC-013: shows the Home job sentence at /', () => {
+  it('AC-013 / R-OWNER-1: the Home job sentence is shown exactly once, owned by region 3 at the migrated / route', () => {
+    // `/` migrated onto a PageFamilyFrame (Issue 11) whose region-3 PageHead owns the sentence, so
+    // ContextRow (region 2) must suppress its copy — the page still shows the sentence exactly once.
+    renderMigratedPage('/', 'Home', 'What needs my attention right now?')
+    expect(screen.getAllByText('What needs my attention right now?')).toHaveLength(1)
+  })
+
+  it('R-OWNER-1: suppresses the Home job sentence in ContextRow at the migrated / route', () => {
     renderCtx('/')
-    expect(screen.getByText('What needs my attention right now?')).toBeInTheDocument()
+    expect(screen.queryByText('What needs my attention right now?')).not.toBeInTheDocument()
   })
 
   it('AC-013: shows the Signals job sentence at /work/signals', () => {
@@ -69,9 +99,10 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(screen.queryByText('Find and do the work I own or my Team owns.')).not.toBeInTheDocument()
   })
 
-  it('AC-013: shows the Money job sentence at /money', () => {
-    renderCtx('/money')
-    expect(screen.getByText('Trust the financial figures and act on money exceptions.')).toBeInTheDocument()
+  it('AC-013 / R-OWNER-1: the Money job sentence is shown exactly once, owned by region 3 at the migrated /money route', () => {
+    // `/money` migrated onto a PageFamilyFrame (Issue 11); region-3 PageHead owns the sentence.
+    renderMigratedPage('/money', 'Money', 'Trust the financial figures and act on money exceptions.')
+    expect(screen.getAllByText('Trust the financial figures and act on money exceptions.')).toHaveLength(1)
   })
 
   it('AC-013: shows the viewer scope signal, not the viewer name, in the context row', () => {
@@ -111,8 +142,10 @@ describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-f
   })
 
   it('keeps the ContextRow job sentence on an unmigrated route (there it is the only job sentence)', () => {
-    renderCtx('/money')
-    expect(screen.getByText('Trust the financial figures and act on money exceptions.')).toBeInTheDocument()
+    // `/work/signals` is a deferred (unmigrated) route — no region-3 sentence — so ContextRow stays
+    // its sole owner. (`/money` was moved here as a migrated route in Issue 11; region 3 owns it now.)
+    renderCtx('/work/signals')
+    expect(screen.getByText('Search and revisit the Signals your Teams have shared.')).toBeInTheDocument()
   })
 
   it('still renders the Context region (with scope) on a migrated route', () => {
