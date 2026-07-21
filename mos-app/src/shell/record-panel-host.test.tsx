@@ -98,12 +98,16 @@ describe('RecordPanelHost — close/Esc/scrim (FR-1 / I2)', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('split regime does NOT Esc-close (non-modal: the page stays live for triage)', () => {
+  // Plan 2026-07-20-v3-overlay-host Task 4 (deliberate change): Escape returns ONE navigation
+  // level in every regime, including the ≥1100px non-modal split, routed through the host's
+  // leaveGuard as intent 'escape'. This supersedes the old "split does NOT Esc-close" goal.
+  it('split regime Esc closes with the escape intent (I2 leaveGuard path — plan Task 4)', () => {
     const onClose = vi.fn()
     renderHost({ onClose })
     const aside = screen.getByRole('complementary', { name: 'Signal' })
     fireEvent.keyDown(aside, { key: 'Escape' })
-    expect(onClose).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenLastCalledWith('escape')
   })
 })
 
@@ -153,13 +157,27 @@ describe('RecordPanelHost — shell parity across tenants (AC-RPH-2)', () => {
 })
 
 describe('RecordPanelHost — overlay-host oracle + stack chrome (V3 Issue 4)', () => {
-  it('owner/entryKey → the host root carries the data-overlay-host oracle attributes', () => {
+  // The oracle attrs ride the SHEET aside in BOTH regimes so a Playwright geometry check
+  // measures the panel itself, never the full-viewport modal root (review Minor fix).
+  it('modal regime: the oracle attrs ride the sheet <aside>, not the modal root', () => {
     stubWidths({ split: false, band: true, desktop: true })
     renderHost({ label: 'Signal', owner: 'signals', entryKey: 'signal:42' })
     const host = document.querySelector<HTMLElement>('[data-overlay-host="true"]')
     expect(host).toBeTruthy()
+    expect(host!.tagName).toBe('ASIDE')
+    expect(host!.getAttribute('role')).toBe('dialog')
     expect(host!.getAttribute('data-overlay-owner')).toBe('signals')
     expect(host!.getAttribute('data-overlay-entry')).toBe('signal:42')
+    // the modal root wrapper no longer carries the oracle (it is not the sheet)
+    expect(document.querySelector('.drawer-modal-root')!.getAttribute('data-overlay-host')).toBeNull()
+  })
+
+  it('split regime: the oracle attrs ride the non-modal <aside> panel', () => {
+    renderHost({ label: 'Signal', owner: 'signals', entryKey: 'signal:42' })
+    const host = document.querySelector<HTMLElement>('[data-overlay-host="true"]')
+    expect(host!.tagName).toBe('ASIDE')
+    expect(host).toHaveClass('drawer')
+    expect(host!.getAttribute('data-overlay-owner')).toBe('signals')
   })
 
   it('no owner → no data-overlay-host oracle (a bare tenant render stays anonymous)', () => {

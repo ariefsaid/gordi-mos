@@ -18,7 +18,11 @@
    and the list runs full-width underneath. */
 .record-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(360px, 33vw, 480px);
+  /* V3 overlay-host geometry (plan 2026-07-20-v3-overlay-host Task 4): the record
+     panel occupies a 40–45% desktop track (not 33vw), so the opened record has room
+     while the collection keeps enough context beside it (DESIGN.md experience-contract
+     Rule 8-desktop: rail + header + frame + collection + 40–45% panel, no clip). */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 44%);
   align-items: start; gap: 12px;
 }
 
@@ -46,7 +50,9 @@
 /* Right-side sheet (desktop / narrow-laptop band). */
 .drawer-modal.drawer-sheet {
   position: absolute; top: 0; right: 0; bottom: 0;
-  width: clamp(360px, 50vw, 520px); border-radius: 0;
+  /* Intermediate-width (768–1099px) right sheet: ~45% of the viewport, capped at 520px
+     (plan Task 4 Step 3). max-width:100% keeps it in-bounds if the viewport is narrow. */
+  width: min(45vw, 520px); max-width: 100%; border-radius: 0;
   border: 0; border-left: 1px solid var(--border);
   box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
   display: flex; flex-direction: column;
