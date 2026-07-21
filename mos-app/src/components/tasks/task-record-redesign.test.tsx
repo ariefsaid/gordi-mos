@@ -84,7 +84,7 @@ beforeEach(() => {
 })
 
 describe('OD-REDESIGN-62 — typed Task record', () => {
-  it('shows Team, PIC, Supervisor, Due, source, completion, and reassignment without Task RACI grammar', async () => {
+  it('§Task-11: shows PIC, Supervisor, Due, source, completion, and reassignment — NO Team field (Issue-8 gate), without Task RACI grammar', async () => {
     const task = makeTask()
     vi.mocked(getTask)
       .mockResolvedValueOnce({ task, checklist: [], events: [] })
@@ -100,7 +100,10 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
 
-    expect(screen.getAllByText('Team').length).toBeGreaterThan(0)
+    // DELIBERATE goal change (record-collection plan §Task-11): the live Task record renders NO Team
+    // field until Issue 8 supplies the real team_id contract. Business Unit ("Café Operations", the
+    // name of BU `team-cafe`) is DISTINCT and still renders; only the Team field is gone.
+    expect(screen.queryByText('Team')).toBeNull()
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
     expect(screen.getByText('PIC')).toBeInTheDocument()
     // PIC + Supervisor render as editable selects (each lists all people as options), so a
@@ -141,7 +144,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
   // Wave 2c (OD-REDESIGN-61..64): the optional columns moved OUT of the default desktop
   // table must remain reachable in the record drawer/full page. This proves the
   // Objective field (the one not covered by the test above) resolves + renders in the
-  // drawer — alongside Team/Source/Work-line already asserted above.
+  // drawer — alongside Source/Work-line already asserted above (Team is gated off, §Task-11).
   it('AC-W2C: Objective (moved out of the table) stays reachable in the drawer', async () => {
     vi.mocked(listObjectives).mockResolvedValue([
       { id: 'obj-direct', name: 'Grow direct orders' } as never,

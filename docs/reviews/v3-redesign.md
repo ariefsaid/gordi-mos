@@ -751,3 +751,28 @@ Routing: `v3/tasks-contract` (GLM-5.2) — remove Team-work chip + Team visible 
 (scrollable chip strip, view-and-filters collapse, single creation door, 44px floors). 
 `v3/sig-home-polish` (GLM-5.2) — Signals attention semantics + duplicate job copy; Home attention-row
 decision context. Inbox seeded-notification proof queued to Issue 9 acceptance prep.
+
+### v3/tasks-contract — Luna 390 + §Task-11 BLOCKs resolved (2026-07-22)
+
+Both Luna BLOCKs against the Tasks surface are resolved on `v3/tasks-contract`.
+
+- RATIFY-BEFORE-MERGE: Team-work chip + visible Team field removed per record-collection plan §Task-11 (Issue-8 gate)
+- RATIFY-BEFORE-MERGE: Luna 390 audit (b) — manager phones now ALSO collapse the View & filters config behind the single disclosure so the first task card leads (reverses OD-REDESIGN-61's manager-keeps-dense-toolbar exemption at phone width).
+- RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door; the in-page header "+ Create task" is desktop-only, the phone create door is the global Action Launcher FAB (DESIGN.md one-launcher rule).
+
+BLOCK 1 (§Task-11 UI contract): the `team` TaskCollectionView + Team-work chip + `view=team` plumbing
+were removed from the Task descriptor, toolbar, workspace, saved-view hook, and breadcrumb leaf;
+`view=team` now degrades to the org-visible All view (rejected on parse, like `view=bogus`). The Task
+record panel no longer renders the Team field (the adapter still ACCEPTS a `team` input and preserves
+the honest model via the exported `teamOwnershipField` seam — Issue 8 re-enables rendering at one
+call site). Affected behavior tests updated as DELIBERATE §Task-11 goal changes.
+
+BLOCK 2 (Luna Tasks @390): (a) the saved-view chip strip is a contained horizontal scroll region
+(`overflow-x:auto`, hidden scrollbar, `flex-wrap:nowrap`) — no page overflow, no clipped "Follow-ups";
+(b) phone collapses filter/config behind ONE "View & filters" disclosure so the first task card is
+above the fold; (c) Table/Card tabs (`view-tabs.css` 40→44px) and saved-view chips
+(`collection-toolbar.css` 38→44px) meet the 44px touch floor; (d) exactly one create door per width.
+
+Evidence: `src/components/tasks` + `src/pages` targeted suite green, `npm run typecheck` clean,
+`npm run lint` (ESLint --max-warnings=0 + stylelint) clean. Rendered 390px getBoundingClientRect
+measurements recorded in the lane report.

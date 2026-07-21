@@ -120,17 +120,42 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   dueDate: 'Due date',
 }
 
-/** The Task ownership fields — Business Unit, PIC, Supervisor, and the DISTINCT honest Team
- *  state — shared by the full record adapter and the metadata-only panel adapter. Business Unit
- *  is NEVER relabelled Team; a real task.team_id lookup fills Team, otherwise it shows the honest
- *  migration state (Issue 5 vocabulary contract). */
+/** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
+ *  fills Team, otherwise it shows the honest migration state. This BUILDER is preserved as the
+ *  Issue-8 seam (the internal model stays honest) but is NOT emitted into the rendered ownership
+ *  fields until Issue 8's real team_id contract lands — record-collection plan §Task-11. Re-enabling
+ *  the Team field is one call at the ownershipFields return site. */
+export function teamOwnershipField(
+  team: TaskTeamView | null | undefined,
+  labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
+): RecordFieldSpec {
+  return {
+    key: 'team',
+    label: labels.team,
+    control: 'team',
+    value: team?.id ?? null,
+    displayValue: team?.label ?? labels.teamUnassigned,
+    editable: false,
+    readOnlyReason: team ? labels.teamFromRecord : labels.teamMigration,
+  }
+}
+
+/** The Task ownership fields — Business Unit, PIC, Supervisor — shared by the full record adapter
+ *  and the metadata-only panel adapter.
+ *
+ *  §Task-11 (Issue-8 gate): the Team field is NOT rendered here until Issue 8 supplies the real
+ *  mos.tasks.team_id contract. The `team` input is still ACCEPTED so the adapter's internal model
+ *  stays honest (see teamOwnershipField above), but no Team field is projected into the record UI. */
 function ownershipFields(
   task: Pick<TaskListRow, 'business_unit_id' | 'responsible_person_id' | 'accountable_person_id'>,
   editable: boolean,
   readOnlyReason: string,
   people: readonly PersonOption[],
   businessUnits: readonly BusinessUnitOption[],
-  team: TaskTeamView | null | undefined,
+  // `_team` is accepted (callers still supply it, so the internal model stays honest — the Issue-8
+  // seam via teamOwnershipField) but intentionally NOT rendered until Issue 8's real team_id
+  // contract lands (record-collection plan §Task-11).
+  _team: TaskTeamView | null | undefined,
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
 ): RecordFieldSpec[] {
   return [
@@ -158,15 +183,6 @@ function ownershipFields(
       displayValue: personName(people, task.accountable_person_id),
       options: personOptions(people),
     }),
-    {
-      key: 'team',
-      label: labels.team,
-      control: 'team',
-      value: team?.id ?? null,
-      displayValue: team?.label ?? labels.teamUnassigned,
-      editable: false,
-      readOnlyReason: team ? labels.teamFromRecord : labels.teamMigration,
-    },
   ]
 }
 

@@ -48,8 +48,10 @@ export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
 
+// §Task-11 (Issue-8 gate): there is NO `team` view. The legacy Team-work chip is removed from the
+// Task descriptor and `view=team` is rejected until Issue 8's real Task team_id contract lands.
 export type TaskCollectionView =
-  | 'all' | 'team' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'followups'
+  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'followups'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -72,7 +74,7 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'team', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
+  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']

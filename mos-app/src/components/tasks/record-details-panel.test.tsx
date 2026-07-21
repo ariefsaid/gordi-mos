@@ -72,16 +72,19 @@ describe('RecordDetailsPanel (AC-R02/R04) — RecordViewer field grammar', () =>
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
   })
 
-  it('AC-R02: shows Status, PIC/Supervisor ownership fields, Business Unit distinct from Team, due, checklist, completion', () => {
+  it('AC-R02: shows Status, PIC/Supervisor ownership fields, Business Unit, due, checklist, completion — NO Team field (§Task-11 Issue-8 gate)', () => {
     renderPanel()
     // Status (above the fold) — editor sees the change-status trigger.
     expect(screen.getByRole('button', { name: /change status/i })).toBeInTheDocument()
     // Ownership fields render through RecordViewer/RecordField.
     expect(screen.getByLabelText('PIC')).toBeInTheDocument()
     expect(screen.getByLabelText('Supervisor')).toBeInTheDocument()
-    // Business Unit and Team are DISTINCT: Team shows the honest missing-Team state, not the BU value.
     expect(screen.getByLabelText('Business Unit')).toBeInTheDocument()
-    expect(screen.getByText(/not assigned yet/i)).toBeInTheDocument()
+    // DELIBERATE goal change (record-collection plan §Task-11): the record panel renders NO Team
+    // field until Issue 8 supplies the real team_id contract — the legacy honest-missing "Team not
+    // assigned yet" row is removed from the live panel.
+    expect(screen.queryByText(/not assigned yet/i)).toBeNull()
+    expect(screen.queryByLabelText('Team')).toBeNull()
     // Mark complete + due + checklist summary.
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.getByLabelText('Due')).toBeInTheDocument()
