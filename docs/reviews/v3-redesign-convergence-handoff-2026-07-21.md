@@ -53,8 +53,8 @@ Read these in order on a cold start:
 
 ## Current branch state
 
-Target branch: `v3-redesign`, local only, current tip `e4bcc0d` (`docs(v3): consolidate convergence
-handoff and audit ledger`). The branch includes the prior page-family/collection/modal/legacy-page
+Target branch: `v3-redesign`, local only, current tip `4a724a2` (`docs(v3): refresh convergence
+handoff tip`). The branch includes the prior page-family/collection/modal/legacy-page
 cleanup wave through `9695fd2`, the independently reviewed auth migration `93555ac`, and this
 handoff. Nothing has been pushed, merged, or deployed.
 
@@ -202,7 +202,7 @@ browser/full-suite fan-out in parallel. The owner must still see the rendered ap
 ## Current handoff truth
 
 At the time of writing, only auth and this documentation handoff are landed on `v3-redesign`
-(`93555ac` and `e4bcc0d`). Overlay and Signal have
+(`93555ac`, `e4bcc0d`, and `4a724a2`). Overlay and Signal have
 uncommitted active work in their isolated branches; Tasks and auth follow-up have active Luna
 threads. No production merge, push, deploy, or owner walkthrough has occurred. A future agent must
 update this section and `docs/agent-context.md` immediately after each reviewed cherry-pick.
