@@ -701,6 +701,9 @@ export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = fals
       setSearchText={setSearchText}
       includeArchived={includeArchived}
       setIncludeArchived={setIncludeArchived}
+      sortCol={sortCol}
+      sortDir={sortDir}
+      onSortChange={(sort, direction) => { setSortCol(sort); setSortDir(direction) }}
       overdueCount={stats?.overdue ?? 0}
       overdueOnly={overdueOnly}
       onOverdueFilter={() => setOverdueOnly(true)}

@@ -279,12 +279,12 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
 
 // ── Visual-fidelity chrome (feat/ui-fidelity-tasks-chrome) ────────────────────
 // Restores the signed mockup's toolbar/header idiom (mock-shell-and-table.html):
-// view-tabs (Table active; Board/Calendar disabled "soon"), the My work/Team work
-// segmented pill, chip-style filter controls, the content-header (count + inline
+// the live Table presentation (no decorative future tabs), built-in work views,
+// shared collection filter controls, the content-header (count + inline
 // Create task), and a FLAT default list. Behavioral goal-oracles (filtering, segment
 // scope, overdue filter, Create task) are unchanged — these assert the new chrome.
-describe('UI-fidelity chrome — view tabs (mockup `.vtab`)', () => {
-  it('renders Table / Board / Calendar view-tabs with Table active', async () => {
+describe('V3 collection grammar — live presentation tabs', () => {
+  it('renders the one live Task presentation with Table active', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
@@ -294,45 +294,38 @@ describe('UI-fidelity chrome — view tabs (mockup `.vtab`)', () => {
     expect(table.getAttribute('aria-selected')).toBe('true')
   })
 
-  it('Board and Calendar view-tabs are disabled placeholders ("soon")', async () => {
+  it('omits unsupported Board and Calendar presentations instead of decorative disabled tabs', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    const board = screen.getByRole('tab', { name: /board/i })
-    const calendar = screen.getByRole('tab', { name: /calendar/i })
-    expect(board).toBeDisabled()
-    expect(calendar).toBeDisabled()
-    expect(board.getAttribute('aria-disabled')).toBe('true')
-    expect(calendar.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.queryByRole('tab', { name: /board/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /calendar/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
   })
 })
 
-describe('UI-fidelity chrome — chip-style filter controls (mockup `.chip`)', () => {
-  it('Status / Business unit / Person / Group filters render as .chip controls', async () => {
+describe('V3 collection grammar — shared filter controls', () => {
+  it('Status / Business unit / Person / Group / Sort use the shared Select shell', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     const { container } = renderTable()
     await waitFor(() => screen.getByText('A task'))
-    // At least 4 chip controls (Group, Business unit, Status, Person)
-    expect(container.querySelectorAll('.toolbar .chip').length).toBeGreaterThanOrEqual(4)
+    expect(container.querySelectorAll('.collection-toolbar .mk-select').length).toBeGreaterThanOrEqual(5)
     // Each filter is still a reachable, labelled combobox (capability preserved)
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /status/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /person/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /sort/i })).toBeInTheDocument()
   })
 
-  it('the chip shows the current value (Status chip reflects the chosen status)', async () => {
+  it('the shared Status control reflects the chosen value', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
-    const { container } = renderTable()
+    renderTable()
     await waitFor(() => screen.getByText('A task'))
     const statusSelect = screen.getByRole('combobox', { name: /status/i })
     fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
     await waitFor(() => {
-      const chip = container.querySelector('.toolbar .chip .ch-v')
-      // Some chip's current-value span reads "Blocked" after the change
-      const values = Array.from(container.querySelectorAll('.toolbar .chip .ch-v')).map(n => n.textContent)
-      expect(values).toContain('Blocked')
-      expect(chip).toBeTruthy()
+      expect(statusSelect).toHaveValue('Blocked')
     })
   })
 })

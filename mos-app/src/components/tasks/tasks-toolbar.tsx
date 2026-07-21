@@ -1,23 +1,13 @@
-// TasksToolbar — the records-workspace toolbar strip, re-presented in the signed
-// mockup idiom (docs/design-mockups/ui-revamp/mock-shell-and-table.html `.toolbar`):
-//   view-tabs (Table active · Board/Calendar disabled "soon") · spacer ·
-//   My work/Team work/Overdue/Follow-ups segmented pill (`.seg`) · chip-style filter controls (`.chip`:
-//   Group / Business unit / Status / Person) · search-mini · Show-archived.
-//
-// Pure presentational control surface — it owns no state; every value + setter is
-// threaded from TasksWorkspace (the data/state orchestrator). The chips wrap the
-// native <select> (a transparent overlay) so the FULL filter capability + native
-// a11y (labelled combobox, keyboard) is preserved — this is a re-skin, not a
-// removal. Extracted from TasksWorkspace to keep that file at composition altitude.
 import type { Dispatch, SetStateAction } from 'react'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import type { TasksGroupBy } from './use-tasks-view-pref'
-import { Chevron } from '@/shell/icons'
-import { ViewTabs, type ViewTab } from '@/components/ui/view-tabs'
+import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
+import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
 import { useT } from '@/i18n/use-t'
 
-import type { TasksSavedView, TasksSavedViewChip } from './use-tasks-saved-view'
+type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
+type SortDir = 'ascending' | 'descending'
 
 export type TasksToolbarProps = {
   groupBy: TasksGroupBy
@@ -34,6 +24,9 @@ export type TasksToolbarProps = {
   setSearchText: Dispatch<SetStateAction<string>>
   includeArchived: boolean
   setIncludeArchived: Dispatch<SetStateAction<boolean>>
+  sortCol: SortCol
+  sortDir: SortDir
+  onSortChange: (sort: SortCol, direction: SortDir) => void
   overdueCount: number
   overdueOnly: boolean
   onOverdueFilter: () => void
@@ -41,14 +34,6 @@ export type TasksToolbarProps = {
   buOptions: BusinessUnitOption[]
   personOptions: PersonOption[]
 }
-
-const SAVED_VIEW_CHIPS: TasksSavedViewChip[] = ['mine', 'team', 'overdue', 'followups']
-
-// View-tabs (the shared ViewTabs primitive, OD-P3-6): Table is the live view;
-// Board + Calendar are non-functional placeholders ("soon"), disabled exactly
-// like the signed mockup. Only Table is live in this slice, so the view-switch is
-// a forward-compatible no-op until Board/Calendar ship.
-const VIEW_TAB_IDS = ['table', 'board', 'calendar'] as const
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
   { value: '', key: 'any' },
@@ -64,10 +49,18 @@ const GROUP_VALUES: { value: TasksGroupBy; key: 'none' | 'status' | 'owner' | 'b
   { value: 'owner', key: 'owner' },
   { value: 'bu', key: 'businessUnit' },
   { value: 'workline', key: 'projectProcess' },
-  // Step 6 (ADR-0051, C1): occurrence-caption grouping for generated Tasks (FR-611).
   { value: 'occurrence', key: 'occurrence' },
 ]
 
+const VIEW_VALUES: { value: TasksSavedViewChip | 'all'; key: 'all' | 'mine' | 'team' | 'overdue' | 'followups' }[] = [
+  { value: 'all', key: 'all' },
+  { value: 'mine', key: 'mine' },
+  { value: 'team', key: 'team' },
+  { value: 'overdue', key: 'overdue' },
+  { value: 'followups', key: 'followups' },
+]
+
+/** Task-specific options projected into the one visible RecordCollection toolbar grammar. */
 export function TasksToolbar({
   groupBy, setGroupBy,
   businessUnitId, setBusinessUnitId,
@@ -76,11 +69,11 @@ export function TasksToolbar({
   savedView, onSavedViewChange,
   searchText, setSearchText,
   includeArchived, setIncludeArchived,
+  sortCol, sortDir, onSortChange,
   overdueCount, overdueOnly, onOverdueFilter, onClearOverdue,
   buOptions, personOptions,
 }: TasksToolbarProps) {
   const t = useT()
-  const savedViewLabel = (key: TasksSavedViewChip) => t(`tasks.saved.${key}` as const)
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
   const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
     if (key === 'none') return t('tasks.filter.none')
@@ -90,138 +83,106 @@ export function TasksToolbar({
     if (key === 'projectProcess') return t('tasks.filter.projectProcess')
     return t('tasks.filter.occurrence')
   }
-  const viewTabs: ViewTab[] = VIEW_TAB_IDS.map(id => ({
-    id,
-    label: id === 'table' ? t('tasks.tab.table') : id === 'board' ? t('tasks.tab.board') : t('tasks.tab.calendar'),
-    ...(id === 'table' ? {} : { soon: true }),
-  }))
-  // Current-value labels shown inside each chip (mockup `.ch-v`).
-  const groupValue = groupLabel(GROUP_VALUES.find(g => g.value === groupBy)?.key ?? 'none')
-  const buValue = businessUnitId ? buOptions.find(b => b.id === businessUnitId)?.name ?? t('tasks.saved.all') : t('tasks.saved.all')
-  const statusValue = statusLabel(STATUS_VALUES.find(s => s.value === statusFilter)?.key ?? 'any')
-  const personValue = personFilter
-    ? personOptions.find(p => p.id === personFilter)?.full_name ?? t('tasks.filter.anyone')
-    : t('tasks.filter.anyone')
+  const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) =>
+    key === 'all' ? t('tasks.saved.all') : t(`tasks.saved.${key}` as const)
 
   return (
-    <div className="toolbar">
-      {/* View-tabs (shared ViewTabs primitive) — Table live; Board/Calendar "soon" placeholders. */}
-      <ViewTabs
-        ariaLabel={t('tasks.view')}
-        active="table"
-        onChange={() => { /* view switch is a future slice; only Table is live today */ }}
-        tabs={viewTabs}
-      />
-
-      <span className="tb-spacer" />
-
-      <div className="seg" role="group" aria-label={t('tasks.savedViews')}>
-        {SAVED_VIEW_CHIPS.map(key => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={savedView.activeChip === key}
-            className={savedView.activeChip === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
-            onClick={() => onSavedViewChange(savedView.activeChip === key ? 'all' : key)}
-          >
-            {savedViewLabel(key)}
-          </button>
-        ))}
-      </div>
-
-      {/* Group chip — grouping is opt-in (default flat / "None"). */}
-      <label htmlFor="group-by-filter" className="sr-only">{t('tasks.filter.group')}</label>
-      <div className="chip">
-        <span className="ch-k">{t('tasks.filter.group')}</span>
-        <span className="ch-v">{groupValue}</span>
-        <Chevron className="chip-chev" />
-        <select
-          id="group-by-filter"
-          aria-label={t('tasks.filter.group')}
-          value={groupBy}
-          onChange={e => setGroupBy(e.target.value as TasksGroupBy)}
-          className="chip-select"
-        >
-          {GROUP_VALUES.map(g => <option key={g.value} value={g.value}>{groupLabel(g.key)}</option>)}
-        </select>
-      </div>
-
-      {/* Business unit chip */}
-      <label htmlFor="bu-filter" className="sr-only">{t('tasks.filter.businessUnit')}</label>
-      <div className="chip">
-        <span className="ch-k">{t('tasks.filter.unit')}</span>
-        <span className="ch-v">{buValue}</span>
-        <Chevron className="chip-chev" />
-        <select id="bu-filter" aria-label={t('tasks.filter.businessUnit')} value={businessUnitId}
-          onChange={e => setBusinessUnitId(e.target.value)} className="chip-select">
-          <option value="">{t('tasks.saved.all')}</option>
-          {buOptions.map(bu => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
-        </select>
-      </div>
-
-      {/* Status chip */}
-      <label htmlFor="status-filter" className="sr-only">{t('tasks.filter.status')}</label>
-      <div className="chip">
-        <span className="ch-k">{t('tasks.filter.status')}</span>
-        <span className="ch-v">{statusValue}</span>
-        <Chevron className="chip-chev" />
-        <select id="status-filter" aria-label={t('tasks.filter.status')} value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as TaskStatus | '')} className="chip-select">
-          {STATUS_VALUES.map(s => <option key={s.value} value={s.value}>{statusLabel(s.key)}</option>)}
-        </select>
-      </div>
-
-      {/* Person chip */}
-      <label htmlFor="person-filter" className="sr-only">{t('tasks.filter.person')}</label>
-      <div className="chip">
-        <span className="ch-k">{t('tasks.filter.person')}</span>
-        <span className="ch-v">{personValue}</span>
-        <Chevron className="chip-chev" />
-        <select id="person-filter" aria-label={t('tasks.filter.person')} value={personFilter}
-          onChange={e => setPersonFilter(e.target.value)} className="chip-select">
-          <option value="">{t('tasks.filter.anyone')}</option>
-          {personOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-        </select>
-      </div>
-
-      {/* Search-mini (mockup `⌕ Filter rows`) */}
-      <label htmlFor="task-search" className="sr-only">{t('tasks.filter.search')}</label>
-      <div className="search-mini">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-        </svg>
-        <input id="task-search" type="search" placeholder={t('tasks.filter.searchPlaceholder')} value={searchText}
-          onChange={e => setSearchText(e.target.value)} className="search-input" aria-label={t('tasks.filter.search')} />
-      </div>
-
-      <label className="archived-toggle">
-        <input type="checkbox" checked={includeArchived}
-          onChange={e => setIncludeArchived(e.target.checked)} aria-label={t('tasks.filter.showArchived')} className="archived-checkbox" />
-        <span className="archived-label">{t('tasks.filter.showArchived')}</span>
-      </label>
-
-      <div className="toolbar-overdue-controls" data-testid="tasks-overdue-controls">
-        {overdueCount > 0 && (
-          <button
-            type="button"
-            className="overdue-filter-btn"
-            aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
-            onClick={onOverdueFilter}
-          >
-            {t('tasks.filter.overdueCount', { count: overdueCount })}
-          </button>
-        )}
-        {overdueOnly && (
-          <button
-            type="button"
-            className="overdue-chip"
-            aria-label={t('tasks.filter.clearOverdue')}
-            onClick={onClearOverdue}
-          >
-            {t('tasks.filter.overdueOnly')}
-          </button>
-        )}
-      </div>
-    </div>
+    <CollectionToolbar
+      className="tasks-collection-toolbar"
+      presentation={{
+        label: t('tasks.view'), value: 'table',
+        options: [{ value: 'table', label: t('tasks.tab.table') }],
+        onChange: () => {},
+      }}
+      views={{
+        label: t('tasks.savedViews'),
+        value: savedView.activeChip ?? 'all',
+        options: VIEW_VALUES.map(({ value, key }) => ({ value, label: viewLabel(key) })),
+        onChange: onSavedViewChange,
+      }}
+      search={{
+        label: t('tasks.filter.search'),
+        placeholder: t('tasks.filter.searchPlaceholder'),
+        value: searchText,
+        onChange: setSearchText,
+      }}
+      filters={[
+        {
+          id: 'task-group', label: t('tasks.filter.group'), value: groupBy,
+          options: GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) })),
+          onChange: (value) => setGroupBy(value as TasksGroupBy),
+        },
+        {
+          id: 'task-bu', label: t('tasks.filter.businessUnit'), value: businessUnitId,
+          options: [
+            { value: '', label: t('tasks.saved.all') },
+            ...buOptions.map((bu) => ({ value: bu.id, label: bu.name })),
+          ],
+          onChange: setBusinessUnitId,
+        },
+        {
+          id: 'task-status', label: t('tasks.filter.status'), value: statusFilter,
+          options: STATUS_VALUES.map(({ value, key }) => ({ value, label: statusLabel(key) })),
+          onChange: (value) => setStatusFilter(value as TaskStatus | ''),
+        },
+        {
+          id: 'task-person', label: t('tasks.filter.person'), value: personFilter,
+          options: [
+            { value: '', label: t('tasks.filter.anyone') },
+            ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+          ],
+          onChange: setPersonFilter,
+        },
+        {
+          id: 'task-sort', label: t('tasks.filter.sort'), value: `${sortCol}:${sortDir}`,
+          options: [
+            { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
+            { value: 'due:descending', label: t('tasks.filter.sortDueLatest') },
+            { value: 'task:ascending', label: t('tasks.filter.sortTask') },
+            { value: 'status:ascending', label: t('tasks.filter.sortStatus') },
+            { value: 'owner:ascending', label: t('tasks.filter.sortPic') },
+            { value: 'activity:descending', label: t('tasks.filter.sortActivity') },
+          ],
+          onChange: (value) => {
+            const [sort, direction] = value.split(':')
+            onSortChange(sort as SortCol, direction as SortDir)
+          },
+        },
+      ]}
+      toggles={(
+        <>
+          <label className="collection-toolbar__toggle">
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(event) => setIncludeArchived(event.target.checked)}
+              aria-label={t('tasks.filter.showArchived')}
+              className="archived-checkbox"
+            />
+            <span>{t('tasks.filter.showArchived')}</span>
+          </label>
+          {overdueCount > 0 ? (
+            <button
+              type="button"
+              className="overdue-filter-btn"
+              aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
+              onClick={onOverdueFilter}
+            >
+              {t('tasks.filter.overdueCount', { count: overdueCount })}
+            </button>
+          ) : null}
+          {overdueOnly ? (
+            <button
+              type="button"
+              className="overdue-chip"
+              aria-label={t('tasks.filter.clearOverdue')}
+              onClick={onClearOverdue}
+            >
+              {t('tasks.filter.overdueOnly')}
+            </button>
+          ) : null}
+        </>
+      )}
+    />
   )
 }

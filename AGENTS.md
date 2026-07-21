@@ -76,6 +76,13 @@ final-visual-taste + merge/git duties are unchanged. pi agents drive rendered UI
 `agent-browser` CLI. Fall back to Claude role agents (the Agent tool, `.claude/agents/`) if pi or a
 provider is unavailable — the loop is substrate-agnostic.
 
+**Owner model routing:** GLM-5.2 is the default workhorse coder (roughly the gpt-5.4 capability
+class) for hard implementation and architecture. Nemotron-3-Ultra and DeepSeek-V4-Pro are also
+capable workhorse coders; all three are text-only and must not be treated as visual reviewers.
+Inkling and MiniMax v3 are the preferred multimodal alternatives when rendered UI/image judgment is
+required; they are slightly less capable overall, so their implementation and review claims receive
+tighter Director verification. Availability/cost routing never weakens the repo gates.
+
 **pi output discipline (owner-directed):** always redirect a pi run's stdout/stderr to a file. Never
 stream, tail, poll, or repeatedly read that file while the run is live; this burns context without
 improving the result. After launch, leave the process alone and wait for the harness notification or
@@ -83,9 +90,11 @@ tracked process completion. Only after it has exited, read the log once (sentine
 claims), then inspect the diff and independently verify the work. A silent redirected log while pi is
 running is expected and is not a reason to poll it.
 
-**OOM discipline (owner-directed):** Codex/Claude desktop memory is a hard constraint. Run at most one
-pi worker at a time; never combine a pi worker with parallel browser/test workers; redirect output and
-do not hold a long-lived streamed tool wait in the app. Prefer small sequential test targets
+**OOM discipline (owner-directed):** Codex/Claude desktop memory is a hard constraint. Default to one
+pi worker after any memory incident; 2–3 workers are allowed only while system memory is healthy and
+their worktrees/file scopes are isolated. Across NIM workers, keep total agentic traffic below the
+shared 40 RPM API cap. Never combine a memory-heavy pi wave with parallel browser/test workers;
+redirect output and do not hold a long-lived streamed tool wait in the app. Prefer small sequential test targets
 (`--maxWorkers=1`), one screenshot at a time, and bounded file reads. Check the worker once after about
 two minutes only to confirm it is alive, then leave it alone until exit. If app/system memory spikes or
 the desktop app crashes, terminate surviving child workers before inspecting partial work; resume as a

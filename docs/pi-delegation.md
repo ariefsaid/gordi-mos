@@ -26,6 +26,12 @@ merge — the release-engineer flow and the Director merge gate (playbook §6) a
 
 ## 2. Model routing (by task complexity)
 
+> **Owner routing update (2026-07-21).** Treat GLM-5.2, Nemotron-3-Ultra, and DeepSeek-V4-Pro as
+> text-only workhorse coding models in roughly the gpt-5.4 capability class. Use Inkling or MiniMax
+> v3 when multimodal/rendered-image judgment is required; they trade somewhat lower general
+> intelligence for vision capability, so verify their work more tightly. Provider cost/availability
+> does not change the security restrictions or merge gates below.
+
 Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/haiku mapping when running pi:
 
 | Substrate | Use for | Claude analog |
@@ -33,7 +39,8 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 | `zai` / `glm-5.2` | **OPUS TIER (owner-directed 2026-07-07, re-confirmed 2026-07-13 — the opus-quality model).** Design-plans, eng-plans, specs, ADRs, architecture/judgment, security-sensitive slices (schema, RLS, RPC, auth), **hard/cross-cutting build slices**; orchestrator/Director of a parallel pi team (§3e) | opus |
 | `zai` / `glm-4.7` | Sonnet-alt **implementer** — routine build slices, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.6-luna` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders. **Owner-directed 2026-07-15: gpt-5.6-luna supersedes the former gpt-5.4 for all reviews AND is the z.ai-cap build fallback; ALWAYS dispatch Luna at MAX reasoning effort (see below).** | opus reviewers |
-| `nvidia` / **`nvidia/nemotron-3-ultra (roster per owner also incl. deepseek-v4-pro, minimax-m3)` (NIM)** | Preferred **overflow builder** when z.ai AND/OR codex are rate-limited — direct NVIDIA NIM endpoint (not free-tier OpenRouter), higher availability. **Routine/low-risk slices only** (CSS, mechanical, throwaway); **never sole author of a security/RLS/RPC/auth/money-path or schema slice** — same lower-trust rule as any non-GLM/-codex substrate | overflow-impl |
+| `nvidia` / **`nvidia/nemotron-3-ultra` or `deepseek-v4-pro` (NIM)** | Text-only workhorse coding and overflow capacity. Suitable for substantial implementation, with Director verification; **never sole author/sign-off for security/RLS/RPC/auth/money-path or schema**. | workhorse-impl |
+| configured multimodal provider / **Inkling or MiniMax v3** | Rendered UI/image inspection and multimodal implementation support when Luna is unavailable. Slightly lower general capability than the text workhorses; verify more tightly. | multimodal-alt |
 | `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback (after NIM) — keeps the loop moving on a 429. Note: OpenRouter Nemotron can 404 on account data-policy guardrails (`openrouter.ai/settings/privacy`); prefer the `nvidia` NIM provider above | best-effort |
 
 > **⚑ GLM-only degraded review mode (gpt-5.6-luna / openai-codex unavailable).** When the cross-family
@@ -112,11 +119,11 @@ pi --provider nvidia --model nvidia/nemotron-3-ultra -p --no-session \
   --append-system-prompt .claude/agents/<role>.md "<brief>" < /dev/null
 ```
 
-Available NIM models (from `models.json`): `nvidia/nemotron-3-ultra` (**Nemotron 3 Ultra** — the one
-to use), plus DeepSeek V4 Flash/Pro, Llama 3.1 70B/405B, Mixtral 8x22B. **Trust tier = lower** (same
-as OpenRouter free): routine/low-risk/CSS/mechanical only; **never** the sole author of a
-security/RLS/RPC/auth/money-path or schema slice, and the Director's double-verify (§5) matters
-*more*, not less. If NIM is unavailable, fall to the OpenRouter free models below.
+Available NIM models (from `models.json`): `nvidia/nemotron-3-ultra` (**Nemotron 3 Ultra**) and
+DeepSeek V4 Pro are owner-approved text-only workhorse coders; DeepSeek V4 Flash, Llama 3.1
+70B/405B, and Mixtral 8x22B remain secondary options. Workhorse status does not authorize sole
+authorship/sign-off of security/RLS/RPC/auth/money/schema changes, and the Director still verifies
+every claim. If NIM is unavailable, fall to the configured alternatives below.
 
 > **⚑ RATE LIMIT — 40 RPM (free account).** The NIM key is a free-tier account capped at **40 API
 > requests/minute**. A single sequential pi worker never approaches this. The risk is **fan-out**: a
