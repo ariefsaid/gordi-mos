@@ -95,6 +95,31 @@ function editableSpec(
   return { ...spec, editable, readOnlyReason: editable ? undefined : readOnlyReason }
 }
 
+/** i18n-able labels for the shared Task field builders. Defaults are English so the full
+ *  createTaskRecordAdapter and the adapter's own unit tests keep their literals; the LIVE
+ *  RecordDetailsPanel passes locale-resolved strings (LocaleParityContract). */
+export interface TaskFieldLabels {
+  businessUnit: string
+  pic: string
+  supervisor: string
+  team: string
+  teamUnassigned: string
+  teamFromRecord: string
+  teamMigration: string
+  dueDate: string
+}
+
+const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
+  businessUnit: 'Business Unit',
+  pic: 'Person in charge (PIC)',
+  supervisor: 'Supervisor',
+  team: 'Team',
+  teamUnassigned: TEAM_UNASSIGNED,
+  teamFromRecord: 'Team is set from the task record',
+  teamMigration: 'No team is assigned to this task yet (data migration).',
+  dueDate: 'Due date',
+}
+
 /** The Task ownership fields — Business Unit, PIC, Supervisor, and the DISTINCT honest Team
  *  state — shared by the full record adapter and the metadata-only panel adapter. Business Unit
  *  is NEVER relabelled Team; a real task.team_id lookup fills Team, otherwise it shows the honest
@@ -106,11 +131,12 @@ function ownershipFields(
   people: readonly PersonOption[],
   businessUnits: readonly BusinessUnitOption[],
   team: TaskTeamView | null | undefined,
+  labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
 ): RecordFieldSpec[] {
   return [
     editableSpec(editable, readOnlyReason, {
       key: 'businessUnit',
-      label: 'Business Unit',
+      label: labels.businessUnit,
       control: 'select',
       value: task.business_unit_id,
       displayValue: buName(businessUnits, task.business_unit_id),
@@ -118,7 +144,7 @@ function ownershipFields(
     }),
     editableSpec(editable, readOnlyReason, {
       key: 'pic',
-      label: 'Person in charge (PIC)',
+      label: labels.pic,
       control: 'person',
       value: task.responsible_person_id,
       displayValue: personName(people, task.responsible_person_id),
@@ -126,7 +152,7 @@ function ownershipFields(
     }),
     editableSpec(editable, readOnlyReason, {
       key: 'supervisor',
-      label: 'Supervisor',
+      label: labels.supervisor,
       control: 'person',
       value: task.accountable_person_id,
       displayValue: personName(people, task.accountable_person_id),
@@ -134,14 +160,12 @@ function ownershipFields(
     }),
     {
       key: 'team',
-      label: 'Team',
+      label: labels.team,
       control: 'team',
       value: team?.id ?? null,
-      displayValue: team?.label ?? TEAM_UNASSIGNED,
+      displayValue: team?.label ?? labels.teamUnassigned,
       editable: false,
-      readOnlyReason: team
-        ? 'Team is set from the task record'
-        : 'No team is assigned to this task yet (data migration).',
+      readOnlyReason: team ? labels.teamFromRecord : labels.teamMigration,
     },
   ]
 }
@@ -151,10 +175,11 @@ function dueField(
   task: Pick<TaskListRow, 'due_date'>,
   editable: boolean,
   readOnlyReason: string,
+  label: string = DEFAULT_TASK_FIELD_LABELS.dueDate,
 ): RecordFieldSpec {
   return editableSpec(editable, readOnlyReason, {
     key: 'dueDate',
-    label: 'Due date',
+    label,
     control: 'date',
     value: task.due_date,
     displayValue: task.due_date ?? 'No due date',
@@ -170,6 +195,10 @@ export interface TaskPanelAdapterInput {
   businessUnits: readonly BusinessUnitOption[]
   /** Only a real task.team_id lookup may populate this (Issue 8 dependency). */
   team?: TaskTeamView | null
+  /** Locale-resolved field labels (LocaleParityContract). Defaults to English. */
+  labels?: TaskFieldLabels
+  /** Locale-resolved section label. Defaults to "Ownership". */
+  sectionLabel?: string
 }
 
 /**
@@ -183,17 +212,18 @@ export interface TaskPanelAdapterInput {
  */
 export function createTaskPanelAdapter(input: TaskPanelAdapterInput): RecordViewerAdapter {
   const { task, editable, people, businessUnits, team } = input
+  const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
   const readOnlyReason = input.readOnlyReason ?? "You don't have permission to edit this task."
 
+  // One labelled group so the panel shows a single ownership landmark (Business Unit · PIC ·
+  // Supervisor · Team · Due) — the identity/status/catalog/checklist stay panel chrome.
   const ownership: RecordMetadataSection = {
     id: 'ownership',
-    label: 'Ownership',
-    fields: ownershipFields(task, editable, readOnlyReason, people, businessUnits, team),
-  }
-  const details: RecordMetadataSection = {
-    id: 'details',
-    label: 'Details',
-    fields: [dueField(task, editable, readOnlyReason)],
+    label: input.sectionLabel ?? 'Ownership',
+    fields: [
+      ...ownershipFields(task, editable, readOnlyReason, people, businessUnits, team, labels),
+      dueField(task, editable, readOnlyReason, labels.dueDate),
+    ],
   }
 
   return {
@@ -201,7 +231,7 @@ export function createTaskPanelAdapter(input: TaskPanelAdapterInput): RecordView
     id: task.id,
     title: task.title,
     typeLabel: 'Task',
-    metadata: [ownership, details],
+    metadata: [ownership],
     relations: [],
     contentSlots: [],
     activity: [],

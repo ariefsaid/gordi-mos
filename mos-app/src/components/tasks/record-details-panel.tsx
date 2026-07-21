@@ -1,11 +1,17 @@
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
-import type { PersonOption } from '@/lib/db/directory'
+import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { StatusPill } from './status-pill'
 import { StatusTrigger } from './status-trigger'
-import { TaskOwnershipCard } from './task-ownership-card'
 import { formatDate, initials } from './task-formatters'
+import {
+  createTaskPanelAdapter,
+  createTaskFieldCommit,
+  type TaskViewerFieldKey,
+  type TaskTeamView,
+} from './task-record-adapter'
+import { RecordViewer } from '@/components/records/record-viewer'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 
@@ -13,10 +19,14 @@ export type RecordDetailsPanelProps = {
   task: TaskListRow
   buName: string
   people: PersonOption[]
+  // Business Unit options for the ownership select (V3 Issue 5 — BU is a distinct editable field).
+  businessUnits: BusinessUnitOption[]
   editable: boolean
   viewerId: string
   // [done, total] checklist tally for the summary field
   checklistCount: [number, number]
+  // Only a real task.team_id lookup may populate this (Issue 8). Null → honest missing-Team state.
+  team?: TaskTeamView | null
   // compact = the drawer-width variant (stacked above the feed). The drawer's
   // pinned header already owns the identity row + Status trigger, so the compact
   // panel suppresses both to avoid duplicate controls.
@@ -29,22 +39,31 @@ export type RecordDetailsPanelProps = {
   objectives?: ObjectiveRow[]
   workLines?: WorkLineRow[]
   onStatusChange: (s: TaskStatus) => void
-  onPicChange: (personId: string) => void
+  // V3 Issue 5 DAL seam: a domain-facing field commit (pic/supervisor/businessUnit/dueDate/...)
+  // — the tenant (TaskSurface) maps the viewer key to the legacy storage column.
+  onUpdateField: (field: TaskViewerFieldKey, value: string | null) => Promise<void>
+  // Bubbles RecordField dirty state up so the tenant can attach the overlay leave-guard.
+  onDirtyChange?: (dirty: boolean) => void
   onMarkComplete?: () => void
   onWorkLineChange?: (id: string | null) => void
   onObjectiveChange?: (id: string | null) => void
 }
 
-// The left details panel of the two-column record surface (ADR-0013 D3): an
-// identity row (task name + "Team · code" sub-line) above field sections —
-// Status (inline StatusTrigger for editors) · Team/PIC/Supervisor · Details.
-// Status + ownership sit above the fold. A `compact` variant renders the same
-// anatomy for the drawer width.
+// The left details panel of the two-column record surface (ADR-0013 D3), migrated onto the shared
+// RecordViewer grammar (V3 Issue 5 tenant half). Its ownership (Business Unit · PIC · Supervisor ·
+// Team) and Due fields render through RecordViewer/RecordField — proving the shared field grammar
+// live, with Enter/blur commit, Escape-cancel, Saving/Saved and error/retry feedback. The panel
+// keeps its own chrome around the viewer: the identity row (h1/h2), the Status section + Mark
+// complete (full mode), and the catalog attribution selects (work-line / objective) + read-only
+// summary (created · checklist), which the metadata-only panel adapter does not model. The
+// RecordViewer identity header is suppressed so the panel's identity row is the only record-name
+// heading (no duplicate h1).
 export function RecordDetailsPanel({
-  task, buName, people, editable, checklistCount, compact,
+  task, buName, people, businessUnits, editable, checklistCount, compact,
+  team = null,
   identityHeadingLevel = 1,
   objectives = [], workLines = [],
-  onStatusChange, onPicChange, onMarkComplete,
+  onStatusChange, onUpdateField, onDirtyChange, onMarkComplete,
   onWorkLineChange, onObjectiveChange,
 }: RecordDetailsPanelProps) {
   const t = useT()
@@ -57,6 +76,28 @@ export function RecordDetailsPanel({
   // Resolve id → name for read-only display
   const workLineName = workLines.find(w => w.id === task.work_line_id)?.name ?? null
   const objectiveName = objectives.find(o => o.id === task.objective_id)?.name ?? null
+
+  const readOnlyReason = task.archived_at
+    ? t('tasks.field.readOnlyArchived')
+    : t('tasks.field.readOnlyNoPermission')
+  const adapter = createTaskPanelAdapter({
+    task, editable, people, businessUnits, team, readOnlyReason,
+    sectionLabel: t('tasks.ownership'),
+    labels: {
+      businessUnit: t('tasks.field.businessUnit'),
+      pic: t('tasks.pic'),
+      supervisor: t('tasks.supervisor'),
+      team: t('tasks.team'),
+      teamUnassigned: t('tasks.field.teamUnassigned'),
+      teamFromRecord: t('tasks.field.teamFromRecord'),
+      teamMigration: t('tasks.field.teamMigration'),
+      dueDate: t('tasks.dueLabel'),
+    },
+  })
+  const commitField = createTaskFieldCommit({
+    onUpdateField,
+    onUpdateStatus: async (s) => onStatusChange(s),
+  })
 
   return (
     <section
@@ -89,32 +130,20 @@ export function RecordDetailsPanel({
         </div>
       )}
 
-      {/* Typed Task ownership — Team, PIC, and Supervisor. */}
-      <div className="rd-section">
-        <div className="rd-section-label">{t('tasks.ownership')}</div>
-        <TaskOwnershipCard
-          task={task}
-          teamName={buName}
-          people={people}
-          canEdit={editable}
-          onPicChange={onPicChange}
-        />
-      </div>
+      {/* Ownership + Due — the shared RecordViewer field grammar. Its identity header is
+          suppressed so the panel's identity row above stays the only record-name heading. */}
+      <RecordViewer
+        adapter={adapter}
+        mode="panel"
+        showIdentityHeader={false}
+        onCommitField={commitField}
+        onDirtyChange={onDirtyChange}
+      />
 
-      {/* Dates + checklist count + work-line + objective */}
+      {/* Catalog attribution + read-only summary — chrome the metadata-only adapter does not model. */}
       <div className="rd-section">
         <div className="rd-section-label">{t('tasks.detailsSection')}</div>
         <dl className="rd-fields">
-          <div className="rd-field">
-            <dt className="rd-field-label">{t('tasks.dueLabel')}</dt>
-            <dd className="rd-field-val tabular-nums">
-              {task.due_date ? formatDate(task.due_date, locale) : '—'}
-            </dd>
-          </div>
-          <div className="rd-field">
-            <dt className="rd-field-label">{t('tasks.team')}</dt>
-            <dd className="rd-field-val">{buName}</dd>
-          </div>
           <div className="rd-field">
             <dt className="rd-field-label">{t('tasks.created')}</dt>
             <dd className="rd-field-val tabular-nums">
