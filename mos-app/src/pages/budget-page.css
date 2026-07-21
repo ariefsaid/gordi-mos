@@ -97,21 +97,6 @@
   align-items: center;
   gap: 12px;
 }
-.bp-label {
-  font-size: 11px;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted-foreground);
-}
-.bp-input {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  background: var(--background);
-  color: var(--foreground);
-}
 .bp-saved {
   color: var(--success);
   font-size: 13px;

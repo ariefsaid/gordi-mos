@@ -32,6 +32,7 @@ import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { TextInput } from '@/components/ui/text-input'
 import './budget-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -290,10 +291,10 @@ export function BudgetPage() {
         </p>
         <div className="bp-form">
           <div className="bp-field">
-            <label className="bp-label" htmlFor="budget-scenario-label">Scenario label</label>
-            <input
+            <TextInput
               id="budget-scenario-label"
-              className="bp-input"
+              label="Scenario label"
+              fullWidth
               value={scenarioLabel}
               onChange={(e) => setScenarioLabel(e.target.value)}
             />

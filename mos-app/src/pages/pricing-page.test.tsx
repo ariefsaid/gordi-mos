@@ -91,6 +91,13 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     expect(screen.queryByRole('button', { name: /save|set price|publish/i })).not.toBeInTheDocument()
   })
 
+  it('uses the shared E7 text-field primitive for the candidate price', async () => {
+    renderPage()
+    const input = await screen.findByLabelText(/candidate price \(rp\)/i)
+    expect(input).toHaveClass('mk-textinput__field')
+    expect(input.closest('.mk-textinput')).toHaveClass('mk-textinput--full')
+  })
+
   it('shows the budgeted COGS + basis as-of the LINKED budget (the certified number)', async () => {
     renderPage()
     expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()

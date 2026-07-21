@@ -1611,9 +1611,9 @@
           "mos-app/src/pages/budget-page.css"
         ],
         "literalKinds": {
-          "font-size": 13,
+          "font-size": 11,
           "line-height": 0,
-          "padding": 2,
+          "padding": 1,
           "margin": 3,
           "gap": 4,
           "width": 2,
@@ -1801,9 +1801,9 @@
           "mos-app/src/pages/pricing-page.css"
         ],
         "literalKinds": {
-          "font-size": 8,
+          "font-size": 6,
           "line-height": 0,
-          "padding": 3,
+          "padding": 2,
           "margin": 3,
           "gap": 5,
           "width": 3,
@@ -4546,9 +4546,9 @@
       "family": "pages/budget-page",
       "scope": "pages",
       "literalKinds": {
-        "font-size": 13,
+        "font-size": 11,
         "line-height": 0,
-        "padding": 2,
+        "padding": 1,
         "margin": 3,
         "gap": 4,
         "width": 2,
@@ -4709,9 +4709,9 @@
       "family": "pages/pricing-page",
       "scope": "pages",
       "literalKinds": {
-        "font-size": 8,
+        "font-size": 6,
         "line-height": 0,
-        "padding": 3,
+        "padding": 2,
         "margin": 3,
         "gap": 5,
         "width": 3,
@@ -4919,9 +4919,9 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 346,
+      "font-size": 342,
       "line-height": 39,
-      "padding": 281,
+      "padding": 279,
       "margin": 81,
       "gap": 217,
       "width": 332,

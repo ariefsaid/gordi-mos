@@ -19,21 +19,6 @@
   flex-direction: column;
   gap: 4px;
 }
-.pp-label {
-  font-size: 11px;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted-foreground);
-}
-.pp-input {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  background: var(--background);
-  color: var(--foreground);
-}
 .pp-meta {
   display: flex;
   align-items: center;

@@ -22,6 +22,7 @@ import {
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
+import { TextInput } from '@/components/ui/text-input'
 import './pricing-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -131,10 +132,10 @@ export function PricingPage() {
             </Select>
           </div>
           <div className="pp-field">
-            <label className="pp-label" htmlFor="pricing-candidate-price">Candidate price (Rp)</label>
-            <input
+            <TextInput
               id="pricing-candidate-price"
-              className="pp-input"
+              label="Candidate price (Rp)"
+              fullWidth
               inputMode="decimal"
               type="number"
               min={0}

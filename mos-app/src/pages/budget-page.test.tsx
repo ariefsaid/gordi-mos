@@ -134,6 +134,13 @@ describe('BudgetPage — populated (fresh + certified)', () => {
     expect(screen.queryByText(/stale/i)).not.toBeInTheDocument()
   })
 
+  it('uses the shared E7 text-field primitive for the scenario label', async () => {
+    renderPage()
+    const input = await screen.findByLabelText(/scenario label/i)
+    expect(input).toHaveClass('mk-textinput__field')
+    expect(input.closest('.mk-textinput')).toHaveClass('mk-textinput--full')
+  })
+
   it('AC-PB-008: capture submits a budget with the linked shape (no unit cost on lines)', async () => {
     vi.mocked(captureBudget).mockResolvedValue('NEW-BUDGET')
     renderPage()
