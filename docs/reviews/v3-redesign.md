@@ -571,3 +571,24 @@ branches), objectives/projects (bespoke frames), Home.
 Lanes still building: `v3/sig` (Signal list→engine per Option A ruling — record-opening seam
 protected, R-T-4 gates the swap) and `v3/tasks` (TasksWorkspace descriptor rewrite under 4 Director
 rulings incl. the RATIFY'd Team-chip removal).
+
+### Director convergence continuation (2026-07-21, local `v3-redesign`)
+
+After the Signal descriptor/control merge, the Director migrated Café, Money, catalog, Home, and
+Follow-ups to their V3 page families and regenerated the deterministic inventory. Follow-ups uses
+Workspace provisionally because the live surface is a queue with count/overdue meta; R-OWNER-5
+remains an owner-ratification line rather than being rewritten as historical approval.
+
+The interaction audit found more centered-overlay drift than the earlier debt list named. One
+`ModalShell` now owns focus entry/return, Tab trap, Escape/backdrop policy, responsive geometry,
+scrim, z-tier, and reduced-motion timing for ConfirmDialog/ConfirmArchive, command launcher, Signal
+capture, Occurrence assignment, Add Person, Role Editor, and both show-once password-reveal paths.
+The PasswordReveal content no longer installs a second document listener. `CHROME-MODAL` now guards
+all production consumers. Focused modal/command/composer battery: 136 tests; later admin extension
+batteries: 46, 67, and 61 tests respectively; typecheck and changed ESLint clean.
+
+Active isolated NIM work: `v3/task-live-migration` (real TasksWorkspace onto the shared collection
+engine) and `v3/record-viewer-live` (one production shell overlay provider/slot). Neither has touched
+the sole local Supabase. Do not claim either complete until its process exits and the Director
+reviews and reruns its proof. Structured content correctly stopped at its hard dependency preflight;
+no orphan JSONB subsystem was started.

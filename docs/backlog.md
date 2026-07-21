@@ -1,16 +1,17 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-20): V3 redesign Issue 2 — Storybook matrix implementation evidence is green locally; independent re-review and owner review are pending.**
+> **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign`.**
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
-> interaction behavior. The exact plan is [`docs/plans/2026-07-20-v3-storybook-matrix.md`](plans/2026-07-20-v3-storybook-matrix.md);
-> the governing delivery sequence is [`docs/specs/v3-redesign.spec.md`](specs/v3-redesign.spec.md) §12;
+> interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
+> implemented locally; Tasks live-engine adoption and the single production overlay-host mount are
+> in isolated NIM worktrees pending independent review. The exact active state and continuation
+> order are in [`docs/agent-context.md`](agent-context.md); the governing delivery sequence remains
+> [`docs/specs/v3-redesign.spec.md`](specs/v3-redesign.spec.md) §12;
 > the deterministic proof is [`docs/reference/v3-storybook-matrix.md`](reference/v3-storybook-matrix.md)
 > and the live inventory is [`docs/reference/v3-live-inventory.md`](reference/v3-live-inventory.md).
 > The evidence ledger is [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md), with rendered files in
 > [`docs/reference/evidence/v3-storybook-2026-07-20/`](reference/evidence/v3-storybook-2026-07-20/).
-> Issue 2 verifies 35 stories, 36 state entries, 3 responsive entries, and 23 canonical jobs. It maps
-> to AC-V3-001 as a workbench/evidence boundary and to NFR-V3-001/002/003/004/005/006/007. It does not
-> claim route migration or representative application acceptance. Issue 3 **Page-family primitives and
+> The Storybook Issue-2 evidence remains valid but is no longer the live stopping point. Issue 3 **Page-family primitives and
 > migration guards**; Issue 4 **Shared overlay/panel/navigation host**; Issue 5 **RecordViewer contract,
 > field primitives, and Task adapter**; Issue 6 **RecordCollection/view engine and Tasks/Signals adapters**;
 > Issue 7 **Inbox triage plus Deputy host integration**; Issue 8 **Café canonical-record integration and

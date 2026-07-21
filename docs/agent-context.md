@@ -24,45 +24,40 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > the delegation posture below are **not** superseded and remain binding.
 >
 > **WHERE ARE WE RIGHT NOW → `docs/reviews/v3-redesign.md` and `docs/reference/v3-live-inventory.md`.**
-> V3 Issue 2 has green implementation evidence locally as a Storybook component/state/responsive
-> proof checkpoint and is pending independent re-review and owner review at the issue boundary. The closed `docs/plans/AUTONOMOUS-RUN-STATE.md` /
+> The active `v3-redesign` branch is now an implementation branch through V3 page families,
+> RecordCollection foundations, and the shared centered-modal grammar; the old Issue-2-only status
+> below is historical. The closed `docs/plans/AUTONOMOUS-RUN-STATE.md` /
 > `CLOUD-AGENT-HANDOFF.md` material is historical; do not use it as the current V3 workstream state.
 
-> **CURRENT WORKSTREAM (2026-07-20): V3 redesign Issue 2 local checkpoint**, workstream label
-> `v3-redesign`, era E8. E7 owns visual styling; current owner law owns IA and interaction behavior.
-> The Issue 2 plan is `docs/plans/2026-07-20-v3-storybook-matrix.md`; the governing spec is
-> `docs/specs/v3-redesign.spec.md` §12; the generated proof is
-> `docs/reference/v3-storybook-matrix.json` / `.md`; the live inventory is
-> `docs/reference/v3-live-inventory.json` / `.md`; the visual evidence is
-> `docs/reference/evidence/v3-storybook-2026-07-20/`; and the review ledger is
-> `docs/reviews/v3-redesign.md`. The complete Issue 2 checkpoint is consolidated on the Director
-> branch through `4fa90c1` (`d2aee27` initial workbench, `c744cf8` hardening, `4fa90c1` evidence
-> reconciliation). The source worktree is clean and nothing has been pushed.
+> **CURRENT WORKSTREAM (2026-07-21): V3 live application convergence**, branch `v3-redesign`,
+> local tip `0a23ceb` at this checkpoint; nothing has been pushed. E7 owns visual styling while the
+> composite owner oracle owns IA/IxD. Page-family migration now covers Home, catalog, Money, Café,
+> and Follow-ups in addition to the prior wave. Tasks and Signals share the visible collection
+> control grammar; the remaining load-bearing work is making live Tasks consume the engine and
+> mounting one production overlay host before Task/Signal records move onto RecordViewer.
 >
-> Verified: 35 Storybook stories, 36 state entries, 3 responsive entries, and 23 canonical jobs;
-> Storybook 10.5.2 with the external `@storybook/test-runner` 0.24.4 ran 7 suites / 35 tests with
-> addon-backed a11y checks; plain `npm ci` succeeded without `--legacy-peer-deps`; Vitest remains
-> 3.2.6. The Director’s Node guard evidence is 21/21 (12 matrix tests + 9 inventory tests), followed
-> by 2/2 deterministic artifact-freshness CLI checks; targeted Vitest is 120/120; typecheck, ESLint,
-> Stylelint,
-> and the post-comment-fix production build pass. A resource-saturated full-suite attempt had two
-> unrelated 5-second timeout flakes; both affected files reran alone at 30/30. Do not treat that
-> attempt as a green full-suite gate.
+> **New local checkpoints after `d85126f`:** `2351e26` Café frames; `cb2d239` Money frames;
+> `eb47a61` catalog frames; `f13c7a8` Home frame; `ef3314d` inventory composition; `15a9571` +
+> `a6fb3fe` + `60ecf24` + `73ed343` + `8266553` one ModalShell for confirmations, command,
+> Signal capture, assignment, Add Person, Role Editor, and show-once password reveal; `bce94fe` +
+> `0a23ceb` Follow-ups Workspace frame and shared labeled inputs. Modal/command/composer focused
+> battery: 136 tests green; follow-up/page-family/inventory batteries green; typecheck and changed
+> ESLint green. This is not yet the final full-suite/rendered acceptance gate.
 >
-> Not done: no route/page migration, no representative application acceptance, no Supabase or
-> Supabase-dependent dev server, and no Issues 3–12 behavior. The exact recorded debts are the
-> canonical Button loading state owned by Issue 3 and future shared RecordPanelHost behavior owned
-> by Issue 4. Issue 2 maps to AC-V3-001 only as a workbench/evidence boundary and to NFR-V3-001/
-> 002/003/004/005/006/007; it does not claim full master acceptance or close the Issue 9 rendered
-> acceptance gate.
+> **In flight in isolated worktrees (NIM provider, not GLM Coding Plan quota):**
+> `v3/task-live-migration` is migrating the real `TasksWorkspace` loader/projection onto
+> `useRecordCollection` + `RecordCollectionSurface`; `v3/record-viewer-live` is mounting exactly one
+> shell-level `OverlayHostProvider`/`OverlayHostSlot`. Both use redirected non-streaming logs and
+> must be independently reviewed before cherry-pick. Only one local Supabase exists; neither worker
+> may start it. Keep at most 2–3 workers and avoid browser/full-suite fan-out after the prior OOM.
 >
-> **Next action:** independent re-review confirms the exact Director range `be8f854..4fa90c1`; then
-> the owner reviews the linked matrix, browser evidence, and review ledger and explicitly approves
-> the Issue 3 gate. Only after that approval may the next harness begin Issue 3 **Page-family
-> primitives and migration guards**. The Issue 3 thread completed a clean preflight only: no code or
-> commit was produced before Issue 2 integration.
+> **Next action:** wait for those two workers to exit; inspect each result once; independently prove
+> the live Tasks engine and one-host invariants; cherry-pick reviewed commits onto this tip. Then run
+> separate bounded Task and Signal RecordViewer migrations, followed by Inbox/Deputy and Café. Issue
+> 10 structured content remains correctly gated until the live viewer/collection/host dependencies
+> and Issues 7–9 are actually complete.
 
-### Consolidated V3 continuation map (2026-07-20)
+### Historical planning-era V3 continuation map (2026-07-20; superseded by current state above)
 
 All useful parallel planning work is committed on this Director branch; the source worktrees are
 clean and no remote action occurred. A replacement harness should resume from this branch, not from
