@@ -86,6 +86,11 @@ export function useRecordCollection<
   const controller = controllerRef.current
   const state = useSyncExternalStore(controller.subscribe, () => controller.state, () => controller.state)
 
+  // Re-bind the live overlay host every render. The controller is built once, but the ambient host
+  // object is recreated whenever its session changes; without this the engine would read a stale
+  // (forever-empty) session and could never tell an open panel from a closed one.
+  controller.bindOverlayHost(host)
+
   // Bind the live location so a presentation can open a record without threading router props.
   controller.setSourceBuilder(() => ({
     collectionId: descriptor.id,

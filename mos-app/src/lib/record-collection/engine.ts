@@ -6,6 +6,7 @@ import type { CollectionViewSpec, PersistedCollectionView } from './collection-v
 import type {
   CollectionAccess,
   CollectionOpenSource,
+  CollectionOverlayHost,
   CollectionProjection,
   CollectionQueryIssue,
   CollectionStatus,
@@ -36,6 +37,12 @@ export interface RecordCollectionController<
     TPresentation
   >
   subscribe(listener: () => void): () => void
+  /**
+   * Bind the live Issue 4 overlay host so `openRecord` reads the *current* session, not a stale
+   * capture. The React hook re-binds each render; a fresh open after the session closes then opens
+   * a new root instead of pushing onto an empty session.
+   */
+  bindOverlayHost(host: CollectionOverlayHost | undefined): void
   setQuery(next: TQuery): void
   switchPresentation(next: TPresentation): PresentationSwitchResult<TQuery, TPresentation>
   toggleSelected(id: TId): void
@@ -116,7 +123,7 @@ export function createRecordCollectionController<
 
   const listeners = new Set<() => void>()
   let loadToken = 0
-  let openCount = 0
+  let overlayHost = descriptor.host
   let sourceBuilder: (() => CollectionOpenSource<TQuery, TPresentation>) | null = null
 
   const emit = () => {
@@ -187,6 +194,9 @@ export function createRecordCollectionController<
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    bindOverlayHost(host) {
+      overlayHost = host
+    },
     setQuery(next) {
       set({ query: descriptor.query.normalize(next), queryIssues: [] })
       runLoad()
@@ -234,11 +244,13 @@ export function createRecordCollectionController<
       const resolvedSource = source ?? sourceBuilder?.()
       if (!resolvedSource) return
       const entry = descriptor.viewer.buildPanelEntry(record, resolvedSource)
-      const host = descriptor.host
+      const host = overlayHost
       if (!host) return
-      if (openCount === 0) void host.openRoot(entry, 'route')
-      else void host.push(entry)
-      openCount += 1
+      // Dispatch off the LIVE session, not a monotonic counter: an open while a panel is already
+      // live pushes a linked frame; a fresh open after the session has closed opens a new root.
+      const hasOpenPanel = (host.session?.frames.length ?? 0) > 0
+      if (hasOpenPanel) void host.push(entry)
+      else void host.openRoot(entry, 'route')
     },
     async runBulkAction(action) {
       if (!descriptor.runBulkAction || initial.viewerId === null) return

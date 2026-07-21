@@ -30,8 +30,10 @@ export interface RecordViewerOpeningContract<TRecord> {
 
 /**
  * The narrow subset of the Issue 4 `OverlayHostApi` that the React-free collection engine calls
- * when opening a record: open a fresh root panel, push a related record, or promote to a page. The
- * engine never renders `RecordPanelHost`, owns panel geometry, or touches the focus/Escape/Back
- * stack. The real `useOverlayHost()` controller is a superset and satisfies this without a cast.
+ * when opening a record: open a fresh root panel, push a related record, or promote to a page. It
+ * also reads the live `session` so it can tell whether a panel is currently open — a fresh open
+ * after the session has closed must re-open a root, never push onto an empty session. The engine
+ * never renders `RecordPanelHost`, owns panel geometry, or touches the focus/Escape/Back stack.
+ * The real `useOverlayHost()` controller is a superset and satisfies this without a cast.
  */
-export type CollectionOverlayHost = Pick<OverlayHostApi, 'openRoot' | 'push' | 'openPage'>
+export type CollectionOverlayHost = Pick<OverlayHostApi, 'openRoot' | 'push' | 'openPage' | 'session'>
