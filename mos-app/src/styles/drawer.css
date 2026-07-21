@@ -13,7 +13,7 @@
    The generic push/squash grid any RecordPanelHost tenant page (Signals archive,
    …) uses so its list squashes and the non-modal <aside> record panel sits BESIDE
    it at >=1100px — identical side/width to the Task drawer's split (spec FR-3).
-   Same drawer-width clamp as the Tasks .split grid (Rule 11 — reuse, one width).
+   Same drawer-width track as the Tasks .split grid — minmax(360px, 44%) (Rule 11 — one width).
    Below 1100px the host renders its own modal overlay, so pages drop this class
    and the list runs full-width underneath. */
 .record-split {
@@ -21,7 +21,8 @@
   /* V3 overlay-host geometry (plan 2026-07-20-v3-overlay-host Task 4): the record
      panel occupies a 40–45% desktop track (not 33vw), so the opened record has room
      while the collection keeps enough context beside it (DESIGN.md experience-contract
-     Rule 8-desktop: rail + header + frame + collection + 40–45% panel, no clip). */
+     Rule 8-desktop: rail + header + frame + collection + 40–45% panel, no clip).
+     Same minmax(360px, 44%) track is reused by TasksWorkspace .split (Rule 11 — one width). */
   grid-template-columns: minmax(0, 1fr) minmax(360px, 44%);
   align-items: start; gap: 12px;
 }
