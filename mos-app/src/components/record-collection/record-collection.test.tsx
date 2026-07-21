@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { RecordCollectionSurface } from './record-collection'
 import { createRecordCollectionController } from '@/lib/record-collection/engine'
 import type {
@@ -134,7 +136,7 @@ describe('RecordCollectionSurface', () => {
     expect(screen.getByTestId('manager-controls')).toBeInTheDocument()
   })
 
-  it('NFR-V3-006: collection surface has no horizontal overflow marker and selection controls expose 44px targets', async () => {
+  it('NFR-V3-006: selecting a row renders the selection bar with the 44px-target chrome class', async () => {
     const c = createRecordCollectionController(makeDescriptor(), INITIAL)
     await ready(c)
     c.toggleSelected('t-1')
@@ -147,7 +149,7 @@ describe('RecordCollectionSurface', () => {
     )
     const bar = screen.getByTestId('collection-selection-bar')
     expect(bar).toBeInTheDocument()
-    // The chrome class carries the 44px min target rule (asserted via class, jsdom has no layout).
+    // The selection bar wears the chrome class whose 44px rule is asserted against the CSS below.
     expect(bar.className).toContain('record-collection-selection')
   })
 
@@ -243,5 +245,17 @@ describe('RecordCollectionSurface', () => {
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New task' })).toBeInTheDocument()
     expect(screen.queryByTestId('work-rows')).not.toBeInTheDocument()
+  })
+})
+
+describe('NFR-V3-006: selection chrome meets the 44px keyboard target', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/components/record-collection/record-collection.css'), 'utf8')
+
+  it('encodes a 44px minimum for the selection bar and its clear action', () => {
+    // jsdom has no layout engine; the real geometry lives in the stylesheet, so the target size is
+    // proven by reading the CSS for the selectors the surface actually renders (see the render test
+    // above that asserts the `record-collection-selection` class is applied).
+    expect(css).toMatch(/\.record-collection-selection[\s\S]*?min-height:\s*44px/)
+    expect(css).toMatch(/\.record-collection-clear[\s\S]*?min-height:\s*44px/)
   })
 })
