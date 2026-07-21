@@ -25,6 +25,18 @@
   text-decoration: none;
   min-width: 0;
 }
+/* Luna FIX-THEN-SHIP — the "My open tasks" count must READ as a drill-link, not just behave
+   like one (the KPITile renders a non-interactive <div> when Link-wrapped, so its own
+   button-hover never fires). Mirror the interactive-tile grammar exactly: the card border
+   warms to --primary on hover (same cue as button.kpi-tile:hover / DESIGN.md Soft-Elevation),
+   plus a focus-visible ring for keyboard. The anchor never bleeds color onto the tile's text. */
+.home-kpi-link .kpi-tile { transition: border-color var(--dur-fast) ease; }
+.home-kpi-link:hover .kpi-tile { border-color: var(--primary); }
+.home-kpi-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
+}
 
 /* Jump-affordance fix — the PageHead "Needs attention · N →" summary (personal-first order,
    AC-513) must READ as a link, not just behave like one. Same underline+color grammar as the

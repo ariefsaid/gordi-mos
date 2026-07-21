@@ -180,7 +180,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument())
 
     expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Espresso machine repaired' }))
+    // Feed cards' record-open affordance is now accessibly named ("Open signal: <body>") — Luna (c).
+    await userEvent.click(screen.getByRole('button', { name: /open signal: espresso machine repaired/i }))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('record=signal-2'))
     expect(screen.getByTestId('location')).toHaveTextContent('layout=feed')
     expect(screen.getByTestId('location')).toHaveTextContent('q=espresso')

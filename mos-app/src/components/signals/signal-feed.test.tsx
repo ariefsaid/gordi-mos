@@ -76,7 +76,9 @@ describe('SignalFeed — Home ambient feed (AC-426)', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Process' }))
     expect(onCategorize).toHaveBeenCalledWith('s1', 'Process')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Something happened' }))
+    // The record-open affordance is now accessibly named ("Open signal: <body>") so it is
+    // discoverable to assistive tech, not a bare title-only click (Luna FIX-THEN-SHIP (c)).
+    await userEvent.click(screen.getByRole('button', { name: /open signal: something happened/i }))
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }))
 
     expect(screen.getByText('Someone')).toBeInTheDocument() // unknown-author fallback

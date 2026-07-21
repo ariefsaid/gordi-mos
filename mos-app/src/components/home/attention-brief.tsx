@@ -87,14 +87,41 @@ export function AttentionBrief({ lanes }: AttentionBriefProps) {
                 {t('home.attention.laneTitleCount', { title: laneTitle, count: lane.items.length })}
               </h3>
               <ul className="attention-lane-list">
-                {lane.items.map(item => (
-                  <li key={item.id} className="attention-lane-item">
-                    <Link to={item.route} className="attention-lane-link">
-                      <span className="attention-lane-item-title">{item.title}</span>
-                      {item.meta && <span className="attention-lane-item-meta">{item.meta}</span>}
-                    </Link>
-                  </li>
-                ))}
+                {lane.items.map(item => {
+                  // One compact meta line = PIC (avatar + name) · owning Team/BU · due date.
+                  // So "what should I do next" is answerable without opening the record (Luna
+                  // J01/J02). Non-task rows (mentions) carry no pic/caption and keep just `meta`.
+                  // Each segment is its own span (dot separators are decorative, aria-hidden), so
+                  // the caption and due date stay independently addressable.
+                  const segments = [
+                    item.caption && <span key="caption" className="attention-lane-tail">{item.caption}</span>,
+                    item.meta && <span key="due" className="attention-lane-tail">{item.meta}</span>,
+                  ].filter(Boolean)
+                  const hasMeta = item.pic != null || segments.length > 0
+                  return (
+                    <li key={item.id} className="attention-lane-item">
+                      <Link to={item.route} className="attention-lane-link">
+                        <span className="attention-lane-item-title">{item.title}</span>
+                        {hasMeta && (
+                          <span className="attention-lane-item-meta">
+                            {item.pic && (
+                              <span className="attention-lane-pic">
+                                <span className="attention-lane-avatar" aria-hidden="true">{item.pic.initials}</span>
+                                <span className="attention-lane-pic-name">{item.pic.name}</span>
+                              </span>
+                            )}
+                            {segments.map((seg, i) => (
+                              <span key={i} className="attention-lane-seg">
+                                {(item.pic != null || i > 0) && <span className="attention-lane-sep" aria-hidden="true">·</span>}
+                                {seg}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )

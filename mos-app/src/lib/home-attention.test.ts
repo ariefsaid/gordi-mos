@@ -134,6 +134,39 @@ describe('AC-504: attentionCount — summed item count across lanes', () => {
   })
 })
 
+describe('Home decision-context — overdue/due-today items carry the PIC + owning-BU caption (Luna J01/J02)', () => {
+  const people = new Map<string, string>([[VIEWER, 'Rara Owner'], [OTHER, 'Sam Supervisor']])
+  const bus = new Map<string, string>([['bu-1', 'Café']])
+  const dir = { people, businessUnits: bus }
+
+  it('overdueTasks attaches the Responsible person (avatar initials + name) and the BU caption from the directory', () => {
+    const rows = [task({ id: 'o1', due_date: '2026-07-10' })]
+    const [item] = overdueTasks(rows, VIEWER, TODAY, 'en', dir)
+
+    expect(item.pic).toEqual({ name: 'Rara Owner', initials: 'RO' })
+    expect(item.caption).toBe('Café')
+    // The one compact meta line still keeps the humanized due date.
+    expect(item.meta).toBe(formatDate('2026-07-10', 'en'))
+  })
+
+  it('dueTodayTasks attaches the same PIC + caption decision context', () => {
+    const rows = [task({ id: 'd1', due_date: TODAY })]
+    const [item] = dueTodayTasks(rows, VIEWER, TODAY, 'en', dir)
+
+    expect(item.pic).toEqual({ name: 'Rara Owner', initials: 'RO' })
+    expect(item.caption).toBe('Café')
+  })
+
+  it('omits pic/caption when the directory is absent (backward-compatible — no enrichment, no crash)', () => {
+    const rows = [task({ id: 'o1', due_date: '2026-07-10' })]
+    const [item] = overdueTasks(rows, VIEWER, TODAY, 'en')
+
+    expect(item.pic).toBeUndefined()
+    expect(item.caption).toBeUndefined()
+    expect(item.title).toBe('Task 1')
+  })
+})
+
 describe('wibToday — WIB calendar date from an injected clock', () => {
   it('formats a UTC instant as its Asia/Jakarta (UTC+7) calendar date', () => {
     // 2026-07-15T18:00:00Z is 2026-07-16 01:00 WIB — crosses the UTC day boundary.

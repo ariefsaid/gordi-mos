@@ -155,6 +155,21 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
     sourceFile: 'src/pages/follow-up-record-page.tsx',
     symbol: 'FollowUpRecordPage',
   },
+  // Signals archive + canonical record now render on a PageFamilyFrame whose region-3 page
+  // head owns the job sentence (Luna 4-lens audit FIX-THEN-SHIP (b) — the shell ContextRow was
+  // emitting the job sentence a SECOND time because these routes sat in the deferred list).
+  {
+    path: '/work/signals',
+    family: 'workspace',
+    sourceFile: 'src/pages/signals-archive-page.tsx',
+    symbol: 'SignalsArchivePage',
+  },
+  {
+    path: '/work/signals/:signalId',
+    family: 'focused-record',
+    sourceFile: 'src/pages/signals-archive-page.tsx',
+    symbol: 'SignalRecordPage',
+  },
 ]
 
 /** Every route whose page head owns the job sentence (representatives + Issue 11 migrations). */
@@ -164,8 +179,6 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
 ]
 
 export const ISSUE_3_DEFERRED_PAGE_ROUTES = [
-  '/work/signals',
-  '/work/signals/:signalId',
   '/work/tasks/new',
 ] as const
 
