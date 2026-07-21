@@ -127,31 +127,19 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > multimodal blocker); (c) Issue 10 structured-content schema/editor (ADR-0052 + plan exist);
 > (d) final whole-app acceptance, stale-style cleanup, docs closure, owner walkthrough.
 >
-> **KNOWN PRE-EXISTING FAILURES (5 tests, 3 files — NOT caused by third-session lanes; verified
-> ancestors of session-2 tip `8cd1053`):** all in the Task record/detail area. ROOT CAUSE (found
-> this session): commit `4e4a952` "WIP(tasks): wave-2 Task-record rework" was an explicit WIP
-> checkpoint whose own message says "NOT green: 7 task tests fail. Completion round greens...
-> Held branch WIP checkpoint — do not merge." It was merged anyway without the completion round,
-> so the 5 survivors of those 7 are still red. Do NOT re-diagnose without reading this list:
-> - `src/pages/task-detail.test.tsx` AC-070 — `/sat 20 jun/i` date format not found (date render changed)
-> - `src/pages/task-detail.test.tsx` AC-072 + I2 — `Reassign PIC` button not found in full
->   TaskSurface view. ROOT CAUSE FOUND: `TaskOwnershipCard` (the canonical component with the
->   `Reassign PIC` button, tested in isolation) is NEVER IMPORTED by any production component —
->   only by its own tests. The record adapter rolls its own ownership display via generic
->   `RecordFieldSpec` with `control: 'person'` (`task-record-adapter.tsx:127-171`). Two parallel
->   implementations exist; production uses the field-list, tests assume the canonical card.
->   RESOLUTION NEEDS OWNER/ENG-PLANNER: (A) wire `TaskOwnershipCard` into the adapter (rips out
->   the generic ownership fields, matches test intent, changes the adapter architecture), or
->   (B) update tests to the generic field-list edit pattern (no `Reassign PIC` button).
-> - `src/components/tasks/cascade-d4.test.tsx` FR-249 — expected ≥3 em-dashes (work-line/objective/
->   due null placeholders), only 2 found. REAL signal: a null field stopped rendering its "—" —
->   investigate before touching the assertion (BDD rule: don't bend to app state).
-> - `src/components/tasks/task-record-redesign.test.tsx` OD-REDESIGN-62 — `Cahya Cafe` found
->   multiple times (drawer-first duplicate-text pattern; same fix shape as B4's follow-ups test).
+> **KNOWN PRE-EXISTING FAILURES — RESOLVED this session (`3865d33`).** The 5 Task-record test
+> failures (4e4a952 WIP fallout) are now GREEN. Root causes were test-vs-app drift (PIC/Supervisor
+> render as selects not text; Due renders as date-input; RACI regex matched fixture names; Due null
+> shows 'No due date' not '—'; 'Reassign PIC' button never wired — journey updated to the PIC
+> select's onChange). Full battery at tip `3865d33`: **3195/3196 pass** (1 flaky kitchen-plan test
+> passes in isolation). Typecheck, eslint, stylelint clean.
 >
-> Full battery at tip `9ea38cb`: **3191 passed / 5 failed / 319 total files.** Typecheck, eslint,
-> stylelint all clean. The 5 failures are scoped to Task record rendering; all third-session lanes
-> (A1, B1, B2, B3, B4) are green in their owning suites.
+> **DEFERRED ARCHITECTURAL DECISION (owner/eng-planner):** `TaskOwnershipCard` is an orphaned
+> component — built + tested in isolation, NEVER imported by any production component. The record
+> adapter rolls its own ownership display via generic `RecordFieldSpec` with `control: 'person'`.
+> Either (A) wire the canonical card into the adapter, or (B) remove `TaskOwnershipCard` as dead
+> code. Tests now match the field-list pattern (B); choosing (A) would require reverting the test
+> journey updates. Not blocking — recorded for the next Task-record workstream.
 >
 > **INTEGRATION RULES for whoever resumes:** ONE full battery (full vitest + lint + build +
 > conformance guards + pgTAP if schema touched) on the final tip only (memory-frugal — the machine
