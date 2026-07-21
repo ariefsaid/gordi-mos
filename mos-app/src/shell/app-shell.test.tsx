@@ -61,7 +61,6 @@ function setNarrow(matches: boolean) {
 afterEach(() => {
   setNarrow(false)
 })
-
 function renderShell(path = '/') {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
@@ -298,4 +297,3 @@ describe('AC-V3-Overlay: production shell overlay host mount', () => {
     // The actual open test will work once the provider is mounted
   })
 })
-
