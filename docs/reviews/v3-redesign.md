@@ -870,3 +870,10 @@ The shared RecordCollection table skin also now sets a 38px header measure for t
 presentations, matching the Task decision table while preserving Signal-specific columns. Focused
 RecordCollection/Signals/Tasks evidence is **75/75**; this closes the measurable header-rhythm gap,
 not the full rendered toolbar/presentation parity gate.
+
+### Worktree/process consolidation — 2026-07-22
+
+The canonical consolidation worktree is `/Users/ariefsaid/Coding/gordi-mos/.claude/worktrees/v3-redesign`.
+Clean historical V3/Codex worktrees were removed while retaining their branches; dirty handoff lanes
+were preserved. Stale Vite/esbuild processes for this branch and `v3/rv-live` were stopped. No
+Supabase process was started, and no push/merge/deploy occurred.

@@ -82,7 +82,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > archaeology. This is scoped to UI behavior only; tests still gate integration, proxy assertions
 > remain invalid, and schema/security/data work keeps normal pre-change verification.
 
-> **LOCAL CONVERGENCE UPDATE (2026-07-22, checkpoint `fc10a8e`, not pushed):** The active `v3-redesign` worktree has a
+> **LOCAL CONVERGENCE UPDATE (2026-07-22, checkpoint `01f3316`, not pushed):** The active `v3-redesign` worktree has a
 > bounded follow-up slice beyond `d63f20a`. Tasks and Signals live record opening now use the single
 > production overlay host (including mobile Tasks); Café Team resolution renders an explicit picker
 > for multi-Team members; and Signals table has the shared RecordCollection outer surface. Focused
@@ -95,6 +95,16 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Inbox seeded proof/handled semantics, Follow-ups, contributing-record Money drill-down, and
 > owner-gated Issue 10/typed embeds remain open. No push, merge, or Supabase start occurred. Details
 > are appended to the completion audit and review ledger linked above.
+
+> **WORKTREE CONSOLIDATION (2026-07-22):** `/Users/ariefsaid/Coding/gordi-mos/.claude/worktrees/v3-redesign`
+> is the canonical V3 consolidation worktree and branch. Clean historical V3/Codex worktrees were
+> removed with `git worktree remove` while their branches were retained. The only retained secondary
+> worktrees are: the primary checkout (`feat/redesign-buildout`, dirty), E7 prototype, UI-polish
+> reference, and five dirty handoff lanes (`docs-consistency-redesign-index-ccebf9`,
+> `v3-auth-control-grammar`, `v3-record-viewer-live`, `v3-signals-frame`, `v3-task-live-migration`).
+> Do not delete or reset those dirty lanes; inspect their status before any future consolidation.
+> Stale Vite/esbuild processes for `v3-redesign` and `v3-rv-live` were stopped; no Supabase process was
+> started. Untracked browser captures in the canonical worktree remain intentionally excluded from commits.
 
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
