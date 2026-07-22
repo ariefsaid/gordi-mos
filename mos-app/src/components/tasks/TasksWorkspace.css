@@ -396,21 +396,29 @@ tr:focus-within .row-menu { visibility: visible; }
   pointer-events: none;
 }
 
-/* ── Overdue filter button (count line, AC-128 / FR-126) ── */
+/* ── Overdue filter button (count line, AC-128 / FR-126) ──
+   F5 design fix: shares the toolbar's control-chip grammar (32px, bordered, radius-sm — the
+   same shape as .due-runs-trigger, DESIGN.md "Tasks toolbar ... bordered filter controls")
+   instead of a bare underlined link, so the two toolbar attention-count affordances ("N due to
+   start" / "N overdue") read as one consistent style, tinted per the Tinted-Status Rule. */
 .overdue-filter-btn {
-  background: transparent;
-  border: 0;
-  padding: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--status-lost-text);
   font-weight: 600;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 .overdue-filter-btn:hover {
-  color: color-mix(in srgb, var(--status-lost-text) 78%, black); /* overdue hover darken, stays on-token hue */
+  background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);
+}
+.overdue-filter-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* ── Overdue-only active chip (AC-128 — clearable transient filter) ── */

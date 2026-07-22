@@ -2,6 +2,8 @@ import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
+import { DueRunsTrigger } from '@/components/processes/due-runs-trigger'
+import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import { useT } from '@/i18n/use-t'
 import type {
   TaskCollectionGroup,
@@ -24,6 +26,9 @@ export type TasksToolbarProps = {
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: CollectionToolbarSavedViews
+  /** Design-fix (F5): the "N due to start" disclosure is one of the toolbar's attention-count
+   * affordances, not a separate floating band — it renders inline beside the overdue count. */
+  dueRuns?: UseDueRunsResult
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -64,6 +69,7 @@ export function TasksToolbar({
   buOptions,
   personOptions,
   savedViews,
+  dueRuns,
 }: TasksToolbarProps) {
   const t = useT()
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
@@ -174,6 +180,13 @@ export function TasksToolbar({
             />
             <span>{t('tasks.filter.showArchived')}</span>
           </label>
+          {/* F5 design fix: the "N due to start" disclosure and the "N overdue" count are the
+              toolbar's two attention-count affordances — they render adjacent, in one shared
+              tinted-pill grammar (see .overdue-filter-btn / .due-runs-trigger), instead of one
+              living in a separate floating band below the toolbar. */}
+          {dueRuns ? (
+            <DueRunsTrigger due={dueRuns.due} expanded={dueRuns.expanded} onToggle={dueRuns.toggleExpanded} />
+          ) : null}
           {overdueCount > 0 ? (
             <button
               type="button"

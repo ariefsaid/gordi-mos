@@ -28,7 +28,6 @@ import type {
 } from './task-collection-adapter'
 import {
   TaskCollectionRuntimeProvider,
-  TaskCollectionChrome,
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
 import type { TaskStatus } from '@/lib/db/tasks.types'
@@ -270,6 +269,7 @@ export function TasksWorkspace({
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
+      dueRuns={dueRuns}
       savedViews={{
         label: t('tasks.savedViews'),
         selectedId: state.savedViews.items.find((item) => item.id === query.savedViewId)?.id ?? null,
@@ -356,12 +356,7 @@ export function TasksWorkspace({
                 viewLabel: viewLabel(query.view, t),
                 count: stats === null ? null : stats.total,
               }}
-              controls={
-                <>
-                  {controls}
-                  <TaskCollectionChrome dueRuns={dueRuns} />
-                </>
-              }
+              controls={controls}
               empty={{
                 title: emptyTitle,
                 copy: emptyCopy,

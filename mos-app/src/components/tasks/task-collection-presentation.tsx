@@ -24,7 +24,6 @@ import type { WorkloadSummary } from './workload-caption'
 import { TaskRow } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
-import { DueRunsTrigger } from '@/components/processes/due-runs-trigger'
 import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import type {
   CollectionPresentationProps,
@@ -526,8 +525,4 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
 
 export function TaskCardPresentation(props: TaskPresentationProps) {
   return <TaskTablePresentation {...props} cardLayout />
-}
-
-export function TaskCollectionChrome({ dueRuns }: { dueRuns: UseDueRunsResult }) {
-  return <DueRunsTrigger due={dueRuns.due} expanded={dueRuns.expanded} onToggle={dueRuns.toggleExpanded} />
 }

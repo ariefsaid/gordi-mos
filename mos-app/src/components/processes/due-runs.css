@@ -1,11 +1,7 @@
 /* DueRunsTrigger + DueRunsList (design fix wave item 1) — a thin due-occurrence disclosure over the
-   DS tokens (DESIGN.md). The trigger is a compact, right-aligned summary near the toolbar; the
-   list only renders on demand, AFTER the Tasks table, so it never floods/buries the table
-   (design-review step-6 CRITICAL). */
-.due-runs-trigger-row {
-  display: flex; justify-content: flex-end;
-  padding: 8px 12px 0;
-}
+   DS tokens (DESIGN.md). The trigger is a compact toggle rendered inline in the Tasks toolbar
+   (F5 design fix, 2026-07-22 — no separate row/band of its own); the list only renders on demand,
+   AFTER the Tasks table, so it never floods/buries the table (design-review step-6 CRITICAL). */
 .due-runs-trigger {
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 10px;
