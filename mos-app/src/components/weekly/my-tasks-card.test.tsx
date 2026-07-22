@@ -360,6 +360,15 @@ describe('AC-W06: name cell truncates + carries title; status cells nowrap', () 
 
 // ── Card-head chrome always visible ──────────────────────────────────────────
 describe('Card-head chrome: title + meta + All tasks link', () => {
+  it('renders "My tasks" as a chromeless section, not a card shell', async () => {
+    await renderCard()
+    const section = screen.getByRole('region', { name: 'My tasks' })
+    expect(section).toHaveClass('my-tasks-section')
+    for (const shellClass of ['bg-card', 'border', 'border-border', 'rounded-lg', 'shadow-rest', 'mb-4']) {
+      expect(section).not.toHaveClass(shellClass)
+    }
+  })
+
   it('renders "My tasks" card head title', async () => {
     await renderCard()
     expect(screen.getByText('My tasks')).toBeInTheDocument()

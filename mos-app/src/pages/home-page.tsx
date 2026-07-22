@@ -231,7 +231,7 @@ export function HomePage() {
 
   const attentionRegion = <AttentionBrief key="attention" lanes={lanes} />
   const personalCanvasRegion = (
-    <section key="personal-canvas" data-testid="personal-canvas" className="home-personal-canvas">
+    <div key="personal-canvas" data-testid="personal-canvas" className="home-personal-canvas">
       {/* OD-REDESIGN-17 ("why dashboard AND home"): Home no longer duplicates the Money
           dashboard's revenue/margin KPI tiles. Financial *exceptions* surface via the
           attention brief; routine finance KPIs live on /dashboard, which owns them. */}
@@ -245,7 +245,7 @@ export function HomePage() {
       {/* Signal ambient feed (Step 4, Q1/OD-59 — provisional, RATIFY-7): the ambient region
           inside the personal canvas, purely additive (FR-414). */}
       <SignalFeedSection />
-    </section>
+    </div>
   )
 
   const n = attentionCount(lanes)

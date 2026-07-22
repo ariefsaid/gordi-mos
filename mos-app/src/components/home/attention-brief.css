@@ -4,15 +4,12 @@
    bespoke color/spacing values). ≥44px tap targets on item links (Rule 8).
    ════════════════════════════════════════════════════════════════════════════ */
 .attention-brief {
+  /* D1 — the section itself is chromeless; lane/item borders provide the texture. */
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-bottom: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+  margin: 0;
+  min-width: 0;
 }
 
 /* RI-4 — the region's real visible heading (DESIGN.md "Subheading" token: 18px/600). */
@@ -28,7 +25,6 @@
 
 .attention-lane {
   padding: 8px 16px 10px;
-  background: var(--card);
   border-top: 1px solid var(--border);
 }
 

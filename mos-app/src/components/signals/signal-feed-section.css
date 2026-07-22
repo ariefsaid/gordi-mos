@@ -1,0 +1,8 @@
+/* SignalFeedSection — D1 chromeless Home section. CardHead is the heading row;
+   the feed cards/rows retain their own affordance texture. */
+.signal-feed-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-3);
+  min-width: 0;
+}

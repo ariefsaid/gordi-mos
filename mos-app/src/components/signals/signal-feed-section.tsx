@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useId } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { correctSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
+import { CardHead } from '@/components/ui/card-head'
+import { useT } from '@/i18n/use-t'
 import { SignalRecordHost } from './signal-record-host'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import {
@@ -12,6 +14,7 @@ import {
   type SignalCollectionQuery,
 } from './signal-collection-adapter'
 import { SignalFeed } from './signal-feed'
+import './signal-feed-section.css'
 
 // C3b (AC-426/FR-414): the Home ambient feed slot. It now shares the ONE signalCollectionDescriptor
 // with the Signals archive (FR-V3-013 — no second Signal loader): it drives the descriptor in
@@ -36,6 +39,8 @@ export function SignalFeedSection() {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
   const { open: openSignalComposer, postCount } = useSignalComposer()
+  const t = useT()
+  const titleId = useId()
 
   const controller = useRecordCollection({
     descriptor: signalCollectionDescriptor,
@@ -82,7 +87,19 @@ export function SignalFeedSection() {
   if (controller.state.status === 'loading') return null // Home's own skeleton regions cover initial paint (NFR-405)
 
   return (
-    <>
+    <section className="signal-feed-section" aria-labelledby={titleId}>
+      <CardHead
+        title={<span id={titleId}>{t('nav.signals')}</span>}
+        action={
+          <Link
+            to="/work/signals"
+            className="font-semibold text-primary no-underline"
+            style={{ fontSize: 15 }}
+          >
+            {t('nav.work.signals')} →
+          </Link>
+        }
+      />
       <SignalFeed
         signals={signals}
         authorNamesById={data ? namesToRecord(data.context.authorNamesById) : {}}
@@ -92,6 +109,6 @@ export function SignalFeedSection() {
         onOpen={(signal) => openRecord(signal.id)}
       />
       {host ? <OverlayHostSlot owner="signals" /> : null}
-    </>
+    </section>
   )
 }

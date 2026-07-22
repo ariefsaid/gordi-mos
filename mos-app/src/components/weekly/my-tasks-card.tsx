@@ -88,7 +88,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
 
   return (
     <section
-      className="bg-card border border-border rounded-lg shadow-rest mb-4"
+      className="my-tasks-section"
       aria-label={t('tasks.myTitle')}
       aria-busy={loadState === 'loading' ? 'true' : undefined}
     >

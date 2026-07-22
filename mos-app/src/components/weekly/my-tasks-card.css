@@ -2,6 +2,13 @@
    All values resolve to DESIGN.md tokens (--* CSS vars or Tailwind semantics).
    No literal hex/rgb/hsl. */
 
+/* D1 — My tasks is a chromeless section. Its CardHead and table rows remain the
+   visible grammar; the parent contributes no card background, border, radius, or lift. */
+.my-tasks-section {
+  min-width: 0;
+  margin: 0;
+}
+
 /* ── Shared lighter-overline header (OD-P4-10, AC-W02) ──────────────────────
    Mirrors TasksWorkspace.css `.th-cell` exactly — same treatment on the
    mini-table in My Week as in the Tasks workspace. Weight 400 + UPPERCASE +

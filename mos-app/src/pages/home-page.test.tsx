@@ -242,6 +242,27 @@ describe('AC-H03: the My Week panel (MyTasksCard) is present for any viewer', ()
   })
 })
 
+describe('OD-REDESIGN-82: Home D1 section rhythm', () => {
+  it('Home personal canvas renders its regions as sections with accessible headings and no card-shell chrome on the region wrappers', async () => {
+    await renderHome(financeViewer)
+
+    const sections = [
+      { element: await screen.findByRole('region', { name: 'Needs attention' }), heading: 'Needs attention' },
+      { element: await screen.findByRole('region', { name: 'My tasks' }), heading: 'My tasks' },
+      { element: await screen.findByRole('region', { name: 'Signals' }), heading: 'Signals' },
+    ]
+    const shellClasses = ['bg-card', 'border', 'border-border', 'rounded-lg', 'shadow-rest']
+
+    for (const { element, heading } of sections) {
+      expect(element.tagName).toBe('SECTION')
+      expect(within(element).getByRole('heading', { name: heading })).toBeVisible()
+      for (const shellClass of shellClasses) {
+        expect(element).not.toHaveClass(shellClass)
+      }
+    }
+  })
+})
+
 describe('F-C / OD-REDESIGN-64 — member Home has no legacy dead-link cards', () => {
   it('AC-W1-C: member Home keeps work visible but hides update and Daily Log cards', async () => {
     await renderHome(memberViewer)

@@ -80,18 +80,17 @@
 .home-regions {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--ds-spacing-6);
 }
 
+/* D1 — the personal canvas is a plain stack of chromeless sections. The space between
+   sections is the divider; the task table and Signal rows own their own texture. */
 .home-personal-canvas {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-spacing-6);
+  min-width: 0;
 }
-
-/* MyTasksCard already owns its card shell; the Home composition owns the rhythm between
-   modules. Prevent the legacy utility margin from reopening a large empty seam. */
-.home-personal-canvas > section[aria-label] { margin-bottom: 0 !important; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px order-toggle disclosure.
