@@ -48,6 +48,12 @@ export interface RecordViewerProps {
   onCommitField?: (key: string, value: RecordValue) => Promise<void>
   /** Host/adapter-supplied error retry (keeps the viewer free of data ownership). */
   onRetry?: () => void
+  /**
+   * True while the tenant's own leave-guard confirmation dialog is open (D1 fix — see
+   * RecordField's `commitsFrozen` header note). Forwarded to every field so a stray blur
+   * caused by the dialog's auto-focus never fires an unrequested commit.
+   */
+  fieldCommitsFrozen?: boolean
 }
 
 const ACTION_VARIANT: Record<RecordAction['intent'], ButtonVariant> = {
@@ -69,6 +75,7 @@ export function RecordViewer({
   onDirtyChange,
   onCommitField,
   onRetry,
+  fieldCommitsFrozen = false,
 }: RecordViewerProps) {
   const t = useT()
   const titleId = useId()
@@ -90,7 +97,17 @@ export function RecordViewer({
     if (adapter.state === 'empty') {
       return <EmptyState nested title={adapter.title} variant="blank" />
     }
-    return <RecordBody adapter={adapter} mode={mode} onOpenRelated={onOpenRelated} onDirtyChange={onDirtyChange} onCommitField={onCommitField ?? (async () => noopCommit())} onOpenPage={onOpenPage} />
+    return (
+      <RecordBody
+        adapter={adapter}
+        mode={mode}
+        onOpenRelated={onOpenRelated}
+        onDirtyChange={onDirtyChange}
+        onCommitField={onCommitField ?? (async () => noopCommit())}
+        onOpenPage={onOpenPage}
+        fieldCommitsFrozen={fieldCommitsFrozen}
+      />
+    )
   })()
 
   return (
@@ -121,6 +138,7 @@ function RecordBody({
   onDirtyChange,
   onCommitField,
   onOpenPage,
+  fieldCommitsFrozen,
 }: {
   adapter: RecordViewerAdapter
   mode: RecordViewerMode
@@ -128,6 +146,7 @@ function RecordBody({
   onDirtyChange?: (dirty: boolean) => void
   onCommitField: (key: string, value: RecordValue) => Promise<void>
   onOpenPage?: () => void
+  fieldCommitsFrozen?: boolean
 }): ReactNode {
   const readOnly = adapter.permission.readOnly
   const allowed = new Set(adapter.permission.allowedActionIds)
@@ -145,6 +164,7 @@ function RecordBody({
                 spec={field}
                 onCommit={(value) => onCommitField(field.key, value)}
                 onDirtyChange={onDirtyChange}
+                commitsFrozen={fieldCommitsFrozen}
               />
             ))}
           </div>

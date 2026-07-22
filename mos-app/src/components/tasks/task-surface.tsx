@@ -71,6 +71,11 @@ export type TaskSurfaceProps = {
   onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
   /** Bubbles RecordField draft state to a host-owned leave guard. */
   onDirtyChange?: (dirty: boolean) => void
+  /**
+   * True while the host's own leave-guard confirmation dialog is open (D1 fix). Forwarded
+   * straight to RecordViewer's `fieldCommitsFrozen` — see record-field.tsx's header note.
+   */
+  fieldCommitsFrozen?: boolean
   // Heading level for the full-width record identity. Defaults to 1; the V3
   // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
   identityHeadingLevel?: 1 | 2
@@ -105,6 +110,7 @@ function ViewSurface({
   onClose, onOpenPage, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
   showPanelUtility = true,
   identityHeadingLevel,
+  fieldCommitsFrozen,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -565,6 +571,7 @@ function ViewSurface({
               headingLevel={2}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
+              fieldCommitsFrozen={fieldCommitsFrozen}
             />
           </div>
         )}
@@ -648,6 +655,7 @@ function ViewSurface({
               headingLevel={identityHeadingLevel ?? 1}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
+              fieldCommitsFrozen={fieldCommitsFrozen}
             />
           </div>
           <div className="record-feed-col">

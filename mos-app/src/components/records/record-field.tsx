@@ -28,6 +28,20 @@
 //
 // RecordField never owns an overlay, history, focus trap, or confirmation dialog —
 // the containing tenant composes the Issue 4 host leave-guard from onDirtyChange.
+//
+// `commitsFrozen` (D1 fix, dirty-leave-guard-during-blur defect): a host-owned leave-guard
+// confirm dialog (ModalShell) auto-focuses its own first control the instant it mounts —
+// which, if a RecordField is still focused and mid-edit, fires a NATIVE blur on the field
+// BEFORE the user has chosen Retain or Discard. Left unguarded, that stray blur runs the
+// field's normal onBlur commit path: a successful settlement silently persists the "unsaved"
+// edit the dialog is asking about (Discard then discards nothing); a failed one is at least
+// consistent but still an unrequested write attempt mid-confirmation. The tenant that owns the
+// dialog (e.g. TaskOverlayContent) sets `commitsFrozen` for the render in which the dialog
+// opens — which, by React's render-then-effects ordering, reaches every RecordField BEFORE
+// ModalShell's focus-stealing effect can run — so the stray blur is a plain no-op: the draft
+// stays exactly as typed, still in edit mode, until the dialog resolves. On Retain, ModalShell
+// returns focus to the same field (its own invoker-refocus contract) and commits resume
+// normally; on Discard the tenant unmounts the field, dropping the draft with it.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
@@ -41,6 +55,8 @@ export interface RecordFieldProps {
   onCommit: (value: RecordValue) => Promise<void>
   onCancel?: () => void
   onDirtyChange?: (dirty: boolean) => void
+  /** See the header note above (D1 fix): true while a host leave-guard dialog is open. */
+  commitsFrozen?: boolean
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -62,7 +78,7 @@ function toInputValue(value: RecordValue): string {
   return String(value)
 }
 
-export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordFieldProps) {
+export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFrozen = false }: RecordFieldProps) {
   const t = useT()
   const labelId = useId()
   const controlId = useId()
@@ -304,7 +320,13 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
               setDraft(e.target.value)
               reportDirty(e.target.value)
             }}
-            onBlur={() => void commit(draft, false)}
+            onBlur={() => {
+              // D1 fix: while the host's leave-guard dialog is open, a blur here is the
+              // dialog's own auto-focus stealing focus away — NOT a deliberate commit
+              // intent. Skip the commit; the draft stays put until Retain/Discard resolves.
+              if (commitsFrozen) return
+              void commit(draft, false)
+            }}
           />
         ) : spec.control === 'date' ? (
           // F2 fix: a bare native <input type="date"> shows the browser's own locale text
@@ -360,7 +382,13 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
               // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too late
               // to shield the host's native listener, so Escape is intentionally NOT handled here.
             }}
-            onBlur={() => void commit(draft, false)}
+            onBlur={() => {
+              // D1 fix: while the host's leave-guard dialog is open, a blur here is the
+              // dialog's own auto-focus stealing focus away — NOT a deliberate commit
+              // intent. Skip the commit; the draft stays put until Retain/Discard resolves.
+              if (commitsFrozen) return
+              void commit(draft, false)
+            }}
           />
         )}
 

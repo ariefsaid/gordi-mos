@@ -92,6 +92,11 @@ export function TaskOverlayContent({
         onTaskArchived={onTaskArchived}
         onDirtyChange={onDirtyChange}
         showPanelUtility={false}
+        // D1 fix: freeze field commits for the SAME render in which the confirm dialog opens.
+        // React applies this prop to every RecordField before ModalShell's own focus-stealing
+        // effect can run (render-then-effects ordering), so the dialog's auto-focus can never
+        // race a still-editing field's blur into a stray commit (see record-field.tsx header).
+        fieldCommitsFrozen={pendingIntent !== null}
       />
       <ConfirmDialog
         open={pendingIntent !== null}
