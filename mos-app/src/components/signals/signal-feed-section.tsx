@@ -4,7 +4,6 @@ import { correctSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
-import { CardHead } from '@/components/ui/card-head'
 import { useT } from '@/i18n/use-t'
 import { SignalRecordHost } from './signal-record-host'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -88,18 +87,15 @@ export function SignalFeedSection() {
 
   return (
     <section className="signal-feed-section" aria-labelledby={titleId}>
-      <CardHead
-        title={<span id={titleId}>{t('nav.signals')}</span>}
-        action={
-          <Link
-            to="/work/signals"
-            className="font-semibold text-primary no-underline"
-            style={{ fontSize: 15 }}
-          >
-            {t('nav.work.signals')} →
-          </Link>
-        }
-      />
+      {/* Peer section-label grammar (F1/F5, Nielsen H4 consistency): same small-caps muted label
+          + right-aligned link as the stream's OVERDUE / MY WORK TODAY bands — Signals is a peer
+          section in the one scroll, not a bolted-on card with its own heading weight. */}
+      <div className="signal-feed-head">
+        <h3 id={titleId} className="signal-feed-label">{t('nav.signals')}</h3>
+        <Link to="/work/signals" className="signal-feed-link">
+          {t('nav.work.signals')} →
+        </Link>
+      </div>
       <SignalFeedRows
         signals={signals}
         authorNamesById={data ? namesToRecord(data.context.authorNamesById) : {}}
