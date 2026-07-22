@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { DESTINATIONS, UTILITY, isLive, modulesForRoles, type Destination } from './destinations'
+import { DESTINATIONS, UTILITY, isLive, modulesByBUForRoles, type Destination } from './destinations'
 import type { Section } from './sections'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
@@ -47,6 +47,23 @@ function DestLink({ d, onNavigate }: { d: Destination; onNavigate?: () => void }
   )
 }
 
+// Rail group label (F2 fix, DESIGN.md Navigation/Rail: "Grouped items under Overline group
+// labels"; DESIGN.md Overline spec: DM Sans 600 11px, ls 0.06em, UPPERCASE, muted-foreground).
+// aria-hidden — the label is a visual section divider, not itself a nav landmark; each group's
+// items remain directly reachable in document order (no extra tab stop, matches AppearanceControl's
+// group-label precedent in the identity menu).
+function RailGroupLabel({ children, className }: { children: string; className?: string }) {
+  return (
+    <div
+      className={['px-2.5 text-muted-foreground select-none uppercase', className].filter(Boolean).join(' ')}
+      style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}
+      aria-hidden="true"
+    >
+      {children}
+    </div>
+  )
+}
+
 // A Work child (always expanded). Default aria-current="page" when active.
 function WorkChild({ section, onNavigate }: { section: Section; onNavigate?: () => void }) {
   const t = useT()
@@ -80,16 +97,21 @@ export function RailNav({ onNavigate }: RailNavProps) {
   // Profile (security audit fix — the footer below is the identity/sign-out chip, not a /profile
   // link, so /profile needs its own reachable rail entry to stay navigable, Rule 11).
   const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
-  // OD-REDESIGN-68: the rail shows YOUR work — modules render flat (no BU headings, no
-  // WORKSPACE overline; the owner's sketch is a flat list) and only for viewers whose job
-  // role belongs to that BU. Org-wide roles get exactly the sketch rail.
-  const myModules = viewer
-    ? modulesForRoles(viewer.roles.map((r) => r.name), accessRoles)
+  // F2 fix (grouped IA spine, OD-REDESIGN-1 + DESIGN.md Navigation/Rail — "Grouped items under
+  // Overline group labels"): the rail shows YOUR work, grouped by BU (Retail Ops / B2B Ops),
+  // only for viewers whose job role belongs to that BU. Org-wide roles get no module group at
+  // all. Supersedes OD-REDESIGN-68's flat/no-overline rendering, which CLAUDE.md's
+  // owner-artifact-deviations note records as an undetected deviation from the owner's actual
+  // artifact (OD-68, 2026-07-18) — DESIGN.md's rail spec and OD-REDESIGN-1's own text both call
+  // for grouped overlines, so the flat rendering was never a ratified end-state.
+  const myModuleGroups = viewer
+    ? modulesByBUForRoles(viewer.roles.map((r) => r.name), accessRoles)
     : []
 
   return (
     <>
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2 pt-3">
+        <RailGroupLabel>{t('rail.destinations')}</RailGroupLabel>
         <div className="flex flex-col gap-[2px]">
           {liveDestinations.map((d) => {
             if (d.id === 'work') {
@@ -127,20 +149,25 @@ export function RailNav({ onNavigate }: RailNavProps) {
           })}
         </div>
 
-        {/* Your-work modules (OD-REDESIGN-68): flat, no BU headings — only the modules whose
-            BU matches the viewer's job role (e7 Ayu pattern). Empty for org-wide roles. */}
-        {myModules.length > 0 && (
-          <div className="mt-1 flex flex-col gap-[2px]">
-            {myModules.map((m) => (
-              <DestLink key={m.id} d={m} onNavigate={onNavigate} />
-            ))}
+        {/* Your-work modules (F2 fix), grouped by BU overline (OD-REDESIGN-1: "Modules grouped
+            by Business Unit") — only the modules whose BU matches the viewer's job role. Empty
+            for org-wide roles (no group renders at all). */}
+        {myModuleGroups.map((g) => (
+          <div key={g.bu} className="mt-3">
+            <RailGroupLabel>{t(g.bu)}</RailGroupLabel>
+            <div className="flex flex-col gap-[2px]">
+              {g.items.map((m) => (
+                <DestLink key={m.id} d={m} onNavigate={onNavigate} />
+              ))}
+            </div>
           </div>
-        )}
+        ))}
 
         {/* Utility — Admin Settings (gated) and Personal Profile. The footer below is the
-            identity/sign-out chip, not a nav link, so /profile needs its own entry here. */}
-        {liveUtility.map((u) => (
-          <div key={u.id} className="mt-1">
+            identity/sign-out chip, not a nav link, so /profile needs its own entry here. mt-3
+            matches the group rhythm above (Destinations / BU module overlines). */}
+        {liveUtility.map((u, i) => (
+          <div key={u.id} className={i === 0 ? 'mt-3' : 'mt-1'}>
             <DestLink d={u} onNavigate={onNavigate} />
           </div>
         ))}

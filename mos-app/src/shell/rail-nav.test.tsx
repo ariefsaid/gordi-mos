@@ -66,18 +66,24 @@ beforeEach(() => {
   setAuthAs([])
 })
 
-// AC-011: rail structure + order — OD-REDESIGN-68 (the owner's frame sketch, confirmed
-// 2026-07-18): the rail shows YOUR work, not the org chart. An org-wide role gets exactly the
-// sketch rail (no overlines, no BU module blocks); a BU-affiliated role gets its module, flat.
-describe('AC-011: Rail structure — the owner sketch (OD-REDESIGN-68)', () => {
-  it('AC-011: an org-wide admin sees exactly the sketch rail — Home · Work (4 children) · Events · Money · Inbox · Admin Settings · profile — with NO module blocks and NO group overlines', () => {
+// AC-011: rail structure + order — F2 fix (grouped IA spine, OD-REDESIGN-1 + DESIGN.md
+// Navigation/Rail "Grouped items under Overline group labels"). The rail shows YOUR work, not
+// the org chart, but grouped under Overline section labels: "Destinations" over the workspace
+// zone, then one Overline per BU (Retail Ops / B2B Ops) over the viewer's role-matched module(s).
+// Supersedes OD-REDESIGN-68's flat/no-overline rendering — CLAUDE.md's owner-artifact-deviations
+// note records that treatment as an undetected deviation from the owner's actual artifact
+// (OD-68, 2026-07-18), not a ratified end-state.
+describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
+  it('AC-011: an org-wide admin sees Home · Work (4 children) · Events · Money · Inbox · Admin Settings · profile under a "Destinations" overline — with NO module blocks', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
+    // Grouped IA spine: the Destinations overline
+    expect(within(nav).getByText('Destinations')).toBeInTheDocument()
     // Sketch destinations
     expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
-    // Work's 4 always-expanded children
+    // Work's 4 always-expanded children — nested under Work, not top-level peers
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
@@ -85,8 +91,7 @@ describe('AC-011: Rail structure — the owner sketch (OD-REDESIGN-68)', () => {
     expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Money' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
-    // The sketch has no org-chart furniture: no overlines, no module blocks
-    expect(within(nav).queryByText('Workspace')).toBeNull()
+    // No BU module group for an org-wide role (no BU affiliation → no group renders)
     expect(within(nav).queryByText('Retail Ops')).toBeNull()
     expect(within(nav).queryByText('B2B Ops')).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
@@ -96,14 +101,15 @@ describe('AC-011: Rail structure — the owner sketch (OD-REDESIGN-68)', () => {
     expect(within(nav).getByRole('link', { name: /Admin Settings/ })).toBeInTheDocument()
   })
 
-  it('AC-011b: a café-role viewer gets Café in the rail — flat, no BU heading (e7 Ayu pattern)', () => {
+  it('AC-011b: a café-role viewer gets Café in the rail under a "Retail Ops" BU overline', () => {
     setAuthAs([], 'Barista')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
-    expect(within(nav).queryByText('Retail Ops')).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+    expect(within(nav).queryByText('B2B Ops')).toBeNull()
   })
 
   it('AC-011d (audit F6): the REAL dual-hat fixture — Cafe Ops Lead + Sales Lead gets Café ONLY (Sales is b2b_sales, not Ecommerce)', () => {
@@ -115,12 +121,14 @@ describe('AC-011: Rail structure — the owner sketch (OD-REDESIGN-68)', () => {
     expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
   })
 
-  it('AC-011c: a roastery-role viewer gets Roastery, not Café', () => {
+  it('AC-011c: a roastery-role viewer gets Roastery under a "B2B Ops" BU overline, not Café', () => {
     setAuthAs([], 'Roastery Lead')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
   })
 
   it('AC-004: Work has exactly 4 children, 0 family headings (always expanded)', () => {

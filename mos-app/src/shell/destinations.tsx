@@ -134,10 +134,25 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
  * resolution; upgrade to team.business_unit when the viewer payload carries it.
  */
 export function modulesForRoles(roleNames: string[], accessRoles: string[]): Destination[] {
+  return modulesByBUForRoles(roleNames, accessRoles).flatMap((g) => g.items)
+}
+
+/**
+ * Same viewer-scoped module filter as `modulesForRoles`, grouped by the owning BU
+ * (OD-REDESIGN-1: "Modules grouped by Business Unit"; DESIGN.md Navigation/Rail: "Grouped
+ * items under Overline group labels"). Only groups with >=1 live, role-matched item are
+ * returned — the desktop rail (F2 fix) renders one Overline per group; mobile surfaces
+ * (bottom-tab-bar, mobile-drawer) keep using the flat `modulesForRoles` and are unaffected.
+ */
+export function modulesByBUForRoles(
+  roleNames: string[],
+  accessRoles: string[],
+): { bu: MessageKey; items: Destination[] }[] {
   const joined = roleNames.join(' ')
-  return MODULES.flatMap((g) => g.items).filter(
-    (m) => isLive(m, accessRoles) && m.workMatch != null && m.workMatch.test(joined),
-  )
+  return MODULES.map((g) => ({
+    bu: g.bu,
+    items: g.items.filter((m) => isLive(m, accessRoles) && m.workMatch != null && m.workMatch.test(joined)),
+  })).filter((g) => g.items.length > 0)
 }
 
 /**
