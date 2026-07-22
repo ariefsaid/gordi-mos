@@ -87,7 +87,7 @@
 /* View-tabs inside the toolbar: the shared ViewTabs primitive defaults to the
    full-width sticky strip (the dashboard placement — view-tabs.css); here it sits
    INLINE as the first toolbar item, so the strip chrome (padding/border/sticky/
-   background) is reset. The tab grammar (muted → brand-navy-text + the brand-orange
+   background) is reset. The tab grammar (muted → brand-navy-text + the primary-accent
    underline) is shared and untouched. */
 .toolbar .view-tabs {
   padding: 0;

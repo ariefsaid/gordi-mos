@@ -4,8 +4,8 @@
 // so the workspace + the dashboard read as one product.
 //
 // Grammar (OD-P3-6): transparent tabs, muted-foreground default → brand-navy-text +
-// a 2px brand-orange bottom underline when active (the ONE orange sprinkle per
-// screen — Orange-Sprinkle Rule); roving tabindex (only the active tab is tabindex=0)
+// a 2px primary-accent bottom underline when active (the ONE accent hue — shared
+// with Create/links/active-nav; product-color-accent-only); roving tabindex (only the active tab is tabindex=0)
 // + Arrow/Home/End key nav across ENABLED tabs only. `soon`/`disabled` tabs render
 // muted + non-interactive (disabled + aria-disabled, out of the tab order, click is a
 // no-op) — the Table/Board/Calendar "soon" placeholders. `count` renders the small

@@ -32,7 +32,7 @@ describe('ViewTabs', () => {
     expect(screen.getByRole('tab', { name: /summary/i })).toHaveAttribute('aria-selected', 'false')
   })
 
-  it('the active tab carries the orange-underline class; inactive tabs do not', () => {
+  it('the active tab carries the accent-underline class; inactive tabs do not', () => {
     render(<ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />)
     expect(screen.getByRole('tab', { name: /summary/i })).toHaveClass('view-tabs__tab--active')
     expect(screen.getByRole('tab', { name: /detail/i })).not.toHaveClass('view-tabs__tab--active')
