@@ -1,7 +1,8 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign`; implementation
-> checkpoint `3250aa8` plus documentation state commits, all local and unpushed.**
+> **CURRENT (2026-07-22): V3 live application convergence on local branch `v3-redesign`; canonical
+> consolidation tip `e1eb140` (including the implementation checkpoints and handoff documentation),
+> all local and unpushed.**
 > **AUDIT OVERRIDE (2026-07-22):** independent verification at `d63f20a` was **NO-SHIP**;
 > see [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md).
 > Checkpoint `fc10a8e` (including `08defcc`) has since closed the focused route-seam test failures, live
