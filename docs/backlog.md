@@ -1,7 +1,7 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **CURRENT (2026-07-22): V3 live application convergence on local branch `v3-redesign`; canonical
-> consolidation tip `e1eb140` (including the implementation checkpoints and handoff documentation),
+> **CURRENT (2026-07-22): V3 live application convergence on local branch `v3-redesign`; fresh
+> audit baseline `a7eef31` plus the current documentation addendum (local and unpushed),
 > all local and unpushed.**
 > **AUDIT OVERRIDE (2026-07-22):** independent verification at `d63f20a` was **NO-SHIP**;
 > see [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md).
@@ -57,9 +57,49 @@
 >
 > **Standing oracle — `docs/reference/provenance/owner-directives-index.md`** (composite: owner-word →
 > lost-good → owning-default, NOT e7-fidelity). Reviews check touched surfaces against it; transplants
-> use the composite checklist per surface. Its OPEN-UNTRACKED list (phone bottom-tab Café-for-all;
-> desktop no-clip column invariant; café capture-link default-active) and CONFLICT-needs-owner list
+> use the composite checklist per surface. Its OPEN-UNTRACKED list (desktop no-clip column invariant;
+> café capture-link default-active) and CONFLICT-needs-owner list
 > (action-verb family) are the redesign fix-queue + owner-A/B inputs.
+
+## Fresh current-tip audit queue — 2026-07-22 (read-only, tip `a7eef31`)
+
+Two bounded critics rechecked the live source and the historical owner oracle from the redesign,
+50+ QnA, divergence/convergence, and E7 threads. No Supabase, dev server, or broad test fan-out was
+used. The source guards pass (`v3-live-inventory`: 58 routes / 13 shared jobs / 73 CSS families;
+RecordCollection conformance; Storybook matrix 35/36/3), but those guards do not prove the rendered
+application is one coherent product. The branch remains **NO-SHIP**.
+
+Current blockers and required proof:
+
+- **P0 interaction:** the Task dirty-leave guard is not attached to the live `OverlayEntry`; Esc,
+  Back, or close can discard a dirty RecordField without I2 confirmation. Add a driven edit →
+  Escape/Back → retain/discard goal test against the real overlay seam (FR-V3-009 / AC-V3-008).
+- **P1 collection grammar:** Tasks and Signals still use different live table implementations and
+  CSS families. Shared engine/toolbar/outer wrapper is only partial convergence. Measure computed
+  styles and drive sort/filter/group/saved-view/open/Back at 1280, 1024, and 390px.
+- **P1 host/IA:** Inbox remains a bespoke triage surface outside `RecordCollectionSurface`; its
+  All/Unread-only local controls and absent seeded Bell → queue → record → Back proof are open.
+  Handled semantics remain owner/data-gated, not an invented defect.
+- **P1 host grammar:** Deputy remains a separate fixed panel/visual contract. Focus return is fixed;
+  decide and test either shared `RecordPanelHost`/stack or an explicit exception.
+- **P1 RecordViewer:** Task/Signal live viewers still diverge in anatomy and expose empty relation
+  arrays. Add a driven panel/page/related-record comparison before calling the abstraction complete.
+- **P2 visual/token drift:** standalone DataTable is 13px, Tasks rows are 50px, while DESIGN.md’s
+  E7 table reference is 14px/52px; Profile uses 8px card radius versus 12px; record-panel controls
+  are 30px versus the 32px token. Add computed-style guards, then require fresh owner renders.
+- **P2 Café language:** visible captions, errors, and aria labels still leak “Kitchen”; P-19 is
+  partial. Add a user-facing string invariant; internal identifiers may remain.
+- **P2 I5 contract:** eager native selects are now documented as a provisional exception; owner
+  disposition and keyboard/blur/Escape proof are still required. This is not universal I5 conformance.
+- **P3 hygiene:** retire/guard dead Signals selectors and stale host/router/Profile comments. The
+  current RecordCollection conformance script covers Tasks paths only; Signals, Inbox, and Deputy
+  need explicit coverage later.
+
+Resolved and not to re-open as current findings: Home Signal host/origin, Home routine Money KPI
+duplication, Café explicit Team choice, Inbox page host geometry/Back seam, Deputy focus return,
+Signals phone disclosure/native opener/Save View focus, and the old hardcoded Café phone-tab claim.
+The owner still must judge the final “one app” visual/density/card-soup result and the strategic
+Inbox/Deputy/I5 exceptions. Full current-tip screenshots and three-width driven evidence are absent.
 
 ## V3 Issue 2 local checkpoint (2026-07-20)
 

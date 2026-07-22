@@ -291,3 +291,43 @@ committed in `962de90`; the verbatim owner-origin, grill, and frustration/buildo
 `docs/reference/provenance/`. Deleted V3 implementation lanes did not contain unique mockup generations.
 The composite oracle remains `owner-directives-index.md` plus the locked decisions and Experience
 Contract; E7 is the visual reference, not a snapshot to copy wholesale.
+
+## Fresh current-tip UX/IA/IxD + visual/taste audit — 2026-07-22
+
+This new read-only acceptance pass is grounded in the owner’s verbatim redesign, 50+ QnA,
+divergence/convergence, and E7 prompts. Two bounded critics covered integration UX/IA/IxD and visual
+cohesion/Impeccable/Taste-equivalent anti-slop checks at local tip `a7eef31` (before this documentation
+update). No Supabase, dev server, or broad suite was started. Source guards pass: `v3-live-inventory`
+(58 routes / 13 shared jobs / 73 CSS families), RecordCollection conformance, and Storybook matrix
+(35 stories / 36 state entries / 3 responsive entries). Existing screenshots are stale; current
+computed-style and driven three-width evidence is absent.
+
+### Current findings
+
+| Severity | Finding | Required proof / disposition |
+|---|---|---|
+| P0 | Task dirty-leave guard is computed but not attached to the live `OverlayEntry`; Esc, Back, or close can discard a dirty RecordField without I2 confirmation. | Attach the guard at the real host seam and drive edit → Esc/Back → retain/discard (FR-V3-009 / AC-V3-008). Pure guard tests are proxy evidence only. |
+| P1 | Tasks and Signals still render different table implementations and CSS families. Shared engine/toolbar/outer wrapper is only partial convergence. | Computed-style + driven matrix at 1280/1024/390 for sort, filters, grouping, saved views, open, Back, focus, and responsive disclosure. |
+| P1 | Inbox remains a bespoke triage surface outside `RecordCollectionSurface`; All/Unread-only local controls and seeded Bell → queue → record → Back proof are absent. | Treat handled semantics as owner/data-gated; complete the seeded journey and decide its collection-state model. |
+| P1 | Deputy remains a separate fixed host and visual contract. Focus restoration is fixed, but stack/geometry still diverge. | Share `RecordPanelHost`/stack or record an explicit owner exception, then drive coexistence and Back. |
+| P1 | Task/Signal live RecordViewer anatomy and relation seams are incomplete; adapters expose empty relation arrays. | Driven panel/page/related-record comparison across both record types. |
+| P2 | Café user-facing captions, errors, and aria labels still leak “Kitchen”; P-19 is partial. | Add a user-facing string invariant; retain internal `Kitchen*` identifiers if needed. |
+| P2 | Token/rhythm drift remains measurable: standalone DataTable 13px, Tasks rows 50px, DESIGN.md E7 table reference 14px/52px; Profile radius 8px vs 12px; record-panel controls 30px vs 32px. | Add computed-style guards, then require fresh owner renders for the composite “one app” verdict. |
+| P2 | Native selects are a documented provisional I5 exception, not universal inline-edit conformance. | Owner disposition plus keyboard/blur/Escape proof if the exception remains. |
+| P3 | Dead Signals selectors and stale host/router/Profile comments can mislead future audits. The conformance guard covers Tasks paths only, not Signals, Inbox, or Deputy. | Retire/guard stale selectors/comments and expand guard scope in a later hygiene slice. |
+
+### Resolved or stale claims deliberately not repeated
+
+Home Signal host/origin, Home routine Money KPI duplication, Café explicit Team choice, Inbox page host
+geometry/Back seam, Deputy focus return, Signals phone disclosure/native opener/Save View focus, and the
+old hardcoded Café phone-tab finding are resolved at source level or stale. That does not replace fresh
+rendered proof. Owner-only gates remain the final visual/density/card-soup judgment, the strategic
+Inbox/Deputy/I5 exceptions, Q1 Signal-on-Home, and Issue 10 typed embeds. **NO-SHIP remains.**
+
+### Automation versus owner eye
+
+Automation can and should prove geometry, computed token parity, panel mode/side/width, duplicate-host
+absence, keyboard sort/menu, Esc/Back/focus, dirty-veto, seeded Inbox journey, and horizontal overflow.
+Only the owner can ratify whether object-specific row anatomy feels like one coherent app, whether the
+Signal feed’s nested cards are intentional or card soup, and whether E7 styling plus the composite IA/IxD
+oracle has crossed the “high-schooler obvious” bar. Green source guards are not those decisions.

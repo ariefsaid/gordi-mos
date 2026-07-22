@@ -56,12 +56,12 @@ them here:
 | P-11 | two fronts: "manager efficiency AND barista obviousness; neither is sacrificed" | 03:2736, 03:2654 | role-adaptive disclosure on every surface | owner-word | **SHIPPED** — OD-66 / OD-61; step-6 manager front re-scored 8.5/10 |
 | P-12 | "might as well reiterate when building rather than reiterating twice" → mockup phase closed | 03:2654 | no more mockup rounds; iterate in mos-app | owner-word | **SHIPPED** — OD-56 / OD-65 |
 | P-13 | frame sketch: breadcrumb + ⌘K header; Work▸4 collections; Events rail root; universal actions in ⌘K | OD-57 (03 sketch) | shell / rail / header anatomy | owner-word | **SHIPPED** — parity-verified (parity-sweep Axis-2, 13 shipped-as-said) |
-| P-14 | "the rail shows YOUR work, not the org chart" — modules only for role-affiliated viewers | OD-68 (03 sketch omission) | rail + phone More scoping | owner-word | **PARTIAL** — desktop rail + More menu shipped (AC-011); **phone bottom-tab still hardcodes Café for everyone** → OPEN-UNTRACKED |
+| P-14 | "the rail shows YOUR work, not the org chart" — modules only for role-affiliated viewers | OD-68 (03 sketch omission) | rail + phone More scoping | owner-word | **SHIPPED at source level** — desktop rail, More menu, and phone module tab resolve the viewer’s affiliated modules; fresh rendered phone proof remains open |
 | P-15 | Work children are "plain indented labels" (sketch), not icons | 03:736 | rail Work-children treatment | owner-word | **SHIPPED** — OD-69(ii); icons reverted, parity-verified |
 | P-16 | Task record = Team + PIC + Supervisor + Due + source; **RACI removed from Task surfaces** | OD-62 (03 Fork 3) | Task record renderer | owner-word | **SHIPPED** — parity Axis-2 (PIC/Supervisor no-RACI verified) |
-| P-17 | in-list click = shared split drawer; direct URL/new-tab/refresh = full canonical page | OD-63 (03 Fork 4) | record surface (drawer + page mode) | owner-word | **PARTIAL** — drawer shipped; **page-mode branch unbuilt** → OPEN-TRACKED ratify item 6 (Signal full-page OD-63) |
+| P-17 | in-list click = shared split drawer; direct URL/new-tab/refresh = full canonical page | OD-63 (03 Fork 4) | record surface (drawer + page mode) | owner-word | **PARTIAL** — collection drawer and direct page-mode branches exist; fresh browser Back/refresh/new-tab and three-width proof remain open |
 | P-18 | Signal feed on Home below the non-removable attention brief; Work = Signals archive only; no Updates root | OD-59 | Home composition + Signal home | owner-word | **CONFLICT-needs-owner** — built as specified but **Q1 stays provisional**; final ratification reserved to post-step-11 (ratify item 1) |
-| P-19 | "kitchen + Bar should be Cafe" | 03 (verbatim; convention audit) | café naming (nav + page titles + body) | owner-word | **SHIPPED** — step-7 rename; page-title drop fixed 2026-07-18 (parity-sweep §Convention) |
+| P-19 | "kitchen + Bar should be Cafe" | 03 (verbatim; convention audit) | café naming (nav + page titles + body) | owner-word | **PARTIAL** — rail, breadcrumbs, and page titles use Café; user-facing captions, errors, and aria labels still leak “Kitchen” (fresh current-tip audit 2026-07-22) |
 | P-20 | "Place the language settings in the personal profile as selection" | OD-70 | /profile page; rail LocaleToggle removed | owner-word | **SHIPPED** — OD-70; /profile real page, PageHead adopted (second-pass #7) |
 | P-21 | Weekly Update / Daily Log retired — Signal supersedes; no review roster/filing in front of staff | OD-33/48/64 | Home; no retired-cadence surface | owner-word | **PARTIAL** — TeamModule roster leak FIXED (`beca0dc`); **ratify whether `SHOW_WEEKLY_UPDATES` flips false globally** → OPEN-TRACKED ratify item 18 |
 | P-22 | Signal author/deputy can retract-and-repost for wrong provenance | OD-45 (step-4 ledger) | Signal record retract control | owner-word | **PARTIAL** — DB gate built (AC-412); **no UI control** → OPEN-TRACKED ratify item 16 |
@@ -72,7 +72,7 @@ them here:
 | P-### | Artifact (≤20w) | Source | Binds | Tier | Status @ tip |
 |---|---|---|---|---|---|
 | P-24 | e7 Inbox had **All / Unread / Handled** triage-state filter tabs; the build lost them | final-mockup-audit LG-1 (:52) | Inbox page | lost-good (e7→build) | **OPEN-TRACKED** — fast-follow (a), vdrd17 ledger |
-| P-25 | "empty data is shown as a **state, not a dash**" — Home money glance regressed to bare "—" tiles | final-mockup-audit LG-2 (:69); G0 option-a | Home money-glance KPI tiles | lost-good (e7f/G0→build) | **OPEN-TRACKED** — fast-follow (b): implement KPITile `empty` state |
+| P-25 | "empty data is shown as a **state, not a dash**" — Home money glance regressed to bare "—" tiles | final-mockup-audit LG-2 (:69); G0 option-a | Home money-glance KPI tiles | lost-good (e7f/G0→build) | **RESOLVED for current Home** — routine Money KPI tiles are no longer rendered; retain this row as regression history |
 | P-26 | every KPI card printed its **drill target** + multi-source freshness/basis provenance ("AP stale · as of 7 Jul") | final-mockup-audit LG-3 (:89); money.html/probes | money + attention KPI cards | lost-good (e7f→app; soft) | **OPEN-TRACKED** — fast-follow (c): re-verify once Money has snapshot data |
 
 ### Tier 2b — superseded near-misses (imported so they are NOT re-litigated as regressions)
@@ -105,17 +105,13 @@ them here:
 These have **no** ratify-item, backlog line, or fast-follow of their own. They are the additions this
 oracle contributes to the fix queue.
 
-1. **Phone bottom-tab bar hardcodes Café as a primary tab for every viewer** — OD-68 ("rail shows your
-   work") was applied to the desktop rail + phone More menu, but **not** to the phone bottom tabs. A
-   viewer with no Café affiliation still gets Café as a primary phone tab. Mentioned once in the vdrd17
-   ledger as an "open follow-up" under ratify-14 but never given its own tracker. (P-14)
-2. **Desktop decision-column no-clip invariant is not an enshrined scored rule.** "Decision-relevant
+1. **Desktop decision-column no-clip invariant is not an enshrined scored rule.** "Decision-relevant
    columns never clip at ≥1280px (e7's calm fit is the bar)" recurred as a defect across review rounds
    and was ruled a **standing convention** (design-authority O3), with codification as an
    Experience-Contract clause only *proposed* at step 11. Rule 9 covers the *mobile* collapse, not the
    desktop no-clip bar — so any new dense surface (Signals archive, Money, catalog) can regress it with
    no scored rule to catch it.
-3. **Café capture-link default-active tab render (low-confidence).** On one desktop capture the "Plan"
+2. **Café capture-link default-active tab render (low-confidence).** On one desktop capture the "Plan"
    café capture-link rendered as filled/active though the four Log/Plan/Stock/Review links are peers
    with no active route (final-mockup-audit TIF-3). Likely a transient `:focus-visible` artifact; not
    reproduced as a floor persona; confirm the four links are equal-weight at rest.
@@ -149,10 +145,10 @@ restored the e7-aligned 8/12; Work-children icons — OD-69(ii) reverted to plai
 **By tier:** owner-word 23 (P-01..P-23) · lost-good 3 (P-24..P-26) · superseded near-misses 8
 (P-27..P-34) · owning-default 5 (P-35..P-39). **Total 39 rows.**
 
-**By status:** SHIPPED 17 · PARTIAL 7 · OPEN-TRACKED 5 (P-06 backlog OD-69i; P-10 ratify-5; P-17
-ratify-6; P-21 ratify-18; P-22 ratify-16; P-23 ratify-17; P-24/25/26 fast-follows a/b/c — 6 tracked
-lines across those) · OPEN-UNTRACKED 3 (list above) · SUPERSEDED-by-OD 8 · CONFLICT-needs-owner 1
-(+1 owner-provisional, P-18).
+**By status:** SHIPPED 17 · PARTIAL 9 · OPEN-TRACKED 3 (P-06, P-24, P-26) · RESOLVED 1 (P-25)
+· OPEN-UNTRACKED 2 (list above) · SUPERSEDED-by-OD 8 · CONFLICT-needs-owner 1 (P-18).
+Partial rows may still point at a separately tracked ratify item; that is intentionally distinct from
+the row’s current implementation status.
 
 ---
 

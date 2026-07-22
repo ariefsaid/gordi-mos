@@ -305,3 +305,26 @@ documentation handoff are landed on `v3-redesign` (`93555ac`, `9e2a8d1`, `15924d
 checkpoints). Signal has active isolated review work; no production merge, push, deploy, or owner
 walkthrough has occurred. A future agent must
 update this section and `docs/agent-context.md` immediately after each reviewed cherry-pick.
+
+## Current-tip audit addendum — 2026-07-22 (`a7eef31`)
+
+The older Audit A/B lists above are historical strata. A fresh read-only integration UX/IA/IxD critic
+and a visual/cohesion/Impeccable/Taste-equivalent critic rechecked the current source against the
+owner’s redesign, 50+ QnA, divergence/convergence, and E7 oracle. The current **NO-SHIP** blockers are:
+
+1. Task dirty-leave guard is not attached to the live overlay entry; real edit → Escape/Back retain or
+   discard proof is missing.
+2. Tasks and Signals still have parallel table/CSS families despite shared outer collection primitives;
+   computed-style and driven 1280/1024/390 parity is missing.
+3. Inbox remains bespoke outside `RecordCollectionSurface`; seeded Bell → queue → record → Back proof
+   and final handled semantics are open (owner/data-gated, not guessed).
+4. Deputy still has a separate fixed host/visual contract; focus return is fixed, host/stack choice is not.
+5. Task/Signal RecordViewer anatomy and relation arrays are incomplete; cross-surface panel/page proof is open.
+6. Café user-facing “Kitchen” strings, token/rhythm drift, and the provisional native-select I5 exception remain.
+
+The source guards pass, but the conformance script covers Tasks paths only, not Signals/Inbox/Deputy, and
+current screenshots are stale. Automation can cover geometry, computed parity, keyboard/Esc/Back/focus,
+dirty-veto, seeded journeys, and overflow. The owner still must judge the final E7-styled “one app” result,
+Signal card-soup/density, and strategic Inbox/Deputy/I5 exceptions. Do not treat the older “production
+host still unmounted”, “Deputy focus return missing”, “Café first-Team heuristic”, or “phone Café tab
+hardcoded” statements as current; those are resolved/stale and are called out in the completion audit.

@@ -73,6 +73,22 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host
 > dependencies and Issues 7–9 are actually complete.
 
+> **CURRENT-TIP CRITIC OVERRIDE (2026-07-22, tip `a7eef31`):** A bounded read-only integration
+> UX/IA/IxD pass and a visual/cohesion/Impeccable/Taste-equivalent anti-slop pass rechecked the
+> application against the owner’s verbatim redesign / 50+ QnA / divergence-convergence / E7 oracle.
+> Source guards pass (inventory 58 routes / 13 shared jobs / 73 CSS families; RecordCollection
+> conformance; Storybook 35/36/3), but no current computed-style or driven 1280/1024/390 evidence
+> exists. The branch remains **NO-SHIP**. Highest open gaps are: Task dirty-leave guard not attached
+> to the live OverlayEntry; Tasks/Signals still render different table/CSS families; Inbox remains a
+> bespoke collection without seeded Bell→queue→record→Back proof; Deputy has a separate fixed host;
+> Task/Signal RecordViewer relation/anatomy proof is incomplete; user-facing Café strings still leak
+> “Kitchen”; measurable DataTable/row/radius/control token drift; and the documented provisional I5
+> native-select exception. Details are in the fresh sections of the completion audit and review ledger.
+> Automation can prove geometry, computed parity, keyboard/Esc/Back/focus, dirty-veto, seeded journeys,
+> and overflow; only the owner can ratify the final “one app” visual/density/card-soup verdict and
+> strategic Inbox/Deputy/I5 exceptions. Resolved/stale findings are listed explicitly in those docs;
+> do not resurrect them from historical audit sections.
+
 > **INDEPENDENT COMPLETION AUDIT (2026-07-22):** The current tip `d63f20a` is **NO-SHIP**. Fresh
 > verification is recorded in [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md): typecheck/lint/build and the RecordCollection guard pass, but live-inventory freshness fails, the full Vitest run is **3,212 passed / 15 failed / 14 errors**, and `pre-merge-check.sh` has no current review verdict lines. The route-seam failures, Tasks-vs-Signals collection grammar divergence, Café first-Team heuristic, unimplemented Issue 10, and missing owner three-width gate remain release blockers. Do not use the historical `3195/3196`, `329/329`, or `7cc45f2` figures as current completion evidence.
 

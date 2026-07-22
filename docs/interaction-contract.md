@@ -22,7 +22,7 @@ Proof cell is a defect, not a gap.
 | I2 | **Close / Back** | ✕ and Esc → underlying page, focus returned to opener. Browser Back → where you came from. In-panel stack Back → pops one. Never a dead end. | host |
 | I3 | **Menu / popover** | Trigger click → menu; focus enters first item; Arrow/Home/End cycle ALL `menuitem*` roles; Esc + outside-click close + return focus. | `useMenuPopover` |
 | I4 | **Modal / launcher** | Centered dialog, `aria-modal`, focus trap, Esc closes + returns focus. (⌘K, composer, confirm dialogs.) | CommandMenu pattern |
-| I5 | **Inline edit** | Enter / Tab / click-outside COMMITS; **Escape DISCARDS and restores the saved value** (OD-REDESIGN-22 — owner-locked, currently UNBUILT: shipping selects commit eagerly on change, provenance finding C2). One field-edit primitive owns this. | to build — the next cohesion slice after the host |
+| I5 | **Inline edit** | Text/number edits: Enter / Tab / click-outside COMMITS; **Escape DISCARDS and restores the saved value** (OD-REDESIGN-22). Native selects currently commit eagerly on change as a **provisional exception** because selection is the complete control action; they are not evidence that the universal field-edit primitive is complete. | `useInlineCommit` for text/number; select exception requires owner disposition |
 | I6 | **Async action** | Control disabled while pending (`aria-busy`); optimistic update with rollback + `role=status` announcement on failure. | exists on Tasks — generalize, never re-implement |
 | I7 | **Navigate** | Exactly one `aria-current="page"` (rail owns it; breadcrumb leaf when the viewer has no rail entry). Redirects preserve query. View state in query params survives refresh/share. | rail + breadcrumb + router |
 | I8 | **List select vs activate** | Single click activates (opens I1); selection is explicit (checkbox), never click-ambiguity. | tasks table pattern |
@@ -44,14 +44,14 @@ Proof cell is a defect, not a gap.
 
 | Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
 |---|---|---|---|---|---|---|---|---|
-| Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `task-row.test` "I7 open/cursor is aria-selected" |
-| Signal record | ✅ shared `OverlayHost` (in-list record query → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ❌ | partial | ✅ | Signals archive focused suite + overlay-host route seam |
+| Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ⚠️ provisional select exception; dirty-leave wiring still open | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `task-row.test` "I7 open/cursor is aria-selected" |
+| Signal record | ✅ shared `OverlayHost` (in-list record query → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ⚠️ no editable field contract in live wrapper | partial | ✅ | Signals archive focused suite + overlay-host route seam |
 | Inbox | ✅ shared host; page records use the page-owned split slot and bell quick triage uses the shell slot (seeded notification proof and handled semantics still open) | partial | — | — | — | — | ✅ | inbox host tests; seeded-notification acceptance pending |
 | Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
 | Admin people menu | — | ✅ | ✅ (⋯ + mobile sheet) | — | — | — | — | user-table I3 suite |
 | ⌘K / composer | — | ✅ | — | ✅ | — | — | — | command-menu suite |
-| Record details fields | — | — | — | — | ✅ inline edits are native selects — eager commit is the correct I5 reading (no free-text field to defer) | ❓ | — | `record-details-panel.test.tsx` "I5 inline edits are eager selects (OD-REDESIGN-22)" |
+| Record details fields | — | — | — | — | ⚠️ native selects eager-commit; provisional I5 exception, not universal conformance | ❓ | — | `record-details-panel.test.tsx` "I5 inline edits are eager selects (OD-REDESIGN-22)" |
 | Kitchen/Café qty cells | — | — | — | — | ✅ text/number qty routed through `useInlineCommit` (Enter/Tab/blur commit, Escape restores saved qty) | ✅ | — | `qty-cell.test.tsx` / `plan-qty-cell.test.tsx` "I5 inline commit (OD-REDESIGN-22)" |
 
 ## Sequence to full conformance (the cohesion program, in flight)
@@ -60,7 +60,8 @@ Proof cell is a defect, not a gap.
    consumer seam (the physical `RecordPanelHost` is now mounted through the single `OverlayHost`; Task
    and Signal focused suites pass, with live browser and full-suite acceptance still pending).
 2. **Host P3** Inbox two-door (I9) · **P4** Deputy chrome (I1 col).
-3. **I5 slice** — the one inline-edit primitive (OD-22), retrofit details-panel + qty cells.
+3. **I5 slice** — decide/document the native-select exception, then wire the dirty-leave guard into
+   live Task/Signal host entries and cover the real edit → Escape/Back → retain/discard journey.
 4. ~~**I3 completion** — admin people menu onto `useMenuPopover`.~~ DONE (user-table I3 suite).
 5. **Lens (b) measured step** — reviewer drives I1/I2/I3 on every touched surface pair and asserts
    identical outcomes; recorded per review like the computed-style table.

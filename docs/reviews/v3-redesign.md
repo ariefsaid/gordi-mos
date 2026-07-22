@@ -906,3 +906,24 @@ locking assertion; this closes the hand-rolled activation seam but does not repl
 The shared Save View editor also restores focus to its trigger on Escape, Cancel, and successful Save;
 the ref-forwarding Button primitive and CollectionToolbar test lock the behavior for every collection
 consumer.
+
+## Fresh current-tip critic pass — 2026-07-22 (`a7eef31`)
+
+Read-only integration UX/IA/IxD and visual/cohesion/Impeccable/Taste-equivalent critics rechecked the
+application against the owner’s redesign, 50+ QnA, divergence/convergence, E7, and anti-AI-slop oracle.
+No Supabase, dev server, or broad suite was used. Source guards remain green (inventory 58/13/73,
+RecordCollection guard, Storybook 35/36/3), but current rendered evidence is stale or absent.
+
+**NO-SHIP.** The current gate is blocked by a P0 dirty-leave seam (Task `OverlayEntry` does not receive
+the guard), P1 Tasks-vs-Signals live table/CSS divergence, P1 bespoke Inbox collection/seeded Bell proof,
+P1 separate Deputy host/visual contract, and incomplete Task/Signal RecordViewer relation/anatomy proof.
+P2 items are Café “Kitchen” strings, measurable typography/radius/control-size drift, and the provisional
+native-select I5 exception. P3 cleanup is dead Signals selectors, stale comments, and a conformance guard
+that covers Tasks but not Signals/Inbox/Deputy. Details and owner/automation split are in the completion
+audit’s fresh section.
+
+Resolved or stale claims are explicitly excluded: Home Signal host/origin, Home Money KPI duplication,
+Café explicit Team choice, Inbox page host geometry/Back seam, Deputy focus return, Signals phone disclosure,
+native opener and Save View focus, and the former hardcoded Café phone-tab finding. Do not call this branch
+complete from source guards alone. Owner gates still include the final three-width “one app” visual verdict,
+Signal card-soup/density judgment, strategic Inbox/Deputy/I5 exceptions, Q1 Signal-on-Home, and Issue 10.
