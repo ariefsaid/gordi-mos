@@ -231,4 +231,14 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
     expect(css).toMatch(/\.record-field__select \.mk-select__field[\s\S]*min-height:\s*44px/)
     expect(css).toMatch(/\.record-field__retry[\s\S]*min-height:\s*44px/)
   })
+
+  // F5 density: the RESTING value activation target (.record-field__edit) is a touch floor, not an
+  // NFR-guarded edit-mode control. On a fine pointer (desktop mouse) it tightens to E7's kv rhythm
+  // so editable rows stop reading at 52px; the EDIT-mode controls above keep 44px unconditionally.
+  it('tightens the resting value target to the E7 kv rhythm on a fine pointer (touch keeps 44px)', () => {
+    // The default (touch) resting target stays at the 44px floor.
+    expect(css).toMatch(/\.record-field__edit\s*\{[\s\S]*?min-height:\s*44px/)
+    // A pointer:fine block tightens the resting target below 44px.
+    expect(css).toMatch(/@media \(pointer: fine\)[\s\S]*\.record-field__edit[\s\S]*min-height:\s*32px/)
+  })
 })
