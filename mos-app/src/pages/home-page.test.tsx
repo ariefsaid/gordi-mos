@@ -218,7 +218,7 @@ describe('AC-H01/OD-17: Home never renders the revenue/margin KPI tiles (dashboa
   })
 })
 
-describe('AC-H02/OD-17: member-only viewer sees the tasks tile + My Week panel (never blank)', () => {
+describe('AC-H02/OD-17: member-only viewer sees the My tasks card + My Week panel (never blank)', () => {
   it('does not render revenue/margin tiles and never calls the finance DAL', async () => {
     await renderHome(memberViewer)
     expect(mockListRevenue).not.toHaveBeenCalled()
@@ -227,10 +227,11 @@ describe('AC-H02/OD-17: member-only viewer sees the tasks tile + My Week panel (
     expect(screen.queryByRole('group', { name: /gross margin/i })).toBeNull()
   })
 
-  it('still renders the tasks tile + My Week panel (never blank)', async () => {
+  it('renders the My tasks card + My Week panel (never blank)', async () => {
     await renderHome(memberViewer)
-    await waitFor(() => expect(screen.getByRole('group', { name: /open tasks/i })).toBeInTheDocument())
-    expect(screen.getByText('My tasks')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    // KPI tile for open tasks is removed — count now lives in My tasks card header
+    expect(screen.queryByRole('group', { name: /open tasks/i })).toBeNull()
   })
 })
 
@@ -254,12 +255,26 @@ describe('F-C / OD-REDESIGN-64 — member Home has no legacy dead-link cards', (
   })
 })
 
-describe('AC-H06: tasks tile links to the My-work view and shows the open-task count', () => {
-  it('shows the R/A non-Done count and links to /work/tasks?view=my-work', async () => {
+describe('AC-H06: tasks tile is removed — open count lives in My tasks card header', () => {
+  it('does NOT render the standalone KPI tile for open tasks', async () => {
+    await renderHome(financeViewer)
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    expect(screen.queryByRole('group', { name: /open tasks/i })).toBeNull()
+  })
+
+  it('My tasks card header shows the open count once ready', async () => {
     mockListTasks.mockResolvedValue([
       {
         id: 't-1', org_id: 'org-1', title: 'Task 1', business_unit_id: 'bu-1',
-        status: 'In Progress', responsible_person_id: financeViewer.status === 'authenticated' ? financeViewer.viewer.person.id : '',
+        status: 'In Progress', responsible_person_id: financeViewer.viewer.person.id,
+        accountable_person_id: 'other-1', consulted_person_ids: [], informed_person_ids: [],
+        description: null, due_date: null, objective_id: null, work_line_id: null,
+        last_activity_at: '2026-06-30T00:00:00Z', archived_at: null, created_by: 'x',
+        created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-30T00:00:00Z',
+      },
+      {
+        id: 't-2', org_id: 'org-1', title: 'Task 2', business_unit_id: 'bu-1',
+        status: 'Done', responsible_person_id: financeViewer.viewer.person.id,
         accountable_person_id: 'other-1', consulted_person_ids: [], informed_person_ids: [],
         description: null, due_date: null, objective_id: null, work_line_id: null,
         last_activity_at: '2026-06-30T00:00:00Z', archived_at: null, created_by: 'x',
@@ -267,17 +282,11 @@ describe('AC-H06: tasks tile links to the My-work view and shows the open-task c
       },
     ])
     await renderHome(financeViewer)
-
-    await waitFor(() => {
-      const tile = screen.getByRole('group', { name: /open tasks/i })
-      expect(tile.textContent).toMatch(/1/)
-    })
-    const tile = screen.getByRole('group', { name: /open tasks/i })
-    const link = tile.closest('a')
-    expect(link).not.toBeNull()
-    // The count is a direct link to the viewer's own task list (Luna: "My open tasks"
-    // must land on the my-work view, not the unfiltered all-tasks list).
-    expect(link!.getAttribute('href')).toBe('/work/tasks?view=my-work')
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    // My tasks card header meta should include '1 open' (only In Progress, not Done)
+    await waitFor(() =>
+      expect(screen.getByText("Where you're PIC or Supervisor · off track first · 1 open")).toBeInTheDocument()
+    )
   })
 })
 

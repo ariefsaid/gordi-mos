@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
+import { I18nProvider } from '@/i18n/I18nProvider'
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 vi.mock('@/lib/db/tasks', () => ({
   listTasks: vi.fn(),
@@ -118,7 +120,9 @@ async function renderCard(viewerId = VIEWER_ID, now = NOW) {
   await act(async () => {
     utils = render(
       <MemoryRouter>
-        <MyTasksCard viewerId={viewerId} now={now} />
+        <I18nProvider>
+          <MyTasksCard viewerId={viewerId} now={now} />
+        </I18nProvider>
       </MemoryRouter>,
     )
     await Promise.resolve()
@@ -365,5 +369,15 @@ describe('Card-head chrome: title + meta + All tasks link', () => {
     await renderCard()
     const link = screen.getByRole('link', { name: /All tasks/i })
     expect(link.getAttribute('href')).toBe('/work/tasks')
+  })
+
+  it('shows open task count in the meta line when ready', async () => {
+    // Fixture: taskBlocked (Blocked), taskInProgress (In Progress), taskOpen (Open) are open
+    // taskDone (Done) is not open; taskOther is filtered out (not R/A)
+    await renderCard()
+    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    // The meta line should contain "3 open" (en locale default)
+    const meta = screen.getByText(/Where you're PIC or Supervisor · off track first · 3 open/)
+    expect(meta).toBeInTheDocument()
   })
 })

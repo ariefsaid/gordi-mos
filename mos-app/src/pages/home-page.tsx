@@ -20,7 +20,6 @@
 // When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
 // documented default (docs/specs/home-v1.spec.md).
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -32,12 +31,10 @@ import { listNotifications } from '@/lib/db/notifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import { KPITile } from '@/components/dashboard/kpi-tile'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { useIsPhone } from '@/shell/use-is-phone'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
-import { openTaskCount } from '@/lib/home-kpis'
 import {
   overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday,
   type AttentionItem, type AttentionLane, type AttentionDirectory,
@@ -121,7 +118,7 @@ export function HomePage() {
     loadTasks()
   }, [loadTasks])
 
-  const taskCount = personId ? openTaskCount(tasks, personId) : 0
+
 
   // ── Notifications (mentions lane) — reuses Inbox's own "what asked for me" read (Step 5) ──
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
@@ -239,16 +236,7 @@ export function HomePage() {
           dashboard's revenue/margin KPI tiles. Financial *exceptions* surface via the
           attention brief; routine finance KPIs live on /dashboard, which owns them. */}
 
-      {/* Everyone row — tasks (always). */}
-      <div className="home-kpi-grid">
-        <Link to="/work/tasks?view=my-work" className="home-kpi-link">
-          <KPITile
-            label={t('home.kpi.tasks')}
-            value={taskState === 'ready' ? String(taskCount) : '—'}
-            state={taskState === 'loading' ? 'loading' : 'ready'}
-          />
-        </Link>
-      </div>
+
 
       {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
           successors are real; the MyWeekPanel component itself survives (ADR-0019 D2). */}

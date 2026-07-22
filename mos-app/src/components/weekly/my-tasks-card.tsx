@@ -76,6 +76,16 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       .sort((a, b) => compareOffTrackFirst(a, b, now))
     : []
 
+  // Open count: tasks where viewer is R/A and status !== 'Done' (matches home-kpis.openTaskCount definition).
+  // While loading we show nothing (no dash) — plain text appended to the subtitle line.
+  const openCount = loadState === 'ready'
+    ? myTasks.filter(t => t.status !== 'Done').length
+    : null
+
+  const metaText = openCount != null
+    ? `${t('tasks.myMeta')} · ${t('tasks.myOpenCount', { count: openCount })}`
+    : t('tasks.myMeta')
+
   return (
     <section
       className="bg-card border border-border rounded-lg shadow-rest mb-4"
@@ -84,7 +94,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
     >
       <CardHead
         title={t('tasks.myTitle')}
-        meta={t('tasks.myMeta')}
+        meta={metaText}
         action={
           <Link
             to="/work/tasks"
