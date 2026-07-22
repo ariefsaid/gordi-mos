@@ -70,19 +70,16 @@ export function createSignalRecordAdapter(input: SignalRecordAdapterInput): Reco
 
   const correctable = canCorrect && !retracted
 
+  // Facts — the Signal reads as a factual document (E7 "Signal = factual"): who reported it, how
+  // it's classified, which Team owns visibility, when it occurred, and how much attention it needs.
+  // Author / Team / Occurred are fixed after posting (read-only value + provenance note); Attention
+  // and Category are correctable (value-first: the value shows first, activating swaps in the
+  // select). Document reading order: author · category · team · occurred · attention.
+  const correctionReason = retracted ? 'This signal was retracted' : "You can't correct this signal."
   const context: RecordMetadataSection = {
     id: 'context',
-    label: 'Context',
+    label: 'Facts',
     fields: [
-      {
-        key: 'owningTeam',
-        label: 'Owning Team',
-        control: 'team',
-        value: signal.owning_team_id,
-        displayValue: teamName,
-        editable: false,
-        readOnlyReason: 'Owning Team is fixed after posting',
-      },
       {
         key: 'author',
         label: 'Reported by',
@@ -93,16 +90,6 @@ export function createSignalRecordAdapter(input: SignalRecordAdapterInput): Reco
         readOnlyReason: 'The author is fixed after posting',
       },
       {
-        key: 'attention',
-        label: 'Attention',
-        control: 'select',
-        value: signal.attention,
-        displayValue: signal.attention,
-        options: ATTENTION_OPTIONS.map((a) => ({ value: a, label: a })),
-        editable: correctable,
-        readOnlyReason: correctable ? undefined : retracted ? 'This signal was retracted' : "You can't correct this signal.",
-      },
-      {
         key: 'category',
         label: 'Category',
         control: 'select',
@@ -110,7 +97,16 @@ export function createSignalRecordAdapter(input: SignalRecordAdapterInput): Reco
         displayValue: signal.category ?? 'Uncategorized',
         options: SIGNAL_CATEGORIES.map((c) => ({ value: c, label: c })),
         editable: correctable,
-        readOnlyReason: correctable ? undefined : retracted ? 'This signal was retracted' : "You can't correct this signal.",
+        readOnlyReason: correctable ? undefined : correctionReason,
+      },
+      {
+        key: 'owningTeam',
+        label: 'Owning Team',
+        control: 'team',
+        value: signal.owning_team_id,
+        displayValue: teamName,
+        editable: false,
+        readOnlyReason: 'Owning Team is fixed after posting',
       },
       {
         key: 'occurredAt',
@@ -120,6 +116,16 @@ export function createSignalRecordAdapter(input: SignalRecordAdapterInput): Reco
         displayValue: signal.occurred_at,
         editable: false,
         readOnlyReason: 'Set when the signal was captured',
+      },
+      {
+        key: 'attention',
+        label: 'Attention',
+        control: 'select',
+        value: signal.attention,
+        displayValue: signal.attention,
+        options: ATTENTION_OPTIONS.map((a) => ({ value: a, label: a })),
+        editable: correctable,
+        readOnlyReason: correctable ? undefined : correctionReason,
       },
     ],
   }
