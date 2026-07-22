@@ -347,3 +347,13 @@ Inbox seeded journey, Deputy shared-host/coexistence behavior, RecordViewer anat
 three-width acceptance are still open. The Deputy preference is recorded provisionally in OD-REDESIGN-80:
 wide adjacent/compact where possible, phone compact-on-top acceptable, never a covering second desktop
 drawer. No Supabase or broad render run was performed.
+
+## Collection-table follow-up — 2026-07-22 (local, unpushed)
+
+The earlier table-grammar contradiction was measured against the `a7eef31` baseline and is now closed
+at source/test level for the live table presentations: Tasks and Signals explicitly consume the same
+14px typography, 38px header, 52px row, fixed/full-width layout, padding, and divider skin. Signal
+Occurred/Attention sorting now uses native keyboard headers and the URL-owned query. The residual visual
+findings are Profile radius, record-panel control size, and the owner’s Feed/Card anatomy judgment—not
+the superseded generic-DataTable 13px versus Task 50px claim. Focused evidence is **151/151**, with
+typecheck, ESLint, and Stylelint green; rendered computed-style and three-width proof remain open.

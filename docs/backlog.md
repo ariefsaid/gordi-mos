@@ -94,9 +94,11 @@ Current blockers and required proof:
   ownership plus rendered 1280/1024/390 geometry (provisional OD-REDESIGN-80).
 - **P1 RecordViewer:** Task/Signal live viewers still diverge in anatomy and expose empty relation
   arrays. Add a driven panel/page/related-record comparison before calling the abstraction complete.
-- **P2 visual/token drift:** standalone DataTable is 13px, Tasks rows are 50px, while DESIGN.md’s
-  E7 table reference is 14px/52px; Profile uses 8px card radius versus 12px; record-panel controls
-  are 30px versus the 32px token. Add computed-style guards, then require fresh owner renders.
+- **P2 visual/token drift (table rhythm source seam closed locally):** Tasks and Signals now share the
+  explicit 14px / 38px-header / 52px-row collection skin. Residual measurable drift remains in Profile
+  card radius (8px vs the 12px E7 reference) and record-panel controls (30px vs the 32px token), plus
+  any Feed/Card anatomy the owner judges inconsistent. Add computed-style guards for those residuals,
+  then require fresh owner renders; do not resurrect the superseded 13px/50px table finding.
 - **P2 Café language:** visible captions, errors, and aria labels still leak “Kitchen”; P-19 is
   partial. Add a user-facing string invariant; internal identifiers may remain.
 - **P2 I5 contract:** eager native selects are now documented as a provisional exception; owner

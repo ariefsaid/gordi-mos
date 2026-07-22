@@ -81,7 +81,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > exists. The branch remains **NO-SHIP**. At that audit baseline the highest open gaps included the
 > Task dirty-leave guard not being attached to the live OverlayEntry; the local follow-up below now
 > closes that seam at source/test level. Remaining gaps include Tasks/Signals still rendering different
-> table/CSS families; Inbox remains a
+> table/CSS families; the local table-convergence follow-up below now closes that concrete rhythm seam;
+> Inbox remains a
 > bespoke collection without seeded Bell→queue→record→Back proof; Deputy has a separate fixed host;
 > Task/Signal RecordViewer relation/anatomy proof is incomplete; user-facing Café strings still leak
 > “Kitchen”; measurable DataTable/row/radius/control token drift; and the documented provisional I5
