@@ -68,6 +68,12 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
 
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Saved views' }), 'mine')
     expect(onApplySavedView).toHaveBeenCalledWith('mine')
+
+    const saveTrigger = screen.getByRole('button', { name: /save view/i })
+    await userEvent.click(saveTrigger)
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'My view')
+    await userEvent.keyboard('{Escape}')
+    expect(saveTrigger).toHaveFocus()
   })
 
   it('omits unsupported capabilities instead of rendering disabled decorative controls', () => {

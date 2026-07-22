@@ -2,7 +2,7 @@
 // 32px, 8px radius, 13/600. variant → primary | outline | ghost | destructive.
 // For <Link>/<a> use the same `.btn .btn-{variant}` classes directly (Button.css
 // is imported globally in main.tsx so class-based usages resolve).
-import type { ButtonHTMLAttributes } from 'react'
+import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import './Button.css'
 
 export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive'
@@ -18,12 +18,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
 }
 
-export function Button({ variant = 'outline', className, type = 'button', ...rest }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'outline', className, type = 'button', ...rest },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={`btn ${VARIANT_CLASS[variant]}${className ? ` ${className}` : ''}`}
       {...rest}
     />
   )
-}
+})

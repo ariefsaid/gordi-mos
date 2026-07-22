@@ -893,3 +893,7 @@ the owner’s rendered three-width acceptance remain open. No push/merge/deploy 
 The Signal table message opener now uses a native `button` (with the same injected record opener) rather
 than a `span role="button"`. Signal table/page/toolbar/Tasks focused evidence is **87/87** after the
 locking assertion; this closes the hand-rolled activation seam but does not replace the live render gate.
+
+The shared Save View editor also restores focus to its trigger on Escape, Cancel, and successful Save;
+the ref-forwarding Button primitive and CollectionToolbar test lock the behavior for every collection
+consumer.

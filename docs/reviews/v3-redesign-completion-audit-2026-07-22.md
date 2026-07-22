@@ -261,3 +261,7 @@ gate or remaining desktop visual parity judgment. No live render or Supabase sta
 The Signal table message opener is also now a native `button` rather than a `span role="button"`.
 The existing injected-opener test remains green and now locks `type="button"`; this removes one
 remaining hand-rolled keyboard-activation seam without changing the Signal record contract.
+
+The shared Save View editor now restores focus to its trigger on Escape, Cancel, and successful Save;
+the Button primitive forwards refs so this contract is testable. CollectionToolbar focused evidence
+remains green, including the focus-return assertion.

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { ViewTabs } from '@/components/ui/view-tabs'
@@ -73,6 +73,7 @@ export function CollectionToolbar<
   const t = useT()
   const [saveOpen, setSaveOpen] = useState(false)
   const [viewName, setViewName] = useState('')
+  const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     savedViews?.onLoad?.()
@@ -84,11 +85,16 @@ export function CollectionToolbar<
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
 
+  function closeSaveView() {
+    setSaveOpen(false)
+    saveTriggerRef.current?.focus()
+  }
+
   async function saveView() {
     if (!savedViews || !canSave) return
     await savedViews.onSave(viewName.trim())
     setViewName('')
-    setSaveOpen(false)
+    closeSaveView()
   }
 
   return (
@@ -173,8 +179,12 @@ export function CollectionToolbar<
             </Select>
             <Button
               variant="ghost"
+              ref={saveTriggerRef}
               aria-expanded={saveOpen}
-              onClick={() => setSaveOpen((open) => !open)}
+              onClick={() => {
+                if (saveOpen) closeSaveView()
+                else setSaveOpen(true)
+              }}
             >
               {t('common.saveView')}
             </Button>
@@ -191,7 +201,7 @@ export function CollectionToolbar<
               value={viewName}
               onChange={(event) => setViewName(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') setSaveOpen(false)
+                if (event.key === 'Escape') closeSaveView()
                 if (event.key === 'Enter') void saveView()
               }}
             />
@@ -199,7 +209,7 @@ export function CollectionToolbar<
           <Button variant="primary" disabled={!canSave} onClick={() => void saveView()}>
             {saving ? t('common.saving') : t('common.save')}
           </Button>
-          <Button variant="ghost" onClick={() => setSaveOpen(false)}>{t('common.cancel')}</Button>
+          <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>
         </div>
       ) : null}
     </div>

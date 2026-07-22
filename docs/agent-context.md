@@ -115,6 +115,9 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > The Signal table message opener is now a native `button` with an injected shared-record opener;
 > the former `span role="button"` seam is covered by the Signal presentation test.
 
+> The shared Save View editor restores focus to its trigger on Escape, Cancel, and successful Save;
+> CollectionToolbar owns this contract for Tasks and Signals.
+
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
 > `docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`).** Tip `8cd1053` at session start.
