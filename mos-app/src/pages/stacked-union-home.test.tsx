@@ -238,6 +238,29 @@ describe('AC-HS13: drills — revenue/margin → /money, ops-KPI → /ops, casca
   })
 })
 
+describe('F7 fix: no dead-end em-dash tiles when neither revenue nor margin has ever synced', () => {
+  it('folds the empty revenue + margin tiles into a single explicit "awaiting first sync" slot', async () => {
+    // beforeEach already stubs both reporting reads to resolve empty — the true
+    // "never synced" case (never overridden with rows in this test).
+    await renderStacked(
+      viewer({ roles: [MD_ROLE], accessRoles: ['admin'] }), // owner-director + admin
+    )
+    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
+    await waitFor(() => expect(mockListMargin).toHaveBeenCalled())
+
+    // No dead em-dash tiles — the two-tile grid never renders when both streams are empty.
+    expect(screen.queryByRole('group', { name: /revenue/i })).toBeNull()
+    expect(screen.queryByRole('group', { name: /gross margin/i })).toBeNull()
+    expect(screen.queryByText('—')).toBeNull()
+
+    // One explicit, drillable "awaiting first sync" slot instead.
+    const slot = screen.getByText(/Awaiting first sync/i)
+    expect(slot).toBeInTheDocument()
+    const drill = screen.getByRole('link', { name: /Open Money/i })
+    expect(drill.getAttribute('href')).toBe('/money')
+  })
+})
+
 describe('AC-HS14: AR slot drop point present (parallel-slice slot, no invented figure)', () => {
   it('renders a data-money-ar-slot element in the function cockpit', async () => {
     const { container } = await renderStacked(

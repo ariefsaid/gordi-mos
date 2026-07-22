@@ -71,6 +71,24 @@ function CompanyMoneyTiles({ canSeeFinance }: { canSeeFinance: boolean }) {
   // A company-scope viewer without finance/admin sees no whole-company tiles (no misleading zero).
   if (!canSeeFinance) return null
 
+  // Neither reporting stream has ever produced a row (both settled, neither has a window/display) —
+  // fold what would otherwise be two large em-dash tiles into ONE explicit "awaiting first sync"
+  // slot (F7 fix). A real snapshot — even a partial one where only ONE metric is populated — still
+  // renders the normal two-tile grid below; this collapse only fires when BOTH are truly empty.
+  const noSnapshotYet =
+    revenueState !== 'loading' && marginState !== 'loading' && !revenueWindow && !marginDisplay
+
+  if (noSnapshotYet) {
+    return (
+      <div className="home-stack-slot home-stack-slot--placeholder" data-money-awaiting-sync>
+        <span className="home-stack-slot-label">{t('home.stack.money.awaitingSync')}</span>
+        <Link to="/money" className="home-stack-slot-link">
+          {t('home.stack.money.awaitingSyncLink')} →
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="home-kpi-grid" role="group" aria-label="Sales KPIs">
