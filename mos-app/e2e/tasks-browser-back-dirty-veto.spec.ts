@@ -26,19 +26,26 @@
 // record stays open" / "the browser navigation actually completes" mean for the user, not a URL
 // string that never changes here.
 //
-// Why the commit is held IN FLIGHT (never fulfilled), not a normal draft or a hard failure:
-// ModalShell auto-focuses the ConfirmDialog's Cancel button the instant it opens (its own a11y
-// contract), which blurs the still-focused RecordField and fires RecordField's onBlur commit WHILE
-// the "Discard unsaved changes?" dialog is open. Both a SUCCESSFUL and a FAILED settlement of that
-// stray commit corrupt the very state this spec proves — see this spec's accompanying report for
-// both as standing app defects (a success silently persists the "unsaved" edit and clears dirty,
-// defeating Discard's semantics and letting a second Back skip the guard entirely; a failure hits
-// task-surface.tsx's optimistic-rollback `setLocalTask(prev)`, which re-triggers RecordField's own
-// `useEffect([spec.value])` baseline-reset and WIPES the typed draft, contradicting record-field.tsx's
-// own documented FieldErrorRetryContract of preserving it). Holding the request in flight (never
-// resolved) keeps `commit()` sitting between its `setStatus('saving')` and either branch, so neither
-// runs and dirty state is never disturbed — the one deterministic way to prove the CONTRACT itself
-// independent of those two separate, already-broken commit-settlement paths.
+// Why the commit is STILL held IN FLIGHT (never fulfilled) here, even though the race this
+// originally worked around is now fixed (see below): ModalShell auto-focuses the ConfirmDialog's
+// Cancel button the instant it opens (its own a11y contract), which blurs the still-focused
+// RecordField. Before the fix that stray blur ran RecordField's onBlur commit WHILE the "Discard
+// unsaved changes?" dialog was open — this is D1 from the redesign's e2e-proofs report: a
+// SUCCESSFUL settlement silently persisted the "unsaved" edit and cleared dirty, defeating
+// Discard's semantics and letting a second Back skip the guard entirely. It is now fixed:
+// TaskOverlayContent passes `fieldCommitsFrozen` (task-drawer.tsx) down through
+// RecordViewer/RecordField for exactly the render in which the confirm dialog is open, so that
+// stray blur is a no-op — see record-field.tsx's `commitsFrozen` header note for the full
+// mechanism. (D2 — a FAILED settlement's optimistic rollback wiping the draft via RecordField's
+// `useEffect([spec.value])` — was investigated separately and found already DEAD: that effect
+// now also gates on `editingRef.current`, so an in-flight/just-failed edit is never re-baselined
+// regardless of what the tenant's spec.value churns to; proven at
+// src/components/records/record-field.test.tsx's "D2 (dead defect)" unit test.) This spec keeps
+// holding the commit in flight anyway, deliberately, so it proves the retain/discard CONTRACT in
+// total isolation from any commit-settlement timing at all — no field commit of any kind, stray
+// or deliberate, is on the table while this journey runs. The variant test below removes that
+// isolation on purpose: it lets a real commit settle (no route interception) to prove the FIX
+// itself, not just the guard contract around it.
 
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
@@ -73,10 +80,14 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
     await route.continue()
   })
 
-  // Make a field dirty: type into Description WITHOUT blurring first. RecordField reports dirty on
-  // every keystroke (onChange, record-field.tsx `reportDirty`), before any onBlur commit fires — a
-  // browser Back pressed while the field is still focused hits the guard mid-draft, exactly like a
-  // real user typing then reaching for Back.
+  // Value-first (E7 record grammar): a field renders its VALUE first; activate the Description
+  // row to swap in the edit textarea before it can hold a draft at all.
+  await drawer.getByRole('button', { name: 'Edit Description' }).click()
+
+  // Make the field dirty: type into Description WITHOUT blurring first. RecordField reports dirty
+  // on every keystroke (onChange, record-field.tsx `reportDirty`), before any onBlur commit fires
+  // — a browser Back pressed while the field is still focused hits the guard mid-draft, exactly
+  // like a real user typing then reaching for Back.
   const description = drawer.getByLabel('Description')
   const draftText = 'Dirty draft — should be vetoed by browser Back.'
   await description.fill(draftText)
@@ -108,4 +119,68 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
   // ~line 380-383).
   await confirmDialog2.getByRole('button', { name: 'Discard changes' }).click()
   await expect(drawer).toBeHidden({ timeout: 8_000 })
+})
+
+// AC-1010b — the D1 FIX proof, without the isolation crutch above: no route interception, a real
+// PATCH is free to fire and settle against the live local stack if the fix ever regresses. Where
+// the first test proves the retain/discard CONTRACT in total isolation from commit timing, this
+// one proves the actual FIX: that ModalShell's auto-focus-driven stray blur (D1) never reaches
+// the commit path at all, by (a) watching the network for a PATCH that should never be sent, and
+// (b) reloading and re-opening the SAME task afterward to prove the persisted value on the server
+// is still the untouched baseline — Discard actually discarded, nothing was silently saved.
+test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — nothing is silently saved (D1 fix proof)', async ({ page }) => {
+  await loginAs(page, VIEWER.email, VIEWER.password)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
+
+  const title = `Dirty veto real-commit ${Date.now()}`
+  await createTaskViaUI(page, title)
+
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
+  await page.getByText(title).first().click()
+
+  const drawer = page.getByRole('complementary', { name: /task detail/i })
+  await expect(drawer.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
+
+  // No route interception — every request runs for real against the local stack. Track any PATCH
+  // to the tasks endpoint so we can assert none ever fired for the stray-blur window below.
+  const patchUrls: string[] = []
+  page.on('request', (req) => {
+    if (req.method() === 'PATCH' && /\/rest\/v1\/tasks/.test(req.url())) patchUrls.push(req.url())
+  })
+
+  // A freshly created task has no description — the clean baseline this test proves survives
+  // the whole journey untouched.
+  const descriptionField = drawer.locator('[data-field-key="description"]')
+  await expect(descriptionField).toContainText('—')
+
+  await drawer.getByRole('button', { name: 'Edit Description' }).click()
+  const description = drawer.getByLabel('Description')
+  const draftText = 'Real-commit draft — Discard must actually discard this.'
+  await description.fill(draftText)
+  await expect(description).toHaveValue(draftText)
+
+  // Back → the leave-guard dialog opens. ModalShell's own mount effect auto-focuses its Cancel
+  // button right here, firing a REAL native blur on the still-focused textarea — this is the
+  // exact D1 race, now with a real PATCH free to settle if `commitsFrozen` ever regresses.
+  await page.goBack()
+  const confirmDialog = page.getByRole('dialog', { name: 'Discard unsaved changes?' })
+  await expect(confirmDialog).toBeVisible({ timeout: 8_000 })
+
+  // Discard → the drawer closes and the browser navigation completes for real.
+  await confirmDialog.getByRole('button', { name: 'Discard changes' }).click()
+  await expect(drawer).toBeHidden({ timeout: 8_000 })
+
+  // No PATCH was ever sent — the stray blur never reached the commit path, so there was nothing
+  // for the network layer to discard either.
+  expect(patchUrls).toEqual([])
+
+  // Reload (forces a real refetch, not client cache) and re-open the SAME task: the persisted
+  // Description is still the untouched baseline, not the "discarded" draft.
+  await page.reload()
+  await page.getByText(title).first().click()
+  const reopened = page.getByRole('complementary', { name: /task detail/i })
+  await expect(reopened.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
+  await expect(reopened.locator('[data-field-key="description"]')).toContainText('—')
 })
