@@ -47,7 +47,7 @@
 /* active = brand-navy-text text + primary-accent underline (the one accent hue) */
 .view-tabs__tab--active {
   color: var(--brand-navy-text);
-  border-bottom-color: var(--color-primary);
+  border-bottom-color: var(--brand-orange);
 }
 /* soon/disabled = muted, not-allowed, out of the tab order (DESIGN.md SOON stubs) */
 .view-tabs__tab--soon,
