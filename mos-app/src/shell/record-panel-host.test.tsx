@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from './record-panel-host'
 
@@ -112,6 +114,12 @@ describe('RecordPanelHost — close/Esc/scrim (FR-1 / I2)', () => {
 })
 
 describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full page · ✕ Close)', () => {
+  it('uses the 32px control token while retaining 44px mobile touch targets', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+    expect(css).toMatch(/\.record-panel-btn\s*\{[^}]*width:\s*32px;\s*height:\s*32px;/s)
+    expect(css).toMatch(/\.drawer-modal\.drawer-fullscreen \.record-panel-btn\s*\{\s*width:\s*44px;\s*height:\s*44px;\s*\}/s)
+  })
+
   it('no title → no chrome (the tenant owns its own header — Task zero-change path)', () => {
     renderHost({ label: 'Signal' })
     expect(document.querySelector('.record-panel-chrome')).toBeNull()

@@ -94,13 +94,15 @@ Current blockers and required proof:
   ownership plus rendered 1280/1024/390 geometry (provisional OD-REDESIGN-80).
 - **P1 RecordViewer:** Task/Signal live viewers still diverge in anatomy and expose empty relation
   arrays. Add a driven panel/page/related-record comparison before calling the abstraction complete.
-- **P2 visual/token drift (table rhythm source seam closed locally):** Tasks and Signals now share the
-  explicit 14px / 38px-header / 52px-row collection skin. Residual measurable drift remains in Profile
-  card radius (8px vs the 12px E7 reference) and record-panel controls (30px vs the 32px token), plus
-  any Feed/Card anatomy the owner judges inconsistent. Add computed-style guards for those residuals,
-  then require fresh owner renders; do not resurrect the superseded 13px/50px table finding.
-- **P2 Café language:** visible captions, errors, and aria labels still leak “Kitchen”; P-19 is
-  partial. Add a user-facing string invariant; internal identifiers may remain.
+- **P2 visual/token drift (measurable source seams closed locally):** Tasks and Signals share the
+  explicit 14px / 38px-header / 52px-row collection skin; Profile cards now use the 12px E7 container
+  radius and `RecordPanelHost` chrome uses the 32px control token while preserving 44px phone targets.
+  Focused style/goal guards cover all three. Fresh three-width renders and the owner’s Feed/Card anatomy
+  judgment remain open; do not resurrect the superseded 13px/50px or 8px/30px source findings.
+- **P2 Café language (source/test closed locally):** captions, errors, aria labels, empty-state copy,
+  route document titles, and retained translation values use Café/Kafe. `RI-IA-10` guards all five
+  live route files while explicitly allowing internal `Kitchen*` names, import paths, i18n keys, and
+  the stable form id. Fresh rendered owner proof remains part of the final three-width gate.
 - **P2 I5 contract:** eager native selects are now documented as a provisional exception; owner
   disposition and keyboard/blur/Escape proof are still required. This is not universal I5 conformance.
 - **P3 hygiene:** retire/guard dead Signals selectors and stale host/router/Profile comments. The

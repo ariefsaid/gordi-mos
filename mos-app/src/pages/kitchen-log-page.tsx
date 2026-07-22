@@ -245,7 +245,7 @@ export function KitchenLogPage() {
     }
 
     if (!buId) {
-      setSubmitError('Cannot determine the kitchen business unit. Please contact an admin.')
+      setSubmitError('Cannot determine the Café business unit. Please contact an admin.')
       return
     }
 
@@ -497,7 +497,7 @@ export function KitchenLogPage() {
             category={category}
             onCategoryChange={setCategory}
             searchPlaceholder="Find a dish"
-            ariaLabel="Kitchen log filters"
+            ariaLabel="Café log filters"
           />
           <DataTable
             columns={columns}
@@ -506,7 +506,7 @@ export function KitchenLogPage() {
             isDesktop={isDesktop}
             state={visibleItems.length > 0 ? 'ready' : 'empty'}
             emptyLabel="No dishes match your filter."
-            caption="Kitchen production log — enter made-today quantity per dish"
+            caption="Café production log — enter made-today quantity per dish"
           />
 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit */}

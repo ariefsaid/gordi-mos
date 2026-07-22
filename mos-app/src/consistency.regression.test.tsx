@@ -464,3 +464,33 @@ describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit',
     })
   }
 })
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RI-IA-10: Café is the user-facing module noun (owner P-19). Internal
+// Kitchen* identifiers, import paths, translation keys, and DOM ids remain stable;
+// rendered copy, captions, errors, labels, and document titles must say Café.
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('RI-IA-10: Café surfaces do not leak the retired Kitchen noun', () => {
+  const cafeSurfaceFiles = [
+    'pages/kitchen-log-page.tsx',
+    'pages/kitchen-plan-page.tsx',
+    'pages/kitchen-stock-page.tsx',
+    'pages/kitchen-review-page.tsx',
+    'pages/kitchen-pushes-page.tsx',
+  ]
+
+  for (const file of cafeSurfaceFiles) {
+    it(`${file} keeps Kitchen only in non-user-facing implementation seams`, () => {
+      const offenders = readSrc(file)
+        .split('\n')
+        .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+        .filter(({ line }) => /\b[Kk]itchen\b/.test(line))
+        .filter(({ line }) => !line.startsWith('//'))
+        .filter(({ line }) => !line.startsWith('import ') && !line.startsWith('} from '))
+        .filter(({ line }) => !line.includes('id="kitchen-log-form"'))
+        .filter(({ line }) => !line.includes("t('kitchen."))
+
+      expect(offenders).toEqual([])
+    })
+  }
+})

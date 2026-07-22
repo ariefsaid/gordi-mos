@@ -914,7 +914,7 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
     // P-4 invariant: phone renders the shared card reflow (.dt-cards), NOT the desktop <table>
-    expect(screen.queryByRole('table', { name: /kitchen production log/i })).toBeNull()
+    expect(screen.queryByRole('table', { name: /café production log/i })).toBeNull()
     expect(document.querySelector('.dt-cards')).not.toBeNull()
     // the Planned/Off-plan groups render on phone via the shared DataTable collapse toggle
     expect(screen.getByRole('button', { name: /collapse planned today/i })).toBeInTheDocument()
@@ -925,7 +925,7 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     setDesktopMatchMedia(true)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(screen.getByRole('table', { name: /kitchen production log/i })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: /café production log/i })).toBeInTheDocument()
     expect(document.querySelector('.dt-cards')).toBeNull()
   })
 })

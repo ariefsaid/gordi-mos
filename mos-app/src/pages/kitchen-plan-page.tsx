@@ -75,7 +75,7 @@ export function KitchenPlanPage() {
     return (
       <PageFamilyFrame family="workspace" title="Café · Plan" jobSentence={t('job.cafe')} state="permission">
         <div className="kp-block kp-forbidden">
-          <p className="kp-forbidden-msg">You need to sign in to view the kitchen plan.</p>
+          <p className="kp-forbidden-msg">You need to sign in to view the Café plan.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFamilyFrame>

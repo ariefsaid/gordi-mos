@@ -85,8 +85,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > table/CSS families; the local table-convergence follow-up below now closes that concrete rhythm seam;
 > Inbox remains a
 > bespoke collection without seeded Bell→queue→record→Back proof; Deputy has a separate fixed host;
-> Task/Signal RecordViewer relation/anatomy proof is incomplete; user-facing Café strings still leak
-> “Kitchen”; measurable DataTable/row/radius/control token drift; and the documented provisional I5
+> Task/Signal RecordViewer relation/anatomy proof is incomplete; the local follow-ups now close Café
+> user-facing noun leakage plus measurable table/radius/control token drift at source/test level; and the documented provisional I5
 > native-select exception. Details are in the fresh sections of the completion audit and review ledger.
 > Automation can prove geometry, computed parity, keyboard/Esc/Back/focus, dirty-veto, seeded journeys,
 > and overflow; only the owner can ratify the final “one app” visual/density/card-soup verdict and

@@ -535,7 +535,7 @@ export function KitchenReviewPage() {
     return (
       <PageFamilyFrame family="workspace" title="Café · Review" jobSentence={t('job.cafe')} state="permission">
         <div className="kr-block kr-forbidden">
-          <p className="kr-forbidden-msg">You need to sign in to review kitchen logs.</p>
+          <p className="kr-forbidden-msg">You need to sign in to review Café logs.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFamilyFrame>
@@ -604,7 +604,7 @@ export function KitchenReviewPage() {
           variant="awaiting"
           title="Nothing to review"
           copy={`No submitted logs for ${logDate}.`}
-          note="Pull again to check for newly submitted kitchen logs."
+          note="Pull again to check for newly submitted Café logs."
         >
           <button
             type="button"
@@ -622,7 +622,7 @@ export function KitchenReviewPage() {
           rows={[]}
           groups={tableGroups}
           isDesktop={isDesktop}
-          caption="Submitted kitchen logs awaiting review"
+          caption="Submitted Café logs awaiting review"
         />
       )}
     </PageFamilyFrame>

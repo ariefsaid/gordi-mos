@@ -357,3 +357,16 @@ Occurred/Attention sorting now uses native keyboard headers and the URL-owned qu
 findings are Profile radius, record-panel control size, and the owner’s Feed/Card anatomy judgment—not
 the superseded generic-DataTable 13px versus Task 50px claim. Focused evidence is **151/151**, with
 typecheck, ESLint, and Stylelint green; rendered computed-style and three-width proof remain open.
+
+## Café noun + residual token follow-up — 2026-07-22 (local, unpushed)
+
+The remaining Café P-19 leakage and measurable E7 token drifts are closed at source/test level. All
+five Café routes use Café/Kafe in user-facing copy, captions, errors, labels, and document titles;
+`RI-IA-10` keeps the retired Kitchen noun confined to stable internal identifiers/imports/translation
+keys/form id. Profile cards use `--radius-lg` (12px), and RecordPanelHost controls use 32px while the
+phone override remains 44px.
+
+Focused evidence is **206/206** across Café, Profile, RecordPanelHost, i18n, and the consistency suite, with
+typecheck, changed-file ESLint, and affected Stylelint clean. The former P2 source findings must not be
+resurrected from the critic table above. Fresh rendered 1280/1024/390 proof and the owner’s holistic
+cohesion/taste judgment remain open; this does not change the overall **NO-SHIP** verdict.

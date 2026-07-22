@@ -201,7 +201,7 @@ export function KitchenPushesPage() {
     return (
       <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden">
-          <p className="kpu-forbidden-msg">You need to sign in to view kitchen pushes.</p>
+          <p className="kpu-forbidden-msg">You need to sign in to view Café pushes.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFamilyFrame>
@@ -264,7 +264,7 @@ export function KitchenPushesPage() {
           rows={rows}
           isDesktop={isDesktop}
           rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
-          caption="Kitchen ESB push outbox"
+          caption="Café ESB push outbox"
         />
       )}
     </PageFamilyFrame>

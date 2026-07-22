@@ -982,3 +982,19 @@ Supabase was started, so computed-style/rendered parity at 1280/1024/390 and the
 owner's final “one app” judgment remain open. Feed/Card presentation anatomy, cross-surface
 filter/group/saved-view/open/Back/focus driving, Inbox collection adoption, and Deputy physical-host
 migration remain separate gates. No push, merge, or deploy was performed.
+
+## Café noun + residual E7 token polish — 2026-07-22 (local, unpushed)
+
+The last concrete P2 source drifts from the current critic are closed without renaming domain or DB
+models. Every visible string across Café Log, Plan, Stock, Review, and Pushes now uses Café (or Kafe in
+Bahasa), including sign-in/error copy, empty-state notes, filter/table accessible names, captions, and
+document titles. Internal `Kitchen*` components/types/functions, import paths, `kitchen.*` translation
+keys, and `kitchen-log-form` remain stable implementation seams. `RI-IA-10` scans all five live route
+files and fails on any retired user-facing Kitchen noun.
+
+Profile cards now consume the adopted E7 `--radius-lg` 12px container token, and shared record-panel
+chrome uses the DESIGN.md 32px control size while retaining its 44px phone touch target. Focused proof
+is **206/206** across the five Café page suites, Profile, RecordPanelHost, i18n, and the consistency invariants;
+typecheck, changed-file ESLint, and RecordPanelHost Stylelint pass. This is source/test closure only:
+fresh 1280/1024/390 rendering and the owner’s final “one app”/taste judgment remain open. No server,
+Supabase, push, merge, or deploy was used.

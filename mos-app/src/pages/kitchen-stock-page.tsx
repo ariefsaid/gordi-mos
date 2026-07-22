@@ -104,7 +104,7 @@ export function KitchenStockPage() {
     return (
       <PageFamilyFrame family="workspace" title="Café · Stock" jobSentence={t('job.cafe')} state="permission">
         <div className="ks-block ks-forbidden">
-          <p className="ks-forbidden-msg">You need to sign in to view kitchen stock.</p>
+          <p className="ks-forbidden-msg">You need to sign in to view Café stock.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
         </div>
       </PageFamilyFrame>
@@ -145,7 +145,7 @@ export function KitchenStockPage() {
       {load.kind === 'ready' && rows.length === 0 && (
         <EmptyState
           title="No stock to show"
-          copy={`No approved kitchen activity for ${asOf} yet.`}
+          copy={`No approved Café activity for ${asOf} yet.`}
         />
       )}
 
@@ -163,7 +163,7 @@ export function KitchenStockPage() {
             isDesktop={isDesktop}
             state={visibleRows.length > 0 ? 'ready' : 'empty'}
             emptyLabel="No items match your filter."
-            caption={`Kitchen stock — on-hand and available per dish for ${asOf}`}
+            caption={`Café stock — on-hand and available per dish for ${asOf}`}
           />
         </div>
       )}

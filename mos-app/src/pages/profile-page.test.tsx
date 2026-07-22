@@ -53,6 +53,15 @@ beforeEach(() => {
 })
 
 describe('ProfilePage (OD-70)', () => {
+  it('uses the adopted 12px card/container radius token for every profile card', () => {
+    renderPage()
+    const identityCard = screen.getByRole('heading', { name: 'Identity' }).closest('section')
+    const languageCard = screen.getByRole('heading', { name: 'Language' }).closest('section')
+
+    expect(identityCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
+    expect(languageCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
+  })
+
   it('renders read-only Identity — Person and Roles as plain text rows (not input-look), managed by Admin', () => {
     renderPage()
     // Read-only identity reads as plain labelled text, NOT an editable/input-styled field
