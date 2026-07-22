@@ -202,18 +202,19 @@
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
   .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
 }
-/* Condensed (drawer-open split): %-based widths so the 6 priority cols flex to the
-   narrow split; menu stays fixed 40px. */
+/* Condensed (drawer-open split, F4 fix — design-review 2026-07-22): the squashed
+   split track is too narrow for 6 columns to shrink gracefully (title truncated
+   to "Migrate POS to v…", PIC to "S…", "Cahya Cafe" wrapped two lines). Collapse
+   to the title+status+due summary column set instead — hide PIC + Supervisor
+   entirely rather than squeezing every column; menu stays fixed 40px. */
 .assembly.condensed .tasks-table th:nth-child(1), .assembly.condensed .tasks-table td:nth-child(1) { width: auto; }
-.assembly.condensed .tasks-table th:nth-child(2), .assembly.condensed .tasks-table td:nth-child(2) { width: 18%; }  /* Status */
-.assembly.condensed .tasks-table th:nth-child(3), .assembly.condensed .tasks-table td:nth-child(3) { width: 16%; }  /* PIC */
-.assembly.condensed .tasks-table th:nth-child(4), .assembly.condensed .tasks-table td:nth-child(4) { width: 18%; }  /* Supervisor */
-.assembly.condensed .tasks-table th:nth-child(5), .assembly.condensed .tasks-table td:nth-child(5) { width: 16%; }  /* Due */
+.assembly.condensed .tasks-table th:nth-child(2), .assembly.condensed .tasks-table td:nth-child(2) { width: 28%; }  /* Status */
+.assembly.condensed .tasks-table th:nth-child(3), .assembly.condensed .tasks-table td:nth-child(3),
+.assembly.condensed .tasks-table th:nth-child(4), .assembly.condensed .tasks-table td:nth-child(4) { display: none; }  /* PIC + Supervisor hidden — F4 */
+.assembly.condensed .tasks-table th:nth-child(5), .assembly.condensed .tasks-table td:nth-child(5) { width: 28%; }  /* Due */
 .assembly.condensed .tasks-table th:nth-child(6), .assembly.condensed .tasks-table td:nth-child(6) { width: 40px; }
 /* Menu col alignment + header (PR-2 AC-T02/T07). */
 .td-menu, .th-menu { text-align: right; white-space: nowrap; padding-right: 12px; }
-/* Condensed PIC: drop the name, keep the avatar (AC-113 ladder step 2). */
-.assembly.condensed .td-owner .own-name { display: none; }
 
 /* Table-header grammar: e7 owns it for the redesign skin (SALVAGE — parity sweep A3,
    2026-07-18): weight 600, h38. This SUPERSEDES the OD-P4-10/ADR-0013 weight-400 overline
