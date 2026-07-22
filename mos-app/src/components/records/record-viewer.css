@@ -177,6 +177,16 @@
   min-height: 44px;
 }
 
+/* Reserve feedback height only once there is feedback to show (saving/saved/error) — an
+ * unconditional reserve here was inflating EVERY editable row by 18px at rest (record row
+ * pitch 64px → a ~70px F2 gap once the section's 6px row gap is added), well past the 44px
+ * touch floor the row actually needs. Idle rows (":empty", no status children) collapse to 0
+ * so the document reads at E7's tight kv rhythm; the moment a save starts/settles the div
+ * gains a child and reclaims its height, so there is still no jump mid-edit. */
+.record-field__feedback:empty {
+  min-height: 0;
+}
+
 .record-field__feedback {
   min-height: 18px;
 }
