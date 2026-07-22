@@ -62,6 +62,12 @@
   margin-top: 14px;
 }
 
+.dash-detail-door {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 /* Tablet (768–1279px): KPI grids reduce to 3-up (design-plan §1.4). */
 @media (min-width: 768px) and (max-width: 1279px) {
   .dash-kpi-grid {

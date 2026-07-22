@@ -251,6 +251,21 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     await waitFor(() => expect(tile7d).toHaveAttribute('aria-current', 'true'))
   })
 
+  it('AC-017: Summary exposes a parameterized full-detail door carrying the active window and cut', async () => {
+    renderPage('/money')
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    const detail = screen.getByRole('link', { name: /view full detail/i })
+    expect(detail).toHaveAttribute('href', '/money/detail?window=30d&cut=branch')
+  })
+
+  it('AC-017: direct parameterized Detail URLs hydrate the same window and cut controls', async () => {
+    renderPage('/money/detail?window=7d&cut=channel')
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    expect(screen.getByRole('tab', { name: '7d' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '30d' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tab', { name: 'Channel' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('renders the chart a11y table fallback in the DOM', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })

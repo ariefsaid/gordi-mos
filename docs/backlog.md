@@ -6,8 +6,10 @@
 > see [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md).
 > Checkpoint `08defcc` has since closed the focused route-seam test failures, live
 > Tasks/Signals host adoption, and Café first-Team heuristic; the branch is still NO-SHIP until the
-> cross-surface collection grammar, Issue 10, spec/design review verdicts, and owner three-width gate
+> cross-surface collection grammar, Inbox seeded proof, Issue 10, spec/design review verdicts, and owner three-width gate
 > close. Inventory freshness now passes; code-quality/security are recorded PASS in the ledger.
+> Money's parameterized Detail door is now closed at the presentation-contract level; contributing-record
+> drill-down remains deferred because the current reporting model is aggregate-only.
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.

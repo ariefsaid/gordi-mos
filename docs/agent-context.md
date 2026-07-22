@@ -92,7 +92,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > unhandled errors were isolated to a jsdom AbortSignal crossing into Node/undici Request and
 > contained at the test boundary. This is not a completion claim: spec/design verdicts remain BLOCKED,
 > the rendered three-width owner gate remains open, and Tasks/Signals control parity,
-> Inbox seeded proof/handled semantics, Follow-ups, Money KPI doors, and
+> Inbox seeded proof/handled semantics, Follow-ups, contributing-record Money drill-down, and
 > owner-gated Issue 10/typed embeds remain open. No push, merge, or Supabase start occurred. Details
 > are appended to the completion audit and review ledger linked above.
 

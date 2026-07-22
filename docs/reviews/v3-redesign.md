@@ -855,3 +855,13 @@ Current gate lines for this local checkpoint:
 - design: BLOCKED — cross-surface collection grammar and owner three-width gate remain open
 - security: PASS — this slice changes no schema, RLS, auth, or capability policy; no security regression
   surface was introduced
+
+### Money detail-door follow-up — 2026-07-22 (local, not pushed)
+
+The Summary view now exposes a visible `View full detail` link carrying the active `window` and `cut`
+query state, and the Detail route hydrates those parameters on direct navigation. Dashboard focused
+evidence is **20/20**; typecheck, targeted ESLint, and CSS lint pass. This resolves the dashboard
+spec's AC-017 / drill pattern B presentation contract without inventing per-KPI contributing-record
+links that the aggregate reporting read-model cannot support. The branch remains NO-SHIP for the
+independent rendered three-width gate, Tasks/Signals parity, Inbox seeded proof, Follow-ups flag,
+Issue 10, and spec/design verdict closure.

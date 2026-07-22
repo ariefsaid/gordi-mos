@@ -49,6 +49,22 @@ import './dashboard-page.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
+function windowFromQuery(value: string | null): WindowSpec {
+  if (value === '7d') return { kind: 'preset', days: 7 }
+  if (value === '60d') return { kind: 'preset', days: 60 }
+  return DEFAULT_WINDOW
+}
+
+function cutFromQuery(value: string | null): DashboardCut {
+  if (value === 'channel') return 'Channel'
+  if (value === 'activity') return 'Activity'
+  return 'Branch'
+}
+
+function windowQueryValue(spec: WindowSpec): string {
+  return spec.kind === 'preset' ? `${spec.days}d` : 'custom'
+}
+
 interface DashboardTableRow {
   id: string
   dimension: string
@@ -97,8 +113,8 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   const [load, setLoad] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
 
-  const [cut, setCut] = useState<DashboardCut>('Branch')
-  const [windowSpec, setWindowSpec] = useState<WindowSpec>(DEFAULT_WINDOW)
+  const [cut, setCut] = useState<DashboardCut>(() => cutFromQuery(searchParams.get('cut')))
+  const [windowSpec, setWindowSpec] = useState<WindowSpec>(() => windowFromQuery(searchParams.get('window')))
   const [sort, setSort] = useState<DataTableSort>({ key: 'revenue', dir: 'desc' })
 
   const fetchRows = useCallback(async () => {
@@ -248,6 +264,11 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   const activePresetDays = windowSpec.kind === 'preset' ? windowSpec.days : null
 
   const windowLabel = windowSpec.kind === 'preset' ? `${windowSpec.days}d` : 'custom'
+  const detailParams = new URLSearchParams(searchParams)
+  detailParams.delete('tab')
+  detailParams.set('window', windowQueryValue(windowSpec))
+  detailParams.set('cut', cut.toLowerCase())
+  const detailHref = `/money/detail?${detailParams.toString()}`
 
   return (
     <PageFamilyFrame
@@ -384,6 +405,9 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
             caption={`Top ${Math.min(5, sortedRows.length)} by revenue — switch to Detail for the full table`}
             emptyLabel="No rows for this cut."
           />
+          <div className="dash-detail-door">
+            <Link to={detailHref} className="btn btn-outline">View full detail</Link>
+          </div>
         </div>
       ) : (
         <div className="dash-pane" role="tabpanel" aria-label="Detail">

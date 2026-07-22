@@ -221,6 +221,10 @@ for the audit verdict:
   saved views, or feed/table presentation parity; the visual grammar finding remains open.
 - **Home Signal origin context now opens through the same shared host** when the shell provider is present;
   Home mounts its `signals` slot and remains underneath the panel. The focused Home Signal suite is **10/10**.
+- **Money now has the sanctioned parameterized Detail door.** Summary exposes `View full detail`,
+  carrying the active `window` and `cut` to `/money/detail`; direct `?window=7d&cut=channel` hydrates
+  the same controls. Focused dashboard evidence is **20/20**. This closes AC-017 / drill pattern B;
+  it does not claim contributing-record drill-down because the reporting read-model remains aggregate-only.
 - **Route-seam test-environment root cause isolated and contained.** React Router’s jsdom AbortSignal was
   being passed to Node/undici Request; the test boundary now drops that signal for client-side history-only
   tests. The route-seam subset is **8/8**, and the combined shell/overlay suite is **54/54** with no unhandled
@@ -232,6 +236,6 @@ for the audit verdict:
 
 The branch remains **NO-SHIP**. Still open: spec/design verdict closure, Tasks/Signals toolbar and
 presentation parity, Inbox handled/seeded-notification proof,
-Follow-ups flag, Money KPI doors, Issue 10 structured
+Follow-ups flag, contributing-record Money drill-down, Issue 10 structured
 content/typed embeds (owner-gated), and the owner’s rendered three-width walkthrough. No push or merge has
 occurred.
