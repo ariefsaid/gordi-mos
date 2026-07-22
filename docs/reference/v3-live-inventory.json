@@ -4073,12 +4073,12 @@
       "scope": "components",
       "literalKinds": {
         "font-size": 2,
-        "line-height": 0,
-        "padding": 3,
+        "line-height": 1,
+        "padding": 4,
         "margin": 1,
         "gap": 2,
         "width": 3,
-        "height": 2
+        "height": 4
       },
       "breakpoints": []
     },
@@ -4908,12 +4908,12 @@
     ],
     "countsByKind": {
       "font-size": 347,
-      "line-height": 41,
-      "padding": 280,
+      "line-height": 42,
+      "padding": 281,
       "margin": 85,
       "gap": 223,
       "width": 342,
-      "height": 264
+      "height": 266
     },
     "examples": {
       "font-size": [
