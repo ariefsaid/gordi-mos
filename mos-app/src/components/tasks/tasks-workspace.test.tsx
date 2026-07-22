@@ -40,7 +40,7 @@ vi.mock('../../lib/db/directory', () => ({
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
-import { listTasks } from '@/lib/db/tasks'
+import { listTasks, getTask, updateTaskFields } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -49,6 +49,8 @@ import { taskCollectionDescriptor } from './task-collection-adapter'
 import { __resetExpandPrefForTests } from './use-expand-pref'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockGetTask = vi.mocked(getTask)
+const mockUpdateTaskFields = vi.mocked(updateTaskFields)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
@@ -728,6 +730,37 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     await waitFor(() => {
       expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
     })
+  })
+
+  it('AC-V3-008: a dirty task overlay asks before Close, keeps the record on Cancel, and leaves on Discard', async () => {
+    const task = makeTask({ id: 'task-dirty', title: 'Dirty task' })
+    mockListTasks.mockResolvedValue([task])
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderTable()
+
+    await waitFor(() => screen.getByText('Dirty task'))
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    const due = await screen.findByLabelText('Due') as HTMLInputElement
+    mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
+    fireEvent.change(due, { target: { value: '2026-08-01' } })
+    fireEvent.keyDown(due, { key: 'Enter' })
+    await screen.findByRole('alert')
+
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+
+    // The field remains usable after Stay; make a fresh failed draft before exercising Discard.
+    fireEvent.change(screen.getByLabelText('Due'), { target: { value: '2026-08-02' } })
+    fireEvent.keyDown(screen.getByLabelText('Due'), { key: 'Enter' })
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull())
   })
 })
 

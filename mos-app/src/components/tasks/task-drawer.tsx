@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface } from './task-surface'
 import { useExpandPref } from './use-expand-pref'
@@ -7,6 +7,8 @@ import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
@@ -28,25 +30,79 @@ export type TaskOverlayContentProps = {
   onTaskChanged?: (task: TaskListRow) => void
   onTaskCreated?: (id: string) => void
   onTaskArchived?: (id: string) => void
+  onLeaveGuardChange?: (guard: OverlayLeaveGuard | undefined) => void
 }
 
 /** Task-specific content used by the shell-owned OverlayHostSlot. */
 export function TaskOverlayContent({
-  taskId, onClose, onOpenPage, onTaskChanged, onTaskCreated, onTaskArchived,
+  taskId, onClose, onOpenPage, onTaskChanged, onTaskCreated, onTaskArchived, onLeaveGuardChange,
 }: TaskOverlayContentProps) {
+  const t = useT()
+  const dirtyRef = useRef(false)
+  const guardRef = useRef<OverlayLeaveGuard | null>(null)
+  const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
+  const [pendingIntent, setPendingIntent] = useState<OverlayLeaveIntent | null>(null)
+
+  useEffect(() => {
+    guardRef.current = async (intent) => {
+      if (!dirtyRef.current) return { decision: 'allow' }
+      return await new Promise<OverlayLeaveDecision>((resolve) => {
+        resolverRef.current = resolve
+        setPendingIntent(intent)
+      })
+    }
+    return () => {
+      onLeaveGuardChange?.(undefined)
+      guardRef.current = null
+      resolverRef.current = null
+    }
+  }, [onLeaveGuardChange])
+
+  const onDirtyChange = useCallback((dirty: boolean) => {
+    // Keep the ref synchronous: an immediate Esc/Back after a field edit must still veto leave.
+    dirtyRef.current = dirty
+    onLeaveGuardChange?.(dirty ? guardRef.current ?? undefined : undefined)
+  }, [onLeaveGuardChange])
+
+  const cancelLeave = useCallback(() => {
+    resolverRef.current?.({ decision: 'deny' })
+    resolverRef.current = null
+    setPendingIntent(null)
+  }, [])
+
+  const discardAndLeave = useCallback(async () => {
+    dirtyRef.current = false
+    resolverRef.current?.({ decision: 'allow' })
+    resolverRef.current = null
+    setPendingIntent(null)
+  }, [])
+
   return (
-    <TaskSurface
-      taskId={taskId}
-      mode="view"
-      presentation="panel"
-      width="drawer"
-      onClose={onClose}
-      onOpenPage={onOpenPage}
-      onTaskChanged={onTaskChanged}
-      onTaskCreated={onTaskCreated}
-      onTaskArchived={onTaskArchived}
-      showPanelUtility={false}
-    />
+    <>
+      <TaskSurface
+        taskId={taskId}
+        mode="view"
+        presentation="panel"
+        width="drawer"
+        onClose={onClose}
+        onOpenPage={onOpenPage}
+        onTaskChanged={onTaskChanged}
+        onTaskCreated={onTaskCreated}
+        onTaskArchived={onTaskArchived}
+        onDirtyChange={onDirtyChange}
+        showPanelUtility={false}
+      />
+      <ConfirmDialog
+        open={pendingIntent !== null}
+        title={t('tasks.unsaved.title')}
+        body={t('tasks.unsaved.copy')}
+        confirmLabel={t('tasks.unsaved.discard')}
+        cancelLabel={t('tasks.cancel')}
+        tone="destructive"
+        onConfirm={discardAndLeave}
+        onCancel={cancelLeave}
+      />
+    </>
   )
 }
 

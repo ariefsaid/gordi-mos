@@ -44,10 +44,10 @@ Proof cell is a defect, not a gap.
 
 | Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
 |---|---|---|---|---|---|---|---|---|
-| Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ⚠️ provisional select exception; dirty-leave wiring still open | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `task-row.test` "I7 open/cursor is aria-selected" |
+| Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ⚠️ provisional select exception; live overlay dirty-leave guard now wired, direct-route blocker remains | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `tasks-workspace.test` AC-V3-008 |
 | Signal record | ✅ shared `OverlayHost` (in-list record query → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ⚠️ no editable field contract in live wrapper | partial | ✅ | Signals archive focused suite + overlay-host route seam |
 | Inbox | ✅ shared host; page records use the page-owned split slot and bell quick triage uses the shell slot (seeded notification proof and handled semantics still open) | partial | — | — | — | — | ✅ | inbox host tests; seeded-notification acceptance pending |
-| Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
+| Deputy | ⚠️ shared-host migration in flight; coexistence preference is adjacent/compact, never covering a record | partial | — | — | — | — | n/a | host P4; OD-REDESIGN-80 |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
 | Admin people menu | — | ✅ | ✅ (⋯ + mobile sheet) | — | — | — | — | user-table I3 suite |
 | ⌘K / composer | — | ✅ | — | ✅ | — | — | — | command-menu suite |
@@ -59,9 +59,9 @@ Proof cell is a defect, not a gap.
 1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — ✅ DONE at the production
    consumer seam (the physical `RecordPanelHost` is now mounted through the single `OverlayHost`; Task
    and Signal focused suites pass, with live browser and full-suite acceptance still pending).
-2. **Host P3** Inbox two-door (I9) · **P4** Deputy chrome (I1 col).
-3. **I5 slice** — decide/document the native-select exception, then wire the dirty-leave guard into
-   live Task/Signal host entries and cover the real edit → Escape/Back → retain/discard journey.
+2. **Host P3** Inbox two-door (I9) · **P4** Deputy shared host plus adjacent/compact coexistence (I1 col; OD-REDESIGN-80).
+3. **I5 slice** — decide/document the native-select exception; Task overlay dirty-leave is now
+   wired and goal-tested, while the direct route/browser blocker and Signal editable-field path remain.
 4. ~~**I3 completion** — admin people menu onto `useMenuPopover`.~~ DONE (user-table I3 suite).
 5. **Lens (b) measured step** — reviewer drives I1/I2/I3 on every touched surface pair and asserts
    identical outcomes; recorded per review like the computed-style table.

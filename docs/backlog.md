@@ -71,9 +71,11 @@ application is one coherent product. The branch remains **NO-SHIP**.
 
 Current blockers and required proof:
 
-- **P0 interaction:** the Task dirty-leave guard is not attached to the live `OverlayEntry`; Esc,
-  Back, or close can discard a dirty RecordField without I2 confirmation. Add a driven edit →
-  Escape/Back → retain/discard goal test against the real overlay seam (FR-V3-009 / AC-V3-008).
+- **P0 interaction (source-level follow-up now implemented locally):** the Task dirty-leave guard is
+  attached to the live `OverlayEntry` only while the tenant is dirty; the shared ConfirmDialog owns
+  retain/discard and the goal test drives the real overlay close path (FR-V3-009 / AC-V3-008). Fresh
+  browser Back/three-width evidence remains open, and the direct route's browser blocker is still a
+  separate seam.
 - **P1 collection grammar:** Tasks and Signals still use different live table implementations and
   CSS families. Shared engine/toolbar/outer wrapper is only partial convergence. Measure computed
   styles and drive sort/filter/group/saved-view/open/Back at 1280, 1024, and 390px.
@@ -81,7 +83,9 @@ Current blockers and required proof:
   All/Unread-only local controls and absent seeded Bell → queue → record → Back proof are open.
   Handled semantics remain owner/data-gated, not an invented defect.
 - **P1 host grammar:** Deputy remains a separate fixed panel/visual contract. Focus return is fixed;
-  decide and test either shared `RecordPanelHost`/stack or an explicit exception.
+  converge it onto the shared `RecordPanelHost`/stack. When a record is open, prefer adjacent/side-by-side
+  Deputy at wide widths; use a compact chat/launcher state when space is insufficient, never a covering
+  second drawer (provisional OD-REDESIGN-80).
 - **P1 RecordViewer:** Task/Signal live viewers still diverge in anatomy and expose empty relation
   arrays. Add a driven panel/page/related-record comparison before calling the abstraction complete.
 - **P2 visual/token drift:** standalone DataTable is 13px, Tasks rows are 50px, while DESIGN.md’s

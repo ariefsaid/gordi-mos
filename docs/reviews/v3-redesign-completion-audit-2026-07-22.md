@@ -331,3 +331,19 @@ absence, keyboard sort/menu, Esc/Back/focus, dirty-veto, seeded Inbox journey, a
 Only the owner can ratify whether object-specific row anatomy feels like one coherent app, whether the
 Signal feed’s nested cards are intentional or card soup, and whether E7 styling plus the composite IA/IxD
 oracle has crossed the “high-schooler obvious” bar. Green source guards are not those decisions.
+
+## Follow-up implementation evidence — 2026-07-22 (local, unpushed)
+
+The Task dirty-leave finding is now closed at the live overlay entry rather than only in a pure guard
+unit. The mounted Task tenant attaches/removes its guard as draft dirtiness changes; the shared
+confirmation surface owns retain/discard. `AC-V3-008` drives a failed-save draft through Close and
+asserts both Cancel (record retained) and Discard (record leaves). Page promotion now preserves the
+Task page-mode state through `openPage`.
+
+Focused evidence is **153/153** for the affected Task/overlay/page/confirmation suites, with typecheck,
+ESLint, and Stylelint green. This changes the finding from P0 to “source/test closed; rendered and
+direct-route browser Back proof open.” The branch remains **NO-SHIP**: Tasks/Signals visual grammar,
+Inbox seeded journey, Deputy shared-host/coexistence behavior, RecordViewer anatomy, and the owner’s
+three-width acceptance are still open. The Deputy preference is recorded provisionally in OD-REDESIGN-80:
+wide adjacent/compact where possible, phone compact-on-top acceptable, never a covering second desktop
+drawer. No Supabase or broad render run was performed.

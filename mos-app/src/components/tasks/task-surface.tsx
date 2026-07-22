@@ -22,7 +22,6 @@ import { canEdit, canArchive } from './task-permissions'
 import { TaskDrawerHeader } from './task-drawer-header'
 import { RecordDetailsPanel } from './record-details-panel'
 import type { TaskViewerFieldKey } from './task-record-adapter'
-import { dirtyLeaveGuard } from '@/components/records/dirty-leave-guard'
 import { RecordFeed } from './record-feed'
 import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
@@ -67,6 +66,8 @@ export type TaskSurfaceProps = {
   onTaskCreated?: (id: string) => void         // C2: lets the table refetch after a create (PR-B)
   onTaskArchived?: (id: string) => void        // I3: lets the table refetch after an archive (PR-B)
   onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
+  /** Bubbles RecordField draft state to a host-owned leave guard. */
+  onDirtyChange?: (dirty: boolean) => void
   // Heading level for the full-width record identity. Defaults to 1; the V3
   // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
   identityHeadingLevel?: 1 | 2
@@ -98,7 +99,7 @@ export function TaskSurface(props: TaskSurfaceProps) {
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
   taskId, width, presentation = width === 'drawer' ? 'panel' : 'page', expanded,
-  onClose, onOpenPage, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
+  onClose, onOpenPage, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
   showPanelUtility = true,
   identityHeadingLevel,
 }: TaskSurfaceProps) {
@@ -286,14 +287,9 @@ function ViewSurface({
     }
   }
 
-  // Dirty-draft tracking (V3 Issue 5, content side): RecordField bubbles dirty through
-  // RecordViewer.onDirtyChange; while a draft is dirty the tenant would supply the overlay
-  // leave-guard. NOTE: the live panel still mounts RecordPanelHost directly (not the Issue 4
-  // overlay session), so this guard has no live attachment yet — see the RATIFY line. The value is
-  // computed so the future openRoot mount seam can hand it to OverlayEntry.leaveGuard.
-  const [fieldsDirty, setFieldsDirty] = useState(false)
-  // Referenced to keep the guard factory wired + typechecked ahead of the frame-lane openRoot mount.
-  void dirtyLeaveGuard(fieldsDirty, () => true)
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    onDirtyChange?.(dirty)
+  }, [onDirtyChange])
 
   // ── Work-line change (D4) ────────────────────────────────────────────────
   async function handleWorkLineChange(workLineId: string | null) {
@@ -494,7 +490,7 @@ function ViewSurface({
             compact
             onStatusChange={handleStatusChange}
             onUpdateField={handleUpdateField}
-            onDirtyChange={setFieldsDirty}
+            onDirtyChange={handleDirtyChange}
             onMarkComplete={handleMarkComplete}
             onWorkLineChange={handleWorkLineChange}
             onObjectiveChange={handleObjectiveChange}
@@ -627,7 +623,7 @@ function ViewSurface({
           workLines={workLinesDir}
           onStatusChange={handleStatusChange}
           onUpdateField={handleUpdateField}
-          onDirtyChange={setFieldsDirty}
+          onDirtyChange={handleDirtyChange}
           onMarkComplete={handleMarkComplete}
           onWorkLineChange={handleWorkLineChange}
           onObjectiveChange={handleObjectiveChange}

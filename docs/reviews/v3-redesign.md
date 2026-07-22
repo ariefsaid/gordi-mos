@@ -927,3 +927,18 @@ Café explicit Team choice, Inbox page host geometry/Back seam, Deputy focus ret
 native opener and Save View focus, and the former hardcoded Café phone-tab finding. Do not call this branch
 complete from source guards alone. Owner gates still include the final three-width “one app” visual verdict,
 Signal card-soup/density judgment, strategic Inbox/Deputy/I5 exceptions, Q1 Signal-on-Home, and Issue 10.
+
+## Task dirty-leave and page-promotion follow-up — 2026-07-22 (local, unpushed)
+
+The prior P0 source finding is now addressed at the production seam: `TasksWorkspace` mutates the
+same live `OverlayEntry` to attach the Task tenant's guard only while fields are dirty. The shared
+`ConfirmDialog` handles retain/discard for Close, Escape, and stack Back; an integration test drives a
+failed save to keep the draft dirty, then proves Cancel retains the record and Discard leaves it
+(`AC-V3-008`). The explicit Open-full-page action also carries `taskSurface: page` through router state,
+so promotion does not silently fall back to panel mode.
+
+Focused evidence after the follow-up: **153/153** across Tasks workspace, Task surface, Task page mode,
+overlay host, and ConfirmDialog; typecheck, ESLint, and Stylelint pass. This closes the earlier P0 at
+source/test level only. Direct `/work/tasks/:id` browser navigation still needs its route blocker, and
+fresh 1280/1024/390 rendered/Back evidence remains required before a ship verdict. No Supabase, push,
+merge, or deploy was performed.

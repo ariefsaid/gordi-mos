@@ -91,6 +91,8 @@ export type OverlayEntry = {
   label: string
   title?: ReactNode
   pageTo?: To
+  /** Optional router state for domain-specific page-mode promotion (e.g. Task). */
+  pageState?: unknown
   content: ReactNode
   leaveGuard?: OverlayLeaveGuard
 }
@@ -123,7 +125,7 @@ export type OverlayHostApi = {
   replaceCurrent: (entry: OverlayEntry) => Promise<OverlayTransitionResult>
   back: () => Promise<OverlayTransitionResult>
   close: (via?: 'explicit-close' | 'escape') => Promise<OverlayTransitionResult>
-  openPage: (to: To) => Promise<OverlayTransitionResult>
+  openPage: (to: To, state?: unknown) => Promise<OverlayTransitionResult>
 }
 
 const COMMITTED: OverlayTransitionResult = { status: 'committed' }
@@ -572,7 +574,7 @@ export function OverlayHostProvider({
   )
 
   const openPage = useCallback(
-    (to: To): Promise<OverlayTransitionResult> => {
+    (to: To, state?: unknown): Promise<OverlayTransitionResult> => {
       const active = activeEntry()
       if (!active) return Promise.resolve(COMMITTED)
       // After a guarded leave commits, navigate to the canonical page (replacing the panel's
@@ -582,7 +584,7 @@ export function OverlayHostProvider({
         () => {
           clearRouteSeam()
           commitSession(null)
-          navigate(to, { replace: true })
+          navigate(to, { replace: true, state })
         },
       )
     },
@@ -663,7 +665,7 @@ export function OverlayHostSlot({
       onOpenPageOverride(pageTo, openPage)
       return
     }
-    void openPage(pageTo)
+    void openPage(pageTo, active?.entry.pageState)
   }
 
   return (

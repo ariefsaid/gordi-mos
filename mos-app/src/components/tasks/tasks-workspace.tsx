@@ -33,6 +33,7 @@ import {
 } from './task-collection-presentation'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import { TaskOverlayContent } from './task-drawer'
+import type { OverlayEntry } from '@/shell/overlay-host'
 
 // §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
 type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
@@ -174,23 +175,26 @@ export function TasksWorkspace({
   const dueRuns = useDueRuns(retry)
   const onOpenTask = useCallback((taskId: string) => {
     const pageTo = { pathname: `/work/tasks/${taskId}`, search: currentSearch }
-    const entry = {
+    const entry: OverlayEntry = {
       key: `task:${taskId}`,
       owner: 'tasks' as const,
       tenant: 'record' as const,
       label: t('tasks.detail.title'),
       title: t('tasks.detail.title'),
       pageTo,
-      content: (
-        <TaskOverlayContent
-          taskId={taskId}
-          onClose={() => { void host.close() }}
-          onOpenPage={() => { void host.openPage(pageTo) }}
-          onTaskChanged={onTaskChanged}
-          onTaskArchived={onTaskArchived}
-        />
-      ),
+      pageState: { taskSurface: 'page' },
+      content: null,
     }
+    entry.content = (
+      <TaskOverlayContent
+        taskId={taskId}
+        onClose={() => { void host.close() }}
+        onOpenPage={() => { void host.openPage(pageTo, entry.pageState) }}
+        onTaskChanged={onTaskChanged}
+        onTaskArchived={onTaskArchived}
+        onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
+      />
+    )
     void host.openRoot(entry, 'route')
   }, [currentSearch, host, onTaskArchived, onTaskChanged, t])
   const onCloseDrawer = useCallback(() => {

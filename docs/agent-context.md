@@ -78,8 +78,10 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > application against the owner’s verbatim redesign / 50+ QnA / divergence-convergence / E7 oracle.
 > Source guards pass (inventory 58 routes / 13 shared jobs / 73 CSS families; RecordCollection
 > conformance; Storybook 35/36/3), but no current computed-style or driven 1280/1024/390 evidence
-> exists. The branch remains **NO-SHIP**. Highest open gaps are: Task dirty-leave guard not attached
-> to the live OverlayEntry; Tasks/Signals still render different table/CSS families; Inbox remains a
+> exists. The branch remains **NO-SHIP**. At that audit baseline the highest open gaps included the
+> Task dirty-leave guard not being attached to the live OverlayEntry; the local follow-up below now
+> closes that seam at source/test level. Remaining gaps include Tasks/Signals still rendering different
+> table/CSS families; Inbox remains a
 > bespoke collection without seeded Bell→queue→record→Back proof; Deputy has a separate fixed host;
 > Task/Signal RecordViewer relation/anatomy proof is incomplete; user-facing Café strings still leak
 > “Kitchen”; measurable DataTable/row/radius/control token drift; and the documented provisional I5
@@ -490,3 +492,18 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   was git orchestration + CI-watch, no pi spend.)
 - Remaining user-facing rollout work is owner-gated: staging db push, edge-function model secret/live
   deputy verify, P3b generateLink hook check, VAPID keys, and ESB PIC settlement answer.
+
+## Current V3 follow-up — 2026-07-22 (local, unpushed)
+
+- The Task collection's live `OverlayEntry` now receives a tenant-owned `leaveGuard` only while a
+  record draft is dirty. The shared ConfirmDialog drives retain/discard for Close, Escape, and stack
+  Back; `tasks-workspace.test.tsx` covers the real edit → failed save → Close → Cancel/Discard journey
+  (`AC-V3-008`). Explicit full-page promotion also preserves `taskSurface: page` through router state.
+- Focused evidence is **153/153** across Tasks workspace, Task surface, Task page mode, overlay host,
+  and ConfirmDialog, with typecheck, ESLint, and Stylelint green. This is source/test evidence only:
+  direct-route dirty browser navigation, fresh render, and three-width Back proof remain open.
+- **Deputy coexistence preference (provisional owner note):** do not cover an open record with a second
+  unrelated full-height desktop drawer. At wide widths use adjacent/side-by-side when the canvas
+  supports it, otherwise a compact chat/launcher in the remaining canvas. On phone, the record stays
+  primary and Deputy may sit on top as a compact chat surface because horizontal space is scarce.
+  Shared host/stack still owns open/close, Back, focus, and promotion; Deputy owns transcript/actions.
