@@ -148,6 +148,7 @@ function RecordBody({
   onOpenPage?: () => void
   fieldCommitsFrozen?: boolean
 }): ReactNode {
+  const t = useT()
   const readOnly = adapter.permission.readOnly
   const allowed = new Set(adapter.permission.allowedActionIds)
   const visibleActions = adapter.actions.filter((a) => allowed.has(a.id))
@@ -233,6 +234,11 @@ function RecordBody({
               </Button>
             ))}
           </div>
+        )}
+        {/* Quiet inline-edit hint (E7 table-footnote parity) — only when the record is editable,
+            adapted to our fields' value-first grammar (activate the value, Enter saves, Esc discards). */}
+        {!readOnly && (
+          <p className="record-viewer__edit-hint">{t('record.editHint')}</p>
         )}
       </footer>
     </>

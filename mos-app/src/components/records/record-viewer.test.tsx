@@ -197,4 +197,20 @@ describe('RecordViewer', () => {
     // Let the async commit settle so the "Saved" state update is flushed inside act.
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
+
+  // E7 table-footnote parity — the quiet inline-edit hint, adapted to our fields' value-first
+  // grammar. Present only when the record is editable (a read-only record has nothing to activate).
+  it('shows the quiet inline-edit hint on an editable record', () => {
+    renderViewer(taskAdapter())
+    expect(
+      screen.getByText("Select a field's value to edit it. Enter saves · Esc discards."),
+    ).toBeInTheDocument()
+  })
+
+  it('omits the inline-edit hint on a read-only record', () => {
+    renderViewer(taskAdapter({ permission: { readOnly: true, reason: 'Archived', allowedActionIds: [] } }))
+    expect(
+      screen.queryByText("Select a field's value to edit it. Enter saves · Esc discards."),
+    ).toBeNull()
+  })
 })
