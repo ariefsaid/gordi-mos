@@ -4,9 +4,10 @@
  *
  * WHY: both float at `right: 0`, full-height, `z-index: var(--z-drawer)` — the SAME physical
  * track. Two drawers in the same track violates the owner IA/IxD law "one overlay grammar"
- * (OD-REDESIGN). A collection-owner overlay (Tasks/Signals records) sits inside the page
- * `.record-split` grid, so it does NOT float over the shell and coexists with Deputy normally;
- * only shell-owner overlays conflict.
+ * (OD-REDESIGN). A collection-owner record overlay (Tasks/Signals/Inbox page records) sits inside
+ * the page `.record-split` grid, so it may coexist; AssistantPanel reads that same session and
+ * contracts into the record-safe compact desktop regime (OD-REDESIGN-80). Only shell-owner
+ * overlays physically collide and therefore remain mutually exclusive here.
  *
  * INVARIANT: at most one of {shell-owner overlay, Deputy} is open at once. The NEWEST intent
  * wins — the one that just transitioned to open stays, the already-open one yields:

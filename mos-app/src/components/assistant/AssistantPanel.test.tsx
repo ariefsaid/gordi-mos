@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { OverlayHostProvider, OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { AssistantPanel } from './AssistantPanel'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
@@ -15,6 +16,56 @@ import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 function OpenHarness() {
   const { openPanel } = useAgentRuntime()
   return createElement('button', { type: 'button', onClick: openPanel }, 'reopen')
+}
+
+function RecordHarness() {
+  const overlay = useOverlayHost()
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void overlay.openRoot({
+          key: 'task:coexistence',
+          owner: 'tasks',
+          tenant: 'record',
+          label: 'Task record',
+          title: 'Opening checklist',
+          content: <button type="button">Record action</button>,
+        }, 'ephemeral')}
+      >
+        open record
+      </button>
+      <OverlayHostSlot owner="tasks" />
+    </>
+  )
+}
+
+function renderPanelWithRecord({ narrow }: { narrow: boolean }) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('max-width') ? narrow : query.includes('min-width') ? !narrow : narrow,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+  localStorage.setItem('mos.assistant.open', 'true')
+  return render(
+    <I18nProvider>
+      <MemoryRouter>
+        <AgentRuntimeProvider runtime={makeFakeRuntime()}>
+          <OverlayHostProvider>
+            <RecordHarness />
+            <AssistantPanel />
+          </OverlayHostProvider>
+        </AgentRuntimeProvider>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
 }
 
 function replyScript(text = 'Sure — here is your answer.'): AgentEvent[] {
@@ -77,6 +128,34 @@ describe('AssistantPanel (T27)', () => {
     expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument()
     // Desktop is non-modal: no dialog landmark.
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('OD-REDESIGN-80: a desktop Deputy becomes a compact adjacent surface when a record is open', async () => {
+    renderPanelWithRecord({ narrow: false })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('complementary', { name: 'Deputy' })).toHaveAttribute(
+      'data-deputy-layout',
+      'compact-with-record',
+    )
+  })
+
+  it('OD-REDESIGN-80: phone may place Deputy above the primary record surface', async () => {
+    renderPanelWithRecord({ narrow: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('dialog', { name: 'Deputy' })).toHaveAttribute(
+      'data-deputy-layout',
+      'phone-over-record',
+    )
   })
 
   it('AC-AP-003: when closed, the panel is inert + aria-hidden (keep-mounted, hidden from AT)', () => {

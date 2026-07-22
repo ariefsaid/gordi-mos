@@ -82,10 +82,12 @@ Current blockers and required proof:
 - **P1 host/IA:** Inbox remains a bespoke triage surface outside `RecordCollectionSurface`; its
   All/Unread-only local controls and absent seeded Bell → queue → record → Back proof are open.
   Handled semantics remain owner/data-gated, not an invented defect.
-- **P1 host grammar:** Deputy remains a separate fixed panel/visual contract. Focus return is fixed;
-  converge it onto the shared `RecordPanelHost`/stack. When a record is open, prefer adjacent/side-by-side
-  Deputy at wide widths; use a compact chat/launcher state when space is insufficient, never a covering
-  second drawer (provisional OD-REDESIGN-80).
+- **P1 host grammar (bounded coexistence seam implemented locally):** Deputy still has a separate
+  physical panel/stack, so full `RecordPanelHost` migration remains open. It now consumes the live
+  overlay session: an open record contracts desktop Deputy into a compact adjacent surface that cannot
+  cover the record; phone may layer Deputy above the still-mounted record per the owner's latest
+  clarification. Focus return and focused goal tests are green. Remaining gate: shared Back/stack
+  ownership plus rendered 1280/1024/390 geometry (provisional OD-REDESIGN-80).
 - **P1 RecordViewer:** Task/Signal live viewers still diverge in anatomy and expose empty relation
   arrays. Add a driven panel/page/related-record comparison before calling the abstraction complete.
 - **P2 visual/token drift:** standalone DataTable is 13px, Tasks rows are 50px, while DESIGN.md’s

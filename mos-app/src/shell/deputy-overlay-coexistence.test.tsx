@@ -4,8 +4,8 @@
 // overlays) both float at `right: 0`, full-height, z-drawer — the SAME physical track. Two
 // drawers in the same track is a grammar violation (OD-REDESIGN "one overlay grammar"). A
 // collection-owner overlay (Tasks/Signals records) sits inside the page .record-split grid, so
-// it does NOT float over the shell and coexists with Deputy normally — only shell-owner
-// overlays conflict.
+// it does NOT float over the shell and may coexist; AssistantPanel owns the record-aware compact
+// presentation proof. Only shell-owner overlays conflict in this coordinator.
 //
 // INVARIANT: at most one of {shell-owner overlay, Deputy} is open at once. The newer intent
 // wins: opening a shell-owner overlay closes Deputy; opening Deputy closes any open shell-owner

@@ -507,3 +507,9 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   supports it, otherwise a compact chat/launcher in the remaining canvas. On phone, the record stays
   primary and Deputy may sit on top as a compact chat surface because horizontal space is scarce.
   Shared host/stack still owns open/close, Back, focus, and promotion; Deputy owns transcript/actions.
+- **Deputy bounded coexistence implementation (local):** `AssistantPanel` now reads the live shared
+  overlay session without unmounting its transcript/runtime. When a record tenant is active, desktop
+  Deputy contracts into a tokenized compact surface positioned outside the record's 44%/45vw track;
+  phone keeps the allowed modal-above-record behavior. Two OD-REDESIGN-80 goal tests prove both record
+  and Deputy remain mounted. This does **not** complete physical `RecordPanelHost`/stack migration, and
+  no rendered 1280/1024/390 geometry has been claimed.

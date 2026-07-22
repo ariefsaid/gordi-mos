@@ -1974,8 +1974,9 @@ parallel record lists.
 When a record panel is open and the user needs Deputy, Deputy must never cover the record or create a
 second unrelated full-height drawer. At wide widths, prefer an adjacent/side-by-side chat surface when
 the available canvas can support both; when it cannot, Deputy becomes a compact chat surface or launcher
-state in the remaining canvas. On phone widths, the record panel remains primary and Deputy waits in a
-compact launcher state until the record surface closes. This is a layout preference, not a new record
-type: the shared overlay host/stack still owns open, close, Back, focus, and promotion semantics, while
-Deputy keeps its assistant-specific transcript and actions. The owner may refine the exact breakpoint
-after seeing the rendered coexistence journey.
+state in the remaining canvas. On phone widths, horizontal space is too scarce for side-by-side panes;
+Deputy may therefore open above the record as a compact/modal chat surface while the primary record
+stays mounted underneath and returns on close (owner clarification, 2026-07-22). This is a layout
+preference, not a new record type: the shared overlay host/stack still owns open, close, Back, focus,
+and promotion semantics, while Deputy keeps its assistant-specific transcript and actions. The owner
+may refine the exact breakpoint after seeing the rendered coexistence journey.

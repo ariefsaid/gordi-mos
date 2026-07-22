@@ -4,8 +4,11 @@
  * runtime context's `open`.
  *
  *   - Desktop (≥920px): right-side NON-MODAL drawer, `role="complementary"`, width var(--assistant-w).
+ *     While a shared-host record is open it becomes a compact adjacent surface in the remaining
+ *     canvas, so it never covers the primary record (OD-REDESIGN-80).
  *   - Phone (<920px): full-height MODAL sheet, `role="dialog" aria-modal`, scrim + focus-trap +
- *     body-scroll-lock + Esc close.
+ *     body-scroll-lock + Esc close. When a record is already open this phone sheet may sit above it;
+ *     the record remains mounted underneath and returns when Deputy closes.
  *
  * Keep-mounted (FR-P2-AP-003): the section is ALWAYS in the DOM — when closed it is `inert` +
  * `aria-hidden` + translated off-screen, so the hook's transcript/chip state survives close→open.
@@ -26,6 +29,8 @@ import { EmptyState } from '@/components/ui/state-kit'
 import { ThreadList } from './ThreadList'
 import { AssistantMarkdown } from './AssistantMarkdown'
 import { AssistantWidgetSlot } from './AssistantWidgetSlot'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import './AssistantPanel.css'
 
 const SUGGESTION_KEYS = [
   'assistant.empty.suggestion1',
@@ -47,6 +52,7 @@ export function AssistantPanel() {
   const { open, closePanel } = useAgentRuntime()
   const panel = useAssistantPanel()
   const isNarrow = useIsNarrow()
+  const overlay = useOptionalOverlayHost()
   const t = useT()
 
   const [draft, setDraft] = useState('')
@@ -57,6 +63,11 @@ export function AssistantPanel() {
   const wasOpenRef = useRef(open)
 
   const role: 'dialog' | 'complementary' = isNarrow ? 'dialog' : 'complementary'
+  const activeOverlay = overlay?.session?.frames.at(-1)?.entry
+  const recordOpen = activeOverlay?.tenant === 'record'
+  const deputyLayout = recordOpen
+    ? isNarrow ? 'phone-over-record' : 'compact-with-record'
+    : isNarrow ? 'phone' : 'drawer'
 
   // The Deputy is a shell-owned drawer, but it still follows the same opener contract as
   // record panels: remember the element that launched it and return focus there after any
@@ -173,21 +184,13 @@ export function AssistantPanel() {
       <section
         ref={panelRef}
         role={role}
+        data-deputy-layout={deputyLayout}
         aria-modal={isNarrow ? true : undefined}
         aria-label={t('assistant.title')}
         aria-hidden={!open}
         inert={inertAttr}
-        className="fixed bg-background border-border flex flex-col"
+        className="assistant-panel fixed bg-background border-border flex flex-col"
         style={{
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: isNarrow ? '100%' : 'var(--assistant-w)',
-          maxWidth: '100vw',
-          borderLeftWidth: isNarrow ? 0 : 1,
-          borderLeftStyle: 'solid',
-          boxShadow: 'var(--shadow-strong)',
-          zIndex: 'var(--z-drawer)',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform var(--dur-slow) ease-out',
           pointerEvents: open ? 'auto' : 'none',

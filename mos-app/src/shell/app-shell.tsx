@@ -52,8 +52,9 @@ function ShellContent() {
   // Lane B2 — reconcile Deputy (right-floating slide-over) with any shell-owner overlay (Inbox
   // quick-triage), which share the same right-edge z-drawer track. Mounted here because
   // ShellContent sits inside both AgentRuntimeProvider and OverlayHostProvider, so the hook can
-  // see both controllers. Collection-owner overlays (Tasks/Signals records) sit in the page grid
-  // and coexist with Deputy normally — the hook only acts on owner==='shell'.
+  // see both controllers. Collection-owner records remain mounted in the page grid; AssistantPanel
+  // reads that same host session and switches to its compact record-safe desktop regime. This hook
+  // only acts on the truly conflicting owner==='shell' track.
   useDeputyOverlayCoexistence()
 
   return (

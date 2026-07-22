@@ -942,3 +942,18 @@ overlay host, and ConfirmDialog; typecheck, ESLint, and Stylelint pass. This clo
 source/test level only. Direct `/work/tasks/:id` browser navigation still needs its route blocker, and
 fresh 1280/1024/390 rendered/Back evidence remains required before a ship verdict. No Supabase, push,
 merge, or deploy was performed.
+
+## Deputy record-coexistence seam — 2026-07-22 (local, unpushed)
+
+The Deputy panel now consumes the active shared-overlay session while keeping its runtime and transcript
+mounted. If the active tenant is a record, desktop Deputy contracts into a compact chat surface in the
+remaining canvas, with its right edge reserved beyond the record host's 44% split / 45vw sheet track;
+it no longer covers the primary record with a second full-height drawer. On phone, Deputy may open above
+the still-mounted record per the owner's latest space-constrained clarification; closing it returns to
+the record. The ordinary no-record Deputy drawer is unchanged.
+
+Focused OD-REDESIGN-80 tests drive a real `OverlayHostProvider` record session and prove both the record
+host and the correct Deputy regime remain mounted at desktop and phone widths. This is deliberately a
+bounded coexistence seam: Deputy still owns a separate physical panel and does not yet participate in
+the host's Back/stack/promotion transaction. Full shared-host migration plus rendered 1280/1024/390
+geometry remain **NO-SHIP** gates. No Supabase, dev server, push, merge, or deploy was used.
