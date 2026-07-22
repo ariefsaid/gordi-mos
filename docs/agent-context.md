@@ -93,6 +93,28 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > strategic Inbox/Deputy/I5 exceptions. Resolved/stale findings are listed explicitly in those docs;
 > do not resurrect them from historical audit sections.
 
+> **LATEST MOCKUP-REGRESSION OVERRIDE (2026-07-22, local/uncommitted):** An independent read-only critic
+> compared the current Home/Tasks/Signals surfaces against the E7 visual authority, pre-E7 table salvage,
+> the composite owner oracle, JTBD, Impeccable, Taste, and UI-styling checklists. Verdict remains
+> **NO-SHIP** (23/40 checklist score): Home task titles are visibly starved; Signals retains duplicate
+> collection axes and a native Saved-views popup; Signals still has a six-column identity layout unlike
+> E7's primary title/subline anatomy; Tasks/Signals share a wrapper but not a full grammar; Home still has
+> a card remnant and direct-link viewer exception. Source now bounds rail and page scrolling, and a local
+> browser check showed page scroll while the rail stayed anchored, but the required 1280/1024/390 proof is
+> not complete. See the latest `v3-redesign.md` section for the exact P0/P1 queue. Do not treat the
+> uncommitted CSS pass as acceptance or completion.
+
+> **OWNER VERBATIM FEEDBACK + SCORE TARGET (2026-07-22):** The owner said: “the table filters and views
+> feels unpolished and too cluttered. it doesnt say tidy. it says confusing! why not use ui-ux-pro-max,
+> taste and impeccable skills for how to structure this neatly. same goes for Home, styling feels
+> unpolished. some has to big of whitespace, some feels too tight. when scrolled down, the sidebar follows
+> to get scrolled as well”; “e7 has better table structure”; and “even the pre-e7 has better table layout.”
+> These are acceptance requirements, not optional polish. Current baseline is 23/40, E7 is 27/40,
+> prior warmer is 19/40, and prior task-table anatomy is ~3.5/4 for scanability. Target: ≥27/40
+> Nielsen-style, ≥7/10 structural anti-slop (target 8/10), no P0 card soup/duplicate view axes/starved
+> identity/native saved-view popup, and rendered 1280/1024/390 proof for Home/Tasks/Signals. The next
+> implementer owns visible convergence; the Director verifies actual renders and updates this ledger.
+
 > **INDEPENDENT COMPLETION AUDIT (2026-07-22):** The current tip `d63f20a` is **NO-SHIP**. Fresh
 > verification is recorded in [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md): typecheck/lint/build and the RecordCollection guard pass, but live-inventory freshness fails, the full Vitest run is **3,212 passed / 15 failed / 14 errors**, and `pre-merge-check.sh` has no current review verdict lines. The route-seam failures, Tasks-vs-Signals collection grammar divergence, Café first-Team heuristic, unimplemented Issue 10, and missing owner three-width gate remain release blockers. Do not use the historical `3195/3196`, `329/329`, or `7cc45f2` figures as current completion evidence.
 
@@ -528,3 +550,15 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   above a mounted record when there is not enough horizontal space; one Escape closes Deputy first.
   Controller-owned browser Back/one-session stack semantics and live 1280/1024/390 geometry,
   focus, and phone scroll containment remain open. No server or Supabase was started.
+
+- **Table convergence update (local, uncommitted, 2026-07-22):** Home's My Tasks table now reserves a
+  proportional 34% title column so task identity is readable at desktop widths; Signals now uses a
+  title/body cell with author/category metadata followed by Team, Occurred, and Attention (four decision
+  columns, matching the E7/pre-E7 collection anatomy). The shared collection toolbar is split into primary
+  view and query/filter/view-options bands. Focused evidence is MyTasksCard 17/17, SignalTable 6/6,
+  Signals archive 20/20, and typecheck green. This remains **NO-SHIP** until the owner sees the live
+  1280/1024/390 surfaces and the remaining card-remnant, shared-record-open, and final taste gates are
+  explicitly resolved. A live Tasks render caught and fixed a P0 width regression (Task column computed
+  at 0px); proportional columns now retain a readable identity column at 1024px. Driven proof covers
+  Tasks/Signals at 1280/1024/390 and Home at 390; at 1024, page scrollTop moved while rail top stayed
+  pinned at 56px.

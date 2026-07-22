@@ -1,6 +1,6 @@
 // Typed Signal archive TABLE presentation (Issue 6, plan Task 13). Reuses the existing generic
 // DataTable<SignalRow> primitive — NOT a Twenty table clone. Its columns are Signal-specific:
-// message, author, Team, occurred-at, attention, and category. A retracted Signal renders an explicit
+// message with provenance subline, Team, occurred-at, and attention. A retracted Signal renders an explicit
 // tombstone (message + reason), and it is present in the projection only when the typed query asks
 // for it. Signals have NO PIC, Supervisor, or Task Status columns — the adapter never invents them.
 import { useT } from '@/i18n/use-t'
@@ -45,19 +45,20 @@ export function SignalTablePresentation({
             {signal.retract_reason ? <span className="signal-table-reason"> {signal.retract_reason}</span> : null}
           </span>
         ) : (
-          <button
-            type="button"
-            className="signal-table-message"
-            onClick={() => onOpenRecord(signal)}
-          >
-            {signal.body}
-          </button>
+          <div className="signal-table-title-cell">
+            <button
+              type="button"
+              className="signal-table-message"
+              onClick={() => onOpenRecord(signal)}
+            >
+              {signal.body}
+            </button>
+            <span className="signal-table-message-meta">
+              <span>{context.authorNamesById.get(signal.author_id) ?? t('signals.card.unknownAuthor')}</span>
+              {signal.category ? <><span aria-hidden="true"> · </span><span>{signal.category}</span></> : null}
+            </span>
+          </div>
         ),
-    },
-    {
-      key: 'author',
-      header: t('signals.table.author'),
-      render: (signal) => context.authorNamesById.get(signal.author_id) ?? t('signals.card.unknownAuthor'),
     },
     {
       key: 'team',
@@ -82,11 +83,6 @@ export function SignalTablePresentation({
             {signal.attention}
           </span>
         ),
-    },
-    {
-      key: 'category',
-      header: t('signals.table.category'),
-      render: (signal) => signal.category ?? <span aria-hidden="true">—</span>,
     },
   ]
 

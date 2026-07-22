@@ -328,3 +328,29 @@ dirty-veto, seeded journeys, and overflow. The owner still must judge the final 
 Signal card-soup/density, and strategic Inbox/Deputy/I5 exceptions. Do not treat the older “production
 host still unmounted”, “Deputy focus return missing”, “Café first-Team heuristic”, or “phone Café tab
 hardcoded” statements as current; those are resolved/stale and are called out in the completion audit.
+
+## Owner table/Home feedback and next-agent score gate — 2026-07-22
+
+The owner’s current feedback, preserved verbatim:
+
+> “the table filters and views feels unpolished and too cluttered. it doesnt say tidy. it says confusing!
+> why not use ui-ux-pro-max, taste and impeccable skills for how to structure this neatly. same goes for
+> Home, styling feels unpolished. some has to big of whitespace, some feels too tight. when scrolled down,
+> the sidebar follows to get scrolled as well”
+
+> “e7 has better table structure”
+
+> “even the pre-e7 has better table layout”
+
+This is an acceptance gate, not a request for cosmetic tweaking. The current structured scores are:
+current app **23/40**, E7 **27/40**, prior warmer/pre-E7 **19/40**; the prior task-table anatomy is
+approximately **3.5/4** for scanability. Structural anti-slop is E7 **7/10** and prior warmer **4/10**.
+These are rubric scores, not official Nielsen or automated Impeccable measurements.
+
+Next implementation must aim for **≥27/40**, **≥7/10 structural anti-slop (target 8/10)**, and zero
+P0 card soup, duplicate collection axes, browser-native saved-view primary UI, starved identity column,
+or Tasks/Signals grammar divergence. It must be rendered at **1280/1024/390px** for Home, Tasks, and
+Signals, with page scroll independent from the rail. E7 owns styling; pre-E7 task-table anatomy is
+salvage only; the composite owner oracle owns IA/IxD. The next agent may implement visible behavior first,
+then smoke-test, render/inspect, and add goal-level tests under the owner UI-fast-path rule. Do not claim
+completion from source tests alone.

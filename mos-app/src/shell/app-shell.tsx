@@ -69,13 +69,14 @@ function ShellContent() {
           maxWidth: '100vw',
           minWidth: 0,
           overflowX: 'hidden',
+          overflowY: 'hidden',
           // minmax(0, 1fr) (not bare 1fr) so the content column can shrink below its
           // min-content — bare 1fr's implicit min-width:auto lets wide content (a dense
           // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
           gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'var(--rail-w) minmax(0, 1fr)',
           gridTemplateRows: isNarrow
-            ? 'var(--header-h) 1fr var(--tabbar-h)'
-            : 'var(--header-h) 1fr',
+            ? 'var(--header-h) minmax(0, 1fr) var(--tabbar-h)'
+            : 'var(--header-h) minmax(0, 1fr)',
           gridTemplateAreas: isNarrow
             ? '"topbar" "main" "tabbar"'
             : '"topbar topbar" "rail main"',
@@ -95,12 +96,12 @@ function ShellContent() {
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div
           className="flex min-w-0 flex-col min-h-0"
-          style={{ gridArea: 'main' }}
+          style={{ gridArea: 'main', overflow: 'hidden' }}
         >
           {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}
           <ContextRow />
           {/* Region 3 — content (the page <Outlet>; the page's own PageHead H1 lives here). */}
-          <div data-anatomy="content" className="min-w-0 flex-1 min-h-0">
+          <div data-anatomy="content" className="min-w-0 flex-1 min-h-0 overflow-hidden flex flex-col">
             <Outlet />
           </div>
         </div>

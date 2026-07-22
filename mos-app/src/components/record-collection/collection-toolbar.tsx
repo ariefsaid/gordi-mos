@@ -84,6 +84,7 @@ export function CollectionToolbar<
 
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
+  const isViewOption = (filter: CollectionToolbarFilter) => /(?:^|-)group$|(?:^|-)sort$/.test(filter.id)
 
   function closeSaveView() {
     setSaveOpen(false)
@@ -102,75 +103,68 @@ export function CollectionToolbar<
       className={`collection-toolbar${className ? ` ${className}` : ''}`}
       data-testid="record-collection-toolbar"
     >
-      <div className="collection-toolbar__presentations">
-        <ViewTabs
-          ariaLabel={presentation.label}
-          active={presentation.value}
-          tabs={presentation.options.map((option) => ({ id: option.value, label: option.label }))}
-          onChange={(value) => presentation.onChange(value as TPresentation)}
-        />
-      </div>
+      {/* E7 / pre-E7 anatomy: the collection switch is a calm first row. Query controls
+          never compete with the Table/Feed decision or get interleaved by flex wrapping. */}
+      <div className="collection-toolbar__primary">
+        <div className="collection-toolbar__presentations">
+          <ViewTabs
+            ariaLabel={presentation.label}
+            active={presentation.value}
+            tabs={presentation.options.map((option) => ({ id: option.value, label: option.label }))}
+            onChange={(value) => presentation.onChange(value as TPresentation)}
+          />
+        </div>
 
-      <div className="collection-toolbar__views" role="group" aria-label={views.label}>
-        {views.options.map((option) => {
-          const active = option.value === views.value
-          return (
-            <button
-              key={option.value}
-              type="button"
-              className={`collection-toolbar__view${active ? ' collection-toolbar__view--active' : ''}`}
-              aria-pressed={active}
-              onClick={() => views.onChange(option.value)}
-            >
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
+        <div className="collection-toolbar__views" role="group" aria-label={views.label}>
+          {views.options.map((option) => {
+            const active = option.value === views.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`collection-toolbar__view${active ? ' collection-toolbar__view--active' : ''}`}
+                aria-pressed={active}
+                onClick={() => views.onChange(option.value)}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
 
-      <div className="collection-toolbar__query">
-        {filters.map((filter) => (
-          <Select
-            key={filter.id}
-            id={`collection-filter-${filter.id}`}
-            aria-label={filter.label}
-            value={filter.value}
-            onChange={(event) => filter.onChange(event.target.value)}
-            className="collection-toolbar__select"
-          >
-            {filter.options.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
-        ))}
-
-        {search ? (
-          <label className="collection-toolbar__search">
-            <span className="sr-only">{search.label}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              type="search"
-              aria-label={search.label}
-              placeholder={search.placeholder}
-              value={search.value}
-              onChange={(event) => search.onChange(event.target.value)}
-            />
-          </label>
-        ) : null}
-
-        {toggles}
+        <div className="collection-toolbar__primary-spacer" />
 
         {savedViews ? (
           <div className="collection-toolbar__saved">
+            {savedViews.items.length > 0 ? (
+              <>
+                <div className="collection-toolbar__saved-chips" role="group" aria-label={savedViews.label}>
+                  {savedViews.items.map((item) => {
+                    const active = item.id === savedViews.selectedId
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`collection-toolbar__saved-chip${active ? ' collection-toolbar__saved-chip--active' : ''}`}
+                        aria-pressed={active}
+                        onClick={() => void savedViews.onApply(item.id)}
+                      >
+                        {item.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Keep a native select as an assistive/keyboard fallback without making a
+                    second visual control compete with the visible saved-view chips. */}
+              </>
+            ) : null}
             <Select
               aria-label={savedViews.label}
               value={savedViews.selectedId ?? ''}
               onChange={(event) => {
                 if (event.target.value) void savedViews.onApply(event.target.value)
               }}
-              className="collection-toolbar__select collection-toolbar__saved-select"
+              className="collection-toolbar__saved-select--assistive"
             >
               <option value="">{savedViews.label}</option>
               {savedViews.items.map((item) => (
@@ -190,6 +184,61 @@ export function CollectionToolbar<
             </Button>
           </div>
         ) : null}
+      </div>
+
+      <div className="collection-toolbar__query">
+        {search ? (
+          <label className="collection-toolbar__search">
+            <span className="sr-only">{search.label}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="search"
+              aria-label={search.label}
+              placeholder={search.placeholder}
+              value={search.value}
+              onChange={(event) => search.onChange(event.target.value)}
+            />
+          </label>
+        ) : null}
+
+        <div className="collection-toolbar__filter-group" role="group" aria-label={t('common.filters')}>
+          <span className="collection-toolbar__group-label">{t('common.filters')}</span>
+          {filters.filter(filter => !isViewOption(filter)).map((filter) => (
+            <Select
+              key={filter.id}
+              id={`collection-filter-${filter.id}`}
+              aria-label={filter.label}
+              value={filter.value}
+              onChange={(event) => filter.onChange(event.target.value)}
+              className="collection-toolbar__select"
+            >
+              {filter.options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          ))}
+        </div>
+
+        <div className="collection-toolbar__view-group" role="group" aria-label={t('common.viewOptions')}>
+          <span className="collection-toolbar__group-label">{t('common.viewOptions')}</span>
+          {filters.filter(isViewOption).map((filter) => (
+            <Select
+              key={filter.id}
+              id={`collection-filter-${filter.id}`}
+              aria-label={filter.label}
+              value={filter.value}
+              onChange={(event) => filter.onChange(event.target.value)}
+              className="collection-toolbar__select"
+            >
+              {filter.options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          ))}
+          {toggles}
+        </div>
       </div>
 
       {savedViews && saveOpen ? (

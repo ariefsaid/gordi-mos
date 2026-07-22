@@ -6,17 +6,13 @@
    short archive from collapsing into a 60%-wide visual island; these proportions keep the message
    primary while leaving stable scanning columns for provenance and attention. */
 .signal-collection-table th:nth-child(1),
-.signal-collection-table td:nth-child(1) { width: 30%; }
+.signal-collection-table td:nth-child(1) { width: 52%; }
 .signal-collection-table th:nth-child(2),
-.signal-collection-table td:nth-child(2) { width: 13%; }
+.signal-collection-table td:nth-child(2) { width: 18%; }
 .signal-collection-table th:nth-child(3),
 .signal-collection-table td:nth-child(3) { width: 15%; }
 .signal-collection-table th:nth-child(4),
-.signal-collection-table td:nth-child(4) { width: 18%; }
-.signal-collection-table th:nth-child(5),
-.signal-collection-table td:nth-child(5) { width: 12%; }
-.signal-collection-table th:nth-child(6),
-.signal-collection-table td:nth-child(6) { width: 12%; }
+.signal-collection-table td:nth-child(4) { width: 15%; }
 .signal-collection-table td {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -38,6 +34,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+.signal-table-title-cell {
+  min-width: 0;
+}
+.signal-table-message-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .signal-table-message:hover {
   text-decoration: underline;

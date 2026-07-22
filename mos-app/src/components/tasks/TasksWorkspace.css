@@ -184,14 +184,15 @@
    Due column can NEVER be clipped off-screen at 1280px. .tasks-scroll (overflow-x:auto)
    is the safety net only for absurdly narrow shells. */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
-/* Priority col widths: cb + menu fixed 40px; Task absorbs the remainder (auto);
-   the four decision cols get fixed px so their headers/labels never wrap or squash. */
+/* Priority col widths: cb + menu stay fixed, while the decision columns use proportions so
+   the Task identity column can never collapse to zero at the normal 1024px shell. The previous
+   fixed-pixel sum consumed the entire table (Task measured 0px in the live render). */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
-.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: auto; }   /* Task */
-.tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 150px; }  /* Status */
-.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 184px; }  /* PIC / Ownership */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 168px; }  /* Supervisor */
-.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 132px; }  /* Due */
+.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 22%; }    /* Task */
+.tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 12%; }    /* Status */
+.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* PIC / Ownership */
+.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 15%; }    /* Supervisor */
+.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 14%; }    /* Due */
 .tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 40px; }   /* row menu */
 /* Condensed (drawer-open split): %-based widths so the 7 priority cols flex to the
    narrow split; cb + menu stay fixed 40px. */

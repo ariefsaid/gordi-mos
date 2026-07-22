@@ -31,7 +31,11 @@ type FetchedData = {
   teamMap: Map<string, string>
 }
 
-const desktopMiniColWidths = ['auto', '120px', '160px', '180px', '180px', '144px', '88px'] as const
+// Keep the task identity column dominant at every desktop width. The previous fixed
+// secondary widths left ~80px for the title at 1280px, producing `Repl...`/`Sour...`
+// instead of a useful record label. Percent columns preserve the E7/pre-E7 table grammar
+// while allowing ownership metadata to remain scannable.
+const desktopMiniColWidths = ['34%', '12%', '12%', '14%', '14%', '9%', '5%'] as const
 
 export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')

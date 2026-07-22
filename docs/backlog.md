@@ -49,6 +49,25 @@
 > stale-style removal, documentation closure, and owner walkthrough**.
 > The dated banners below are historical strata. `docs/plans/AUTONOMOUS-RUN-STATE.md` is the completed E7
 > buildout record, not the live V3 plan.
+
+> **LATEST VISUAL REGRESSION OVERRIDE (2026-07-22, local/uncommitted):** A fresh Impeccable/Taste/UI-styling
+> comparison against E7 and pre-E7 confirms **NO-SHIP**. The current toolbar/rail/Home CSS pass is only a
+> bounded improvement, not convergence. P0 blockers are Home task-title starvation, duplicate collection
+> view axes/native Saved-views popup, and Signals' six-column identity anatomy. P1 blockers are the
+> Tasks/Signals grammar parity matrix, Home card-remnant/record-open consistency, and driven rail containment
+> proof. Numeric checklist score is 23/40; decorative anti-slop passes, structural slop does not. Full
+> findings and focused evidence are in the latest section of [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md).
+
+> **OWNER FEEDBACK / SCORE TARGET OVERRIDE (2026-07-22):** The owner’s verbatim acceptance complaint is
+> preserved in the review ledger: “the table filters and views feels unpolished and too cluttered. it
+> doesnt say tidy. it says confusing!”; “same goes for Home, styling feels unpolished. some has to big
+> of whitespace, some feels too tight. when scrolled down, the sidebar follows to get scrolled as well”;
+> “e7 has better table structure”; and “even the pre-e7 has better table layout.” The measurable goal is
+> **≥27/40 Nielsen-style (E7's 27/40), ≥7/10 structural anti-slop (target 8/10), and no P0 duplicate
+> axes/card soup/starved identity/collection-grammar divergence**, proven at 1280/1024/390 for Home,
+> Tasks, and Signals. Current app baseline is 23/40; prior warmer is 19/40; prior task-table anatomy is
+> ~3.5/4 for scanability and remains salvage reference only. Keep **NO-SHIP** until the target is rendered,
+> scored, and owner-visible.
 >
 > **UI convergence execution rule (owner-directed 2026-07-21):** implement → bounded smoke check →
 > render/owner-eye review → goal-level regression tests → commit. Do not delay visible UI/IxD progress

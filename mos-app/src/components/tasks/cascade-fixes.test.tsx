@@ -180,17 +180,25 @@ describe('RI-3 — Task column width and scroll container', () => {
     expect(body).not.toMatch(/overflow-x:\s*visible/)
   })
 
-  it('RI-3: .tasks-table has a min-width so fixed cols do not starve the Task column', () => {
+  it('RI-3: .tasks-table gives the Task identity column a proportional share', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
     const css = readFileSync(cssPath, 'utf8')
-    // The table must declare a min-width so it never collapses below the sum of fixed cols.
-    // This guarantees the Task (width:auto) col always has space.
+    // The table must reserve a proportional Task share. A width:auto column beside fixed
+    // secondary widths regressed to 0px in the live 1024px render.
     const idx = css.indexOf('.tasks-table {')
     expect(idx).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', idx)
     const close = css.indexOf('}', open)
     const body = css.slice(open + 1, close)
     expect(body).toMatch(/min-width:/)
+    const taskRuleSelector = '.tasks-table th:nth-child(2), .tasks-table td:nth-child(2)'
+    const taskRuleIdx = css.indexOf(taskRuleSelector)
+    expect(taskRuleIdx).toBeGreaterThanOrEqual(0)
+    const taskRuleOpen = css.indexOf('{', taskRuleIdx)
+    const taskRuleClose = css.indexOf('}', taskRuleOpen)
+    const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
+    expect(taskRule).toMatch(/width:\s*22%/)
+    expect(taskRule).not.toMatch(/width:\s*auto/)
   })
 })
 

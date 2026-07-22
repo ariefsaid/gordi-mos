@@ -1069,3 +1069,181 @@ The walkthrough should answer only these open calls:
 Until these are answered, the review verdict remains **NO-SHIP**. The phone Deputy preference is not
 open: where horizontal space is insufficient, Deputy may sit above the mounted record and Escape
 closes Deputy first.
+
+## Fresh mockup-regression audit — 2026-07-22 (local, uncommitted UI slice)
+
+The owner explicitly asked for an adversarial comparison against the historical mockup evolution,
+not another isolated code review: E7 owns the visual styling, pre-E7 remains a salvage reference for
+table anatomy, and the composite owner oracle owns IA/IxD. A read-only critic used the Impeccable,
+Taste, UI-styling, and four-lens review checklists against the current source and the supplied
+rendered evidence. The bundled Impeccable detector and the critic's browser session were unavailable,
+so the numeric score is a checklist score, not a detector-generated measurement; current live
+rendering was separately inspected at the running local app but not yet at all three required widths.
+
+**Verdict: NO-SHIP for visual/collection convergence.** The current patch improves hierarchy (the
+collection switch is now a first row, query controls have explicit groups, Home attention lanes share
+one outer surface, and the rail/main scroll containers are independently bounded), but it is not yet
+as tidy as E7/pre-E7 in the load-bearing places:
+
+- **P0 — Home identity starvation:** `MyTasksCard` reserves fixed ownership columns that leave roughly
+  84px for the task title at the observed desktop content width; live rows read `Repl…`, `Sour…`,
+  `Dial …`. E7/pre-E7 reserve a primary title column with a metadata subline. This fails JTBD J01/J02
+  recognition even though the table technically fits.
+- **P0 — Collection axes still duplicate:** presentation tabs, preset view buttons, native Saved views
+  select, Save view, filter selects, group, sort, and a toggle remain visible at once. The current
+  uncommitted grouping pass makes the rows calmer but does not resolve the underlying duplicate view
+  axis or browser-native saved-view popup. E7/pre-E7 use one visible saved-view axis (chips) plus a
+  compact query/filter row; advanced controls should be progressively disclosed without becoming a
+  hidden gesture.
+- **P0 — Signals identity anatomy:** Signals still exposes six columns (Message/Author/Team/Occurred/
+  Attention/Category) with a 30% message column and one-line ellipsis. E7's stronger structure is a
+  primary title/body cell with category as a subline, then Team, Attention, and Occurred. Author and
+  category should not starve the factual Signal body (JTBD J12).
+- **P1 — Tasks/Signals are wrapper-shared, not grammar-shared:** they use different renderers,
+  title-cell hierarchy, row/action behavior, and filter/presentation semantics. The common
+  `RecordCollection` skin is necessary but insufficient; a parity matrix must lock title+metadata,
+  group rows, sort affordance, open/Back/focus, loading/empty/error, and mobile card anatomy while
+  allowing typed domain fields.
+- **P1 — Home hierarchy remains card-heavy:** the compact KPI treatment is an improvement, but the
+  standalone `My open tasks` card is still a dashboard remnant and Home still stacks card shells where
+  E7 uses calmer section/row rhythm. The owner decision to remove or embed that count remains open.
+- **P1 — Record-opening inconsistency:** Home mini-task links go directly to `/work/tasks/:id`, while
+  collection rows use the shared RecordPanel/OverlayHost grammar. Either route Home through the shared
+  viewer or explicitly ratify it as the one direct-navigation exception.
+- **P1 — Rail containment needs a driven proof:** source now uses `minmax(0, 1fr)`, `overflowY:hidden`
+  on the shell, a flex content host, and an independently scrolling rail. A local browser check showed
+  the page scrollTop changing while the rail top stayed at the header boundary, but 1280/1024/390
+  screenshots and a regression test are still required before calling this gate closed.
+
+Checklist score (0–4, current Home/Tasks/Signals): H1 visibility 3 · H2 real-world match 2 · H3 user
+control 3 · H4 consistency 1 · H5 error prevention 3 · H6 recognition 2 · H7 flexibility 3 · H8
+minimalist presentation 1 · H9 recovery 3 · H10 help 2 = **23/40 (weak)**. Taste anti-slop scan passes
+decorative discipline (no gradients/glass/neon/emoji/fake depth in the inspected targets); the remaining
+AI-slop is structural: card soup, duplicate control axes, browser-native popup, truncated identity
+content, and inconsistent interaction grammar.
+
+Focused smoke evidence for the uncommitted visual pass: CollectionToolbar 2/2, Signals archive 20/20,
+Tasks workspace 62/62, Home 19/19, shell 23/23; typecheck, ESLint/CSS lint, and `git diff --check`
+pass. This is not a full suite, a three-width gate, or an owner approval. Do not commit/push this slice
+as completion until the P0/P1 items above are addressed and rendered at 1280, 1024, and 390px.
+
+### Table convergence update — 2026-07-22 (local, uncommitted)
+
+The first visible P0 table changes are now in the worktree:
+
+- Home's mini task table uses proportional columns with a 34% identity column instead of fixed
+  secondary widths that reduced task titles to `Repl...`/`Sour...` at desktop widths.
+- Signals now follows the E7/pre-E7 decision-table anatomy: Message is a title cell with an author/category
+  metadata subline, followed by Team, Occurred, and Attention. The old six-column Author/Category split
+  was removed so the signal body remains readable.
+- The shared collection toolbar is split into a primary presentation/view row and a query/filter/view-options
+  row, and the live Signals render now occupies the full collection width.
+- The live Tasks table had a newly measured P0 regression: fixed secondary widths left the Task column at
+  0px. Those widths are now proportional (with a larger Due share), restoring a readable Task identity
+  column at 1024px while retaining the E7 decision columns at 1280px.
+
+Focused evidence after these changes: MyTasksCard 17/17, SignalTable 6/6, Signals archive 20/20, plus
+typecheck. Driven renders now cover Tasks and Signals at 1280/1024/390 and Home at 390; a 1024px scroll
+probe moved the page scrollTop to 500 while the rail remained pinned at top 56px. This is still not the
+owner acceptance gate: Home 1280/1024 visual review, Home card-remnant decision, shared record-opening
+proof, and final owner taste review remain open.
+
+### Comparative baseline scores (same rubric, 0–4 per Nielsen heuristic)
+
+These are structured design-review scores, not official Nielsen measurements or automated detector
+output. They compare representative surfaces in the static prototypes; mockup limitations (static data,
+partial state coverage, no real backend) are scored as partial evidence rather than assumed green.
+
+| Heuristic | E7 canonical | Prior warmer/prototype | Interpretation |
+|---|---:|---:|---|
+| Visibility of system status | 3 | 2 | E7 exposes active destination/view/counts more consistently. |
+| Match to real-world language | 3 | 2 | E7's Home/Work/Inbox job framing is clearer; prior still carries mixed-era labels. |
+| User control and freedom | 3 | 2 | E7 has clearer return/source-record and view controls; prior relies more on bespoke surfaces. |
+| Consistency and standards | 3 | 2 | E7 has the stronger token/nav/control spine, though not every route is complete. |
+| Error prevention | 2 | 2 | Neither static mockup proves production validation or dirty-state handling. |
+| Recognition over recall | 3 | 2 | E7's title/meta and saved-view anatomy scan better across collections. |
+| Flexibility and efficiency | 3 | 3 | Prior has capable table/view composition; E7 retains role/view flexibility with less noise. |
+| Minimalist/aesthetic design | 3 | 1 | Prior's paradigm banner, card density, and competing chrome create more visual noise. |
+| Error recovery | 2 | 2 | Static prototypes do not prove real error/retry recovery. |
+| Help/documentation | 2 | 1 | E7 has job sentences and clearer labels; neither is a help system. |
+| **Total** | **27/40** | **19/40** | E7 is the stronger whole-product baseline. |
+
+The earlier task-table surface is a deliberate exception: on table-specific anatomy only, the prior
+prototype scores about **3.5/4** for recognition and scanability versus E7's **3/4**. Its title column,
+metadata subline, visible saved-view chips, and compact query row are the salvage pattern to preserve.
+That does not make its overall IA or visual chrome the direction.
+
+### Structural-slop checklist (10 checks)
+
+| Check | E7 canonical | Prior warmer/prototype | Note |
+|---|---|---|---|
+| One IA spine | Pass | Fail | E7's destinations/work hierarchy is more coherent. |
+| One collection/control grammar | Partial-pass | Partial | E7 is the better target, but static routes still vary. |
+| Shared record-viewer anatomy | Partial | Fail/partial | Neither mockup proves the production viewer contract. |
+| Title + metadata hierarchy | Pass | Pass on task table only | Prior task title/subline is the salvage asset. |
+| Spacing/rhythm | Pass/partial | Fail | Prior mixes page, card, and table rhythms. |
+| Card discipline | Pass/partial | Fail | Prior is more card-heavy and widget-like. |
+| Overlay/IxD consistency | Partial | Partial | Both are prototypes; E7 better communicates the intended grammar. |
+| State/empty/error consistency | Partial | Fail/partial | Static coverage is incomplete in both. |
+| Responsive/phone ergonomics | Partial/untested | Partial/untested | Requires driven 1280/1024/390 proof. |
+| Decorative anti-slop | Pass | Pass/partial | Neither has gradient/glass/neon/emoji slop; prior has structural chrome slop. |
+
+Approximate structural result: **E7 7/10 checks pass or mostly pass; prior 4/10**. The current app's
+previous audit was weaker still (23/40 Nielsen; structural failures in the same control, identity,
+card, and cross-surface grammar categories). The correct convergence target is therefore **E7 visual
+system + prior task-table title/subline/query salvage + owner-ratified IA/IxD**, not copying either
+prototype wholesale.
+
+### Owner feedback and acceptance target — verbatim capture, 2026-07-22
+
+The following owner feedback is binding input for the next implementation pass. It is intentionally
+preserved verbatim so a worker cannot reinterpret it as a generic “polish” request:
+
+> “the table filters and views feels unpolished and too cluttered. it doesnt say tidy. it says confusing!
+> why not use ui-ux-pro-max, taste and impeccable skills for how to structure this neatly. same goes for
+> Home, styling feels unpolished. some has to big of whitespace, some feels too tight. when scrolled down,
+> the sidebar follows to get scrolled as well”
+
+> “e7 has better table structure”
+
+> “even the pre-e7 has better table layout”
+
+> “do another agent pass hunting for possible regression from the previous mockups. it should only as
+> tidy/neat if not better than previous mockups. use the skills to measure them objectively (the score
+> from impeccable, the checklist from taste etc)”
+
+Interpretation for implementation: the visual target is not “the current app with fewer defects.” A
+surface is acceptable only when its hierarchy, density, spacing, controls, and interaction grammar are
+at least as tidy as the strongest relevant prior mockup. E7 is the visual baseline; the pre-E7 task table
+is a salvage reference for title/subline and saved-view/query anatomy; owner IA/IxD and historical
+decisions remain the authority for behavior.
+
+#### Comparison scorecard and explicit goal
+
+These are structured review scores (0–4 per Nielsen heuristic), not official Nielsen laboratory scores
+or automated Impeccable detector output. They are still the current objective comparison used for the gate:
+
+| Surface/baseline | Nielsen-style score | Structural anti-slop result | Meaning |
+|---|---:|---:|---|
+| Current app, pre-convergence audit | **23/40** | Below target | Duplicate control axes, starved identity, card soup, inconsistent collection grammar. |
+| E7 canonical prototype | **27/40** | **7/10** checks pass/mostly pass | Current minimum whole-product visual benchmark. |
+| Prior warmer/pre-E7 prototype | **19/40** | **4/10** checks pass/mostly pass | Not the whole-product target, but its task table contains salvage patterns. |
+| Prior task-table anatomy only | ~**3.5/4** scanability | Pass on title/query anatomy | Preserve title + metadata subline, visible saved-view chips, compact query row. |
+
+The V3 completion target is:
+
+- **Nielsen-style score ≥27/40 overall** (E7 parity), with no key collection criterion below 3/4 for
+  recognition, consistency, and minimalist presentation.
+- **Structural anti-slop ≥7/10, target 8/10**, with zero P0 instances of card soup, duplicate view
+  axes, browser-native popup as the primary saved-view door, starved identity columns, or divergent
+  Tasks/Signals collection grammar.
+- **Three-width proof at 1280, 1024, and 390px** for Home, Tasks, and Signals: no 0px identity column,
+  no clipped decision column, no page-owned scroll dragging the rail, and phone controls remain discoverable
+  behind the shared View & filters disclosure.
+- **One collection grammar, typed domain anatomy:** Tasks and Signals may keep different fields and
+  presentation types, but must share the same title/metadata hierarchy, toolbar order, state treatment,
+  row measure, sort semantics, record opening, Back, Escape, and focus-return behavior.
+
+Scores below these targets are **NO-SHIP**, even if typecheck and tests are green. The next agent may
+implement first under the UI-fast-path rule, but must render and score the actual surfaces before claiming
+the target is met.
