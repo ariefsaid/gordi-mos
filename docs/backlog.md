@@ -4,7 +4,7 @@
 > checkpoint `3250aa8` plus documentation state commits, all local and unpushed.**
 > **AUDIT OVERRIDE (2026-07-22):** independent verification at `d63f20a` was **NO-SHIP**;
 > see [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md).
-> A local uncommitted convergence slice has since closed the focused route-seam test failures, live
+> Checkpoint `08defcc` has since closed the focused route-seam test failures, live
 > Tasks/Signals host adoption, and Café first-Team heuristic; the branch is still NO-SHIP until the
 > cross-surface collection grammar, Issue 10, spec/design review verdicts, and owner three-width gate
 > close. Inventory freshness now passes; code-quality/security are recorded PASS in the ledger.

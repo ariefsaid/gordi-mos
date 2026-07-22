@@ -825,7 +825,7 @@ Current gate status (deliberately blocking until a new review pass records evide
 - design: BLOCKED — cross-surface grammar and owner three-width gate remain open
 - security: BLOCKED — final current-tip review battery is not recorded
 
-## 2026-07-22 convergence follow-up (local, uncommitted)
+## 2026-07-22 convergence follow-up (checkpoint `08defcc`, local; not pushed)
 
 The post-audit implementation slice is independently recorded here so the historical ledger does not
 silently claim the branch is complete:

@@ -82,7 +82,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > archaeology. This is scoped to UI behavior only; tests still gate integration, proxy assertions
 > remain invalid, and schema/security/data work keeps normal pre-change verification.
 
-> **LOCAL CONVERGENCE UPDATE (2026-07-22, uncommitted):** The active `v3-redesign` worktree has a
+> **LOCAL CONVERGENCE UPDATE (2026-07-22, checkpoint `08defcc`, not pushed):** The active `v3-redesign` worktree has a
 > bounded follow-up slice beyond `d63f20a`. Tasks and Signals live record opening now use the single
 > production overlay host (including mobile Tasks); Café Team resolution renders an explicit picker
 > for multi-Team members; and Signals table has the shared RecordCollection outer surface. Focused
