@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -808,24 +808,20 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  // AC-V3-008c — the dirty-record × Escape-key half of the dirty-leave contract (brief step 4:
-  // the explicit "edit → Escape → confirm → Cancel keeps the draft; again → Discard closes"
-  // journey). AC-V3-008 proved the dirty veto via the Close (✕) button; AC-V3-008b proved Escape
-  // closes a CLEAN record with no dialog. This proves the SAME guard fires when the leave intent
-  // arrives via the keyboard Escape path the host owns (I2) on a DIRTY record. The field-local
-  // Escape stays isolated (record-viewer.behavior FieldEscapeContract — Esc on the input cancels
-  // only the field draft); here the panel-level Escape is dispatched on the overlay host (not the
-  // input) so it is the CLOSE intent and is not consumed by the field's own Escape-cancel
-  // (I5/NFR-V3-001). The dirty draft is a FAILED commit (FieldErrorRetryContract) — the one
-  // realistic state where an uncommitted edit persists long enough for a later leave to catch it.
-  // SKIP — RED against the app, encoding the INTENDED contract: Escape on a focused dirty
-  // field currently discards the field draft AND opens the dialog in one keystroke (native
-  // host listener fires before React's synthetic field Escape-cancel), so "Cancel" retains
-  // the panel but not the typing. Fix direction is an owner disposition (field-Escape
-  // isolation vs draft-preserving dialog) — see the dirty-guard lane report / ledger.
-  // Un-skip when the disposition lands; do NOT bend the assertions to current behavior.
-  it.skip('AC-V3-008c: a dirty record vetoed on Escape asks to discard; Cancel keeps the draft, Discard leaves', async () => {
-    const task = makeTask({ id: 'task-dirty-esc', title: 'Dirty escape task' })
+  // AC-V3-008c — the field-Escape isolation + dirty-record × Escape-key journey, ratified
+  // by OD-REDESIGN-83.1: on a focused DIRTY field the FIRST Escape cancels only that
+  // field's draft (no dialog, panel stays); a SECOND Escape — once the field draft is clean,
+  // or with focus outside the field on a record that still has other uncommitted dirty state
+  // — is the panel-close intent and fires the retain/discard leave-guard. AC-V3-008 proved the
+  // dirty veto via the Close (✕) button; AC-V3-008b proved Escape closes a CLEAN record with
+  // no dialog. This proves both halves of the ratified keyboard contract through the live
+  // host: (1) the FIRST Escape on the focused dirty input isolates (RecordField's native
+  // capture-phase listener cancels the draft and shields the host's native panel listener),
+  // and (2) a later panel-level Escape on the still-dirty record reaches the host close path
+  // and fires the guard. The persisted dirty state is a FAILED commit (FieldErrorRetryContract)
+  // — the realistic state where an uncommitted edit survives long enough for a later leave.
+  it('AC-V3-008c: first Escape on a focused dirty field cancels only the draft (no dialog); a later panel Escape on the still-dirty record fires the retain/discard guard (Cancel keeps, Discard closes)', async () => {
+    const task = makeTask({ id: 'task-dirty-esc', title: 'Dirty escape task', due_date: '2026-07-01' })
     mockListTasks.mockResolvedValue([task])
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     renderTable()
@@ -833,7 +829,20 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     await waitFor(() => screen.getByText('Dirty escape task'))
     fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
     const due = await screen.findByLabelText('Due') as HTMLInputElement
-    // A failed commit leaves a persisted dirty draft → the tenant attaches the leave-guard.
+
+    // (1) FIRST Escape — focused + dirty: cancels ONLY the field draft. No retain/discard
+    // dialog, panel stays open, value restored to the saved baseline (OD-REDESIGN-83.1).
+    fireEvent.change(due, { target: { value: '2026-09-01' } })
+    fireEvent.keyDown(due, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+    expect((screen.getByLabelText('Due') as HTMLInputElement).value).toBe('2026-07-01')
+
+    // (2) Re-dirty the record via a FAILED commit (FieldErrorRetryContract) — the persisted
+    // tenant dirty state attaches the leave-guard. The next Escape is the panel-close intent,
+    // not a field cancel, so it is dispatched on the overlay host: a panel-level keystroke
+    // does not pass through the field's capture listener (focus is outside the field — the
+    // field only isolates a focused dirty draft).
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
     fireEvent.change(due, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due, { key: 'Enter' })
@@ -847,13 +856,16 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.keyDown(panel, { key: 'Escape' })
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
 
-    // Retain/Cancel: the dialog closes, the record stays open, and the draft is intact.
+    // Retain/Cancel: the dialog closes and the record stays open. The tenant dirty state
+    // remains — proven by the guard re-firing on the very next Escape below. The deny
+    // resolves the host's in-flight leave request in a microtask, so flush it before the
+    // next Escape or the host's coalescing swallows the second keystroke.
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
-    expect((screen.getByLabelText('Due') as HTMLInputElement).value).toBe('2026-08-01')
+    await act(async () => {})
 
-    // Again: panel-level Escape → confirm → Discard → the close proceeds and the draft is dropped.
+    // Again: panel-level Escape re-fires the guard (dirty state remains) → confirm → Discard → close.
     fireEvent.keyDown(panel, { key: 'Escape' })
     fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
     await waitFor(() =>

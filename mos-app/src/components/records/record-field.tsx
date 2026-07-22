@@ -3,10 +3,13 @@
 //
 // It renders a single RecordFieldSpec and owns ONLY the field-local draft/commit
 // lifecycle:
-//   • Text-like controls (text, textarea, date) hold a draft: Enter and blur commit,
-//     Escape restores the saved baseline (never commits) and stops the Escape from
-//     reaching any host leave-guard listener (NFR-V3-001 — the field draft is
-//     cancelled first, in isolation).
+//   • Text-like controls (text, textarea, date) hold a draft: Enter and blur commit.
+//     The FIRST Escape on a focused dirty field cancels ONLY that draft (restoring the
+//     saved baseline, never committing) and is isolated from the host's close path via a
+//     NATIVE capture-phase listener (OD-REDESIGN-83.1 / NFR-V3-001). A second Escape, once
+//     the field draft is clean, propagates to the host as the panel-close intent — and if
+//     the record still has other uncommitted dirty state, the host's retain/discard
+//     leave-guard fires there.
 //   • Option controls (select, status, person, team, relation) commit eagerly on
 //     change — picking an option IS the commit intent (interaction-contract I5).
 //   • While a commit is in flight the field is aria-busy and announces "Saving…";
@@ -17,7 +20,7 @@
 //
 // RecordField never owns an overlay, history, focus trap, or confirmation dialog —
 // the containing tenant composes the Issue 4 host leave-guard from onDirtyChange.
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -55,6 +58,9 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
   const [status, setStatus] = useState<SaveStatus>('idle')
   const savedRef = useRef<RecordValue>(spec.value)
   savedRef.current = saved
+  // Synchronous draft mirror read by the native Escape-isolation listener.
+  const draftRef = useRef(draft)
+  draftRef.current = draft
 
   // Track upstream commits: when the adapter re-supplies a new saved value, adopt it
   // as the baseline unless the user is mid-edit (draft differs from the old baseline).
@@ -91,6 +97,42 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
     onDirtyChange?.(false)
     onCancel?.()
   }
+
+  // NATIVE capture-phase Escape isolation (OD-REDESIGN-83.1 / NFR-V3-001).
+  // RecordPanelHost attaches its Escape listener via a NATIVE addEventListener on the
+  // panel (≥1100px split regime) or document (<1100px modal regime). That native listener
+  // fires in the BUBBLE phase BEFORE React's synthetic delegate reaches this field, so a
+  // React-level `onKeyDown` + `e.stopPropagation()` cannot shield it — one keystroke used to
+  // discard the field draft AND open the host's retain/discard dialog at once. To isolate
+  // the field draft we attach a NATIVE CAPTURE listener to the field's own input: when
+  // Escape lands on a focused field whose draft is still dirty, cancel ONLY that draft and
+  // `stopImmediatePropagation` so the host's bubble listener never sees the keystroke (the
+  // FIRST Escape isolates). When the draft is clean the listener yields, so the very next
+  // Escape propagates to the host as the panel-close intent (SECOND Escape / clean record).
+  // Deputy, when layered above a record on phone, attaches its own document CAPTURE listener
+  // (escapeCapture) that fires even earlier in the capture chain, so one Escape still closes
+  // Deputy first — this change neither swallows nor reorders that.
+  const cancelRef = useRef(cancel)
+  cancelRef.current = cancel
+  const escapeCleanupRef = useRef<(() => void) | null>(null)
+  const attachFieldEscapeIsolation = useCallback(
+    (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+      escapeCleanupRef.current?.()
+      escapeCleanupRef.current = null
+      if (!el) return
+      const onCaptureKeyDown = (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return
+        // Clean draft → this Escape is the host's close intent; let it propagate.
+        if (toInputValue(savedRef.current) === draftRef.current) return
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        cancelRef.current()
+      }
+      el.addEventListener('keydown', onCaptureKeyDown, true)
+      escapeCleanupRef.current = () => el.removeEventListener('keydown', onCaptureKeyDown, true)
+    },
+    [],
+  )
 
   const isOption = OPTION_CONTROLS.has(spec.control)
 
@@ -146,6 +188,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
       ) : spec.control === 'textarea' ? (
         <textarea
           id={controlId}
+          ref={attachFieldEscapeIsolation}
           className="record-field__control record-field__control--textarea"
           value={draft}
           disabled={busy}
@@ -155,18 +198,12 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
             setDraft(e.target.value)
             reportDirty(e.target.value)
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault()
-              e.stopPropagation()
-              cancel()
-            }
-          }}
           onBlur={() => void commit(draft)}
         />
       ) : (
         <input
           id={controlId}
+          ref={attachFieldEscapeIsolation}
           type={spec.control === 'date' ? 'date' : 'text'}
           className="record-field__control record-field__control--text"
           value={draft}
@@ -181,11 +218,12 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
             if (e.key === 'Enter') {
               e.preventDefault()
               void commit(draft)
-            } else if (e.key === 'Escape') {
-              e.preventDefault()
-              e.stopPropagation()
-              cancel()
             }
+            // Escape isolation is owned by the native capture listener attached via
+            // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too
+            // late to shield the host's native listener, so Escape is intentionally NOT
+            // handled here (first Escape cancels the draft in isolation; a second Escape
+            // on the now-clean field propagates to the host close path).
           }}
           onBlur={() => void commit(draft)}
         />
