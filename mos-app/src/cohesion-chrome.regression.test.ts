@@ -246,6 +246,9 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
     '.signal-row',
     '.inbox-row__button',
     '.mobile-task-options-trigger',
+    // Shared Tasks/Signals sort affordance (collection-grammar.css) — same 38px dense
+    // header cell as .th-sort-btn; an outward ring clips at the header row edge.
+    '.dt-sort-button',
   ])
 
   function focusRules(): { file: string; selector: string; body: string }[] {

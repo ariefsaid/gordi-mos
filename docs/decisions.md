@@ -2011,3 +2011,16 @@ dividers, lightly-bordered rows — regions and their content contracts unchange
 toggle, A12 attention/ambient boundary, OD-59 Signal region all untouched). D2 (single
 prioritized stream) remains a documented future option, phone-first, requiring its two flagged
 ratifications before any build.
+
+### OD-REDESIGN-83 — field-Escape isolation + Task selection removal (owner 2026-07-22)
+
+1. **Field-Escape isolates.** On a focused dirty record field, the FIRST Escape cancels only
+   that field's draft — no dialog, panel stays. A SECOND Escape is the panel-close intent and
+   triggers the retain/discard leave-guard. (Fixes the destructive one-keystroke edge where the
+   dialog opened while the typing was already discarded; NFR-V3-001's isolation intent now holds
+   through the live host's native listener. Deputy-above-record still closes Deputy first.)
+   The skip-marked AC-V3-008c journey is un-skipped and adapted to this contract by the fix.
+2. **Task selection checkboxes REMOVED until a real bulk action ships.** Signals' honest
+   no-selection stance is the shared grammar; the checkbox column + select-all scaffolding is a
+   dead affordance (taste rule). Reintroduce with the first real bulk action. Closes the last
+   NEEDS-DECISION row of `docs/reviews/v3-table-parity-matrix.md`.
