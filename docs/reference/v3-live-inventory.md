@@ -10,7 +10,7 @@ This deterministic artifact is source evidence for Issue 1. It is not a rendered
 | Page routes | 29 |
 | Redirect routes | 25 |
 | DEV-only routes | 4 |
-| CSS files/families scanned | 74 |
+| CSS files/families scanned | 76 |
 | Shared interaction jobs | 13 |
 | Jobs with raw/duplicate consumers | 13 |
 
@@ -649,6 +649,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/components/admin/people-toolbar.css | components | font-size:3, line-height:0, padding:4, margin:0, gap:2, width:8, height:2 | @media (max-width: 767px) |
 | mos-app/src/components/assistant/AssistantPanel.css | components | font-size:1, line-height:0, padding:0, margin:0, gap:0, width:1, height:1 | — |
 | mos-app/src/components/cafe/cafe-opening-panel.css | components | font-size:2, line-height:0, padding:0, margin:2, gap:2, width:0, height:0 | — |
+| mos-app/src/components/collection-grammar.css | components | font-size:8, line-height:7, padding:6, margin:0, gap:3, width:7, height:14 | — |
 | mos-app/src/components/command/command-menu.css | components | font-size:7, line-height:0, padding:8, margin:1, gap:3, width:6, height:4 | @media (max-width: 600px) |
 | mos-app/src/components/dashboard/basis-chip.css | components | font-size:1, line-height:1, padding:1, margin:0, gap:1, width:1, height:2 | — |
 | mos-app/src/components/dashboard/chart-frame.css | components | font-size:3, line-height:0, padding:4, margin:3, gap:4, width:3, height:5 | @media (max-width: 767px) |
@@ -660,7 +661,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/components/dashboard/kpi-tile.css | components | font-size:6, line-height:1, padding:1, margin:0, gap:3, width:4, height:2 | @media (min-width: 960px), @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/dashboard/whats-coming-strip.css | components | font-size:5, line-height:0, padding:3, margin:0, gap:4, width:3, height:1 | @media (max-width: 1279px), @media (max-width: 767px) |
 | mos-app/src/components/dashboard/window-selector.css | components | font-size:3, line-height:0, padding:4, margin:0, gap:3, width:2, height:5 | @media (max-width: 767.98px), @media (prefers-reduced-motion: reduce) |
-| mos-app/src/components/home/attention-brief.css | components | font-size:7, line-height:1, padding:4, margin:3, gap:6, width:6, height:5 | — |
+| mos-app/src/components/home/attention-brief.css | components | font-size:7, line-height:1, padding:5, margin:4, gap:6, width:7, height:5 | — |
 | mos-app/src/components/inbox/inbox.css | components | font-size:9, line-height:6, padding:7, margin:6, gap:8, width:4, height:10 | — |
 | mos-app/src/components/kitchen/action-type-seg.css | components | font-size:1, line-height:0, padding:2, margin:0, gap:1, width:4, height:1 | @media (max-width: 400px), @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/kitchen/kitchen-kpi-strip.css | components | font-size:4, line-height:1, padding:2, margin:0, gap:3, width:7, height:1 | @media (max-width: 959px) and (min-width: 768px) |
@@ -672,21 +673,22 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/components/plan/fail-loud-badge.css | components | font-size:1, line-height:1, padding:1, margin:0, gap:1, width:1, height:2 | — |
 | mos-app/src/components/processes/due-runs.css | components | font-size:3, line-height:0, padding:5, margin:1, gap:3, width:4, height:1 | @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/processes/pending-resolution.css | components | font-size:1, line-height:0, padding:1, margin:1, gap:1, width:0, height:0 | — |
-| mos-app/src/components/record-collection/collection-toolbar.css | components | font-size:6, line-height:0, padding:8, margin:0, gap:7, width:18, height:12 | @media (max-width: 767px), @media (prefers-reduced-motion: reduce) |
-| mos-app/src/components/record-collection/record-collection.css | components | font-size:2, line-height:2, padding:5, margin:1, gap:2, width:4, height:7 | — |
-| mos-app/src/components/records/record-viewer.css | components | font-size:7, line-height:0, padding:3, margin:5, gap:8, width:5, height:7 | @media (max-width: 767.98px) |
+| mos-app/src/components/record-collection/collection-toolbar.css | components | font-size:9, line-height:0, padding:14, margin:1, gap:11, width:25, height:16 | @media (max-width: 767px), @media (prefers-reduced-motion: reduce), @media (prefers-reduced-motion: reduce) |
+| mos-app/src/components/record-collection/record-collection.css | components | font-size:5, line-height:2, padding:6, margin:1, gap:3, width:4, height:8 | — |
+| mos-app/src/components/records/record-viewer.css | components | font-size:9, line-height:2, padding:5, margin:7, gap:9, width:5, height:9 | @media (max-width: 767.98px) |
 | mos-app/src/components/sales/daily-revenue-chart.css | components | font-size:1, line-height:0, padding:0, margin:0, gap:2, width:3, height:2 | — |
 | mos-app/src/components/signals/signal-card.css | components | font-size:10, line-height:1, padding:8, margin:1, gap:4, width:7, height:7 | @media (max-width: 480px) |
 | mos-app/src/components/signals/signal-composer.css | components | font-size:6, line-height:1, padding:4, margin:1, gap:5, width:5, height:4 | — |
+| mos-app/src/components/signals/signal-feed-section.css | components | font-size:0, line-height:0, padding:0, margin:0, gap:1, width:1, height:0 | — |
 | mos-app/src/components/signals/signal-feed.css | components | font-size:1, line-height:0, padding:1, margin:0, gap:1, width:1, height:0 | — |
 | mos-app/src/components/signals/signal-mention-picker.css | components | font-size:4, line-height:0, padding:5, margin:0, gap:1, width:3, height:3 | — |
 | mos-app/src/components/signals/signal-record-host.css | components | font-size:1, line-height:0, padding:2, margin:1, gap:1, width:1, height:2 | — |
 | mos-app/src/components/signals/signal-record.css | components | font-size:10, line-height:1, padding:8, margin:7, gap:9, width:0, height:3 | — |
-| mos-app/src/components/signals/signal-table-presentation.css | components | font-size:1, line-height:0, padding:2, margin:0, gap:0, width:8, height:2 | — |
+| mos-app/src/components/signals/signal-table-presentation.css | components | font-size:2, line-height:1, padding:2, margin:0, gap:0, width:12, height:3 | @media (max-width: 1120px) |
 | mos-app/src/components/tasks/occurrence-assign-dialog.css | components | font-size:1, line-height:0, padding:1, margin:1, gap:1, width:0, height:0 | — |
 | mos-app/src/components/tasks/status-pill.css | components | font-size:0, line-height:0, padding:0, margin:0, gap:0, width:2, height:2 | — |
 | mos-app/src/components/tasks/TaskSurface.css | components | font-size:52, line-height:6, padding:41, margin:12, gap:27, width:49, height:37 | @media (max-width: 1099px), @media (max-width: 1099px), @media (max-width: 767px), @media (max-width: 767px), @media (max-width: 767px), @media (prefers-reduced-motion: no-preference) |
-| mos-app/src/components/tasks/TasksWorkspace.css | components | font-size:41, line-height:7, padding:37, margin:4, gap:21, width:53, height:40 | @media (max-width: 1099.98px), @media (max-width: 599.98px), @media (prefers-reduced-motion: reduce), @media (prefers-reduced-motion: reduce), @media (prefers-reduced-motion: reduce) |
+| mos-app/src/components/tasks/TasksWorkspace.css | components | font-size:40, line-height:6, padding:36, margin:4, gap:21, width:54, height:38 | @media (max-width: 1099.98px), @media (max-width: 1120px), @media (max-width: 599.98px), @media (prefers-reduced-motion: reduce), @media (prefers-reduced-motion: reduce), @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/ui/Avatar.css | components | font-size:0, line-height:1, padding:0, margin:0, gap:0, width:1, height:2 | — |
 | mos-app/src/components/ui/Button.css | components | font-size:2, line-height:0, padding:1, margin:0, gap:1, width:3, height:4 | @media (max-width: 767.98px) |
 | mos-app/src/components/ui/CardHead.css | components | font-size:8, line-height:2, padding:6, margin:5, gap:8, width:6, height:6 | @media (prefers-reduced-motion: reduce) |
@@ -700,13 +702,13 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/components/ui/TextInput.css | components | font-size:2, line-height:0, padding:2, margin:0, gap:2, width:3, height:2 | — |
 | mos-app/src/components/ui/Toggle.css | components | font-size:0, line-height:0, padding:1, margin:0, gap:0, width:2, height:3 | — |
 | mos-app/src/components/ui/view-tabs.css | components | font-size:4, line-height:0, padding:6, margin:0, gap:3, width:1, height:2 | @media (max-width: 767px), @media (prefers-reduced-motion: reduce) |
-| mos-app/src/components/weekly/my-tasks-card.css | components | font-size:5, line-height:0, padding:6, margin:0, gap:5, width:2, height:3 | — |
+| mos-app/src/components/weekly/my-tasks-card.css | components | font-size:5, line-height:0, padding:6, margin:1, gap:5, width:15, height:3 | @media (max-width: 1120px) |
 | mos-app/src/components/weekly/TimingChip.css | components | font-size:1, line-height:0, padding:1, margin:0, gap:1, width:1, height:2 | — |
 | mos-app/src/pages/budget-page.css | pages | font-size:11, line-height:0, padding:1, margin:3, gap:4, width:2, height:0 | — |
 | mos-app/src/pages/cafe-opening-page.css | pages | font-size:0, line-height:0, padding:0, margin:0, gap:1, width:2, height:1 | @media (max-width: 390px) |
 | mos-app/src/pages/dashboard-page.css | pages | font-size:2, line-height:0, padding:9, margin:1, gap:4, width:4, height:0 | @media (max-width: 767px), @media (max-width: 767px), @media (min-width: 768px) and (max-width: 1279px) |
 | mos-app/src/pages/dev-views-page.css | pages | font-size:9, line-height:0, padding:7, margin:0, gap:4, width:6, height:3 | @media (min-width: 1120px), @media (min-width: 920px) |
-| mos-app/src/pages/home-page.css | pages | font-size:1, line-height:0, padding:2, margin:0, gap:3, width:1, height:1 | @media (prefers-reduced-motion: reduce) |
+| mos-app/src/pages/home-page.css | pages | font-size:1, line-height:0, padding:3, margin:0, gap:5, width:2, height:2 | @media (prefers-reduced-motion: reduce) |
 | mos-app/src/pages/kitchen-log-page.css | pages | font-size:8, line-height:0, padding:6, margin:1, gap:4, width:14, height:3 | @media (max-width: 767px) |
 | mos-app/src/pages/kitchen-plan-page.css | pages | font-size:5, line-height:0, padding:4, margin:3, gap:1, width:4, height:1 | — |
 | mos-app/src/pages/kitchen-pushes-page.css | pages | font-size:6, line-height:0, padding:1, margin:0, gap:0, width:2, height:0 | — |
@@ -725,13 +727,13 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 
 | Property | Count | Example files |
 | --- | ---: | --- |
-| font-size | 349 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/assistant/AssistantPanel.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css |
-| line-height | 43 | mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/kpi-tile.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/kitchen/kitchen-kpi-strip.css, mos-app/src/components/kitchen/plan-qty-cell.css, mos-app/src/components/kitchen/plan-qty-stepper.css |
-| padding | 284 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
-| margin | 85 | mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/processes/due-runs.css, mos-app/src/components/processes/pending-resolution.css |
-| gap | 222 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
-| width | 352 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/assistant/AssistantPanel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
-| height | 271 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/assistant/AssistantPanel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
+| font-size | 365 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/assistant/AssistantPanel.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/collection-grammar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css |
+| line-height | 52 | mos-app/src/components/collection-grammar.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/kpi-tile.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/kitchen/kitchen-kpi-strip.css, mos-app/src/components/kitchen/plan-qty-cell.css |
+| padding | 300 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/collection-grammar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
+| margin | 90 | mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/processes/due-runs.css, mos-app/src/components/processes/pending-resolution.css |
+| gap | 234 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/collection-grammar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css |
+| width | 387 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/assistant/AssistantPanel.css, mos-app/src/components/collection-grammar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css |
+| height | 292 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/assistant/AssistantPanel.css, mos-app/src/components/collection-grammar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css |
 
 ## Delivery sequence
 

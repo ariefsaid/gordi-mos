@@ -1,5 +1,12 @@
 # Interaction Contract — ONE behavior per interaction class (BINDING)
 
+> **Proof-state note (2026-07-22):** This document defines the intended behavior; it is not a blanket
+> completion claim. At current local V3 state (`6ad6dc7` plus uncommitted work), Task/Signal collection
+> opening is wired through the shared host at source/focused-test level, while browser Back/one-session
+> stack, seeded Inbox semantics, and rendered three-width proof remain open. Read the ✅/⚠️ cells and the
+> latest reconciliation in `docs/reviews/v3-redesign.md` for evidence status. Do not infer “contract
+> written” = “every live consumer accepted.”
+
 **Why this exists (owner, 2026-07-19):** "always be aware of the interaction layer.. i keep pounding
 on UX and IxD… inbox drawer opens on top, task drawer open on the side. still not seeing any cohesion
 in the design implementation grammar." Three audit generations measured statics (tokens, structure,

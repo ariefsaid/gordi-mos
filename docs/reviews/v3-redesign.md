@@ -1359,3 +1359,165 @@ task-surface optimistic-rollback draft churn (flagged, owner may want an issue) 
 journey + handled semantics (data-gated) · Issues 10/12 + curated e2e · owner walkthrough.
 **Verdict: the measurable gates are MET at 34/40 · 9/10; NO-SHIP remains only for the owner
 walkthrough + the standing non-score items above.**
+
+## Historical current-tip correction — 2026-07-22 pre-header owner-eyes audit
+
+> This section records the **pre-header snapshot** only. The later “Current working-tree correction —
+> 2026-07-22 post-header verification” below supersedes its implementation-status sentences. Keep the
+> score and audit provenance, but do not tell a fresh agent that the result header is still absent.
+
+The preceding **34/40 · 9/10** section is retained as historical evidence of the prior agent's
+review, but it is **not a current acceptance result**. An independent Director verification at the
+current `v3-redesign` tip rendered the live Tasks, Signals, and record drawers and found that the
+raised score over-credited the shared grammar: the live Task drawer still used
+`TaskDrawerHeader + RecordDetailsPanel + RecordFeed`, while the live Signal drawer suppressed the
+shared identity header and hosted a bespoke `SignalRecord` subtree. The collection surface also had
+no shared E7 result header and did not expose the E7 “Saved view” / result-card anatomy.
+
+Current evidence, deliberately bounded for the OOM constraint:
+
+- focused collection/viewer/host smoke: **145/145 tests passed**;
+- TypeScript and CSS lint: **pass**;
+- RecordCollection source conformance: **pass**;
+- live-inventory freshness guard: **FAIL** (the JSON/Markdown artifacts are stale or missing);
+- the full 3,256-test run was **not re-run independently** and must not be quoted as current proof.
+
+Independent rescore of the rendered current tip, using the same 0–4 Nielsen-style checklist (not a
+lab Nielsen measurement): **26/40**, with structural anti-slop approximately **6–6.5/10**. E7 remains
+the visual authority at **27/40 / ~7/10**; the prior warmer mockup remains **19/40 / ~4/10**. The
+current app passes decorative anti-slop (no gradients, glass, neon, emoji, or fake depth), but still
+fails the requested structural neatness in collection result framing, toolbar hierarchy, and shared
+record anatomy.
+
+Owner feedback is therefore still active law, not a closed finding:
+
+> “the table filters and views feels unpolished and too cluttered. it doesnt say tidy. it says confusing!”
+>
+> “e7 has better table structure”
+>
+> “even the pre-e7 has better table layout”
+
+Working-tree implementation is now converging the live Task and Signal tenants on the actual
+RecordViewer identity/section grammar while preserving typed content and actions. This is an
+**in-progress local slice**, not a ship claim. No push, merge, deploy, or owner approval has occurred.
+Until a fresh rendered 1280/1024/390 pass proves the result-header/toolbar and both live drawers,
+the canonical verdict is **NO-SHIP / owner-eyes pending**. Agents must use this correction as the
+current state and should not spend work re-litigating whether the historical 34/40 prose was true.
+
+## Canonical state reconciliation — 2026-07-22 (local, unpushed)
+
+This addendum is the latest evidence register for the current worktree. It deliberately resolves the
+score and gate vocabulary drift in the older sections above:
+
+| Item | Current truth | Evidence / disposition |
+|---|---|---|
+| Branch | `v3-redesign`, committed tip `6ad6dc7` plus uncommitted local UI work | No push, merge, deploy, or Supabase start. |
+| Focused viewer/collection smoke | **126/126 passed** across 9 files | Historical pre-header OOM-safe run covering RecordViewer, Task/Signal adapters and hosts, collection toolbar/table, and archive/workspace seams. |
+| TypeScript / CSS lint | **PASS** | `npm run typecheck`; `npm run lint:css`. |
+| Source guards | **PASS** | RecordCollection conformance; live inventory refreshed and checked: **58 routes / 13 shared jobs / 76 CSS families**. |
+| Full Vitest | **Not rerun in this checkpoint** | Do not quote historical 3,234/3,256 numbers as current proof. |
+| Three-width browser gate | **Open** | Current uncommitted slice still needs fresh 1280/1024/390 renders and owner inspection. |
+| Nielsen-style score | **26/40 committed baseline** | Structured checklist, not lab measurement; current local slice is not rescored before rendering. |
+| Structural anti-slop | **~6–6.5/10 committed baseline** | Decorative anti-slop is clean; collection framing and typed viewer anatomy remain the structural gaps. |
+| Historical 34/40 · 9/10 | **Historical, non-current** | Prior agent’s `59110f1` claim is preserved for provenance and cannot close this gate. |
+
+At that earlier pre-header snapshot, the local implementation slice was bounded and visible: Task
+panel/page content composed the typed `RecordViewer` adapter, and Signal records rendered through the
+shared viewer identity/section shell while preserving Signal-specific content. The E7 result-card
+header and visible “Saved view” framing were not yet implemented **at that snapshot**. The later local
+slice implements those two framing pieces, but does not close the red TaskSurface/TasksLayout journey
+tests or the owner-eyes gate. The score therefore remains **NO-SHIP / owner-eyes pending**, not “34/40
+achieved.”
+
+### Owner feedback remains the acceptance oracle
+
+The owner’s verbatim requirements are unchanged and binding:
+
+> “the table filters and views feels unpolished and too cluttered. it doesnt say tidy. it says confusing!”
+
+> “same goes for Home, styling feels unpolished. some has to big of whitespace, some feels too tight. when scrolled down, the sidebar follows to get scrolled as well”
+
+> “e7 has better table structure”
+
+> “even the pre-e7 has better table layout”
+
+The next worker must implement against these words and the composite oracle (owner-word → lost-good →
+owning-mockup), then render and score. Passing source tests alone is not acceptance. The completion target
+remains E7 parity or better: **≥27/40 Nielsen-style, ≥7/10 structural anti-slop (8/10 desired), no
+duplicate collection axes, no starved identity columns, one visible collection grammar, and one typed
+RecordViewer anatomy across Task and Signal while retaining domain-specific fields.**
+
+### Contradiction map for future agents
+
+| Document / passage | Why it looks contradictory | Resolution |
+|---|---|---|
+| `agent-context.md` and `backlog.md` score banners | They retain 23/40, 28/40, and 34/40 in chronological strata. | All are historical checkpoints; the canonical current baseline is 26/40 until the current working tree is rendered and rescored. |
+| `v3-redesign-completion-audit-2026-07-22.md` | It audits older tip `d63f20a` and records route/Café failures that later focused slices addressed. | Keep as an audit of that tip; do not apply its already-closed findings to `6ad6dc7` without rechecking source. Its remaining visual/spec/owner gates still inform the current queue. |
+| `v3-redesign-convergence-handoff-2026-07-21.md` | Its lane table and committed tips describe an earlier wave. | It is provenance and dependency history. The 2026-07-22 canonical state blocks in `agent-context.md`, `backlog.md`, and this section win. |
+| `interaction-contract.md` I1/I9 | The contract describes the intended one-host behavior while some seeded/Back/stack proof remains open. | Treat the table’s ✅/⚠️ cells as current proof status; the prose is the target contract, not evidence that every live journey is closed. |
+| `docs/reference/v3-live-inventory.*` | The generated artifact was stale during the earlier audit. | It has now been regenerated and `--check` passes at 58 routes / 13 shared jobs / 76 CSS families. |
+
+“Historical” here does not mean the earlier agent fabricated the work; it means the claim was scoped to
+an earlier tip or evidence run and cannot be promoted to current acceptance after subsequent source/UI
+changes. Future agents should update the canonical state block and this ledger when evidence changes,
+then leave the dated strata intact for traceability.
+
+## Current working-tree correction — 2026-07-22 post-header verification
+
+This section is the latest handoff truth for the uncommitted local slice. It exists to stop a common
+failure mode in this redesign: a worker reports its own focused tests as green while the migration has
+silently invalidated the older goal tests that exercise the real drawer/page journey.
+
+### What is actually green
+
+- The bounded collection/header smoke is **107/107 passed** across RecordCollection, CollectionToolbar,
+  Tasks workspace, Signals archive, and Inbox triage.
+- `npm run typecheck`, `npm run lint:css`, and changed-file ESLint passed.
+- `node scripts/v3-live-inventory.mjs --check` passes after regeneration: **58 routes / 13 shared jobs /
+  76 CSS families**.
+- Tasks and Signals now have the same visible result-header shape (`collection · view · count`) and a
+  visible `Saved view` label in the toolbar. Render captures exist for Tasks and Signals at 1280px,
+  Signals at 1024px and 390px, Tasks at 390px, and a direct Task record at 390px under
+  `output/playwright/v3-after-header-*.png`. These are evidence files, not an owner acceptance gate.
+
+### What is red and must not be rationalized away
+
+The focused regression command
+
+```text
+npm test -- --run src/pages/tasks-layout.test.tsx \
+  src/components/tasks/task-surface.test.tsx \
+  src/components/tasks/task-record-redesign.test.tsx --maxWorkers=1
+```
+
+is **25 failed / 77**. The failures are not a harmless stale-test banner:
+
+- 18 TaskSurface failures and 6 TasksLayout failures still query the old `TaskDrawerHeader` /
+  `RecordDetailsPanel` affordances (`Task ownership`, `Change status`, `Archive task`, `Expand to full
+  width`, `.record-2col`, and `Task details`) after the live surface moved to `RecordViewer`.
+- The typed-record redesign test still expects a `Source` field that the current adapter no longer
+  projects.
+- The current adapter also emits generic `Ownership` and `Archive` labels where the old user journey
+  and localized contract expect `Task ownership` and `Archive task`; this is a product/IxD contract
+  mismatch to resolve, not merely a selector rewrite.
+- The direct page currently renders the shell H1 and a second RecordViewer identity heading containing
+  the same task title at 390px. The existing one-H1/one-H2 test permits this, but the owner’s tidy/neat
+  criterion still requires an explicit visual decision (suppress the duplicate identity or make the
+  shell heading generic) before scoring.
+
+### Reconciliation of the false completion claims
+
+The worker’s “all green” statement was true only for its bounded collection/header files. It was not
+evidence that the RecordViewer migration was integrated: the independent journey run is red, and the
+earlier **126/126** figure predates the header edits. Likewise, **34/40 · 9/10** remains a historical
+score at an earlier tip; it is not a score for this working tree. The canonical state is therefore:
+
+> **NO-SHIP.** Collection-header parity is locally implemented but needs visual review; the
+> TaskSurface/TasksLayout contract is red; full 1280/1024/390 browser proof, seeded Inbox Bell→queue→
+> record→Back, Deputy one-session Back/stack behavior, I5, and the owner’s holistic E7-style review
+> remain open.
+
+Do not “fix” this by deleting the failing tests or by relabeling them stale. First decide the intended
+RecordViewer journey from the owner oracle and E7/lost-good references, then update goal-level tests to
+that journey and make the implementation satisfy them. This correction is documentation-only; no UI
+fixes were made in this pass.

@@ -1,5 +1,46 @@
 # Agent context — read me first (owner prefs · hard rules · gotchas · pointers)
 
+> ## CANONICAL CURRENT STATE — 2026-07-22 (read this before any dated banner below)
+>
+> This block is the current-state register. It supersedes older score, tip, lane, and “gate met” prose
+> later in this file. The canonical V3 worktree is `/Users/ariefsaid/Coding/gordi-mos/.claude/worktrees/v3-redesign`,
+> branch `v3-redesign`, at committed tip `6ad6dc7` with an **uncommitted local convergence slice**.
+> No push, merge, deploy, or Supabase start has occurred in this state.
+>
+> **Verified now (bounded, OOM-safe evidence):** the post-slice collection/header smoke is **107/107
+> tests passed** across Tasks, Signals, Inbox, RecordCollection, and CollectionToolbar; `npm run
+> typecheck`, CSS lint, and changed-file ESLint passed; refreshed live inventory passes at **58 routes /
+> 13 shared jobs / 76 CSS families**. The earlier **126/126** viewer/collection run belongs to the
+> pre-header local slice and is historical for this working tree. The focused TaskSurface/TasksLayout
+> regression run is currently **RED: 25 failed / 77** because the live migration changed the old
+> TaskDrawerHeader/RecordDetailsPanel contract without updating all goal tests (and one redesign test
+> still expects the removed `Source` field). This is a real integration gate, not a reason to call the
+> tests stale or to claim the viewer migration complete. The full Vitest suite and three-width browser
+> acceptance were not rerun here and must not be represented by historical full-suite numbers.
+>
+> **What the local slice actually changes:** Task drawer/page content now composes the shared
+> `RecordViewer` adapter; Signal records now render inside the shared viewer identity/section shell while
+> retaining typed Signal content. Tasks and Signals now also expose a shared result header (`collection ·
+> view · count`) and a visible `Saved view` framing label. These are source + bounded render evidence,
+> not acceptance: fresh 1280/1024/390 renders of the current working tree are still required, and the
+> RED TaskSurface/TasksLayout tests must be reconciled against the intended RecordViewer journey.
+>
+> **Score truth:** the prior agent’s **34/40 · 9/10** claim at `59110f1` is historical evidence, not
+> current acceptance. The earlier rendered **28/40** checkpoint and pre-convergence **23/40** audit are
+> also historical strata. The latest independently rendered committed baseline was **26/40** and
+> approximately **6–6.5/10 structural anti-slop**; E7 is the comparison baseline at **27/40 / ~7/10**,
+> and the prior warmer prototype is **19/40 / ~4/10** (with its task-table title/subline as salvage).
+> Do not “fix” or re-litigate the 34/40 prose: it is preserved for provenance, explicitly non-current,
+> and cannot be used to close the owner-eyes gate. Do not promote the current local slice to a new score
+> until it has a fresh rendered comparison.
+>
+> **Current verdict: NO-SHIP / owner-eyes pending.** Remaining acceptance work is the shared E7
+> collection result-header/toolbar convergence review, reconciliation of the RED TaskSurface/TasksLayout
+> contract, fresh three-width renders, RecordViewer anatomy review,
+> Inbox seeded Bell→queue→record→Back proof, Deputy browser-Back/one-session decision, I5 disposition,
+> and the owner’s holistic “one neat product” review. See the latest addendum in
+> `docs/reviews/v3-redesign.md`; if any older section disagrees with this block, this block wins.
+
 Fast cold-start for a fresh agent (esp. post-compaction). This is the human/process layer; the
 authoritative product/decision docs are linked at the bottom. Keep this file updated as things change.
 
@@ -115,13 +156,17 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > identity/native saved-view popup, and rendered 1280/1024/390 proof for Home/Tasks/Signals. The next
 > implementer owns visible convergence; the Director verifies actual renders and updates this ledger.
 
-> **RAISED SCORE GATE MET (2026-07-22 evening, tip `59110f1`): 34/40 · 9/10** (targets ≥32 / >8.5,
-> scope Home+Tasks+Signals — OD-81.3). Wave: parity 9/9 + shared collection-grammar.css + Tasks
-> title/subline · Home KPI embed (OD-81) · D1 chromeless Home (OD-82) · state-kit sweep ·
-> field-Escape isolation + dirty-guard journeys (OD-83.1, live-verified) · Task selection removed
-> (OD-83.2) · sticky-tabs gutter fix. **Full parallel suite 3256/3256, 0 skipped.** Open after this
-> wave: RecordViewer anatomy (the 9/10 partial), browser-Back veto e2e, Inbox seeded proof, Issues
-> 10/12 + curated e2e, owner walkthrough. Evidence: ledger § "Raised score-gate result".
+> **HISTORICAL SCORE CLAIM (2026-07-22 evening, tip `59110f1`): 34/40 · 9/10.** This is retained in
+> the review ledger as the previous agent's claim, but it is **not current acceptance evidence**. An
+> independent **pre-header** current-tip render found the live Task and Signal drawers still use
+> different inner anatomies and the collection surface still lacks E7's shared result header. That
+> snapshot's bounded evidence was 145/145 focused tests, typecheck/CSS lint/conformance pass, but
+> live-inventory freshness FAIL;
+> the full 3256 suite has not been independently rerun under the OOM constraint. Current Director
+> rescore: **26/40 and ~6–6.5/10 structural cohesion**. Use the latest “Current-tip correction”
+> section in `docs/reviews/v3-redesign.md` as the state authority; do not repeatedly re-litigate the
+> historical score. The branch remains **NO-SHIP / owner-eyes pending** while the live RecordViewer,
+> E7 result-header/toolbar, and 1280/1024/390 renders converge.
 >
 > *(Earlier same day, superseded:)* **SCORE GATE MET (28/40, Director, rendered):** The three P0s are closed on
 > `v3-redesign`: one view axis (preset+saved chips merged, native saved-view select removed),

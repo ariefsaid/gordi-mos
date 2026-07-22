@@ -130,11 +130,11 @@
         "literalKinds": {
           "font-size": 1,
           "line-height": 0,
-          "padding": 2,
+          "padding": 3,
           "margin": 0,
-          "gap": 3,
-          "width": 1,
-          "height": 1
+          "gap": 5,
+          "width": 2,
+          "height": 2
         }
       },
       "collection": {
@@ -403,7 +403,7 @@
         "symbols": [
           "EmptyState",
           "ErrorState",
-          "SkeletonRows"
+          "LoadingShell"
         ]
       }
     },
@@ -3699,6 +3699,21 @@
       "breakpoints": []
     },
     {
+      "path": "mos-app/src/components/collection-grammar.css",
+      "family": "components/collection-grammar",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 8,
+        "line-height": 7,
+        "padding": 6,
+        "margin": 0,
+        "gap": 3,
+        "width": 7,
+        "height": 14
+      },
+      "breakpoints": []
+    },
+    {
       "path": "mos-app/src/components/command/command-menu.css",
       "family": "components/command/command-menu",
       "scope": "components",
@@ -3891,10 +3906,10 @@
       "literalKinds": {
         "font-size": 7,
         "line-height": 1,
-        "padding": 4,
-        "margin": 3,
+        "padding": 5,
+        "margin": 4,
         "gap": 6,
-        "width": 6,
+        "width": 7,
         "height": 5
       },
       "breakpoints": []
@@ -4080,16 +4095,17 @@
       "family": "components/record-collection/collection-toolbar",
       "scope": "components",
       "literalKinds": {
-        "font-size": 6,
+        "font-size": 9,
         "line-height": 0,
-        "padding": 8,
-        "margin": 0,
-        "gap": 7,
-        "width": 18,
-        "height": 12
+        "padding": 14,
+        "margin": 1,
+        "gap": 11,
+        "width": 25,
+        "height": 16
       },
       "breakpoints": [
         "@media (max-width: 767px)",
+        "@media (prefers-reduced-motion: reduce)",
         "@media (prefers-reduced-motion: reduce)"
       ]
     },
@@ -4098,13 +4114,13 @@
       "family": "components/record-collection/record-collection",
       "scope": "components",
       "literalKinds": {
-        "font-size": 2,
+        "font-size": 5,
         "line-height": 2,
-        "padding": 5,
+        "padding": 6,
         "margin": 1,
-        "gap": 2,
+        "gap": 3,
         "width": 4,
-        "height": 7
+        "height": 8
       },
       "breakpoints": []
     },
@@ -4113,13 +4129,13 @@
       "family": "components/records/record-viewer",
       "scope": "components",
       "literalKinds": {
-        "font-size": 7,
-        "line-height": 0,
-        "padding": 3,
-        "margin": 5,
-        "gap": 8,
+        "font-size": 9,
+        "line-height": 2,
+        "padding": 5,
+        "margin": 7,
+        "gap": 9,
         "width": 5,
-        "height": 7
+        "height": 9
       },
       "breakpoints": [
         "@media (max-width: 767.98px)"
@@ -4169,6 +4185,21 @@
         "gap": 5,
         "width": 5,
         "height": 4
+      },
+      "breakpoints": []
+    },
+    {
+      "path": "mos-app/src/components/signals/signal-feed-section.css",
+      "family": "components/signals/signal-feed-section",
+      "scope": "components",
+      "literalKinds": {
+        "font-size": 0,
+        "line-height": 0,
+        "padding": 0,
+        "margin": 0,
+        "gap": 1,
+        "width": 1,
+        "height": 0
       },
       "breakpoints": []
     },
@@ -4237,15 +4268,17 @@
       "family": "components/signals/signal-table-presentation",
       "scope": "components",
       "literalKinds": {
-        "font-size": 1,
-        "line-height": 0,
+        "font-size": 2,
+        "line-height": 1,
         "padding": 2,
         "margin": 0,
         "gap": 0,
-        "width": 8,
-        "height": 2
+        "width": 12,
+        "height": 3
       },
-      "breakpoints": []
+      "breakpoints": [
+        "@media (max-width: 1120px)"
+      ]
     },
     {
       "path": "mos-app/src/components/tasks/occurrence-assign-dialog.css",
@@ -4304,16 +4337,17 @@
       "family": "components/tasks/TasksWorkspace",
       "scope": "components",
       "literalKinds": {
-        "font-size": 41,
-        "line-height": 7,
-        "padding": 37,
+        "font-size": 40,
+        "line-height": 6,
+        "padding": 36,
         "margin": 4,
         "gap": 21,
-        "width": 53,
-        "height": 40
+        "width": 54,
+        "height": 38
       },
       "breakpoints": [
         "@media (max-width: 1099.98px)",
+        "@media (max-width: 1120px)",
         "@media (max-width: 599.98px)",
         "@media (prefers-reduced-motion: reduce)",
         "@media (prefers-reduced-motion: reduce)",
@@ -4533,12 +4567,14 @@
         "font-size": 5,
         "line-height": 0,
         "padding": 6,
-        "margin": 0,
+        "margin": 1,
         "gap": 5,
-        "width": 2,
+        "width": 15,
         "height": 3
       },
-      "breakpoints": []
+      "breakpoints": [
+        "@media (max-width: 1120px)"
+      ]
     },
     {
       "path": "mos-app/src/components/weekly/TimingChip.css",
@@ -4631,11 +4667,11 @@
       "literalKinds": {
         "font-size": 1,
         "line-height": 0,
-        "padding": 2,
+        "padding": 3,
         "margin": 0,
-        "gap": 3,
-        "width": 1,
-        "height": 1
+        "gap": 5,
+        "width": 2,
+        "height": 2
       },
       "breakpoints": [
         "@media (prefers-reduced-motion: reduce)"
@@ -4861,6 +4897,7 @@
       "mos-app/src/components/admin/people-toolbar.css",
       "mos-app/src/components/assistant/AssistantPanel.css",
       "mos-app/src/components/cafe/cafe-opening-panel.css",
+      "mos-app/src/components/collection-grammar.css",
       "mos-app/src/components/command/command-menu.css",
       "mos-app/src/components/dashboard/basis-chip.css",
       "mos-app/src/components/dashboard/chart-frame.css",
@@ -4890,6 +4927,7 @@
       "mos-app/src/components/sales/daily-revenue-chart.css",
       "mos-app/src/components/signals/signal-card.css",
       "mos-app/src/components/signals/signal-composer.css",
+      "mos-app/src/components/signals/signal-feed-section.css",
       "mos-app/src/components/signals/signal-feed.css",
       "mos-app/src/components/signals/signal-mention-picker.css",
       "mos-app/src/components/signals/signal-record-host.css",
@@ -4934,44 +4972,44 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 349,
-      "line-height": 43,
-      "padding": 284,
-      "margin": 85,
-      "gap": 222,
-      "width": 352,
-      "height": 271
+      "font-size": 365,
+      "line-height": 52,
+      "padding": 300,
+      "margin": 90,
+      "gap": 234,
+      "width": 387,
+      "height": 292
     },
     "examples": {
       "font-size": [
         "mos-app/src/components/admin/people-toolbar.css",
         "mos-app/src/components/assistant/AssistantPanel.css",
         "mos-app/src/components/cafe/cafe-opening-panel.css",
+        "mos-app/src/components/collection-grammar.css",
         "mos-app/src/components/command/command-menu.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/chart-frame.css",
-        "mos-app/src/components/dashboard/cut-toggle.css",
-        "mos-app/src/components/dashboard/data-table.css"
+        "mos-app/src/components/dashboard/cut-toggle.css"
       ],
       "line-height": [
+        "mos-app/src/components/collection-grammar.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/dq-badge.css",
         "mos-app/src/components/dashboard/kpi-tile.css",
         "mos-app/src/components/home/attention-brief.css",
         "mos-app/src/components/inbox/inbox.css",
         "mos-app/src/components/kitchen/kitchen-kpi-strip.css",
-        "mos-app/src/components/kitchen/plan-qty-cell.css",
-        "mos-app/src/components/kitchen/plan-qty-stepper.css"
+        "mos-app/src/components/kitchen/plan-qty-cell.css"
       ],
       "padding": [
         "mos-app/src/components/admin/people-toolbar.css",
+        "mos-app/src/components/collection-grammar.css",
         "mos-app/src/components/command/command-menu.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/chart-frame.css",
         "mos-app/src/components/dashboard/cut-toggle.css",
         "mos-app/src/components/dashboard/data-table.css",
-        "mos-app/src/components/dashboard/dq-badge.css",
-        "mos-app/src/components/dashboard/global-toolbar.css"
+        "mos-app/src/components/dashboard/dq-badge.css"
       ],
       "margin": [
         "mos-app/src/components/cafe/cafe-opening-panel.css",
@@ -4986,32 +5024,32 @@
       "gap": [
         "mos-app/src/components/admin/people-toolbar.css",
         "mos-app/src/components/cafe/cafe-opening-panel.css",
+        "mos-app/src/components/collection-grammar.css",
         "mos-app/src/components/command/command-menu.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/chart-frame.css",
         "mos-app/src/components/dashboard/cut-toggle.css",
-        "mos-app/src/components/dashboard/data-table.css",
-        "mos-app/src/components/dashboard/dq-badge.css"
+        "mos-app/src/components/dashboard/data-table.css"
       ],
       "width": [
         "mos-app/src/components/admin/people-toolbar.css",
         "mos-app/src/components/assistant/AssistantPanel.css",
+        "mos-app/src/components/collection-grammar.css",
         "mos-app/src/components/command/command-menu.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/chart-frame.css",
         "mos-app/src/components/dashboard/cut-toggle.css",
-        "mos-app/src/components/dashboard/data-table.css",
-        "mos-app/src/components/dashboard/dq-badge.css"
+        "mos-app/src/components/dashboard/data-table.css"
       ],
       "height": [
         "mos-app/src/components/admin/people-toolbar.css",
         "mos-app/src/components/assistant/AssistantPanel.css",
+        "mos-app/src/components/collection-grammar.css",
         "mos-app/src/components/command/command-menu.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/chart-frame.css",
         "mos-app/src/components/dashboard/cut-toggle.css",
-        "mos-app/src/components/dashboard/data-table.css",
-        "mos-app/src/components/dashboard/dq-badge.css"
+        "mos-app/src/components/dashboard/data-table.css"
       ]
     },
     "source": "CSS property literals are evidence of current style-family debt; shared token sources remain mos-app/src/index.css and DESIGN.md."
@@ -5343,7 +5381,7 @@
     "pageRouteCount": 29,
     "redirectCount": 25,
     "devRouteCount": 4,
-    "cssFileCount": 74,
+    "cssFileCount": 76,
     "componentCount": 13,
     "duplicateJobCount": 13
   },

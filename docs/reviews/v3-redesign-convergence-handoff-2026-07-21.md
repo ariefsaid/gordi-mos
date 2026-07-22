@@ -1,5 +1,15 @@
 # V3 redesign convergence handoff — 2026-07-21
 
+> **LATEST HANDOFF OVERRIDE — 2026-07-22:** Read `docs/agent-context.md`’s canonical current-state
+> block first. This handoff contains historical lanes and is intentionally not rewritten line-by-line.
+> The active local state is `v3-redesign` at committed tip `6ad6dc7` plus an uncommitted RecordViewer
+> slice; no push/merge/deploy/Supabase start. The current post-slice collection/header smoke is 107/107
+> focused tests, typecheck/CSS lint/changed ESLint, and inventory 58/13/76. The earlier 126/126 run is
+> pre-header evidence. The focused TaskSurface/TasksLayout regression run is RED (25 failed / 77), so
+> the old drawer goal tests and the new RecordViewer journey are not yet reconciled. The 34/40·9/10
+> passage is historical, not current acceptance. Fresh 1280/1024/390 renders, E7 result-header/toolbar
+> framing, and owner-eye RecordViewer/collection review remain open.
+
 ## Third-session correction (2026-07-21, current Director session)
 
 The second-session handoff below claimed `v3/route-seam` and `v3/inbox-failclosed` were dispatched
