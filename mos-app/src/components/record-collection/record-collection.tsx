@@ -63,11 +63,17 @@ export function RecordCollectionSurface<
   const t = useT()
   // One consistent result-header line for every opted-in collection. Rendered in every state
   // where the collection is framed (all but permission-denied); the count is null-safe so a
-  // loading/error region still shows which collection and view it represents.
+  // loading/error region still shows which collection and view it represents. E7 result-card
+  // anatomy (owner score gate, 2026-07-22): "<view> · <collection>" leads left, the result count
+  // trails right — this is the header's first row, sharing one card frame with what follows it
+  // (record-collection-results below removes the gap so the header reads as attached, not floating).
   const header = resultHeader ? (
     <div className="record-collection-result" data-testid="collection-result-header">
-      <span className="record-collection-result__collection">{resultHeader.collectionLabel}</span>
-      <span className="record-collection-result__view">{resultHeader.viewLabel}</span>
+      <span className="record-collection-result__label">
+        <span className="record-collection-result__view">{resultHeader.viewLabel}</span>
+        <span className="record-collection-result__sep" aria-hidden="true"> · </span>
+        <span className="record-collection-result__collection">{resultHeader.collectionLabel}</span>
+      </span>
       <span className="record-collection-result__count tabular-nums">
         {resultHeader.count === null ? '—' : t('common.resultCount', { count: resultHeader.count })}
       </span>
@@ -78,8 +84,10 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="loading">
         {controls}
-        {header}
-        <LoadingShell label={loadingLabel} />
+        <div className="record-collection-results">
+          {header}
+          <LoadingShell label={loadingLabel} />
+        </div>
       </div>
     )
   }
@@ -88,8 +96,10 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="error">
         {controls}
-        {header}
-        <ErrorState message={error.message} onRetry={error.retry} />
+        <div className="record-collection-results">
+          {header}
+          <ErrorState message={error.message} onRetry={error.retry} />
+        </div>
       </div>
     )
   }
@@ -110,10 +120,12 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="empty">
         {controls}
-        {header}
-        <EmptyState variant="quiet" title={empty.title} copy={empty.copy}>
-          {empty.create}
-        </EmptyState>
+        <div className="record-collection-results">
+          {header}
+          <EmptyState variant="quiet" title={empty.title} copy={empty.copy}>
+            {empty.create}
+          </EmptyState>
+        </div>
       </div>
     )
   }
@@ -122,13 +134,15 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="filtered-empty">
         {controls}
-        {header}
-        <EmptyState variant="blank" title={filteredEmpty.title} copy={filteredEmpty.copy}>
-          <button type="button" className="record-collection-clear" onClick={filteredEmpty.clear}>
-            Clear filters
-          </button>
-          {filteredEmpty.create}
-        </EmptyState>
+        <div className="record-collection-results">
+          {header}
+          <EmptyState variant="blank" title={filteredEmpty.title} copy={filteredEmpty.copy}>
+            <button type="button" className="record-collection-clear" onClick={filteredEmpty.clear}>
+              Clear filters
+            </button>
+            {filteredEmpty.create}
+          </EmptyState>
+        </div>
       </div>
     )
   }
@@ -172,18 +186,20 @@ export function RecordCollectionSurface<
   return (
     <div className="record-collection" data-collection-status={state.status}>
       {controls}
-      {header}
-      {readOnly && (
-        <p className="record-collection-readonly" role="status">
-          You can view this collection but not edit it.
-        </p>
-      )}
-      {showSelectionBar && (
-        <div className="record-collection-selection" data-testid="collection-selection-bar">
-          {selectionBar}
-        </div>
-      )}
-      <div className="record-collection-body">{presentation.render(presentationProps)}</div>
+      <div className="record-collection-results">
+        {header}
+        {readOnly && (
+          <p className="record-collection-readonly" role="status">
+            You can view this collection but not edit it.
+          </p>
+        )}
+        {showSelectionBar && (
+          <div className="record-collection-selection" data-testid="collection-selection-bar">
+            {selectionBar}
+          </div>
+        )}
+        <div className="record-collection-body">{presentation.render(presentationProps)}</div>
+      </div>
     </div>
   )
 }

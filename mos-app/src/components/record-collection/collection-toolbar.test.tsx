@@ -79,18 +79,7 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(saveTrigger).toHaveFocus()
   })
 
-  it('progressively discloses group/sort behind View options and flags a non-default shape', async () => {
-    // Desktop-only grammar: phone hosts keep OD-REDESIGN-61's single View & filters disclosure.
-    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-      matches: true,
-      media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-      onchange: null,
-    })))
+  it('E7-floor (owner score gate, 2026-07-22): group/sort render inline as quiet selects — never behind a disclosure', async () => {
     const onGroupChange = vi.fn()
     render(
       <I18nProvider>
@@ -115,15 +104,12 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
       </I18nProvider>,
     )
 
-    // Collapsed: the query row shows only the plain filters; group/sort are disclosed on demand.
-    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
+    // Both the domain filter and the view-shape select (Group) are visible immediately — no
+    // "View options" trigger to find or click. The flat row is the whole capability.
+    expect(screen.queryByRole('button', { name: /view options/i })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
 
-    const trigger = screen.getByRole('button', { name: /view options/i })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-
-    await userEvent.click(trigger)
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Group' }), '')
     expect(onGroupChange).toHaveBeenCalledWith('')
   })

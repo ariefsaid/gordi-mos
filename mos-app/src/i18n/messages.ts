@@ -25,9 +25,10 @@ export const messages = {
     'common.save': 'Save',
     'common.cancel': 'Cancel',
     'common.saving': 'Saving…',
-    // Shared E7 result-header framing (OD-REDESIGN-72/79 collection convergence).
+    // Shared E7 result-header framing (OD-REDESIGN-72/79 collection convergence; E7-floor
+    // reframe 2026-07-22 replaces "N results" with E7's own "N items in your scope").
     'common.savedView': 'Saved view',
-    'common.resultCount': '${count} results',
+    'common.resultCount': '${count} items in your scope',
     // Nav sub-item labels — every nav string flows through the catalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id shape-identical (AC-409).
     'nav.tasks': 'Tasks',
@@ -664,7 +665,7 @@ export const messages = {
     'common.cancel': 'Batal',
     'common.saving': 'Menyimpan…',
     'common.savedView': 'Tampilan tersimpan',
-    'common.resultCount': '${count} hasil',
+    'common.resultCount': '${count} item dalam cakupan Anda',
     'dest.home': 'Beranda',
     'dest.work': 'Kerja',
     'dest.operate': 'Operasi',

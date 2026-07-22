@@ -262,7 +262,7 @@ describe('OD-REDESIGN-72/79: shared result-header framing', () => {
     const header = screen.getByTestId('collection-result-header')
     expect(header).toHaveTextContent('Tasks')
     expect(header).toHaveTextContent('Overdue')
-    expect(header).toHaveTextContent('3 results')
+    expect(header).toHaveTextContent('3 items in your scope')
   })
 
   it('omits the result header when not provided (legacy callers opt in)', async () => {

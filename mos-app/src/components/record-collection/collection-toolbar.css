@@ -8,9 +8,10 @@
   background: var(--card);
 }
 
-/* The earlier prototypes make the hierarchy explicit: switch first, query second. A
-   single flex row with every select allowed to wrap was the source of the "several apps"
-   feeling — its visual order changed with width. */
+/* E7-floor anatomy (owner score gate, 2026-07-22): the saved-view chip strip leads row 1,
+   the presentation switch trails — saved views are the primary axis and read first. A single
+   flex row with every select allowed to wrap was the source of the "several apps" feeling —
+   its visual order changed with width, so each row keeps one fixed left→right order. */
 .collection-toolbar__primary {
   display: flex;
   align-items: center;
@@ -105,54 +106,6 @@
   gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
-}
-
-/* Progressive disclosure for group/sort/toggles: an inline row, not a popup, so it keeps
-   normal document focus order and can't be clipped by scroll containers. */
-.collection-toolbar__options-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  font-size: 13px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.collection-toolbar__options-trigger:hover { color: var(--foreground); background: var(--secondary); }
-.collection-toolbar__options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.collection-toolbar__options-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-.collection-toolbar__options-chevron { transition: transform var(--dur-med) ease; }
-.collection-toolbar__options-chevron--open { transform: rotate(180deg); }
-@media (prefers-reduced-motion: reduce) {
-  .collection-toolbar__options-chevron { transition: none; }
-}
-
-.collection-toolbar__options {
-  display: flex;
-  align-items: end;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--secondary) 28%, var(--card));
-}
-.collection-toolbar__option-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--muted-foreground);
-  font-size: 12px;
 }
 
 .collection-toolbar__select .mk-select__box { max-width: 180px; }
@@ -287,9 +240,6 @@
   .collection-toolbar__select .mk-select__box { height: 44px; max-width: min(220px, 70vw); }
   .collection-toolbar__search { min-height: 44px; max-width: none; }
   .collection-toolbar__view { min-height: 44px; }
-  .collection-toolbar__options-trigger { min-height: 44px; }
-  .collection-toolbar__options { padding: 8px; }
-  .collection-toolbar__option-field { flex: 1 1 100%; }
   .collection-toolbar__save { align-items: stretch; flex-wrap: wrap; }
   .collection-toolbar__save-field { flex: 1 1 100%; }
   .collection-toolbar__save-field input { width: 100%; min-height: 44px; }

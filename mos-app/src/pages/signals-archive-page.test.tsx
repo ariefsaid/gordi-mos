@@ -106,8 +106,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('combobox', { name: 'Attention' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
-    // Group/Sort are real capabilities, progressively disclosed behind View options on desktop.
-    await userEvent.click(screen.getByRole('button', { name: /view options/i }))
+    // E7-floor (owner score gate, 2026-07-22): Group/Sort render inline as quiet selects —
+    // no "View options" disclosure to open first.
     expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
@@ -242,7 +242,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument())
     expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /view options/i }))
+    // E7-floor: the "Show retracted" toggle renders inline — no disclosure to open first.
     await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
     expect(screen.getByText('Duplicate')).toBeInTheDocument()
@@ -254,7 +254,6 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     ])
     renderPage('/work/signals?retracted=1')
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
-    await userEvent.click(screen.getByRole('button', { name: /view options/i }))
     expect(screen.getByRole('switch', { name: /show retracted/i })).toHaveAttribute('aria-checked', 'true')
 
     await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))

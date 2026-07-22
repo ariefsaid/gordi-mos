@@ -1,9 +1,8 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
-import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
 import './collection-toolbar.css'
 
@@ -59,11 +58,13 @@ export interface CollectionToolbarProps<
  * this component owns the order, geometry, keyboard-capable primitives, saved-view door, and
  * responsive wrapping. Unsupported capabilities are omitted rather than shown disabled.
  *
- * E7 / pre-E7 anatomy (owner score gate, 2026-07-22): row 1 is the ONE view axis — the
- * presentation switch plus a single chip strip where preset views and user-saved views live
- * together. Row 2 is the compact query row — search + domain filters. Group/sort/toggles are
- * progressively disclosed behind a labelled "View options" button (an inline row, not a popup),
- * so the collapsed toolbar never shows duplicate view axes.
+ * E7-floor anatomy (owner score gate, 2026-07-22): row 1 is the ONE view axis — a labelled
+ * saved-view chip strip (presets + user-saved views together) FIRST-left, the presentation
+ * switch RIGHT. Row 2 is the flat query row — search + domain filters LEFT, then group/sort
+ * rendered inline as quiet selects, "Save view", and domain toggles RIGHT. Nothing is disclosed
+ * behind a trigger on desktop; E7 proves the flat row reads calmer than a popover. Phone hosts
+ * wrap this same flat toolbar behind their own single "View & filters" disclosure — this
+ * component renders identically on both, per width-driven CSS only.
  */
 export function CollectionToolbar<
   TPresentation extends string,
@@ -78,12 +79,9 @@ export function CollectionToolbar<
   className,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
-  const isDesktop = useIsDesktop()
   const [saveOpen, setSaveOpen] = useState(false)
-  const [optionsOpen, setOptionsOpen] = useState(false)
   const [viewName, setViewName] = useState('')
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const optionsRowId = useId()
 
   useEffect(() => {
     savedViews?.onLoad?.()
@@ -97,12 +95,6 @@ export function CollectionToolbar<
   const isViewOption = (filter: CollectionToolbarFilter) => /(?:^|-)group$|(?:^|-)sort$/.test(filter.id)
   const queryFilters = filters.filter(filter => !isViewOption(filter))
   const viewOptionFilters = filters.filter(isViewOption)
-  const hasViewOptions = viewOptionFilters.length > 0 || Boolean(toggles)
-  // First option is each choice's rest state; a dot on the collapsed trigger says "the view
-  // is shaped by something you can't currently see".
-  const viewOptionsActive = viewOptionFilters.some(
-    filter => filter.options.length > 0 && filter.value !== filter.options[0].value,
-  )
 
   function closeSaveView() {
     setSaveOpen(false)
@@ -121,18 +113,10 @@ export function CollectionToolbar<
       className={`collection-toolbar${className ? ` ${className}` : ''}`}
       data-testid="record-collection-toolbar"
     >
-      {/* E7 / pre-E7 anatomy: the collection switch is a calm first row. Query controls
-          never compete with the Table/Feed decision or get interleaved by flex wrapping. */}
+      {/* E7-floor row 1: the ONE view axis. The labelled saved-view chip strip (presets + user
+          views together) leads left; the presentation switch trails right. Saved views are the
+          primary axis, so they come first — never behind or beside the Table/Board decision. */}
       <div className="collection-toolbar__primary">
-        <div className="collection-toolbar__presentations">
-          <ViewTabs
-            ariaLabel={presentation.label}
-            active={presentation.value}
-            tabs={presentation.options.map((option) => ({ id: option.value, label: option.label }))}
-            onChange={(value) => presentation.onChange(value as TPresentation)}
-          />
-        </div>
-
         <div className="collection-toolbar__views" role="group" aria-label={views.label}>
           <span className="collection-toolbar__views-label" aria-hidden="true">{t('common.savedView')}</span>
           {views.options.map((option) => {
@@ -172,21 +156,20 @@ export function CollectionToolbar<
 
         <div className="collection-toolbar__primary-spacer" />
 
-        {savedViews ? (
-          <Button
-            variant="ghost"
-            ref={saveTriggerRef}
-            aria-expanded={saveOpen}
-            onClick={() => {
-              if (saveOpen) closeSaveView()
-              else setSaveOpen(true)
-            }}
-          >
-            {t('common.saveView')}
-          </Button>
-        ) : null}
+        <div className="collection-toolbar__presentations">
+          <ViewTabs
+            ariaLabel={presentation.label}
+            active={presentation.value}
+            tabs={presentation.options.map((option) => ({ id: option.value, label: option.label }))}
+            onChange={(value) => presentation.onChange(value as TPresentation)}
+          />
+        </div>
       </div>
 
+      {/* E7-floor row 2: the flat query row. Search + domain filters (query, not view shape)
+          lead left; group/sort render inline as quiet selects, then Save view, then domain
+          toggles, right-aligned. Nothing here is disclosed behind a trigger — E7 proves the flat
+          row is calmer than a popover, and the row is free to wrap at narrow desktop widths. */}
       <div className="collection-toolbar__query">
         {search ? (
           <label className="collection-toolbar__search">
@@ -223,45 +206,13 @@ export function CollectionToolbar<
           </div>
         ) : null}
 
-        {/* Phone keeps OD-REDESIGN-61's contract: the host's single "View & filters"
-            disclosure reveals the FULL capability in one tap, so the desktop-only
-            trigger disappears and the options row renders expanded. */}
-        {hasViewOptions && isDesktop ? (
-          <>
-            <div className="collection-toolbar__query-spacer" />
-            <button
-              type="button"
-              className="collection-toolbar__options-trigger"
-              aria-expanded={optionsOpen}
-              aria-controls={optionsRowId}
-              onClick={() => setOptionsOpen(open => !open)}
-            >
-              {t('common.viewOptions')}
-              {viewOptionsActive ? (
-                <span className="collection-toolbar__options-dot" aria-hidden="true" />
-              ) : null}
-              <svg
-                className={`collection-toolbar__options-chevron${optionsOpen ? ' collection-toolbar__options-chevron--open' : ''}`}
-                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          </>
-        ) : null}
-      </div>
+        <div className="collection-toolbar__query-spacer" />
 
-      {hasViewOptions && (optionsOpen || !isDesktop) ? (
-        <div
-          id={optionsRowId}
-          className="collection-toolbar__options"
-          role="group"
-          aria-label={t('common.viewOptions')}
-        >
-          {viewOptionFilters.map((filter) => (
-            <label key={filter.id} className="collection-toolbar__option-field">
-              <span>{filter.label}</span>
+        {viewOptionFilters.length > 0 ? (
+          <div className="collection-toolbar__filter-group" role="group" aria-label={t('common.viewOptions')}>
+            {viewOptionFilters.map((filter) => (
               <Select
+                key={filter.id}
                 id={`collection-filter-${filter.id}`}
                 aria-label={filter.label}
                 value={filter.value}
@@ -272,11 +223,26 @@ export function CollectionToolbar<
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </Select>
-            </label>
-          ))}
-          {toggles}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        ) : null}
+
+        {savedViews ? (
+          <Button
+            variant="ghost"
+            ref={saveTriggerRef}
+            aria-expanded={saveOpen}
+            onClick={() => {
+              if (saveOpen) closeSaveView()
+              else setSaveOpen(true)
+            }}
+          >
+            {t('common.saveView')}
+          </Button>
+        ) : null}
+
+        {toggles}
+      </div>
 
       {savedViews && saveOpen ? (
         <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>
