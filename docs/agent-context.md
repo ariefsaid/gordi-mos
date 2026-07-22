@@ -115,6 +115,20 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > identity/native saved-view popup, and rendered 1280/1024/390 proof for Home/Tasks/Signals. The next
 > implementer owns visible convergence; the Director verifies actual renders and updates this ledger.
 
+> **GIT CONSOLIDATION (2026-07-22, Director):** `v3-redesign` is now **pushed to origin** and is THE
+> single redesign integration branch — it strictly contains `feat/redesign-buildout`, both `cohesion/*`
+> halves, and all four `claude/redesign-buildout-completion-*` cloud runs (ancestry-verified). Deleted
+> after verification: local `cohesion/chrome|content`, `feat/dashboard`, `feat/ui-coherence`,
+> `fix/ui-coherence-followups`; remote cloud-completion ×4 + merged-to-main `feat/dashboard`,
+> `feat/ui-b{i,ii,iii}-*`, `feat/ui-w6-quickwins`, `feat/work-spine`. Superseded-but-unique tips are
+> preserved as annotated tags **`archive/v3-issue2-candidate`** and **`archive/redesign-step1-styling`**
+> (pushed). The `../gordi-mos-e7-prototype` worktree was removed (clean; branch `codex/e7-prototype`
+> kept local+origin). **Conventions from here:** one integration branch per wave (`v3-redesign`);
+> short-lived lane branches `v3/<topic>` in their own worktrees, deleted after merge; superseded
+> attempts become `archive/<slug>` tags, never long-lived branches; `feat/redesign-buildout` is kept
+> (local+origin) only as the steps-1–3 PR unit until the owner decides the merge shape. Kitchen
+> (`feat/kitchen-ui-*`, `docs/kitchen-*`) and docs proposal branches are unmerged and untouched.
+>
 > **INDEPENDENT COMPLETION AUDIT (2026-07-22):** The current tip `d63f20a` is **NO-SHIP**. Fresh
 > verification is recorded in [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md): typecheck/lint/build and the RecordCollection guard pass, but live-inventory freshness fails, the full Vitest run is **3,212 passed / 15 failed / 14 errors**, and `pre-merge-check.sh` has no current review verdict lines. The route-seam failures, Tasks-vs-Signals collection grammar divergence, Café first-Team heuristic, unimplemented Issue 10, and missing owner three-width gate remain release blockers. Do not use the historical `3195/3196`, `329/329`, or `7cc45f2` figures as current completion evidence.
 
