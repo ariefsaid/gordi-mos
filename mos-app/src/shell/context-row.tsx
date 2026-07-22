@@ -16,14 +16,19 @@ function pageOwnsJobSentence(pathname: string): boolean {
   return PAGE_FAMILY_FRAME_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
 }
 
-function resolveViewerScope(roleName: string | undefined, accessRoles: readonly string[]): string {
+function resolveViewerScope(roleName: string | undefined): string {
   const role = roleName?.toLowerCase() ?? ''
   if (role.includes('barista') || role.includes('cafe')) return 'Café'
   if (role.includes('roast')) return 'Roastery'
   if (role.includes('ecom')) return 'Ecommerce'
   if (role.includes('finance')) return 'Finance'
-  if (accessRoles.includes('admin')) return 'Admin'
-  return 'Team'
+  // No BU-family keyword matched — fall back to the viewer's own role name so the scope signal
+  // is always real, never a generic placeholder. (Was: `accessRoles.includes('admin') → 'Admin'`,
+  // an orphaned label shown on every route with no section it belongs to — F3/P1; and otherwise a
+  // bare 'Team' that told the viewer nothing about which BU they were in.) A real role name
+  // ("Sales Lead", "Managing Director") IS the viewer's scope until the viewer payload carries a
+  // real team/BU name (see destinations.tsx `modulesByBUForRoles` ponytail note — same ceiling).
+  return roleName ?? 'Team'
 }
 
 /**
@@ -42,8 +47,7 @@ export function ContextRow() {
   const jobKey = jobKeyForPath(pathname)
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const roleName = viewer?.roles[0]?.name
-  const accessRoles = viewer?.accessRoles ?? []
-  const scope = resolveViewerScope(roleName, accessRoles)
+  const scope = resolveViewerScope(roleName)
 
   return (
     <div

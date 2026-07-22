@@ -118,6 +118,46 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(region.textContent).toContain('Café')
     expect(region.textContent).not.toContain('Cahya')
   })
+
+  it('F3/P1: an admin-flagged viewer whose role matches no BU-family keyword shows their real role name, never the bare "Admin" label', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Dewi Director',
+          email: 'dewi@gordi.id', archived_at: null, created_at: '', updated_at: '',
+        },
+        roles: [{ id: 'r0', org_id: 'o1', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
+        isManager: true,
+        accessRoles: ['admin'],
+      },
+      signOut: vi.fn(),
+    })
+    renderCtx('/')
+    const region = screen.getByRole('region', { name: 'Context' })
+    expect(region.textContent).toContain('Managing Director')
+    expect(region.textContent).not.toBe('Admin')
+    expect(screen.queryByText('Admin', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('F3/P1: a viewer whose role matches no BU-family keyword shows their real role name, not a generic "Team" placeholder', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Sari Sales',
+          email: 'sari@gordi.id', archived_at: null, created_at: '', updated_at: '',
+        },
+        roles: [{ id: 'r4', org_id: 'o1', business_unit_id: 'bu-b2b-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
+        isManager: false,
+        accessRoles: [],
+      },
+      signOut: vi.fn(),
+    })
+    renderCtx('/')
+    const region = screen.getByRole('region', { name: 'Context' })
+    expect(region.textContent).toContain('Sales Lead')
+  })
 })
 
 describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-family routes', () => {
