@@ -1141,9 +1141,9 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── M1: condensed off-track glyph (WCAG 1.4.1 non-color cue) ─────────────────
-describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
-  it('M1: in condensed split-view, overdue row retains a non-color "!" glyph in the DUE cell', async () => {
+// ── F3 (design review): one overdue token everywhere, no density-dependent glyph ──
+describe('F3 — overdue label stays consistent across densities (no bare "!" glyph)', () => {
+  it('F3: in condensed split-view, overdue row shows the full "Overdue · <date>" label (not a bare "!")', async () => {
     const overdueDate = '2020-01-01'
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Overdue task', status: 'Open', due_date: overdueDate }),
@@ -1153,14 +1153,13 @@ describe('M1 — condensed off-track glyph (non-color cue, WCAG 1.4.1)', () => {
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
     await switchToAll()
     await waitFor(() => screen.getByText('Overdue task'))
-    // In condensed mode the cell drops "Overdue · " text prefix, but must show a non-color glyph
+    // Condensed mode must render the SAME label as the full table — no degraded "!" glyph.
     const dueCell = document.querySelector('tr.task-row .due-overdue')
     expect(dueCell).toBeTruthy()
-    // The glyph "!" (or similar) must be present — conveys off-track without relying on color alone
-    expect(dueCell!.textContent).toMatch(/!/)
+    expect(dueCell!.textContent).toMatch(/^Overdue · /)
   })
 
-  it('M1: non-condensed (no drawer) overdue row shows the full "Overdue · <date>" text (not just the glyph)', async () => {
+  it('F3: non-condensed (no drawer) overdue row shows the same full "Overdue · <date>" text', async () => {
     const overdueDate = '2020-01-01'
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Overdue task', status: 'Open', due_date: overdueDate }),

@@ -47,7 +47,7 @@ export type TaskRowProps = {
 }
 
 export function TaskRow({
-  task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
+  task, now, isSelected, isCursor, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
 }: TaskRowProps) {
@@ -59,8 +59,11 @@ export function TaskRow({
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
     ? (taskOverdue
-      // M1: condensed drops the overdue prefix but keeps a "!" glyph (WCAG 1.4.1).
-      ? (condensed ? `! ${formatDate(task.due_date, locale)}` : t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }))
+      // F3 (design review): one overdue token everywhere — full "Overdue · <date>"
+      // label in every density. A bare "!" glyph in the condensed split-drawer list
+      // read as a different state than the full table's red "Overdue · <date>";
+      // the label itself (not just color) already satisfies WCAG 1.4.1.
+      ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) })
       : formatDate(task.due_date, locale))
     : '—'
   const isArchived = task.archived_at != null
