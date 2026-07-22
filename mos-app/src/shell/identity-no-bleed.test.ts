@@ -54,6 +54,6 @@ describe('AC-D03: identity-bearing strings ellipsize + carry title (no-bleed, cr
 
   it('AC-D03: My-Week task name chip — truncate + title', () => {
     const s = src('src/components/weekly/my-tasks-card.tsx')
-    expect(/mini-name-chip truncate"[\s\S]{0,80}title=\{task\.title\}/.test(s)).toBe(true)
+    expect(/mini-name-chip truncate[^"]*"[\s\S]{0,80}title=\{task\.title\}/.test(s)).toBe(true)
   })
 })
