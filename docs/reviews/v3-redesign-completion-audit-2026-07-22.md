@@ -366,7 +366,9 @@ five Café routes use Café/Kafe in user-facing copy, captions, errors, labels, 
 keys/form id. Profile cards use `--radius-lg` (12px), and RecordPanelHost controls use 32px while the
 phone override remains 44px.
 
-Focused evidence is **206/206** across Café, Profile, RecordPanelHost, i18n, and the consistency suite, with
-typecheck, changed-file ESLint, and affected Stylelint clean. The former P2 source findings must not be
+The worker reported **206/206** across Café, Profile, RecordPanelHost, i18n, and the consistency suite;
+an independent rerun covered the eight affected suites at **195/195**, then fixed a shared-jsdom
+viewport-order flake in `kitchen-plan-page.test.tsx` (`94eff85`). Typecheck, changed-file ESLint, and
+affected Stylelint are clean. The former P2 source findings must not be
 resurrected from the critic table above. Fresh rendered 1280/1024/390 proof and the owner’s holistic
 cohesion/taste judgment remain open; this does not change the overall **NO-SHIP** verdict.

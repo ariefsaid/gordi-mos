@@ -993,8 +993,10 @@ keys, and `kitchen-log-form` remain stable implementation seams. `RI-IA-10` scan
 files and fails on any retired user-facing Kitchen noun.
 
 Profile cards now consume the adopted E7 `--radius-lg` 12px container token, and shared record-panel
-chrome uses the DESIGN.md 32px control size while retaining its 44px phone touch target. Focused proof
-is **206/206** across the five Café page suites, Profile, RecordPanelHost, i18n, and the consistency invariants;
-typecheck, changed-file ESLint, and RecordPanelHost Stylelint pass. This is source/test closure only:
+chrome uses the DESIGN.md 32px control size while retaining its 44px phone touch target. The worker
+reported **206/206** across the Café/Profile/RecordPanelHost/i18n/consistency battery; an independent
+rerun covered the eight affected suites at **195/195**, then fixed a shared-jsdom viewport-order flake
+in `kitchen-plan-page.test.tsx` (`94eff85`). Typecheck, changed-file ESLint, and RecordPanelHost
+Stylelint pass. This is source/test closure only:
 fresh 1280/1024/390 rendering and the owner’s final “one app”/taste judgment remain open. No server,
 Supabase, push, merge, or deploy was used.
