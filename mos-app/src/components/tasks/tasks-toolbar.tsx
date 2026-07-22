@@ -122,7 +122,7 @@ export function TasksToolbar({
         {
           id: 'task-bu', label: t('tasks.filter.businessUnit'), value: query.businessUnitId ?? '',
           options: [
-            { value: '', label: t('tasks.saved.all') },
+            { value: '', label: t('tasks.filter.anyBusinessUnit') },
             ...buOptions.map((bu) => ({ value: bu.id, label: bu.name })),
           ],
           onChange: (value) => onQueryChange({ businessUnitId: value || null }),
