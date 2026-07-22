@@ -1,8 +1,9 @@
 /**
  * SliceStubPage — Redesign Step 2 (spec §3.1 / D-PLN). One parameterized
- * placeholder for not-in-this-slice routes (`/work/signals`, `/events`,
- * `/ecommerce`, `/roastery`, `/profile`). Renders the route's job sentence +
- * a labelled "not in this slice" body.
+ * placeholder for not-in-this-slice routes (`/ecommerce`, `/roastery`).
+ * Renders the route's job sentence + a labelled "not in this slice" body.
+ * (`/work/signals` graduated off this stub — C3a routed it to the real
+ * SignalsArchivePage; `/events` and `/profile` graduated too.)
  *
  * Distinct from `not-found-page.tsx` (a 404): this is a real route placeholder
  * — a future build step fills it in. One component for all 5 stub routes (Rule 11).
