@@ -1,0 +1,169 @@
+// home-stream.ts — the Home "consequence-ranked stream" model (owner redirect 2026-07-22:
+// "Home = ONE consequence-ranked stream", replacing the ported three-section E7 layout).
+//
+// Pure, no I/O. Builds a SINGLE prioritised flow ranked ACROSS record types out of the same
+// tasks/notifications/failed-check projections HomePage already fetches (Rule 11 — no new data
+// path; this is presentation over the existing home-attention selectors + tasks projection).
+//
+// Rank order (owner: "overdue → due today → blocked → mentions/asks → today's open work"):
+//   1. overdue        — owned tasks past their due date            reason "Overdue · Nd"
+//   2. due-today      — owned tasks due exactly today               reason "Due today"
+//   3. blocked        — owned tasks status=Blocked, not yet overdue reason "Blocked"
+//   4. failed-checks  — the viewer's rejected café logs (RATIFY-3)  reason "Check failed"
+//   5. mentions       — unread @-mentions / asks                    reason "Mentions you"
+//   6. my-work        — the rest of the viewer's open work today (off-track first, capped)
+//
+// Bands 1–5 are the "attention" group; band 6 is "my work". The OD-18 order preference reorders
+// those two GROUPS within the one stream (attention-first vs my-work-first) — it never removes a
+// band. Signals are NOT in this model (A12 attention-vs-ambient boundary — they render as a
+// separate ambient tail).
+
+import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import { raciOwner } from '@/lib/raci-member'
+import { formatDate } from '@/components/tasks/task-formatters'
+import type { Locale } from '@/i18n/messages'
+import type { AttentionDirectory, AttentionItem, AttentionPic } from '@/lib/home-attention'
+
+export type { AttentionDirectory } from '@/lib/home-attention'
+
+export type StreamBandKind = 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'mentions' | 'my-work'
+export type StreamBandState = 'loading' | 'ready' | 'error'
+
+/** The tone a reason chip carries — drives its i18n label + colour token. `days` is set for overdue. */
+export type StreamReasonTone = 'overdue' | 'due' | 'blocked' | 'check' | 'mention'
+export interface StreamReason {
+  tone: StreamReasonTone
+  /** Whole days overdue (tone === 'overdue' only). */
+  days?: number
+}
+
+/** One row in the stream. Superset of AttentionItem with the ranking-legibility reason chip + the
+ *  task status (for the trailing status pill on task rows). */
+export interface StreamItem {
+  id: string
+  title: string
+  route: string
+  /** Formatted due date, shown in the meta subline (task rows). */
+  meta?: string
+  /** Responsible person decoration (task rows, when the directory is supplied). */
+  pic?: AttentionPic
+  /** Owning Team/BU caption (task rows, when the directory is supplied). */
+  caption?: string
+  /** The ranking-legibility chip ("Overdue · 9d", "Due today", …). Absent on plain on-track rows. */
+  reason?: StreamReason
+  /** Task lifecycle, for the trailing StatusPill. Absent on non-task rows (mentions, failed checks). */
+  status?: TaskStatus
+}
+
+/** One rank band = a labelled slice of the one stream (a divider, never a boxed section). */
+export interface StreamBand {
+  kind: StreamBandKind
+  state: StreamBandState
+  items: StreamItem[]
+  /** Re-fetch the ONE projection this band reads (shared across bands that read the same fetch). */
+  onRetry?: () => void
+}
+
+/** Whole days between two YYYY-MM-DD (WIB) calendar dates — how overdue a row is. Never negative. */
+export function daysOverdue(dueISO: string, todayISO: string): number {
+  const due = Date.parse(`${dueISO}T00:00:00Z`)
+  const today = Date.parse(`${todayISO}T00:00:00Z`)
+  if (Number.isNaN(due) || Number.isNaN(today)) return 0
+  return Math.max(0, Math.round((today - due) / 86_400_000))
+}
+
+function initialsOf(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
+}
+
+/** TaskListRow → StreamItem, decorating with the shared directory (PIC + owning-BU) when present. */
+function toStreamTaskItem(
+  t: TaskListRow, reason: StreamReason | undefined, locale: Locale, dir?: AttentionDirectory,
+): StreamItem {
+  const picName = dir?.people?.get(t.responsible_person_id)
+  const caption = dir?.businessUnits?.get(t.business_unit_id)
+  return {
+    id: t.id,
+    title: t.title,
+    route: `/work/tasks/${t.id}`,
+    meta: t.due_date ? formatDate(t.due_date, locale) : undefined,
+    pic: picName ? { name: picName, initials: initialsOf(picName) } : undefined,
+    caption: caption ?? undefined,
+    reason,
+    status: t.status,
+  }
+}
+
+const isOwnedOpen = (t: TaskListRow, viewerId: string) => raciOwner(t, viewerId) && t.status !== 'Done'
+
+/** Owned, non-Done tasks due strictly before `today` — reason "Overdue · Nd". */
+export function overdueStreamItems(
+  tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en', dir?: AttentionDirectory,
+): StreamItem[] {
+  return tasks
+    .filter(t => isOwnedOpen(t, viewerId) && t.due_date != null && t.due_date < today)
+    .map(t => toStreamTaskItem(t, { tone: 'overdue', days: daysOverdue(t.due_date as string, today) }, locale, dir))
+}
+
+/** Owned, non-Done tasks due exactly `today` — reason "Due today". */
+export function dueTodayStreamItems(
+  tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en', dir?: AttentionDirectory,
+): StreamItem[] {
+  return tasks
+    .filter(t => isOwnedOpen(t, viewerId) && t.due_date === today)
+    .map(t => toStreamTaskItem(t, { tone: 'due' }, locale, dir))
+}
+
+/** Owned Blocked tasks that are NOT already surfaced as overdue/due-today — reason "Blocked". */
+export function blockedStreamItems(
+  tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en', dir?: AttentionDirectory,
+): StreamItem[] {
+  return tasks
+    .filter(t =>
+      isOwnedOpen(t, viewerId) &&
+      t.status === 'Blocked' &&
+      !(t.due_date != null && t.due_date <= today))
+    .map(t => toStreamTaskItem(t, { tone: 'blocked' }, locale, dir))
+}
+
+/** Decorate the pre-built failed-check items (café rejected logs) with the "Check failed" reason. */
+export function failedCheckStreamItems(items: AttentionItem[]): StreamItem[] {
+  return items.map(i => ({ ...i, reason: { tone: 'check' as const } }))
+}
+
+/** Decorate the pre-built mention items with the "Mentions you" reason. */
+export function mentionStreamItems(items: AttentionItem[]): StreamItem[] {
+  return items.map(i => ({ ...i, reason: { tone: 'mention' as const } }))
+}
+
+/** Owned, non-Done tasks NOT already surfaced in an attention band — the "my work today" band.
+ *  Sorted off-track-first (Blocked first — though most blocked/overdue are already excluded),
+ *  then by due date ascending (nulls last). No reason chip on plain rows; a Blocked leftover keeps
+ *  its "Blocked" reason so the ranking stays legible. Caller caps the visible count. */
+export function myWorkStreamItems(
+  tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en',
+  dir?: AttentionDirectory, excludeIds: ReadonlySet<string> = new Set(),
+): StreamItem[] {
+  const off = (t: TaskListRow) => t.status === 'Blocked' || (t.due_date != null && t.due_date <= today)
+  return tasks
+    .filter(t => isOwnedOpen(t, viewerId) && !excludeIds.has(t.id))
+    .sort((a, b) => {
+      const ao = off(a), bo = off(b)
+      if (ao !== bo) return ao ? -1 : 1
+      if (!a.due_date && !b.due_date) return 0
+      if (!a.due_date) return 1
+      if (!b.due_date) return -1
+      return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
+    })
+    .map(t => toStreamTaskItem(t, t.status === 'Blocked' ? { tone: 'blocked' } : undefined, locale, dir))
+}
+
+/** Count of the viewer's open (R/A, non-Done) tasks — the "All tasks · N" figure. */
+export function openTaskCount(tasks: TaskListRow[], viewerId: string): number {
+  return tasks.filter(t => isOwnedOpen(t, viewerId)).length
+}
+
+/** Summed item count across bands — the "Needs attention · N" summary source (FR-509 parity). */
+export function bandItemCount(bands: { items: StreamItem[] }[]): number {
+  return bands.reduce((sum, b) => sum + b.items.length, 0)
+}

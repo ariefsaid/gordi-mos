@@ -604,6 +604,25 @@ export const messages = {
     // Jump-affordance fix — trailing "→" per the app's link-cue convention ("All tasks →",
     // "Open the Daily Log →" — tasks.all / my-week-panel).
     'home.attention.summary': 'Needs attention · ${n} →',
+    // ── Home consequence-ranked stream (owner redirect 2026-07-22) ──────────────
+    // One prioritised flow ranked across record types; each row carries a reason chip that
+    // makes the ranking legible, and quiet band dividers mark the rank bands within the stream.
+    'home.stream.title': 'What needs you',
+    'home.stream.band.overdue': 'Overdue',
+    'home.stream.band.dueToday': 'Due today',
+    'home.stream.band.blocked': 'Blocked',
+    'home.stream.band.failedChecks': 'Failed checks',
+    'home.stream.band.mentions': 'Mentions',
+    'home.stream.band.myWork': 'My work today',
+    // Reason chips — the "why is this ranked here" cue on each row.
+    'home.stream.reason.overdue': 'Overdue · ${days}d',
+    'home.stream.reason.dueToday': 'Due today',
+    'home.stream.reason.blocked': 'Blocked',
+    'home.stream.reason.failedCheck': 'Check failed',
+    'home.stream.reason.mention': 'Mentions you',
+    // "All tasks · N →" — the my-work band drills to the full My-work saved view.
+    'home.stream.allTasks': 'All tasks · ${count} →',
+    'home.stream.myWorkEmpty': 'Nothing else open — anything needing you is ranked above.',
     'home.order.toggle': 'Home order',
     'home.order.attentionFirst': 'Attention first',
     // Minor (c), RATIFY-BEFORE-MERGE — "My canvas first" renamed to plain language ("canvas"
@@ -1251,6 +1270,21 @@ export const messages = {
     'home.attention.retry': 'Coba lagi',
     'home.attention.laneTitleCount': '${title} · ${count}',
     'home.attention.summary': 'Perlu perhatian · ${n} →',
+    // ── Home consequence-ranked stream (owner redirect 2026-07-22) ──────────────
+    'home.stream.title': 'Yang perlu Anda kerjakan',
+    'home.stream.band.overdue': 'Terlambat',
+    'home.stream.band.dueToday': 'Jatuh tempo hari ini',
+    'home.stream.band.blocked': 'Terhambat',
+    'home.stream.band.failedChecks': 'Pemeriksaan gagal',
+    'home.stream.band.mentions': 'Sebutan',
+    'home.stream.band.myWork': 'Pekerjaan saya hari ini',
+    'home.stream.reason.overdue': 'Terlambat · ${days}h',
+    'home.stream.reason.dueToday': 'Jatuh tempo hari ini',
+    'home.stream.reason.blocked': 'Terhambat',
+    'home.stream.reason.failedCheck': 'Pemeriksaan gagal',
+    'home.stream.reason.mention': 'Menyebut Anda',
+    'home.stream.allTasks': 'Semua tugas · ${count} →',
+    'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
     'home.order.toggle': 'Urutan Beranda',
     'home.order.attentionFirst': 'Perhatian dulu',
     'home.order.personalFirst': 'Item saya dulu',
