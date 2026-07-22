@@ -1,108 +1,71 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   HomePage — layout only (Task 4.4/§4.5). Two stacked KPI rows (finance row is
-   role-guarded and absent entirely for non-finance/admin viewers) reflowing
-   auto-fit 160px→1fr, a FreshnessLabel, then the MyWeekPanel below. Token-only
-   (DESIGN.md spacing scale) — the canonical Home KPI grid.
+   HomePage — the consequence-ranked stream layout (owner redirect 2026-07-22).
+   The stream + its ambient Signals tail own their own row texture (home-stream.css
+   / signal-feed-section.css); this file owns only the page-level toolbar (the
+   order preference control) and the personal-first jump affordance. Token-only.
    ════════════════════════════════════════════════════════════════════════════ */
-.home-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 8px;
-}
 
-/* Home's task count is a route cue, not a second dashboard. Keep the same KPI primitive,
-   but give this single drill target a compact inline measure so it doesn't read as a
-   stranded, oversized card between the attention brief and the actual task collection. */
-.home-kpi-grid .kpi-tile {
-  min-height: 56px;
-  padding: 10px 16px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  column-gap: 16px;
-}
-.home-kpi-grid .kpi-tile-label { grid-column: 1; }
-.home-kpi-grid .kpi-tile-value { grid-column: 2; grid-row: 1 / span 2; }
-
-.home-kpi-grid + .freshness-label {
-  display: inline-block;
-  margin-bottom: 16px;
-}
-
-/* Link wrapper around each KPITile: no underline/color-bleed onto the tile's own
-   text colors (KPITile owns its own foreground/muted-foreground) — the anchor is
-   purely the drill-target hit area (no-bleed, mirrors .mini-name-chip). */
-.home-kpi-link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-  min-width: 0;
-}
-/* Luna FIX-THEN-SHIP — the "My open tasks" count must READ as a drill-link, not just behave
-   like one (the KPITile renders a non-interactive <div> when Link-wrapped, so its own
-   button-hover never fires). Mirror the interactive-tile grammar exactly: the card border
-   warms to --primary on hover (same cue as button.kpi-tile:hover / DESIGN.md Soft-Elevation),
-   plus a focus-visible ring for keyboard. The anchor never bleeds color onto the tile's text. */
-.home-kpi-link .kpi-tile { transition: border-color var(--dur-fast) ease; }
-.home-kpi-link:hover .kpi-tile { border-color: var(--primary); }
-.home-kpi-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: var(--radius-lg);
-}
-
-/* Jump-affordance fix — the PageHead "Needs attention · N →" summary (personal-first order,
-   AC-513) must READ as a link, not just behave like one. Same underline+color grammar as the
-   other inline text-links in the app. */
+/* Personal-first header summary ("Needs attention · N →", AC-513) — must READ as a
+   link, not just behave like one. Same underline+color grammar as the app's inline links. */
 .home-attention-jump {
   color: var(--primary);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.home-attention-jump:hover {
-  color: var(--brand-navy-text);
-}
+.home-attention-jump:hover { color: var(--brand-navy-text); }
 .home-attention-jump:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   Home two-region wrapper (Step 5, OD-REDESIGN-18, AC-515). The Attention brief
-   and the Personal canvas are emitted in DOM in the user-chosen order — this
-   wrapper is a plain block-flow column and MUST NEVER use CSS `order` or
-   `flex-direction: column-reverse`/media-query reflow to visually reorder the
-   two regions against their DOM order (Rule 9). Only density/disclosure inside
-   each region may adapt at ≤390px, never the region order itself.
-   ════════════════════════════════════════════════════════════════════════════ */
-.home-regions {
+/* ── Order-preference toolbar — a compact, right-aligned control above the stream.
+   The sticky ViewTabs strip has left Home (owner redirect): the control never spans
+   the width nor leads ahead of the stream. ── */
+.home-stream-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: var(--ds-spacing-6);
+  justify-content: flex-end;
+  margin-bottom: 16px;
 }
 
-/* D1 — the personal canvas is a plain stack of chromeless sections. The space between
-   sections is the divider; the task table and Signal rows own their own texture. */
-.home-personal-canvas {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-spacing-6);
-  min-width: 0;
+/* Compact segmented radiogroup (still role=radiogroup/radio — RI-1). */
+.home-order-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.home-order-seg-opt {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast, 120ms) ease, color var(--dur-fast, 120ms) ease;
+}
+.home-order-seg-opt:hover { color: var(--foreground); }
+.home-order-seg-opt.is-active {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.home-order-seg-opt:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px order-toggle disclosure.
-   Mirrors TasksWorkspace.css's `.mobile-task-options` disclosure grammar (same
-   44px+ trigger, chevron rotation, panel-below layout) but compact + right-
-   aligned (not a full-width toolbar row) — the toggle must never be the lead
-   element ahead of the attention brief on a phone. Token-only (DESIGN.md).
-   ════════════════════════════════════════════════════════════════════════════ */
+/* ── ≤390px: the order control folds behind a compact "View options" disclosure so
+   it's never the lead, full-width element ahead of the stream (RI-2). ── */
 .home-order-disclosure {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 12px;
 }
 .home-order-trigger {
   display: inline-flex;
@@ -119,9 +82,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.home-order-trigger:hover {
-  background: var(--secondary);
-}
+.home-order-trigger:hover { background: var(--secondary); }
 .home-order-trigger:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -134,19 +95,10 @@
   color: var(--muted-foreground);
   transition: transform var(--dur-med) ease;
 }
-.home-order-chevron--open {
-  transform: rotate(180deg);
-}
+.home-order-chevron--open { transform: rotate(180deg); }
 .home-order-panel {
   margin-top: 8px;
-}
-/* The panel hosts the radiogroup inline (not the sticky full-width strip
-   placement) — reset that chrome, mirroring the toolbar's `.view-tabs` reset. */
-.home-order-panel .view-tabs {
-  position: static;
-  padding: 0;
-  border-bottom: 0;
-  background: transparent;
+  display: flex;
   justify-content: flex-end;
 }
 @media (prefers-reduced-motion: reduce) {

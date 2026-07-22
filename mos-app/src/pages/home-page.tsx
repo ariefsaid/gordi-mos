@@ -1,24 +1,18 @@
-// HomePage — the index route (/) replacement for MyWeek (ADR-0019 D2/D3, Task 4.4).
-// Home v1 — the default composition behind SHOW_HOME_STACKED=false.
+// HomePage — the index route (/). Owner redirect 2026-07-22 ("Home = ONE consequence-ranked
+// stream, be braver than E7"): Home is a SINGLE prioritised flow ranked ACROSS record types —
+// overdue → due today → blocked → failed-checks → mentions → today's open work — rendered as one
+// column of uniform record rows with reason chips and quiet band dividers (components/home/HomeStream).
+// E7 is the FLOOR (chromeless rows, calm rhythm); this beats it on one-glance "what do I do next".
 //
-// Step 5 (docs/specs/home-proper.spec.md, OD-REDESIGN-18/59/64) recomposed Home into TWO top-level
-// regions, rendered in the user's chosen order (default attention-first):
-//   - Attention  — <AttentionBrief lanes={lanes}/>: overdue/due-today/failed-checks/mentions, built
-//     from the pure selectors in lib/home-attention.ts over the existing tasks/notifications reads
-//     + the new loadFailedChecksForViewer adapter. Non-removable (OD-18) — only its position moves.
-//   - Personal canvas — the tasks tile, MyWeekPanel, and the Step-4 SignalFeedSection
-//     (all reused, none rebuilt — Rule 11).
-// The order is per-user (resolveRegionOrder/setRegionOrder, v1 localStorage — RATIFY-1) and is
-// ALWAYS emitted via DOM order, never CSS `order` (Rule 9/AC-515). When personal-first, PageHead
-// carries a "Needs attention · N" summary linking to #attention-brief so the brief is never lost.
+// The stream has two ordered GROUPS (attention bands + the my-work band). The OD-18 order preference
+// reorders those two groups (attention-first / my-work-first) — never removing a band. Signals are
+// NOT in the ranked stream (A12 attention-vs-ambient boundary — RATIFY-BEFORE-MERGE): they render as
+// an explicitly-labelled ambient tail (SignalFeedSection) below the stream.
 //
-// OD-REDESIGN-17 (owner critique "why dashboard AND home"): Home no longer duplicates the Money
-// dashboard's revenue/margin KPI tiles. Financial *exceptions* surface via the attention brief;
-// routine finance KPIs live on /dashboard, which owns them. The tasks tile is a drill-target
-// <Link> — KPITile itself stays presentation-only.
-//
-// When SHOW_HOME_STACKED is flipped on, `/` renders StackedUnionHome instead; this v1 stays the
-// documented default (docs/specs/home-v1.spec.md).
+// This is presentation over the EXISTING data contracts: the same tasks/notifications/failed-check
+// projections and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
+// Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
+// the stream via the attention bands.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -31,20 +25,50 @@ import { listNotifications } from '@/lib/db/notifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import { MyWeekPanel } from '@/components/weekly/my-week-panel'
-import { ViewTabs } from '@/components/ui/view-tabs'
 import { useIsPhone } from '@/shell/use-is-phone'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
+import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
-  overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday,
-  type AttentionItem, type AttentionLane, type AttentionDirectory,
-} from '@/lib/home-attention'
+  overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
+  mentionStreamItems, myWorkStreamItems, openTaskCount,
+  type StreamBand,
+} from '@/lib/home-stream'
 import { resolveRegionOrder, setRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
-import { AttentionBrief } from '@/components/home/attention-brief'
+import { HomeStream } from '@/components/home/home-stream'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import './home-page.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
+
+const MY_WORK_CAP = 7
+
+// Compact, right-aligned order preference (OD-18) — the sticky ViewTabs strip has left Home. It
+// stays a radiogroup (RI-1) so the a11y contract is unchanged; it reorders the stream's two groups.
+function OrderToggle({ order, onChange, label }: {
+  order: HomeRegionOrder; onChange: (next: HomeRegionOrder) => void; label: string
+}) {
+  const t = useT()
+  const options: { id: HomeRegionOrder; label: string }[] = [
+    { id: 'attention-first', label: t('home.order.attentionFirst') },
+    { id: 'personal-first', label: t('home.order.personalFirst') },
+  ]
+  return (
+    <div role="radiogroup" aria-label={label} className="home-order-seg">
+      {options.map(opt => (
+        <button
+          key={opt.id}
+          type="button"
+          role="radio"
+          aria-checked={order === opt.id}
+          className={`home-order-seg-opt${order === opt.id ? ' is-active' : ''}`}
+          onClick={() => onChange(opt.id)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function HomePage() {
   useDocumentTitle('Home — Gordi MOS')
@@ -59,32 +83,24 @@ export function HomePage() {
   }
   const personId = viewer?.person?.id ?? null
 
-  // RI-2 (Q2/Rule 8, ratified Option B) — at ≤390px the order toggle folds behind a single
-  // compact disclosure so it's never the lead, full-width element ahead of the attention
-  // brief; desktop/tablet keep the inline radiogroup unchanged.
+  // At ≤390px the order toggle folds behind a single compact disclosure so it's never the lead,
+  // full-width element ahead of the stream; desktop/tablet keep the inline radiogroup (RI-2).
   const isPhone = useIsPhone()
   const [orderPanelOpen, setOrderPanelOpen] = useState(false)
 
-  // isMountedRef — shared unmount guard for every retryable loader below (never
-  // setState after unmount). The flag is set true in the EFFECT BODY itself, not just
-  // at useRef's initial value — StrictMode's dev-only mount→cleanup→remount cycle runs
-  // the cleanup (setting it false) and then the setup again, and a setup that doesn't
-  // restore `true` leaves every retryable loader believing the page is unmounted
-  // forever after that first synthetic cycle (a real, observed regression: every
-  // attention lane stuck on its loading skeleton — caught by rendered inspection).
+  // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
+  // effect BODY (not just useRef's initial value) so StrictMode's mount→cleanup→remount cycle doesn't
+  // leave loaders believing the page is unmounted forever (a real, observed regression).
   const isMountedRef = useRef(false)
   useEffect(() => {
     isMountedRef.current = true
     return () => { isMountedRef.current = false }
   }, [])
 
-  // ── Tasks (everyone) — the tasks-count tile AND the overdue/due-today attention lanes ──
-  // Home retry/projection convergence (convergence-audit 2026-07-21): this ONE fetch is
-  // the single projection behind BOTH the overdue and due-today attention lanes — never
-  // two independent fetches for the same data. `loadTasks` is retry-safe: `tasksInFlightRef`
-  // makes a concurrent call while one is already in flight an idempotent no-op, and
-  // `tasksTokenRef` invalidates a stale in-flight response if the viewer identity changes
-  // mid-fetch (a fresh load always wins, never a stale write).
+  // ── Tasks (everyone) — the ONE projection behind the overdue/due-today/blocked bands AND the
+  // my-work band. Never two independent fetches for the same data. Retry-safe: `tasksInFlightRef`
+  // makes a concurrent call a no-op; `tasksTokenRef` invalidates a stale response if the viewer
+  // changes mid-fetch (a fresh load always wins).
   const [tasks, setTasks] = useState<TaskListRow[]>([])
   const [taskState, setTaskState] = useState<FetchState>('loading')
   const tasksInFlightRef = useRef(false)
@@ -106,8 +122,6 @@ export function HomePage() {
         setTaskState('error')
       })
       .finally(() => {
-        // Only the CURRENT request clears the flight flag — a stale/superseded
-        // request resolving late must not falsely mark the latest one as idle.
         if (tasksTokenRef.current === token) tasksInFlightRef.current = false
       })
   }, [personId])
@@ -118,9 +132,7 @@ export function HomePage() {
     loadTasks()
   }, [loadTasks])
 
-
-
-  // ── Notifications (mentions lane) — reuses Inbox's own "what asked for me" read (Step 5) ──
+  // ── Notifications (mentions band) — reuses Inbox's own "what asked for me" read ──
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [notificationsState, setNotificationsState] = useState<FetchState>('loading')
   const notificationsInFlightRef = useRef(false)
@@ -152,7 +164,7 @@ export function HomePage() {
     loadNotifications()
   }, [loadNotifications])
 
-  // ── Failed checks (café rejected logs, RATIFY-3, Step 5) ──────────────────────
+  // ── Failed checks (café rejected logs, RATIFY-3) ──────────────────────────────
   const [failedChecks, setFailedChecks] = useState<AttentionItem[]>([])
   const [failedChecksState, setFailedChecksState] = useState<FetchState>('loading')
   const failedChecksInFlightRef = useRef(false)
@@ -184,10 +196,9 @@ export function HomePage() {
     loadFailedChecks()
   }, [loadFailedChecks])
 
-  // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the personal
-  // canvas already uses (my-tasks-card loads getPeople/getBusinessUnits). Best-effort ENRICHMENT
-  // only: it decorates the overdue/due-today rows with the PIC (Responsible) + owning-BU caption,
-  // and its absence never blocks or errors a lane (the rows just render without the meta line).
+  // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the app already
+  // uses. Best-effort ENRICHMENT only: decorates task rows with the PIC (Responsible) + owning-BU
+  // caption; its absence never blocks or errors a band (rows just render without the meta line).
   const [directory, setDirectory] = useState<AttentionDirectory>({})
   useEffect(() => {
     if (!personId) return
@@ -204,21 +215,47 @@ export function HomePage() {
     return () => { live = false }
   }, [personId])
 
-  // ── Attention brief lanes (Step 5, spec §2/§4) ─────────────────────────────────
+  // ── Ranked stream items (owner redirect) ────────────────────────────────────
   const today = useMemo(() => wibToday(), [])
-  const lanes: AttentionLane[] = useMemo(() => {
-    if (!personId) return []
-    return [
-      // Overdue + due-today share the SAME `loadTasks` reference (the one tasks
-      // projection) — retrying either lane refreshes both, never a duplicate fetch.
-      { kind: 'overdue', state: taskState, items: taskState === 'ready' ? overdueTasks(tasks, personId, today, locale, directory) : [], onRetry: loadTasks },
-      { kind: 'due-today', state: taskState, items: taskState === 'ready' ? dueTodayTasks(tasks, personId, today, locale, directory) : [], onRetry: loadTasks },
-      { kind: 'failed-checks', state: failedChecksState, items: failedChecksState === 'ready' ? failedChecks : [], onRetry: loadFailedChecks },
-      { kind: 'mentions', state: notificationsState, items: notificationsState === 'ready' ? unreadMentions(notifications) : [], onRetry: loadNotifications },
-    ]
-  }, [personId, taskState, tasks, today, locale, directory, failedChecksState, failedChecks, notificationsState, notifications, loadTasks, loadFailedChecks, loadNotifications])
+  const ready = taskState === 'ready'
 
-  // ── Region order (OD-REDESIGN-18, Step 5) — per-user, default attention-first ──
+  // The three task-derived rank bands, in order. All read the SAME `loadTasks` projection — so their
+  // loading/error is one consolidated grammar in HomeStream, never a duplicate fetch/spinner/error.
+  const overdue = useMemo(
+    () => (ready && personId ? overdueStreamItems(tasks, personId, today, locale, directory) : []),
+    [ready, personId, tasks, today, locale, directory])
+  const dueToday = useMemo(
+    () => (ready && personId ? dueTodayStreamItems(tasks, personId, today, locale, directory) : []),
+    [ready, personId, tasks, today, locale, directory])
+  const blocked = useMemo(
+    () => (ready && personId ? blockedStreamItems(tasks, personId, today, locale, directory) : []),
+    [ready, personId, tasks, today, locale, directory])
+
+  // The my-work band = owned open work NOT already surfaced in a task attention band (overdue ∪
+  // due-today ∪ blocked ids), off-track first, capped. Shares the one tasks projection.
+  const myWork = useMemo(() => {
+    if (!ready || !personId) return []
+    const excludeIds = new Set<string>([...overdue, ...dueToday, ...blocked].map(i => i.id))
+    return myWorkStreamItems(tasks, personId, today, locale, directory, excludeIds).slice(0, MY_WORK_CAP)
+  }, [ready, personId, tasks, today, locale, directory, overdue, dueToday, blocked])
+
+  // Failed-checks + mentions keep their OWN independent fetch state (separate DALs).
+  const failedChecksBand: StreamBand = useMemo(() => ({
+    kind: 'failed-checks', state: failedChecksState,
+    items: failedChecksState === 'ready' ? failedCheckStreamItems(failedChecks) : [],
+    onRetry: loadFailedChecks,
+  }), [failedChecksState, failedChecks, loadFailedChecks])
+  const mentionsBand: StreamBand = useMemo(() => ({
+    kind: 'mentions', state: notificationsState,
+    items: notificationsState === 'ready' ? mentionStreamItems(unreadMentions(notifications)) : [],
+    onRetry: loadNotifications,
+  }), [notificationsState, notifications, loadNotifications])
+
+  const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
+  const attentionCountN = overdue.length + dueToday.length + blocked.length +
+    failedChecksBand.items.length + mentionsBand.items.length
+
+  // ── Order preference (OD-18) — per-user, default attention-first ──
   const [order, setOrder] = useState<HomeRegionOrder>('attention-first')
   useEffect(() => {
     if (personId) setOrder(resolveRegionOrder(personId))
@@ -229,40 +266,8 @@ export function HomePage() {
     if (personId) setRegionOrder(personId, next)
   }
 
-  const attentionRegion = <AttentionBrief key="attention" lanes={lanes} />
-  const personalCanvasRegion = (
-    <div key="personal-canvas" data-testid="personal-canvas" className="home-personal-canvas">
-      {/* OD-REDESIGN-17 ("why dashboard AND home"): Home no longer duplicates the Money
-          dashboard's revenue/margin KPI tiles. Financial *exceptions* surface via the
-          attention brief; routine finance KPIs live on /dashboard, which owns them. */}
-
-
-
-      {/* Legacy Weekly Update/Daily Log cards are hidden on Home until their
-          successors are real; the MyWeekPanel component itself survives (ADR-0019 D2). */}
-      <MyWeekPanel hideLegacyCadenceCards />
-
-      {/* Signal ambient feed (Step 4, Q1/OD-59 — provisional, RATIFY-7): the ambient region
-          inside the personal canvas, purely additive (FR-414). */}
-      <SignalFeedSection />
-    </div>
-  )
-
-  const n = attentionCount(lanes)
-
   const orderLabel = order === 'attention-first' ? t('home.order.attentionFirst') : t('home.order.personalFirst')
-  const orderToggle = (
-    <ViewTabs
-      mode="radiogroup"
-      ariaLabel={t('home.order.toggle')}
-      tabs={[
-        { id: 'attention-first', label: t('home.order.attentionFirst') },
-        { id: 'personal-first', label: t('home.order.personalFirst') },
-      ]}
-      active={order}
-      onChange={id => handleOrderChange(id as HomeRegionOrder)}
-    />
-  )
+  const orderToggle = <OrderToggle order={order} onChange={handleOrderChange} label={t('home.order.toggle')} />
 
   return (
     <PageFamilyFrame
@@ -275,43 +280,53 @@ export function HomePage() {
       jobSentence={t('job.home')}
       meta={
         order === 'personal-first' && personId ? (
-          <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n })}</a>
+          <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n: attentionCountN })}</a>
         ) : undefined
       }
     >
-      {/* e7 TRANSPLANT (e7-views.js:143, ported not re-interpreted): head = personal greeting,
-          subtitle = role identity — the warmth the build lost (parity finding R1). Only
-          adaptation: a live clock picks the greeting (WIB); e7's static mock froze "morning".
-          Falls back to the generic head when unauthenticated (e7 has no such state). */}
-      {/* Home order toggle (OD-REDESIGN-18, RATIFY-2) — user-only; not rendered until a viewer
-          is resolved (FR-508). Never removes the attention region, only reorders it. At ≤390px
-          (RI-2, Q2/Rule 8, ratified Option B) it folds behind a single compact "View options"
-          disclosure so it's never the lead, full-width element ahead of the attention brief;
-          desktop/tablet keep the inline radiogroup exactly as before. */}
+      {/* e7 head transplant: greeting + role identity (the warmth the build had lost). The order
+          preference (OD-18) is a compact right-aligned control — never rendered until a viewer is
+          resolved. At ≤390px it folds behind a compact "View options" disclosure so it's never the
+          lead, full-width element ahead of the stream. */}
       {personId && (
-        isPhone ? (
-          <ViewOptionsDisclosure
-            open={orderPanelOpen}
-            onToggle={() => setOrderPanelOpen(open => !open)}
-            label={t('home.order.viewOptions')}
-            summary={orderLabel}
-            panelId="home-order-panel"
-            className="home-order-disclosure"
-            triggerClassName="home-order-trigger"
-            summaryClassName="home-order-summary"
-            chevronClassName="home-order-chevron"
-            panelClassName="home-order-panel"
-          >
-            {orderToggle}
-          </ViewOptionsDisclosure>
-        ) : orderToggle
+        <div className="home-stream-toolbar">
+          {isPhone ? (
+            <ViewOptionsDisclosure
+              open={orderPanelOpen}
+              onToggle={() => setOrderPanelOpen(open => !open)}
+              label={t('home.order.viewOptions')}
+              summary={orderLabel}
+              panelId="home-order-panel"
+              className="home-order-disclosure"
+              triggerClassName="home-order-trigger"
+              summaryClassName="home-order-summary"
+              chevronClassName="home-order-chevron"
+              panelClassName="home-order-panel"
+            >
+              {orderToggle}
+            </ViewOptionsDisclosure>
+          ) : orderToggle}
+        </div>
       )}
 
-      {/* Two top-level regions (Attention · Personal canvas), emitted in DOM in the chosen
-          order — never via CSS `order` (FR-511/Rule 9, AC-515). */}
-      <div className="home-regions" data-region-order={order}>
-        {order === 'attention-first' ? [attentionRegion, personalCanvasRegion] : [personalCanvasRegion, attentionRegion]}
-      </div>
+      {/* THE STREAM — one consequence-ranked flow; the two groups reorder per `order`. */}
+      <HomeStream
+        taskState={taskState}
+        onRetryTasks={loadTasks}
+        overdue={overdue}
+        dueToday={dueToday}
+        blocked={blocked}
+        myWork={myWork}
+        openCount={openCount}
+        failedChecks={failedChecksBand}
+        mentions={mentionsBand}
+        order={order}
+        attentionAnchorId="attention-brief"
+      />
+
+      {/* Ambient tail (A12 boundary — RATIFY-BEFORE-MERGE): Signals are read-context, never ranked
+          into the attention stream. Explicitly labelled, same row grammar, composer action row + link. */}
+      <SignalFeedSection />
     </PageFamilyFrame>
   )
 }
