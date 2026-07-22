@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
+import { useIsDesktop } from '@/shell/use-is-desktop'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { Toggle } from '@/components/ui/toggle'
@@ -36,6 +38,8 @@ export function SignalsArchivePage() {
   const t = useT()
   const host = useOverlayHost()
   const isSplit = useIsSplitWidth()
+  const isDesktop = useIsDesktop()
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [params, setParams] = useSearchParams()
   const recordId = params.get('record')
   const hadSignalSession = useRef(false)
@@ -261,6 +265,26 @@ export function SignalsArchivePage() {
     />
   )
 
+  // Signals and Tasks share the same capture-first phone contract: the first record leads;
+  // presentation, filters, grouping, and saved views remain available behind one disclosure.
+  // The collection toolbar itself stays unchanged, so desktop keeps the full E7 control row.
+  const signalControls = isDesktop ? signalToolbar : (
+    <ViewOptionsDisclosure
+      open={mobileOptionsOpen}
+      onToggle={() => setMobileOptionsOpen((open) => !open)}
+      label={t('signals.archive.viewAndFilters')}
+      summary={query.view === 'needs-attention' ? t('signals.archive.viewAttention') : t('signals.archive.viewAll')}
+      panelId="mobile-signal-options-panel"
+      className="collection-mobile-options"
+      triggerClassName="collection-mobile-options-trigger"
+      summaryClassName="collection-mobile-options-summary"
+      chevronClassName="collection-mobile-options-chevron"
+      panelClassName="collection-mobile-options-panel"
+    >
+      {signalToolbar}
+    </ViewOptionsDisclosure>
+  )
+
   return (
     <PageFamilyFrame
       family="workspace"
@@ -273,7 +297,7 @@ export function SignalsArchivePage() {
           <div className={`record-collection-view signals-archive-main record-collection-view--${controller.state.presentation}`}>
             <RecordCollectionSurface
               controller={controller}
-              controls={signalToolbar}
+              controls={signalControls}
               empty={{ title: t('signals.archive.empty', { query: query.q }) }}
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}

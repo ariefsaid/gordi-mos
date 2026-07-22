@@ -877,3 +877,15 @@ The canonical consolidation worktree is `/Users/ariefsaid/Coding/gordi-mos/.clau
 Clean historical V3/Codex worktrees were removed while retaining their branches; dirty handoff lanes
 were preserved. Stale Vite/esbuild processes for this branch and `v3/rv-live` were stopped. No
 Supabase process was started, and no push/merge/deploy occurred.
+
+### Responsive collection follow-up — 2026-07-22 (local)
+
+Signals now adopts the same capture-first phone interaction contract as Tasks: one shared
+`ViewOptionsDisclosure` reveals the complete collection toolbar, while the first Signal record remains
+the leading content. Signal-specific filters, table/feed presentation, grouping, sorting, and saved
+views are preserved inside the disclosure. Desktop toolbar behavior is unchanged.
+
+Focused Signals archive, shared toolbar, and Tasks workspace evidence is **82/82**. Typecheck,
+targeted ESLint, Stylelint, diff check, and live inventory (**58 routes / 13 shared jobs / 73 CSS
+families**) pass. This closes the responsive disclosure inconsistency; desktop presentation parity and
+the owner’s rendered three-width acceptance remain open. No push/merge/deploy occurred.

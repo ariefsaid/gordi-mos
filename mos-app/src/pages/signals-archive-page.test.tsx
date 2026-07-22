@@ -16,7 +16,8 @@ vi.mock('@/lib/db/directory', () => ({
 }))
 // The V3 collection Table renders in desktop mode here (deterministic), and the archive Feed's
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
-vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
+const desktopState = vi.hoisted(() => ({ value: true }))
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
 vi.mock('@/shell/signal-composer-host', () => ({
   useSignalComposer: () => ({ open: vi.fn(), postCount: 0 }),
 }))
@@ -82,6 +83,7 @@ function LocationProbe() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  desktopState.value = true
   mockListReadableSignals.mockResolvedValue([
     row({ id: 'signal-1', body: 'The freezer alarm went off' }),
     row({ id: 'signal-2', body: 'Espresso machine repaired', owning_team_id: 'team-radiant' }),
@@ -176,6 +178,21 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByTestId('location')).toHaveTextContent('q=espresso')
     expect(screen.getByTestId('location')).toHaveTextContent('group=team')
     expect(screen.getByTestId('location')).toHaveTextContent('saved=view-1')
+  })
+
+  it('AC-V3-013: phone Signals uses the same capture-first View & filters disclosure as Tasks', async () => {
+    desktopState.value = false
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    const options = screen.getByRole('button', { name: /view & filters/i })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('searchbox', { name: /search signals/i })).not.toBeInTheDocument()
+
+    await userEvent.click(options)
+    expect(options).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
   })
 
   it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {

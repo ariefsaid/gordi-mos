@@ -244,3 +244,16 @@ presentation parity, Inbox handled/seeded-notification proof,
 Follow-ups flag, contributing-record Money drill-down, Issue 10 structured
 content/typed embeds (owner-gated), and the owner’s rendered three-width walkthrough. No push or merge has
 occurred.
+
+## Responsive collection follow-up — Signals phone grammar (2026-07-22, local)
+
+The remaining responsive interaction gap was concrete and code-owned: Tasks already placed its full
+collection configuration behind the shared capture-first `ViewOptionsDisclosure` on phone, while
+Signals exposed its entire control stack immediately. Signals now uses the same disclosure behavior
+and shared collection-toolbar skin; Signal-specific presentation, filters, grouping, sorting, and
+saved views remain intact inside the panel. Desktop keeps the full toolbar unchanged.
+
+Evidence: Signals archive + shared toolbar + Tasks workspace focused tests **82/82**; typecheck,
+targeted ESLint, Stylelint, diff check, and live-inventory check pass (**58 routes / 13 shared jobs /
+73 CSS families**). This closes the responsive disclosure gap, not the full rendered three-width owner
+gate or remaining desktop visual parity judgment. No live render or Supabase start was performed.

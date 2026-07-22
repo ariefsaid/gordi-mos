@@ -2985,7 +2985,8 @@
         "default",
         "empty",
         "error/retry",
-        "loading"
+        "loading",
+        "saving/saved"
       ],
       "cssFamilies": [
         "mos-app/src/index.css",
@@ -2998,7 +2999,9 @@
       "sourceEvidence": {
         "pageFrameUse": true,
         "pageHeadUse": true,
-        "symbols": []
+        "symbols": [
+          "useIsDesktop"
+        ]
       }
     },
     {
@@ -3044,7 +3047,8 @@
         "default",
         "empty",
         "error/retry",
-        "loading"
+        "loading",
+        "saving/saved"
       ],
       "cssFamilies": [
         "mos-app/src/index.css",
@@ -3055,7 +3059,9 @@
       "sourceEvidence": {
         "pageFrameUse": true,
         "pageHeadUse": true,
-        "symbols": []
+        "symbols": [
+          "useIsDesktop"
+        ]
       }
     },
     {
@@ -4055,16 +4061,17 @@
       "family": "components/record-collection/collection-toolbar",
       "scope": "components",
       "literalKinds": {
-        "font-size": 5,
+        "font-size": 6,
         "line-height": 0,
-        "padding": 7,
+        "padding": 8,
         "margin": 0,
         "gap": 7,
-        "width": 17,
-        "height": 11
+        "width": 18,
+        "height": 12
       },
       "breakpoints": [
-        "@media (max-width: 767px)"
+        "@media (max-width: 767px)",
+        "@media (prefers-reduced-motion: reduce)"
       ]
     },
     {
@@ -4907,13 +4914,13 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 347,
+      "font-size": 348,
       "line-height": 42,
-      "padding": 281,
+      "padding": 282,
       "margin": 85,
       "gap": 223,
-      "width": 342,
-      "height": 266
+      "width": 343,
+      "height": 267
     },
     "examples": {
       "font-size": [

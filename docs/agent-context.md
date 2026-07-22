@@ -106,6 +106,12 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Stale Vite/esbuild processes for `v3-redesign` and `v3-rv-live` were stopped; no Supabase process was
 > started. Untracked browser captures in the canonical worktree remain intentionally excluded from commits.
 
+> **RESPONSIVE COLLECTION FOLLOW-UP (2026-07-22, local):** Signals now uses the same capture-first
+> `ViewOptionsDisclosure` contract as Tasks on phone widths. The complete Signal toolbar remains
+> available behind one disclosure, while the first record leads; desktop behavior is unchanged.
+> Focused Signals/toolbar/Tasks evidence is 82/82; typecheck, ESLint, Stylelint, diff check, and live
+> inventory pass. This is a code-owned IxD closure, not a live rendered owner-gate claim.
+
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
 > `docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`).** Tip `8cd1053` at session start.

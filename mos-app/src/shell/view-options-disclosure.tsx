@@ -9,6 +9,7 @@ import { Chevron } from './icons'
  * Both hosts mount THIS component:
  *   - Home  — folds the attention/personal order radiogroup behind it at ≤390px.
  *   - Tasks — folds the member phone filter stack behind it (OD-REDESIGN-61).
+ *   - Signals — folds the collection toolbar behind it so the first Signal leads on phone.
  *
  * The behavior + a11y wiring (aria-expanded ↔ open, aria-controls ↔ panel id, decorative
  * aria-hidden summary) live here once. Each host passes its OWN skin classes, so the

@@ -149,6 +149,46 @@
   outline-offset: 1px;
 }
 
+/* Capture-first phone contract shared by collection hosts. The domain toolbar remains the
+   single source of controls; this wrapper only changes when secondary controls are revealed. */
+.collection-mobile-options {
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.collection-mobile-options-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.collection-mobile-options-trigger:hover { background: var(--secondary); }
+.collection-mobile-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.collection-mobile-options-summary {
+  margin-left: 4px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.collection-mobile-options-chevron {
+  display: block;
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform var(--dur-med) ease;
+}
+.collection-mobile-options-chevron--open { transform: rotate(180deg); }
+.collection-mobile-options-panel .collection-toolbar { border-bottom: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .collection-mobile-options-chevron { transition: none; }
+}
+
 @media (max-width: 767px) {
   .collection-toolbar { align-items: stretch; padding: 8px; }
   .collection-toolbar__presentations,
