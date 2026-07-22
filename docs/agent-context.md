@@ -115,7 +115,15 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > identity/native saved-view popup, and rendered 1280/1024/390 proof for Home/Tasks/Signals. The next
 > implementer owns visible convergence; the Director verifies actual renders and updates this ledger.
 
-> **SCORE GATE MET (2026-07-22 later, Director, rendered):** The three P0s are closed on
+> **RAISED SCORE GATE MET (2026-07-22 evening, tip `59110f1`): 34/40 · 9/10** (targets ≥32 / >8.5,
+> scope Home+Tasks+Signals — OD-81.3). Wave: parity 9/9 + shared collection-grammar.css + Tasks
+> title/subline · Home KPI embed (OD-81) · D1 chromeless Home (OD-82) · state-kit sweep ·
+> field-Escape isolation + dirty-guard journeys (OD-83.1, live-verified) · Task selection removed
+> (OD-83.2) · sticky-tabs gutter fix. **Full parallel suite 3256/3256, 0 skipped.** Open after this
+> wave: RecordViewer anatomy (the 9/10 partial), browser-Back veto e2e, Inbox seeded proof, Issues
+> 10/12 + curated e2e, owner walkthrough. Evidence: ledger § "Raised score-gate result".
+>
+> *(Earlier same day, superseded:)* **SCORE GATE MET (28/40, Director, rendered):** The three P0s are closed on
 > `v3-redesign`: one view axis (preset+saved chips merged, native saved-view select removed),
 > Group/Sort progressively disclosed behind "View options" (desktop-only; phone keeps the
 > OD-61 one-tap View & filters reveal), and no starved identity/decision column at 1280/1024/390
