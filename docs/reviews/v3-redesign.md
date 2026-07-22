@@ -1039,3 +1039,33 @@ Two gates remain deliberately open: Deputy is still a companion outside the prim
 (browser Back and one-session stack semantics are not unified), and a live render must still verify
 phone modal scroll/focus containment while the underlying record stays mounted. No server, Supabase,
 push, merge, or deploy was used.
+
+## Owner-eyes checkpoint — 2026-07-22 (local, unpushed)
+
+The V3 branch is ready for the owner’s bounded walkthrough, but is not being called shipped.
+Fresh safe verification at the current tip is:
+
+- Deputy/shared-host battery: **94/94 tests passed**.
+- Typecheck and ESLint/CSS lint: **exit 0**.
+- RecordCollection conformance: **OK**.
+- Live inventory: **58 routes / 13 shared jobs / 74 CSS families**, current.
+- No Supabase, dev server, rendered screenshots, push, merge, or deploy.
+
+The walkthrough should answer only these open calls:
+
+1. **Deputy stack exception:** accept the current companion outside browser Back/one-session stack,
+   or require full controller-owned stack participation before ship.
+2. **Collection family:** do Tasks and Signals read as one E7-styled RecordCollection family at
+   1280/1024/390, while retaining domain-specific anatomy?
+3. **RecordViewer:** do Task and Signal panel/page surfaces feel like the same viewer grammar with
+   type-specific fields, or is another anatomy pass required?
+4. **Inbox:** accept the seeded Bell → queue → record → Back journey and decide whether Handled is
+   part of the first collection state.
+5. **I5:** ratify eager native-select commit as a deliberate exception, or require the universal
+   inline-edit contract.
+6. **Overall taste:** does the rendered app now read as one neat, tidy product rather than several
+   inherited apps? This remains an owner judgment; source guards cannot answer it.
+
+Until these are answered, the review verdict remains **NO-SHIP**. The phone Deputy preference is not
+open: where horizontal space is insufficient, Deputy may sit above the mounted record and Escape
+closes Deputy first.
