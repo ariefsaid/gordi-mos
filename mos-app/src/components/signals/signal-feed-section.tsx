@@ -13,7 +13,7 @@ import {
   SIGNAL_COLLECTION_NEUTRAL_QUERY,
   type SignalCollectionQuery,
 } from './signal-collection-adapter'
-import { SignalFeed } from './signal-feed'
+import { SignalFeedRows } from './signal-feed-rows'
 import './signal-feed-section.css'
 
 // C3b (AC-426/FR-414): the Home ambient feed slot. It now shares the ONE signalCollectionDescriptor
@@ -100,7 +100,7 @@ export function SignalFeedSection() {
           </Link>
         }
       />
-      <SignalFeed
+      <SignalFeedRows
         signals={signals}
         authorNamesById={data ? namesToRecord(data.context.authorNamesById) : {}}
         teamNamesById={data ? namesToRecord(data.context.teamNamesById) : {}}

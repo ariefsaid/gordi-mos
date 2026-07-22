@@ -1,0 +1,100 @@
+import { useT } from '@/i18n/use-t'
+import { EmptyState } from '@/components/ui/state-kit'
+import { formatWibDateTime } from '@/lib/wib-time'
+import { orderSignalsForFeed } from '@/lib/db/signals'
+import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { SignalCategoryPicker } from './signal-category-picker'
+
+// SignalFeedRows — the Home ambient Signals tail (owner redirect 2026-07-22: Signals render as ROWS
+// in the same record-row grammar as the ranked stream, NOT fat cards, so Home reads as one calm
+// system). Home-only presentation (does NOT reuse the shared SignalCard, which the Signals archive
+// collection owns — de-scoped). Preserves every contract the ambient feed already had: the composer
+// action row, resolved author/Team, the "Open signal: <body>" affordance, "Add category", the empty
+// state, and Feed ordering (Urgent/Needs-attention weighted above FYI).
+
+export interface SignalFeedRowsProps {
+  signals: SignalRow[]
+  authorNamesById: Record<string, string>
+  teamNamesById: Record<string, string>
+  onShareClick?: () => void
+  onCategorize?: (signalId: string, category: SignalCategory) => void
+  onOpen?: (signal: SignalRow) => void
+}
+
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
+}
+
+export function SignalFeedRows({
+  signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
+}: SignalFeedRowsProps) {
+  const t = useT()
+  const ordered = orderSignalsForFeed(signals)
+
+  return (
+    <div className="home-signal-feed" data-testid="signal-feed">
+      {/* Quiet action row — the composer entry (stays, per redirect). */}
+      <button type="button" className="home-signal-share-row" onClick={onShareClick}>
+        {t('signals.feed.shareRow')}
+      </button>
+
+      {ordered.length === 0 ? (
+        <EmptyState title={t('signals.feed.empty')} nested />
+      ) : (
+        <ul className="home-signal-list">
+          {ordered.map((signal) => {
+            if (signal.retracted_at) {
+              return (
+                <li key={signal.id} className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
+                  <p className="home-signal-tombstone">
+                    {t('signals.retracted')} {signal.retract_reason ? <span>{signal.retract_reason}</span> : null}
+                  </p>
+                </li>
+              )
+            }
+            const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
+            const teamName = teamNamesById[signal.owning_team_id] ?? ''
+            return (
+              <li key={signal.id} className="home-signal-row" data-signal-id={signal.id}>
+                <div className="home-signal-main">
+                  {/* Body = the row title, one truncated line; the clickable record affordance. */}
+                  {onOpen ? (
+                    <button
+                      type="button"
+                      className="home-signal-body"
+                      onClick={() => onOpen(signal)}
+                      aria-label={t('signals.card.openSignal', { body: signal.body })}
+                    >
+                      {signal.body}
+                    </button>
+                  ) : (
+                    <span className="home-signal-body home-signal-body--static">{signal.body}</span>
+                  )}
+                  {/* Meta subline: author (avatar + name) · team · time. */}
+                  <div className="home-signal-meta">
+                    <span className="home-signal-who">
+                      <span className="home-signal-avatar" aria-hidden="true">{initials(authorName)}</span>
+                      <span className="home-signal-who-name">{authorName}</span>
+                    </span>
+                    {teamName && <><span className="home-signal-sep" aria-hidden="true">·</span><span>{teamName}</span></>}
+                    <span className="home-signal-sep" aria-hidden="true">·</span>
+                    <span className="home-signal-when">{formatWibDateTime(signal.occurred_at)}</span>
+                  </div>
+                </div>
+                <div className="home-signal-tail">
+                  <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
+                    {signal.attention}
+                  </span>
+                  <SignalCategoryPicker
+                    category={signal.category}
+                    onCategorize={onCategorize ? (category) => onCategorize(signal.id, category) : undefined}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
