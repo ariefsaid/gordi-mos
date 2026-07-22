@@ -109,7 +109,10 @@ function StreamRow({ item }: { item: StreamItem }) {
         </span>
         <span className="stream-row-tail">
           {item.reason && <ReasonChip reason={item.reason} />}
-          {item.status && <StatusPill status={item.status} />}
+          {/* F3 (design-review): Open shares no attention hierarchy with Urgent/Needs-
+              attention when it's amber too — neutral treatment restores the ranking
+              (rule:product-color-state-vocab, rule:product-ban-heavy-inactive-color). */}
+          {item.status && <StatusPill status={item.status} openTreatment="neutral" />}
         </span>
       </Link>
     </li>

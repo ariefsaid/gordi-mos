@@ -16,7 +16,23 @@ import { useT } from '@/i18n/use-t'
 
 export type { TaskStatus }
 
-type StatusPillProps = { status: TaskStatus; label?: string }
+type StatusPillProps = {
+  status: TaskStatus
+  label?: string
+  /**
+   * Home's consequence-ranked stream renders StatusPill beside Signals' amber
+   * attention pills (Urgent/Needs attention), so a heavy-saturated "Open" pill
+   * reads as a third warning tier instead of the neutral not-yet-started
+   * baseline it actually is (design-review F3; rule:product-color-state-vocab,
+   * rule:product-ban-heavy-inactive-color). 'neutral' swaps Open's amber for the
+   * DESIGN.md §5 "Default/neutral badge" pair (secondary-family bg + muted-
+   * foreground text) — In Progress/Blocked/Done are unaffected either way.
+   * Default 'flagged' is byte-identical to the pre-existing behavior, so every
+   * other StatusPill call site (Tasks, Admin, Follow-ups, Weekly, RecordField)
+   * is untouched.
+   */
+  openTreatment?: 'flagged' | 'neutral'
+}
 
 const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'In Progress': 'blue',
@@ -35,7 +51,7 @@ const STATUS_TEXT_COLOR: Record<TaskStatus, string> = {
   'Done': 'var(--status-won-text)',
 }
 
-export function StatusPill({ status, label }: StatusPillProps) {
+export function StatusPill({ status, label, openTreatment = 'flagged' }: StatusPillProps) {
   const t = useT()
   const localizedStatus = status === 'Open'
     ? t('tasks.status.open')
@@ -44,15 +60,18 @@ export function StatusPill({ status, label }: StatusPillProps) {
       : status === 'Blocked'
         ? t('tasks.status.blocked')
         : t('tasks.status.done')
+  const neutralOpen = status === 'Open' && openTreatment === 'neutral'
+  const color: TagColor = neutralOpen ? 'gray' : STATUS_COLOR[status]
+  const textColor = neutralOpen ? 'var(--muted-foreground)' : STATUS_TEXT_COLOR[status]
   // NO aria-label: the visible text IS the accessible name. StatusTrigger renders
   // StatusPill inside a role=option / button, and an aria-label would override the
   // option's computed name, breaking status-change (AC-071/103/111).
   return (
     <Tag
-      color={STATUS_COLOR[status]}
+      color={color}
       weight="medium"
       className="status-pill"
-      style={{ color: STATUS_TEXT_COLOR[status] }}
+      style={{ color: textColor }}
       Icon={<span className="status-dot" aria-hidden="true" />}
     >
       {label ?? localizedStatus}
