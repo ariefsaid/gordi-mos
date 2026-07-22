@@ -131,34 +131,32 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).queryByText('Retail Ops')).toBeNull()
   })
 
-  it('AC-004: Work children are grouped under the E7 sub-section overlines, in E7 order', () => {
+  it('AC-004: single-item Work families render their child with NO sub-section overline, in E7 order', () => {
     setAuthAs(['admin'])
     const { container } = renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // The 4 children are still present and reachable (the overlines are aria-hidden dividers).
+    // The 4 children are present and reachable.
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
-    // The four E7 sub-section overlines are present (aria-hidden, so asserted by text).
+    // Item 2 (impeccable ban-eyebrow-on-every-section): with today's IA each Work family governs
+    // exactly ONE child, so its decorative overline is suppressed — no eyebrow renders. (An overline
+    // that governs a single item is pure decoration; the grammar auto-returns when a family gains a
+    // second sibling — Process Runs, Standards, Follow-ups.)
     for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
-      expect(within(nav).getByText(label)).toBeInTheDocument()
+      expect(within(nav).queryByText(label)).toBeNull()
     }
-    // E7 top-down order: Execution(Tasks) → Work systems(Projects) → Direction(Objectives) →
-    // Cadence(Signals). Verify the overlines appear in that document order.
-    const order = ['Execution', 'Work Systems', 'Direction', 'Cadence'].map(
-      (l) => within(nav).getByText(l),
-    )
+    // Children still render in E7 top-down order: Tasks → Projects → Objectives → Signals.
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(precedes(order[0], order[1])).toBe(true)
-    expect(precedes(order[1], order[2])).toBe(true)
-    expect(precedes(order[2], order[3])).toBe(true)
-    // Cadence(Signals) now sorts BELOW Execution(Tasks) — a deliberate E7-grammar reorder.
-    const tasks = within(nav).getByRole('link', { name: 'Tasks' })
-    const signals = within(nav).getByRole('link', { name: 'Signals' })
-    expect(precedes(tasks, signals)).toBe(true)
+    const links = ['Tasks', 'Projects & Processes', 'Objectives', 'Signals'].map(
+      (l) => within(nav).getByRole('link', { name: l }),
+    )
+    expect(precedes(links[0], links[1])).toBe(true)
+    expect(precedes(links[1], links[2])).toBe(true)
+    expect(precedes(links[2], links[3])).toBe(true)
     expect(container).toBeTruthy()
   })
 

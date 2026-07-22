@@ -96,7 +96,10 @@ function RailGroupLabel({ children, className }: { children: string; className?:
 // Work sub-section overline (E7 `.e7-sub-label`) — quieter + smaller than the top-level rail
 // overline (10px vs 11px, lighter), so the sub-grouping reads as a level below Destinations.
 // aria-hidden for the same reason as RailGroupLabel: a visual divider, not a nav landmark; the
-// child links stay directly reachable in document order (no extra tab stop).
+// child links stay directly reachable in document order (no extra tab stop). Rendered ONLY when
+// its family groups ≥2 items (item 2 — impeccable ban-eyebrow-on-every-section); a lone-child
+// family shows the child with no eyebrow. Dormant under today's single-item IA, live once a
+// second sibling ships into any family.
 function WorkSubLabel({ children }: { children: string }) {
   return (
     <div
@@ -199,20 +202,26 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
                       </>
                     )}
                   </NavLink>
-                  {/* Always-expanded children, now grouped under the E7 Work sub-section overlines
+                  {/* Always-expanded children, grouped by the E7 Work sub-section families
                       (workNavModel grammar): Execution · Work systems · Direction · Cadence, in E7's
-                      top-down order. Supersedes the earlier flat "0 family headings" rendering — the
-                      E7 floor carries these sub-labels, and the sub-labels are aria-hidden dividers,
-                      not landmarks, so every child stays one reachable link. A capability-gated child
-                      (Projects & Processes, Objectives) that filters out empties its family, which
-                      then renders no overline. */}
-                  <div className="flex flex-col pl-3">
+                      top-down order. A family's overline is DECORATIVE unless it actually groups
+                      more than one item — item 2 (impeccable ban-eyebrow-on-every-section): a
+                      sub-section overline renders ONLY when its family holds ≥2 visible items. With
+                      today's IA each family carries exactly one child (the sibling entries — Process
+                      Runs, Processes/Standards, Follow-ups — aren't in our IA yet), so NO eyebrows
+                      render: the children read as one clean indented list. The grammar auto-returns
+                      the moment a family gains a second item. Order is preserved either way, and each
+                      child stays one reachable link (the overline, when shown, is an aria-hidden
+                      divider). A capability-gated child (Projects & Processes, Objectives) that
+                      filters out empties its family, which then renders nothing. */}
+                  <div className="flex flex-col gap-[2px] pl-3">
                     {WORK_SUBSECTIONS.map((sub) => {
                       const items = children.filter((c) => sub.paths.includes(c.path))
                       if (items.length === 0) return null
+                      const showOverline = items.length >= 2
                       return (
                         <div key={sub.labelKey} className="flex flex-col gap-[2px]">
-                          <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>
+                          {showOverline && <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>}
                           {items.map((c) => (
                             <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} />
                           ))}
