@@ -1567,3 +1567,14 @@ for the current working tree. Agents must use this section and the canonical blo
 
 Do not interpret “resolved” as “shipped”: source/test integration is green, while rendered three-width
 and owner-eye acceptance are still deliberately open.
+
+## Brave Home — ranked stream (2026-07-23, owner-directed "be braver")
+
+Home rebuilt as ONE consequence-ranked stream (overdue → due today → blocked → failed checks →
+mentions → my work today, reason chips with day-magnitude, ambient Signals tail, chromeless rows).
+Argued beats-E7 axes: one-glance next action, reason legibility, no cross-section scanning.
+attention-brief + Home table/cards deleted. 163 touched-surface tests green.
+
+RATIFY-BEFORE-MERGE: A12 attention/ambient boundary expressed as ranked-stream + Signals tail.
+RATIFY-BEFORE-MERGE: OD-18 order toggle re-expressed as the stream ranking preference.
+RATIFY-BEFORE-MERGE (carried from brave-b lane when it lands): Signals default Table→Feed.
