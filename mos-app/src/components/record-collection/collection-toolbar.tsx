@@ -134,6 +134,7 @@ export function CollectionToolbar<
         </div>
 
         <div className="collection-toolbar__views" role="group" aria-label={views.label}>
+          <span className="collection-toolbar__views-label" aria-hidden="true">{t('common.savedView')}</span>
           {views.options.map((option) => {
             const active = option.value === views.value && !savedViews?.selectedId
             return (

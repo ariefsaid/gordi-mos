@@ -351,6 +351,11 @@ export function TasksWorkspace({
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface
               controller={controller}
+              resultHeader={{
+                collectionLabel: t('tasks.title'),
+                viewLabel: viewLabel(query.view, t),
+                count: stats === null ? null : stats.total,
+              }}
               controls={
                 <>
                   {controls}

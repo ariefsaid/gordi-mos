@@ -90,14 +90,48 @@
 .record-viewer {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 0;
   min-width: 0;
+  background: var(--card);
+}
+
+/* E7 record anatomy: one identity block, then quiet typed sections. The live Task and Signal
+ * tenants may differ in fields/content, but never in the title/type/section rhythm. */
+.record-viewer__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.record-viewer__eyebrow,
+.record-viewer__type {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.record-viewer__title {
+  margin: 2px 0 0;
+  color: var(--foreground);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .record-viewer__section {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
 }
 
 .record-viewer__section-title {
@@ -146,6 +180,10 @@
   gap: 8px;
 }
 
+.record-viewer__section[data-viewer-region='actions'] {
+  border-bottom: 0;
+}
+
 .record-viewer__actions .btn {
   min-height: 44px;
 }
@@ -157,6 +195,12 @@
 }
 
 @media (max-width: 767.98px) {
+  .record-viewer__identity,
+  .record-viewer__section {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
   .record-viewer__fields {
     grid-template-columns: minmax(0, 1fr);
   }

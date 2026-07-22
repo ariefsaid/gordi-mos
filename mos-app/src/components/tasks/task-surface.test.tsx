@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -196,12 +196,10 @@ describe('TaskSurface — view mode', () => {
     // left details panel + right tabbed feed both present
     expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
-    // two-column grid root
-    expect(document.querySelector('.record-2col')).toBeTruthy()
-    // feed column carries the no-bleed min-width:0 guard
-    const feedCol = document.querySelector('.record-feed-col') as HTMLElement | null
-    expect(feedCol).toBeTruthy()
-    expect(feedCol?.style.minWidth).toBe('0')
+    // The shared RecordViewer owns both page metadata and typed content; the old
+    // Task-specific `.record-2col`/`.record-feed-col` shell is intentionally gone.
+    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Updates' })).toBeInTheDocument()
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
@@ -277,8 +275,8 @@ describe('TaskSurface — view mode', () => {
       .mockResolvedValueOnce({ task: makeTask({ status: 'In Progress' }), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
-    fireEvent.click(screen.getByRole('option', { name: 'In Progress' }))
+    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
+    fireEvent.change(status, { target: { value: 'In Progress' } })
     await waitFor(() => {
       expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID)
     })
@@ -373,8 +371,8 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockUpdateTaskStatus.mockResolvedValue()
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
-    fireEvent.click(screen.getByRole('option', { name: 'In Progress' }))
+    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
+    fireEvent.change(status, { target: { value: 'In Progress' } })
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/status changed to In Progress/i))
   })
 
@@ -383,8 +381,8 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockUpdateTaskStatus.mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
-    fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
+    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
+    fireEvent.change(status, { target: { value: 'Blocked' } })
     await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalled())
     // pill reverts to Open AND the live region announces the failure
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -455,7 +453,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     expect(screen.getByRole('tab', { name: /activity/i })).toHaveAttribute('aria-selected', 'true')
     // The compact details panel keeps typed ownership always visible (above the feed)
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
-    expect(document.querySelector('.record-details-compact')).toBeTruthy()
+    expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
   })
 
   it('AC-R06 (drawer): typed ownership stays in the panel while the feed tabs switch to Checklist', async () => {
@@ -476,8 +474,8 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     const onTaskChanged = vi.fn()
     renderDrawer({ onTaskChanged })
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
-    fireEvent.click(screen.getByRole('option', { name: 'In Progress' }))
+    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
+    fireEvent.change(status, { target: { value: 'In Progress' } })
     await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID))
     await waitFor(() => expect(onTaskChanged).toHaveBeenCalled())
   })
@@ -486,9 +484,9 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    const foot = document.querySelector('.dw-foot')
-    expect(foot).toBeTruthy()
-    expect(foot?.querySelector('button')?.textContent).toMatch(/archive task/i)
+    const actions = document.querySelector('[data-viewer-region="actions"]')
+    expect(actions).toBeTruthy()
+    expect(within(actions as HTMLElement).getByRole('button', { name: /archive task/i })).toBeInTheDocument()
   })
 
   it('AC-104 (drawer): expand toggle calls onExpandToggle without navigation', async () => {
@@ -507,7 +505,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     await waitFor(() => screen.getByText(/this task is archived/i))
     expect(screen.getByRole('button', { name: /unarchive/i })).toBeInTheDocument()
     // archived => no status trigger (read-only)
-    expect(screen.queryByRole('button', { name: /change status/i })).toBeNull()
+    expect(document.querySelector('[data-field-key="status"] select')).toBeNull()
   })
 
   it('AC-112 (drawer): not-found shows "Task not found" + All tasks link', async () => {
@@ -530,7 +528,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    expect(screen.queryByRole('button', { name: /change status/i })).toBeNull()
+    expect(document.querySelector('[data-field-key="status"] select')).toBeNull()
     expect(document.querySelector('.dw-foot')).toBeNull()
   })
 })

@@ -16,6 +16,8 @@ import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
+import type { ObjectiveRow } from '@/lib/db/objectives'
+import type { WorkLineRow } from '@/lib/db/work-lines'
 import { canEdit, canArchive } from './task-permissions'
 import type {
   RecordAction,
@@ -49,6 +51,11 @@ export interface TaskRecordAdapterInput {
   isManager: boolean
   people: readonly PersonOption[]
   businessUnits: readonly BusinessUnitOption[]
+  objectives?: readonly ObjectiveRow[]
+  workLines?: readonly WorkLineRow[]
+  labels?: TaskFieldLabels
+  /** Locale-resolved chrome labels for the full record (LocaleParityContract). */
+  recordLabels?: Partial<TaskRecordLabels>
   /**
    * Only a real task.team_id lookup may populate this value. Omit or pass null while
    * the current mos.tasks row has no team_id (Issue 8 BU→Team re-home dependency).
@@ -97,7 +104,7 @@ function editableSpec(
 
 /** i18n-able labels for the shared Task field builders. Defaults are English so the full
  *  createTaskRecordAdapter and the adapter's own unit tests keep their literals; the LIVE
- *  RecordDetailsPanel passes locale-resolved strings (LocaleParityContract). */
+ *  TaskSurface passes locale-resolved strings (LocaleParityContract). */
 export interface TaskFieldLabels {
   businessUnit: string
   pic: string
@@ -107,6 +114,51 @@ export interface TaskFieldLabels {
   teamFromRecord: string
   teamMigration: string
   dueDate: string
+}
+
+/** i18n-able labels for the FULL Task record adapter's chrome — section titles, the
+ *  catalog/provenance field labels, lifecycle actions, the type eyebrow, and the read-only
+ *  reasons. Defaults are English so the adapter's own unit tests keep their literals; the
+ *  LIVE TaskSurface passes locale-resolved strings (LocaleParityContract). The ownership
+ *  landmark in particular must read "Task ownership" (the oracle's accessible name), NOT a
+ *  bare "Ownership". */
+export interface TaskRecordLabels {
+  typeLabel: string
+  ownershipSection: string
+  statusSection: string
+  detailsSection: string
+  statusField: string
+  descriptionField: string
+  projectProcessField: string
+  objectiveField: string
+  sourceField: string
+  sourceAdHoc: string
+  /** Visible null-indicator for a read-only catalog field with no value (em dash). */
+  noneMarker: string
+  markComplete: string
+  archive: string
+  unarchive: string
+  readOnlyArchived: string
+  readOnlyNoPermission: string
+}
+
+const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
+  typeLabel: 'Task',
+  ownershipSection: 'Task ownership',
+  statusSection: 'Status',
+  detailsSection: 'Task details',
+  statusField: 'Status',
+  descriptionField: 'Description',
+  projectProcessField: 'Project/Process',
+  objectiveField: 'Objective',
+  sourceField: 'Source',
+  sourceAdHoc: 'Ad hoc',
+  noneMarker: '—',
+  markComplete: 'Mark complete',
+  archive: 'Archive task',
+  unarchive: 'Unarchive',
+  readOnlyArchived: 'This task is archived',
+  readOnlyNoPermission: "You don't have permission to edit this task.",
 }
 
 const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
@@ -276,15 +328,15 @@ export function createTaskFieldCommit(
 }
 
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
-  const { detail, viewerId, isManager, people, businessUnits, team } = input
+  const { detail, viewerId, isManager, people, businessUnits, objectives = [], workLines = [], team } = input
+  const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
+  const L = { ...DEFAULT_TASK_RECORD_LABELS, ...input.recordLabels }
   const task = detail.task
   const archived = task.archived_at !== null
   const editable = canEdit(task, viewerId, isManager) && !archived
   const canArchiveTask = canArchive(task, viewerId, isManager)
 
-  const readOnlyReason = archived
-    ? 'This task is archived'
-    : "You don't have permission to edit this task."
+  const readOnlyReason = archived ? L.readOnlyArchived : L.readOnlyNoPermission
 
   const editSpec = (spec: Omit<RecordFieldSpec, 'editable'>): RecordFieldSpec => ({
     ...spec,
@@ -292,49 +344,78 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     readOnlyReason: editable ? undefined : readOnlyReason,
   })
 
+  // Ownership landmark — Business Unit · PIC · Supervisor · Due (Due lives with ownership,
+  // matching the live panel; the oracle's accessible name is "Task ownership"). Team stays
+  // gated off until Issue 8's real team_id contract (§Task-11).
   const ownership: RecordMetadataSection = {
     id: 'ownership',
-    label: 'Ownership',
-    // Team is DISTINCT from Business Unit and read-only in Issue 5 (no task.team_id write path
-    // yet — Issue 8): a real lookup shows its label, absence shows the honest migration state.
-    fields: ownershipFields(task, editable, readOnlyReason, people, businessUnits, team),
+    label: L.ownershipSection,
+    fields: [
+      ...ownershipFields(task, editable, readOnlyReason, people, businessUnits, team, labels),
+      dueField(task, editable, readOnlyReason, labels.dueDate),
+    ],
   }
 
-  const lifecycle: RecordMetadataSection = {
-    id: 'lifecycle',
-    label: 'Lifecycle',
+  // Status — the lifecycle control; a single prominent field so it stays above the fold.
+  const statusSection: RecordMetadataSection = {
+    id: 'status',
+    label: L.statusSection,
     fields: [
       editSpec({
         key: 'status',
-        label: 'Status',
+        label: L.statusField,
         control: 'status',
         value: task.status,
         displayValue: task.status,
         options: TASK_STATUSES.map((s) => ({ value: s, label: s })),
       }),
-      dueField(task, editable, readOnlyReason),
     ],
   }
 
+  // Catalog attribution + provenance. Title is NOT re-listed here: the RecordViewer identity
+  // header already owns the record-name heading (no-duplicate-h1 / ViewerIdentitySuppression
+  // contract), so a Title field would render the same name twice. Source is a read-only DERIVED
+  // provenance summary (parent work-line · objective · honest "Ad hoc") — distinct from the
+  // editable Project/Process and Objective selects that source it.
+  const workLineName = workLines.find((row) => row.id === task.work_line_id)?.name ?? null
+  const objectiveName = objectives.find((row) => row.id === task.objective_id)?.name ?? null
   const details: RecordMetadataSection = {
     id: 'details',
-    label: 'Details',
+    label: L.detailsSection,
     fields: [
       editSpec({
-        key: 'title',
-        label: 'Title',
-        control: 'text',
-        value: task.title,
-        displayValue: task.title,
-        required: true,
-      }),
-      editSpec({
         key: 'description',
-        label: 'Description',
+        label: L.descriptionField,
         control: 'textarea',
         value: task.description,
-        displayValue: task.description ?? 'No description',
+        displayValue: task.description ?? L.noneMarker,
       }),
+      editSpec({
+        key: 'projectProcess',
+        label: L.projectProcessField,
+        control: 'relation',
+        value: task.work_line_id,
+        displayValue: workLineName ?? L.noneMarker,
+        options: [{ value: '', label: L.noneMarker }, ...workLines.map((row) => ({ value: row.id, label: row.name }))],
+      }),
+      editSpec({
+        key: 'objective',
+        label: L.objectiveField,
+        control: 'relation',
+        value: task.objective_id,
+        displayValue: objectiveName ?? L.noneMarker,
+        options: [{ value: '', label: L.noneMarker }, ...objectives.map((row) => ({ value: row.id, label: row.name }))],
+      }),
+      // Source/provenance — read-only derived summary (never editable; it mirrors the selects).
+      {
+        key: 'source',
+        label: L.sourceField,
+        control: 'text',
+        value: task.work_line_id ?? task.objective_id ?? null,
+        displayValue: workLineName ?? objectiveName ?? L.sourceAdHoc,
+        editable: false,
+        readOnlyReason: undefined,
+      },
     ],
   }
 
@@ -348,21 +429,21 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   const allowedActionIds: string[] = []
   if (archived) {
     if (canArchiveTask) {
-      actions.push({ id: 'unarchive', label: 'Unarchive', intent: 'secondary', run: input.onUnarchive })
+      actions.push({ id: 'unarchive', label: L.unarchive, intent: 'secondary', run: input.onUnarchive })
       allowedActionIds.push('unarchive')
     }
   } else {
     if (editable) {
       actions.push({
         id: 'complete',
-        label: 'Mark complete',
+        label: L.markComplete,
         intent: 'primary',
         run: () => input.onUpdateStatus('Done'),
       })
       allowedActionIds.push('complete')
     }
     if (canArchiveTask) {
-      actions.push({ id: 'archive', label: 'Archive', intent: 'secondary', run: input.onArchive })
+      actions.push({ id: 'archive', label: L.archive, intent: 'secondary', run: input.onArchive })
       allowedActionIds.push('archive')
     }
   }
@@ -371,8 +452,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     kind: 'task',
     id: task.id,
     title: task.title,
-    typeLabel: 'Task',
-    metadata: [ownership, lifecycle, details],
+    typeLabel: L.typeLabel,
+    metadata: [ownership, statusSection, details],
     relations: [],
     contentSlots: [
       {

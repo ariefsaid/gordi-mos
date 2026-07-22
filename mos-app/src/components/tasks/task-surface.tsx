@@ -18,10 +18,10 @@ import { listWorkLines } from '@/lib/db/work-lines'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
-import { canEdit, canArchive } from './task-permissions'
-import { TaskDrawerHeader } from './task-drawer-header'
-import { RecordDetailsPanel } from './record-details-panel'
-import type { TaskViewerFieldKey } from './task-record-adapter'
+import { canEdit } from './task-permissions'
+import { createTaskRecordAdapter, createTaskFieldCommit, type TaskViewerFieldKey } from './task-record-adapter'
+import { RecordViewer } from '@/components/records/record-viewer'
+import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { RecordFeed } from './record-feed'
 import type { FeedTab } from './record-feed'
 import { useTabMemory } from './use-tab-memory'
@@ -190,13 +190,6 @@ function ViewSurface({
     if (localTask && onTitleResolved) onTitleResolved(localTask.title)
   }, [localTask, onTitleResolved])
 
-  // ── Lookup maps ─────────────────────────────────────────────────────────
-  const buMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const bu of busDirectory) m.set(bu.id, bu.name)
-    return m
-  }, [busDirectory])
-
   // ── Permission ───────────────────────────────────────────────────────────
   // M2: archived task is read-only except Unarchive — treat as non-editor
   const isArchived = localTask?.archived_at != null
@@ -205,11 +198,6 @@ function ViewSurface({
     if (isArchived) return false // M2: archived suppresses all edit affordances
     return localTask ? canEdit(localTask, viewerId, isManager) : false
   }, [localTask, viewerId, isManager, isArchived])
-
-  const archiveable = useMemo(() => localTask
-    ? canArchive(localTask, viewerId, isManager)
-    : false,
-  [localTask, viewerId, isManager])
 
   // ── Status change ────────────────────────────────────────────────────────
   async function handleStatusChange(newStatus: TaskStatus) {
@@ -291,35 +279,91 @@ function ViewSurface({
     onDirtyChange?.(dirty)
   }, [onDirtyChange])
 
-  // ── Work-line change (D4) ────────────────────────────────────────────────
-  async function handleWorkLineChange(workLineId: string | null) {
-    if (!localTask) return
-    const prev = { ...localTask }
-    setLocalTask(t => t ? { ...t, work_line_id: workLineId } : t)
-    try {
-      await updateTaskFields(localTask.id, { work_line_id: workLineId }, viewerId)
-      await refetchEvents(localTask.id)
-      announce(t('tasks.feedback.workLineUpdated'))
-    } catch {
-      setLocalTask(prev)
-      announce(ROLLBACK_MSG)
+  // The live Task surface uses the same RecordViewer anatomy in panel and page modes.
+  // Domain-specific work remains a typed content slot (the existing Activity/Checklist/Notes
+  // feed); identity, metadata, lifecycle, and actions are supplied by the real Task adapter.
+  // The handler declarations below are intentionally omitted from this dependency list. Every
+  // value captured by those handlers (task, checklist, comments, viewer, locale, and callbacks)
+  // is already listed, so the adapter is rebuilt whenever any captured state changes without
+  // turning the RecordField tree into a new draft baseline on unrelated renders.
+  const taskViewerAdapter = useMemo<RecordViewerAdapter | null>(() => {
+    if (!data || !localTask) return null
+    const base = createTaskRecordAdapter({
+      detail: { ...data, task: localTask, checklist: localChecklist },
+      viewerId,
+      isManager,
+      people: peopleDirectory,
+      businessUnits: busDirectory,
+      objectives: objectivesDir,
+      workLines: workLinesDir,
+      labels: {
+        businessUnit: t('tasks.field.businessUnit'),
+        pic: t('tasks.pic'),
+        supervisor: t('tasks.supervisor'),
+        team: t('tasks.team'),
+        teamUnassigned: t('tasks.field.teamUnassigned'),
+        teamFromRecord: t('tasks.field.teamFromRecord'),
+        teamMigration: t('tasks.field.teamMigration'),
+        dueDate: t('tasks.dueLabel'),
+      },
+      recordLabels: {
+        typeLabel: t('tasks.label.task'),
+        ownershipSection: t('tasks.ownership'),
+        statusSection: t('tasks.status.label'),
+        detailsSection: t('tasks.detailsTitle'),
+        statusField: t('tasks.status.label'),
+        descriptionField: t('tasks.create.description'),
+        projectProcessField: t('tasks.filter.projectProcess'),
+        objectiveField: t('tasks.objective'),
+        sourceField: t('tasks.source'),
+        sourceAdHoc: t('tasks.adHoc'),
+        noneMarker: '—',
+        markComplete: t('tasks.markComplete'),
+        archive: t('tasks.archive'),
+        unarchive: t('tasks.unarchive'),
+        readOnlyArchived: t('tasks.field.readOnlyArchived'),
+        readOnlyNoPermission: t('tasks.field.readOnlyNoPermission'),
+      },
+      onUpdateField: handleUpdateField,
+      onUpdateStatus: handleStatusChange,
+      onArchive: async () => { setShowConfirm(true) },
+      onUnarchive: handleUnarchive,
+    })
+    const feedSlot: RecordContentSlot = {
+      id: 'feed',
+      label: 'Updates',
+      render: () => (
+        <RecordFeed
+          task={localTask}
+          checklist={localChecklist}
+          events={data.events}
+          comments={comments}
+          people={peopleDirectory}
+          now={now}
+          editable={editable}
+          viewerId={viewerId}
+          activeTab={feedTab}
+          onSelectTab={setFeedTab}
+          onAddChecklist={handleAddChecklist}
+          onToggleChecklist={handleToggle}
+          onReorderChecklist={handleReorder}
+          onDeleteChecklist={handleDeleteChecklist}
+          onPostComment={handlePostComment}
+        />
+      ),
     }
-  }
+    return { ...base, contentSlots: [feedSlot], activity: [] }
+  // Handler identities are intentionally excluded; their captured state is represented above.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    data, localTask, localChecklist, viewerId, isManager, peopleDirectory, busDirectory,
+    objectivesDir, workLinesDir, comments, now, editable, feedTab, setFeedTab, t,
+  ])
 
-  // ── Objective change (D4) ────────────────────────────────────────────────
-  async function handleObjectiveChange(objectiveId: string | null) {
-    if (!localTask) return
-    const prev = { ...localTask }
-    setLocalTask(t => t ? { ...t, objective_id: objectiveId } : t)
-    try {
-      await updateTaskFields(localTask.id, { objective_id: objectiveId }, viewerId)
-      await refetchEvents(localTask.id)
-      announce(t('tasks.feedback.objectiveUpdated'))
-    } catch {
-      setLocalTask(prev)
-      announce(ROLLBACK_MSG)
-    }
-  }
+  const commitField = createTaskFieldCommit({
+    onUpdateField: handleUpdateField,
+    onUpdateStatus: handleStatusChange,
+  })
 
   // ── Checklist add ────────────────────────────────────────────────────────
   async function handleAddChecklist(label: string) {
@@ -411,11 +455,6 @@ function ViewSurface({
     } catch { /* surface */ }
   }
 
-  async function handleMarkComplete() {
-    if (!localTask || localTask.status === 'Done') return
-    await handleStatusChange('Done')
-  }
-
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
 
@@ -435,97 +474,77 @@ function ViewSurface({
   }
 
   const task = localTask
-  const buName = buMap.get(task.business_unit_id) ?? task.business_unit_id
-  const events = data?.events ?? []
-  const checklistDone = localChecklist.filter(i => i.is_done).length
 
-  // ── Drawer width: pinned header + tabs + pinned foot (Variant B) ──────────
+  // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host
+  // does not supply onOpenPage (the expand toggle promotes in place); a tenant opened from
+  // another surface (Inbox/Follow-ups via the OverlayHostSlot) supplies it explicitly. In panel
+  // mode without an explicit callback we fall back to the canonical task page route.
+  const openPageTarget = presentation === 'panel'
+    ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
+    : undefined
+  const closeTarget = () => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))
+
+  // ── Drawer width: the shared RecordViewer owns identity, metadata, content and actions ──
   if (width === 'drawer') {
     return (
       <div className={expanded ? 'dw-surface dw-surface-expanded' : 'dw-surface'}>
         <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
-        <TaskDrawerHeader
-          task={task}
-          buName={buName}
-          people={peopleDirectory}
-          editable={editable}
-          archiveable={archiveable}
-          expanded={Boolean(expanded)}
-          now={now}
-          onStatusChange={handleStatusChange}
-          onMarkComplete={handleMarkComplete}
-          onOpenPage={presentation === 'panel'
-            ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
-            : undefined}
-          onExpandToggle={() => onExpandToggle?.()}
-          onClose={() => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))}
-          onArchive={() => setShowConfirm(true)}
-          showUtility={showPanelUtility}
-        />
-
+        {/* Utility bar — host-owned chrome around the canonical RecordViewer (NOT the old
+            TaskDrawerHeader composition: identity/status/ownership/actions live in the viewer).
+            Open full page · Expand to full width · Close. Suppressed when the overlay host owns
+            its own chrome (showPanelUtility=false). */}
+        {showPanelUtility && (
+          <div className="dw-bar">
+            <span className="dw-crumb-mini">{expanded ? t('tasks.fullWidth') : t('tasks.label.task')}</span>
+            <span className="dw-bar-spacer" />
+            {openPageTarget && (
+              <button type="button" className="dw-open-page" onClick={openPageTarget}>
+                {t('tasks.openFullPage')}
+              </button>
+            )}
+            <button
+              type="button"
+              className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
+              aria-pressed={Boolean(expanded)}
+              aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
+              title={expanded ? t('tasks.collapse') : t('tasks.expand')}
+              onClick={() => onExpandToggle?.()}
+            >
+              {expanded ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              className="dw-iconbtn"
+              aria-label={t('tasks.close')}
+              title={t('tasks.close')}
+              onClick={closeTarget}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        )}
         {isArchived && (
           <div className="archived-banner" role="status">
             <span>{t('tasks.archivedBanner')}</span>
-            {archiveable && (
-              <button type="button" className="btn-outline-sm" onClick={handleUnarchive}>
-                {t('tasks.unarchive')}
-              </button>
-            )}
           </div>
         )}
 
-        {/* AC-R06: the same two-column anatomy, compressed — the compact details
-            panel stacked above the tabbed feed. */}
-        <div className="dw-tabpane">
-          <RecordDetailsPanel
-            task={task}
-            buName={buName}
-            people={peopleDirectory}
-            businessUnits={busDirectory}
-            editable={editable}
-            viewerId={viewerId}
-            checklistCount={[checklistDone, localChecklist.length]}
-            objectives={objectivesDir}
-            workLines={workLinesDir}
-            compact
-            onStatusChange={handleStatusChange}
-            onUpdateField={handleUpdateField}
+        {taskViewerAdapter && (
+          <RecordViewer
+            adapter={taskViewerAdapter}
+            mode="panel"
+            headingLevel={2}
             onDirtyChange={handleDirtyChange}
-            onMarkComplete={handleMarkComplete}
-            onWorkLineChange={handleWorkLineChange}
-            onObjectiveChange={handleObjectiveChange}
+            onCommitField={commitField}
           />
-          <RecordFeed
-            task={task}
-            checklist={localChecklist}
-            events={events}
-            comments={comments}
-            people={peopleDirectory}
-            now={now}
-            editable={editable}
-            viewerId={viewerId}
-            activeTab={feedTab}
-            onSelectTab={setFeedTab}
-            onAddChecklist={handleAddChecklist}
-            onToggleChecklist={handleToggle}
-            onReorderChecklist={handleReorder}
-            onDeleteChecklist={handleDeleteChecklist}
-            onPostComment={handlePostComment}
-          />
-        </div>
-
-        {/* Pinned foot — Archive always reachable (collapsed only; expanded shows it in the header) */}
-        {archiveable && !isArchived && !expanded && (
-          <div className="dw-foot">
-            <button
-              type="button"
-              className="btn-ghost-danger"
-              aria-label={t('tasks.archive')}
-              onClick={() => setShowConfirm(true)}
-            >
-              {t('tasks.archive')}
-            </button>
-          </div>
         )}
 
         {showConfirm && (
@@ -548,7 +567,7 @@ function ViewSurface({
           expand control stays reversible (collapse back to split) and the surface
           is never a dead end. A standalone full-page route host would pass neither
           and render no chrome bar. (AC-R06 / IxD: post-action feedback + next step.) */}
-      {(onExpandToggle || onClose) && (
+      {showPanelUtility && (onExpandToggle || onClose) && (
         <div className="dw-bar record-chrome">
           <span className="dw-crumb-mini">{t('tasks.fullWidth')}</span>
           <span className="dw-bar-spacer" />
@@ -584,73 +603,18 @@ function ViewSurface({
       {isArchived && (
         <div className="archived-banner" role="status">
           <span>{t('tasks.archivedBanner')}</span>
-          {archiveable && (
-            <button type="button" className="btn-outline-sm" onClick={handleUnarchive}>
-              {t('tasks.unarchive')}
-            </button>
-          )}
         </div>
       )}
 
-      {/* Record actions — Archive stays reachable above the columns (the panel
-          owns identity/status, the feed owns the activity; archive is the one
-          consequential action and lives in a quiet action row). */}
-      {archiveable && !isArchived && (
-        <div className="record-actions" role="group" aria-label={t('tasks.actions')}>
-          <button
-            type="button"
-            className="btn-ghost"
-            aria-label={t('tasks.archive')}
-            onClick={() => setShowConfirm(true)}
-          >
-            {t('tasks.archive')}
-          </button>
-        </div>
-      )}
-
-      <div className="record-2col">
-        {/* LEFT — details panel (~332px) */}
-        <RecordDetailsPanel
-          task={task}
-          buName={buName}
-          people={peopleDirectory}
-          businessUnits={busDirectory}
-          editable={editable}
-          viewerId={viewerId}
-          identityHeadingLevel={identityHeadingLevel}
-          checklistCount={[checklistDone, localChecklist.length]}
-          objectives={objectivesDir}
-          workLines={workLinesDir}
-          onStatusChange={handleStatusChange}
-          onUpdateField={handleUpdateField}
+      {taskViewerAdapter && (
+        <RecordViewer
+          adapter={taskViewerAdapter}
+          mode="page"
+          headingLevel={identityHeadingLevel ?? 1}
           onDirtyChange={handleDirtyChange}
-          onMarkComplete={handleMarkComplete}
-          onWorkLineChange={handleWorkLineChange}
-          onObjectiveChange={handleObjectiveChange}
+          onCommitField={commitField}
         />
-
-        {/* RIGHT — tabbed feed (Activity / Checklist / Notes); min-width:0 so
-            long notes wrap inside the column, never widen the grid (Appendix A). */}
-        <div className="record-feed-col" style={{ minWidth: 0 }}>
-          <RecordFeed
-            task={task}
-            checklist={localChecklist}
-            events={events}
-            comments={comments}
-            people={peopleDirectory}
-            now={now}
-            editable={editable}
-            viewerId={viewerId}
-            activeTab={feedTab}
-            onSelectTab={setFeedTab}
-            onAddChecklist={handleAddChecklist}
-            onToggleChecklist={handleToggle}
-            onReorderChecklist={handleReorder}
-            onDeleteChecklist={handleDeleteChecklist}
-            onPostComment={handlePostComment}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Archive confirm */}
       {showConfirm && (

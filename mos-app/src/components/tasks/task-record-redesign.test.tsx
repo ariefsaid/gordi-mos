@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '@/auth/context'
 import type { AuthState } from '@/auth/context'
@@ -114,7 +114,8 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByText('Supervisor')).toBeInTheDocument()
     expect(screen.getByLabelText('Supervisor')).toHaveValue(SUPERVISOR_ID)
     expect(screen.getByText('Source')).toBeInTheDocument()
-    expect(screen.getByText('Today opening')).toBeInTheDocument()
+    const sourceField = document.querySelector('[data-field-key="source"]') as HTMLElement
+    expect(within(sourceField).getByText('Today opening')).toBeInTheDocument()
     // Due date renders as a native <input type="date"> (its value is the ISO date in the attribute,
     // not visible text). Assert via the labeled control's value, matching the PIC/Supervisor pattern.
     expect(screen.getByLabelText('Due')).toHaveValue('2026-07-20')

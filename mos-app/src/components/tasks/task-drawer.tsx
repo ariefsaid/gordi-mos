@@ -125,9 +125,9 @@ function BreadcrumbTitleSync({ title }: { title: string }) {
  * the dual modal regime (≥1100px non-modal <aside> split / <1100px role=dialog
  * aria-modal sheet), the .drawer shell, the focus contract, Esc, and return-focus.
  * This drawer keeps only the task-specific plumbing (param, expand pref, breadcrumb
- * title, close target) and passes the TaskSurface through — the Task keeps its own
- * rich header (TaskDrawerHeader) inside the content, so extraction is behaviour-
- * neutral (FR-2: every existing task-drawer test passes unmodified).
+ * title, close target) and passes the chrome-free TaskSurface through. The shared host
+ * owns the title, Open-full-page, expand/collapse, Close, Esc, and focus grammar; the
+ * RecordViewer owns the Task identity, metadata, content, and actions.
  */
 export function TaskDrawer({ mode }: TaskDrawerProps) {
   const { taskId } = useParams<{ taskId: string }>()
@@ -145,6 +145,25 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
 
   const close = () => navigate({ pathname: '/work/tasks', search: location.search })
   const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
+  const openPage = mode === 'view' && taskId
+    ? () => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } })
+    : undefined
+  const hostActions = mode === 'view' ? (
+    <button
+      type="button"
+      className="record-panel-btn"
+      aria-pressed={expanded}
+      aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
+      title={expanded ? t('tasks.collapse') : t('tasks.expand')}
+      onClick={() => setExpanded(value => !value)}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        {expanded
+          ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+          : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />}
+      </svg>
+    </button>
+  ) : undefined
 
   // ADR-0013 D3 / AC-R06: the expand control PROMOTES the surface to the full-width
   // two-column record page — but only where there's room for two columns (the split
@@ -170,6 +189,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         onTaskCreated={ctx?.onTaskCreated}
         onTaskArchived={ctx?.onTaskArchived}
         onTitleResolved={setResolvedTitle}
+        showPanelUtility={false}
       />
     </>
   )
@@ -180,6 +200,9 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
       onClose={close}
       expanded={expanded}
       focusKey={`${taskId ?? mode}-${mode}`}
+      title={label}
+      actions={hostActions}
+      onOpenPage={openPage}
     >
       {surface}
     </RecordPanelHost>

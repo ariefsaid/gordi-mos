@@ -89,3 +89,30 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Shared E7 result-header (OD-REDESIGN-72/79): one quiet status line framing every collection
+   result region with the collection context, the active view, and the result count. Tasks and
+   Signals pass the same three fields so each reads as one family. DESIGN.md tokens only. */
+.record-collection-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.record-collection-result__collection {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.record-collection-result__view {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+}
+.record-collection-result__count {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}

@@ -78,6 +78,15 @@
   background: var(--border);
 }
 
+/* E7/pre-E7 salvage (OD-REDESIGN-72/79): a visible label for the single saved-view axis, so
+   presets and user views read as one intentional control rather than unlabeled chips. */
+.collection-toolbar__views-label {
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .collection-toolbar__query {
   display: flex;
   align-items: center;

@@ -248,6 +248,45 @@ describe('RecordCollectionSurface', () => {
   })
 })
 
+describe('OD-REDESIGN-72/79: shared result-header framing', () => {
+  it('renders the collection label, the active view label, and the result count when provided', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await ready(c)
+    render(
+      <RecordCollectionSurface
+        controller={c}
+        {...chrome}
+        resultHeader={{ collectionLabel: 'Tasks', viewLabel: 'Overdue', count: 3 }}
+      />,
+    )
+    const header = screen.getByTestId('collection-result-header')
+    expect(header).toHaveTextContent('Tasks')
+    expect(header).toHaveTextContent('Overdue')
+    expect(header).toHaveTextContent('3 results')
+  })
+
+  it('omits the result header when not provided (legacy callers opt in)', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await ready(c)
+    render(<RecordCollectionSurface controller={c} {...chrome} />)
+    expect(screen.queryByTestId('collection-result-header')).not.toBeInTheDocument()
+  })
+
+  it('shows an honest placeholder while the count is still unknown', () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    // Render before the load resolves — the loading region still names the collection + view.
+    render(
+      <RecordCollectionSurface
+        controller={c}
+        {...chrome}
+        resultHeader={{ collectionLabel: 'Signals', viewLabel: 'All', count: null }}
+      />,
+    )
+    expect(screen.getByTestId('collection-result-header')).toHaveTextContent('Signals')
+    expect(screen.getByTestId('collection-result-header')).toHaveTextContent('—')
+  })
+})
+
 describe('NFR-V3-006: selection chrome meets the 44px keyboard target', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/components/record-collection/record-collection.css'), 'utf8')
 

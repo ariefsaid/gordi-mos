@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -276,11 +276,11 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // table row shows the Open status tag initially (soft Tag, .mk-tag)
     const row = () => document.querySelector('tr.task-row.row-selected')
     expect(row()?.querySelector('.mk-tag')?.textContent).toContain('Open')
-    // change status in the drawer header (scope to the status popover listbox,
-    // not the toolbar Status <select> which also has a "Blocked" option)
-    fireEvent.click(screen.getByRole('button', { name: /change status/i }))
-    const listbox = screen.getByRole('listbox', { name: /select status/i })
-    fireEvent.click(within(listbox).getByRole('option', { name: 'Blocked' }))
+    // The shared RecordViewer exposes the status as the same labelled Select in
+    // panel and page modes; scope to the record panel, not the collection toolbar.
+    const drawer = screen.getByRole('complementary', { name: /task detail/i })
+    const status = drawer.querySelector('[data-field-key="status"] select') as HTMLSelectElement
+    fireEvent.change(status, { target: { value: 'Blocked' } })
     await waitFor(() => {
       const pill = row()?.querySelector('.mk-tag')
       expect(pill?.textContent).toContain('Blocked')
@@ -365,9 +365,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => {
       expect(document.querySelector('.split.expanded')).toBeTruthy()
     })
-    // and the surface itself promotes to the full-width two-column record page
-    // (ADR-0013 D3 / AC-R06: expanded@split mounts .record-2col, not the compact stack).
-    expect(document.querySelector('.record-2col')).toBeTruthy()
+    // and the surface itself promotes to the full-width shared RecordViewer page.
+    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     expect(document.querySelector('.dw-surface')).toBeNull()
   })
 
@@ -558,8 +557,8 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByRole('region', { name: /tasks/i })).toBeNull()
     expect(document.querySelector('.split')).toBeNull()
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
-    // The full-width two-column record anatomy mounts.
-    expect(document.querySelector('.record-2col')).toBeTruthy()
+    // The full-width shared RecordViewer anatomy mounts.
+    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     // presentation="page" → no "Open full page" escalation (already on the page).
     expect(screen.queryByRole('button', { name: /open full page/i })).toBeNull()
   })
@@ -571,7 +570,7 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     // The drawer mounts beside a still-mounted table — the load-bearing split-view win.
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
-    expect(document.querySelector('.record-2col')).toBeNull()
+    expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
     // And the panel offers the escalation to the full page.
     expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
   })
@@ -600,9 +599,9 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByText('Focused record')).toBeNull()
 
     // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
-    expect(document.querySelector('.rd-id-sub')?.textContent).toContain('Kitchen')
+    expect(screen.getByDisplayValue('Kitchen')).toBeInTheDocument()
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
-    expect(document.querySelector('.record-2col')).toBeTruthy()
+    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
   })
 
   it('Focused record family: the shell shows the loading state before the title resolves', () => {

@@ -164,7 +164,9 @@ export function createSignalRecordAdapter(input: SignalRecordAdapterInput): Reco
   return {
     kind: 'signal',
     id: signal.id,
-    title: deriveTitle(signal.body),
+    // The shared identity header is the Signal's primary title in the live viewer. Keep the
+    // factual body intact here; table cells still use the truncated presentation title.
+    title: signal.body,
     typeLabel: 'Signal',
     eyebrow: signal.attention,
     metadata: [context],

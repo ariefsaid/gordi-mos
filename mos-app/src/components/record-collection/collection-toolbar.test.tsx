@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { CollectionToolbar } from './collection-toolbar'
@@ -145,5 +145,54 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /save view/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/soon/i)).not.toBeInTheDocument()
+  })
+
+  it('OD-REDESIGN-72/79: labels the single view axis with a visible "Saved view" label', () => {
+    render(
+      <I18nProvider>
+        <CollectionToolbar
+          presentation={{
+            label: 'Presentation', value: 'table',
+            options: [{ value: 'table', label: 'Table' }], onChange: vi.fn(),
+          }}
+          views={{
+            label: 'Views', value: 'all',
+            options: [{ value: 'all', label: 'All' }, { value: 'attention', label: 'Needs attention' }],
+            onChange: vi.fn(),
+          }}
+          savedViews={{
+            label: 'Saved views', selectedId: null, operation: 'idle',
+            items: [{ id: 'mine', name: 'My view' }], onApply: vi.fn(),
+            onSave: vi.fn().mockResolvedValue(undefined),
+          }}
+        />
+      </I18nProvider>,
+    )
+
+    // The saved-view chips sit on the same single view axis as the presets and are visibly
+    // labeled as a group — the E7/pre-E7 salvage anatomy, not unlabeled chips.
+    const group = screen.getByRole('group', { name: 'Views' })
+    expect(within(group).getByText('Saved view')).toBeInTheDocument()
+    expect(within(group).getByRole('button', { name: 'My view' })).toBeInTheDocument()
+  })
+
+  it('keeps the Saved view label when there are no user-saved views', () => {
+    render(
+      <I18nProvider>
+        <CollectionToolbar
+          presentation={{
+            label: 'Presentation', value: 'table',
+            options: [{ value: 'table', label: 'Table' }], onChange: vi.fn(),
+          }}
+          views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+          savedViews={{
+            label: 'Saved views', selectedId: null, operation: 'idle',
+            items: [], onApply: vi.fn(), onSave: vi.fn().mockResolvedValue(undefined),
+          }}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByText('Saved view')).toBeInTheDocument()
   })
 })

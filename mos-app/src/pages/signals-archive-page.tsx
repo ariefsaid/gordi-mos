@@ -56,6 +56,13 @@ export function SignalsArchivePage() {
   const projection = controller.state.projection
   const context = controller.state.data?.context
 
+  // The active Signals view as a readable label — shared by the result header and the phone
+  // "View & filters" disclosure summary so the two never drift (OD-REDESIGN-72/79 convergence).
+  const signalViewLabel = (view: SignalCollectionQuery['view']) =>
+    view === 'needs-attention' ? t('signals.archive.viewAttention')
+      : view === 'retracted' ? t('signals.archive.viewRetracted')
+        : t('signals.archive.viewAll')
+
   function setQuery(patch: Partial<SignalCollectionQuery>) {
     controller.setQuery({ ...query, ...patch })
   }
@@ -274,7 +281,7 @@ export function SignalsArchivePage() {
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
       label={t('signals.archive.viewAndFilters')}
-      summary={query.view === 'needs-attention' ? t('signals.archive.viewAttention') : t('signals.archive.viewAll')}
+      summary={signalViewLabel(query.view)}
       panelId="mobile-signal-options-panel"
       className="collection-mobile-options"
       triggerClassName="collection-mobile-options-trigger"
@@ -298,6 +305,11 @@ export function SignalsArchivePage() {
           <div className={`record-collection-view signals-archive-main record-collection-view--${controller.state.presentation}`}>
             <RecordCollectionSurface
               controller={controller}
+              resultHeader={{
+                collectionLabel: t('nav.work.signals'),
+                viewLabel: signalViewLabel(query.view),
+                count: projection ? projection.visibleRecords.length : null,
+              }}
               controls={signalControls}
               empty={{ title: t('signals.archive.empty', { query: query.q }) }}
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}

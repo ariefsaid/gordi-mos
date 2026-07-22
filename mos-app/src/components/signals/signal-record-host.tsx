@@ -184,6 +184,7 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
     <>
       <SignalRecord
         mode={mode}
+        showBody={false}
         signal={signal}
         authorName={personName(people, signal.author_id, t('signals.card.unknownAuthor'))}
         teamName={teamName}
@@ -260,7 +261,6 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
       <RecordViewer
         adapter={wrapSignalRecord(detail, hostContent)}
         mode={mode}
-        showIdentityHeader={false}
       />
     </div>
   )

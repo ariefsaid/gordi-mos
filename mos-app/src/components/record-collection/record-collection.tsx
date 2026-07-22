@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import type { RecordCollectionController } from '@/lib/record-collection/engine'
 import type { CollectionPresentationProps } from '@/lib/record-collection/types'
+import { useT } from '@/i18n/use-t'
 import './record-collection.css'
 
 export interface RecordCollectionSurfaceProps<
@@ -26,8 +27,24 @@ export interface RecordCollectionSurfaceProps<
   filteredEmpty: { title: string; copy?: string; clear: () => void; create?: ReactNode }
   error: { message: string; retry: () => void }
   loadingLabel: string
+  /** Shared E7 result-header framing: collection eyebrow, the active view label, and the result count. */
+  resultHeader?: RecordCollectionResultHeader
   /** Page-level route seam for opening a record while preserving collection URL state. */
   onOpenRecord?: (record: TRecord) => void
+}
+
+/**
+ * Shared result-header contract (OD-REDESIGN-72/79). Tasks and Signals pass the same three
+ * fields so every RecordCollection region reads as one E7 family — the collection context,
+ * the active view, and how many results it currently shows — without collapsing typed models.
+ */
+export interface RecordCollectionResultHeader {
+  /** Quiet eyebrow naming the collection (e.g. "Tasks", "Signals"). */
+  collectionLabel: string
+  /** The active result view (e.g. "All", "Overdue", "Needs attention"). */
+  viewLabel: string
+  /** Visible result count for the active view; null while unknown (loading/error). */
+  count: number | null
 }
 
 export function RecordCollectionSurface<
@@ -41,13 +58,27 @@ export function RecordCollectionSurface<
 >(
   props: RecordCollectionSurfaceProps<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
 ): ReactElement {
-  const { controller, controls, selectionBar, empty, filteredEmpty, error, loadingLabel, onOpenRecord } = props
+  const { controller, controls, selectionBar, empty, filteredEmpty, error, loadingLabel, resultHeader, onOpenRecord } = props
   const { state, descriptor } = controller
+  const t = useT()
+  // One consistent result-header line for every opted-in collection. Rendered in every state
+  // where the collection is framed (all but permission-denied); the count is null-safe so a
+  // loading/error region still shows which collection and view it represents.
+  const header = resultHeader ? (
+    <div className="record-collection-result" data-testid="collection-result-header">
+      <span className="record-collection-result__collection">{resultHeader.collectionLabel}</span>
+      <span className="record-collection-result__view">{resultHeader.viewLabel}</span>
+      <span className="record-collection-result__count tabular-nums">
+        {resultHeader.count === null ? '—' : t('common.resultCount', { count: resultHeader.count })}
+      </span>
+    </div>
+  ) : null
 
   if (state.status === 'loading') {
     return (
       <div className="record-collection" data-collection-status="loading">
         {controls}
+        {header}
         <LoadingShell label={loadingLabel} />
       </div>
     )
@@ -57,6 +88,7 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="error">
         {controls}
+        {header}
         <ErrorState message={error.message} onRetry={error.retry} />
       </div>
     )
@@ -78,6 +110,7 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="empty">
         {controls}
+        {header}
         <EmptyState variant="quiet" title={empty.title} copy={empty.copy}>
           {empty.create}
         </EmptyState>
@@ -89,6 +122,7 @@ export function RecordCollectionSurface<
     return (
       <div className="record-collection" data-collection-status="filtered-empty">
         {controls}
+        {header}
         <EmptyState variant="blank" title={filteredEmpty.title} copy={filteredEmpty.copy}>
           <button type="button" className="record-collection-clear" onClick={filteredEmpty.clear}>
             Clear filters
@@ -138,6 +172,7 @@ export function RecordCollectionSurface<
   return (
     <div className="record-collection" data-collection-status={state.status}>
       {controls}
+      {header}
       {readOnly && (
         <p className="record-collection-readonly" role="status">
           You can view this collection but not edit it.

@@ -42,6 +42,8 @@ export interface LinkedTasksSummary {
 
 export interface SignalRecordProps {
   mode: 'panel' | 'page'
+  /** The shared RecordViewer owns the Signal identity/title when true. */
+  showBody?: boolean
   signal: SignalRow
   authorName: string
   teamName: string
@@ -64,7 +66,7 @@ export interface SignalRecordProps {
 }
 
 export function SignalRecord({
-  mode, signal, authorName, teamName, businessUnitName, siteName,
+  mode, signal, showBody = true, authorName, teamName, businessUnitName, siteName,
   mentions, shieldLine, revisions, acknowledgements, hasAcknowledged, onAcknowledge, onCategorize,
   comments, people, canComment, onPostComment,
   linkedTasksSummary, onCreateFollowUpTask, onLinkExistingTask,
@@ -95,7 +97,7 @@ export function SignalRecord({
         </span>
       </header>
 
-      <p className="signal-record-body">{signal.body}</p>
+      {showBody && <p className="signal-record-body">{signal.body}</p>}
 
       {mentions.length > 0 && (
         <ul className="signal-record-mentions" aria-label={t('signals.record.mentionsLabel')}>
