@@ -75,74 +75,30 @@
   .record-2col { grid-template-columns: 1fr; }
 }
 
-/* ── Left details panel ── */
+/* ── Left details panel ──
+   A plain grid-item wrapper — NOT a bespoke fields panel. It hosts the SAME
+   RecordViewer document (identity/ownership/status-timing/details) used
+   everywhere else, so all spacing/typography comes from record-viewer.css;
+   this rule only owns the two-column divider. */
 .record-details {
   border-right: 1px solid var(--border);
-  padding: 20px; min-width: 0;
-  display: flex; flex-direction: column; gap: 20px;
-  color: var(--foreground); /* themed scope sets its own color (ADR-0013 D2) */
+  min-width: 0;
 }
 @media (max-width: 1099px) {
   .record-details { border-right: 0; border-bottom: 1px solid var(--border); }
 }
-/* Compact (drawer) variant — the drawer chrome is the frame, so drop the panel
-   padding/border; the drawer header owns identity + status. */
+/* Compact (drawer) variant — the drawer chrome is the frame, so there is no
+   second divider; the drawer header owns identity + status. */
 .record-details-compact {
-  border: 0; padding: 0 0 4px; gap: 16px;
+  border: 0;
 }
 
-.rd-identity { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
-.rd-id-av {
-  width: 44px; height: 44px; flex: none;
-  border-radius: var(--radius-md); /* 10px */
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  color: var(--status-open-text);
-  display: grid; place-items: center; font-size: 16px; font-weight: 600;
-}
-.rd-id-text { min-width: 0; }
-.rd-id-name {
-  font-size: 26px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em;
-  color: var(--foreground);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* no-bleed */
-}
-.rd-id-sub {
-  font-size: 15px; color: var(--muted-foreground); margin-top: 4px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* no-bleed */
-}
-
-.rd-section { display: flex; flex-direction: column; gap: 8px; }
-.rd-section-label {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
-  color: var(--muted-foreground); /* label/meta role → muted-foreground (ADR-0013 D2) */
-}
-/* Inside the panel the reused Task ownership card drops its frame (the panel is the frame). */
-.record-details .card {
-  background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
-}
-.record-details .card-h2 { display: none; } /* the section-label already names it */
-
-.rd-fields { display: flex; flex-direction: column; gap: 0; margin: 0; }
-.rd-field {
-  display: flex; align-items: center; min-height: 30px; font-size: 15px; gap: 8px;
-}
-.rd-field-label { width: 96px; flex: none; color: var(--muted-foreground); margin: 0; }
-.rd-field-val { color: var(--foreground); margin: 0; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* D4: inline select value cell — overflow must not clip the select control */
-.rd-field-val-select { overflow: visible; white-space: normal; }
-/* D4: inline select in the details panel — 32px control radius (OD-P3-10) */
-.rd-inline-select {
-  height: 32px; padding: 0 8px;
-  border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px control radius */
-  background: var(--background); font: inherit; font-size: 14px;
-  color: var(--foreground); cursor: pointer; max-width: 100%;
-}
-.rd-inline-select:focus-visible {
-  outline: 2px solid var(--ring); outline-offset: 2px;
-}
-
-/* ── Right tabbed feed ── */
+/* ── Right tabbed feed ──
+   .record-feed-col hosts the SAME feed content slot the RecordViewer would
+   otherwise render inline; drop the slot wrapper's own padding/divider here
+   since RecordFeed (.rf-*) already owns its internal spacing. */
 .record-feed-col { display: flex; flex-direction: column; min-width: 0; }
+.record-feed-col > .record-viewer__section { padding: 0; border-bottom: 0; }
 .record-feed { display: flex; flex-direction: column; min-width: 0; flex: 1;
   color: var(--foreground); }
 .rf-tabs {
@@ -409,18 +365,27 @@
 .tc-label { font-size: 15px; font-weight: 500; color: var(--foreground); }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
-.tc-input, .tc-select, .tc-textarea {
+.tc-input, .tc-textarea {
   width: 100%; height: 36px; padding: 0 12px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
   background: var(--background); font: inherit; font-size: 16px;
   color: var(--foreground);
 }
-.tc-input:focus-visible, .tc-select:focus-visible, .tc-textarea:focus-visible {
+.tc-input:focus-visible, .tc-textarea:focus-visible {
   outline: 2px solid var(--ring); outline-offset: 2px;
 }
 .tc-input-error { border-color: var(--destructive); }
 .tc-textarea { height: auto; padding: 8px 12px; resize: vertical; }
-.tc-select { cursor: pointer; }
+
+/* F2 fix: the shared Select/DateField primitives own their own token chrome (box,
+   chevron/calendar glyph, focus ring); scale their box to this form's 36px/16px
+   field rhythm (same override pattern the record-field__select rule uses to raise
+   Select to the record's 44px floor — see record-viewer.css). */
+.tc-select .mk-select__box { height: 36px; padding: 0 34px 0 12px; }
+.tc-select .mk-select__field { font-size: 16px; }
+.tc-select .mk-select__chevron { right: 10px; }
+.tc-date .mk-date__box { height: 36px; padding: 0 12px; }
+.tc-date .mk-date__display { font-size: 16px; }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
    --status-lost-text). The invalid field's 1px outline (.tc-input-error) and the

@@ -29,6 +29,8 @@ import { useTabMemory } from './use-tab-memory'
 import type { TabKey } from './use-tab-memory'
 import { useT } from '@/i18n/use-t'
 import { CloseIcon } from '@/shell/icons'
+import { Select } from '@/components/ui/select'
+import { DateField } from '@/components/ui/date-field'
 
 // Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
 // persistence). The two stores name the same three panes differently, so map
@@ -556,13 +558,15 @@ function ViewSurface({
         )}
 
         {taskViewerAdapter && (
-          <RecordViewer
-            adapter={taskViewerAdapter}
-            mode="panel"
-            headingLevel={2}
-            onDirtyChange={handleDirtyChange}
-            onCommitField={commitField}
-          />
+          <div className="record-details record-details-compact" data-testid="record-details">
+            <RecordViewer
+              adapter={taskViewerAdapter}
+              mode="panel"
+              headingLevel={2}
+              onDirtyChange={handleDirtyChange}
+              onCommitField={commitField}
+            />
+          </div>
         )}
 
         {showConfirm && (
@@ -576,6 +580,17 @@ function ViewSurface({
   }
 
   // ── Full width: the two-column record page (ADR-0013 D3) ───────────────────
+  // AC-R06: expanded@split promotes to a full-width grid — the LEFT column is
+  // the SAME RecordViewer document (identity/ownership/status-timing/details)
+  // with its feed content slot withheld, and the RIGHT column is that SAME
+  // withheld content slot (the RecordFeed tabs), laid out side by side. This
+  // composes the one canonical viewer; it never reintroduces a bespoke fields
+  // panel (RecordDetailsPanel is deleted and stays deleted).
+  const detailsOnlyAdapter: RecordViewerAdapter | null = taskViewerAdapter
+    ? { ...taskViewerAdapter, contentSlots: [] }
+    : null
+  const feedSlot = taskViewerAdapter?.contentSlots[0]
+
   return (
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
@@ -624,14 +639,25 @@ function ViewSurface({
         </div>
       )}
 
-      {taskViewerAdapter && (
-        <RecordViewer
-          adapter={taskViewerAdapter}
-          mode="page"
-          headingLevel={identityHeadingLevel ?? 1}
-          onDirtyChange={handleDirtyChange}
-          onCommitField={commitField}
-        />
+      {detailsOnlyAdapter && (
+        <div className="record-2col">
+          <div className="record-details" data-testid="record-details">
+            <RecordViewer
+              adapter={detailsOnlyAdapter}
+              mode="page"
+              headingLevel={identityHeadingLevel ?? 1}
+              onDirtyChange={handleDirtyChange}
+              onCommitField={commitField}
+            />
+          </div>
+          <div className="record-feed-col">
+            {feedSlot && (
+              <section className="record-viewer__section" data-viewer-region="content" aria-label={feedSlot.label}>
+                {feedSlot.render({ mode: 'page', readOnly: taskViewerAdapter?.permission.readOnly ?? false })}
+              </section>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Archive confirm */}
@@ -858,14 +884,15 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           {dirLoading ? (
             <div className="tc-loading-field">{t('tasks.loading')}</div>
           ) : (
-            <select
+            <Select
               id="task-bu"
-              className={`tc-select${buError ? ' tc-input-error' : ''}`}
+              className="tc-select"
+              fullWidth
+              error={Boolean(buError)}
               value={businessUnitId}
               onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
               onBlur={validateBuOnBlur}
               aria-required="true"
-              aria-invalid={buError ? 'true' : undefined}
               aria-describedby={buError ? 'bu-err' : undefined}
               disabled={submitting}
               aria-label={t('tasks.team')}
@@ -874,7 +901,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               {busDirectory.map(bu => (
                 <option key={bu.id} value={bu.id}>{bu.name}</option>
               ))}
-            </select>
+            </Select>
           )}
           {buError && (
             <span id="bu-err" role="alert" className="tc-field-error">{buError}</span>
@@ -889,9 +916,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           {dirLoading ? (
             <div className="tc-loading-field">{t('tasks.loading')}</div>
           ) : (
-            <select
+            <Select
               id="task-responsible"
               className="tc-select"
+              fullWidth
               value={responsiblePersonId}
               onChange={e => setResponsiblePersonId(e.target.value)}
               disabled={submitting}
@@ -901,7 +929,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               {peopleDirectory.map(p => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
-            </select>
+            </Select>
           )}
         </div>
 
@@ -913,9 +941,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           {dirLoading ? (
             <div className="tc-loading-field">{t('tasks.loading')}</div>
           ) : (
-            <select
+            <Select
               id="task-accountable"
               className="tc-select"
+              fullWidth
               value={accountablePersonId}
               onChange={e => setAccountablePersonId(e.target.value)}
               disabled={submitting}
@@ -925,7 +954,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               {peopleDirectory.map(p => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
-            </select>
+            </Select>
           )}
         </div>
 
@@ -934,9 +963,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {workLinesDir.length > 0 && (
           <div className="tc-field">
             <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
-            <select
+            <Select
               id="task-workline"
               className="tc-select"
+              fullWidth
               value={workLineId}
               onChange={e => setWorkLineId(e.target.value)}
               disabled={submitting}
@@ -949,7 +979,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
                   {wl.name} ({wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 
@@ -957,9 +987,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         {objectivesDir.length > 0 && (
           <div className="tc-field">
             <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
-            <select
+            <Select
               id="task-objective"
               className="tc-select"
+              fullWidth
               value={objectiveId}
               onChange={e => setObjectiveId(e.target.value)}
               disabled={submitting}
@@ -969,20 +1000,21 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               {objectivesDir.map(obj => (
                 <option key={obj.id} value={obj.id}>{obj.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 
         {/* Due date (optional) */}
         <div className="tc-field">
           <label htmlFor="task-due" className="tc-label">{t('tasks.create.dueDate')}</label>
-          <input
+          <DateField
             id="task-due"
-            type="date"
-            className="tc-input"
+            className="tc-date"
+            fullWidth
             value={dueDate}
-            onChange={e => setDueDate(e.target.value)}
+            onChange={setDueDate}
             disabled={submitting}
+            aria-label={t('tasks.create.dueDate')}
           />
         </div>
 

@@ -9,6 +9,7 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
+import { CloseIcon } from '@/shell/icons'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
@@ -148,21 +149,37 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const openPage = mode === 'view' && taskId
     ? () => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } })
     : undefined
+  // AC-306/AC-309: the host's own ✕ (record.close, no Esc hint) stays generic across every
+  // tenant. Task-specific hostActions add a labelled "Close (Esc)" affordance (extension point,
+  // not a host fork — mirrors the create-mode chrome bar's existing tasks.close button) so a
+  // keyboard/SR user gets an explicit close control that names the Esc shortcut this host already
+  // wires up (both the split and modal regimes close on Escape).
   const hostActions = mode === 'view' ? (
-    <button
-      type="button"
-      className="record-panel-btn"
-      aria-pressed={expanded}
-      aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
-      title={expanded ? t('tasks.collapse') : t('tasks.expand')}
-      onClick={() => setExpanded(value => !value)}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        {expanded
-          ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-          : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />}
-      </svg>
-    </button>
+    <>
+      <button
+        type="button"
+        className="record-panel-btn"
+        aria-pressed={expanded}
+        aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
+        title={expanded ? t('tasks.collapse') : t('tasks.expand')}
+        onClick={() => setExpanded(value => !value)}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          {expanded
+            ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+            : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />}
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="record-panel-btn"
+        aria-label={t('tasks.close')}
+        title={t('tasks.close')}
+        onClick={close}
+      >
+        <CloseIcon />
+      </button>
+    </>
   ) : undefined
 
   // ADR-0013 D3 / AC-R06: the expand control PROMOTES the surface to the full-width
