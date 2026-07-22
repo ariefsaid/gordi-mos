@@ -121,7 +121,7 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > **INBOX PAGE GEOMETRY FOLLOW-UP (2026-07-22, local):** `/inbox` now opens records through the
 > page-owned `OverlayHostSlot owner="inbox"` inside the shared `.record-split`; the bell’s ephemeral
 > quick triage remains `owner="shell"`. The host primitive, 44% track, focus, Escape, and page door are
-> shared. Focused Inbox/host evidence is 50/50 plus typecheck/lint; seeded-notification and handled
+> shared. Focused Inbox/host evidence is 51/51 plus typecheck/lint; seeded-notification and handled
 > semantics remain owner/data-gated.
 
 

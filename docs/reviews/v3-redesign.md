@@ -883,6 +883,10 @@ The current Inbox page also owns an `inbox` collection slot. Its records use the
 shell-owned fixed overlay by design. The old plan-era claim that Inbox always uses only `owner: shell`
 is historical and no longer describes the page route.
 
+Focused Inbox page/connected/door/host evidence is **51/51**, including the page-owned slot assertion;
+typecheck and targeted lint pass. This closes the geometry/host-regime inconsistency at source level,
+but seeded-notification proof and owner rendered three-width acceptance remain open.
+
 ### Responsive collection follow-up — 2026-07-22 (local)
 
 Signals now adopts the same capture-first phone interaction contract as Tasks: one shared

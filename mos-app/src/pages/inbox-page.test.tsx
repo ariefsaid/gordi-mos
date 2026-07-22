@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 
@@ -41,6 +42,18 @@ function renderPage() {
     <I18nProvider>
       <MemoryRouter>
         <InboxPage />
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+function renderHostedPage() {
+  return render(
+    <I18nProvider>
+      <MemoryRouter>
+        <OverlayHostProvider>
+          <InboxPage />
+        </OverlayHostProvider>
       </MemoryRouter>
     </I18nProvider>,
   )
@@ -105,5 +118,14 @@ describe('InboxPage — shared state kit', () => {
     expect(screen.getByRole('list', { name: /inbox/i })).toBeInTheDocument()
     expect(container.querySelector('.content-header')).not.toBeNull()
     expect(container.querySelector('main')?.style.backgroundImage).toBe('')
+  })
+
+  it('AC-V3-002: page-owned Inbox records mount through the inbox collection host slot', () => {
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    renderHostedPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
+    expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
+    expect(document.querySelector('.record-panel-chrome')).toBeTruthy()
   })
 })

@@ -265,3 +265,8 @@ remaining hand-rolled keyboard-activation seam without changing the Signal recor
 The shared Save View editor now restores focus to its trigger on Escape, Cancel, and successful Save;
 the Button primitive forwards refs so this contract is testable. CollectionToolbar focused evidence
 remains green, including the focus-return assertion.
+
+Inbox page records now use a page-owned `owner="inbox"` slot inside the shared `.record-split`, while
+the bell’s ephemeral triage remains `owner="shell"`. The old duplicate Inbox fallback page button was
+removed; host chrome owns canonical promotion. Focused Inbox/host evidence is **51/51** plus typecheck
+and targeted lint. Seeded-notification/handled proof and live three-width acceptance remain open.
