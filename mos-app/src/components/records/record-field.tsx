@@ -120,6 +120,9 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
       escapeCleanupRef.current?.()
       escapeCleanupRef.current = null
       if (!el) return
+      // Widen to HTMLElement so TS resolves the typed 'keydown' overload (the input/textarea
+      // union otherwise falls back to the untyped EventListener signature).
+      const target: HTMLElement = el
       const onCaptureKeyDown = (e: KeyboardEvent) => {
         if (e.key !== 'Escape') return
         // Clean draft → this Escape is the host's close intent; let it propagate.
@@ -128,8 +131,8 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
         e.stopImmediatePropagation()
         cancelRef.current()
       }
-      el.addEventListener('keydown', onCaptureKeyDown, true)
-      escapeCleanupRef.current = () => el.removeEventListener('keydown', onCaptureKeyDown, true)
+      target.addEventListener('keydown', onCaptureKeyDown, true)
+      escapeCleanupRef.current = () => target.removeEventListener('keydown', onCaptureKeyDown, true)
     },
     [],
   )

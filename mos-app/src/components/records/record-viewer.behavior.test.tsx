@@ -70,7 +70,7 @@ function forceSplitWidth() {
 }
 
 function renderInHost(opts: {
-  onClose?: (via: 'explicit-close' | 'escape') => void
+  onClose?: (via?: 'explicit-close' | 'escape') => void
   onDirtyChange?: (dirty: boolean) => void
   onCommitField?: (key: string, value: RecordValue) => Promise<void>
 } = {}) {
