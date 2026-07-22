@@ -65,7 +65,7 @@
 
 Two bounded critics rechecked the live source and the historical owner oracle from the redesign,
 50+ QnA, divergence/convergence, and E7 threads. No Supabase, dev server, or broad test fan-out was
-used. The source guards pass (`v3-live-inventory`: 58 routes / 13 shared jobs / 73 CSS families;
+used. The source guards pass (`v3-live-inventory`: 58 routes / 13 shared jobs / 74 CSS families;
 RecordCollection conformance; Storybook matrix 35/36/3), but those guards do not prove the rendered
 application is one coherent product. The branch remains **NO-SHIP**.
 

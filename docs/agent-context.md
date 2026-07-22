@@ -76,7 +76,8 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > **CURRENT-TIP CRITIC OVERRIDE (2026-07-22, tip `a7eef31`):** A bounded read-only integration
 > UX/IA/IxD pass and a visual/cohesion/Impeccable/Taste-equivalent anti-slop pass rechecked the
 > application against the owner’s verbatim redesign / 50+ QnA / divergence-convergence / E7 oracle.
-> Source guards pass (inventory 58 routes / 13 shared jobs / 73 CSS families; RecordCollection
+> Source guards pass at that baseline (inventory 58 routes / 13 shared jobs / 73 CSS families; the
+> current refreshed inventory is 58 routes / 13 shared jobs / 74 CSS families); RecordCollection
 > conformance; Storybook 35/36/3), but no current computed-style or driven 1280/1024/390 evidence
 > exists. The branch remains **NO-SHIP**. At that audit baseline the highest open gaps included the
 > Task dirty-leave guard not being attached to the live OverlayEntry; the local follow-up below now
