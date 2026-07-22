@@ -32,6 +32,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { DateField } from '@/components/ui/date-field'
 import type { RecordFieldControl, RecordFieldSpec, RecordValue } from './record-viewer.types'
 import './record-viewer.css'
 
@@ -305,12 +306,42 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
             }}
             onBlur={() => void commit(draft, false)}
           />
+        ) : spec.control === 'date' ? (
+          // F2 fix: a bare native <input type="date"> shows the browser's own locale text
+          // ("08/07/2026" — ambiguous) and calendar-icon chrome, clashing with every other
+          // token-styled control in the document. DateField keeps the SAME real native date
+          // input underneath (still the picking mechanism the ref/keyboard/blur handlers below
+          // all act on) but shows an unambiguous "22 Jul 2026" display in front of it.
+          <DateField
+            id={controlId}
+            ref={attachFieldEscapeIsolation}
+            className="record-field__date"
+            autoFocus
+            value={draft}
+            disabled={busy}
+            aria-busy={busy || undefined}
+            aria-required={spec.required || undefined}
+            onChange={(next) => {
+              setDraft(next)
+              reportDirty(next)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void commit(draft, true)
+              }
+              // Escape isolation is owned by the native capture listener attached via
+              // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too late
+              // to shield the host's native listener, so Escape is intentionally NOT handled here.
+            }}
+            onBlur={() => void commit(draft, false)}
+          />
         ) : (
           <input
             id={controlId}
             ref={attachFieldEscapeIsolation}
             autoFocus
-            type={spec.control === 'date' ? 'date' : 'text'}
+            type="text"
             className="record-field__control record-field__control--text"
             value={draft}
             disabled={busy}

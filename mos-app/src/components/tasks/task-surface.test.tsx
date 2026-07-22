@@ -749,6 +749,9 @@ describe('TaskSurface — create mode', () => {
     fireEvent.blur(bu)
     const err = await screen.findByText(/team is required/i)
     expect(err).toHaveAttribute('role', 'alert')
-    expect(bu).toHaveClass('tc-input-error')
+    // F2 fix: Team is now the design-system Select primitive (styled chevron/box,
+    // no native chrome) — its error border lives on the mk-select wrapper (Select.css
+    // .mk-select--error), not on the bare <select> element itself.
+    expect(bu.closest('.mk-select')).toHaveClass('mk-select--error')
   })
 })

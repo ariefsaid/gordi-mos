@@ -167,6 +167,16 @@
   min-height: 44px;
 }
 
+/* F2 fix: same 44px-floor override as the Select primitive above, for the DateField
+ * primitive's date control (record-field.tsx's 'date' control branch). */
+.record-field__date {
+  width: 100%;
+}
+
+.record-field__date .mk-date__box {
+  min-height: 44px;
+}
+
 .record-field__feedback {
   min-height: 18px;
 }
