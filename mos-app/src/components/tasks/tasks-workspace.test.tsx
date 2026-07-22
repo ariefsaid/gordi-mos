@@ -779,6 +779,34 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull())
   })
+
+  // AC-V3-008b — the clean-record half of the dirty-leave contract (I2/I5, brief step 4):
+  // a record with NO uncommitted edit closes on Escape with NO retain/discard dialog.
+  // AC-V3-008 proves the dirty veto via the Close button; this proves the no-dirty close via
+  // Escape through the live host's native keydown listener (the same path Esc always takes).
+  it('AC-V3-008b: a clean record closes on Escape with NO confirm dialog', async () => {
+    const task = makeTask({ id: 'task-clean', title: 'Clean task' })
+    mockListTasks.mockResolvedValue([task])
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderTable()
+
+    await waitFor(() => screen.getByText('Clean task'))
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    const panel = await waitFor(() =>
+      document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement,
+    )
+    // No field edit was made → the record is clean; no dialog is ever shown.
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // Escape reaches the panel's native keydown listener → host.close('escape') → clean commit.
+    fireEvent.keyDown(panel, { key: 'Escape' })
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull(),
+    )
+    // The leave-guard was never consulted (no guard attached while clean) → no dialog.
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 })
 
 describe('Task 14/15 — grouping engine (AC-123, AC-119)', () => {
