@@ -98,11 +98,10 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 
 > **WORKTREE CONSOLIDATION (2026-07-22):** `/Users/ariefsaid/Coding/gordi-mos/.claude/worktrees/v3-redesign`
 > is the canonical V3 consolidation worktree and branch. Clean historical V3/Codex worktrees were
-> removed with `git worktree remove` while their branches were retained. The only retained secondary
-> worktrees are: the primary checkout (`feat/redesign-buildout`, dirty), E7 prototype, UI-polish
-> reference, and five dirty handoff lanes (`docs-consistency-redesign-index-ccebf9`,
-> `v3-auth-control-grammar`, `v3-record-viewer-live`, `v3-signals-frame`, `v3-task-live-migration`).
-> Do not delete or reset those dirty lanes; inspect their status before any future consolidation.
+> removed with `git worktree remove`; superseded dirty lane material was archived outside the repo at
+> `/tmp/gordi-mos-v3-stale-lanes-20260722` and the lane branches were deleted. The only retained
+> worktrees are the primary checkout (`feat/redesign-buildout`, dirty), the E7 prototype, and this
+> canonical V3 worktree. Do not recreate a lane unless it has a named issue and an isolated base.
 > Stale Vite/esbuild processes for `v3-redesign` and `v3-rv-live` were stopped; no Supabase process was
 > started. Untracked browser captures in the canonical worktree remain intentionally excluded from commits.
 
@@ -123,6 +122,14 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > quick triage remains `owner="shell"`. The host primitive, 44% track, focus, Escape, and page door are
 > shared. Focused Inbox/host evidence is 51/51 plus typecheck/lint; seeded-notification and handled
 > semantics remain owner/data-gated.
+
+> **CLEANUP + TEST RESIDUE (2026-07-22):** The canonical branch fixed two stale post-convergence
+> residues: the mobile collection-options trigger now uses the shared outward `+2px` focus ring, and
+> the Inbox bell goal test now names the canonical host action `Open full page`. Focused closure is
+> **71/71** across the cohesion guard, Inbox bell/page/host, Signals, and CollectionToolbar suites;
+> typecheck, changed-file ESLint, and Stylelint are green. The prior single-worker full run reached
+> **3,238 passed / 2 failed**; both failures were these stale expectations/guard and are covered by the
+> focused rerun. A full rerun and rendered owner gate remain intentionally open.
 
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in

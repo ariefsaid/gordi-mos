@@ -95,12 +95,12 @@ describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inbox' }))
     // Open the notification's record — it pushes onto the same host stack.
     fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
-    expect(screen.getByRole('button', { name: /open full record/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
 
     // Internal Back pops the record and returns to the exact triage queue.
     fireEvent.click(screen.getByRole('button', { name: /^Back$/i }))
     expect(screen.getByRole('group', { name: /filter notifications/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /open full record/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /open full page/i })).toBeNull()
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 

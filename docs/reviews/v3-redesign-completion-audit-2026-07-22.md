@@ -270,3 +270,13 @@ Inbox page records now use a page-owned `owner="inbox"` slot inside the shared `
 the bell’s ephemeral triage remains `owner="shell"`. The old duplicate Inbox fallback page button was
 removed; host chrome owns canonical promotion. Focused Inbox/host evidence is **51/51** plus typecheck
 and targeted lint. Seeded-notification/handled proof and live three-width acceptance remain open.
+
+## Cleanup verification — 2026-07-22
+
+The canonical `v3-redesign` worktree is now the only implementation worktree besides the primary
+checkout and the E7 prototype. Superseded V3 lanes were removed after their uncommitted residue was
+archived outside the repository at `/tmp/gordi-mos-v3-stale-lanes-20260722`; no current product work
+was silently discarded. A stale mobile focus-ring override and an outdated Inbox bell test label were
+corrected. Focused closure is **71/71**, with typecheck, changed-file ESLint, and Stylelint passing.
+This cleanup does not change the NO-SHIP verdict: the full rerun, rendered owner walkthrough, and the
+open V3 requirement gaps above still block completion.

@@ -171,7 +171,7 @@
   cursor: pointer;
 }
 .collection-mobile-options-trigger:hover { background: var(--secondary); }
-.collection-mobile-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.collection-mobile-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .collection-mobile-options-summary {
   margin-left: 4px;
   color: var(--muted-foreground);

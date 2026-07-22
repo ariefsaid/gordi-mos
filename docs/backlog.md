@@ -12,9 +12,14 @@
 > Money's parameterized Detail door is now closed at the presentation-contract level; contributing-record
 > drill-down remains deferred because the current reporting model is aggregate-only.
 > Worktree consolidation is complete: `.claude/worktrees/v3-redesign` is canonical; clean historical
-> worktrees were removed, dirty handoff lanes were preserved, and stale Vite processes were stopped.
+> worktrees and superseded dirty lanes were removed after archiving their residue outside the repo;
+> stale Vite processes were stopped. Only the primary checkout, E7 prototype, and canonical V3
+> worktree remain.
 > Signals now shares Tasks’ capture-first phone disclosure for collection controls (focused evidence
 > 82/82); desktop toolbar/presentation parity and the owner rendered gate remain open.
+> The latest focused cleanup is 71/71 (cohesion focus guard, Inbox bell/page/host, Signals, and
+> CollectionToolbar), with typecheck, ESLint, and Stylelint green; this does not replace the full
+> rerun or rendered owner gate.
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.
