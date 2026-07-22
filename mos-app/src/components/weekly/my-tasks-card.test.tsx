@@ -228,12 +228,35 @@ describe('AC-W02: mini-table th use the weight-400 overline (shared class)', () 
     })
   })
 
-  it('AC-W02: renders exactly 7 typed column headers: Task / Status / Team / PIC / Supervisor / Due / Activity', async () => {
+  // F4 table-parity fix (2026-07-22): the mini-table now shares the SAME canonical
+  // column set + priority order as the Tasks workspace table (Task > Status > PIC >
+  // Supervisor > Due — TasksWorkspace.css `.tasks-table`, Wave 2c/OD-62). Team folds
+  // into the Task title cell's metadata subline instead of its own column; Activity
+  // moved to the record drawer/full page, same as the Tasks workspace table — neither
+  // is removed from the app, only deprioritized on this summary card.
+  it('AC-W02: renders exactly 5 typed column headers: Task / Status / PIC / Supervisor / Due', async () => {
     await renderCard()
     const headers = screen.getAllByRole('columnheader')
     const texts = headers.map(h => h.textContent?.trim())
-    expect(texts).toEqual(['Task', 'Status', 'Team', 'PIC', 'Supervisor', 'Due', 'Activity'])
-    expect(headers).toHaveLength(7)
+    expect(texts).toEqual(['Task', 'Status', 'PIC', 'Supervisor', 'Due'])
+    expect(headers).toHaveLength(5)
+  })
+
+  it('AC-W02/F4: the PIC cell shows the avatar + name row anatomy shared with the Tasks workspace table', async () => {
+    const { container } = await renderCard()
+    await waitFor(() =>
+      expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
+    )
+    expect(container.querySelector('.mini-td-owner .ownav')).not.toBeNull()
+  })
+
+  it('AC-W02/F4: Team is still shown, folded into the task title cell as a metadata subline', async () => {
+    await renderCard()
+    await waitFor(() =>
+      expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
+    )
+    // Two of the fixture rows belong to bu-1 ("Roastery") — at least one subline renders.
+    expect(screen.getAllByText('Roastery').length).toBeGreaterThan(0)
   })
 })
 

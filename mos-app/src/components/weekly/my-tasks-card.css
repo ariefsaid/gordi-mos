@@ -27,44 +27,49 @@
   white-space: nowrap;
 }
 
-/* ── Mini-table columns (Task · Status · Team · PIC · Supervisor · Due · Activity) ──
-   Title dominant, Due never clips ("Overdue · Mon 13 Jul"): the E7/pre-E7 table grammar.
-   Below ~1120px viewport the Home column can't hold 7 columns, so ownership metadata
-   yields by PRIORITY (Task > Status > Due > PIC): Team/Supervisor/Activity hide; the
-   record page still carries them. */
-.mini-tasks-table th:nth-child(1), .mini-tasks-table td:nth-child(1) { width: 28%; }
-.mini-tasks-table th:nth-child(2), .mini-tasks-table td:nth-child(2) { width: 11%; }
-.mini-tasks-table th:nth-child(3), .mini-tasks-table td:nth-child(3) { width: 12%; }
-.mini-tasks-table th:nth-child(4), .mini-tasks-table td:nth-child(4) { width: 14%; }
-.mini-tasks-table th:nth-child(5), .mini-tasks-table td:nth-child(5) { width: 13%; }
-.mini-tasks-table th:nth-child(6), .mini-tasks-table td:nth-child(6) { width: 18%; }
-.mini-tasks-table th:nth-child(7), .mini-tasks-table td:nth-child(7) { width: 4%; }
+/* ── Mini-table columns (Task · Status · PIC · Supervisor · Due) ──────────────
+   F4 table-parity fix (2026-07-22): this is the SAME canonical column set + priority
+   order as the Tasks workspace table (TasksWorkspace.css `.tasks-table` — Task auto-width
+   > Status 12% > PIC 15% > Supervisor 15% > Due 14%, values mirrored here rather than
+   shared via import so Home's file stays free of the Tasks page's unrelated toolbar/
+   split-view rules). Team now folds into the Task title cell's metadata subline
+   (.collection-grammar-meta) instead of its own column; Activity is one tap away in the
+   record drawer/full page — neither was removed from the app, only deprioritized here,
+   matching Wave 2c/OD-62's "column priority, not data removal" rule.
+   Below ~1120px the mini-table drops Supervisor first (Task > Status > PIC > Due >
+   Supervisor) — the exact same priority order as the Tasks workspace table at its own
+   1120px tier, so narrowing never reorders or re-selects columns, only trims the tail. */
+.mini-tasks-table th:nth-child(1), .mini-tasks-table td:nth-child(1) { width: auto; }
+.mini-tasks-table th:nth-child(2), .mini-tasks-table td:nth-child(2) { width: 12%; }
+.mini-tasks-table th:nth-child(3), .mini-tasks-table td:nth-child(3) { width: 18%; }
+.mini-tasks-table th:nth-child(4), .mini-tasks-table td:nth-child(4) { width: 16%; }
+.mini-tasks-table th:nth-child(5), .mini-tasks-table td:nth-child(5) { width: 15%; }
 
-/* Seven columns can't all afford the 20px page-edge padding — inner columns run at the
-   denser E7 table rhythm; the outer edges keep the card gutter. */
 .mini-tasks-table .th-overline,
 .mini-tasks-table .mini-td { padding-left: 12px; padding-right: 12px; }
 .mini-tasks-table th:first-child, .mini-tasks-table td:first-child { padding-left: 20px; }
 .mini-tasks-table th:last-child, .mini-tasks-table td:last-child { padding-right: 20px; }
 
 @media (max-width: 1120px) {
-  .mini-tasks-table th:nth-child(3), .mini-tasks-table td:nth-child(3),
-  .mini-tasks-table th:nth-child(5), .mini-tasks-table td:nth-child(5),
-  .mini-tasks-table th:nth-child(7), .mini-tasks-table td:nth-child(7) { display: none; }
-  .mini-tasks-table th:nth-child(1), .mini-tasks-table td:nth-child(1) { width: 40%; }
-  .mini-tasks-table th:nth-child(2), .mini-tasks-table td:nth-child(2) { width: 15%; }
-  .mini-tasks-table th:nth-child(4), .mini-tasks-table td:nth-child(4) { width: 19%; }
-  .mini-tasks-table th:nth-child(6), .mini-tasks-table td:nth-child(6) { width: 26%; }
+  .mini-tasks-table th:nth-child(4), .mini-tasks-table td:nth-child(4) { display: none; }
+  .mini-tasks-table th:nth-child(2), .mini-tasks-table td:nth-child(2) { width: 14%; }
+  .mini-tasks-table th:nth-child(3), .mini-tasks-table td:nth-child(3) { width: 20%; }
+  .mini-tasks-table th:nth-child(5), .mini-tasks-table td:nth-child(5) { width: 18%; }
 }
 
-/* One-line row rhythm: name cells guard with ellipsis instead of wrapping to two lines. */
-.mini-tasks-table td:nth-child(3),
-.mini-tasks-table td:nth-child(4),
-.mini-tasks-table td:nth-child(5) {
+/* One-line row rhythm: the Supervisor cell guards with ellipsis instead of wrapping to
+   two lines (Task/PIC own truncation is handled by the collection-grammar/PicCell classes). */
+.mini-tasks-table td:nth-child(4) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Title cell: no separate width rule needed (nth-child(1) `width: auto` above absorbs
+   slack, matching the Tasks workspace Task column) — but it must not force a min-width
+   floor the way the old fixed 28% did, so pair with `min-width: 0` from
+   .collection-grammar-title-cell. */
+.mini-td-main { min-width: 0; }
 
 /* ── Mini-table body row ───────────────────────────────────────────────────── */
 .mini-td {

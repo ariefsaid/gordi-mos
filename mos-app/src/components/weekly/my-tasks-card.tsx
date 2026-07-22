@@ -1,6 +1,11 @@
 // MyTasksCard — My Week dominant module (PR-4, AC-W01..W06).
 // Fetches tasks where the viewer is PIC or Supervisor, sorts off-track-first, and
-// renders the typed Team/PIC/Supervisor grammar (OD-62, AC-W02).
+// renders the SAME canonical Task-row column priority + anatomy as the Tasks workspace
+// table (Task+BU subline · Status · PIC avatar · Supervisor · Due — Wave 2c/OD-62;
+// table-parity finding F4, 2026-07-22): Team folds into the title cell's metadata
+// subline (collection-grammar.css, shared with TaskRow) instead of its own column, and
+// Activity is dropped from the desktop table — both remain one tap away in the record
+// drawer/full page, never removed from the app, only deprioritized here (Wave 2c parity).
 // Loading: skeleton rows; Error: scoped inline Retry (rest of My Week unaffected).
 // Empty: "you're clear" copy (AC-W03). Name chip-link to /work/tasks/:id (canonical, AC-W01/W06).
 import { useState, useEffect, useCallback } from 'react'
@@ -10,12 +15,14 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { StatusPill } from '@/components/tasks/status-pill'
+import { PicCell } from '@/components/tasks/pic-cell'
 import { formatDate, formatAge } from '@/components/tasks/task-formatters'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { CardHead } from '@/components/ui/card-head'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
+import '@/components/collection-grammar.css'
 import './my-tasks-card.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -36,7 +43,10 @@ type FetchedData = {
 // instead of a useful record label. Percent columns preserve the E7/pre-E7 table grammar
 // while allowing ownership metadata to remain scannable.
 // Column widths + the intermediate-width priority tier live in my-tasks-card.css
-// (.mini-tasks-table nth-child rules): title stays dominant, Due never clips.
+// (.mini-tasks-table nth-child rules): title stays dominant, Due never clips. The column
+// SET and its priority order mirror TasksWorkspace.css's canonical table exactly (Task >
+// Status > PIC > Due > Supervisor) so the same Task object reads with one column grammar
+// everywhere — only Supervisor yields at a narrow width, never Task/Status/PIC/Due.
 
 export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -138,11 +148,9 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
             <tr>
               <th scope="col" className="th-overline">{t('tasks.label.task')}</th>
               <th scope="col" className="th-overline">{t('tasks.filter.status')}</th>
-              <th scope="col" className="th-overline">{t('tasks.team')}</th>
               <th scope="col" className="th-overline">{t('tasks.pic')}</th>
               <th scope="col" className="th-overline">{t('tasks.supervisor')}</th>
               <th scope="col" className="th-overline">{t('tasks.dueLabel')}</th>
-              <th scope="col" className="th-overline">{t('tasks.activityLabel')}</th>
             </tr>
           </thead>
           <tbody className="mini-tbody">
@@ -150,7 +158,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
               // AC-W03: empty state — preserve existing "you're clear" copy
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={5}
                   className="mini-td text-center text-muted-foreground"
                 >
                   {t('tasks.myEmpty')}
@@ -201,28 +209,32 @@ function MiniTaskRow({ task, now, personMap, teamMap }: MiniTaskRowProps) {
 
   return (
     <tr>
-      <td className="mini-td">
-        {/* AC-W01/W06: Chip-link, truncate + title (no-bleed) */}
+      <td className="mini-td mini-td-main">
+        {/* AC-W01/W06: Chip-link, truncate + title (no-bleed). Team now folds into the
+            shared collection-grammar title/meta subline — same anatomy as TaskRow's
+            businessUnitName treatment on the Tasks workspace table (F4 parity). */}
         <Link
           to={`/work/tasks/${task.id}`}
-          className="mini-name-chip truncate"
+          className="mini-name-chip truncate collection-grammar-title-cell"
           title={task.title}
         >
-          {task.title}
+          <span className="collection-grammar-title">{task.title}</span>
+          {teamName && <span className="collection-grammar-meta">{teamName}</span>}
         </Link>
       </td>
       <td className="mini-td mini-td-nowrap">
         {/* AC-W01: StatusPill (dot + text, AC-W06: never wraps) */}
         <StatusPill status={task.status} />
       </td>
-      <td className="mini-td">{teamName}</td>
-      <td className="mini-td">{picName}</td>
+      <td className="mini-td mini-td-owner">
+        {/* PIC avatar + name — reuses the same PicCell primitive as the Tasks workspace
+            row so the PIC cell's row anatomy (avatar + first name) matches everywhere
+            a Task is listed, not just on /work/tasks (F4 parity). */}
+        <PicCell fullName={picName} />
+      </td>
       <td className="mini-td">{supervisorName}</td>
       <td className={`mini-td mini-td-nowrap mini-due-cell tabular-nums ${dueClass}`}>
         {dueText}
-      </td>
-      <td className="mini-td mini-meta">
-        {formatAge(task.last_activity_at, now)}
       </td>
     </tr>
   )
@@ -345,13 +357,13 @@ function compareOffTrackFirst(a: TaskListRow, b: TaskListRow, now: Date): number
   return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
 }
 
-/** Skeleton body rows while loading (AC-W04). */
+/** Skeleton body rows while loading (AC-W04). Matches the 5-column priority set below. */
 function SkeletonBody({ rows }: { rows: number }) {
   return (
     <>
       <thead>
         <tr>
-          {Array.from({ length: 7 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <th key={i} scope="col" className="th-overline">
               {/* empty — overline chrome visible; widths come from .mini-tasks-table CSS */}
             </th>
@@ -374,7 +386,7 @@ function SkeletonBody({ rows }: { rows: number }) {
               <span className="mini-skeleton-bar" style={{ width: 50 }} />
             </td>
             <td className="mini-td">
-              <span className="mini-skeleton-bar" style={{ width: 28 }} />
+              <span className="mini-skeleton-bar" style={{ width: 56 }} />
             </td>
           </tr>
         ))}
