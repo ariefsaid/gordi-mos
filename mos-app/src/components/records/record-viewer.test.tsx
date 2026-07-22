@@ -175,8 +175,10 @@ describe('RecordViewer', () => {
     expect(container.querySelector('[data-viewer-region="identity"]')).toBeNull()
     // But the section landmark still carries the record name (aria-label fallback).
     expect(screen.getByRole('region', { name: 'Restock oat milk' })).toBeInTheDocument()
-    // The fields still render (the point of the panel).
-    expect(screen.getByLabelText('Business Unit')).toBeInTheDocument()
+    // The fields still render (the point of the panel) — value-first, so the Business Unit
+    // value is shown with its edit affordance rather than a permanent form control.
+    expect(screen.getByRole('button', { name: 'Edit Business Unit' })).toBeInTheDocument()
+    expect(screen.getByText('Retail Ops')).toBeInTheDocument()
   })
 
   it('ViewerIdentitySuppressionContract: default (showIdentityHeader unset) keeps the identity heading', () => {
@@ -187,6 +189,8 @@ describe('RecordViewer', () => {
   it('FR-V3-012 / OverlayBoundaryContract: commits route through onCommitField by field key', async () => {
     const onCommitField = vi.fn(async () => {})
     renderViewer(taskAdapter(), { onCommitField })
+    // Value-first: activate the field, then the commit routes through onCommitField by key.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Business Unit' }))
     const bu = screen.getByLabelText('Business Unit') as HTMLSelectElement
     fireEvent.change(bu, { target: { value: 'bu-hq' } })
     expect(onCommitField).toHaveBeenCalledWith('businessUnit', 'bu-hq')

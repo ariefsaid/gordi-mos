@@ -108,23 +108,29 @@ describe('RecordViewer interaction boundary', () => {
     const onDirtyChange = vi.fn()
     renderInHost({ onClose, onDirtyChange })
 
+    // Value-first: activate the field to swap in the edit control.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Title' }))
     const input = screen.getByLabelText(/Title/) as HTMLInputElement
     input.focus()
     fireEvent.change(input, { target: { value: 'Restock oat milk cartons' } })
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)
 
-    // FIRST Escape — focused + dirty: the field's native CAPTURE listener cancels only the
-    // draft and stopImmediatePropagation shields the host's native panel listener, so the
-    // host's close path is NOT invoked (the field draft is cancelled first, in isolation,
-    // through the real listener ordering).
+    // FIRST Escape — focused editing field: the field's native CAPTURE listener cancels the
+    // draft, RETURNS to the value rendering, and stopImmediatePropagation shields the host's
+    // native panel listener, so the host's close path is NOT invoked (the field consumes the
+    // first Escape, in isolation, through the real listener ordering).
     fireEvent.keyDown(input, { key: 'Escape' })
-    expect(input.value).toBe('Restock oat milk')
+    // Back in value mode: the edit control (label exactly "Title") is gone and the discarded
+    // draft is not shown. (The value activation button's accessible name is "Edit Title".)
+    expect(screen.queryByLabelText('Title')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
+    expect(screen.queryByText('Restock oat milk cartons')).toBeNull()
     expect(onDirtyChange).toHaveBeenLastCalledWith(false)
     expect(onClose).not.toHaveBeenCalled()
 
-    // SECOND Escape — field now clean: the capture listener yields, the Escape propagates
-    // to the host's native panel listener → onClose('escape') (the panel-close intent).
-    fireEvent.keyDown(input, { key: 'Escape' })
+    // SECOND Escape — field back in value mode (no field listener): the Escape propagates from
+    // the value activation control to the host's native panel listener → onClose('escape').
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Edit Title' }), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenLastCalledWith('escape')
   })
@@ -134,6 +140,7 @@ describe('RecordViewer interaction boundary', () => {
     const onCommitField = vi.fn(async () => {})
     const { onDirtyChange } = renderViewer(guard, vi.fn(), onCommitField)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Title' }))
     const input = screen.getByLabelText(/Title/) as HTMLInputElement
     fireEvent.change(input, { target: { value: 'Restock oat milk cartons' } })
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)

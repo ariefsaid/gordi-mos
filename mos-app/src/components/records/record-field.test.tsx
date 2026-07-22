@@ -23,6 +23,12 @@ function renderField(spec: RecordFieldSpec, extra: {
   return { ...utils, onCommit, onCancel, onDirtyChange }
 }
 
+// Value-first: an editable field renders its VALUE first; activating the row (click/Enter)
+// swaps in the edit control. Every editing journey begins by activating the field.
+function activate(label: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Edit ${label}` }))
+}
+
 const textSpec: RecordFieldSpec = {
   key: 'title',
   label: 'Title',
@@ -40,6 +46,7 @@ describe('RecordField', () => {
     )
     renderField(textSpec, { onCommit })
 
+    activate('Title')
     const input = screen.getByLabelText('Title') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'Restock oat milk cartons' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -49,6 +56,7 @@ describe('RecordField', () => {
     expect(await screen.findByText('Saving…')).toBeInTheDocument()
 
     await act(async () => { resolveCommit() })
+    // Commit returns to the value rendering; "Saved" is announced there.
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
@@ -58,13 +66,16 @@ describe('RecordField', () => {
     const onDirtyChange = vi.fn()
     renderField(textSpec, { onCommit, onCancel, onDirtyChange })
 
+    activate('Title')
     const input = screen.getByLabelText('Title') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'a draft nobody keeps' } })
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)
 
     fireEvent.keyDown(input, { key: 'Escape' })
 
-    expect(input.value).toBe('Restock oat milk')
+    // Escape returns to the value rendering showing the SAVED value (the draft is discarded).
+    expect(screen.getByText('Restock oat milk')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Title')).toBeNull()
     expect(onCommit).not.toHaveBeenCalled()
     expect(onCancel).toHaveBeenCalled()
     expect(onDirtyChange).toHaveBeenLastCalledWith(false)
@@ -81,6 +92,7 @@ describe('RecordField', () => {
       { wrapper },
     )
 
+    activate('Title')
     const input = screen.getByLabelText('Title') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'mid-edit' } })
     fireEvent.keyDown(input, { key: 'Escape' })
@@ -98,6 +110,7 @@ describe('RecordField', () => {
       .mockResolvedValueOnce(undefined)
     renderField(textSpec, { onCommit })
 
+    activate('Title')
     const input = screen.getByLabelText('Title') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'a resilient draft' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -149,6 +162,7 @@ describe('RecordField', () => {
     }
     renderField(spec, { onCommit })
 
+    activate('Status')
     const select = screen.getByLabelText('Status') as HTMLSelectElement
     fireEvent.change(select, { target: { value: 'done' } })
 

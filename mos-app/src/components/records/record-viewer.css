@@ -1,21 +1,135 @@
-/* RecordViewer + RecordField styles (V3 Issue 5).
- * Presentation grammar shared by the Task and Signal adapters. Interactive targets
- * meet the 44px keyboard/touch floor (NFR-V3-006); the phone regime is a full-width
- * stack with no horizontal overflow. Tokens come from the adopted DESIGN.md set. */
+/* RecordViewer + RecordField styles (V3 record-document redesign).
+ * A record READS AS A CALM DOCUMENT (the E7 anatomy): one identity block, then quiet
+ * label-left / value-right rows whose values are prose, entity chips, or a status pill.
+ * Editing is value-first — the value is an activation target that swaps in the existing
+ * control. Interactive targets meet the 44px keyboard/touch floor (NFR-V3-006); the phone
+ * regime is a full-width stack with no horizontal overflow. Tokens are the adopted set. */
 
+/* ── Field: a label-left / value-right document row (E7 kv anatomy) ──────────────────────── */
 .record-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: start;
   min-width: 0;
 }
 
 .record-field__label {
+  padding-top: 11px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted-foreground);
+  line-height: 1.3;
 }
 
+.record-field__value-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The value activation target — quiet by default, a pencil + soft tint on hover/focus-visible. */
+.record-field__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: start;
+  max-width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  font: inherit;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.record-field__edit:hover {
+  background: var(--muted);
+  border-color: var(--border);
+}
+
+.record-field__edit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.record-field__edit-affordance {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.record-field__edit:hover .record-field__edit-affordance,
+.record-field__edit:focus-visible .record-field__edit-affordance {
+  opacity: 1;
+}
+
+/* Value renderings: prose · entity chip · status pill. */
+.record-field__value {
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.record-field--readonly .record-field__value {
+  padding-top: 9px;
+}
+
+.record-field__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 12px;
+  color: var(--foreground);
+}
+
+.record-field__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.record-field__pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+
+.record-field__pill[data-status='Open'] { color: var(--warning-foreground); }
+.record-field__pill[data-status='In Progress'] { color: var(--status-open-text); }
+.record-field__pill[data-status='Blocked'] { color: var(--status-lost-text); }
+.record-field__pill[data-status='Done'] { color: var(--status-won-text); }
+
+/* Read-only provenance note (E7's "· Inherited from parent work" register). */
+.record-field__reason {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* ── Field: edit mode — the existing controls (unchanged 44px floor / NFR-V3-006) ───────── */
 .record-field__control {
   min-height: 44px;
   width: 100%;
@@ -48,18 +162,6 @@
   min-height: 44px;
 }
 
-.record-field__value {
-  margin: 0;
-  font-size: 14px;
-  color: var(--foreground);
-}
-
-.record-field__reason {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-
 .record-field__feedback {
   min-height: 18px;
 }
@@ -85,8 +187,7 @@
   min-height: 44px;
 }
 
-/* RecordViewer shell -------------------------------------------------------- */
-
+/* ── RecordViewer shell ─────────────────────────────────────────────────────────────────── */
 .record-viewer {
   display: flex;
   flex-direction: column;
@@ -143,10 +244,11 @@
   color: var(--muted-foreground);
 }
 
+/* Document rows stack vertically (the row itself is the label/value grid). */
 .record-viewer__fields {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .record-viewer__relations,
@@ -172,6 +274,21 @@
   border-radius: var(--radius-md, 8px);
   color: var(--foreground);
   cursor: pointer;
+}
+
+.record-viewer__activity-item {
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+.record-viewer__activity-detail {
+  color: var(--muted-foreground);
+}
+
+.record-viewer__activity-time {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
 }
 
 .record-viewer__actions {
@@ -201,7 +318,17 @@
     padding-left: 16px;
   }
 
-  .record-viewer__fields {
+  /* Phone: the label/value row stacks to a single column. */
+  .record-field {
     grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .record-field__label {
+    padding-top: 0;
+  }
+
+  .record-field--readonly .record-field__value {
+    padding-top: 0;
   }
 }
