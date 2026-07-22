@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -279,6 +279,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // The shared RecordViewer exposes the status as the same labelled Select in
     // panel and page modes; scope to the record panel, not the collection toolbar.
     const drawer = screen.getByRole('complementary', { name: /task detail/i })
+    // Value-first grammar: activate the Status field, then the select swaps in.
+    fireEvent.click(within(drawer as HTMLElement).getByRole('button', { name: /edit status/i }))
     const status = drawer.querySelector('[data-field-key="status"] select') as HTMLSelectElement
     fireEvent.change(status, { target: { value: 'Blocked' } })
     await waitFor(() => {
@@ -599,7 +601,8 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByText('Focused record')).toBeNull()
 
     // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
-    expect(screen.getByDisplayValue('Kitchen')).toBeInTheDocument()
+    // Value-first grammar: Team renders as text/chip value, not a permanent select.
+    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
   })
