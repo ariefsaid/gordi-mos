@@ -457,6 +457,12 @@ export const messages = {
     'rail.destinations': 'Destinations',
     'rail.retailOps': 'Retail Ops',
     'rail.b2bOps': 'B2B Ops',
+    // Work sub-section overlines (E7 workNavModel grammar) — the four families that group
+    // Work's children, in E7's top-down order (Execution → Work systems → Direction → Cadence).
+    'rail.work.execution': 'Execution',
+    'rail.work.workSystems': 'Work Systems',
+    'rail.work.direction': 'Direction',
+    'rail.work.cadence': 'Cadence',
     'nav.more': 'More',
     'job.home': 'What needs my attention right now?',
     'job.work': 'Find and do the work I own or my Team owns.',
@@ -1106,6 +1112,10 @@ export const messages = {
     'rail.destinations': 'Destinasi',
     'rail.retailOps': 'Retail Ops',
     'rail.b2bOps': 'B2B Ops',
+    'rail.work.execution': 'Eksekusi',
+    'rail.work.workSystems': 'Sistem Kerja',
+    'rail.work.direction': 'Arah',
+    'rail.work.cadence': 'Irama',
     'nav.more': 'Lainnya',
     'job.home': 'Apa yang perlu perhatian saya sekarang?',
     'job.work': 'Temukan dan kerjakan tugas yang jadi tanggung jawab saya atau Tim saya.',

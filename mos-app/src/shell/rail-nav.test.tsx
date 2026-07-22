@@ -131,12 +131,35 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).queryByText('Retail Ops')).toBeNull()
   })
 
-  it('AC-004: Work has exactly 4 children, 0 family headings (always expanded)', () => {
+  it('AC-004: Work children are grouped under the E7 sub-section overlines, in E7 order', () => {
     setAuthAs(['admin'])
-    renderRailNav('/work/tasks')
-    const workLink = screen.getByRole('link', { name: 'Work' })
-    // The 4 children are present
-    expect(workLink).toBeInTheDocument()
+    const { container } = renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    // The 4 children are still present and reachable (the overlines are aria-hidden dividers).
+    expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
+    // The four E7 sub-section overlines are present (aria-hidden, so asserted by text).
+    for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
+      expect(within(nav).getByText(label)).toBeInTheDocument()
+    }
+    // E7 top-down order: Execution(Tasks) → Work systems(Projects) → Direction(Objectives) →
+    // Cadence(Signals). Verify the overlines appear in that document order.
+    const order = ['Execution', 'Work Systems', 'Direction', 'Cadence'].map(
+      (l) => within(nav).getByText(l),
+    )
+    const precedes = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(precedes(order[0], order[1])).toBe(true)
+    expect(precedes(order[1], order[2])).toBe(true)
+    expect(precedes(order[2], order[3])).toBe(true)
+    // Cadence(Signals) now sorts BELOW Execution(Tasks) — a deliberate E7-grammar reorder.
+    const tasks = within(nav).getByRole('link', { name: 'Tasks' })
+    const signals = within(nav).getByRole('link', { name: 'Signals' })
+    expect(precedes(tasks, signals)).toBe(true)
+    expect(container).toBeTruthy()
   })
 
   it('AC-013: profile footer row is the identity chip — shows the viewer\'s full name, and Personal Profile is reachable as a separate utility link', () => {

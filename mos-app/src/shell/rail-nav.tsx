@@ -1,10 +1,27 @@
 import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, UTILITY, isLive, modulesByBUForRoles, type Destination } from './destinations'
 import type { Section } from './sections'
+import type { MessageKey } from '@/i18n/messages'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
+
+// E7 Work sub-section grammar (e7-views.js `workNavModel`) ported to our ratified IA: OD-REDESIGN-1
+// fixes WHICH Work children exist (do not add/remove); E7 fixes the sub-section overlines + order
+// that group them. Each of our 4 children maps to the E7 family that owns it, and the families
+// render in E7's top-down order — Execution → Work systems → Direction → Cadence. (E7's Execution
+// also holds Process Runs, Work systems also holds Processes + Standards, Cadence also holds
+// Follow-ups; those entries are not in our IA, so each of our families carries only the child we
+// have.) Per-item counts are intentionally omitted: the rail loads no record data and the
+// owner-artifact note forbids adding a query per item — a count here would be a new fetch, so it
+// stays data-gated until a cheap already-loaded source exists.
+const WORK_SUBSECTIONS: { labelKey: MessageKey; paths: readonly string[] }[] = [
+  { labelKey: 'rail.work.execution', paths: ['/work/tasks'] },
+  { labelKey: 'rail.work.workSystems', paths: ['/work/projects'] },
+  { labelKey: 'rail.work.direction', paths: ['/work/objectives'] },
+  { labelKey: 'rail.work.cadence', paths: ['/work/signals'] },
+]
 
 type RailNavProps = {
   onNavigate?: () => void
@@ -57,6 +74,22 @@ function RailGroupLabel({ children, className }: { children: string; className?:
     <div
       className={['px-2.5 text-muted-foreground select-none uppercase', className].filter(Boolean).join(' ')}
       style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}
+      aria-hidden="true"
+    >
+      {children}
+    </div>
+  )
+}
+
+// Work sub-section overline (E7 `.e7-sub-label`) — quieter + smaller than the top-level rail
+// overline (10px vs 11px, lighter), so the sub-grouping reads as a level below Destinations.
+// aria-hidden for the same reason as RailGroupLabel: a visual divider, not a nav landmark; the
+// child links stay directly reachable in document order (no extra tab stop).
+function WorkSubLabel({ children }: { children: string }) {
+  return (
+    <div
+      className="px-2.5 text-muted-foreground/80 select-none uppercase"
+      style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', paddingTop: 6, paddingBottom: 2 }}
       aria-hidden="true"
     >
       {children}
@@ -136,11 +169,26 @@ export function RailNav({ onNavigate }: RailNavProps) {
                       </>
                     )}
                   </NavLink>
-                  {/* Always-expanded 4 children (0 family headings — Rule 3). */}
-                  <div className="flex flex-col gap-[2px] pl-3">
-                    {children.map((c) => (
-                      <WorkChild key={c.path} section={c} onNavigate={onNavigate} />
-                    ))}
+                  {/* Always-expanded children, now grouped under the E7 Work sub-section overlines
+                      (workNavModel grammar): Execution · Work systems · Direction · Cadence, in E7's
+                      top-down order. Supersedes the earlier flat "0 family headings" rendering — the
+                      E7 floor carries these sub-labels, and the sub-labels are aria-hidden dividers,
+                      not landmarks, so every child stays one reachable link. A capability-gated child
+                      (Projects & Processes, Objectives) that filters out empties its family, which
+                      then renders no overline. */}
+                  <div className="flex flex-col pl-3">
+                    {WORK_SUBSECTIONS.map((sub) => {
+                      const items = children.filter((c) => sub.paths.includes(c.path))
+                      if (items.length === 0) return null
+                      return (
+                        <div key={sub.labelKey} className="flex flex-col gap-[2px]">
+                          <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>
+                          {items.map((c) => (
+                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} />
+                          ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )
