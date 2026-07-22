@@ -98,10 +98,10 @@ export function GroupHeaderRow({
   return (
     <tr className="grp">
       <td colSpan={colSpan}>
-        <div className="gbar">
+        <div className="gbar collection-grammar-group-bar">
           <button
             type="button"
-            className="caret"
+            className="caret collection-grammar-group-toggle"
             aria-expanded={!collapsed}
             aria-label={collapsed ? t('tasks.group.expand', { label }) : t('tasks.group.collapse', { label })}
             onClick={onToggle}
@@ -109,13 +109,13 @@ export function GroupHeaderRow({
             {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
             <Chevron className={`grp-chev${collapsed ? ' grp-chev-collapsed' : ''}`} />
           </button>
-          <span className="glabel">{label}</span>
+          <span className="glabel collection-grammar-group-label">{label}</span>
           {/* FR-233: work-line type label — text always present, never color-only (WCAG 1.4.1) */}
           {workLineType != null && (
             <WorkLineTypeTag type={workLineType} />
           )}
           {occurrenceRollup ? (
-            <span className="gcount tabular-nums">
+            <span className="gcount collection-grammar-group-count tabular-nums">
               {/* Design fix wave item 6 (MINOR — "1 to assign" stutter): when the "N to assign"
                   button ALSO renders just below, the summary drops the pending clause entirely
                   (the button already carries the count); a non-capable viewer (no button) keeps
@@ -134,7 +134,7 @@ export function GroupHeaderRow({
               )}
             </span>
           ) : (
-            <span className="gcount tabular-nums">{count}</span>
+            <span className="gcount collection-grammar-group-count tabular-nums">{count}</span>
           )}
           {occurrenceRollup && occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
             <button

@@ -9,6 +9,7 @@
 // set only and does NOT change row styling. The `row-selected` class stays
 // semantically "the open drawer row" (isSelected), unchanged from pre-PR-2.
 import type { Ref } from 'react'
+import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
@@ -39,6 +40,8 @@ export type TaskRowProps = {
   onCheck: (next: boolean) => void
   /** Supervisor display name resolved from the directory. */
   supervisorName?: string
+  /** Business Unit display name used in the shared title metadata subline. */
+  businessUnitName?: string
   /** Active location.search to preserve the saved view on every record-open path. */
   recordSearch?: string
   /**
@@ -52,7 +55,7 @@ export type TaskRowProps = {
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
   ownerName, onOpen, checked, onCheck,
-  supervisorName = '', recordSearch = '', provenanceRoleName,
+  supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -92,7 +95,7 @@ export function TaskRow({
         <Link
           to={recordTo}
           state={panelState}
-          className="task-row-link name-chip"
+          className="task-row-link name-chip collection-grammar-title-cell"
           title={task.title}
           tabIndex={0}
           // The href remains the progressive-enhancement/canonical door, but the
@@ -106,8 +109,11 @@ export function TaskRow({
         >
           <span className="task-title-line">
             {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
-            <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
+            <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
           </span>
+          {businessUnitName && (
+            <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
+          )}
         </Link>
       </td>
       <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>

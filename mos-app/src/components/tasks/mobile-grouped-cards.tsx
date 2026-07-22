@@ -108,11 +108,11 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
     : '—'
 
   return (
-    <article data-testid="task-card" className="task-card">
+    <article data-testid="task-card" className="task-card collection-grammar-card">
       <Link
         to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }}
         state={{ taskSurface: 'panel' }}
-        className="task-card-link"
+        className="task-card-link collection-grammar-card-body"
         onClick={(event) => {
           event.preventDefault()
           onOpenTask(task.id)
@@ -120,12 +120,12 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
       >
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
-          <span className={isArchived ? 'task-name task-name-archived' : 'task-name'}>{task.title}</span>
+          <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
         {/* Fix-5: dt labels are visible (label:value) per mockup — not sr-only */}
-        <dl className="task-card-meta">
+        <dl className="task-card-meta collection-grammar-card-details">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
             <dd><PicCell fullName={rName} provenance={provenanceRoleName} /></dd>
@@ -218,7 +218,7 @@ export function MobileGroupedCards({
     <div className="mgc" role="list" aria-label={t('tasks.title')}>
       {groups.map(group => (
         <div key={`mgc-${group.key}`} className="mgc-group">
-          <div className="mgc-group-head">
+          <div className="mgc-group-head collection-grammar-mobile-group">
             <button
               type="button"
               className="mgc-caret"

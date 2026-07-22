@@ -133,7 +133,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
       <div aria-busy="true" aria-label={t('tasks.loading')}>
         <span className="sr-only" role="status">{t('tasks.loading')}</span>
         {isDesktop ? (
-          <table className="tasks-table record-collection-table" aria-label={t('tasks.loading')}>
+          <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.loading')}>
             <tbody>
               <SkeletonRow /><SkeletonRow />
               <SkeletonRow /><SkeletonRow />
@@ -201,7 +201,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
       {captionEl}
-      <table className="tasks-table record-collection-table" aria-label={t('tasks.title')}>
+      <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.title')}>
         <thead>
           <tr>
             {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}
@@ -215,19 +215,19 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             </th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn" onClick={() => onSort('task')}>
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('task')}>
                 {t('tasks.label.task')}{sortIndicator('task')}
               </button>
             </th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn" onClick={() => onSort('status')}>
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('status')}>
                 {t('tasks.filter.status')}{sortIndicator('status')}
               </button>
             </th>
             <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`} aria-sort={ariaSort('owner')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn" onClick={() => onSort('owner')}>
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('owner')}>
                 {t('tasks.pic')}{sortIndicator('owner')}
               </button>
             </th>
@@ -237,7 +237,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                 moved to the drawer (OD-62). */}
             <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn" onClick={() => onSort('due')}>
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
                 {t('tasks.dueLabel')}{sortIndicator('due')}
               </button>
             </th>

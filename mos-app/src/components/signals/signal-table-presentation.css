@@ -2,6 +2,8 @@
    rules only skin the Signal-specific cells: the message link, the retracted tombstone, the attention
    pill, and the retracted row state. E7 tokens only. */
 
+.signal-collection-presentation { min-width: 0; }
+
 /* Domain-specific anatomy inside the shared full-width collection table. Fixed layout prevents a
    short archive from collapsing into a 60%-wide visual island; these proportions keep the message
    primary while leaving stable scanning columns for provenance and attention. */

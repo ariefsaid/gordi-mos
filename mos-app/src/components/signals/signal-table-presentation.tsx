@@ -12,6 +12,7 @@ import type { CollectionPresentationProps, CollectionProjection } from '@/lib/re
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
 import { useSignalCollectionActions } from './signal-collection-actions'
 import './signal-table-presentation.css'
+import '@/components/collection-grammar.css'
 
 type SignalTableProps = CollectionPresentationProps<
   SignalRow,
@@ -48,12 +49,12 @@ export function SignalTablePresentation({
           <div className="signal-table-title-cell">
             <button
               type="button"
-              className="signal-table-message"
+              className="signal-table-message collection-grammar-title"
               onClick={() => onOpenRecord(signal)}
             >
               {signal.body}
             </button>
-            <span className="signal-table-message-meta">
+            <span className="signal-table-message-meta collection-grammar-meta">
               <span>{context.authorNamesById.get(signal.author_id) ?? t('signals.card.unknownAuthor')}</span>
               {signal.category ? <><span aria-hidden="true"> · </span><span>{signal.category}</span></> : null}
             </span>
@@ -95,8 +96,9 @@ export function SignalTablePresentation({
   })) ?? []
 
   return (
+    <div className="signal-collection-presentation">
       <DataTable
-        tableClassName="record-collection-table signal-collection-table"
+        tableClassName="record-collection-table collection-grammar-table signal-collection-table"
         columns={columns}
         rows={[]}
         groups={groups.length > 0 ? groups : undefined}
@@ -120,5 +122,6 @@ export function SignalTablePresentation({
             .join(' ') || undefined
         }
       />
+    </div>
   )
 }

@@ -406,7 +406,11 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const sortCol = query.sort === 'pic' ? 'owner' : query.sort === 'supervisor' ? 'task' : query.sort
   const sortDirection = query.direction
   const sortIndicator = (column: 'task' | 'status' | 'owner' | 'due' | 'activity'): ReactNode =>
-    sortCol === column ? <span aria-hidden="true">{sortDirection === 'ascending' ? '↑' : '↓'}</span> : null
+    sortCol === column ? (
+      <span className="collection-grammar-sort-indicator" aria-hidden="true">
+        {sortDirection === 'ascending' ? '↑' : '↓'}
+      </span>
+    ) : null
   const onSort = (column: 'task' | 'status' | 'owner' | 'due' | 'activity') => {
     const nextSort = column === 'owner' ? 'pic' : column
     runtime.onSort(nextSort)
@@ -423,6 +427,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         leafIndex={leafIndex}
         cursorRowRef={keyboard.cursor === leafIndex ? cursorRowRef : undefined}
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
+        businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
         checked={selectedIds.has(task.id)}
         onCheck={() => onToggleSelected(task.id)}

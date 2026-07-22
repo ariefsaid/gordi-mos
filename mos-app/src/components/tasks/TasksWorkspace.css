@@ -466,7 +466,7 @@ tr.grp td { padding: 0; }
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
 }
 .gbar .caret {
-  display: inline-grid; place-items: center; width: 16px; height: 16px;
+  display: inline-grid; place-items: center; width: 24px; height: 24px;
   background: transparent; border: 0; padding: 0; cursor: pointer;
   color: var(--muted-foreground); font-size: 11px; line-height: 1; flex: none;
 }
