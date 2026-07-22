@@ -51,49 +51,53 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   Two-column record page (ADR-0013 D3) — left details panel + right tabbed feed.
+   Full-width record document (E7 canonical — e7-app.js renderRecordPage).
+   ONE single-column document: the RecordViewer details sections stacked on top,
+   the tabbed Activity feed below as its own section. Supersedes the ADR-0013 D3
+   two-column page (critic-cited: the fixed 332px left column crammed values into
+   ragged multi-line wraps while the right feed panel sat half-empty). E7's record
+   page is one comfortable single column capped for reading measure; we match it.
    All raw values are DESIGN.md CSS-var tokens.
    ════════════════════════════════════════════════════════════════════════════ */
 .record-actions {
   display: flex; justify-content: flex-end; margin-bottom: 12px;
 }
-/* Promoted-from-drawer chrome (collapse + close) above the two-column card. It
+/* Promoted-from-drawer chrome (collapse + close) above the record document. It
    reuses .dw-bar/.dw-iconbtn; here it is a standalone strip (no bottom rule of
-   its own — the .record-2col card below carries the border). */
+   its own — the .record-doc card below carries the border). */
 .record-chrome {
   border-bottom: 0; padding: 0 0 10px; margin-bottom: 2px;
 }
-.record-2col {
-  display: grid; grid-template-columns: 332px 1fr;
+.record-doc {
+  display: flex; flex-direction: column;
+  max-width: 820px; /* E7 renderRecordPage e7-page cap — comfortable document measure */
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
   box-shadow: var(--shadow-rest);  /* OD-P3-11 resting lift */
   overflow: hidden;
 }
-/* <1100px (modal sheet) → stack the panel above the feed (AC-R06). */
-@media (max-width: 1099px) {
-  .record-2col { grid-template-columns: 1fr; }
-}
 
-/* ── Left details panel ──
-   A plain grid-item wrapper — NOT a bespoke fields panel. It hosts the SAME
-   RecordViewer document (identity/ownership/status-timing/details) used
-   everywhere else, so all spacing/typography comes from record-viewer.css;
-   this rule only owns the two-column divider. */
+/* ── Details sections (top) ──
+   A plain wrapper — NOT a bespoke fields panel. It hosts the SAME RecordViewer
+   document (identity/ownership/status-timing/details) used everywhere else, so
+   all spacing/typography comes from record-viewer.css; this rule only owns the
+   divider that separates the details from the feed section stacked below. */
 .record-details {
-  border-right: 1px solid var(--border);
   min-width: 0;
 }
-@media (max-width: 1099px) {
-  .record-details { border-right: 0; border-bottom: 1px solid var(--border); }
+.record-doc .record-details {
+  border-bottom: 1px solid var(--border);
 }
+/* Prose values read at a comfortable line length (impeccable line-length rule,
+   ~72ch) rather than stretching the full document width. */
+.record-doc .record-field__value { max-width: 72ch; }
 /* Compact (drawer) variant — the drawer chrome is the frame, so there is no
    second divider; the drawer header owns identity + status. */
 .record-details-compact {
   border: 0;
 }
 
-/* ── Right tabbed feed ──
+/* ── Tabbed feed (below) ──
    .record-feed-col hosts the SAME feed content slot the RecordViewer would
    otherwise render inline; drop the slot wrapper's own padding/divider here
    since RecordFeed (.rf-*) already owns its internal spacing. */

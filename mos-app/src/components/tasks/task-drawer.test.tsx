@@ -120,13 +120,13 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     expect(await screen.findByRole('complementary', { name: /create task/i })).toBeInTheDocument()
   })
 
-  it('AC-104/105: when the expand pref is persisted true (@split), the surface renders the full-width two-column record page', async () => {
+  it('AC-104/105: when the expand pref is persisted true (@split), the surface renders the full-width single-column record document', async () => {
     localStorage.setItem('mos.tasks.expandDefault', 'true')
     __resetExpandPrefForTests() // sync the shared snapshot to the freshly-set storage
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
-    // ADR-0013 D3 / AC-R06: expanded@split promotes to the two-column record page.
-    await waitFor(() => expect(document.querySelector('.record-2col')).toBeTruthy())
+    // AC-R06: expanded@split promotes to the E7 full-width single-column record document.
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(document.querySelector('.drawer.expanded')).toBeTruthy() // the host aside still collapses the table column
   })
 
@@ -134,31 +134,34 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
-    expect(document.querySelector('.record-2col')).toBeNull()
+    expect(document.querySelector('.record-doc')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
-    await waitFor(() => expect(document.querySelector('.record-2col')).toBeTruthy())
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(localStorage.getItem('mos.tasks.expandDefault')).toBe('true')
   })
 })
 
-// ── Regression-invariant: the expand control must MOUNT the two-column record
-// page in the live host (the gap that shipped green — unit tests asserted
+// ── Regression-invariant: the expand control must MOUNT the full record
+// document in the live host (the gap that shipped green — unit tests asserted
 // width='full' in isolation but nothing asserted TaskDrawer mounts it).
-// ADR-0013 D3 / AC-R06: expanded@split promotes to the full two-column record page.
-describe('TaskDrawer — expanded@split mounts the two-column record page (ADR-0013 D3, AC-R06)', () => {
-  it('AC-R06: un-expanded @≥1100px renders the COMPACT stacked drawer (not the two-column grid)', async () => {
+// AC-R06: expanded@split promotes to E7's full-width single-column record
+// document — details sections stacked on top, the tabbed feed below. The
+// goal-oracle is unchanged (expanded shows the FULL record incl. its feed); only
+// the layout changed from the ADR-0013 D3 side-by-side grid to E7's stacked form.
+describe('TaskDrawer — expanded@split mounts the full-width record document (E7 canonical, AC-R06)', () => {
+  it('AC-R06: un-expanded @≥1100px renders the COMPACT stacked drawer (not the record document)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
-    // Compact drawer: the .dw-surface stacked anatomy, NOT the two-column grid.
+    // Compact drawer: the .dw-surface stacked anatomy, NOT the full record document.
     expect(document.querySelector('.dw-surface')).toBeTruthy()
-    expect(document.querySelector('.record-2col')).toBeNull()
+    expect(document.querySelector('.record-doc')).toBeNull()
     // The compact details panel suppresses its own identity <h1> (drawer header owns it).
     expect(document.querySelector('.record-details-compact')).toBeTruthy()
   })
 
-  it('AC-R06: toggling expand @≥1100px MOUNTS the two-column record page (.record-2col, side-by-side details + feed)', async () => {
+  it('AC-R06: toggling expand @≥1100px MOUNTS the full record document (.record-doc — details stacked over the feed)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
@@ -166,35 +169,35 @@ describe('TaskDrawer — expanded@split mounts the two-column record page (ADR-0
     // RED against the pre-fix code: expand only widened the compact drawer.
     fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
 
-    // The two-column grid is mounted (not the compact stack).
-    await waitFor(() => expect(document.querySelector('.record-2col')).toBeTruthy())
+    // The single-column record document is mounted (not the compact stack).
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(document.querySelector('.dw-surface')).toBeNull()
 
     // Details panel is in its NON-compact (full) form — its own identity <h1> shows.
-    const details = document.querySelector('.record-2col [data-testid="record-details"]')
+    const details = document.querySelector('.record-doc [data-testid="record-details"]')
     expect(details).toBeTruthy()
     expect(details?.classList.contains('record-details-compact')).toBe(false)
 
-    // Details (left) + feed (right) sit side-by-side inside the grid.
-    expect(document.querySelector('.record-2col .record-feed-col')).toBeTruthy()
-    // The feed's tablist (Activity / Checklist / Notes) is present in the grid.
-    expect(document.querySelector('.record-2col')!.querySelector('[role="tablist"]')).toBeTruthy()
+    // Goal-oracle: the FULL record shows — details on top AND the feed section below.
+    expect(document.querySelector('.record-doc .record-feed-col')).toBeTruthy()
+    // The feed's tablist (Activity / Checklist / Notes) is present in the document.
+    expect(document.querySelector('.record-doc')!.querySelector('[role="tablist"]')).toBeTruthy()
 
     // Collapse stays reachable (no dead end): a collapse control returns to split.
     fireEvent.click(screen.getByRole('button', { name: /collapse to split/i }))
-    await waitFor(() => expect(document.querySelector('.record-2col')).toBeNull())
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeNull())
     expect(document.querySelector('.dw-surface')).toBeTruthy()
   })
 
-  it('AC-110: expanded but <1100px (modal) stays the COMPACT stacked sheet, NOT the two-column grid', async () => {
-    // Expanded preference set, but the regime is modal (no room for two columns).
+  it('AC-110: expanded but <1100px (modal) stays the COMPACT stacked sheet, NOT the full record document', async () => {
+    // Expanded preference set, but the regime is modal (the compact sheet, no promotion).
     localStorage.setItem('mos.tasks.expandDefault', 'true')
     __resetExpandPrefForTests()
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
-    expect(document.querySelector('.record-2col')).toBeNull()
+    expect(document.querySelector('.record-doc')).toBeNull()
     expect(document.querySelector('.dw-surface')).toBeTruthy()
   })
 })

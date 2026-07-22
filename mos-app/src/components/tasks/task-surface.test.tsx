@@ -196,15 +196,14 @@ describe('TaskSurface — view mode', () => {
     localStorage.removeItem('mos.locale')
   })
 
-  it('AC-R01: full width renders a two-column record page (details panel + feed)', async () => {
+  it('AC-R01: full width renders the single-column record document (details sections + feed below)', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // left details panel + right tabbed feed both present
+    // details sections + the tabbed feed both present, stacked in one document
     expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
-    // The shared RecordViewer owns both page metadata and typed content; the old
-    // Task-specific `.record-2col`/`.record-feed-col` shell is intentionally gone.
+    // The shared RecordViewer owns both page metadata and typed content.
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Updates' })).toBeInTheDocument()
   })

@@ -587,13 +587,19 @@ function ViewSurface({
     )
   }
 
-  // ── Full width: the two-column record page (ADR-0013 D3) ───────────────────
-  // AC-R06: expanded@split promotes to a full-width grid — the LEFT column is
-  // the SAME RecordViewer document (identity/ownership/status-timing/details)
-  // with its feed content slot withheld, and the RIGHT column is that SAME
-  // withheld content slot (the RecordFeed tabs), laid out side by side. This
-  // composes the one canonical viewer; it never reintroduces a bespoke fields
-  // panel (RecordDetailsPanel is deleted and stays deleted).
+  // ── Full width: the single-column record document (E7 canonical) ───────────
+  // AC-R06: expanded@split (and the standalone /work/tasks/:id page) render E7's
+  // full-width single-column document (e7-app.js renderRecordPage): the SAME
+  // RecordViewer document (identity/ownership/status-timing/details) stacked on
+  // top with its feed content slot withheld, then that SAME withheld slot (the
+  // RecordFeed tabs) below as its own section. This composes the one canonical
+  // viewer; it never reintroduces a bespoke fields panel (RecordDetailsPanel is
+  // deleted and stays deleted).
+  //
+  // RATIFY-BEFORE-MERGE: ADR-0013 D3 two-column expanded page superseded by E7
+  // full-width document (critic-cited, owner's E7-floor law). The 332px left
+  // column crammed values into ragged multi-line wraps while the right feed
+  // panel sat half-empty; E7's record is one comfortable single column.
   const detailsOnlyAdapter: RecordViewerAdapter | null = taskViewerAdapter
     ? { ...taskViewerAdapter, contentSlots: [] }
     : null
@@ -653,7 +659,7 @@ function ViewSurface({
       )}
 
       {detailsOnlyAdapter && (
-        <div className="record-2col">
+        <div className="record-doc">
           <div className="record-details" data-testid="record-details">
             <RecordViewer
               adapter={detailsOnlyAdapter}
