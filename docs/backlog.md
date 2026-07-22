@@ -4,19 +4,17 @@
 >
 > The backlog’s dated strata below are historical evidence. Current reality is the local
 > `v3-redesign` worktree at the latest committed docs checkpoint plus an uncommitted RecordViewer/collection slice;
-> nothing is pushed, merged, deployed, or running Supabase. The current OOM-safe collection/header smoke
-> proves **107/107 focused tests**, typecheck, CSS lint, changed-file ESLint, and a fresh inventory
-> (**58 routes / 13 shared jobs / 76 CSS families**). A separate TaskSurface/TasksLayout regression
-> run is **RED: 25/77 failed**, because the viewer migration changed the old drawer contract and its
-> goal tests have not yet been reconciled. The earlier **126/126** run is pre-header evidence, not
-> current proof. None of this proves the full suite or owner-facing three-width rendering.
+> nothing is pushed, merged, deployed, or running Supabase. The current OOM-safe reconciled smoke proves
+> **143/143 focused tests across 9 files**, typecheck, CSS lint, changed-file ESLint, and a fresh inventory
+> (**58 routes / 13 shared jobs / 76 CSS families**). The earlier **25 failed / 77** TaskSurface/TasksLayout
+> run was pre-reconciliation and is historical; it is not an active failure. The earlier **126/126** run
+> is also pre-header evidence. None of this proves the full suite or owner-facing three-width rendering.
 >
 > The **34/40 · 9/10** and **28/40** score passages below are retained as historical checkpoints, not
 > current acceptance. The latest independently rendered committed baseline is **26/40** and
 > approximately **6–6.5/10 structural anti-slop**; E7 is **27/40 / ~7/10**, while the prior warmer
 > prototype is **19/40 / ~4/10** (its task-table title/subline remains salvage only). Current verdict is
-> **NO-SHIP / owner-eyes pending** until the E7 result-header/toolbar review, the RED TaskSurface/
-> TasksLayout contract is reconciled, RecordViewer anatomy, Inbox seeded
+> **NO-SHIP / owner-eyes pending** until the E7 result-header/toolbar review, RecordViewer anatomy, Inbox seeded
 > journey, Deputy stack decision, I5 disposition, and 1280/1024/390 renders are independently verified.
 > See the canonical state block in [`docs/agent-context.md`](agent-context.md) and the latest correction
 > in [`docs/reviews/v3-redesign.md`](reviews/v3-redesign.md); those win if any older backlog paragraph

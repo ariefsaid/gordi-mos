@@ -1462,9 +1462,9 @@ an earlier tip or evidence run and cannot be promoted to current acceptance afte
 changes. Future agents should update the canonical state block and this ledger when evidence changes,
 then leave the dated strata intact for traceability.
 
-## Current working-tree correction — 2026-07-22 post-header verification
+## Historical pre-reconciliation correction — 2026-07-22 post-header verification
 
-This section is the latest handoff truth for the uncommitted local slice. It exists to stop a common
+This section records the handoff truth before the Task goal tests were reconciled. It exists to stop a common
 failure mode in this redesign: a worker reports its own focused tests as green while the migration has
 silently invalidated the older goal tests that exercise the real drawer/page journey.
 
@@ -1505,19 +1505,65 @@ is **25 failed / 77**. The failures are not a harmless stale-test banner:
   criterion still requires an explicit visual decision (suppress the duplicate identity or make the
   shell heading generic) before scoring.
 
-### Reconciliation of the false completion claims
+### Reconciliation of the false completion claims at that time
 
 The worker’s “all green” statement was true only for its bounded collection/header files. It was not
 evidence that the RecordViewer migration was integrated: the independent journey run is red, and the
 earlier **126/126** figure predates the header edits. Likewise, **34/40 · 9/10** remains a historical
 score at an earlier tip; it is not a score for this working tree. The canonical state is therefore:
 
-> **NO-SHIP.** Collection-header parity is locally implemented but needs visual review; the
-> TaskSurface/TasksLayout contract is red; full 1280/1024/390 browser proof, seeded Inbox Bell→queue→
+> **NO-SHIP at that time.** Collection-header parity was locally implemented but needed visual review; the
+> TaskSurface/TasksLayout contract was red; full 1280/1024/390 browser proof, seeded Inbox Bell→queue→
 > record→Back, Deputy one-session Back/stack behavior, I5, and the owner’s holistic E7-style review
 > remain open.
 
 Do not “fix” this by deleting the failing tests or by relabeling them stale. First decide the intended
 RecordViewer journey from the owner oracle and E7/lost-good references, then update goal-level tests to
-that journey and make the implementation satisfy them. This correction is documentation-only; no UI
-fixes were made in this pass.
+that journey and make the implementation satisfy them. This correction was documentation-only at that
+time; it is not the current test state.
+
+## Current working-tree verification — 2026-07-22 after RecordViewer journey reconciliation
+
+This section supersedes the historical red-run section immediately above. It is the current bounded
+evidence for the uncommitted local slice; it does not close the rendered owner gate.
+
+### What is green now
+
+- The combined OOM-safe smoke is **143/143 passed across 9 focused files**: TaskSurface, TasksLayout,
+  typed Task adapter, RecordCollection, CollectionToolbar, Signals presentation/archive, and Inbox
+  triage/page. The previous **25 failed / 77** TaskSurface/TasksLayout run is therefore a resolved
+  pre-reconciliation failure, not an active blocker.
+- `npm run typecheck`, `npm run lint:css`, changed-file ESLint, and
+  `node scripts/v3-live-inventory.mjs --check` pass. Inventory is **58 routes / 13 shared jobs /
+  76 CSS families**.
+- The Task adapter now expresses a distinct Task template inside the shared RecordViewer grammar:
+  `Task ownership`, `Status`, `Task details`, editable description/project-process/objective fields,
+  read-only derived `Source`, and localized lifecycle actions. The drawer host owns panel chrome,
+  expand/collapse, full-page promotion, Close/Esc, and focus return; the viewer owns record identity,
+  metadata, content, and actions.
+- Tasks and Signals share the visible result-header shape (`collection · view · count`) and a visible
+  `Saved view` framing label. Existing captures under `output/playwright/v3-after-header-*.png` are
+  source-slice evidence only; they are not owner acceptance.
+
+### What remains open
+
+- Full current-tree Vitest and the pre-merge gate were not rerun in this OOM-safe checkpoint.
+- Fresh live 1280/1024/390 renders for Home, Tasks, Signals, including the direct Task record, must
+  still be inspected against E7 styling plus the owner IA/IxD oracle. The direct focused page’s shell
+  heading versus viewer identity needs an explicit tidy/neat owner decision if the rendered duplicate
+  is still present.
+- Seeded Inbox Bell → queue → record → Back/handled proof, Deputy browser-Back/one-session stacking,
+  I5 select disposition, and holistic score remain open. The branch stays **NO-SHIP / owner-eyes
+  pending** until those gates are evidenced.
+
+### False-claim reconciliation for future agents
+
+The prior worker’s “all green” statement was scoped to its bounded collection/header files; it was not
+evidence that the RecordViewer migration was integrated. The independent 25/77 run exposed that gap,
+and the current 143/143 run closes that specific test-contract gap. The historical **126/126** and
+**34/40 · 9/10** numbers remain provenance for earlier tips only; neither is a score or full-suite claim
+for the current working tree. Agents must use this section and the canonical blocks in
+`docs/agent-context.md` and `docs/backlog.md` rather than re-opening the resolved 25/77 failure.
+
+Do not interpret “resolved” as “shipped”: source/test integration is green, while rendered three-width
+and owner-eye acceptance are still deliberately open.

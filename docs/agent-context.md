@@ -7,23 +7,23 @@
 > branch `v3-redesign`, at the latest committed docs checkpoint with an **uncommitted local convergence slice**.
 > No push, merge, deploy, or Supabase start has occurred in this state.
 >
-> **Verified now (bounded, OOM-safe evidence):** the post-slice collection/header smoke is **107/107
-> tests passed** across Tasks, Signals, Inbox, RecordCollection, and CollectionToolbar; `npm run
-> typecheck`, CSS lint, and changed-file ESLint passed; refreshed live inventory passes at **58 routes /
-> 13 shared jobs / 76 CSS families**. The earlier **126/126** viewer/collection run belongs to the
-> pre-header local slice and is historical for this working tree. The focused TaskSurface/TasksLayout
-> regression run is currently **RED: 25 failed / 77** because the live migration changed the old
-> TaskDrawerHeader/RecordDetailsPanel contract without updating all goal tests (and one redesign test
-> still expects the removed `Source` field). This is a real integration gate, not a reason to call the
-> tests stale or to claim the viewer migration complete. The full Vitest suite and three-width browser
-> acceptance were not rerun here and must not be represented by historical full-suite numbers.
+> **Verified now (bounded, OOM-safe evidence):** the reconciled RecordViewer + collection/header smoke is
+> **143/143 tests passed across 9 focused files** covering TaskSurface/TasksLayout, the typed Task
+> adapter, RecordCollection/CollectionToolbar, Signals presentation/archive, and Inbox triage/page.
+> `npm run typecheck`, CSS lint, changed-file ESLint, and the refreshed live inventory all pass at
+> **58 routes / 13 shared jobs / 76 CSS families**. The earlier **25 failed / 77** TaskSurface/TasksLayout
+> run was a real pre-reconciliation integration failure; it is historical, not current, and is retained
+> only in the dated review section below. The earlier **126/126** viewer/collection run belongs to the
+> pre-header local slice and is also historical. The full Vitest suite and three-width browser acceptance
+> were not rerun here and must not be represented by historical full-suite numbers.
 >
 > **What the local slice actually changes:** Task drawer/page content now composes the shared
-> `RecordViewer` adapter; Signal records now render inside the shared viewer identity/section shell while
-> retaining typed Signal content. Tasks and Signals now also expose a shared result header (`collection ·
-> view · count`) and a visible `Saved view` framing label. These are source + bounded render evidence,
-> not acceptance: fresh 1280/1024/390 renders of the current working tree are still required, and the
-> RED TaskSurface/TasksLayout tests must be reconciled against the intended RecordViewer journey.
+> `RecordViewer` adapter with a distinct Task template (ownership, status, details, provenance, and
+> lifecycle actions); Signal records render inside the shared viewer identity/section shell while
+> retaining typed Signal content. The shared host owns panel chrome and page promotion, avoiding nested
+> drawer controls. Tasks and Signals also expose a shared result header (`collection · view · count`)
+> and visible `Saved view` framing. These are source + bounded evidence, not acceptance: fresh
+> 1280/1024/390 renders of the current working tree are still required.
 >
 > **Score truth:** the prior agent’s **34/40 · 9/10** claim at `59110f1` is historical evidence, not
 > current acceptance. The earlier rendered **28/40** checkpoint and pre-convergence **23/40** audit are
@@ -35,8 +35,7 @@
 > until it has a fresh rendered comparison.
 >
 > **Current verdict: NO-SHIP / owner-eyes pending.** Remaining acceptance work is the shared E7
-> collection result-header/toolbar convergence review, reconciliation of the RED TaskSurface/TasksLayout
-> contract, fresh three-width renders, RecordViewer anatomy review,
+> collection result-header/toolbar convergence review, fresh three-width renders, RecordViewer anatomy review,
 > Inbox seeded Bell→queue→record→Back proof, Deputy browser-Back/one-session decision, I5 disposition,
 > and the owner’s holistic “one neat product” review. See the latest addendum in
 > `docs/reviews/v3-redesign.md`; if any older section disagrees with this block, this block wins.
