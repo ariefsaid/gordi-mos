@@ -225,6 +225,11 @@ for the audit verdict:
   carrying the active `window` and `cut` to `/money/detail`; direct `?window=7d&cut=channel` hydrates
   the same controls. Focused dashboard evidence is **20/20**. This closes AC-017 / drill pattern B;
   it does not claim contributing-record drill-down because the reporting read-model remains aggregate-only.
+- **Collection table header rhythm is now explicitly shared.** The RecordCollection skin gives typed
+  table presentations the same 38px E7 header measure as Tasks; Signals retains its domain columns.
+  RecordCollection/Signals/Tasks focused evidence is **75/75** plus typecheck and CSS lint. This closes
+  one concrete typography/spacing divergence; toolbar hierarchy, presentation parity, and owner render
+  review remain open.
 - **Route-seam test-environment root cause isolated and contained.** React Router’s jsdom AbortSignal was
   being passed to Node/undici Request; the test boundary now drops that signal for client-side history-only
   tests. The route-seam subset is **8/8**, and the combined shell/overlay suite is **54/54** with no unhandled

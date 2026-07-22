@@ -28,6 +28,15 @@
   font-size: 14px;
 }
 
+/* Collection tables share the Task decision-table header measure. Signals keeps its
+   domain columns, but its E7 table chrome must not introduce a shorter, rival header
+   rhythm (OD-REDESIGN-72/79). */
+.record-collection-view--table .dt-table thead th {
+  height: 38px;
+  padding: 0 12px;
+  line-height: 1.3;
+}
+
 .record-collection-readonly {
   margin: 0;
   padding: 8px 12px;

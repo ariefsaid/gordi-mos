@@ -865,3 +865,8 @@ spec's AC-017 / drill pattern B presentation contract without inventing per-KPI 
 links that the aggregate reporting read-model cannot support. The branch remains NO-SHIP for the
 independent rendered three-width gate, Tasks/Signals parity, Inbox seeded proof, Follow-ups flag,
 Issue 10, and spec/design verdict closure.
+
+The shared RecordCollection table skin also now sets a 38px header measure for typed table
+presentations, matching the Task decision table while preserving Signal-specific columns. Focused
+RecordCollection/Signals/Tasks evidence is **75/75**; this closes the measurable header-rhythm gap,
+not the full rendered toolbar/presentation parity gate.
