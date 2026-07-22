@@ -3673,20 +3673,15 @@
       "family": "components/assistant/AssistantPanel",
       "scope": "components",
       "literalKinds": {
-        "font-size": 0,
+        "font-size": 1,
         "line-height": 0,
         "padding": 0,
         "margin": 0,
         "gap": 0,
-        "width": 12,
-        "height": 2
+        "width": 1,
+        "height": 1
       },
-      "breakpoints": [
-        "@media (max-width: 919.98px)",
-        "@media (min-width: 1100px)",
-        "@media (min-width: 920px)",
-        "@media (min-width: 920px) and (max-width: 1099.98px)"
-      ]
+      "breakpoints": []
     },
     {
       "path": "mos-app/src/components/cafe/cafe-opening-panel.css",
@@ -4939,24 +4934,24 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 348,
+      "font-size": 349,
       "line-height": 43,
       "padding": 284,
       "margin": 85,
       "gap": 222,
-      "width": 363,
-      "height": 272
+      "width": 352,
+      "height": 271
     },
     "examples": {
       "font-size": [
         "mos-app/src/components/admin/people-toolbar.css",
+        "mos-app/src/components/assistant/AssistantPanel.css",
         "mos-app/src/components/cafe/cafe-opening-panel.css",
         "mos-app/src/components/command/command-menu.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/chart-frame.css",
         "mos-app/src/components/dashboard/cut-toggle.css",
-        "mos-app/src/components/dashboard/data-table.css",
-        "mos-app/src/components/dashboard/dq-badge.css"
+        "mos-app/src/components/dashboard/data-table.css"
       ],
       "line-height": [
         "mos-app/src/components/dashboard/basis-chip.css",
