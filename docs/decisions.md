@@ -1980,3 +1980,23 @@ stays mounted underneath and returns on close (owner clarification, 2026-07-22).
 preference, not a new record type: the shared overlay host/stack still owns open, close, Back, focus,
 and promotion semantics, while Deputy keeps its assistant-specific transcript and actions. The owner
 may refine the exact breakpoint after seeing the rendered coexistence journey.
+
+### OD-REDESIGN-81 — Home KPI-tile embed + record-open exception + score gate scope (owner 2026-07-22)
+
+Three ratifications from the score-gate push, answered directly by the owner:
+
+1. **Home "My open tasks" KPI tile: EMBED.** The standalone one-tile KPI row on Home is removed;
+   the open count renders inside the My tasks card header ("· N open"). Ratified — the build
+   lane's provisional RATIFY-BEFORE-MERGE flag on this item is discharged.
+2. **Home row-open grammar: RATIFIED EXCEPTION.** Home's My-tasks rows deep-link directly to the
+   task full page (`/work/tasks/:id`) instead of the drawer-first grammar used inside collections.
+   Home is a jump-off surface; this is THE one documented direct-navigation exception. No code
+   change; audits must stop flagging it.
+3. **Score-gate scope: Home + Tasks + Signals.** The ≥32/40 Nielsen-style and >8.5/10
+   structural anti-slop targets (raised from ≥27 / ≥7 on 2026-07-22) are scored on the same three
+   surfaces as the E7 27/40 baseline — apples-to-apples. Other surfaces still follow the same
+   grammar rules but are not part of this scorecard.
+
+Home RHYTHM (cards vs section/divider structure) is deliberately NOT decided here: the owner
+directed a divergent-first brainstorm of alternatives before any implementation
+(`docs/plans/2026-07-22-home-rhythm-alternatives.md` when it lands).
