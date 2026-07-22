@@ -882,6 +882,62 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull(),
     )
   })
+
+  // D1 — the field/tenant seam: ModalShell (the shared dialog primitive under ConfirmDialog)
+  // auto-focuses its own Cancel button the instant it mounts (its own a11y contract). If a
+  // RecordField is still focused and mid-draft when the "Discard unsaved changes?" dialog
+  // opens, that auto-focus fires a REAL native blur on the field BEFORE the user has chosen
+  // Retain or Discard — and an unguarded blur handler would commit the draft right there,
+  // silently persisting the very edit the dialog is asking about (Discard would then discard
+  // nothing). TaskOverlayContent's `fieldCommitsFrozen` (task-drawer.tsx) exists to prevent
+  // exactly that: it freezes RecordField's blur-commit for as long as the dialog is mounted.
+  // This test never fires a synthetic blur itself — it types a draft, leaves the field
+  // genuinely DOM-focused (record-field.tsx's `autoFocus`), and lets the SAME real dialog-open
+  // path the live app uses (Close → dirty guard → ConfirmDialog → ModalShell mount) do the
+  // focus-stealing, so it reproduces the actual race rather than asserting around it.
+  it('D1: opening the leave-guard dialog freezes field commits — ConfirmDialog auto-focus cannot silently save the draft', async () => {
+    const task = makeTask({ id: 'task-d1', title: 'D1 task', description: 'original description' })
+    mockListTasks.mockResolvedValue([task])
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    mockUpdateTaskFields.mockResolvedValue(undefined) // a SUCCESSFUL commit — the dangerous case (D1's "silent save")
+
+    renderTable()
+    await waitFor(() => screen.getByText('D1 task'))
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Description' }))
+    const description = screen.getByLabelText('Description') as HTMLTextAreaElement
+    // Sanity: RecordField's own autoFocus really landed DOM focus on the field — otherwise
+    // ModalShell's later focus-steal wouldn't fire a blur on it at all and this test would
+    // prove nothing.
+    expect(document.activeElement).toBe(description)
+
+    const draftText = 'a draft in flight when the leave-guard dialog opens'
+    fireEvent.change(description, { target: { value: draftText } })
+    expect(description.value).toBe(draftText)
+
+    // Trigger the guard via Close WITHOUT ever blurring the field ourselves — the dialog's own
+    // ModalShell mount effect is what steals focus next, exactly like the live browser Back path.
+    fireEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
+
+    // ModalShell really did steal focus (a genuine jsdom blur fired on the field) — if the D1
+    // defect were still live, THAT blur is what would have committed the draft.
+    expect(document.activeElement).not.toBe(description)
+    expect(mockUpdateTaskFields).not.toHaveBeenCalled()
+
+    // Retain: the dialog closes, ModalShell returns focus to the field (its own
+    // invoker-refocus contract), and the draft is exactly what the user typed — never
+    // committed by the stray blur, never rolled back to the saved baseline either.
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByLabelText('Description')).toHaveValue(draftText)
+    expect(mockUpdateTaskFields).not.toHaveBeenCalled()
+    // The deny resolves the host's in-flight leave request in a microtask (same as
+    // AC-V3-008c above) — flush it so the assertion above is the true settled state.
+    await act(async () => {})
+    expect(mockUpdateTaskFields).not.toHaveBeenCalled()
+  })
 })
 
 describe('Task 14/15 — grouping engine (AC-123, AC-119)', () => {

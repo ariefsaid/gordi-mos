@@ -127,6 +127,59 @@ describe('RecordField', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
+  // D2 (dead-defect verification): the redesign's record-grammar merge hardened the
+  // upstream-sync effect (`useEffect([spec.value])` above) to check `editingRef.current` in
+  // ADDITION to save status — it now skips adopting a new spec.value whenever the field is
+  // mid-edit, not just mid-save/mid-error. A real Task commit failure rolls the tenant's
+  // optimistic write back (task-surface.tsx handleUpdateField's catch: `setLocalTask(prev)`,
+  // then re-throws) BEFORE this field's own onCommit rejection is even observed here — so
+  // spec.value churns TWICE around the failure (optimistic write, then rollback) while this
+  // component is still "editing". Before the hardening, a rollback landing while status had
+  // not yet flipped to 'error' would have re-adopted the reverted spec.value and wiped the
+  // typed draft (defeating FieldErrorRetryContract). This proves that race is closed: neither
+  // spec.value churn — landing mid-flight, and landing exactly with the rejection — ever
+  // clobbers the draft.
+  it('D2 (dead defect): a spec.value churn from the tenant\'s optimistic-write-then-rollback around a failed commit never clobbers the in-flight draft', async () => {
+    let rejectCommit!: (err: Error) => void
+    const onCommit = vi.fn(
+      () => new Promise<void>((_resolve, reject) => { rejectCommit = reject }),
+    )
+    const { rerender } = renderField(textSpec, { onCommit })
+
+    activate('Title')
+    const input = screen.getByLabelText('Title') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'a resilient draft' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onCommit).toHaveBeenCalledWith('a resilient draft')
+    expect(await screen.findByText('Saving…')).toBeInTheDocument()
+
+    // 1) The tenant's OPTIMISTIC write lands mid-flight: task-surface.tsx sets localTask (and
+    // therefore spec.value) to the new value before the API call has settled.
+    rerender(
+      <RecordField
+        spec={{ ...textSpec, value: 'a resilient draft', displayValue: 'a resilient draft' }}
+        onCommit={onCommit}
+      />,
+    )
+    expect(input.value).toBe('a resilient draft')
+
+    // 2) The API call is about to fail; the tenant's catch block rolls localTask back to the
+    // PRE-EDIT baseline SYNCHRONOUSLY, so spec.value reverts to the ORIGINAL value — and only
+    // THEN does the rejection reach this component's own commit() catch.
+    rerender(<RecordField spec={textSpec} onCommit={onCommit} />)
+    await act(async () => { rejectCommit(new Error('offline')) })
+
+    // The draft survived both churns intact — never reset to the rolled-back baseline, error
+    // surfaced, retry available, exactly like a rejection with no tenant churn at all.
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(input.value).toBe('a resilient draft')
+
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(2))
+    expect(onCommit).toHaveBeenLastCalledWith('a resilient draft')
+  })
+
   it('AC-V3-009: a read-only field exposes its value and reason without an enabled control', () => {
     const spec: RecordFieldSpec = {
       key: 'team',
