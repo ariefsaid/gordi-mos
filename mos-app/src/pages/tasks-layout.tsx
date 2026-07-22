@@ -8,6 +8,7 @@ import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
+import { useT } from '@/i18n/use-t'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
 
@@ -89,17 +90,24 @@ export function TasksLayout() {
  * `/work/tasks/:id` or the drawer's "Open full page" escalation.
  */
 function TaskRecordPage({ taskId }: { taskId: string }) {
+  const t = useT()
   const [title, setTitle] = useState<string | null>(null)
   // Empty string before the title resolves keeps the crumb at "Work · Tasks";
   // once resolved it pushes the task title; on unmount the hook clears it.
   useSetBreadcrumbTitle(title ?? '')
-  // V3 focused-record family: the PageFamilyFrame owns the shell <main> + h1
-  // (the resolved title, or "Task" while unresolved → loading state). The typed
-  // TaskSurface body renders the record identity as an h2 beneath it.
+  // V3 focused-record family: the PageFamilyFrame owns the shell <main> + h1,
+  // but the h1 stays the generic type label ("Task") — the resolved record
+  // title lives inside the RecordViewer identity card only (matching the
+  // Follow-up/Signal record pages and the E7 canonical prototype, whose
+  // full-page chrome carries no title at all). Repeating the resolved title
+  // in both the page h1 and the card ~100px below it duplicated the same
+  // string on screen (title+metadata-hierarchy; impeccable H8 aesthetic-
+  // minimalist). The typed TaskSurface body renders the record identity as
+  // an h2 beneath it.
   return (
     <PageFamilyFrame
       family="focused-record"
-      title={title ?? 'Task'}
+      title={t('tasks.label.task')}
       jobSentence="Review and update this task."
       state={title ? 'default' : 'loading'}
     >

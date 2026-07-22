@@ -551,8 +551,10 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Standalone page task' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
 
-    // The ONE renderer (TaskSurface) renders the record identity row.
-    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Standalone page task' }))
+    // The ONE renderer (TaskSurface) renders the record identity row (h2); the
+    // shell h1 stays the generic type label so the resolved title shows once,
+    // inside the card — not twice (F4, title+metadata-hierarchy).
+    await waitFor(() => screen.getByRole('heading', { level: 2, name: 'Standalone page task' }))
 
     // No split-drawer aside and no table shell — it is a standalone canonical page.
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
@@ -578,23 +580,25 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
   })
 
   // V3 Issue 3, Task 9/10 — the direct/full Task page is the Focused-record representative.
-  it('Focused record family: a direct Task page mounts inside the focused-record frame with one h1 (shell) + one h2 (record identity)', async () => {
+  it('Focused record family: a direct Task page mounts inside the focused-record frame with one h1 (shell, generic) + one h2 (record identity, resolved title)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open me' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
 
-    // The record identity is now an h2 (the PageFamilyFrame owns the shell h1).
+    // The record identity is the h2 (the PageFamilyFrame owns the shell h1).
     await screen.findByRole('heading', { level: 2, name: 'Open me' })
-    // The shell h1 resolves to the same title one render later (async via
-    // onTitleResolved), so wait for it before asserting the exact heading counts.
-    await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
     const main = document.querySelector('main')
     expect(main?.getAttribute('data-page-family')).toBe('focused-record')
 
-    // Exactly one shell h1 and one record-identity h2, both the resolved title.
-    expect(screen.getAllByRole('heading', { level: 1, name: 'Open me' })).toHaveLength(1)
+    // The resolved title shows exactly ONCE — inside the record-identity h2. The
+    // shell h1 stays the generic "Task" type label so the same string never
+    // appears twice on screen (F4 fix, title+metadata-hierarchy / impeccable H8
+    // aesthetic-minimalist): the E7 canonical record keeps the title in the
+    // card only.
+    expect(screen.getByRole('heading', { level: 1, name: 'Task' })).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 2, name: 'Open me' })).toHaveLength(1)
+    expect(screen.queryByRole('heading', { level: 1, name: 'Open me' })).toBeNull()
 
     // The focused-record job sentence renders; the internal family name never shows.
     expect(screen.getByText('Review and update this task.')).toBeInTheDocument()
