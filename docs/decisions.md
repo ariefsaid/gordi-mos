@@ -2000,3 +2000,14 @@ Three ratifications from the score-gate push, answered directly by the owner:
 Home RHYTHM (cards vs section/divider structure) is deliberately NOT decided here: the owner
 directed a divergent-first brainstorm of alternatives before any implementation
 (`docs/plans/2026-07-22-home-rhythm-alternatives.md` when it lands).
+
+### OD-REDESIGN-82 — Home rhythm: D1 Section-Rhythm Restoration (owner 2026-07-22)
+
+From the divergent brainstorm (`docs/plans/2026-07-22-home-rhythm-alternatives.md`, five
+structural directions): the owner picked **D1 — Section-Rhythm Restoration**, the faithful E7
+port. Home's bordered card shells (Attention brief / My tasks / Signal feed) are replaced by
+E7's chromeless section grammar — section heading + right-aligned action link, whitespace
+dividers, lightly-bordered rows — regions and their content contracts unchanged (OD-18 order
+toggle, A12 attention/ambient boundary, OD-59 Signal region all untouched). D2 (single
+prioritized stream) remains a documented future option, phone-first, requiring its two flagged
+ratifications before any build.
