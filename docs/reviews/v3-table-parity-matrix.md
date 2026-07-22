@@ -25,8 +25,8 @@ fields and actions remain typed.
 - **Baseline audit:** 3 already CONVERGED / 5 DIVERGENT-SAFE-TO-FIX / 1
   DIVERGENT-NEEDS-DECISION.
 - **Final matrix rows:** **8 CONVERGED / 0 unresolved safe divergences / 1
-  DIVERGENT-NEEDS-DECISION**. Four rows were fixed in code (title/meta, group header, sort, and
-density); mobile’s presentational shell was also converged.
+  DIVERGENT-NEEDS-DECISION**. All five baseline safe divergences were addressed in code: title/meta,
+group header, sort, mobile-card shell, and density.
 
 ## Deferred owner decisions
 
