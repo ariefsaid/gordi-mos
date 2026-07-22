@@ -1578,3 +1578,14 @@ attention-brief + Home table/cards deleted. 163 touched-surface tests green.
 RATIFY-BEFORE-MERGE: A12 attention/ambient boundary expressed as ranked-stream + Signals tail.
 RATIFY-BEFORE-MERGE: OD-18 order toggle re-expressed as the stream ranking preference.
 RATIFY-BEFORE-MERGE (carried from brave-b lane when it lands): Signals default Table→Feed.
+
+## OFFICIAL Luna scoring pass — 2026-07-23 (owner-designated scorer, tip 61f6087)
+
+`OFFICIAL: 26/40 · 6.5/10 · floor violations 8 · BAR NOT MET.`
+Full report: the Luna run transcript (P0-1 Home ranked-stream ordering/phone identity widths;
+P0-2 toolbar density — NOTE: contradicts round-1's flat-row directive, oscillation flagged for
+owner; P0-3 mobile nested-card soup; P1 compact 1024 icon-rail, record chrome, Signal record
+anatomy). Objective floor items (phone title widths, 44px Ask-Deputy target, nested cards,
+record start y, signals-first ordering, toolbar height) are fix-now; the two OSCILLATING calls
+(toolbar flat-vs-disclosure; 1024 rail) go to the owner — agents have flip-flopped and the
+composite oracle needs an owner word.
