@@ -33,8 +33,6 @@ describe('Tasks / Signals collection row grammar', () => {
               ownerName="Rina Lestari"
               businessUnitName="Café Operations"
               onOpen={() => {}}
-              checked={false}
-              onCheck={() => {}}
             />
           </tbody>
         </table>

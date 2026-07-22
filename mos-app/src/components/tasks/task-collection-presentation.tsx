@@ -332,6 +332,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const runtime = providedRuntime ?? DEFAULT_TASK_RUNTIME
   const t = useT()
   const { query, projection, context, selectedIds, onToggleSelected, onToggleGroup, cardLayout = false } = props
+  // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
+  void selectedIds
+  void onToggleSelected
   const { isCollapsed: isCollapsedPreference, toggleCollapsed } = useTaskCollapsePreference(query.groupBy)
   const groups = useMemo(
     () => buildRenderGroups(projection, context, query, runtime.statusOverrides, t),
@@ -384,15 +387,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     if (virtualize && cursorFlatIndex >= 0) rowVirtualizer.scrollToIndex(cursorFlatIndex, { align: 'auto' })
   }, [cursorFlatIndex, rowVirtualizer, virtualize])
 
-  const allChecked = leafTasks.length > 0 && leafTasks.every((task) => selectedIds.has(task.id))
-  const someChecked = leafTasks.some((task) => selectedIds.has(task.id))
-  const toggleSelectAll = useCallback(() => {
-    if (allChecked) {
-      for (const task of leafTasks) if (selectedIds.has(task.id)) onToggleSelected(task.id)
-      return
-    }
-    for (const task of leafTasks) if (!selectedIds.has(task.id)) onToggleSelected(task.id)
-  }, [allChecked, leafTasks, onToggleSelected, selectedIds])
+
 
   const occurrence = useOccurrenceAssignment(runtime)
   const personMap = useMemo(() => new Map(context.personNamesById), [context.personNamesById])
@@ -429,8 +424,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
-        checked={selectedIds.has(task.id)}
-        onCheck={() => onToggleSelected(task.id)}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={runtime.recordSearch}
         provenanceRoleName={task.generated_from_task_def_id
@@ -446,7 +439,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       count={group.rows.length}
       overdue={group.overdue}
       collapsed={isCollapsedPreference(group.key)}
-      colSpan={7}
+      colSpan={6}
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
@@ -493,9 +486,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onSort={onSort}
         ariaSort={(column) => sortCol === column ? sortDirection : 'none'}
         sortIndicator={sortIndicator}
-        allChecked={allChecked}
-        someChecked={someChecked}
-        onToggleSelectAll={toggleSelectAll}
         flatRows={flatRows}
         virtualize={virtualize}
         scrollRef={scrollRef}

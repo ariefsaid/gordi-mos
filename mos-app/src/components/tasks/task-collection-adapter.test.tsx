@@ -130,8 +130,8 @@ describe('NFR-V3-001: no typed bulk capability is granted', () => {
     expect(taskCollectionDescriptor.getAccess({ viewerId: 'p-raka', accessRoles: [] })).toEqual({ mode: 'full', visibleActions: [] })
     expect(taskCollectionDescriptor.presentations.table.capabilities.bulkActions).toEqual([])
     expect(taskCollectionDescriptor.presentations.card.capabilities.bulkActions).toEqual([])
-    // Selection stays live even though no bulk action ships.
-    expect(taskCollectionDescriptor.presentations.table.capabilities.selection).toBe(true)
+    // Selection is disabled until a real bulk action ships (OD-REDESIGN-83.2).
+    expect(taskCollectionDescriptor.presentations.table.capabilities.selection).toBe(false)
   })
 })
 

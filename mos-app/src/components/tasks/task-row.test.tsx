@@ -1,7 +1,7 @@
 // TaskRow — PR-2 AC-T03/T04/T05/T06. Extracted from TasksWorkspace.renderRow;
-// adds the hover-revealed leading checkbox (RowCheckbox) + trailing ⋯ menu
-// (RowMenu). The name cell is a real <a href="/work/tasks/:id"> Chip-link; status is
-// a soft StatusPill that never wraps; body rows consume the shared collection measure.
+// renders the trailing ⋯ menu (RowMenu). The name cell is a real
+// <a href="/work/tasks/:id"> Chip-link; status is a soft StatusPill that
+// never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -36,8 +36,6 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   leafIndex: 0,
   ownerName: 'Rina Lestari',
   onOpen: () => {},
-  checked: false,
-  onCheck: () => {},
   recordSearch: '',
   ...overrides,
 })
@@ -125,15 +123,6 @@ describe('TaskRow — AC-T06 body row uses the shared RecordCollection measure',
   })
 })
 
-describe('TaskRow — AC-T02 row carries the reveal hooks for checkbox + menu', () => {
-  it('AC-T02: renders a leading RowCheckbox + trailing RowMenu inside the row', () => {
-    renderRow()
-    const row = document.querySelector('tr.task-row')!
-    expect(row.querySelector('button.row-checkbox')).toBeTruthy()
-    expect(row.querySelector('button.row-menu')).toBeTruthy()
-  })
-})
-
 // I7 "exactly one aria-current" (cohesion-debt 2026-07-19 + interaction-contract I7):
 // the rail/breadcrumb OWN aria-current="page". A task row's open/cursor state is a
 // SELECTION, so it must expose aria-selected — never a second aria-current on the page.
@@ -160,16 +149,7 @@ describe('TaskRow — I7: open/cursor state is aria-selected, never aria-current
   })
 })
 
-describe('TaskRow — stopPropagation regression (checkbox + ⋯ must NOT fire row onOpen)', () => {
-  it('clicking the row checkbox does NOT call onOpen (stopPropagation)', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen })
-    const checkbox = document.querySelector('button.row-checkbox') as HTMLElement
-    expect(checkbox).toBeTruthy()
-    fireEvent.click(checkbox)
-    expect(onOpen).not.toHaveBeenCalled()
-  })
-
+describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
   it('clicking the ⋯ trigger button does NOT call onOpen (stopPropagation)', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen })

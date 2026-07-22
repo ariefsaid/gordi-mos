@@ -1276,27 +1276,8 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
     expect(body).toMatch(/height:\s*var\(--row-min-h\)/)
   })
 
-  it('AC-T07: thead has a select-all checkbox exposing aria-checked="mixed" when partial', async () => {
-    mockListTasks.mockResolvedValue([
-      makeTask({ id: 'a', title: 'A' }),
-      makeTask({ id: 'b', title: 'B' }),
-    ])
-    renderTable()
-    await waitFor(() => screen.getByText('A'))
-    // The select-all lives in the thead's leading cell.
-    const selectAll = document.querySelector('thead [role="checkbox"]') as HTMLElement | null
-    expect(selectAll, 'expected a select-all checkbox in the thead').not.toBeNull()
-    // With nothing selected it reads "false"; toggle one row → "mixed".
-    expect(selectAll!.getAttribute('aria-checked')).toBe('false')
-    // Select one of two rows.
-    const rowCheckboxes = document.querySelectorAll('tbody [role="checkbox"]')
-    expect(rowCheckboxes.length).toBe(2)
-    fireEvent.click(rowCheckboxes[0])
-    expect(selectAll!.getAttribute('aria-checked')).toBe('mixed')
-  })
-
-  it('AC-T02/T07: every row (header, skeleton, body) agrees on column count (no-bleed)', async () => {
-    // The skeleton already renders 8 cells (td-cb + 6 + td-menu). The populated row
+  it('AC-T02: every row (header, skeleton, body) agrees on column count (no-bleed)', async () => {
+    // The skeleton already renders 6 cells (6 + td-menu). The populated row
     // and thead must agree, else a long group header colSpan misaligns the grid.
     mockListTasks.mockResolvedValue([makeTask({ id: 'cc', title: 'Column count' })])
     renderTable()
@@ -1305,9 +1286,9 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
     const bodyRow = document.querySelector('tr.task-row') as HTMLElement | null
     expect(bodyRow, 'expected a populated task row').not.toBeNull()
     const tds = bodyRow!.querySelectorAll('td')
-    // Thead and body row must have the same column count (the checkbox col counts on both).
+    // Thead and body row must have the same column count.
     expect(tds.length, 'thead th count must equal body td count').toBe(ths.length)
-    expect(ths.length).toBeGreaterThanOrEqual(7) // 6 data cols + checkbox + (menu is in-row)
+    expect(ths.length).toBeGreaterThanOrEqual(6) // 6 data cols + (menu is in-row)
   })
 })
 
@@ -1343,8 +1324,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
     renderTable()
     await waitFor(() => screen.getByText('Density row'))
     const row = document.querySelector('tr.task-row')!
-    // 7 cells: cb + Task + Status + PIC + Supervisor + Due + menu (no optional cols).
-    expect(row.querySelectorAll('td').length).toBe(7)
+    // 6 cells: Task + Status + PIC + Supervisor + Due + menu (no optional cols).
+    expect(row.querySelectorAll('td').length).toBe(6)
     // Optional cells gone (moved to drawer)…
     expect(row.querySelector('.td-workline')).toBeNull()
     expect(row.querySelector('.td-objective')).toBeNull()

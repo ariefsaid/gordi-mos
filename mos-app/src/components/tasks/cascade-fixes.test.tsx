@@ -202,17 +202,17 @@ describe('RI-3 — Task column width and scroll container', () => {
     const close = css.indexOf('}', open)
     const body = css.slice(open + 1, close)
     expect(body).toMatch(/min-width:/)
-    const taskRuleSelector = '.tasks-table th:nth-child(2), .tasks-table td:nth-child(2)'
+    const taskRuleSelector = '.tasks-table th:nth-child(1), .tasks-table td:nth-child(1)'
     const taskRuleIdx = css.indexOf(taskRuleSelector)
     expect(taskRuleIdx).toBeGreaterThanOrEqual(0)
     const taskRuleOpen = css.indexOf('{', taskRuleIdx)
     const taskRuleClose = css.indexOf('}', taskRuleOpen)
     const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
     expect(taskRule).toMatch(/width:\s*auto/)
-    // Secondary columns (3..6) at the base tier: all %-shares, summing < 70% so the auto
+    // Secondary columns (2..5) at the base tier: all %-shares, summing < 70% so the auto
     // Task column always keeps a readable share.
     const shares: number[] = []
-    for (const col of [3, 4, 5, 6]) {
+    for (const col of [2, 3, 4, 5]) {
       const sel = `.tasks-table th:nth-child(${col}), .tasks-table td:nth-child(${col})`
       const colIdx = css.indexOf(sel)
       expect(colIdx, `expected a width rule for column ${col}`).toBeGreaterThanOrEqual(0)

@@ -226,8 +226,8 @@ export const taskCollectionQuery: CollectionQuerySchema<TaskCollectionQuery> = {
   normalize: (query) => query,
 }
 
-// Task Table and Card are fully compatible: both expose group, sort, PIC, Supervisor, saved-view,
-// and selection. There is no disabled Board/Calendar presentation.
+// Task Table and Card are fully compatible: both expose group, sort, PIC, Supervisor,
+// and saved-view. There is no disabled Board/Calendar presentation.
 export const taskPresentationCompatibleKeys: Readonly<
   Record<TaskCollectionPresentation, readonly QueryKey<TaskCollectionQuery>[]>
 > = {
@@ -620,7 +620,7 @@ const TASK_CAPABILITIES = {
   sortKeys: ['sort'] as const,
   groupKeys: ['groupBy'] as const,
   savedViews: true,
-  selection: true,
+  selection: false,
   recordOpening: true,
   bulkActions: [] as const,
 }
@@ -737,7 +737,7 @@ async function loadTaskCollection(args: {
 // ── Access + viewer opening seam ──────────────────────────────────────────────────────────────────
 function getTaskAccess(): CollectionAccess<TaskCollectionAction> {
   // Tasks are org-readable and member-writable (RLS is the real gate). TaskCollectionAction = never,
-  // so no collection-level bulk mutation is exposed (selection stays live; its action slot is absent).
+  // so no collection-level bulk mutation is exposed.
   return { mode: 'full', visibleActions: [] }
 }
 

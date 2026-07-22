@@ -1,13 +1,11 @@
 // TaskRow — one shared E7-measure record row (PR-2). Extracted verbatim from
-// TasksWorkspace.renderRow, then given a hover-revealed leading RowCheckbox
-// (AC-T02/T07) + trailing RowMenu ⋯ (AC-T02). The name cell is a real
-// <a href="/work/tasks/:id"> Chip-link (AC-T03); status is a soft StatusPill that
-// never wraps (AC-T05); the row fill is bg-secondary on hover and the existing
-// neutral row-selected on the open drawer row (AC-T04).
+// TasksWorkspace.renderRow, then given a trailing RowMenu ⋯ (AC-T02). The name
+// cell is a real <a href="/work/tasks/:id"> Chip-link (AC-T03); status is a
+// soft StatusPill that never wraps (AC-T05); the row fill is bg-secondary on
+// hover and the existing neutral row-selected on the open drawer row (AC-T04).
 //
-// Selection (RowCheckbox) is presentational scaffolding — it toggles a local
-// set only and does NOT change row styling. The `row-selected` class stays
-// semantically "the open drawer row" (isSelected), unchanged from pre-PR-2.
+// The `row-selected` class stays semantically "the open drawer row" (isSelected),
+// unchanged from pre-PR-2.
 import type { Ref } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
@@ -16,7 +14,6 @@ import { dueStatus, isOverdue } from '@/lib/due-status'
 import { StatusPill } from './status-pill'
 import { PicCell } from './pic-cell'
 import { formatDate } from './task-formatters'
-import { RowCheckbox } from './row-checkbox'
 import { RowMenu } from './row-menu'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -35,9 +32,6 @@ export type TaskRowProps = {
   ownerName: string
   /** Row click + name link activation → opens the split panel. */
   onOpen: (taskId: string) => void
-  /** Checkbox selection (local set only — no bulk action ships this PR). */
-  checked: boolean
-  onCheck: (next: boolean) => void
   /** Supervisor display name resolved from the directory. */
   supervisorName?: string
   /** Business Unit display name used in the shared title metadata subline. */
@@ -54,7 +48,7 @@ export type TaskRowProps = {
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
-  ownerName, onOpen, checked, onCheck,
+  ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
 }: TaskRowProps) {
   const t = useT()
@@ -84,13 +78,6 @@ export function TaskRow({
       data-leaf-index={leafIndex}
       onClick={() => onOpen(task.id)}
     >
-      <td className="td-cell td-cb">
-        <RowCheckbox
-          checked={checked}
-          label={t('tasks.selectTask', { title: task.title })}
-          onChange={onCheck}
-        />
-      </td>
       <td className="td-main">
         <Link
           to={recordTo}

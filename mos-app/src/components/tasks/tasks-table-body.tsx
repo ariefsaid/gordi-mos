@@ -16,7 +16,6 @@ import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
-import { RowCheckbox } from './row-checkbox'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
@@ -31,13 +30,11 @@ export type FlatRow =
   | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
-// Wave 2c: matches the 7-column priority row (cb + Task + Status + PIC + Supervisor
+// Wave 2c: matches the 6-column priority row (Task + Status + PIC + Supervisor
 // + Due + menu). Both desktop modes share the priority column set.
 function SkeletonRow() {
   return (
     <tr>
-      {/* leading checkbox col (empty - hover-reveal is irrelevant while loading) */}
-      <td className="sk-cell td-cb" />
       <td className="sk-cell"><div className="sk" style={{ width: '42%' }} /></td>
       <td className="sk-cell"><div className="sk pill" /></td>
       <td className="sk-cell"><div className="sk av" /></td>
@@ -74,9 +71,6 @@ export type TasksTableBodyProps = {
   ariaSort: (col: SortCol) => 'ascending' | 'descending' | 'none'
   /** The inline sort-direction affordance for the active column (else null). */
   sortIndicator: (col: SortCol) => ReactNode
-  allChecked: boolean
-  someChecked: boolean
-  onToggleSelectAll: () => void
 
   // ── Body row windowing + rendering ────────────────────────────────────────
   flatRows: FlatRow[]
@@ -120,7 +114,6 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
     sortCol, onSort, ariaSort, sortIndicator,
-    allChecked, someChecked, onToggleSelectAll,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
@@ -204,15 +197,6 @@ export function TasksTableBody(props: TasksTableBodyProps) {
       <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.title')}>
         <thead>
           <tr>
-            {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}
-            <th scope="col" className="th-cell th-cb">
-              <RowCheckbox
-                checked={allChecked}
-                indeterminate={someChecked && !allChecked}
-                onChange={onToggleSelectAll}
-                label={t('tasks.selectAll')}
-              />
-            </th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('task')}>
@@ -249,9 +233,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            // Wave 2c: both desktop modes share the 7-column priority set
-            // (cb + Task + Status + PIC + Supervisor + Due + menu).
-            const colSpan = 7
+            // Wave 2c: both desktop modes share the 6-column priority set
+            // (Task + Status + PIC + Supervisor + Due + menu).
+            const colSpan = 6
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (
