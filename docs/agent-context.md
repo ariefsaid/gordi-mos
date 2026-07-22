@@ -112,6 +112,9 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > Focused Signals/toolbar/Tasks evidence is 82/82; typecheck, ESLint, Stylelint, diff check, and live
 > inventory pass. This is a code-owned IxD closure, not a live rendered owner-gate claim.
 
+> The Signal table message opener is now a native `button` with an injected shared-record opener;
+> the former `span role="button"` seam is covered by the Signal presentation test.
+
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
 > `docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`).** Tip `8cd1053` at session start.

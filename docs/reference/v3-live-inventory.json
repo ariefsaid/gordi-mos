@@ -4220,7 +4220,7 @@
       "literalKinds": {
         "font-size": 1,
         "line-height": 0,
-        "padding": 1,
+        "padding": 2,
         "margin": 0,
         "gap": 0,
         "width": 1,
@@ -4916,7 +4916,7 @@
     "countsByKind": {
       "font-size": 348,
       "line-height": 42,
-      "padding": 282,
+      "padding": 283,
       "margin": 85,
       "gap": 223,
       "width": 343,

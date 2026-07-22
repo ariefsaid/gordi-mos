@@ -257,3 +257,7 @@ Evidence: Signals archive + shared toolbar + Tasks workspace focused tests **82/
 targeted ESLint, Stylelint, diff check, and live-inventory check pass (**58 routes / 13 shared jobs /
 73 CSS families**). This closes the responsive disclosure gap, not the full rendered three-width owner
 gate or remaining desktop visual parity judgment. No live render or Supabase start was performed.
+
+The Signal table message opener is also now a native `button` rather than a `span role="button"`.
+The existing injected-opener test remains green and now locks `type="button"`; this removes one
+remaining hand-rolled keyboard-activation seam without changing the Signal record contract.

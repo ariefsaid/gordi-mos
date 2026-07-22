@@ -889,3 +889,7 @@ Focused Signals archive, shared toolbar, and Tasks workspace evidence is **82/82
 targeted ESLint, Stylelint, diff check, and live inventory (**58 routes / 13 shared jobs / 73 CSS
 families**) pass. This closes the responsive disclosure inconsistency; desktop presentation parity and
 the owner’s rendered three-width acceptance remain open. No push/merge/deploy occurred.
+
+The Signal table message opener now uses a native `button` (with the same injected record opener) rather
+than a `span role="button"`. Signal table/page/toolbar/Tasks focused evidence is **87/87** after the
+locking assertion; this closes the hand-rolled activation seam but does not replace the live render gate.

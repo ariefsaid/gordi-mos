@@ -3,12 +3,24 @@
    pill, and the retracted row state. E7 tokens only. */
 
 .signal-table-message {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--foreground);
+  font: inherit;
   font-weight: 500;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
 }
 .signal-table-message:hover {
   text-decoration: underline;
+}
+.signal-table-message:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
 }
 
 .signal-table-tombstone {

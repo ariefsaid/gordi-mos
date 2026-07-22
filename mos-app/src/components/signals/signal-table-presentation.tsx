@@ -42,15 +42,13 @@ export function SignalTablePresentation({
             {signal.retract_reason ? <span className="signal-table-reason"> {signal.retract_reason}</span> : null}
           </span>
         ) : (
-          <span
+          <button
+            type="button"
             className="signal-table-message"
-            role="button"
-            tabIndex={0}
             onClick={() => onOpenRecord(signal)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenRecord(signal); } }}
           >
             {signal.body}
-          </span>
+          </button>
         ),
     },
     {
