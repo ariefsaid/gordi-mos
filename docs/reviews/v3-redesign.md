@@ -1318,3 +1318,44 @@ Still open (unchanged by this slice): Home card-remnant owner decision, Home rec
 consistency ratification, Tasks/Signals renderer parity matrix, RecordViewer anatomy, Inbox seeded
 proof, Café strings/state semantics, and the OWNER walkthrough. Verdict stays **NO-SHIP** until the
 owner sees these surfaces — but the measurable score gate is now met and rendered.
+
+## Raised score-gate result — 2026-07-22 evening (target ≥32/40 · >8.5/10, scope OD-81.3)
+
+Wave contents (all merged to `v3-redesign`, each lane independently verified then Director-re-run):
+table-grammar parity (matrix 9/9 CONVERGED after OD-83.2; shared `collection-grammar.css`; Tasks
+title+BU subline anatomy) · Home KPI embed (OD-81.1) · Café/Inbox/Follow-ups state-kit convergence
+(LoadingShell + awaiting/blank/next-step; Café nouns verified already-clean) · D1 Home section
+rhythm (OD-82; chromeless E7 sections) · sticky view-tabs gutter fix · dirty-leave guard journeys
+(AC-V3-008/b/c) · field-Escape isolation (OD-83.1; capture-phase, Deputy layering preserved,
+live-verified: dirty field → Esc reverts silently, panel stays; second Esc closes) · Task selection
+scaffolding removed (OD-83.2).
+
+Gates at tip: **full parallel Vitest 3256/3256, 0 skipped** · typecheck 0 · ESLint/Stylelint 0 on
+all changed files · `git diff --check` clean. Rendered/driven evidence: 1280/1024/390 sweep of
+Home, Tasks, Signals this session (Director-driven, live app); rail-pin, disclosure journeys, and
+the Escape contract exercised in the real browser.
+
+### Re-score (same 0–4 rubric; structured review scores, not lab Nielsen)
+
+H1 visibility **4** (single view axis state, sort arrows, options dot, shared loading/empty/error,
+header count) · H2 match **3** (Café nouns clean, Gordi language; bilingual content mixing keeps it
+off 4) · H3 control **3** (Escape/dirty contract ratified + proven at unit/live layers; browser-Back
+veto e2e proof still open → not 4) · H4 consistency **4** (one toolbar grammar, one table grammar,
+one state kit, one host — user-visible parity complete) · H5 prevention **3** · H6 recognition **4**
+(title+subline everywhere, no starved column at any proven width) · H7 flexibility **3** · H8
+minimalist **4** (chromeless Home, two-row toolbar, dead affordances gone) · H9 recovery **3** ·
+H10 help **3** (teaching empty states, job sentences) = **34/40** (target ≥32 MET; E7 baseline 27).
+
+Structural anti-slop: IA spine ✓ · collection/control grammar ✓ · record-viewer anatomy **partial**
+(typed viewer anatomy/relations still incomplete — the one open structural item) · title/meta ✓ ·
+rhythm ✓ · card discipline ✓ · overlay/IxD ✓ (one shared host owns records + Deputy chrome;
+Escape layering ratified) · state semantics ✓ (scoped surfaces) · responsive ✓ · decorative ✓ =
+**9/10** (target >8.5 MET).
+
+### Standing items after this wave
+
+RecordViewer anatomy completion (the 9/10 partial) · browser-Back dirty-veto e2e proof ·
+task-surface optimistic-rollback draft churn (flagged, owner may want an issue) · Inbox seeded
+journey + handled semantics (data-gated) · Issues 10/12 + curated e2e · owner walkthrough.
+**Verdict: the measurable gates are MET at 34/40 · 9/10; NO-SHIP remains only for the owner
+walkthrough + the standing non-score items above.**
