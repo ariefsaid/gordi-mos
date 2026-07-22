@@ -1411,7 +1411,7 @@ score and gate vocabulary drift in the older sections above:
 
 | Item | Current truth | Evidence / disposition |
 |---|---|---|
-| Branch | `v3-redesign`, committed docs tip `023d62e` plus uncommitted local UI work | No push, merge, deploy, or Supabase start. |
+| Branch | `v3-redesign`, latest committed docs checkpoint plus uncommitted local UI work | No push, merge, deploy, or Supabase start. |
 | Focused viewer/collection smoke | **126/126 passed** across 9 files | Historical pre-header OOM-safe run covering RecordViewer, Task/Signal adapters and hosts, collection toolbar/table, and archive/workspace seams. |
 | TypeScript / CSS lint | **PASS** | `npm run typecheck`; `npm run lint:css`. |
 | Source guards | **PASS** | RecordCollection conformance; live inventory refreshed and checked: **58 routes / 13 shared jobs / 76 CSS families**. |
