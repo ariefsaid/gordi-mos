@@ -523,3 +523,8 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   keyboard-sort/`aria-sort` contract as Tasks while updating the URL-owned query. Focused source/goal
   evidence is recorded in `docs/reviews/v3-redesign.md`; no current render or owner three-width verdict
   is implied.
+- **Deputy verification addendum (local):** independent rerun at `3d6c39c` is **94/94 focused tests**
+  plus typecheck, ESLint/CSS lint, and diff-check. The phone preference is explicit: Deputy may layer
+  above a mounted record when there is not enough horizontal space; one Escape closes Deputy first.
+  Controller-owned browser Back/one-session stack semantics and live 1280/1024/390 geometry,
+  focus, and phone scroll containment remain open. No server or Supabase was started.

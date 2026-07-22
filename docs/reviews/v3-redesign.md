@@ -1022,3 +1022,20 @@ in `kitchen-plan-page.test.tsx` (`94eff85`). Typecheck, changed-file ESLint, and
 Stylelint pass. This is source/test closure only:
 fresh 1280/1024/390 rendering and the owner’s final “one app”/taste judgment remain open. No server,
 Supabase, push, merge, or deploy was used.
+
+## Deputy independent verification addendum — 2026-07-22 (local, unpushed)
+
+At commit `3d6c39c`, the Director independently reran the affected Deputy/host battery: **94/94
+Vitest tests passed** across AssistantPanel, runtime state, coexistence coordination, Inbox/Deputy
+source conformance, RecordPanelHost, OverlayHost, and shell wiring. Typecheck, ESLint (including its
+CSS lint leg), and `git diff --check` passed. The standalone `npm run stylelint` command is not a
+repo script; CSS lint is the `lint:css` leg already included by `npm run lint`.
+
+The phone rule is accepted as: when a record is mounted and horizontal space is insufficient, Deputy
+may be a compact modal layer above it; one Escape closes Deputy first and leaves the record mounted.
+This is the owner’s space-constrained preference, now reflected in OD-REDESIGN-80.
+
+Two gates remain deliberately open: Deputy is still a companion outside the primary `OverlaySession`
+(browser Back and one-session stack semantics are not unified), and a live render must still verify
+phone modal scroll/focus containment while the underlying record stays mounted. No server, Supabase,
+push, merge, or deploy was used.

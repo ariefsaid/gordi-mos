@@ -396,3 +396,16 @@ controller-stack adoption. Deputy remains a companion outside the primary route 
 browser Back and one-session stack semantics still require implementation or an explicit owner
 exception. Focused evidence is **63/63**, with typecheck, ESLint, and Stylelint green. Fresh rendered
 1280/1024/390 evidence and the owner's geometry/taste judgment remain open; **NO-SHIP** is unchanged.
+
+### Independent verification addendum — 2026-07-22
+
+At commit `3d6c39c`, the Director reran the focused surface battery independently: **94/94 tests
+passed** across AssistantPanel, runtime, OverlayHost/RecordPanelHost, coexistence, Inbox/Deputy
+conformance, and shell wiring. Typecheck, ESLint with its `lint:css` leg, and `git diff --check`
+passed. This confirms the shared-host cutover and phone-above-record Escape invariant at the
+source/test layer; it does not promote the branch to ship.
+
+The remaining audit item is integration rather than chrome duplication: Deputy is not yet a
+controller-owned primary `OverlaySession` frame, so browser Back and one-session stack semantics
+remain open. A live three-width render must also verify that the phone modal contains scrolling and
+focus correctly while the underlying record remains mounted. No local server or Supabase was started.

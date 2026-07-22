@@ -607,3 +607,9 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
   close always focuses the hamburger regardless of the actual launcher (I2 gap, found by the hpm
   lane, out of its bounded scope). Fix = per-open launcher registration (pattern:
   AgentRuntimeContext opener capture) in app-shell/bottom-tab-bar/mobile-drawer + an I2 test.
+
+- **Deputy phone coexistence (verified source/test, 2026-07-22):** when a record is mounted and
+  side-by-side space is unavailable, Deputy may sit above the record; one Escape closes Deputy first.
+  Independent verification at `3d6c39c` is 94/94 focused tests plus typecheck, ESLint/CSS lint, and
+  diff-check. Remaining gates are controller-owned browser-Back/one-session stack semantics and
+  rendered 1280/1024/390 geometry/focus/phone scroll containment. No new chrome rewrite is needed.
