@@ -53,6 +53,38 @@
   white-space: nowrap;
 }
 
+/* Inline title-edit input (E7 inline-cell primitive: one commit contract — Enter/blur save,
+   Esc discard). Sits in the identity cell in place of the title link while editing. The accent
+   focus ring mirrors E7's `.inline-cell.editing` box-shadow, kept on DESIGN tokens. */
+.task-title-edit {
+  display: block;
+}
+
+.task-title-input {
+  width: 100%;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.task-title-input:focus,
+.task-title-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.task-title-input[aria-busy='true'] {
+  opacity: 0.6;
+}
+
 /* ── PIC cell (avatar + name) — the shared row anatomy behind PicCell (pic-cell.tsx),
    consumed by the Tasks workspace table/mobile cards AND, as of the table-parity fix
    (F4, 2026-07-22), the Home "My tasks" mini-table. PicCell itself carries no CSS import

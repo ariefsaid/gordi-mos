@@ -45,6 +45,9 @@ export interface TaskCollectionRuntime {
   recordSearch: string
   statusOverrides: ReadonlyMap<string, TaskStatus>
   onOpenTask: (taskId: string) => void
+  /** Inline title-edit commit (E7 collection promise) — persists via the shared updateTaskFields
+   * path. Rejects to drive the row's optimistic rollback. Inert in the descriptor-only default. */
+  onEditTitle: (taskId: string, title: string) => Promise<void>
   onCloseDrawer: () => void
   onNewTask: () => void
   onToggleExpand: () => void
@@ -104,6 +107,7 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   recordSearch: '',
   statusOverrides: new Map(),
   onOpenTask: () => {},
+  onEditTitle: async () => {},
   onCloseDrawer: () => {},
   onNewTask: () => {},
   onToggleExpand: () => {},
@@ -423,6 +427,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
+        onEditTitle={runtime.onEditTitle}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={runtime.recordSearch}
         provenanceRoleName={task.generated_from_task_def_id

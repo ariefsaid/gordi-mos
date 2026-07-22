@@ -31,6 +31,7 @@ import {
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
 import type { TaskStatus } from '@/lib/db/tasks.types'
+import { updateTaskFields } from '@/lib/db/tasks'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry } from '@/shell/overlay-host'
@@ -205,6 +206,14 @@ export function TasksWorkspace({
     )
     void host.openRoot(entry, 'route')
   }, [controller.state.data, currentSearch, host, onTaskArchived, onTaskChanged, t])
+  // Inline title edit (E7 collection promise) — persists through the SAME updateTaskFields path the
+  // record editor uses (task-surface handleUpdateField). Rejects (no viewer, or a failed write) so
+  // TaskRow's useInlineCommit rolls the row back optimistically. The edited title lives in the row's
+  // own draft; the status-only onTaskChanged override channel is untouched (title is not part of it).
+  const onEditTitle = useCallback(async (taskId: string, title: string) => {
+    if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
+    await updateTaskFields(taskId, { title }, viewerId)
+  }, [viewerId])
   const onCloseDrawer = useCallback(() => {
     if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
       void host.close()
@@ -302,6 +311,7 @@ export function TasksWorkspace({
     recordSearch: currentSearch,
     statusOverrides: runtimeStatusOverrides,
     onOpenTask,
+    onEditTitle,
     onCloseDrawer,
     onNewTask,
     onToggleExpand: onToggleExpand ?? (() => {}),
@@ -318,7 +328,7 @@ export function TasksWorkspace({
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
     accessRoles, currentSearch, drawerOpen, dueRuns, expanded, host.session, isDesktop, onAddTask,
-    onCloseDrawer, onNewTask, onOpenTask, onToggleExpand, onClearFilters, onSort,
+    onCloseDrawer, onEditTitle, onNewTask, onOpenTask, onToggleExpand, onClearFilters, onSort,
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
 

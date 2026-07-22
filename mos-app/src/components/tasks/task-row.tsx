@@ -7,10 +7,12 @@
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
 import type { Ref } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
+import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
 import { PicCell } from './pic-cell'
 import { formatDate } from './task-formatters'
@@ -44,12 +46,20 @@ export type TaskRowProps = {
    * whose def binds a Role (Rule 11 — threaded straight into OwnerCell, no second PIC rendering).
    */
   provenanceRoleName?: string
+  /**
+   * Inline title edit (E7 collection promise). When supplied, a double-click (mouse) or F2 (keyboard)
+   * on the title swaps it for a text input that commits through this (the same `updateTaskFields`
+   * path the record editor uses). Omitted → the title stays a plain opener link (no edit affordance).
+   * Returns a Promise so the useInlineCommit primitive drives the optimistic pending + rollback.
+   */
+  onEditTitle?: (taskId: string, title: string) => Promise<void>
 }
 
 export function TaskRow({
   task, now, isSelected, isCursor, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
+  onEditTitle,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -70,6 +80,92 @@ export function TaskRow({
   const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
   const panelState = { taskSurface: 'panel' as const }
 
+  // ── Inline title edit (E7 collection promise) ────────────────────────────────
+  // `draft` is the SINGLE display source for the title: while a commit is pending it holds the
+  // optimistic new value; on a rejected commit useInlineCommit rolls it back to task.title and
+  // announces the revert. Rendering `draft` (not task.title) is what makes the optimistic edit
+  // survive the async round-trip without the row needing its own copy of the collection cache.
+  const canEdit = Boolean(onEditTitle)
+  const [editing, setEditing] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current) }, [])
+  const inline = useInlineCommit<string>({
+    value: task.title,
+    onCommit: (next) => (onEditTitle ? onEditTitle(task.id, next) : undefined),
+    rollbackMessage: t('tasks.feedback.rollback'),
+  })
+  const { draft, setDraft, pending, commit, cancel, liveMessage } = inline
+  const displayTitle = draft
+
+  useEffect(() => {
+    if (editing) {
+      const el = inputRef.current
+      el?.focus()
+      el?.select()
+    }
+  }, [editing])
+
+  const beginEdit = () => { if (canEdit && !editing) setEditing(true) }
+  // Enter/blur COMMIT the trimmed draft; an empty or unchanged draft is a no-op restore (never a
+  // blank title). Escape DISCARDS. Exiting edit mode is owned here (useInlineCommit is mode-less).
+  const finishEdit = () => {
+    const next = draft.trim()
+    if (!next || next === task.title) { cancel(); setEditing(false); return }
+    commit(next)
+    setEditing(false)
+  }
+  const onInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // Enter isolation (same reason as Escape below): commit closes the editor synchronously, so
+      // by the time the workspace keyboard layer's window listener runs, activeElement is no longer
+      // a typing target and it would treat this Enter as "open the cursor row". stopPropagation
+      // shields the ancestor window listener so the commit never leaks into a row-open.
+      e.preventDefault()
+      e.stopPropagation()
+      finishEdit()
+    } else if (e.key === 'Escape') {
+      // Field-Escape isolation: consume the Escape so the workspace keyboard layer's window
+      // listener (Esc → close drawer) never sees it. The table has no intermediate native
+      // listener (unlike the record panel), so React's stopPropagation shields the ancestor
+      // window listener cleanly here.
+      e.preventDefault()
+      e.stopPropagation()
+      cancel()
+      setEditing(false)
+    }
+    // Tab is left to native focus movement; onBlur commits the draft as it leaves.
+  }
+  const onTitleKeyDown = (e: React.KeyboardEvent) => {
+    // F2 = the standard rename key. Deliberately NOT Enter (Enter opens the record — the existing
+    // opener grammar the workspace keyboard layer owns). F2 is collision-free, zero-latency, and
+    // works from a keyboard-focused title with no drawer in the way.
+    if (canEdit && e.key === 'F2') {
+      e.preventDefault()
+      beginEdit()
+    }
+  }
+  // Mouse activations. A single click OPENS the record; a double-click EDITS. To keep the two from
+  // racing (our title-click IS the opener, so a naive double-click would fire the opener on its
+  // first click and steal focus into the drawer), the title's open is deferred by one double-click
+  // window; a double-click cancels that pending open and edits in place instead. This ~200ms delay
+  // is scoped to the TITLE cell only — every other row cell and row-Enter still open instantly, so
+  // fast triage keeps an instant door. Non-editable rows keep the original instant title-open.
+  const onTitleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!canEdit) { onOpen(task.id); return }
+    if (openTimer.current) clearTimeout(openTimer.current)
+    openTimer.current = setTimeout(() => { openTimer.current = null; onOpen(task.id) }, 200)
+  }
+  const onTitleDoubleClick = (e: React.MouseEvent) => {
+    if (!canEdit) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
+    beginEdit()
+  }
+
   return (
     <tr
       ref={isCursor ? cursorRowRef : undefined}
@@ -82,29 +178,59 @@ export function TaskRow({
       onClick={() => onOpen(task.id)}
     >
       <td className="td-main">
-        <Link
-          to={recordTo}
-          state={panelState}
-          className="task-row-link name-chip collection-grammar-title-cell"
-          title={task.title}
-          tabIndex={0}
-          // The href remains the progressive-enhancement/canonical door, but the
-          // application interaction grammar is one shared RecordViewer: activate
-          // the row opener instead of bypassing it into the route-local drawer.
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onOpen(task.id)
-          }}
-        >
-          <span className="task-title-line">
-            {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
-            <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
-          </span>
-          {businessUnitName && (
-            <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
-          )}
-        </Link>
+        {editing ? (
+          // Edit mode: the title text is replaced in place by a bound input (no nested anchor).
+          // The onClick stopPropagation keeps a click inside the field from bubbling to the row
+          // opener; aria-busy mirrors the pending commit.
+          <div
+            className="collection-grammar-title-cell task-title-edit"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              ref={inputRef}
+              className="task-title-input collection-grammar-title"
+              value={draft}
+              disabled={pending}
+              aria-busy={pending || undefined}
+              aria-label={t('tasks.inlineEdit.aria')}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onInputKeyDown}
+              onBlur={finishEdit}
+            />
+            {businessUnitName && (
+              <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
+            )}
+          </div>
+        ) : (
+          <Link
+            to={recordTo}
+            state={panelState}
+            className="task-row-link name-chip collection-grammar-title-cell"
+            title={task.title}
+            tabIndex={0}
+            // Double-click renames, F2 renames from the keyboard (the E7 collection promise).
+            // aria-keyshortcuts exposes F2 without hijacking the truncation-hover `title` tooltip;
+            // the quiet under-table hint carries the visible discovery. Only wired when editable.
+            aria-keyshortcuts={canEdit ? 'F2' : undefined}
+            // The href remains the progressive-enhancement/canonical door, but the
+            // application interaction grammar is one shared RecordViewer: activate
+            // the row opener instead of bypassing it into the route-local drawer.
+            onClick={onTitleClick}
+            onDoubleClick={onTitleDoubleClick}
+            onKeyDown={onTitleKeyDown}
+          >
+            <span className="task-title-line">
+              {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
+              <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{displayTitle}</span>
+            </span>
+            {businessUnitName && (
+              <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
+            )}
+          </Link>
+        )}
+        {liveMessage && (
+          <span role="status" aria-live="polite" className="sr-only">{liveMessage}</span>
+        )}
       </td>
       <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
       <td className="td-cell td-owner">

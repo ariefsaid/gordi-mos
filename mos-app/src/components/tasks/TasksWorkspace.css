@@ -175,6 +175,14 @@
 .tasks-scroll-virtual { max-height: 70vh; overflow-y: auto; }
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
+/* Quiet inline-edit hint under the table (E7 `.e7-edit-hint`) — muted, small, not shouting. */
+.tasks-inline-edit-hint {
+  margin: 8px 12px 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
 /* ── Table ── */
 /* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop DB-view shows ONLY
    the decision columns — Task + Status + PIC + Supervisor + Due + menu (6 cols).

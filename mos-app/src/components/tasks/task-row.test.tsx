@@ -3,7 +3,7 @@
 // <a href="/work/tasks/:id"> Chip-link; status is a soft StatusPill that
 // never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -180,6 +180,150 @@ describe('TaskRow — provenance ("via <role name>", item 4)', () => {
   it('renders no provenance text when provenanceRoleName is omitted (no regression)', () => {
     renderRow({ ownerName: 'Cahya Cafe' })
     expect(screen.queryByText(/^via /)).not.toBeInTheDocument()
+  })
+})
+
+// Inline title edit (E7 collection promise: "Select a Task title to edit it. Enter saves · Esc
+// discards"). Activation is F2 on the focused title (NOT double-click — our title-click is the
+// record opener; NOT Enter — that opens the row). Optimistic commit via useInlineCommit, rollback
+// on failure. The row's displayed title is the hook's draft, so the optimistic edit survives the
+// async round-trip and reverts on rejection.
+describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)', () => {
+  function openEditor() {
+    const link = screen.getByRole('link', { name: /Finalise Q3/i })
+    fireEvent.keyDown(link, { key: 'F2' })
+    return screen.getByLabelText('Edit task title') as HTMLInputElement
+  }
+
+  it('commits an edited title (F2 → type → Enter) and shows it in the row', async () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: 'Renamed forecast' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onEditTitle).toHaveBeenCalledWith('task-7', 'Renamed forecast')
+    await waitFor(() => expect(screen.queryByLabelText('Edit task title')).toBeNull())
+    expect(document.querySelector('.task-name')).toHaveTextContent('Renamed forecast')
+  })
+
+  it('Escape discards the draft — no commit, saved title restored', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: 'Should not stick' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onEditTitle).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    expect(document.querySelector('.task-name')).toHaveTextContent('Finalise Q3 roastery output forecast')
+  })
+
+  it('rolls the row back to the saved title (and announces) when the commit rejects', async () => {
+    const onEditTitle = vi.fn().mockRejectedValue(new Error('write failed'))
+    renderRow({ onEditTitle })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: 'Doomed rename' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onEditTitle).toHaveBeenCalledWith('task-7', 'Doomed rename')
+    await waitFor(() =>
+      expect(document.querySelector('.task-name')).toHaveTextContent('Finalise Q3 roastery output forecast'),
+    )
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("Couldn't save — reverted"))
+  })
+
+  it('an empty draft is a no-op restore — never commits a blank title', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onEditTitle).not.toHaveBeenCalled()
+    expect(document.querySelector('.task-name')).toHaveTextContent('Finalise Q3 roastery output forecast')
+  })
+
+  it('leaves the row opener intact — F2 begins edit and never opens; row-body click still opens', () => {
+    const onOpen = vi.fn()
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onOpen, onEditTitle })
+    const link = screen.getByRole('link', { name: /Finalise Q3/i })
+    fireEvent.keyDown(link, { key: 'F2' })
+    expect(onOpen).not.toHaveBeenCalled()
+    fireEvent.click(document.querySelector('td.td-status') as HTMLElement)
+    expect(onOpen).toHaveBeenCalledWith('task-7')
+  })
+
+  it('does not wire the edit affordance when onEditTitle is absent (F2 is inert)', () => {
+    renderRow()
+    const link = screen.getByRole('link', { name: /Finalise Q3/i })
+    fireEvent.keyDown(link, { key: 'F2' })
+    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+  })
+
+  it('a double-click on the title opens the inline editor (mouse activation)', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
+    expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+  })
+
+  it('a single click on an editable title DEFERS the open by one double-click window', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      const onEditTitle = vi.fn().mockResolvedValue(undefined)
+      renderRow({ onOpen, onEditTitle })
+      fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+      expect(onOpen).not.toHaveBeenCalled() // deferred so a double-click can pre-empt it
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(onOpen).toHaveBeenCalledWith('task-7')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a double-click pre-empts the deferred open — edits in place, never opens', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      const onEditTitle = vi.fn().mockResolvedValue(undefined)
+      renderRow({ onOpen, onEditTitle })
+      const link = screen.getByRole('link', { name: /Finalise Q3/i })
+      fireEvent.click(link) // arms the deferred open
+      fireEvent.doubleClick(link) // cancels it, edits instead
+      act(() => { vi.advanceTimersByTime(300) })
+      expect(onOpen).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a non-editable title still opens INSTANTLY on a single click (no deferral)', () => {
+    const onOpen = vi.fn()
+    renderRow({ onOpen }) // no onEditTitle → not editable
+    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+    expect(onOpen).toHaveBeenCalledWith('task-7')
+  })
+
+  // Field-Escape/Enter isolation: the commit/discard keys must NOT bubble to the workspace keyboard
+  // layer's window listener (Enter → open cursor row, Esc → close drawer). Without this the commit
+  // Enter leaks into a spurious row-open once the editor unmounts and activeElement is no longer a
+  // typing target.
+  it('isolates the commit Enter and the discard Escape from the window keyboard layer', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    const windowSpy = vi.fn()
+    window.addEventListener('keydown', windowSpy)
+    try {
+      renderRow({ onEditTitle })
+      fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
+      const input = screen.getByLabelText('Edit task title')
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(windowSpy).not.toHaveBeenCalled()
+      fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
+      fireEvent.keyDown(screen.getByLabelText('Edit task title'), { key: 'Escape' })
+      expect(windowSpy).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('keydown', windowSpy)
+    }
   })
 })
 

@@ -260,6 +260,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           </tbody>
         )}
       </table>
+      {/* Quiet E7-style inline-edit hint (matches the F2 activation the row wires). Sits under the
+          table, muted, so the affordance is discoverable without shouting. */}
+      <p className="tasks-inline-edit-hint">{t('tasks.inlineEdit.hint')}</p>
     </div>
   )
 }
