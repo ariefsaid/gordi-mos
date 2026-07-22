@@ -35,7 +35,8 @@ type FetchedData = {
 // secondary widths left ~80px for the title at 1280px, producing `Repl...`/`Sour...`
 // instead of a useful record label. Percent columns preserve the E7/pre-E7 table grammar
 // while allowing ownership metadata to remain scannable.
-const desktopMiniColWidths = ['34%', '12%', '12%', '14%', '14%', '9%', '5%'] as const
+// Column widths + the intermediate-width priority tier live in my-tasks-card.css
+// (.mini-tasks-table nth-child rules): title stays dominant, Due never clips.
 
 export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -97,12 +98,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
 
       {/* ── Loading: skeleton rows, chrome stays visible (AC-W04) ────────── */}
       {loadState === 'loading' && (isDesktop ? (
-        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-          <colgroup>
-            {desktopMiniColWidths.map((width, index) => (
-              <col key={index} style={{ width }} />
-            ))}
-          </colgroup>
+        <table className="w-full border-collapse mini-tasks-table" style={{ tableLayout: 'fixed' }}>
           <SkeletonBody rows={3} />
         </table>
       ) : <MobileSkeleton />)}
@@ -125,14 +121,9 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
       {/* ── Ready state ───────────────────────────────────────────────────── */}
       {loadState === 'ready' && (isDesktop ? (
         <table
-          className="w-full border-collapse"
+          className="w-full border-collapse mini-tasks-table"
           style={{ tableLayout: 'fixed', fontSize: 15 }}
         >
-          <colgroup>
-            {desktopMiniColWidths.map((width, index) => (
-              <col key={index} style={{ width }} />
-            ))}
-          </colgroup>
           <thead>
             <tr>
               <th scope="col" className="th-overline">{t('tasks.label.task')}</th>
@@ -350,14 +341,9 @@ function SkeletonBody({ rows }: { rows: number }) {
     <>
       <thead>
         <tr>
-          {desktopMiniColWidths.map((width, i) => (
-            <th
-              key={i}
-              scope="col"
-              className="th-overline"
-              style={{ width }}
-            >
-              {/* empty — overline chrome visible */}
+          {Array.from({ length: 7 }, (_, i) => (
+            <th key={i} scope="col" className="th-overline">
+              {/* empty — overline chrome visible; widths come from .mini-tasks-table CSS */}
             </th>
           ))}
         </tr>

@@ -188,12 +188,21 @@
    the Task identity column can never collapse to zero at the normal 1024px shell. The previous
    fixed-pixel sum consumed the entire table (Task measured 0px in the live render). */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: 40px; }   /* checkbox */
-.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 22%; }    /* Task */
+.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: auto; }   /* Task — the identity column absorbs all slack (E7/pre-E7: title never starves) */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 12%; }    /* Status */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* PIC / Ownership */
 .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 15%; }    /* Supervisor */
 .tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 14%; }    /* Due */
 .tasks-table th:nth-child(7), .tasks-table td:nth-child(7) { width: 40px; }   /* row menu */
+
+/* Intermediate widths: column PRIORITY (Wave 2c) — Task > Status > PIC > Due > Supervisor.
+   Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
+@media (max-width: 1120px) {
+  .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { display: none; }
+  .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 13%; }
+  .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 16%; }
+  .tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 21%; }
+}
 /* Condensed (drawer-open split): %-based widths so the 7 priority cols flex to the
    narrow split; cb + menu stay fixed 40px. */
 .assembly.condensed .tasks-table th:nth-child(1), .assembly.condensed .tasks-table td:nth-child(1) { width: 40px; }

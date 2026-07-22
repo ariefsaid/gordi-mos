@@ -20,6 +20,45 @@
   white-space: nowrap;
 }
 
+/* ── Mini-table columns (Task · Status · Team · PIC · Supervisor · Due · Activity) ──
+   Title dominant, Due never clips ("Overdue · Mon 13 Jul"): the E7/pre-E7 table grammar.
+   Below ~1120px viewport the Home column can't hold 7 columns, so ownership metadata
+   yields by PRIORITY (Task > Status > Due > PIC): Team/Supervisor/Activity hide; the
+   record page still carries them. */
+.mini-tasks-table th:nth-child(1), .mini-tasks-table td:nth-child(1) { width: 28%; }
+.mini-tasks-table th:nth-child(2), .mini-tasks-table td:nth-child(2) { width: 11%; }
+.mini-tasks-table th:nth-child(3), .mini-tasks-table td:nth-child(3) { width: 12%; }
+.mini-tasks-table th:nth-child(4), .mini-tasks-table td:nth-child(4) { width: 14%; }
+.mini-tasks-table th:nth-child(5), .mini-tasks-table td:nth-child(5) { width: 13%; }
+.mini-tasks-table th:nth-child(6), .mini-tasks-table td:nth-child(6) { width: 18%; }
+.mini-tasks-table th:nth-child(7), .mini-tasks-table td:nth-child(7) { width: 4%; }
+
+/* Seven columns can't all afford the 20px page-edge padding — inner columns run at the
+   denser E7 table rhythm; the outer edges keep the card gutter. */
+.mini-tasks-table .th-overline,
+.mini-tasks-table .mini-td { padding-left: 12px; padding-right: 12px; }
+.mini-tasks-table th:first-child, .mini-tasks-table td:first-child { padding-left: 20px; }
+.mini-tasks-table th:last-child, .mini-tasks-table td:last-child { padding-right: 20px; }
+
+@media (max-width: 1120px) {
+  .mini-tasks-table th:nth-child(3), .mini-tasks-table td:nth-child(3),
+  .mini-tasks-table th:nth-child(5), .mini-tasks-table td:nth-child(5),
+  .mini-tasks-table th:nth-child(7), .mini-tasks-table td:nth-child(7) { display: none; }
+  .mini-tasks-table th:nth-child(1), .mini-tasks-table td:nth-child(1) { width: 40%; }
+  .mini-tasks-table th:nth-child(2), .mini-tasks-table td:nth-child(2) { width: 15%; }
+  .mini-tasks-table th:nth-child(4), .mini-tasks-table td:nth-child(4) { width: 19%; }
+  .mini-tasks-table th:nth-child(6), .mini-tasks-table td:nth-child(6) { width: 26%; }
+}
+
+/* One-line row rhythm: name cells guard with ellipsis instead of wrapping to two lines. */
+.mini-tasks-table td:nth-child(3),
+.mini-tasks-table td:nth-child(4),
+.mini-tasks-table td:nth-child(5) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Mini-table body row ───────────────────────────────────────────────────── */
 .mini-td {
   height: 46px;

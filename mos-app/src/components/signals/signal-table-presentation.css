@@ -6,13 +6,24 @@
    short archive from collapsing into a 60%-wide visual island; these proportions keep the message
    primary while leaving stable scanning columns for provenance and attention. */
 .signal-collection-table th:nth-child(1),
-.signal-collection-table td:nth-child(1) { width: 52%; }
+.signal-collection-table td:nth-child(1) { width: 50%; }
 .signal-collection-table th:nth-child(2),
-.signal-collection-table td:nth-child(2) { width: 18%; }
+.signal-collection-table td:nth-child(2) { width: 16%; }
 .signal-collection-table th:nth-child(3),
-.signal-collection-table td:nth-child(3) { width: 15%; }
+.signal-collection-table td:nth-child(3) { width: 19%; } /* Occurred — full "20 Jul 2026, 21:40" never clips */
 .signal-collection-table th:nth-child(4),
 .signal-collection-table td:nth-child(4) { width: 15%; }
+
+/* Intermediate widths: keep Team and the full WIB timestamp whole — the message cell is the
+   flexible one (it already carries its own subline and ellipsis). */
+@media (max-width: 1120px) {
+  .signal-collection-table th:nth-child(1),
+  .signal-collection-table td:nth-child(1) { width: 43%; }
+  .signal-collection-table th:nth-child(2),
+  .signal-collection-table td:nth-child(2) { width: 18%; }
+  .signal-collection-table th:nth-child(3),
+  .signal-collection-table td:nth-child(3) { width: 24%; }
+}
 .signal-collection-table td {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
 import './collection-toolbar.css'
 
@@ -57,6 +58,12 @@ export interface CollectionToolbarProps<
  * The one visible RecordCollection control grammar. Domains supply typed labels/options, while
  * this component owns the order, geometry, keyboard-capable primitives, saved-view door, and
  * responsive wrapping. Unsupported capabilities are omitted rather than shown disabled.
+ *
+ * E7 / pre-E7 anatomy (owner score gate, 2026-07-22): row 1 is the ONE view axis — the
+ * presentation switch plus a single chip strip where preset views and user-saved views live
+ * together. Row 2 is the compact query row — search + domain filters. Group/sort/toggles are
+ * progressively disclosed behind a labelled "View options" button (an inline row, not a popup),
+ * so the collapsed toolbar never shows duplicate view axes.
  */
 export function CollectionToolbar<
   TPresentation extends string,
@@ -71,9 +78,12 @@ export function CollectionToolbar<
   className,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
+  const isDesktop = useIsDesktop()
   const [saveOpen, setSaveOpen] = useState(false)
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const [viewName, setViewName] = useState('')
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const optionsRowId = useId()
 
   useEffect(() => {
     savedViews?.onLoad?.()
@@ -85,6 +95,14 @@ export function CollectionToolbar<
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
   const isViewOption = (filter: CollectionToolbarFilter) => /(?:^|-)group$|(?:^|-)sort$/.test(filter.id)
+  const queryFilters = filters.filter(filter => !isViewOption(filter))
+  const viewOptionFilters = filters.filter(isViewOption)
+  const hasViewOptions = viewOptionFilters.length > 0 || Boolean(toggles)
+  // First option is each choice's rest state; a dot on the collapsed trigger says "the view
+  // is shaped by something you can't currently see".
+  const viewOptionsActive = viewOptionFilters.some(
+    filter => filter.options.length > 0 && filter.value !== filter.options[0].value,
+  )
 
   function closeSaveView() {
     setSaveOpen(false)
@@ -117,7 +135,7 @@ export function CollectionToolbar<
 
         <div className="collection-toolbar__views" role="group" aria-label={views.label}>
           {views.options.map((option) => {
-            const active = option.value === views.value
+            const active = option.value === views.value && !savedViews?.selectedId
             return (
               <button
                 key={option.value}
@@ -130,59 +148,41 @@ export function CollectionToolbar<
               </button>
             )
           })}
+          {savedViews && savedViews.items.length > 0 ? (
+            <>
+              <span className="collection-toolbar__views-divider" aria-hidden="true" />
+              {savedViews.items.map((item) => {
+                const active = item.id === savedViews.selectedId
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`collection-toolbar__view${active ? ' collection-toolbar__view--active' : ''}`}
+                    aria-pressed={active}
+                    onClick={() => void savedViews.onApply(item.id)}
+                  >
+                    {item.name}
+                  </button>
+                )
+              })}
+            </>
+          ) : null}
         </div>
 
         <div className="collection-toolbar__primary-spacer" />
 
         {savedViews ? (
-          <div className="collection-toolbar__saved">
-            {savedViews.items.length > 0 ? (
-              <>
-                <div className="collection-toolbar__saved-chips" role="group" aria-label={savedViews.label}>
-                  {savedViews.items.map((item) => {
-                    const active = item.id === savedViews.selectedId
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`collection-toolbar__saved-chip${active ? ' collection-toolbar__saved-chip--active' : ''}`}
-                        aria-pressed={active}
-                        onClick={() => void savedViews.onApply(item.id)}
-                      >
-                        {item.name}
-                      </button>
-                    )
-                  })}
-                </div>
-                {/* Keep a native select as an assistive/keyboard fallback without making a
-                    second visual control compete with the visible saved-view chips. */}
-              </>
-            ) : null}
-            <Select
-              aria-label={savedViews.label}
-              value={savedViews.selectedId ?? ''}
-              onChange={(event) => {
-                if (event.target.value) void savedViews.onApply(event.target.value)
-              }}
-              className="collection-toolbar__saved-select--assistive"
-            >
-              <option value="">{savedViews.label}</option>
-              {savedViews.items.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </Select>
-            <Button
-              variant="ghost"
-              ref={saveTriggerRef}
-              aria-expanded={saveOpen}
-              onClick={() => {
-                if (saveOpen) closeSaveView()
-                else setSaveOpen(true)
-              }}
-            >
-              {t('common.saveView')}
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            ref={saveTriggerRef}
+            aria-expanded={saveOpen}
+            onClick={() => {
+              if (saveOpen) closeSaveView()
+              else setSaveOpen(true)
+            }}
+          >
+            {t('common.saveView')}
+          </Button>
         ) : null}
       </div>
 
@@ -203,43 +203,79 @@ export function CollectionToolbar<
           </label>
         ) : null}
 
-        <div className="collection-toolbar__filter-group" role="group" aria-label={t('common.filters')}>
-          <span className="collection-toolbar__group-label">{t('common.filters')}</span>
-          {filters.filter(filter => !isViewOption(filter)).map((filter) => (
-            <Select
-              key={filter.id}
-              id={`collection-filter-${filter.id}`}
-              aria-label={filter.label}
-              value={filter.value}
-              onChange={(event) => filter.onChange(event.target.value)}
-              className="collection-toolbar__select"
-            >
-              {filter.options.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Select>
-          ))}
-        </div>
+        {queryFilters.length > 0 ? (
+          <div className="collection-toolbar__filter-group" role="group" aria-label={t('common.filters')}>
+            {queryFilters.map((filter) => (
+              <Select
+                key={filter.id}
+                id={`collection-filter-${filter.id}`}
+                aria-label={filter.label}
+                value={filter.value}
+                onChange={(event) => filter.onChange(event.target.value)}
+                className="collection-toolbar__select"
+              >
+                {filter.options.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Select>
+            ))}
+          </div>
+        ) : null}
 
-        <div className="collection-toolbar__view-group" role="group" aria-label={t('common.viewOptions')}>
-          <span className="collection-toolbar__group-label">{t('common.viewOptions')}</span>
-          {filters.filter(isViewOption).map((filter) => (
-            <Select
-              key={filter.id}
-              id={`collection-filter-${filter.id}`}
-              aria-label={filter.label}
-              value={filter.value}
-              onChange={(event) => filter.onChange(event.target.value)}
-              className="collection-toolbar__select"
+        {/* Phone keeps OD-REDESIGN-61's contract: the host's single "View & filters"
+            disclosure reveals the FULL capability in one tap, so the desktop-only
+            trigger disappears and the options row renders expanded. */}
+        {hasViewOptions && isDesktop ? (
+          <>
+            <div className="collection-toolbar__query-spacer" />
+            <button
+              type="button"
+              className="collection-toolbar__options-trigger"
+              aria-expanded={optionsOpen}
+              aria-controls={optionsRowId}
+              onClick={() => setOptionsOpen(open => !open)}
             >
-              {filter.options.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Select>
+              {t('common.viewOptions')}
+              {viewOptionsActive ? (
+                <span className="collection-toolbar__options-dot" aria-hidden="true" />
+              ) : null}
+              <svg
+                className={`collection-toolbar__options-chevron${optionsOpen ? ' collection-toolbar__options-chevron--open' : ''}`}
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      {hasViewOptions && (optionsOpen || !isDesktop) ? (
+        <div
+          id={optionsRowId}
+          className="collection-toolbar__options"
+          role="group"
+          aria-label={t('common.viewOptions')}
+        >
+          {viewOptionFilters.map((filter) => (
+            <label key={filter.id} className="collection-toolbar__option-field">
+              <span>{filter.label}</span>
+              <Select
+                id={`collection-filter-${filter.id}`}
+                aria-label={filter.label}
+                value={filter.value}
+                onChange={(event) => filter.onChange(event.target.value)}
+                className="collection-toolbar__select"
+              >
+                {filter.options.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Select>
+            </label>
           ))}
           {toggles}
         </div>
-      </div>
+      ) : null}
 
       {savedViews && saveOpen ? (
         <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>

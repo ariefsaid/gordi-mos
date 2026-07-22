@@ -115,6 +115,16 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > identity/native saved-view popup, and rendered 1280/1024/390 proof for Home/Tasks/Signals. The next
 > implementer owns visible convergence; the Director verifies actual renders and updates this ledger.
 
+> **SCORE GATE MET (2026-07-22 later, Director, rendered):** The three P0s are closed on
+> `v3-redesign`: one view axis (preset+saved chips merged, native saved-view select removed),
+> Group/Sort progressively disclosed behind "View options" (desktop-only; phone keeps the
+> OD-61 one-tap View & filters reveal), and no starved identity/decision column at 1280/1024/390
+> on Home/Tasks/Signals (column-priority tiers; Home mini-table densified to E7 rhythm). Rail
+> scroll containment driven-proven (main scrollTop 400, rail pinned 56px). Re-score **28/40**
+> (≥27 target) · anti-slop **≈7/10** (≥7 target). Focused Vitest 238/238, typecheck/ESLint/
+> Stylelint 0. Evidence + open P1s: `docs/reviews/v3-redesign.md` § "Score-gate remediation
+> slice". Verdict remains NO-SHIP pending the owner walkthrough + the open P1 queue.
+>
 > **GIT CONSOLIDATION (2026-07-22, Director):** `v3-redesign` is now **pushed to origin** and is THE
 > single redesign integration branch — it strictly contains `feat/redesign-buildout`, both `cohesion/*`
 > halves, and all four `claude/redesign-buildout-completion-*` cloud runs (ancestry-verified). Deleted

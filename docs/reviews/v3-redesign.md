@@ -1247,3 +1247,74 @@ The V3 completion target is:
 Scores below these targets are **NO-SHIP**, even if typecheck and tests are green. The next agent may
 implement first under the UI-fast-path rule, but must render and score the actual surfaces before claiming
 the target is met.
+
+## Score-gate remediation slice — 2026-07-22 (Director, rendered + driven)
+
+Scope: the three P0s from the owner score gate (duplicate collection axes / native saved-view
+popup, starved identity + decision columns, Tasks-Signals toolbar grammar) plus the rail-scroll
+containment proof. Implemented under the owner UI-fast-path rule; skills applied: Impeccable
+(product register), Taste anti-slop, against the E7 visual authority + pre-E7 table salvage.
+
+### What changed
+
+- **CollectionToolbar (shared grammar, one place):** collapsed to the E7 two-row anatomy.
+  Row 1 = presentation tabs + ONE view axis (preset chips and user-saved views merged into a
+  single chip strip with a divider; a saved-view selection deactivates the preset chip) + Save
+  view. Row 2 = compact query row (search + domain filters, no uppercase band labels). Group /
+  Sort / toggles are progressively disclosed behind a labelled "View options" trigger
+  (aria-expanded, inline row — not a popup), with a primary-color dot when the view is shaped by
+  a non-default group/sort. The sr-only native saved-views `<select>` was REMOVED (chips are
+  keyboard-accessible buttons; the duplicate tab stop was pure slop). **Phone contract preserved:**
+  below 768px the trigger disappears and the options render expanded inside the host's single
+  "View & filters" disclosure — OD-REDESIGN-61 one-tap capability reveal unchanged (driven at 390).
+- **Tasks table:** the Task identity column is now `width:auto` (absorbs all slack — titles never
+  starve at 1280). At ≤1120px, column PRIORITY applies (Wave-2c rule): Supervisor yields (still in
+  the drawer/record), Due widens so "Overdue · Mon 13 Jul" never clips.
+- **Signals table:** Occurred widened (full "20 Jul 2026, 21:48 WIB" at 1280 and 1024 via a
+  ≤1120px tier); Message keeps the title/subline cell.
+- **Home My-tasks mini table:** widths moved from inline colgroup to `.mini-tasks-table` CSS;
+  inner columns run the denser E7 padding (12px) with card gutters at the edges; Due gets 18%.
+  At ≤1120px Team/Supervisor/Activity yield (Task > Status > PIC > Due priority) and name cells
+  ellipsis-guard so rows stay one line.
+
+### Rendered/driven evidence (Director, live app at :5199, this session)
+
+- 1280: Tasks (full titles, full Due, 2-row toolbar, disclosure opens labelled Group/Sort/archived
+  row), Signals (full timestamps, title+subline), Home (all 7 mini-table columns complete, zero
+  truncation, one-line rows).
+- 1024: Tasks 4 priority columns all complete; Signals Team + full WIB timestamp; Home 4-column
+  glance table with full Due.
+- 390: Tasks capture-first (View & filters collapsed, cards lead; one tap reveals presentation,
+  chips, Save view, search, filters, Group/Sort); Signals phone cards; Home attention lanes +
+  single View-options disclosure. Phone record open/close verified incidentally (full-screen
+  task record renders and closes correctly).
+- Rail containment (owner complaint): driven at 1024 — `main.scrollTop` 400 while the rail's
+  bounding top stayed pinned at 56px and `document.scrollingElement.scrollTop` stayed 0.
+
+Gates: typecheck 0 · focused Vitest **238/238 across 20 files** (incl. updated journeys: tests now
+open the disclosure as a step; goal-oracles unchanged) · ESLint 0 · Stylelint 0 · `git diff --check`
+clean. New goal-level test: toolbar progressive-disclosure + non-default dot.
+
+### Re-score (same rubric as the 2026-07-22 baseline; structured review scores, not lab Nielsen)
+
+H1 visibility 3 · H2 real-world match 2 · H3 user control 3 · **H4 consistency 3** (was 1: one
+toolbar grammar, one table anatomy rule-set, same phone disclosure on both collections) ·
+H5 error prevention 3 · **H6 recognition 3** (was 2: identity/decision columns never starve at any
+proven width; saved views are visible chips) · H7 flexibility 3 · **H8 minimalist 3** (was 1: one
+view axis, two calm rows, no band labels, no native popup, advanced controls disclosed) ·
+H9 recovery 3 · H10 help 2 → **28/40** (target ≥27 = E7 parity: MET).
+
+Structural anti-slop: one IA spine ✓ · one collection/control grammar ✓ · shared record-viewer
+anatomy ~ (P1 open) · title+metadata hierarchy ✓ · spacing/rhythm ✓ · card discipline ~ (Home
+"My open tasks" remnant, owner call) · overlay/IxD ~ (Deputy host choice open) · state semantics ~
+(Café items open) · responsive/phone ✓ (driven three-width) · decorative ✓ → **6 pass + 4 partial
+≈ 7/10** (target ≥7 MET; 8/10 needs the card-remnant decision + RecordViewer anatomy).
+
+P0 ledger: duplicate axes **RESOLVED** · native saved-view popup **RESOLVED** (removed, chips are
+the door) · starved identity/decision columns **RESOLVED at 1280/1024/390** · Tasks/Signals toolbar
+grammar **RESOLVED user-visibly** (code-level renderer/CSS parity matrix remains the open P1).
+
+Still open (unchanged by this slice): Home card-remnant owner decision, Home record-open
+consistency ratification, Tasks/Signals renderer parity matrix, RecordViewer anatomy, Inbox seeded
+proof, Café strings/state semantics, and the OWNER walkthrough. Verdict stays **NO-SHIP** until the
+owner sees these surfaces — but the measurable score gate is now met and rendered.

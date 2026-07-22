@@ -177,6 +177,14 @@ describe('FR-V3-013 — live Tasks collection wiring', () => {
   })
 })
 
+// Helper: group/sort (and toggles) are progressively disclosed. On phone that is the single
+// "View & filters" wrapper; on desktop it is the toolbar's own "View options" trigger. Open
+// whichever is present and collapsed — the capability itself is the goal-oracle, unchanged.
+function ensureViewOptionsOpen() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
+
 // ── F-A / OD-REDESIGN-61 — member phone disclosure (RED) ─────────────────────
 // A member's first phone viewport must show work, not the configuration wall.
 // The options control should be the only toolbar affordance before the card list.
@@ -359,6 +367,7 @@ describe('V3 collection grammar — shared filter controls', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     const { container } = renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     expect(container.querySelectorAll('.collection-toolbar .mk-select').length).toBeGreaterThanOrEqual(5)
     // Each filter is still a reachable, labelled combobox (capability preserved)
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
@@ -391,6 +400,7 @@ describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () =>
     // Flat: leaf rows render, but NO group header rows by default.
     expect(document.querySelector('tr.task-row')).toBeTruthy()
     expect(document.querySelectorAll('tr.grp').length).toBe(0)
+    ensureViewOptionsOpen()
     // Group-by control still defaults to a flat (none) value.
     const groupSelect = screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement
     expect(groupSelect.value).toBe('none')
@@ -402,6 +412,7 @@ describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () =>
     ])
     renderTable()
     await waitFor(() => screen.getByText('Open one'))
+    ensureViewOptionsOpen()
     await switchToAll()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'status' } })
@@ -418,6 +429,7 @@ describe('Task 9 — group-by control in toolbar', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     // Group-by control is labelled and present
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     expect(groupSelect).toBeInTheDocument()
@@ -432,6 +444,7 @@ describe('Task 9 — group-by control in toolbar', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement
     // Default is FLAT to match the signed mockup; grouping is opt-in via the chip.
     expect(groupSelect.value).toBe('none')
@@ -441,6 +454,7 @@ describe('Task 9 — group-by control in toolbar', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'owner' } })
     // Persisted immediately
@@ -489,6 +503,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     await waitFor(() => screen.getByText('Late task'))
     expect(screen.queryByText('Future task')).toBeNull()
     expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
+    ensureViewOptionsOpen()
     expect(screen.getByRole('button', { name: /clear overdue filter/i })).toBeInTheDocument()
   })
 
@@ -524,6 +539,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     renderTable({ savedView: makeSavedView('mine'), onSavedViewChange })
     await waitFor(() => screen.getByText('Mine task'))
 
+    ensureViewOptionsOpen()
     fireEvent.change(screen.getByRole('combobox', { name: /group/i }), { target: { value: 'status' } })
     fireEvent.change(screen.getByRole('combobox', { name: /business unit/i }), { target: { value: 'bu-1' } })
     fireEvent.change(screen.getByRole('combobox', { name: /status/i }), { target: { value: 'Blocked' } })
@@ -704,6 +720,7 @@ async function switchToAll() {
 // rework — grouping is now an explicit choice via the Group chip). Tests that assert
 // grouping behavior select the dimension as a step; the GOAL-oracles are unchanged.
 function selectGroupBy(value: 'none' | 'status' | 'owner' | 'bu') {
+  ensureViewOptionsOpen()
   const groupSelect = screen.getByRole('combobox', { name: /group/i })
   fireEvent.change(groupSelect, { target: { value } })
 }
@@ -821,6 +838,7 @@ describe('Task 17 — show all groups incl. empty (AC-124)', () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
     renderTable()
     await waitFor(() => screen.getByText('Mine task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'owner' } })
     await waitFor(() => {
@@ -927,6 +945,7 @@ describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
     // Capture navigation by rendering a route that echoes the URL
     const { container } = renderTable()
     await waitFor(() => screen.getByText('Mine task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'owner' } })
     await waitFor(() => {
