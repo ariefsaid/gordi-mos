@@ -6,7 +6,7 @@
 // payload sends qty_porsi, never org_id/plan_by). Covers every state: loading,
 // empty, error+retry, saving/saved, offline, member-read-only, unauthenticated.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -35,6 +35,27 @@ const mockItems = vi.mocked(listActiveWipItems)
 const mockPlans = vi.mocked(listKitchenPlans)
 const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
+
+// Keep the first editor tests deterministic. Other focused suites exercise desktop branches by
+// replacing matchMedia; without a file-level reset, Vitest's shared jsdom window can make this
+// file's “saved” journey render the phone card branch and miss the desktop confirmation contract.
+function resetMatchMedia() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
+beforeEach(resetMatchMedia)
+afterEach(resetMatchMedia)
 
 function viewer(accessRoles: string[]): AuthState {
   return {
