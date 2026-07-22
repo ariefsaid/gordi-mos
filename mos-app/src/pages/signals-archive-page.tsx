@@ -23,6 +23,7 @@ import {
   type SignalCollectionActions,
 } from '@/components/signals/signal-collection-actions'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
+import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { BOOT_SIGNAL_RECORD_ID } from '@/components/signals/signal-page-mode'
 import './signals-archive-page.css'
 
@@ -108,6 +109,16 @@ export function SignalsArchivePage() {
   // renders its own modal overlay, so the list stays full-width underneath (no grid track).
   const splitOpen = Boolean(recordId) && isSplit
 
+  // Record-scoped "Ask Deputy" seed: prefer the loaded signal's own message so the composer opens
+  // with "About Signal: <message>". Falls back to the generic record noun when the record isn't in
+  // the loaded set (deep link) — the seed is an editable draft, so a generic reference is fine.
+  const askSignalDraft = useMemo(() => {
+    if (!recordId) return null
+    const body = controller.state.data?.records.find((r) => r.id === recordId)?.body?.trim()
+    const title = body ? (body.length > 72 ? `${body.slice(0, 71).trimEnd()}…` : body) : t('signals.record.title')
+    return t('assistant.askAbout.signal', { title })
+  }, [recordId, controller.state.data, t])
+
   const signalEntry = useMemo(() => {
     if (!recordId) return null
     return {
@@ -116,10 +127,11 @@ export function SignalsArchivePage() {
       tenant: 'record' as const,
       label: t('signals.record.title'),
       title: t('signals.record.title'),
+      actions: askSignalDraft ? <AskDeputyAction draft={askSignalDraft} /> : undefined,
       pageTo: { pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() },
       content: <SignalRecordHost signalId={recordId} mode="panel" />,
     }
-  }, [recordId, searchWithoutRecord, t])
+  }, [recordId, searchWithoutRecord, t, askSignalDraft])
 
   useEffect(() => {
     if (!signalEntry) {

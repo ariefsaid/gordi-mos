@@ -32,6 +32,7 @@ import {
 } from './task-collection-presentation'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import { TaskOverlayContent } from './task-drawer'
+import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry } from '@/shell/overlay-host'
 
 // §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
@@ -174,12 +175,20 @@ export function TasksWorkspace({
   const dueRuns = useDueRuns(retry)
   const onOpenTask = useCallback((taskId: string) => {
     const pageTo = { pathname: `/work/tasks/${taskId}`, search: currentSearch }
+    // Record-scoped "Ask Deputy" seed: the loaded row carries the task title, so the composer opens
+    // with "About Task: <title>". Falls back to the generic record noun if the row isn't loaded.
+    const taskTitle = controller.state.data?.records.find((r) => r.id === taskId)?.title?.trim()
     const entry: OverlayEntry = {
       key: `task:${taskId}`,
       owner: 'tasks' as const,
       tenant: 'record' as const,
       label: t('tasks.detail.title'),
       title: t('tasks.detail.title'),
+      actions: (
+        <AskDeputyAction
+          draft={t('assistant.askAbout.task', { title: taskTitle || t('tasks.detail.title') })}
+        />
+      ),
       pageTo,
       pageState: { taskSurface: 'page' },
       content: null,
@@ -195,7 +204,7 @@ export function TasksWorkspace({
       />
     )
     void host.openRoot(entry, 'route')
-  }, [currentSearch, host, onTaskArchived, onTaskChanged, t])
+  }, [controller.state.data, currentSearch, host, onTaskArchived, onTaskChanged, t])
   const onCloseDrawer = useCallback(() => {
     if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
       void host.close()

@@ -10,6 +10,7 @@ import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { CloseIcon } from '@/shell/icons'
+import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
@@ -161,6 +162,12 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   // wires up (both the split and modal regimes close on Escape).
   const hostActions = mode === 'view' ? (
     <>
+      {/* Record-scoped "Ask Deputy": opens the Deputy panel pre-seeded with a compact reference to
+          this task. Gated on the resolved title so the seed is meaningful ("About Task: <title>"),
+          never a bare stub. The user still edits and sends — it never auto-sends. */}
+      {resolvedTitle && (
+        <AskDeputyAction draft={t('assistant.askAbout.task', { title: resolvedTitle })} />
+      )}
       <button
         type="button"
         className="record-panel-btn"

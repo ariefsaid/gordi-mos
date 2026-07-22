@@ -17,7 +17,7 @@
  * unconditionally even when the flag is off and no provider is mounted — no try/catch needed.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { MosNativeRuntime } from './mosNativeRuntime'
 import type { AgentRuntime } from './port'
@@ -28,9 +28,20 @@ const STORAGE_KEY = 'mos.assistant.open'
 interface AgentRuntimeContextValue {
   runtime: AgentRuntime | null
   open: boolean
-  openPanel: () => void
+  /**
+   * Opens the Deputy slide-over. An optional `initialDraft` pre-fills the composer (record-scoped
+   * "Ask Deputy" — the caller passes a compact record reference like "About Task: <title>"). The
+   * draft is a seed the user still edits and sends; it never auto-sends. Non-string args (e.g. the
+   * MouseEvent from `onClick={openPanel}`) are ignored, so plain launcher clicks seed nothing.
+   * The `ReactMouseEvent` arm keeps `openPanel` usable directly as a click handler.
+   */
+  openPanel: (initialDraft?: string | ReactMouseEvent) => void
   closePanel: () => void
   togglePanel: () => void
+  /** The pending composer seed from the last record-scoped openPanel, or null. Consumed once. */
+  pendingDraft: string | null
+  /** Clears the pending seed once the composer has adopted it (single-shot). */
+  consumePendingDraft: () => void
 }
 
 // Safe default: null runtime + no-op setters. Lets components (TopBar) call useAgentRuntime()
@@ -42,6 +53,8 @@ const DEFAULT_VALUE: AgentRuntimeContextValue = {
   openPanel: noop,
   closePanel: noop,
   togglePanel: noop,
+  pendingDraft: null,
+  consumePendingDraft: noop,
 }
 
 const AgentRuntimeContext = createContext<AgentRuntimeContextValue>(DEFAULT_VALUE)
@@ -81,6 +94,9 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
   const resolvedRuntime = runtime === undefined ? realRuntime : runtime
 
   const [open, setOpen] = useState<boolean>(readPersistedOpen)
+  // Record-scoped seed: the composer adopts this once on open, then calls consumePendingDraft().
+  // Not persisted — a page reload should not resurrect a stale record reference in the composer.
+  const [pendingDraft, setPendingDraft] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -93,8 +109,15 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
   const openRef = useRef(open)
   openRef.current = open
 
-  const openPanel = useCallback(() => {
+  const openPanel = useCallback((initialDraft?: string | ReactMouseEvent) => {
+    // Guard against non-string args: `onClick={openPanel}` hands us a MouseEvent, which must not
+    // become a composer seed. Only an explicit string (the record reference) seeds the draft.
+    if (typeof initialDraft === 'string') setPendingDraft(initialDraft)
     setOpen(true)
+  }, [])
+
+  const consumePendingDraft = useCallback(() => {
+    setPendingDraft(null)
   }, [])
 
   const closePanel = useCallback(() => {
@@ -110,8 +133,8 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
   }, [])
 
   const value = useMemo<AgentRuntimeContextValue>(
-    () => ({ runtime: resolvedRuntime, open, openPanel, closePanel, togglePanel }),
-    [resolvedRuntime, open, openPanel, closePanel, togglePanel],
+    () => ({ runtime: resolvedRuntime, open, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft }),
+    [resolvedRuntime, open, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft],
   )
 
   return <AgentRuntimeContext.Provider value={value}>{children}</AgentRuntimeContext.Provider>

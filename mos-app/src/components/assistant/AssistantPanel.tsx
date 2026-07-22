@@ -44,11 +44,21 @@ interface RatingLabels {
 }
 
 export function AssistantPanel() {
-  const { open, closePanel } = useAgentRuntime()
+  const { open, closePanel, pendingDraft, consumePendingDraft } = useAgentRuntime()
   const panel = useAssistantPanel()
   const t = useT()
 
   const [draft, setDraft] = useState('')
+
+  // Record-scoped "Ask Deputy": when the panel opens with a seeded reference (e.g. "About Task: …"),
+  // pre-fill the composer once and clear the seed. The user still edits and presses Send — this
+  // NEVER auto-sends, and re-opening the panel later does not re-seed a consumed draft.
+  useEffect(() => {
+    if (open && pendingDraft != null) {
+      setDraft(pendingDraft)
+      consumePendingDraft()
+    }
+  }, [open, pendingDraft, consumePendingDraft])
   const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
