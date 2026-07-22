@@ -63,11 +63,14 @@ const GROUPS: readonly SignalCollectionGroup[] = ['none', 'team', 'attention', '
 const SORTS: readonly SignalCollectionSort[] = ['occurredAt', 'attention']
 const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
 
-// The Signals COLLECTION default is the dense, linkable archive Table (the primary full surface, and
-// the one that preserves FR-416 shareable per-row canonical links). The Home ambient embed asks for
-// Feed explicitly via a fixed query, so it is unaffected by this default.
+// RATIFY-BEFORE-MERGE (owner may revert by word): the Signals COLLECTION default presentation is the
+// calm, ambient Feed — Signals are team facts to skim, not records to manage in a grid. The dense
+// Table stays one click (or ?layout=table) away and every shareable per-row canonical link (FR-416)
+// still works from it. Only the UNINITIALIZED default flips: an explicit ?layout=, a saved view, and
+// a Table choice all still win and persist. The Home ambient embed asks for Feed explicitly, so it is
+// unaffected either way.
 export const SIGNAL_COLLECTION_NEUTRAL_QUERY: SignalCollectionQuery = {
-  layout: 'table',
+  layout: 'feed',
   view: 'all',
   q: '',
   attention: null,
@@ -412,7 +415,9 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
   SignalCollectionPresentation
 > = {
   id: 'signals',
-  defaultPresentation: 'table',
+  // Feed-first default (see SIGNAL_COLLECTION_NEUTRAL_QUERY RATIFY note). This is only the fallback
+  // when a query carries no layout; the neutral query already sets layout:'feed', so they agree.
+  defaultPresentation: 'feed',
   query: signalCollectionQuery,
   savedViews: signalCollectionSavedViews,
   presentations: {

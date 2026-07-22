@@ -96,28 +96,47 @@ beforeEach(() => {
 })
 
 describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', () => {
-  it('FR-V3-007: uses the shared collection toolbar and exposes real Signal query capabilities', async () => {
+  it('FR-V3-007: defaults to the calm Feed and exposes Signal query capabilities; Table is one choice away', async () => {
+    // RATIFY-BEFORE-MERGE default flip (Table→Feed): an uninitialized /work/signals now opens Feed —
+    // Signals are ambient team facts to skim, not a grid to manage. The dense Table is one tab away.
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
 
     expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'false')
+    // Feed still carries search + the meaningful ambient filters (attention / category / team).
+    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Needs attention' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Attention' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
-    // E7-floor (owner score gate, 2026-07-22): Group/Sort render inline as quiet selects —
-    // no "View options" disclosure to open first.
+    // Feed is chronological + flat: no Group/Sort selects, and never a board/calendar tab.
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Sort' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /board|calendar/i })).not.toBeInTheDocument()
+
+    // Choosing Table (a click) reveals the full grid capabilities — Group · Sort · Save view.
+    await userEvent.click(screen.getByRole('tab', { name: 'Table' }))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true'))
     expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: /board|calendar/i })).not.toBeInTheDocument()
+    // The chosen Table persists as shareable URL state (?layout=table).
+    expect(screen.getByTestId('location')).toHaveTextContent('layout=table')
+  })
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Feed' }))
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true'))
-    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'Sort' })).not.toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+  it('FR-V3-007: an explicit ?layout=table URL overrides the Feed default and restores the Table', async () => {
+    // URL state and an explicit Table choice still win — only the UNINITIALIZED default flipped.
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'false')
+    // The Table's grid capabilities are present, and the row cells render (real table, not feed).
+    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
+    expect(screen.getAllByText(/HQ Operations/).some((node) => node.closest('td'))).toBe(true)
   })
 
   it('AC-V3-014: column-header sorting updates the same shareable query and visible row order', async () => {
@@ -125,7 +144,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
       row({ id: 'signal-old', body: 'Older signal', occurred_at: '2026-07-16T02:00:00Z' }),
       row({ id: 'signal-new', body: 'Newer signal', occurred_at: '2026-07-16T04:00:00Z' }),
     ])
-    renderPage()
+    // Column-header sorting is a Table journey — open the Table explicitly (Feed is now the default).
+    renderPage('/work/signals?layout=table')
     await waitFor(() => expect(screen.getByText('Newer signal')).toBeInTheDocument())
 
     const visibleMessages = () => Array.from(document.querySelectorAll('.signal-table-message'))
@@ -138,7 +158,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
   })
 
   it('lists readable Signals with author · Team · attention', async () => {
-    renderPage()
+    // The dense per-cell listing is the Table journey — open it explicitly (Feed is the default now).
+    renderPage('/work/signals?layout=table')
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
     expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
     expect(screen.getAllByText(/Cahya Cafe/)[0]).toBeInTheDocument()
@@ -166,7 +187,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
   })
 
   it('renders the selected Team grouping in the real table with accessible collapse state', async () => {
-    renderPage('/work/signals?group=team&saved=team-view')
+    // Grouping is a Table-only capability — the journey opens the Table explicitly (?layout=table).
+    renderPage('/work/signals?layout=table&group=team&saved=team-view')
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
 
     const hqToggle = screen.getByRole('button', { name: /collapse hq operations/i })
@@ -201,7 +223,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
 
   it('AC-V3-013: phone Signals uses the same capture-first View & filters disclosure as Tasks', async () => {
     desktopState.value = false
-    renderPage()
+    // Group is a Table capability — open the Table so the disclosure shows the full filter set.
+    renderPage('/work/signals?layout=table')
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
 
     const options = screen.getByRole('button', { name: /view & filters/i })
