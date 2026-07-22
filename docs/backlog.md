@@ -89,12 +89,12 @@ Current blockers and required proof:
   `RecordCollectionSurface`, and its All/Unread-only state is owner/data-gated until Handled is
   ratified. Remaining proof is seeded live notification data plus rendered three-width behavior—not
   another host rewrite.
-- **P1 host grammar (bounded coexistence seam implemented locally):** Deputy still has a separate
-  physical panel/stack, so full `RecordPanelHost` migration remains open. It now consumes the live
-  overlay session: an open record contracts desktop Deputy into a compact adjacent surface that cannot
-  cover the record; phone may layer Deputy above the still-mounted record per the owner's latest
-  clarification. Focus return and focused goal tests are green. Remaining gate: shared Back/stack
-  ownership plus rendered 1280/1024/390 geometry (provisional OD-REDESIGN-80).
+- **P1 host grammar (shared chrome landed; route stack still open):** Deputy no longer owns a local
+  fixed panel, header/Close, scrim, Escape listener, focus trap, or focus-return implementation.
+  `OverlayCompanionSlot` renders its chrome-free content through `RecordPanelHost`, preserving the
+  desktop adjacent/compact and phone-above-record preference. The phone goal test proves Escape closes
+  only Deputy and leaves the record underneath mounted. Remaining gate: make Deputy a controller-owned
+  session/Back participant (or ratify the companion exception), then render 1280/1024/390 geometry.
 - **P1 RecordViewer:** Task/Signal live viewers still diverge in anatomy and expose empty relation
   arrays. Add a driven panel/page/related-record comparison before calling the abstraction complete.
 - **P2 visual/token drift (measurable source seams closed locally):** Tasks and Signals share the

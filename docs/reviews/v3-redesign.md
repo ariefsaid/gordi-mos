@@ -907,6 +907,27 @@ The shared Save View editor also restores focus to its trigger on Escape, Cancel
 the ref-forwarding Button primitive and CollectionToolbar test lock the behavior for every collection
 consumer.
 
+## Deputy shared-host chrome follow-up — 2026-07-22 (local, unpushed)
+
+The earlier bounded geometry seam no longer owns a bespoke physical panel contract. `AssistantPanel`
+is now chrome-free tenant content rendered by the generic `OverlayCompanionSlot` through the same
+`RecordPanelHost` as record tenants. That host owns Deputy's border/shadow, header and Close,
+desktop-vs-phone modality, modal scrim, focus entry/trap/return, and Escape. `AgentRuntimeContext`
+only owns runtime/open state, so there is no second focus controller. Transcript/draft/history state
+survives because the AssistantPanel hook owner remains mounted while the physical host closes.
+
+The coexistence tests drive both regimes. Desktop keeps the compact companion outside the live record
+track. Phone keeps the record mounted underneath, and a single Escape is captured by the top companion:
+Deputy closes without also closing the record. The source guard rejects local host imports,
+drawer/scrim markup, and requires `OverlayCompanionSlot` adoption.
+
+Focused evidence is **63/63** across AssistantPanel, app-shell/top-bar wiring, runtime state,
+RecordPanelHost, Inbox/Deputy source conformance, and coexistence coordination; typecheck, ESLint, and
+Stylelint pass. This is intentionally **not** a full route-stack claim: Deputy is a host-managed
+companion rather than a primary `OverlaySession` frame, so browser Back and the controller's
+one-session stack remain open. No rendered 1280/1024/390 evidence, Supabase, dev server, push, merge,
+or deploy is claimed.
+
 ## Fresh current-tip critic pass — 2026-07-22 (`a7eef31`)
 
 Read-only integration UX/IA/IxD and visual/cohesion/Impeccable/Taste-equivalent critics rechecked the

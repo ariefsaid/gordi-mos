@@ -19,7 +19,7 @@ function readSrc(rel: string): string {
 }
 
 // Legacy/host chrome that must never appear in an Inbox content seam.
-const FORBIDDEN_CHROME = /RecordPanelHost|drawer-modal-root|drawer-scrim/
+const FORBIDDEN_CHROME = /from ['"]@\/shell\/record-panel-host|drawer-modal-root|drawer-scrim|className=["'][^"']*\bscrim\b/
 
 // Inbox content seams owned by Issue 7 — chrome-free, no local host.
 const INBOX_SEAMS = [
@@ -53,6 +53,8 @@ const deputyPresent = existsSync(resolve(SRC, ASSISTANT))
 
 describe('NFR-V3-007: Deputy adopts the shared host (pending Issue 4 landing)', () => {
   it.runIf(deputyPresent)('AssistantPanel renders no local RecordPanelHost / drawer / scrim', () => {
-    expect(readSrc(ASSISTANT)).not.toMatch(FORBIDDEN_CHROME)
+    const source = readSrc(ASSISTANT)
+    expect(source).not.toMatch(FORBIDDEN_CHROME)
+    expect(source).toMatch(/OverlayCompanionSlot/)
   })
 })

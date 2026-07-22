@@ -2,7 +2,7 @@
 // the slide-over open/close state (persisted to localStorage, mirroring the locale-toggle pattern,
 // ADR-0021). AC-AP-002 (keep-mounted survives close→open) + AC-AP-005 (flag-off hides everything).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, renderHook, act, screen, fireEvent } from '@testing-library/react'
+import { render, renderHook, act, screen } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { AgentRuntimeProvider, useAgentRuntime } from './AgentRuntimeContext'
 import type { AgentRuntime } from './port'
@@ -110,68 +110,6 @@ describe('AgentRuntimeProvider (T24)', () => {
     expect(screen.getByText(/has-runtime open=false/)).toBeInTheDocument()
   })
 
-  // Interaction Contract I2 — opener focus return: the keep-mounted panel goes inert on close, so
-  // without an opener ref a keyboard/SR user's focus would fall to <body>. openPanel captures the
-  // launcher; closePanel/togglePanel-closed restore focus to it.
-  it('closePanel returns focus to the element that launched Deputy (I2)', () => {
-    function Harness() {
-      const { open, openPanel, closePanel } = useAgentRuntime()
-      return createElement(
-        'div',
-        null,
-        createElement('button', { 'data-testid': 'launcher', onClick: openPanel }, 'Open deputy'),
-        open
-          ? createElement(
-              'button',
-              {
-                'data-testid': 'panel-close',
-                onClick: closePanel,
-                // Move focus INTO the panel on open (mirrors the phone-modal focus move).
-                ref: (el: HTMLButtonElement | null) => el?.focus(),
-              },
-              'Close',
-            )
-          : null,
-      )
-    }
-    render(wrapper({ runtime: fakeRuntime, children: createElement(Harness) }))
-
-    const launcher = screen.getByTestId('launcher')
-    act(() => launcher.focus())
-    expect(document.activeElement).toBe(launcher)
-
-    // Open — the launcher is the active element, so it is captured as the opener; focus then moves
-    // into the panel (the Close button).
-    fireEvent.click(launcher)
-    expect(document.activeElement).toBe(screen.getByTestId('panel-close'))
-
-    // Close — focus returns to the launcher, never lost to <body>.
-    fireEvent.click(screen.getByTestId('panel-close'))
-    expect(document.activeElement).toBe(launcher)
-  })
-
-  it('togglePanel closing also restores opener focus (I2)', () => {
-    let ctx!: ReturnType<typeof useAgentRuntime>
-    function Probe() {
-      ctx = useAgentRuntime()
-      return null
-    }
-    render(
-      wrapper({
-        runtime: fakeRuntime,
-        children: createElement(
-          'div',
-          null,
-          createElement('button', { 'data-testid': 'launcher' }, 'Open deputy'),
-          createElement(Probe),
-        ),
-      }),
-    )
-    const launcher = screen.getByTestId('launcher')
-    act(() => launcher.focus())
-    act(() => ctx.togglePanel()) // open — captures launcher
-    act(() => launcher.blur())
-    act(() => ctx.togglePanel()) // close — restores launcher
-    expect(document.activeElement).toBe(launcher)
-  })
+  // I2 focus entry/return is proved at AssistantPanel + RecordPanelHost. This provider is now
+  // deliberately state-only; it cannot create a second focus owner beside the shared host.
 })

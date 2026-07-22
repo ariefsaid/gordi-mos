@@ -1,53 +1,14 @@
-/* Deputy keeps its transcript/runtime mounted, but consumes the shared OverlayHost session as its
-   coexistence seam. A record is primary: at desktop widths the chat contracts into the remaining
-   canvas instead of covering the record's 44%/45vw track. The exact breakpoint remains provisional
-   until the owner's rendered three-width gate (OD-REDESIGN-80). */
+/* Deputy content only. OverlayCompanionSlot + RecordPanelHost own geometry, scrim, modal regime,
+   Escape, focus, border, shadow, and close chrome (OD-REDESIGN-75/80). */
 .assistant-panel {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--assistant-w);
-  max-width: 100vw;
-  z-index: var(--z-drawer);
-  border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-strong);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-@media (max-width: 919.98px) {
-  .assistant-panel {
-    width: 100%;
-    border-left: 0;
-  }
-}
-
-@media (min-width: 920px) {
-  .assistant-panel[data-deputy-layout='compact-with-record'] {
-    top: auto;
-    bottom: 16px;
-    height: min(520px, calc(100vh - var(--header-h) - 32px));
-    min-height: 320px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-strong);
-  }
-}
-
-/* The record host is a 45vw sheet in the 920–1099px regime. Deputy uses the narrow remainder. */
-@media (min-width: 920px) and (max-width: 1099.98px) {
-  .assistant-panel[data-deputy-layout='compact-with-record'] {
-    right: calc(min(45vw, 520px) + 12px);
-    width: min(var(--assistant-w), calc(55vw - var(--rail-w) - 24px));
-    min-width: 220px;
-  }
-}
-
-/* The live split record track is 44% at wide widths. Using 44vw slightly over-reserves the record
-   width (the real track excludes the rail), guaranteeing Deputy cannot overlap it. */
-@media (min-width: 1100px) {
-  .assistant-panel[data-deputy-layout='compact-with-record'] {
-    right: calc(max(360px, 44vw) + 12px);
-    width: min(var(--assistant-w), calc(56vw - var(--rail-w) - 24px));
-    min-width: 320px;
-  }
+.assistant-panel__title {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
 }

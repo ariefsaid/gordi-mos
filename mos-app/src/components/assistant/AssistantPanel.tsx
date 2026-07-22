@@ -3,15 +3,12 @@
  * to DESIGN.md tokens). One component mounted at the shell root; self-gates visibility on the
  * runtime context's `open`.
  *
- *   - Desktop (≥920px): right-side NON-MODAL drawer, `role="complementary"`, width var(--assistant-w).
- *     While a shared-host record is open it becomes a compact adjacent surface in the remaining
- *     canvas, so it never covers the primary record (OD-REDESIGN-80).
- *   - Phone (<920px): full-height MODAL sheet, `role="dialog" aria-modal`, scrim + focus-trap +
- *     body-scroll-lock + Esc close. When a record is already open this phone sheet may sit above it;
- *     the record remains mounted underneath and returns when Deputy closes.
+ *   - Desktop (≥920px): the shared OverlayCompanionSlot/RecordPanelHost renders a non-modal
+ *     companion. With a record open it contracts into the remaining canvas (OD-REDESIGN-80).
+ *   - Phone (<920px): that same host renders the modal sheet above any mounted record.
  *
- * Keep-mounted (FR-P2-AP-003): the section is ALWAYS in the DOM — when closed it is `inert` +
- * `aria-hidden` + translated off-screen, so the hook's transcript/chip state survives close→open.
+ * Keep-mounted (FR-P2-AP-003): this component and its hook state stay mounted while the physical
+ * host closes, so transcript/chip/draft/history state survives close→open. The closed slot is inert.
  * Assistant prose renders through the safe markdown boundary (ADR-0049); user turns and control
  * strings stay literal. Typed artifact widgets render through the ADR-0045 registry.
  * Every string flows through useT() (FR-P2-AP-005).
@@ -23,13 +20,11 @@ import { useEffect, useRef, useState, useCallback, type FormEvent, type Keyboard
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion, type AssistantRating } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
-import { CloseIcon } from '@/shell/icons'
-import { useIsNarrow } from '@/shell/use-is-narrow'
 import { EmptyState } from '@/components/ui/state-kit'
 import { ThreadList } from './ThreadList'
 import { AssistantMarkdown } from './AssistantMarkdown'
 import { AssistantWidgetSlot } from './AssistantWidgetSlot'
-import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import { OverlayCompanionSlot } from '@/shell/overlay-host'
 import './AssistantPanel.css'
 
 const SUGGESTION_KEYS = [
@@ -51,90 +46,14 @@ interface RatingLabels {
 export function AssistantPanel() {
   const { open, closePanel } = useAgentRuntime()
   const panel = useAssistantPanel()
-  const isNarrow = useIsNarrow()
-  const overlay = useOptionalOverlayHost()
   const t = useT()
 
   const [draft, setDraft] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLElement>(null)
-  const openerRef = useRef<HTMLElement | null>(null)
-  const wasOpenRef = useRef(open)
-
-  const role: 'dialog' | 'complementary' = isNarrow ? 'dialog' : 'complementary'
-  const activeOverlay = overlay?.session?.frames.at(-1)?.entry
-  const recordOpen = activeOverlay?.tenant === 'record'
-  const deputyLayout = recordOpen
-    ? isNarrow ? 'phone-over-record' : 'compact-with-record'
-    : isNarrow ? 'phone' : 'drawer'
-
-  // The Deputy is a shell-owned drawer, but it still follows the same opener contract as
-  // record panels: remember the element that launched it and return focus there after any
-  // close path (button, Escape, or scrim). This keeps the interaction grammar coherent even
-  // while Deputy remains a distinct tenant from record overlays.
-  useEffect(() => {
-    if (open && !wasOpenRef.current) {
-      openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    } else if (!open && wasOpenRef.current) {
-      const opener = openerRef.current
-      queueMicrotask(() => opener?.focus())
-    }
-    wasOpenRef.current = open
-  }, [open])
 
   // ── Body scroll-lock (phone modal) ───────────────────────────────────────────
-  useEffect(() => {
-    if (!(open && isNarrow)) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [open, isNarrow])
-
   // ── Esc closes (never cancels) + focus trap (phone modal) ────────────────────
-  useEffect(() => {
-    if (!open) return
-    const getFocusables = (): HTMLElement[] =>
-      panelRef.current
-        ? Array.from(
-            panelRef.current.querySelectorAll<HTMLElement>(
-              'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          )
-        : []
-
-    // Move focus into the panel on open (phone modal) so the trap has a starting point.
-    if (isNarrow) {
-      const f = getFocusables()
-      f[0]?.focus()
-    }
-
-    const handler = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closePanel()
-        return
-      }
-      if (isNarrow && e.key === 'Tab') {
-        const f = getFocusables()
-        if (f.length === 0) return
-        const first = f[0]
-        const last = f[f.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, isNarrow, closePanel])
-
   // ── Autoscroll the transcript to the latest turn ─────────────────────────────
   useEffect(() => {
     if (open && scrollRef.current) {
@@ -168,78 +87,45 @@ export function AssistantPanel() {
   const transcriptEmpty = panel.transcript.length === 0
   const canSend = draft.trim().length > 0 && panel.phase !== 'running'
 
-  // inert={true} only when closed — `|| undefined` keeps the attribute absent when open.
-  const inertAttr = !open || undefined
-
   return (
-    <>
-      {isNarrow && open && (
-        <div
-          className="scrim fixed inset-0"
-          style={{ zIndex: 'var(--z-drawer)' }}
-          aria-hidden="true"
-          onClick={closePanel}
-        />
-      )}
-      <section
-        ref={panelRef}
-        role={role}
-        data-deputy-layout={deputyLayout}
-        aria-modal={isNarrow ? true : undefined}
-        aria-label={t('assistant.title')}
-        aria-hidden={!open}
-        inert={inertAttr}
-        className="assistant-panel fixed bg-background border-border flex flex-col"
-        style={{
-          transform: open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform var(--dur-slow) ease-out',
-          pointerEvents: open ? 'auto' : 'none',
-        }}
-      >
-        {/* Header */}
-        <header
-          className="border-border flex items-center gap-2 flex-none"
-          style={{ height: 'var(--header-h)', borderBottomWidth: 1, borderBottomStyle: 'solid', padding: '0 0.75rem' }}
-        >
-          <h2 className="text-foreground font-semibold flex-1 truncate" style={{ fontSize: 16 }}>
-            {t('assistant.title')}
-          </h2>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center flex-none"
-            style={{ width: 32, height: 32 }}
-            aria-label={t('assistant.newConversation')}
-            title={t('assistant.newConversation')}
-            onClick={() => {
-              panel.newConversation()
-              setShowHistory(false)
-            }}
-            disabled={transcriptEmpty && !showHistory}
-          >
-            <PlusIcon />
-          </button>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center flex-none"
-            style={{ width: 32, height: 32 }}
-            aria-label={t('assistant.history')}
-            title={t('assistant.history')}
-            aria-expanded={showHistory}
-            onClick={() => setShowHistory((v) => !v)}
-          >
-            <HistoryIcon />
-          </button>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center flex-none"
-            style={{ width: 32, height: 32 }}
-            aria-label={t('assistant.close')}
-            title={t('assistant.close')}
-            onClick={closePanel}
-          >
-            <CloseIcon size={18} />
-          </button>
-        </header>
+    <OverlayCompanionSlot
+      open={open}
+      onClose={() => closePanel()}
+      entry={{
+        key: 'deputy',
+        owner: 'shell',
+        tenant: 'deputy',
+        label: t('assistant.title'),
+        title: <strong className="assistant-panel__title">{t('assistant.title')}</strong>,
+        actions: (
+          <>
+            <button
+              type="button"
+              className="record-panel-btn"
+              aria-label={t('assistant.newConversation')}
+              title={t('assistant.newConversation')}
+              onClick={() => {
+                panel.newConversation()
+                setShowHistory(false)
+              }}
+              disabled={transcriptEmpty && !showHistory}
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              className="record-panel-btn"
+              aria-label={t('assistant.history')}
+              title={t('assistant.history')}
+              aria-expanded={showHistory}
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              <HistoryIcon />
+            </button>
+          </>
+        ),
+        content: (
+          <div className="assistant-panel bg-background flex flex-col">
 
         {/* Body */}
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '0.75rem' }}>
@@ -310,8 +196,10 @@ export function AssistantPanel() {
           running={panel.phase === 'running'}
           onStop={() => panel.stop()}
         />
-      </section>
-    </>
+          </div>
+        ),
+      }}
+    />
   )
 }
 

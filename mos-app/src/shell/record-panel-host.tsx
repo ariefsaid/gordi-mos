@@ -2,6 +2,7 @@ import './record-panel-host.css'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useIsSplitWidth } from './use-is-split-width'
 import { useIsDesktop } from './use-is-desktop'
+import { useIsNarrow } from './use-is-narrow'
 import { CloseIcon } from './icons'
 import { useT } from '@/i18n/use-t'
 import type { OverlayOwner } from './overlay-navigation'
@@ -32,6 +33,8 @@ export type RecordPanelHostProps = {
   focusKey?: string
   /** When set, the host renders its chrome header (title zone · optional Open-full-page · ✕). */
   title?: ReactNode
+  /** Optional tenant actions rendered inside the shared chrome before Open/Close. */
+  actions?: ReactNode
   /** "Open full page ⤢" — rendered in the chrome when a canonical page exists for this record. */
   onOpenPage?: () => void
   /** Internal Back (I2): pops one stack frame. Only rendered when `canGoBack`. */
@@ -46,6 +49,17 @@ export type RecordPanelHostProps = {
   entryKey?: string
   /** True while a leave-guard confirmation is pending; suppresses a second visual transition. */
   transitionPending?: boolean
+  /**
+   * Companion surfaces reuse this host's chrome/focus/modal contract while remaining beside an
+   * already-open record. They become modal only below the 920px shell threshold.
+   */
+  layout?: 'standard' | 'companion'
+  /** A top companion modal captures Escape before a mounted record underneath can consume it. */
+  escapeCapture?: boolean
+  /** Listen at document scope when a shell companion is the active ambient surface. */
+  escapeOnDocument?: boolean
+  /** Marks a shared-host companion without claiming it is the primary overlay session frame. */
+  companion?: boolean
 }
 
 function BackIcon() {
@@ -70,13 +84,15 @@ function OpenPageIcon() {
  * closing returns it); <1100px modal dialog (scrim + focus-trap + Esc + return-focus).
  */
 export function RecordPanelHost({
-  label, onClose, children, expanded, focusKey, title, onOpenPage, rootClassName,
-  onBack, canGoBack, owner, entryKey, transitionPending,
+  label, onClose, children, expanded, focusKey, title, actions, onOpenPage, rootClassName,
+  onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
+  escapeCapture = false, escapeOnDocument = false, companion = false,
 }: RecordPanelHostProps) {
   const isSplit = useIsSplitWidth()
   const isDesktop = useIsDesktop()
-  const isModal = !isSplit
-  const isFullScreen = !isDesktop // <768px: full-screen modal
+  const isNarrow = useIsNarrow()
+  const isModal = layout === 'companion' ? isNarrow : !isSplit
+  const isFullScreen = layout === 'companion' ? isNarrow : !isDesktop
   const t = useT()
 
   const panelRef = useRef<HTMLElement>(null)
@@ -131,22 +147,32 @@ export function RecordPanelHost({
     const panel = panelRef.current
     if (!panel) return
     const onEsc: EventListener = (e) => {
-      if ((e as KeyboardEvent).key === 'Escape') { e.preventDefault(); onClose('escape') }
+      if ((e as KeyboardEvent).key === 'Escape') {
+        e.preventDefault()
+        if (escapeCapture) e.stopImmediatePropagation()
+        onClose('escape')
+      }
     }
-    const target: Document | HTMLElement = isModal ? document : panel
-    target.addEventListener('keydown', onEsc)
-    return () => target.removeEventListener('keydown', onEsc)
-  }, [isModal, focusKey, onClose])
+    const target: Document | HTMLElement = isModal || escapeOnDocument ? document : panel
+    target.addEventListener('keydown', onEsc, escapeCapture)
+    return () => target.removeEventListener('keydown', onEsc, escapeCapture)
+  }, [escapeCapture, escapeOnDocument, isModal, focusKey, onClose])
 
   // Overlay-host oracle: only the OverlayHostSlot sets `owner`, so a bare tenant render
   // (Task/Signal migration compatibility) stays anonymous. `undefined` values are omitted
   // by React so a slotless render carries no `data-overlay-*` attribute at all.
   const overlayAttrs = owner
-    ? {
-        'data-overlay-host': 'true',
-        'data-overlay-owner': owner,
-        'data-overlay-entry': entryKey,
-      }
+    ? companion
+      ? {
+          'data-overlay-companion': 'true',
+          'data-overlay-owner': owner,
+          'data-overlay-entry': entryKey,
+        }
+      : {
+          'data-overlay-host': 'true',
+          'data-overlay-owner': owner,
+          'data-overlay-entry': entryKey,
+        }
     : undefined
 
   const busy = transitionPending ? { disabled: true, 'aria-busy': true } : undefined
@@ -167,6 +193,7 @@ export function RecordPanelHost({
       )}
       <span className="record-panel-title">{title}</span>
       <span className="record-panel-spacer" />
+      {actions}
       {onOpenPage && (
         <button
           type="button"

@@ -1,13 +1,13 @@
 /**
  * useDeputyOverlayCoexistence — Lane B2 mutual-exclusion guard between Deputy (the assistant
- * slide-over) and any shell-owner overlay (Inbox quick-triage, future shell overlays).
+ * companion) and any shell-owner overlay (Inbox quick-triage, future shell overlays).
  *
- * WHY: both float at `right: 0`, full-height, `z-index: var(--z-drawer)` — the SAME physical
- * track. Two drawers in the same track violates the owner IA/IxD law "one overlay grammar"
+ * WHY: both consume the shell's right-edge surface track. Showing two peers there violates the
+ * owner IA/IxD law "one overlay grammar"
  * (OD-REDESIGN). A collection-owner record overlay (Tasks/Signals/Inbox page records) sits inside
  * the page `.record-split` grid, so it may coexist; AssistantPanel reads that same session and
  * contracts into the record-safe compact desktop regime (OD-REDESIGN-80). Only shell-owner
- * overlays physically collide and therefore remain mutually exclusive here.
+ * overlays collide and therefore remain mutually exclusive here.
  *
  * INVARIANT: at most one of {shell-owner overlay, Deputy} is open at once. The NEWEST intent
  * wins — the one that just transitioned to open stays, the already-open one yields:

@@ -47,7 +47,7 @@ Proof cell is a defect, not a gap.
 | Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ⚠️ provisional select exception; live overlay dirty-leave guard now wired, direct-route blocker remains | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `tasks-workspace.test` AC-V3-008 |
 | Signal record | ✅ shared `OverlayHost` (in-list record query → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ⚠️ no editable field contract in live wrapper | partial | ✅ | Signals archive focused suite + overlay-host route seam |
 | Inbox | ✅ shared host; page records use the page-owned split slot and bell quick triage uses the shell slot (seeded notification proof and handled semantics still open) | partial | — | — | — | — | ✅ | inbox host tests; seeded-notification acceptance pending |
-| Deputy | ⚠️ consumes the live shared-host record session and contracts to an adjacent compact desktop surface; phone may layer above the mounted record | partial (focus return ✅; physical host/stack migration open) | — | — | — | — | n/a | `AssistantPanel.test.tsx` OD-REDESIGN-80 coexistence journeys; host P4 remains |
+| Deputy | ⚠️ chrome-free content through shared `OverlayCompanionSlot`/`RecordPanelHost`; desktop adjacent/compact, phone may layer above mounted record | partial (shared host owns Close/Esc/scrim/focus ✅; browser Back/session stack open) | — | — | — | — | n/a | `AssistantPanel.test.tsx` OD-REDESIGN-80 coexistence + phone Escape journeys; controller-stack P4 remains |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
 | Admin people menu | — | ✅ | ✅ (⋯ + mobile sheet) | — | — | — | — | user-table I3 suite |
 | ⌘K / composer | — | ✅ | — | ✅ | — | — | — | command-menu suite |
@@ -59,10 +59,10 @@ Proof cell is a defect, not a gap.
 1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — ✅ DONE at the production
    consumer seam (the physical `RecordPanelHost` is now mounted through the single `OverlayHost`; Task
    and Signal focused suites pass, with live browser and full-suite acceptance still pending).
-2. **Host P3** Inbox two-door (I9) · **P4** Deputy physical-host/stack migration. Its bounded
-   coexistence seam is now source/goal-tested: the live record session selects compact-adjacent desktop
-   layout, while phone may layer above the still-mounted record (OD-REDESIGN-80). Rendered geometry and
-   shared Back/stack ownership remain open.
+2. **Host P3** Inbox two-door (I9) · **P4** Deputy controller-stack migration. Deputy's physical
+   chrome now uses `RecordPanelHost`: local Escape/scrim/focus/header ownership is gone, desktop selects
+   compact-adjacent layout, and phone may layer above the still-mounted record (OD-REDESIGN-80).
+   Rendered geometry plus browser Back/one-session stack ownership remain open.
 3. **I5 slice** — decide/document the native-select exception; Task overlay dirty-leave is now
    wired and goal-tested, while the direct route/browser blocker and Signal editable-field path remain.
 4. ~~**I3 completion** — admin people menu onto `useMenuPopover`.~~ DONE (user-table I3 suite).

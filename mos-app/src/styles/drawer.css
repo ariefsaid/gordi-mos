@@ -63,6 +63,59 @@
   .drawer-shell-split > :last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
 }
 
+/* ── Shared companion surface (Deputy today; domain-neutral host grammar) ────────────
+   A companion is rendered by OverlayCompanionSlot through RecordPanelHost. At shell/desktop
+   widths it is non-modal; beside a record it contracts into the unused canvas rather than
+   covering the record. Below 920px RecordPanelHost selects its ordinary full-screen modal
+   regime, so phone gets the owner's allowed above-record presentation without local chrome. */
+@media (min-width: 920px) {
+  .drawer.overlay-companion-host {
+    position: fixed;
+    right: 0;
+    z-index: var(--z-drawer);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .drawer.overlay-companion-host--standalone {
+    top: 0;
+    bottom: 0;
+    width: min(var(--assistant-w), 100vw);
+    border-radius: 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    box-shadow: var(--shadow-strong);
+  }
+
+  .drawer.overlay-companion-host--with-record {
+    top: auto;
+    bottom: 16px;
+    height: min(520px, calc(100vh - var(--header-h) - 32px));
+    min-height: 320px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-strong);
+  }
+}
+
+@media (min-width: 920px) and (max-width: 1099.98px) {
+  .drawer.overlay-companion-host--with-record {
+    right: calc(min(45vw, 520px) + 12px);
+    width: min(var(--assistant-w), calc(55vw - var(--rail-w) - 24px));
+    min-width: 220px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .drawer.overlay-companion-host--with-record {
+    right: calc(max(360px, 44vw) + 12px);
+    width: min(var(--assistant-w), calc(56vw - var(--rail-w) - 24px));
+    min-width: 320px;
+  }
+}
+
 /* ── Modal regime (overlay 920–1100 + mobile <768, AC-110, design-plan §4/§5) ──
    Below the split threshold the squashed table is too cramped to keep live, so
    the drawer floats over it with a scrim (focus-trap + Esc handled by the host).

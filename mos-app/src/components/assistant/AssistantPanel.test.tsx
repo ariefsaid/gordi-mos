@@ -138,9 +138,8 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => {
       expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
     })
-    expect(screen.getByRole('complementary', { name: 'Deputy' })).toHaveAttribute(
-      'data-deputy-layout',
-      'compact-with-record',
+    expect(screen.getByRole('complementary', { name: 'Deputy' })).toHaveClass(
+      'overlay-companion-host--with-record',
     )
   })
 
@@ -152,10 +151,15 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => {
       expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
     })
-    expect(screen.getByRole('dialog', { name: 'Deputy' })).toHaveAttribute(
-      'data-deputy-layout',
-      'phone-over-record',
+    expect(screen.getByRole('dialog', { name: 'Deputy' }).closest('.drawer-modal-root')).toHaveClass(
+      'overlay-companion-host--phone-over-record',
     )
+
+    // One Escape belongs to the top companion only. The primary record stays mounted underneath
+    // and is immediately available again after Deputy closes.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Deputy' })).toBeNull()
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
   })
 
   it('AC-AP-003: when closed, the panel is inert + aria-hidden (keep-mounted, hidden from AT)', () => {
@@ -166,18 +170,17 @@ describe('AssistantPanel (T27)', () => {
   })
 
   it('AC-AP-002: transcript survives close→open (keep-mounted, state preserved)', async () => {
-    const { container } = renderPanel({ narrow: false, open: true })
+    renderPanel({ narrow: false, open: true })
     // Send a message → an assistant reply lands in the transcript.
     const input = screen.getByRole('textbox', { name: /ask the deputy/i }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: 'hello deputy' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
 
-    // Close the panel (Esc) → it becomes inert/hidden but stays mounted.
+    // Close the shared physical host. The AssistantPanel hook owner stays mounted even though its
+    // transcript DOM is absent from the accessibility tree.
     fireEvent.keyDown(document, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByText('Sure — here is your answer.')).not.toBeNull())
-    // The reply text node is still in the DOM (keep-mounted) — query off the container.
-    expect(container.textContent).toContain('Sure — here is your answer.')
+    await waitFor(() => expect(screen.queryByText('Sure — here is your answer.')).toBeNull())
 
     // Reopen → the reply is visible again (transcript survived).
     fireEvent.click(screen.getByRole('button', { name: 'reopen' }))

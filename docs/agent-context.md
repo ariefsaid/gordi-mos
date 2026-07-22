@@ -509,12 +509,13 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   supports it, otherwise a compact chat/launcher in the remaining canvas. On phone, the record stays
   primary and Deputy may sit on top as a compact chat surface because horizontal space is scarce.
   Shared host/stack still owns open/close, Back, focus, and promotion; Deputy owns transcript/actions.
-- **Deputy bounded coexistence implementation (local):** `AssistantPanel` now reads the live shared
-  overlay session without unmounting its transcript/runtime. When a record tenant is active, desktop
-  Deputy contracts into a tokenized compact surface positioned outside the record's 44%/45vw track;
-  phone keeps the allowed modal-above-record behavior. Two OD-REDESIGN-80 goal tests prove both record
-  and Deputy remain mounted. This does **not** complete physical `RecordPanelHost`/stack migration, and
-  no rendered 1280/1024/390 geometry has been claimed.
+- **Deputy shared-chrome companion cutover (local):** `AssistantPanel` is now chrome-free content
+  mounted through `OverlayCompanionSlot` → the shared `RecordPanelHost`. The shared host owns border,
+  shadow, header/Close, responsive modality, scrim, focus entry/trap/return, and Escape; the runtime
+  context is state-only. Desktop still contracts beside an active record, while phone may layer above
+  it; the phone goal test proves one Escape closes Deputy while the primary record remains mounted.
+  This is a truthful partial stack migration: Deputy is not yet a primary `OverlaySession` frame, so
+  browser Back and one-session route-stack ownership remain open, as does rendered 1280/1024/390 proof.
 - **Tasks/Signals table convergence (local):** both live table renderers now consume the same explicit
   `record-collection-table` skin (full-width fixed layout · 14px body type · 38px header · 52px row ·
   shared padding/divider). Signals keeps its own Message/Author/Team/Occurred/Attention/Category

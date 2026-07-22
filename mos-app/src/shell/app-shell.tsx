@@ -49,8 +49,8 @@ function ShellContent() {
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
 
-  // Lane B2 — reconcile Deputy (right-floating slide-over) with any shell-owner overlay (Inbox
-  // quick-triage), which share the same right-edge z-drawer track. Mounted here because
+  // Lane B2 — reconcile the shared-host Deputy companion with any shell-owner overlay (Inbox
+  // quick-triage), which still share the same right-edge surface track. Mounted here because
   // ShellContent sits inside both AgentRuntimeProvider and OverlayHostProvider, so the hook can
   // see both controllers. Collection-owner records remain mounted in the page grid; AssistantPanel
   // reads that same host session and switches to its compact record-safe desktop regime. This hook
@@ -142,8 +142,8 @@ function ShellContent() {
           Signal (AC-428/FR-417) dispatches to the shared composer host (C1), never a route. */}
       <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} onShareSignal={openSignalComposer} />
 
-      {/* Deputy assistant (ADR-0018 P2) — the panel is mounted once at the shell root, behind
-          SHOW_ASSISTANT (keep-mounted; self-gates visibility on `open`). The launcher is a neutral
+      {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,
+          behind SHOW_ASSISTANT; OverlayCompanionSlot/RecordPanelHost own its physical chrome. The launcher is a neutral
           header icon in the top-bar on every viewport (DESIGN.md No-FAB Rule — no floating FAB).
           Absent entirely when the flag is off (FR-P2-CF-003). */}
       {SHOW_ASSISTANT && <AssistantPanel />}

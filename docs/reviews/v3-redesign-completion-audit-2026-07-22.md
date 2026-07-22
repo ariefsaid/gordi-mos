@@ -381,3 +381,18 @@ viewport-order flake in `kitchen-plan-page.test.tsx` (`94eff85`). Typecheck, cha
 affected Stylelint are clean. The former P2 source findings must not be
 resurrected from the critic table above. Fresh rendered 1280/1024/390 proof and the owner’s holistic
 cohesion/taste judgment remain open; this does not change the overall **NO-SHIP** verdict.
+
+## Deputy host-chrome reconciliation — 2026-07-22 (local, unpushed)
+
+The fresh critic's "separate fixed host and visual contract" finding is now narrowed. Deputy content
+no longer renders its own fixed section, scrim, Escape/focus listener, header, Close, border, shadow,
+or responsive modal regime. `OverlayCompanionSlot` renders it through `RecordPanelHost`, and the
+runtime provider is state-only. Focused proof drives desktop adjacent coexistence, phone-above-record,
+shared-host Escape/Close/focus behavior, transcript survival, and the phone invariant that one Escape
+closes Deputy while leaving the record underneath mounted.
+
+This closes physical chrome/interaction duplication at source/test level; it does not prove full
+controller-stack adoption. Deputy remains a companion outside the primary route `OverlaySession`, so
+browser Back and one-session stack semantics still require implementation or an explicit owner
+exception. Focused evidence is **63/63**, with typecheck, ESLint, and Stylelint green. Fresh rendered
+1280/1024/390 evidence and the owner's geometry/taste judgment remain open; **NO-SHIP** is unchanged.

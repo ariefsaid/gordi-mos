@@ -18,6 +18,7 @@ import {
   type To,
 } from 'react-router-dom'
 import { RecordPanelHost } from './record-panel-host'
+import { useIsNarrow } from './use-is-narrow'
 import {
   historyDeltaForClose,
   readOverlayMarker,
@@ -90,6 +91,8 @@ export type OverlayEntry = {
   tenant: OverlayTenant
   label: string
   title?: ReactNode
+  /** Optional tenant controls that live in the shared host chrome. */
+  actions?: ReactNode
   pageTo?: To
   /** Optional router state for domain-specific page-mode promotion (e.g. Task). */
   pageState?: unknown
@@ -627,11 +630,11 @@ export function useOptionalOverlayHost(): OverlayHostApi | null {
 }
 
 /**
- * The ONLY mount allowed to render a physical `RecordPanelHost`. It renders the host when the
- * active session's top frame is owned by `owner`; otherwise it renders nothing. The shell slot
- * and a collection slot can coexist in the tree while exactly one physical host is in the DOM
- * (FR-V3-007 / AC-RPH-5 one-active-tenant invariant). `children` (the owning collection) always
- * render underneath.
+ * The primary-session mount allowed to render a physical `RecordPanelHost`. It renders the host
+ * when the active session's top frame is owned by `owner`; otherwise it renders nothing. Primary
+ * shell and collection slots still yield exactly one active session host. Ambient companion
+ * surfaces use the explicit `OverlayCompanionSlot` below and cannot masquerade as that frame.
+ * `children` (the owning collection) always render underneath.
  */
 export function OverlayHostSlot({
   owner,
@@ -676,6 +679,7 @@ export function OverlayHostSlot({
           key={active.entry.key}
           label={active.entry.label}
           title={active.entry.title}
+          actions={active.entry.actions}
           owner={owner}
           entryKey={active.entry.key}
           focusKey={active.entry.key}
@@ -695,5 +699,67 @@ export function OverlayHostSlot({
         </RecordPanelHost>
       )}
     </span>
+  )
+}
+
+/**
+ * A companion consumes the SAME RecordPanelHost interaction/chrome grammar without claiming to be
+ * the primary route/session frame. This is the bounded coexistence seam for ambient tools such as
+ * Deputy: the controller's live record session remains mounted, desktop can place the companion
+ * beside it, and phone can layer the companion above it. RecordPanelHost owns focus, Escape, the
+ * scrim, modality, and close chrome. Browser Back and the controller's route stack remain owned by
+ * the primary OverlayHost session until the later multi-surface stack cutover.
+ */
+export function OverlayCompanionSlot({
+  open,
+  entry,
+  onClose,
+}: {
+  open: boolean
+  entry: OverlayEntry
+  onClose: (via: 'explicit-close' | 'escape') => void
+}): ReactElement {
+  const session = useOptionalOverlayHost()?.session ?? null
+  const isNarrow = useIsNarrow()
+  const recordOpen = session?.frames.at(-1)?.entry.tenant === 'record'
+  const layout = recordOpen
+    ? isNarrow ? 'phone-over-record' : 'with-record'
+    : 'standalone'
+
+  // Keep the owning component mounted even while its physical host is closed. Deputy's runtime,
+  // transcript, draft, and history state therefore survive close/reopen without leaving a hidden
+  // interactive panel in the accessibility tree.
+  if (!open) {
+    return (
+      <span
+        hidden
+        inert
+        aria-hidden="true"
+        aria-label={entry.label}
+        data-overlay-companion-slot={entry.owner}
+      />
+    )
+  }
+
+  return (
+    <RecordPanelHost
+      label={entry.label}
+      title={entry.title}
+      actions={entry.actions}
+      owner={entry.owner}
+      entryKey={entry.key}
+      focusKey={entry.key}
+      layout="companion"
+      companion
+      // On phone the record modal may remain mounted underneath. Capture Escape so only the
+      // top companion closes; the underlying record must not consume the same keystroke. Desktop
+      // listens at document scope without suppressing a higher modal's event contract.
+      escapeCapture={isNarrow && recordOpen}
+      escapeOnDocument
+      rootClassName={`overlay-companion-host overlay-companion-host--${layout}`}
+      onClose={(via) => onClose(via ?? 'explicit-close')}
+    >
+      {entry.content}
+    </RecordPanelHost>
   )
 }
