@@ -158,6 +158,11 @@
 
 /* The shared Select primitive owns its chrome; raise its field to the 44px floor
  * inside a record field (NFR-V3-006). */
+.record-field__select-wrap {
+  min-width: 0;
+  width: 100%;
+}
+
 .record-field__select .mk-select__field {
   min-height: 44px;
 }

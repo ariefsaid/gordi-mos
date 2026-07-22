@@ -166,22 +166,23 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
   const cancelRef = useRef(cancel)
   cancelRef.current = cancel
   const escapeCleanupRef = useRef<(() => void) | null>(null)
+  // Attach to the field's own editing element (the text/date input, or a wrapper around the
+  // Select) so Escape returns the field to its value view IN ISOLATION — the host's panel-close
+  // listener never sees it. Used for BOTH text-like and option controls so Escape is consistent:
+  // a picker's Escape dismisses the picker (back to the value), it does not close the whole panel.
   const attachFieldEscapeIsolation = useCallback(
-    (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+    (el: HTMLElement | null) => {
       escapeCleanupRef.current?.()
       escapeCleanupRef.current = null
       if (!el) return
-      // Widen to HTMLElement so TS resolves the typed 'keydown' overload (the input/textarea
-      // union otherwise falls back to the untyped EventListener signature).
-      const target: HTMLElement = el
       const onCaptureKeyDown = (e: KeyboardEvent) => {
         if (e.key !== 'Escape') return
         e.preventDefault()
         e.stopImmediatePropagation()
         cancelRef.current()
       }
-      target.addEventListener('keydown', onCaptureKeyDown, true)
-      escapeCleanupRef.current = () => target.removeEventListener('keydown', onCaptureKeyDown, true)
+      el.addEventListener('keydown', onCaptureKeyDown, true)
+      escapeCleanupRef.current = () => el.removeEventListener('keydown', onCaptureKeyDown, true)
     },
     [],
   )
@@ -259,31 +260,35 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
 
       <div className="record-field__value-cell">
         {isOption ? (
-          <Select
-            id={controlId}
-            className="record-field__select"
-            fullWidth
-            autoFocus
-            value={draft}
-            disabled={busy}
-            aria-busy={busy || undefined}
-            aria-required={spec.required || undefined}
-            onChange={(e) => {
-              const next = e.target.value
-              setDraft(next)
-              void commit(next, false)
-            }}
-            onBlur={() => {
-              // Dismissing the picker without a change returns to the value rendering.
-              if (draftRef.current === toInputValue(savedRef.current)) setEditing(false)
-            }}
-          >
-            {(spec.options ?? []).map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Select>
+          // The wrapper carries the native capture Escape isolation for the picker (a select has
+          // no draft to retype, so its Escape simply returns to the value view, shielded from host).
+          <div ref={attachFieldEscapeIsolation} className="record-field__select-wrap">
+            <Select
+              id={controlId}
+              className="record-field__select"
+              fullWidth
+              autoFocus
+              value={draft}
+              disabled={busy}
+              aria-busy={busy || undefined}
+              aria-required={spec.required || undefined}
+              onChange={(e) => {
+                const next = e.target.value
+                setDraft(next)
+                void commit(next, false)
+              }}
+              onBlur={() => {
+                // Dismissing the picker without a change returns to the value rendering.
+                if (draftRef.current === toInputValue(savedRef.current)) setEditing(false)
+              }}
+            >
+              {(spec.options ?? []).map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </div>
         ) : spec.control === 'textarea' ? (
           <textarea
             id={controlId}
