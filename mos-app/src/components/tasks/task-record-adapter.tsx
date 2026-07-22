@@ -328,6 +328,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   const workLineName = workLine?.name ?? null
   const objectiveName = objectives.find((row) => row.id === task.objective_id)?.name ?? null
   const classification = taskClassification(task, workLine?.type ?? null, L)
+  const sourceDisplay = workLineName ?? objectiveName ?? L.sourceAdHoc
 
   // Ownership landmark — Business Unit · PIC · Supervisor · Classification · Source. Classification
   // and Source are both read-only DERIVED provenance (never editable; they mirror the real
@@ -348,15 +349,22 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         readOnlyReason: undefined,
       },
       // Source/provenance — read-only derived summary (never editable; it mirrors the selects).
-      {
-        key: 'source',
-        label: L.sourceField,
-        control: 'text',
-        value: task.work_line_id ?? task.objective_id ?? null,
-        displayValue: workLineName ?? objectiveName ?? L.sourceAdHoc,
-        editable: false,
-        readOnlyReason: undefined,
-      },
+      // Collapsed when it would repeat Classification's value verbatim (F4: a hand-created task
+      // showed "Classification: Ad hoc" AND "Source: Ad hoc" — the same value twice, thin next
+      // to E7's populated provenance). Kept whenever it carries real information Classification
+      // doesn't (e.g. Classification "Ad hoc" + Source "Today opening", or Classification
+      // "Project" + Source "New menu launch").
+      ...(sourceDisplay !== classification
+        ? [{
+            key: 'source',
+            label: L.sourceField,
+            control: 'text' as const,
+            value: task.work_line_id ?? task.objective_id ?? null,
+            displayValue: sourceDisplay,
+            editable: false,
+            readOnlyReason: undefined,
+          }]
+        : []),
     ],
   }
 

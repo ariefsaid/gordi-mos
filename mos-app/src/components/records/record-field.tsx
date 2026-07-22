@@ -222,6 +222,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         data-field-key={spec.key}
         data-editable="false"
         data-mode="view"
+        data-empty={isEmptyValue(spec) ? 'true' : 'false'}
       >
         <span className="record-field__label" id={labelId}>
           {spec.label}
@@ -248,6 +249,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         data-editable="true"
         data-mode="view"
         data-status={status}
+        data-empty={isEmptyValue(spec) ? 'true' : 'false'}
       >
         <span className="record-field__label" id={labelId}>
           {spec.label}
@@ -413,9 +415,20 @@ const PENCIL: ReactNode = (
   </svg>
 )
 
+/** True when a field carries no real value (its display is a placeholder like the noneMarker
+ *  em dash). Exposed as `data-empty` on the row (record-viewer.css F4 fix) so an unpopulated
+ *  relation row — e.g. a hand-created Task's Project/Process or Objective — can read as quiet
+ *  provenance rather than competing on equal visual footing with populated fields, without
+ *  losing the row's own edit affordance (E7 keeps these rows conditional/hidden entirely when
+ *  empty; our relation fields stay the assignment control, so de-emphasis is the non-destructive
+ *  equivalent — J07's "optional parent/source links" must stay settable from the record). */
+function isEmptyValue(spec: RecordFieldSpec): boolean {
+  return spec.value === null || spec.value === undefined || spec.displayValue === ''
+}
+
 /** Render a field's value as the document view: status pill · entity chip · prose. */
 function renderValueNode(spec: RecordFieldSpec): ReactNode {
-  const empty = spec.value === null || spec.value === undefined || spec.displayValue === ''
+  const empty = isEmptyValue(spec)
   if (spec.control === 'status') {
     // A token-themed pill (records/ stays decoupled from the Task-typed StatusPill); the
     // data-status attribute drives the semantic hue in record-viewer.css.

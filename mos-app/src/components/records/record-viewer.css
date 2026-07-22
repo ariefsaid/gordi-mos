@@ -107,6 +107,16 @@
   padding-top: 9px;
 }
 
+/* F4 fix: an unpopulated relation row (the Task's Project/Process or Objective, both real
+ * assignment controls — J07's "optional parent/source links") reads as quiet provenance
+ * instead of competing on equal visual footing with populated fields. Same layout, same
+ * edit affordance — only the placeholder em dash goes muted. Scoped to the Task record's
+ * own relation keys so no other record kind's fields are touched. */
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='projectProcess'][data-empty='true'] .record-field__value,
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='objective'][data-empty='true'] .record-field__value {
+  color: var(--muted-foreground);
+}
+
 .record-field__chip {
   display: inline-flex;
   align-items: center;

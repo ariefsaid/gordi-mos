@@ -194,6 +194,37 @@ describe('createTaskRecordAdapter — F1 E7 provenance: Classification + conditi
   })
 })
 
+describe('createTaskRecordAdapter — F4: Classification/Source no longer repeat the same value', () => {
+  it('collapses Source entirely for a hand-created task — Classification alone already says "Ad hoc"', () => {
+    const adapter = createTaskRecordAdapter(makeInput())
+    expect(fieldByKey(adapter, 'classification').displayValue).toBe('Ad hoc')
+    // No redundant second "Ad hoc" row.
+    expect(fieldsOf(adapter).find((f) => f.key === 'source')).toBeUndefined()
+  })
+
+  it('keeps Source when it carries real information Classification does not (a Process-type work line)', () => {
+    const task = makeTask({ work_line_id: 'wl-1' })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'Today opening', type: 'process' }],
+    }))
+    // Not a Project-type work line and no generated markers — Classification still defaults.
+    expect(fieldByKey(adapter, 'classification').displayValue).toBe('Ad hoc')
+    // But Source names the real attribution, so it earns its own row.
+    expect(fieldByKey(adapter, 'source').displayValue).toBe('Today opening')
+  })
+
+  it('keeps Source alongside a Project Classification — the two say different things', () => {
+    const task = makeTask({ work_line_id: 'wl-1' })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
+    }))
+    expect(fieldByKey(adapter, 'classification').displayValue).toBe('Project')
+    expect(fieldByKey(adapter, 'source').displayValue).toBe('New menu launch')
+  })
+})
+
 describe('teamOwnershipField — the preserved Issue-8 internal model (not rendered until Issue 8)', () => {
   it('§Task-11: the honest Team model is preserved (missing → migration state; real lookup → label)', () => {
     // The adapter's internal Team model stays honest for Issue 8 even though ownershipFields does

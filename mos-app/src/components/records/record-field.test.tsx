@@ -221,6 +221,33 @@ describe('RecordField', () => {
 
     await waitFor(() => expect(onCommit).toHaveBeenCalledWith('done'))
   })
+
+  // F4 fix: an unpopulated relation row (e.g. Task Project/Process or Objective) is exposed as
+  // `data-empty` on the row so a scoped CSS rule can de-emphasize it (record-viewer.css) without
+  // touching its edit affordance or its text content.
+  it('F4: an editable field with no value carries data-empty="true"; a populated one carries "false"', () => {
+    const emptyRelation: RecordFieldSpec = {
+      key: 'objective', label: 'Objective', control: 'relation',
+      value: null, displayValue: '—', editable: true,
+      options: [{ value: '', label: '—' }, { value: 'obj-1', label: 'Grow direct orders' }],
+    }
+    renderField(emptyRelation)
+    expect(document.querySelector('[data-field-key="objective"]')?.getAttribute('data-empty')).toBe('true')
+  })
+
+  it('F4: a read-only field with no value also carries data-empty="true"', () => {
+    const spec: RecordFieldSpec = {
+      key: 'team', label: 'Team', control: 'team',
+      value: null, displayValue: 'Team not assigned yet (data migration)', editable: false,
+    }
+    renderField(spec)
+    expect(document.querySelector('[data-field-key="team"]')?.getAttribute('data-empty')).toBe('true')
+  })
+
+  it('F4: a populated field carries data-empty="false"', () => {
+    renderField(textSpec)
+    expect(document.querySelector('[data-field-key="title"]')?.getAttribute('data-empty')).toBe('false')
+  })
 })
 
 describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
