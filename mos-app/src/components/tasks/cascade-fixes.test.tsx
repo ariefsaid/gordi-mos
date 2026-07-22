@@ -55,6 +55,7 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 
@@ -143,7 +144,7 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <Harness />
+        <OverlayHostProvider><Harness /></OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )

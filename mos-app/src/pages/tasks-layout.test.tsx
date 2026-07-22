@@ -43,6 +43,7 @@ import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { __resetExpandPrefForTests } from '@/components/tasks/use-expand-pref'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
@@ -126,12 +127,14 @@ function renderAt(path: string) {
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/work/tasks" element={<TasksLayout />}>
-            <Route path="new" element={<TaskDrawer mode="create" />} />
-            <Route path=":taskId" element={<TaskDrawer mode="view" />} />
-          </Route>
-        </Routes>
+        <OverlayHostProvider>
+          <Routes>
+            <Route path="/work/tasks" element={<TasksLayout />}>
+              <Route path="new" element={<TaskDrawer mode="create" />} />
+              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+            </Route>
+          </Routes>
+        </OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -150,12 +153,14 @@ function renderAtState(path: string, state: unknown) {
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={[{ pathname, search, state }] as never}>
-        <Routes>
-          <Route path="/work/tasks" element={<TasksLayout />}>
-            <Route path="new" element={<TaskDrawer mode="create" />} />
-            <Route path=":taskId" element={<TaskDrawer mode="view" />} />
-          </Route>
-        </Routes>
+        <OverlayHostProvider>
+          <Routes>
+            <Route path="/work/tasks" element={<TasksLayout />}>
+              <Route path="new" element={<TaskDrawer mode="create" />} />
+              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+            </Route>
+          </Routes>
+        </OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )

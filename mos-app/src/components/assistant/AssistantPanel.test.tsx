@@ -292,6 +292,16 @@ describe('AssistantPanel (T27)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('a11y: closing Deputy returns focus to the element that opened it', async () => {
+    renderPanel({ narrow: false, open: false })
+    const opener = screen.getByRole('button', { name: 'reopen' })
+    opener.focus()
+    fireEvent.click(opener)
+    await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(opener).toHaveFocus())
+  })
+
   it('empty state: shows the three suggestion chips when the transcript is empty', () => {
     renderPanel({ narrow: false, open: true })
     expect(screen.getByText("What's on my plate this week?")).toBeInTheDocument()

@@ -807,3 +807,51 @@ Unblocked by the route seam (next rank): tasks/signals record opening through th
 URLs; follow-up queue drawer door (I1); Inbox `pageTo`/promotion. Then: seeded-notification Inbox
 triage proof (Issue 9 acceptance), Issue 10 (owner ADR), Issue 12 closure + curated e2e, review
 battery + pre-merge gate + the owner's rendered three-width walkthrough.
+
+## Independent completion audit — 2026-07-22
+
+The current tip `d63f20a` was independently re-verified after the above fixes. The authoritative
+result is [`v3-redesign-completion-audit-2026-07-22.md`](v3-redesign-completion-audit-2026-07-22.md):
+**NO-SHIP**. Fresh full Vitest is 3,212 passed / 15 failed / 14 errors; route-seam and production
+shell tests fail. The live inventory freshness check fails, and the merge gate has no current review
+verdict lines. Tasks and Signals share the RecordCollection engine but still render parallel table
+families; Café still chooses the first Team; Issue 10 remains ADR/plan-only; and the owner three-width
+rendered gate is open.
+
+Current gate status (deliberately blocking until a new review pass records evidence):
+
+- spec: BLOCKED — current completion audit is NO-SHIP
+- code-quality: BLOCKED — fresh route-seam failures remain
+- design: BLOCKED — cross-surface grammar and owner three-width gate remain open
+- security: BLOCKED — final current-tip review battery is not recorded
+
+## 2026-07-22 convergence follow-up (local, uncommitted)
+
+The post-audit implementation slice is independently recorded here so the historical ledger does not
+silently claim the branch is complete:
+
+- Tasks and Signals live collection consumers now route record opening through the single production
+  `OverlayHostProvider` / `OverlayHostSlot`; mobile Task cards use the same path. Focused evidence:
+  Tasks workspace/mobile 80/80, Tasks page 45/45, Signals archive 18/18, Signals presentations 16/16.
+- Café opening now resolves Team context as `none` / `single` / `choice`; multi-Team members see an
+  explicit picker. Focused evidence: Team-context/Café 17/17.
+- Home Signal cards now open through the shared `signals` host slot when the shell provider is present,
+  preserving Home underneath; focused Home Signal suite 10/10.
+- Signals table now uses the shared E7 RecordCollection outer surface. This is only a container-level
+  convergence; Tasks/Signals toolbar, filter, saved-view, presentation, and density parity remains open.
+- The route-seam test failure was traced to React Router’s jsdom AbortSignal crossing into Node/undici
+  Request. The test-only boundary drops that signal for history/state-only tests. Route seam 8/8 and
+  combined shell/overlay 54/54 pass with no unhandled errors.
+
+**Current review verdict remains NO-SHIP.** These focused slices do not close the rendered three-width,
+spec/design verdict, Inbox seeded-notification/handled,
+Follow-ups, Money KPI, or owner-gated Issue-10/typed-embed requirements. No push or merge has occurred.
+
+Current gate lines for this local checkpoint:
+
+- spec: BLOCKED — completion audit remains NO-SHIP
+- code-quality: PASS — typecheck/lint and the single-worker full Vitest run pass (3,234/3,234);
+  rendered/live integration evidence is a design/acceptance gate, not a code-quality failure
+- design: BLOCKED — cross-surface collection grammar and owner three-width gate remain open
+- security: PASS — this slice changes no schema, RLS, auth, or capability policy; no security regression
+  surface was introduced

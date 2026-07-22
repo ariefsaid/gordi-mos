@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MemoryRouter } from 'react-router-dom'
@@ -126,6 +127,61 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
 
     await screen.findByText('Café Opening · 17 Jul 2026')
     expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, TEAM_ID)
+  })
+
+  it('AC-V3-007: asks a multi-Team viewer to choose before opening the selected Team context', async () => {
+    const otherTeamId = '00000000-0000-0000-0000-000000005b02'
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    mockListStartableCafeTeams.mockResolvedValue([
+      {
+        work_line_id: PROCESS_ID, process_name: 'Café Opening',
+        owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
+        period_key: '2026-07-17', scheduled_date: '2026-07-17',
+      },
+      {
+        work_line_id: PROCESS_ID, process_name: 'Café Opening',
+        owning_team_id: otherTeamId, team_name: 'Kemang Operations',
+        period_key: '2026-07-17', scheduled_date: '2026-07-17',
+      },
+    ])
+    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
+    expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
+
+    await user.selectOptions(teamPicker, otherTeamId)
+
+    await screen.findByRole('button', { name: "Start today's opening" })
+    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, otherTeamId)
+  })
+
+  it('AC-V3-007: asks for a choice from multi-Team membership when no opening is due', async () => {
+    const otherTeamId = '00000000-0000-0000-0000-000000005b02'
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    mockListStartableCafeTeams.mockResolvedValue([])
+    mockListAuthorTeams.mockResolvedValue([
+      { id: TEAM_ID, name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: true },
+      { id: otherTeamId, name: 'Kemang Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
+    ])
+    mockGetTodayOpeningForTeam.mockResolvedValue({ started: true, runId: 'run-2', rollup: {
+      process_run_id: 'run-2', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 0, completion_pct: 0,
+    } })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
+    expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
+
+    await user.selectOptions(teamPicker, otherTeamId)
+
+    await screen.findByText('Café Opening · 17 Jul 2026')
+    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, otherTeamId)
   })
 
   it('renders an EmptyState (not a crash) when no Café Opening process is configured (RATIFY-7C)', async () => {

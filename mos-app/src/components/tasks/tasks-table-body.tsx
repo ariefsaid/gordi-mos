@@ -85,6 +85,8 @@ export type TasksTableBodyProps = {
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>
   renderRow: (task: TaskListRow, leafIndex: number) => ReactNode
   renderGroupHeader: (group: RenderGroup) => ReactNode
+  /** Shared RecordViewer opener for mobile cards. */
+  onOpenTask: (taskId: string) => void
 
   // ── Mobile grouped cards ──────────────────────────────────────────────────
   groups: RenderGroup[]
@@ -120,6 +122,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     sortCol, onSort, ariaSort, sortIndicator,
     allChecked, someChecked, onToggleSelectAll,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
+    onOpenTask,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
@@ -176,6 +179,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
       <MobileGroupedCards
         groups={groups}
         recordSearch={recordSearch}
+        onOpenTask={onOpenTask}
         now={now}
         buMap={buMap}
         personMap={personMap}

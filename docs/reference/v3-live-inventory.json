@@ -388,7 +388,8 @@
         "default",
         "empty",
         "error/retry",
-        "loading"
+        "loading",
+        "permission/read-only"
       ],
       "cssFamilies": [
         "mos-app/src/index.css",
@@ -1154,7 +1155,7 @@
       "collection": {
         "grammar": "page-local or not observed",
         "presentations": [
-          "Feed/list"
+          "page-local / not observed"
         ],
         "ownsViewState": false
       },
@@ -1168,7 +1169,6 @@
       ],
       "states": [
         "default",
-        "empty",
         "error/retry",
         "loading"
       ],
@@ -1182,11 +1182,7 @@
       "sourceEvidence": {
         "pageFrameUse": true,
         "pageHeadUse": true,
-        "symbols": [
-          "EmptyState",
-          "ErrorState",
-          "SkeletonRows"
-        ]
+        "symbols": []
       }
     },
     {
@@ -1755,9 +1751,9 @@
         }
       },
       "collection": {
-        "grammar": "page-local or not observed",
+        "grammar": "route-local collection/view state is present",
         "presentations": [],
-        "ownsViewState": false
+        "ownsViewState": true
       },
       "recordOpen": {
         "default": "full canonical record page or hosted drawer",
@@ -2742,9 +2738,9 @@
         }
       },
       "collection": {
-        "grammar": "page-local or not observed",
+        "grammar": "route-local collection/view state is present",
         "presentations": [],
-        "ownsViewState": false
+        "ownsViewState": true
       },
       "recordOpen": {
         "default": "full canonical record page or hosted drawer",
@@ -2966,8 +2962,8 @@
           "padding": 2,
           "margin": 0,
           "gap": 2,
-          "width": 4,
-          "height": 2
+          "width": 5,
+          "height": 3
         }
       },
       "collection": {
@@ -2978,13 +2974,12 @@
         "ownsViewState": true
       },
       "recordOpen": {
-        "default": "current split/right panel host",
+        "default": "not observed",
         "direct": "full canonical page when URL is explicit",
         "phone": "full-screen record mode"
       },
       "overlays": [
-        "centered search/command candidate",
-        "record drawer/panel"
+        "centered search/command candidate"
       ],
       "states": [
         "default",
@@ -3003,9 +2998,7 @@
       "sourceEvidence": {
         "pageFrameUse": true,
         "pageHeadUse": true,
-        "symbols": [
-          "RecordPanelHost"
-        ]
+        "symbols": []
       }
     },
     {
@@ -3030,8 +3023,8 @@
           "padding": 2,
           "margin": 0,
           "gap": 2,
-          "width": 4,
-          "height": 2
+          "width": 5,
+          "height": 3
         }
       },
       "collection": {
@@ -3045,8 +3038,7 @@
         "phone": "full-screen record mode"
       },
       "overlays": [
-        "centered search/command candidate",
-        "record drawer/panel"
+        "centered search/command candidate"
       ],
       "states": [
         "default",
@@ -3063,9 +3055,7 @@
       "sourceEvidence": {
         "pageFrameUse": true,
         "pageHeadUse": true,
-        "symbols": [
-          "RecordPanelHost"
-        ]
+        "symbols": []
       }
     },
     {
@@ -3109,8 +3099,7 @@
       ],
       "states": [
         "default",
-        "loading",
-        "saving/saved"
+        "loading"
       ],
       "cssFamilies": [
         "mos-app/src/index.css"
@@ -3657,17 +3646,16 @@
       "family": "components/admin/people-toolbar",
       "scope": "components",
       "literalKinds": {
-        "font-size": 4,
-        "line-height": 1,
-        "padding": 5,
+        "font-size": 3,
+        "line-height": 0,
+        "padding": 4,
         "margin": 0,
         "gap": 2,
         "width": 8,
-        "height": 4
+        "height": 2
       },
       "breakpoints": [
-        "@media (max-width: 767px)",
-        "@media (prefers-reduced-motion: reduce)"
+        "@media (max-width: 767px)"
       ]
     },
     {
@@ -3876,13 +3864,13 @@
       "family": "components/home/attention-brief",
       "scope": "components",
       "literalKinds": {
-        "font-size": 6,
+        "font-size": 7,
         "line-height": 1,
         "padding": 4,
         "margin": 3,
-        "gap": 3,
-        "width": 2,
-        "height": 4
+        "gap": 6,
+        "width": 6,
+        "height": 5
       },
       "breakpoints": []
     },
@@ -3891,13 +3879,13 @@
       "family": "components/inbox/inbox",
       "scope": "components",
       "literalKinds": {
-        "font-size": 5,
-        "line-height": 3,
-        "padding": 5,
-        "margin": 2,
-        "gap": 6,
+        "font-size": 9,
+        "line-height": 6,
+        "padding": 7,
+        "margin": 6,
+        "gap": 9,
         "width": 4,
-        "height": 7
+        "height": 10
       },
       "breakpoints": []
     },
@@ -4072,7 +4060,7 @@
         "padding": 7,
         "margin": 0,
         "gap": 7,
-        "width": 14,
+        "width": 17,
         "height": 11
       },
       "breakpoints": [
@@ -4084,12 +4072,12 @@
       "family": "components/record-collection/record-collection",
       "scope": "components",
       "literalKinds": {
-        "font-size": 1,
+        "font-size": 2,
         "line-height": 0,
         "padding": 3,
         "margin": 1,
         "gap": 2,
-        "width": 2,
+        "width": 3,
         "height": 2
       },
       "breakpoints": []
@@ -4136,8 +4124,8 @@
         "padding": 8,
         "margin": 1,
         "gap": 4,
-        "width": 6,
-        "height": 6
+        "width": 7,
+        "height": 7
       },
       "breakpoints": [
         "@media (max-width: 480px)"
@@ -4729,8 +4717,8 @@
         "padding": 2,
         "margin": 0,
         "gap": 2,
-        "width": 4,
-        "height": 2
+        "width": 5,
+        "height": 3
       },
       "breakpoints": []
     },
@@ -4919,13 +4907,13 @@
       "mos-app/src/shell/signal-composer-host.css"
     ],
     "countsByKind": {
-      "font-size": 342,
-      "line-height": 39,
-      "padding": 279,
-      "margin": 81,
-      "gap": 217,
-      "width": 332,
-      "height": 260
+      "font-size": 347,
+      "line-height": 41,
+      "padding": 280,
+      "margin": 85,
+      "gap": 223,
+      "width": 342,
+      "height": 264
     },
     "examples": {
       "font-size": [
@@ -4939,14 +4927,14 @@
         "mos-app/src/components/dashboard/dq-badge.css"
       ],
       "line-height": [
-        "mos-app/src/components/admin/people-toolbar.css",
         "mos-app/src/components/dashboard/basis-chip.css",
         "mos-app/src/components/dashboard/dq-badge.css",
         "mos-app/src/components/dashboard/kpi-tile.css",
         "mos-app/src/components/home/attention-brief.css",
         "mos-app/src/components/inbox/inbox.css",
         "mos-app/src/components/kitchen/kitchen-kpi-strip.css",
-        "mos-app/src/components/kitchen/plan-qty-cell.css"
+        "mos-app/src/components/kitchen/plan-qty-cell.css",
+        "mos-app/src/components/kitchen/plan-qty-stepper.css"
       ],
       "padding": [
         "mos-app/src/components/admin/people-toolbar.css",

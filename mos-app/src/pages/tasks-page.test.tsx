@@ -6,12 +6,14 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, SpawnResult } from '@/lib/db/processes.types'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  getTask: vi.fn(),
 }))
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
@@ -19,6 +21,8 @@ vi.mock('../lib/db/directory', () => ({
   // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
   listRoleNames: vi.fn(),
 }))
+vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 // Design fix wave item 1a: the due-runs membership-scoping loader (reused from signals.ts).
 vi.mock('../lib/db/signals', () => ({
   listAuthorTeams: vi.fn(),
@@ -34,8 +38,10 @@ vi.mock('../lib/db/processes', () => ({
   listTaskDefs: vi.fn(),
 }))
 
-import { listTasks } from '@/lib/db/tasks'
+import { listTasks, getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 import { listAuthorTeams } from '@/lib/db/signals'
 import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
@@ -44,6 +50,7 @@ import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePending
 // real component the /tasks page renders.
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 const mockListTasks = vi.mocked(listTasks)
+const mockGetTask = vi.mocked(getTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
@@ -54,6 +61,8 @@ const mockListPendingTasks = vi.mocked(listPendingTasks)
 const mockListTaskDefs = vi.mocked(listTaskDefs)
 const mockListRoleNames = vi.mocked(listRoleNames)
 const mockResolvePendingTask = vi.mocked(resolvePendingTask)
+const mockListObjectives = vi.mocked(listObjectives)
+const mockListWorkLines = vi.mocked(listWorkLines)
 
 // ── Stub matchMedia for useIsDesktop (desktop path by default) ──────────────
 function stubMatchMedia(matches: boolean) {
@@ -169,7 +178,9 @@ function renderPage(auth: AuthState = authedState, props: Partial<React.Componen
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/work/tasks']}>
-        <Harness />
+        <OverlayHostProvider>
+          <Harness />
+        </OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -199,6 +210,9 @@ beforeEach(() => {
   stubMatchMedia(true) // desktop by default
   mockGetBusinessUnits.mockResolvedValue(DEFAULT_BUS)
   mockGetPeople.mockResolvedValue(DEFAULT_PEOPLE)
+  mockListObjectives.mockResolvedValue([])
+  mockListWorkLines.mockResolvedValue([])
+  mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
   // Step 6 (Track C wiring): quiet defaults so pre-existing tests (accessRoles: [], no occurrence
   // groupBy) never see the Start-run control or an occurrence fetch.
   mockListDueRuns.mockResolvedValue([])
@@ -615,8 +629,8 @@ describe('a11y — aria roles and labels', () => {
 })
 
 // ── Fix-1: row-click SPA navigation (no full reload, no hardcoded basename) ────
-describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
-  it('clicking desktop row navigates via router to /tasks/:id (no window.location change)', async () => {
+describe('V3 RecordViewer — task collection opens one shared host', () => {
+  it('clicking desktop row opens the shared host without losing the collection route', async () => {
     const task = makeTask({ id: 'task-nav-1', title: 'Nav test task' })
     mockListTasks.mockResolvedValue([task])
     renderPage()
@@ -628,17 +642,15 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
     expect(rows.length).toBeGreaterThan(0)
     fireEvent.click(rows[0])
 
-    await waitFor(() => {
-      // Router location should update to /tasks/task-nav-1 in-SPA
-      expect(_capturedLocation?.pathname).toBe('/work/tasks/task-nav-1')
-    })
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy())
+    expect(_capturedLocation?.pathname).toBe('/work/tasks')
 
     // window.location.href must NOT contain the hardcoded /mos/ basename
     // (in jsdom this stays at initial; we assert it's still the test origin, not '/mos/tasks/...')
     expect(window.location.href).not.toContain('/mos/tasks/')
   })
 
-  it('clicking mobile card navigates via router to /tasks/:id', async () => {
+  it('clicking the mobile card opens the same shared host', async () => {
     stubMatchMedia(false) // narrow
     const task = makeTask({ id: 'task-nav-2', title: 'Mobile nav task' })
     mockListTasks.mockResolvedValue([task])
@@ -651,9 +663,8 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
     expect(cardLink).toBeTruthy()
     fireEvent.click(cardLink)
 
-    await waitFor(() => {
-      expect(_capturedLocation?.pathname).toBe('/work/tasks/task-nav-2')
-    })
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy())
+    expect(_capturedLocation?.pathname).toBe('/work/tasks')
   })
 })
 
@@ -1113,7 +1124,9 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     return render(
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={[`/work/tasks?occurrence=${runId}`]}>
-          <Harness />
+          <OverlayHostProvider>
+            <Harness />
+          </OverlayHostProvider>
         </MemoryRouter>
       </AuthContext.Provider>,
     )

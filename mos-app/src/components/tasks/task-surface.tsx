@@ -57,8 +57,12 @@ export type TaskSurfaceProps = {
   presentation?: 'panel' | 'page'
   width: 'drawer' | 'full'
   onClose?: () => void           // drawer/expanded use this; full host passes navigate('/work/tasks')
+  /** Canonical promotion callback supplied by the shared overlay host. */
+  onOpenPage?: () => void
   onExpandToggle?: () => void    // wired in PR-B
   expanded?: boolean
+  /** Suppress the task-local utility bar when RecordPanelHost owns the chrome. */
+  showPanelUtility?: boolean
   onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
   onTaskCreated?: (id: string) => void         // C2: lets the table refetch after a create (PR-B)
   onTaskArchived?: (id: string) => void        // I3: lets the table refetch after an archive (PR-B)
@@ -94,7 +98,8 @@ export function TaskSurface(props: TaskSurfaceProps) {
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
   taskId, width, presentation = width === 'drawer' ? 'panel' : 'page', expanded,
-  onClose, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
+  onClose, onOpenPage, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved,
+  showPanelUtility = true,
   identityHeadingLevel,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
@@ -453,10 +458,13 @@ function ViewSurface({
           now={now}
           onStatusChange={handleStatusChange}
           onMarkComplete={handleMarkComplete}
-          onOpenPage={presentation === 'panel' ? () => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } }) : undefined}
+          onOpenPage={presentation === 'panel'
+            ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
+            : undefined}
           onExpandToggle={() => onExpandToggle?.()}
           onClose={() => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))}
           onArchive={() => setShowConfirm(true)}
+          showUtility={showPanelUtility}
         />
 
         {isArchived && (

@@ -2,6 +2,12 @@
 
 > **CURRENT (2026-07-21): V3 live application convergence on local branch `v3-redesign`; implementation
 > checkpoint `3250aa8` plus documentation state commits, all local and unpushed.**
+> **AUDIT OVERRIDE (2026-07-22):** independent verification at `d63f20a` was **NO-SHIP**;
+> see [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md).
+> A local uncommitted convergence slice has since closed the focused route-seam test failures, live
+> Tasks/Signals host adoption, and Café first-Team heuristic; the branch is still NO-SHIP until the
+> cross-surface collection grammar, Issue 10, spec/design review verdicts, and owner three-width gate
+> close. Inventory freshness now passes; code-quality/security are recorded PASS in the ledger.
 > The workstream label is `v3-redesign` (E8). E7 owns visual styling; current owner law owns IA and
 > interaction behavior. Issues 3–6 foundations and broad Issue-11 page-family migration are now
 > implemented locally; auth control convergence is landed and independently re-verified at `93555ac`.

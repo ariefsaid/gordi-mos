@@ -21,6 +21,35 @@ export type TaskDrawerProps = {
   mode: 'view' | 'create'
 }
 
+export type TaskOverlayContentProps = {
+  taskId: string
+  onClose: () => void
+  onOpenPage: () => void
+  onTaskChanged?: (task: TaskListRow) => void
+  onTaskCreated?: (id: string) => void
+  onTaskArchived?: (id: string) => void
+}
+
+/** Task-specific content used by the shell-owned OverlayHostSlot. */
+export function TaskOverlayContent({
+  taskId, onClose, onOpenPage, onTaskChanged, onTaskCreated, onTaskArchived,
+}: TaskOverlayContentProps) {
+  return (
+    <TaskSurface
+      taskId={taskId}
+      mode="view"
+      presentation="panel"
+      width="drawer"
+      onClose={onClose}
+      onOpenPage={onOpenPage}
+      onTaskChanged={onTaskChanged}
+      onTaskCreated={onTaskCreated}
+      onTaskArchived={onTaskArchived}
+      showPanelUtility={false}
+    />
+  )
+}
+
 /**
  * Mounts only when the task title has been resolved. Calls useSetBreadcrumbTitle
  * so the shell Breadcrumb shows "Tasks › <title>" (ADR-0013 D1 / OD-P4-9, AC-S04b).

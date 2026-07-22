@@ -9,6 +9,7 @@ import { useRecordCollection } from '@/lib/record-collection/use-record-collecti
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
+import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { useDueRuns } from '@/components/processes/use-due-runs'
@@ -31,6 +32,7 @@ import {
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
 import type { TaskStatus } from '@/lib/db/tasks.types'
+import { TaskOverlayContent } from './task-drawer'
 
 // §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
 type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
@@ -61,6 +63,10 @@ export type TasksTableProps = {
   refreshKey?: number
   onToggleExpand?: () => void
   drawerSlot?: ReactNode
+  /** Collection callback to sync optimistic row changes back into the table. */
+  onTaskChanged?: (task: import('@/lib/db/tasks.types').TaskListRow) => void
+  /** Collection callback to refetch after an archive. */
+  onTaskArchived?: (id: string) => void
 }
 
 function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskCollectionQuery | undefined {
@@ -106,10 +112,13 @@ export function TasksWorkspace({
   onSavedViewChange,
   onToggleExpand,
   drawerSlot,
+  onTaskChanged,
+  onTaskArchived,
 }: TasksTableProps) {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const host = useOverlayHost()
   const auth = useAuth()
   const isDesktop = useIsDesktop()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -164,11 +173,33 @@ export function TasksWorkspace({
   const retry = useCallback(() => controller.retry(), [controller])
   const dueRuns = useDueRuns(retry)
   const onOpenTask = useCallback((taskId: string) => {
-    navigate({ pathname: `/work/tasks/${taskId}`, search: currentSearch }, { state: { taskSurface: 'panel' } })
-  }, [currentSearch, navigate])
+    const pageTo = { pathname: `/work/tasks/${taskId}`, search: currentSearch }
+    const entry = {
+      key: `task:${taskId}`,
+      owner: 'tasks' as const,
+      tenant: 'record' as const,
+      label: t('tasks.detail.title'),
+      title: t('tasks.detail.title'),
+      pageTo,
+      content: (
+        <TaskOverlayContent
+          taskId={taskId}
+          onClose={() => { void host.close() }}
+          onOpenPage={() => { void host.openPage(pageTo) }}
+          onTaskChanged={onTaskChanged}
+          onTaskArchived={onTaskArchived}
+        />
+      ),
+    }
+    void host.openRoot(entry, 'route')
+  }, [currentSearch, host, onTaskArchived, onTaskChanged, t])
   const onCloseDrawer = useCallback(() => {
+    if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
+      void host.close()
+      return
+    }
     if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
-  }, [currentSearch, drawerOpen, navigate])
+  }, [currentSearch, drawerOpen, host, navigate])
   const onNewTask = useCallback(() => {
     navigate({ pathname: '/work/tasks/new', search: currentSearch })
   }, [currentSearch, navigate])
@@ -248,8 +279,10 @@ export function TasksWorkspace({
   )
 
   const runtime: TaskCollectionRuntime = useMemo(() => ({
-    selectedId,
-    drawerOpen,
+    selectedId: host.session?.frames.at(-1)?.entry.owner === 'tasks'
+      ? host.session.frames.at(-1)?.entry.key.replace(/^task:/, '') ?? selectedId
+      : selectedId,
+    drawerOpen: drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks',
     expanded,
     splitLayout,
     isDesktop,
@@ -271,7 +304,7 @@ export function TasksWorkspace({
     followupsEnabled: SHOW_FOLLOWUPS,
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
-    accessRoles, currentSearch, drawerOpen, dueRuns, expanded, isDesktop, onAddTask,
+    accessRoles, currentSearch, drawerOpen, dueRuns, expanded, host.session, isDesktop, onAddTask,
     onCloseDrawer, onNewTask, onOpenTask, onToggleExpand, onClearFilters, onSort,
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
@@ -309,8 +342,8 @@ export function TasksWorkspace({
         </span>
       }
     >
-      <div className={`split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`}>
-        <section className={`assembly${drawerOpen && !expanded && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? (expanded ? ' expanded' : '') : ' nodrawer'}`}>
+        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && !expanded && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface
               controller={controller}
@@ -349,6 +382,7 @@ export function TasksWorkspace({
           </TaskCollectionRuntimeProvider>
         </section>
         {drawerOpen && drawerSlot}
+        <OverlayHostSlot owner="tasks" />
       </div>
     </PageFamilyFrame>
   )

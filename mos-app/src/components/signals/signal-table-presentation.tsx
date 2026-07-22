@@ -96,21 +96,21 @@ export function SignalTablePresentation({
   })) ?? []
 
   return (
-    <DataTable
-      columns={columns}
-      rows={[]}
-      groups={groups.length > 0 ? groups : undefined}
-      collapsedGroupKeys={new Set(groups.filter((group) => isGroupCollapsed(group.key)).map((group) => group.key))}
-      onToggleGroup={onToggleGroup}
-      isDesktop={isDesktop}
-      state={projection.visibleRecords.length === 0 ? 'empty' : 'ready'}
-      emptyLabel={t('signals.table.empty')}
-      caption={t('signals.table.caption')}
-      rowClassName={(signal) =>
-        [signal.retracted_at ? 'signal-table-row--retracted' : undefined]
-          .filter(Boolean)
-          .join(' ') || undefined
-      }
-    />
+      <DataTable
+        columns={columns}
+        rows={[]}
+        groups={groups.length > 0 ? groups : undefined}
+        collapsedGroupKeys={new Set(groups.filter((group) => isGroupCollapsed(group.key)).map((group) => group.key))}
+        onToggleGroup={onToggleGroup}
+        isDesktop={isDesktop}
+        state={projection.visibleRecords.length === 0 ? 'empty' : 'ready'}
+        emptyLabel={t('signals.table.empty')}
+        caption={t('signals.table.caption')}
+        rowClassName={(signal) =>
+          [signal.retracted_at ? 'signal-table-row--retracted' : undefined]
+            .filter(Boolean)
+            .join(' ') || undefined
+        }
+      />
   )
 }

@@ -13,6 +13,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
@@ -140,7 +141,9 @@ function renderTable(
     <I18nProvider>
       <AuthContext.Provider value={auth}>
         <MemoryRouter initialEntries={['/work/tasks']}>
-          <Harness />
+          <OverlayHostProvider>
+            <Harness />
+          </OverlayHostProvider>
         </MemoryRouter>
       </AuthContext.Provider>
     </I18nProvider>,
@@ -713,6 +716,18 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // The row carries the canonical link to /tasks/:id (no alternate detail route)
     const link = row.querySelector('a.task-row-link') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/work/tasks/task-9')
+  })
+
+  it('opens a task in the shared RecordViewer overlay instead of a route-local drawer', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-overlay', title: 'Shared viewer task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Shared viewer task'))
+
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+    })
   })
 })
 

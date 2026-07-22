@@ -24,6 +24,8 @@ vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([{ id: 'bu-sales', name: 'B2B Sales', code: 'b2b_sales' }]),
   getPeople: vi.fn().mockResolvedValue([]),
 }))
+vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn().mockResolvedValue([]) }))
+vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/follow-ups', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/follow-ups')>('@/lib/db/follow-ups')
   return { ...actual, listFollowUps: vi.fn(), transitionFollowUp: vi.fn() }
@@ -31,6 +33,7 @@ vi.mock('@/lib/db/follow-ups', async () => {
 
 import { listFollowUps } from '@/lib/db/follow-ups'
 import { TasksWorkspace } from './tasks-workspace'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 
 const mockListFollowUps = vi.mocked(listFollowUps)
 
@@ -66,7 +69,9 @@ function renderFollowupsView() {
     <I18nProvider>
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/work/tasks?view=followups']}>
-          <TasksWorkspace savedView={FOLLOWUPS_SAVED_VIEW} onSavedViewChange={() => {}} />
+          <OverlayHostProvider>
+            <TasksWorkspace savedView={FOLLOWUPS_SAVED_VIEW} onSavedViewChange={() => {}} />
+          </OverlayHostProvider>
         </MemoryRouter>
       </AuthContext.Provider>
     </I18nProvider>,

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { PersonOption } from '@/lib/db/directory'
 
@@ -57,10 +58,12 @@ function renderPage(initialPath = '/work/signals') {
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
-        <LocationProbe />
-        <Routes>
-          <Route path="/work/signals" element={<SignalsArchivePage />} />
-        </Routes>
+        <OverlayHostProvider>
+          <LocationProbe />
+          <Routes>
+            <Route path="/work/signals" element={<SignalsArchivePage />} />
+          </Routes>
+        </OverlayHostProvider>
       </MemoryRouter>
     </I18nProvider>,
   )
@@ -264,6 +267,15 @@ describe('SignalsArchivePage — ?record=<id> mounts the Signal in the shared ho
     expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
   })
 
+  it('opens the record through the shared signals overlay host', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await userEvent.click(screen.getByText('The freezer alarm went off'))
+
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="signals"]')).toBeTruthy())
+    expect(document.querySelector('[data-overlay-host-slot="signals"]')).toBeTruthy()
+  })
+
   it('the host ✕ Close clears ?record= from the URL', async () => {
     renderPage('/work/signals?record=signal-1')
     await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
@@ -277,10 +289,10 @@ describe('SignalsArchivePage — ?record=<id> mounts the Signal in the shared ho
     await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /open full page/i }))
-    // The canonical page route is not registered in this page-only harness, so the record host
-    // unmounts (route left the archive). The escalation navigated away from the list+drawer.
-    await waitFor(() => expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument())
-    expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
+    // The canonical page route is not registered in this page-only harness, so the archive
+    // unmounts. The location probe remains outside Routes and proves the promotion target.
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1'))
+    expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument()
   })
 })
 

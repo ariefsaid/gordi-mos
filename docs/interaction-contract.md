@@ -45,8 +45,8 @@ Proof cell is a defect, not a gap.
 | Surface | I1 | I2 | I3 | I4 | I5 | I6 | I7 | Proof |
 |---|---|---|---|---|---|---|---|---|
 | Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `task-row.test` "I7 open/cursor is aria-selected" |
-| Signal record | ✅ shared host (in-list `?record=` → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ❌ | partial | ✅ | AC-RPH-2/3 · record-panel-host + signals-archive suites |
-| Inbox | ❌ no panel door (bell navigates away) | n/a | — | — | — | — | ✅ | host P3 → AC-RPH-4/6 |
+| Signal record | ✅ shared `OverlayHost` (in-list record query → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ❌ | partial | ✅ | Signals archive focused suite + overlay-host route seam |
+| Inbox | ✅ shared-host triage door (seeded notification proof and handled semantics still open) | partial | — | — | — | — | ✅ | inbox host tests; seeded-notification acceptance pending |
 | Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
 | Admin people menu | — | ✅ | ✅ (⋯ + mobile sheet) | — | — | — | — | user-table I3 suite |
@@ -56,8 +56,9 @@ Proof cell is a defect, not a gap.
 
 ## Sequence to full conformance (the cohesion program, in flight)
 
-1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — ✅ DONE (RecordPanelHost;
-   Task drawer + Signal record + `/work/signals/:id` all on the one overlay grammar).
+1. **Host P1+P2** (Task extraction + Signal in-host + canonical page) — ✅ DONE at the production
+   consumer seam (the physical `RecordPanelHost` is now mounted through the single `OverlayHost`; Task
+   and Signal focused suites pass, with live browser and full-suite acceptance still pending).
 2. **Host P3** Inbox two-door (I9) · **P4** Deputy chrome (I1 col).
 3. **I5 slice** — the one inline-edit primitive (OD-22), retrofit details-panel + qty cells.
 4. ~~**I3 completion** — admin people menu onto `useMenuPopover`.~~ DONE (user-table I3 suite).

@@ -1,4 +1,4 @@
-import type { EligibleTeam, TeamContextResolution, TeamMembershipRow } from './types'
+import type { TeamContextCandidate, TeamContextResolution, TeamMembershipRow } from './types'
 
 // The honest Team-context resolver (V3 Issue 8, AC-809 / master AC-V3-007). It replaces two
 // first-row heuristics that this issue explicitly owns as bugs:
@@ -36,8 +36,8 @@ export function filterEffectiveMemberships(
  * - One   -> `{ kind: 'single' }` (deterministic; caller may proceed).
  * - >One  -> `{ kind: 'choice' }` (caller MUST require an explicit pick; order is *display only*).
  */
-export function resolveTeamContext(teams: readonly EligibleTeam[]): TeamContextResolution {
-  const byId = new Map<string, EligibleTeam>()
+export function resolveTeamContext<T extends TeamContextCandidate>(teams: readonly T[]): TeamContextResolution<T> {
+  const byId = new Map<string, T>()
   for (const t of teams) {
     if (t.archived) continue
     if (!byId.has(t.id)) byId.set(t.id, t)

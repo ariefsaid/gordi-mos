@@ -11,6 +11,23 @@
   min-width: 0;
 }
 
+/* One collection-surface treatment across typed presentations. Domains still
+   own their row anatomy (Task decision columns, Signal feed/table), but the
+   page-level object is the same E7 card: border, radius, resting lift, and
+   overflow. This is the visual counterpart to the shared engine/toolbar. */
+.record-collection-view {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+
+.record-collection-view--table .dt-table {
+  font-size: 14px;
+}
+
 .record-collection-readonly {
   margin: 0;
   padding: 8px 12px;

@@ -634,15 +634,37 @@ export function useOptionalOverlayHost(): OverlayHostApi | null {
 export function OverlayHostSlot({
   owner,
   children,
+  onClose: onCloseOverride,
+  onOpenPage: onOpenPageOverride,
 }: {
   owner: OverlayOwner
   children?: ReactNode
+  /** Optional tenant cleanup that runs before the shared close commit (e.g. URL query state). */
+  onClose?: (via: 'explicit-close' | 'escape', close: OverlayHostApi['close']) => void
+  /** Optional tenant hook around canonical promotion (e.g. suppressing collection URL cleanup). */
+  onOpenPage?: (to: To, openPage: OverlayHostApi['openPage']) => void
 }): ReactElement {
   const { session, pendingLeave, close, back, openPage } = useOverlayHost()
   const top = session?.frames.at(-1)
   const active = top && top.entry.owner === owner ? top : null
   const canGoBack = (session?.frames.length ?? 0) > 1
   const pageTo = active?.entry.pageTo
+  const handleClose = (via?: 'explicit-close' | 'escape') => {
+    const actualVia = via ?? 'explicit-close'
+    if (onCloseOverride) {
+      onCloseOverride(actualVia, close)
+      return
+    }
+    void close(actualVia)
+  }
+  const handleOpenPage = () => {
+    if (!pageTo) return
+    if (onOpenPageOverride) {
+      onOpenPageOverride(pageTo, openPage)
+      return
+    }
+    void openPage(pageTo)
+  }
 
   return (
     <span data-overlay-host-slot={owner} style={{ display: 'contents' }}>
@@ -658,8 +680,8 @@ export function OverlayHostSlot({
           canGoBack={canGoBack}
           transitionPending={pendingLeave !== null}
           onBack={canGoBack ? () => void back() : undefined}
-          onOpenPage={pageTo ? () => void openPage(pageTo) : undefined}
-          onClose={(via) => void close(via)}
+          onOpenPage={pageTo ? handleOpenPage : undefined}
+          onClose={handleClose}
           // The shell slot sits above the page Outlet (no page-level .record-split grid wrapper),
           // so the panel would render unpositioned (Luna audit B1: "bare .drawer aside, no 44%
           // track"). owner-shell gives RecordPanelHost a shell-specific right-anchored track at

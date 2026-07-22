@@ -627,6 +627,8 @@ export const messages = {
     'cafe.opening.viewTasks': 'View opening tasks',
     'cafe.opening.noProcess': 'No café opening is configured for this org yet.',
     'cafe.opening.noTeam': "You're not on a café branch Team yet — ask your admin to add you.",
+    'cafe.opening.chooseTeam': 'Choose a Team',
+    'cafe.opening.chooseTeamPrompt': 'Choose the Team whose opening you want to view.',
     // V3 Issue 5 — RecordViewer field + chrome copy (docs/plans/2026-07-20-v3-record-viewer.md).
     // Every viewer/field string flows through the catalog in BOTH locales (LocaleParityContract).
     'record.state.loading': 'Loading record',
@@ -1219,6 +1221,8 @@ export const messages = {
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
     'cafe.opening.noProcess': 'Belum ada pembukaan kafe yang dikonfigurasi untuk org ini.',
     'cafe.opening.noTeam': 'Anda belum tergabung di Tim cabang kafe — hubungi admin untuk ditambahkan.',
+    'cafe.opening.chooseTeam': 'Pilih Tim',
+    'cafe.opening.chooseTeamPrompt': 'Pilih Tim yang pembukaannya ingin Anda lihat.',
     'record.state.loading': 'Memuat catatan',
     'record.state.retry': 'Coba lagi',
     'record.field.saving': 'Menyimpan…',

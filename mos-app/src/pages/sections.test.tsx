@@ -18,6 +18,7 @@ vi.mock('../lib/db/directory', () => ({
 }))
 import { TasksLayout } from './tasks-layout'
 import { AuthContext } from '@/auth/context'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { AuthState } from '@/auth/context'
 
@@ -44,7 +45,7 @@ describe('AC-007: Section empty shells', () => {
     render(
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks']}>
-          <TasksLayout />
+          <OverlayHostProvider><TasksLayout /></OverlayHostProvider>
         </MemoryRouter>
       </AuthContext.Provider>,
     )
@@ -60,7 +61,7 @@ describe('FIX-3: Empty state containers are left-aligned (not text-center)', () 
     const { container } = render(
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks']}>
-          <TasksLayout />
+          <OverlayHostProvider><TasksLayout /></OverlayHostProvider>
         </MemoryRouter>
       </AuthContext.Provider>,
     )
@@ -76,7 +77,7 @@ describe('AC-004: Document title per section page', () => {
     render(
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks']}>
-          <TasksLayout />
+          <OverlayHostProvider><TasksLayout /></OverlayHostProvider>
         </MemoryRouter>
       </AuthContext.Provider>,
     )

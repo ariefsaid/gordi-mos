@@ -95,9 +95,14 @@ export function TaskRow({
           className="task-row-link name-chip"
           title={task.title}
           tabIndex={0}
-          // AC-T02/T03: clicking the name link must not also double-fire the row's
-          // onOpen — the link navigates itself to the same canonical /work/tasks/:id.
-          onClick={(e) => e.stopPropagation()}
+          // The href remains the progressive-enhancement/canonical door, but the
+          // application interaction grammar is one shared RecordViewer: activate
+          // the row opener instead of bypassing it into the route-local drawer.
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onOpen(task.id)
+          }}
         >
           <span className="task-title-line">
             {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}

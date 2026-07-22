@@ -26,14 +26,14 @@ export function SignalFeedPresentation({
 >) {
   const actions = useSignalCollectionActions()
   return (
-    <SignalFeed
-      signals={[...projection.visibleRecords]}
-      authorNamesById={namesToRecord(context.authorNamesById)}
-      teamNamesById={namesToRecord(context.teamNamesById)}
-      siteNamesByTeamId={namesToRecord(context.siteNamesByTeamId)}
-      onShareClick={actions.onShareClick}
-      onCategorize={actions.onCategorize}
-      onOpen={onOpenRecord ? (signal) => onOpenRecord(signal) : undefined}
-    />
+      <SignalFeed
+        signals={[...projection.visibleRecords]}
+        authorNamesById={namesToRecord(context.authorNamesById)}
+        teamNamesById={namesToRecord(context.teamNamesById)}
+        siteNamesByTeamId={namesToRecord(context.siteNamesByTeamId)}
+        onShareClick={actions.onShareClick}
+        onCategorize={actions.onCategorize}
+        onOpen={onOpenRecord ? (signal) => onOpenRecord(signal) : undefined}
+      />
   )
 }

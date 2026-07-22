@@ -53,8 +53,24 @@ export function AssistantPanel() {
   const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
+  const wasOpenRef = useRef(open)
 
   const role: 'dialog' | 'complementary' = isNarrow ? 'dialog' : 'complementary'
+
+  // The Deputy is a shell-owned drawer, but it still follows the same opener contract as
+  // record panels: remember the element that launched it and return focus there after any
+  // close path (button, Escape, or scrim). This keeps the interaction grammar coherent even
+  // while Deputy remains a distinct tenant from record overlays.
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    } else if (!open && wasOpenRef.current) {
+      const opener = openerRef.current
+      queueMicrotask(() => opener?.focus())
+    }
+    wasOpenRef.current = open
+  }, [open])
 
   // ── Body scroll-lock (phone modal) ───────────────────────────────────────────
   useEffect(() => {

@@ -52,6 +52,8 @@ export type MobileGroupedCardsProps = {
   groups: MobileRenderGroup[]
   /** Active location.search to preserve the saved view on every record-open path. */
   recordSearch?: string
+  /** Opens the same shared RecordViewer used by the desktop collection. */
+  onOpenTask?: (taskId: string) => void
   now: Date
   buMap: Map<string, string>
   personMap: Map<string, string>
@@ -86,12 +88,13 @@ type TaskCardProps = {
   supervisorName: string
   sourceName: string
   recordSearch?: string
+  onOpenTask: (taskId: string) => void
   /** Design fix wave item 4 — the generated-ownership source ("via <role name>"), Rule 11 reuse of
    * OwnerCell's provenance rendering. */
   provenanceRoleName?: string
 }
 
-function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '', provenanceRoleName }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '', provenanceRoleName, onOpenTask }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -110,6 +113,10 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
         to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }}
         state={{ taskSurface: 'panel' }}
         className="task-card-link"
+        onClick={(event) => {
+          event.preventDefault()
+          onOpenTask(task.id)
+        }}
       >
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
@@ -168,9 +175,10 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
 export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
-  workLineMap, objectiveMap, onAssignPending, provenanceByTaskDefId,
+  workLineMap, objectiveMap, onAssignPending, provenanceByTaskDefId, onOpenTask,
 }: MobileGroupedCardsProps) {
   const t = useT()
+  const openTask = onOpenTask ?? (() => {})
   const provenanceFor = (task: TaskListRow): string | undefined =>
     task.generated_from_task_def_id
       ? provenanceByTaskDefId?.get(task.generated_from_task_def_id)
@@ -197,6 +205,7 @@ export function MobileGroupedCards({
                 t('tasks.adHoc'),
               )}
               recordSearch={recordSearch}
+              onOpenTask={openTask}
               provenanceRoleName={provenanceFor(task)}
             />
           </div>
@@ -292,6 +301,7 @@ export function MobileGroupedCards({
                   t('tasks.adHoc'),
                 )}
                 recordSearch={recordSearch}
+                onOpenTask={openTask}
                 provenanceRoleName={provenanceFor(task)}
               />
             </div>

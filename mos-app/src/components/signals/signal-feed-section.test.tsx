@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { SignalRow } from '@/lib/db/signals.types'
 
 // C3b (AC-426/FR-414): the Home ambient feed — this section is the fetch+mutate wrapper around
@@ -26,6 +27,9 @@ const mockGetPeople = vi.mocked(getPeople)
 const openSignalComposer = vi.fn()
 const composerState = { postCount: 0 }
 vi.mock('@/shell/signal-composer-host', () => ({ useSignalComposer: () => ({ open: openSignalComposer, postCount: composerState.postCount }) }))
+vi.mock('@/components/signals/signal-record-host', () => ({
+  SignalRecordHost: ({ signalId }: { signalId: string }) => <div data-testid="home-signal-record" data-signal-id={signalId} />,
+}))
 
 import { SignalFeedSection } from './signal-feed-section'
 
@@ -54,6 +58,20 @@ function renderSection() {
           <Route path="/" element={<SignalFeedSection />} />
           <Route path="/work/signals" element={<SignalFeedSection />} />
         </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+function renderSectionWithHost() {
+  return render(
+    <I18nProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <OverlayHostProvider>
+          <Routes>
+            <Route path="/" element={<SignalFeedSection />} />
+          </Routes>
+        </OverlayHostProvider>
       </MemoryRouter>
     </I18nProvider>,
   )
@@ -132,6 +150,15 @@ describe('SignalFeedSection — Home ambient feed wiring (AC-426/FR-414)', () =>
     // The record-open affordance is now accessibly named ("Open signal: <body>") — Luna (c).
     await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
+  })
+
+  it('opens a Home Signal in the shared record host and keeps Home as the underlying page', async () => {
+    renderSectionWithHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
+    await waitFor(() => expect(screen.getByTestId('home-signal-record')).toHaveAttribute('data-signal-id', 'signal-1'))
+    expect(document.querySelector('[data-overlay-host]')).toBeInTheDocument()
+    expect(document.body.textContent).toContain('The freezer alarm went off')
   })
 
   it('does not advertise Create Task until the card can create a Task directly', async () => {

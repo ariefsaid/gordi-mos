@@ -10,6 +10,7 @@ import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
 import { I18nProvider } from './i18n/I18nProvider'
+import { OverlayHostProvider } from './shell/overlay-host'
 
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
@@ -193,7 +194,9 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
 
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
     const { container } = withAuth(
-      <MemoryRouter initialEntries={['/tasks']}><TasksLayout /></MemoryRouter>,
+      <MemoryRouter initialEntries={['/tasks']}>
+        <OverlayHostProvider><TasksLayout /></OverlayHostProvider>
+      </MemoryRouter>,
     )
     expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('[class*="page-title"]')).toBeNull()

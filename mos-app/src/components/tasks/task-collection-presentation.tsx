@@ -496,6 +496,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         rowVirtualizer={rowVirtualizer}
         renderRow={renderRow}
         renderGroupHeader={renderGroupHeader}
+        onOpenTask={openTask}
         groups={groups}
         recordSearch={runtime.recordSearch}
         now={context.now}

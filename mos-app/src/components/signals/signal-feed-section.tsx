@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { correctSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
+import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
+import { SignalRecordHost } from './signal-record-host'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import {
   signalCollectionDescriptor,
@@ -32,6 +34,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 
 export function SignalFeedSection() {
   const navigate = useNavigate()
+  const host = useOptionalOverlayHost()
   const { open: openSignalComposer, postCount } = useSignalComposer()
 
   const controller = useRecordCollection({
@@ -50,6 +53,19 @@ export function SignalFeedSection() {
   }, [postCount])
 
   function openRecord(signalId: string) {
+    if (host) {
+      const entry = {
+        key: `signal:${signalId}`,
+        owner: 'signals' as const,
+        tenant: 'record' as const,
+        label: 'Signal',
+        title: 'Signal',
+        pageTo: `/work/signals/${signalId}`,
+        content: <SignalRecordHost signalId={signalId} mode="panel" />,
+      }
+      void host.openRoot(entry, 'route')
+      return
+    }
     navigate(`/work/signals?record=${signalId}`)
   }
 
@@ -66,13 +82,16 @@ export function SignalFeedSection() {
   if (controller.state.status === 'loading') return null // Home's own skeleton regions cover initial paint (NFR-405)
 
   return (
-    <SignalFeed
-      signals={signals}
-      authorNamesById={data ? namesToRecord(data.context.authorNamesById) : {}}
-      teamNamesById={data ? namesToRecord(data.context.teamNamesById) : {}}
-      onShareClick={openSignalComposer}
-      onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
-      onOpen={(signal) => openRecord(signal.id)}
-    />
+    <>
+      <SignalFeed
+        signals={signals}
+        authorNamesById={data ? namesToRecord(data.context.authorNamesById) : {}}
+        teamNamesById={data ? namesToRecord(data.context.teamNamesById) : {}}
+        onShareClick={openSignalComposer}
+        onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
+        onOpen={(signal) => openRecord(signal.id)}
+      />
+      {host ? <OverlayHostSlot owner="signals" /> : null}
+    </>
   )
 }

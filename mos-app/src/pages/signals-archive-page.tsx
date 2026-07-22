@@ -1,9 +1,10 @@
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
-import { RecordPanelHost } from '@/shell/record-panel-host'
+import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { Toggle } from '@/components/ui/toggle'
 import { correctSignal } from '@/lib/db/signals'
@@ -26,17 +27,19 @@ import './signals-archive-page.css'
 // Work → Signals archive/search (Rule 4 canonical route). Job: "Search and revisit the Signals your
 // Teams have shared." The LIST is now a V3 RecordCollection consumer: one typed descriptor owns
 // load/filter/sort/group/presentation-switching and mirrors its query into the URL (?q= / ?layout= /
-// ?retracted=1 …, FR-415), while every Table row links to the Signal's canonical record (?record=,
-// FR-416). Record OPENING stays on the existing ?record= RecordPanelHost seam byte-for-byte (Option A,
-// Director ruling 2026-07-21); host-slot adoption is gated on the Issue-4 route-seam slice (R-T-4).
+// ?retracted=1 …, FR-415), while every Table row opens a route-mode entry through the shell's one
+// OverlayHostSlot. The record query remains readable collection URL state; the host marker supplies
+// the shared focus/Back/leave-guard session.
 
 export function SignalsArchivePage() {
   useDocumentTitle('Signals — Gordi MOS')
   const t = useT()
-  const navigate = useNavigate()
+  const host = useOverlayHost()
   const isSplit = useIsSplitWidth()
   const [params, setParams] = useSearchParams()
   const recordId = params.get('record')
+  const hadSignalSession = useRef(false)
+  const suppressNextOpen = useRef(false)
   const { open: openSignalComposer } = useSignalComposer()
 
   const controller = useRecordCollection({
@@ -53,9 +56,8 @@ export function SignalsArchivePage() {
     controller.setQuery({ ...query, ...patch })
   }
 
-  // Collection contract onOpenRecord — navigates to ?record= preserving all query state.
-  // This replaces the old actions.onOpen. The controller's openRecord requires an overlay host
-  // (Issue 4), so we provide a page-level implementation here (Option A).
+  // Collection contract onOpenRecord — replace the query state before the host pushes its one
+  // route marker. This yields one Back step from the record marker to the prior collection URL.
   function onOpenRecord(record: { id: string }) {
     const next = new URLSearchParams(params)
     next.set('record', record.id)
@@ -73,38 +75,82 @@ export function SignalsArchivePage() {
     onShareClick: openSignalComposer,
   }
 
-  function closeRecord() {
-    const nextParams = new URLSearchParams(params)
-    nextParams.delete('record')
-    setParams(nextParams, { replace: true })
-  }
-
   // The list-search query minus ?record= — shared by the canonical-page redirect and the
   // panel's "Open full page" escalation, so the search state (q / retracted) survives the jump.
-  const searchWithoutRecord = () => {
+  const searchWithoutRecord = useCallback(() => {
     const next = new URLSearchParams(params)
     next.delete('record')
     const s = next.toString()
     return s ? `?${s}` : ''
-  }
+  }, [params])
 
   // OD-63 / Rule 4: a DIRECT hard load / refresh / new-tab / shared deep-link onto
   // ?record=<id> escalates to the full canonical page (mirror of task-page-mode). An in-list
   // click is an in-app SPA nav (no boot timing entry → BOOT_SIGNAL_RECORD_ID is null), so it
   // stays in the drawer. jsdom has no PerformanceNavigationTiming, so unit tests stay in the
   // drawer; the e2e proves the real-browser hard-load redirect.
-  if (recordId && BOOT_SIGNAL_RECORD_ID === recordId) {
-    return <Navigate to={{ pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() }} replace />
-  }
-
-  const openFullPage = () => {
-    if (recordId) navigate({ pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() })
-  }
+  const shouldEscalateToCanonical = Boolean(recordId && BOOT_SIGNAL_RECORD_ID === recordId)
 
   // ≥1100px + a record open → the list squashes and the record mounts as an inline non-modal
-  // split beside it (identical side/width to a Task, spec FR-3). Below split, RecordPanelHost
+  // split beside it (identical side/width to a Task, spec FR-3). Below split, OverlayHostSlot
   // renders its own modal overlay, so the list stays full-width underneath (no grid track).
   const splitOpen = Boolean(recordId) && isSplit
+
+  const signalEntry = useMemo(() => {
+    if (!recordId) return null
+    return {
+      key: `signal:${recordId}`,
+      owner: 'signals' as const,
+      tenant: 'record' as const,
+      label: t('signals.record.title'),
+      title: t('signals.record.title'),
+      pageTo: { pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() },
+      content: <SignalRecordHost signalId={recordId} mode="panel" />,
+    }
+  }, [recordId, searchWithoutRecord, t])
+
+  useEffect(() => {
+    if (!signalEntry) {
+      suppressNextOpen.current = false
+      return
+    }
+    if (suppressNextOpen.current) return
+    const active = host.session?.frames.at(-1)?.entry
+    if (active?.key === signalEntry.key) return
+    const hasSignalSession = host.session?.frames.some((frame) => frame.entry.owner === 'signals')
+    void (hasSignalSession
+      ? host.replaceRoot(signalEntry)
+      : host.openRoot(signalEntry, 'route'))
+  }, [host, signalEntry])
+
+  // A route marker adds one history step above the readable ?record= state. When the shared host
+  // closes through an explicit action or browser POP, remove that query state without adding a
+  // second Back step. The ref prevents the initial host-open effect from clearing its own record.
+  const signalSessionActive = host.session?.frames.some((frame) => frame.entry.owner === 'signals') ?? false
+  const clearRecordQuery = () => {
+    suppressNextOpen.current = true
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    setParams(next, { replace: true })
+  }
+  useEffect(() => {
+    if (signalSessionActive) {
+      hadSignalSession.current = true
+      return
+    }
+    if (!hadSignalSession.current || !recordId) return
+    if (suppressNextOpen.current) return
+    hadSignalSession.current = false
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    setParams(next, { replace: true })
+  }, [params, recordId, setParams, signalSessionActive])
+
+  // Keep the direct-load redirect after every hook so an in-app route change and a
+  // hard-load redirect share one stable hook order.
+  if (shouldEscalateToCanonical) {
+    return <Navigate to={{ pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() }} replace />
+  }
 
   const clearFilters = () =>
     setQuery({ q: '', attention: null, category: null, teamId: null, view: 'all' })
@@ -224,7 +270,7 @@ export function SignalsArchivePage() {
     >
       <SignalCollectionActionsProvider actions={actions}>
         <div className={splitOpen ? 'record-split' : undefined}>
-          <div className="signals-archive-main">
+          <div className={`record-collection-view signals-archive-main record-collection-view--${controller.state.presentation}`}>
             <RecordCollectionSurface
               controller={controller}
               controls={signalToolbar}
@@ -236,21 +282,19 @@ export function SignalsArchivePage() {
             />
           </div>
 
-          {/* An in-list ?record=<id> click opens the Signal in the SAME shared RecordPanelHost as a
-              Task — same side, width, and chrome (spec FR-3). Direct hard-loads redirected above to
-              the canonical /work/signals/:id page. */}
-          {recordId && (
-            <RecordPanelHost
-              label={t('signals.record.title')}
-              title={t('signals.record.title')}
-              rootClassName="signal-record-drawer-root"
-              onOpenPage={openFullPage}
-              onClose={closeRecord}
-              focusKey={recordId}
-            >
-              <SignalRecordHost signalId={recordId} mode="panel" />
-            </RecordPanelHost>
-          )}
+          {/* One physical host grammar for Signal records. The collection owns query state;
+              OverlayHostSlot owns panel geometry, focus, Back, Escape, and canonical promotion. */}
+          <OverlayHostSlot
+            owner="signals"
+            onClose={(via, close) => {
+              clearRecordQuery()
+              void close(via)
+            }}
+            onOpenPage={(to, openPage) => {
+              suppressNextOpen.current = true
+              void openPage(to)
+            }}
+          />
         </div>
       </SignalCollectionActionsProvider>
     </PageFamilyFrame>

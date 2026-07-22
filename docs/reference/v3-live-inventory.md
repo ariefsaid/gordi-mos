@@ -101,7 +101,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Typography/spacing source: route-local CSS plus shared mos-app/src/index.css; local CSS: mos-app/src/pages/cafe-opening-page.css
 - Collection grammar: page-local or not observed; presentations: page-local / not observed; owns view state: no
 - Record opening: default not observed; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: none observed; states: default, empty, error/retry, loading; CSS families: mos-app/src/index.css, mos-app/src/pages/cafe-opening-page.css
+- Overlays: none observed; states: default, empty, error/retry, loading, permission/read-only; CSS families: mos-app/src/index.css, mos-app/src/pages/cafe-opening-page.css
 - Notes: —
 
 ### `/cafe/log`
@@ -229,9 +229,9 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Component/source: InboxPage — `mos-app/src/pages/inbox-page.tsx` :: `InboxPage`; router literal `inbox`
 - Page family/frame/head: workspace / shared-page-frame / shared-page-head
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
-- Collection grammar: page-local or not observed; presentations: Feed/list; owns view state: no
+- Collection grammar: page-local or not observed; presentations: page-local / not observed; owns view state: no
 - Record opening: default not observed; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: none observed; states: default, empty, error/retry, loading; CSS families: mos-app/src/index.css
+- Overlays: none observed; states: default, error/retry, loading; CSS families: mos-app/src/index.css
 - Notes: Current Inbox All/Unread/Handled behavior is retained as lost-good evidence.
 
 ### `/kitchen`
@@ -339,7 +339,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Component/source: FollowUpsPage — `mos-app/src/pages/follow-ups-page.tsx` :: `FollowUpsPage`; router literal `money/follow-ups`
 - Page family/frame/head: focused-record / shared-page-frame / shared-page-head
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
-- Collection grammar: page-local or not observed; presentations: —; owns view state: no
+- Collection grammar: route-local collection/view state is present; presentations: —; owns view state: yes
 - Record opening: default full canonical record page or hosted drawer; direct full canonical page; phone full-screen record mode
 - Overlays: none observed; states: default, saving/saved; CSS families: mos-app/src/index.css
 - Notes: SHOW_FOLLOWUPS flag plus finance/admin role gate.
@@ -539,7 +539,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Component/source: FollowUpsPage — `mos-app/src/pages/follow-ups-page.tsx` :: `FollowUpsPage`; router literal `work/follow-ups/:id`
 - Page family/frame/head: focused-record / shared-page-frame / shared-page-head
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
-- Collection grammar: page-local or not observed; presentations: —; owns view state: no
+- Collection grammar: route-local collection/view state is present; presentations: —; owns view state: yes
 - Record opening: default full canonical record page or hosted drawer; direct full canonical page; phone full-screen record mode
 - Overlays: none observed; states: default, saving/saved; CSS families: mos-app/src/index.css
 - Notes: SHOW_FOLLOWUPS controls page versus redirect to /.
@@ -580,8 +580,8 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Page family/frame/head: workspace / shared-page-frame / shared-page-head
 - Typography/spacing source: route-local CSS plus shared mos-app/src/index.css; local CSS: mos-app/src/pages/signals-archive-page.css
 - Collection grammar: route-local collection/view state is present; presentations: page-local / not observed; owns view state: yes
-- Record opening: default current split/right panel host; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: centered search/command candidate, record drawer/panel; states: default, empty, error/retry, loading; CSS families: mos-app/src/index.css, mos-app/src/pages/signals-archive-page.css
+- Record opening: default not observed; direct full canonical page when URL is explicit; phone full-screen record mode
+- Overlays: centered search/command candidate; states: default, empty, error/retry, loading; CSS families: mos-app/src/index.css, mos-app/src/pages/signals-archive-page.css
 - Notes: Signal collection supports ?record drawer state in current host.
 
 ### `/work/signals/:signalId`
@@ -591,7 +591,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Typography/spacing source: route-local CSS plus shared mos-app/src/index.css; local CSS: mos-app/src/pages/signals-archive-page.css
 - Collection grammar: route-local collection/view state is present; presentations: —; owns view state: yes
 - Record opening: default full canonical record page or hosted drawer; direct full canonical page; phone full-screen record mode
-- Overlays: centered search/command candidate, record drawer/panel; states: default, empty, error/retry, loading; CSS families: mos-app/src/index.css, mos-app/src/pages/signals-archive-page.css
+- Overlays: centered search/command candidate; states: default, empty, error/retry, loading; CSS families: mos-app/src/index.css, mos-app/src/pages/signals-archive-page.css
 - Notes: —
 
 ### `/work/tasks`
@@ -601,7 +601,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 - Typography/spacing source: shared mos-app/src/index.css and DESIGN.md; local CSS: —
 - Collection grammar: route-local collection/view state is present; presentations: Table + triage queue; owns view state: yes
 - Record opening: default current split/right panel host; direct full canonical page when URL is explicit; phone full-screen record mode
-- Overlays: record drawer/panel; states: default, loading, saving/saved; CSS families: mos-app/src/index.css
+- Overlays: record drawer/panel; states: default, loading; CSS families: mos-app/src/index.css
 - Notes: Collection host with nested TaskDrawer outlet.
 
 ### `/work/tasks/:taskId`
@@ -646,7 +646,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 
 | CSS family | Scope | Literal counts | Breakpoints |
 | --- | --- | --- | --- |
-| mos-app/src/components/admin/people-toolbar.css | components | font-size:4, line-height:1, padding:5, margin:0, gap:2, width:8, height:4 | @media (max-width: 767px), @media (prefers-reduced-motion: reduce) |
+| mos-app/src/components/admin/people-toolbar.css | components | font-size:3, line-height:0, padding:4, margin:0, gap:2, width:8, height:2 | @media (max-width: 767px) |
 | mos-app/src/components/cafe/cafe-opening-panel.css | components | font-size:2, line-height:0, padding:0, margin:2, gap:2, width:0, height:0 | — |
 | mos-app/src/components/command/command-menu.css | components | font-size:7, line-height:0, padding:8, margin:1, gap:3, width:6, height:4 | @media (max-width: 600px) |
 | mos-app/src/components/dashboard/basis-chip.css | components | font-size:1, line-height:1, padding:1, margin:0, gap:1, width:1, height:2 | — |
@@ -659,8 +659,8 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/components/dashboard/kpi-tile.css | components | font-size:6, line-height:1, padding:1, margin:0, gap:3, width:4, height:2 | @media (min-width: 960px), @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/dashboard/whats-coming-strip.css | components | font-size:5, line-height:0, padding:3, margin:0, gap:4, width:3, height:1 | @media (max-width: 1279px), @media (max-width: 767px) |
 | mos-app/src/components/dashboard/window-selector.css | components | font-size:3, line-height:0, padding:4, margin:0, gap:3, width:2, height:5 | @media (max-width: 767.98px), @media (prefers-reduced-motion: reduce) |
-| mos-app/src/components/home/attention-brief.css | components | font-size:6, line-height:1, padding:4, margin:3, gap:3, width:2, height:4 | — |
-| mos-app/src/components/inbox/inbox.css | components | font-size:5, line-height:3, padding:5, margin:2, gap:6, width:4, height:7 | — |
+| mos-app/src/components/home/attention-brief.css | components | font-size:7, line-height:1, padding:4, margin:3, gap:6, width:6, height:5 | — |
+| mos-app/src/components/inbox/inbox.css | components | font-size:9, line-height:6, padding:7, margin:6, gap:9, width:4, height:10 | — |
 | mos-app/src/components/kitchen/action-type-seg.css | components | font-size:1, line-height:0, padding:2, margin:0, gap:1, width:4, height:1 | @media (max-width: 400px), @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/kitchen/kitchen-kpi-strip.css | components | font-size:4, line-height:1, padding:2, margin:0, gap:3, width:7, height:1 | @media (max-width: 959px) and (min-width: 768px) |
 | mos-app/src/components/kitchen/kitchen-toolbar.css | components | font-size:2, line-height:0, padding:2, margin:0, gap:1, width:2, height:1 | — |
@@ -671,11 +671,11 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/components/plan/fail-loud-badge.css | components | font-size:1, line-height:1, padding:1, margin:0, gap:1, width:1, height:2 | — |
 | mos-app/src/components/processes/due-runs.css | components | font-size:3, line-height:0, padding:5, margin:1, gap:3, width:4, height:1 | @media (prefers-reduced-motion: reduce) |
 | mos-app/src/components/processes/pending-resolution.css | components | font-size:1, line-height:0, padding:1, margin:1, gap:1, width:0, height:0 | — |
-| mos-app/src/components/record-collection/collection-toolbar.css | components | font-size:5, line-height:0, padding:7, margin:0, gap:7, width:14, height:11 | @media (max-width: 767px) |
-| mos-app/src/components/record-collection/record-collection.css | components | font-size:1, line-height:0, padding:3, margin:1, gap:2, width:2, height:2 | — |
+| mos-app/src/components/record-collection/collection-toolbar.css | components | font-size:5, line-height:0, padding:7, margin:0, gap:7, width:17, height:11 | @media (max-width: 767px) |
+| mos-app/src/components/record-collection/record-collection.css | components | font-size:2, line-height:0, padding:3, margin:1, gap:2, width:3, height:2 | — |
 | mos-app/src/components/records/record-viewer.css | components | font-size:7, line-height:0, padding:3, margin:5, gap:8, width:5, height:7 | @media (max-width: 767.98px) |
 | mos-app/src/components/sales/daily-revenue-chart.css | components | font-size:1, line-height:0, padding:0, margin:0, gap:2, width:3, height:2 | — |
-| mos-app/src/components/signals/signal-card.css | components | font-size:10, line-height:1, padding:8, margin:1, gap:4, width:6, height:6 | @media (max-width: 480px) |
+| mos-app/src/components/signals/signal-card.css | components | font-size:10, line-height:1, padding:8, margin:1, gap:4, width:7, height:7 | @media (max-width: 480px) |
 | mos-app/src/components/signals/signal-composer.css | components | font-size:6, line-height:1, padding:4, margin:1, gap:5, width:5, height:4 | — |
 | mos-app/src/components/signals/signal-feed.css | components | font-size:1, line-height:0, padding:1, margin:0, gap:1, width:1, height:0 | — |
 | mos-app/src/components/signals/signal-mention-picker.css | components | font-size:4, line-height:0, padding:5, margin:0, gap:1, width:3, height:3 | — |
@@ -712,7 +712,7 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 | mos-app/src/pages/kitchen-review-page.css | pages | font-size:9, line-height:0, padding:6, margin:2, gap:3, width:7, height:2 | — |
 | mos-app/src/pages/kitchen-stock-page.css | pages | font-size:3, line-height:0, padding:2, margin:0, gap:1, width:2, height:0 | — |
 | mos-app/src/pages/pricing-page.css | pages | font-size:6, line-height:0, padding:2, margin:3, gap:5, width:3, height:0 | — |
-| mos-app/src/pages/signals-archive-page.css | pages | font-size:4, line-height:0, padding:2, margin:0, gap:2, width:4, height:2 | — |
+| mos-app/src/pages/signals-archive-page.css | pages | font-size:4, line-height:0, padding:2, margin:0, gap:2, width:5, height:3 | — |
 | mos-app/src/pages/stacked-union-home.css | pages | font-size:9, line-height:1, padding:4, margin:6, gap:2, width:3, height:3 | @media (max-width: 380px) |
 | mos-app/src/shell/bottom-tab-bar.css | shell | font-size:1, line-height:0, padding:0, margin:0, gap:1, width:4, height:4 | — |
 | mos-app/src/shell/page-families.css | shell | font-size:0, line-height:0, padding:3, margin:1, gap:0, width:6, height:0 | @media (max-width: 767px), @media (min-width: 768px) and (max-width: 1279px) |
@@ -724,13 +724,13 @@ The Storybook workbench is the in-code component/state/responsive proof for Issu
 
 | Property | Count | Example files |
 | --- | ---: | --- |
-| font-size | 342 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
-| line-height | 39 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/kpi-tile.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/kitchen/kitchen-kpi-strip.css, mos-app/src/components/kitchen/plan-qty-cell.css |
-| padding | 279 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
-| margin | 81 | mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/processes/due-runs.css, mos-app/src/components/processes/pending-resolution.css |
-| gap | 217 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
-| width | 332 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
-| height | 260 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
+| font-size | 347 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
+| line-height | 41 | mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/kpi-tile.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/kitchen/kitchen-kpi-strip.css, mos-app/src/components/kitchen/plan-qty-cell.css, mos-app/src/components/kitchen/plan-qty-stepper.css |
+| padding | 280 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
+| margin | 85 | mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/home/attention-brief.css, mos-app/src/components/inbox/inbox.css, mos-app/src/components/processes/due-runs.css, mos-app/src/components/processes/pending-resolution.css |
+| gap | 223 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/cafe/cafe-opening-panel.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css |
+| width | 342 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
+| height | 264 | mos-app/src/components/admin/people-toolbar.css, mos-app/src/components/command/command-menu.css, mos-app/src/components/dashboard/basis-chip.css, mos-app/src/components/dashboard/chart-frame.css, mos-app/src/components/dashboard/cut-toggle.css, mos-app/src/components/dashboard/data-table.css, mos-app/src/components/dashboard/dq-badge.css, mos-app/src/components/dashboard/global-toolbar.css |
 
 ## Delivery sequence
 

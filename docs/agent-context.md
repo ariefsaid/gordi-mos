@@ -73,11 +73,28 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > convergence handoff. Issue 10 structured content remains gated until the live viewer/collection/host
 > dependencies and Issues 7–9 are actually complete.
 
+> **INDEPENDENT COMPLETION AUDIT (2026-07-22):** The current tip `d63f20a` is **NO-SHIP**. Fresh
+> verification is recorded in [`docs/reviews/v3-redesign-completion-audit-2026-07-22.md`](reviews/v3-redesign-completion-audit-2026-07-22.md): typecheck/lint/build and the RecordCollection guard pass, but live-inventory freshness fails, the full Vitest run is **3,212 passed / 15 failed / 14 errors**, and `pre-merge-check.sh` has no current review verdict lines. The route-seam failures, Tasks-vs-Signals collection grammar divergence, Café first-Team heuristic, unimplemented Issue 10, and missing owner three-width gate remain release blockers. Do not use the historical `3195/3196`, `329/329`, or `7cc45f2` figures as current completion evidence.
+
 > **OWNER UI-FAST-PATH (2026-07-21):** For visual/IxD convergence slices, implement the smallest
 > visible end-to-end behavior first, run bounded smoke/typecheck/lint checks, render it for the
 > owner's eye, then add/tighten goal-level tests and commit. Do not block on exhaustive red-test
 > archaeology. This is scoped to UI behavior only; tests still gate integration, proxy assertions
 > remain invalid, and schema/security/data work keeps normal pre-change verification.
+
+> **LOCAL CONVERGENCE UPDATE (2026-07-22, uncommitted):** The active `v3-redesign` worktree has a
+> bounded follow-up slice beyond `d63f20a`. Tasks and Signals live record opening now use the single
+> production overlay host (including mobile Tasks); Café Team resolution renders an explicit picker
+> for multi-Team members; and Signals table has the shared RecordCollection outer surface. Focused
+> proof is Tasks workspace/mobile 80/80 + page 45/45, Signals archive 18/18 + presentations 16/16,
+> Café/Team 17/17, Home Signal host 10/10, route seam 8/8, combined shell/overlay 54/54, and the single-worker full Vitest
+> run 3,234/3,234 across 319 files. The route seam's former
+> unhandled errors were isolated to a jsdom AbortSignal crossing into Node/undici Request and
+> contained at the test boundary. This is not a completion claim: spec/design verdicts remain BLOCKED,
+> the rendered three-width owner gate remains open, and Tasks/Signals control parity,
+> Inbox seeded proof/handled semantics, Follow-ups, Money KPI doors, and
+> owner-gated Issue 10/typed embeds remain open. No push, merge, or Supabase start occurred. Details
+> are appended to the completion audit and review ledger linked above.
 
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in

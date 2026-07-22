@@ -24,6 +24,15 @@ export interface EligibleTeam {
   isPrimary?: boolean
 }
 
+/** The minimum identity needed to resolve an execution context. Consumers that only have a Team
+ * id and display name (such as Café's due-run feed) must still surface a multiple-Team choice;
+ * BU, Site, and org details are not a valid selector. */
+export interface TeamContextCandidate {
+  id: string
+  name: string
+  archived?: boolean
+}
+
 /** A raw effective-dated membership row (shared.team_memberships). Dates are ISO `YYYY-MM-DD`
  *  strings, which sort lexicographically, so plain string comparison is a valid date comparison. */
 export interface TeamMembershipRow {
@@ -36,7 +45,7 @@ export interface TeamMembershipRow {
 /** The honest outcome of resolving a viewer's (or process's) eligible Teams. This is the seam that
  *  replaces Café's `due[0]` / `myTeams[0]` first-row heuristic and Work's implicit BU ownership.
  *  `choice` means the caller MUST present an explicit picker — it may never auto-select. */
-export type TeamContextResolution =
+export type TeamContextResolution<T extends TeamContextCandidate = EligibleTeam> =
   | { kind: 'none' }
-  | { kind: 'single'; team: EligibleTeam }
-  | { kind: 'choice'; teams: EligibleTeam[] }
+  | { kind: 'single'; team: T }
+  | { kind: 'choice'; teams: T[] }

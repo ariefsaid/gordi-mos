@@ -11,12 +11,14 @@ import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { Select } from '@/components/ui/select'
 import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib/db/cafe-opening'
 import { listAuthorTeams } from '@/lib/db/signals'
+import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import './cafe-opening-page.css'
 
-type FetchState = 'loading' | 'ready' | 'error' | 'no-process' | 'no-team'
+type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
 
 interface BranchTeam {
   id: string
@@ -39,27 +41,47 @@ export function CafeOpeningPage() {
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
   const [team, setTeam] = useState<BranchTeam | null>(null)
+  const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
 
   const load = useCallback(() => {
     if (!viewerId) return
     setState('loading')
+    setTeam(null)
+    setTeamChoices([])
     getCafeOpeningProcessId()
       .then(async (id) => {
         if (!id) { setState('no-process'); return }
         setProcessId(id)
-        // Prefer a not-yet-started due occurrence for this process (gives the branch Team without
-        // assuming it's already started); fall back to the viewer's own Team membership when
-        // today's opening is already started (and so omitted from the due list).
+        // Prefer a not-yet-started due occurrence for this process; fall back to the viewer's own
+        // Team membership when today's opening is already started (and so omitted from the due list).
+        // The shared resolver deliberately makes multiple eligible Teams a user choice.
         const due = await listStartableCafeTeams(id)
         if (due.length > 0) {
-          setTeam({ id: due[0].owning_team_id, name: due[0].team_name })
-          setState('ready')
+          const resolution = resolveTeamContext(
+            due.map((run) => ({ id: run.owning_team_id, name: run.team_name })),
+          )
+          if (resolution.kind === 'single') {
+            setTeam(resolution.team)
+            setState('ready')
+          } else if (resolution.kind === 'choice') {
+            setTeamChoices(resolution.teams)
+            setState('choice')
+          } else {
+            setState('no-team')
+          }
           return
         }
         const myTeams = await listAuthorTeams(viewerId)
-        if (myTeams.length === 0) { setState('no-team'); return }
-        setTeam({ id: myTeams[0].id, name: myTeams[0].name })
-        setState('ready')
+        const resolution = resolveTeamContext(myTeams.map(({ id: teamId, name }) => ({ id: teamId, name })))
+        if (resolution.kind === 'single') {
+          setTeam(resolution.team)
+          setState('ready')
+        } else if (resolution.kind === 'choice') {
+          setTeamChoices(resolution.teams)
+          setState('choice')
+        } else {
+          setState('no-team')
+        }
       })
       .catch(() => setState('error'))
   }, [viewerId])
@@ -91,6 +113,28 @@ export function CafeOpeningPage() {
       )}
       {state === 'no-team' && (
         <EmptyState variant="quiet" title={t('cafe.opening.noTeam')} />
+      )}
+      {state === 'choice' && (
+        <section className="cafe-team-choice" aria-label={t('cafe.opening.chooseTeam')}>
+          <p>{t('cafe.opening.chooseTeamPrompt')}</p>
+          <Select
+            label={t('cafe.opening.chooseTeam')}
+            fullWidth
+            value=""
+            onChange={(event) => {
+              const chosen = teamChoices.find((candidate) => candidate.id === event.target.value)
+              if (!chosen) return
+              setTeam(chosen)
+              setTeamChoices([])
+              setState('ready')
+            }}
+          >
+            <option value="" disabled>{t('cafe.opening.chooseTeam')}</option>
+            {teamChoices.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+            ))}
+          </Select>
+        </section>
       )}
       {state === 'ready' && processId && team && (
         <>

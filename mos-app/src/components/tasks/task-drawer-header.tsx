@@ -22,6 +22,8 @@ export type TaskDrawerHeaderProps = {
   onExpandToggle: () => void
   onClose: () => void
   onArchive: () => void
+  /** Host-owned RecordPanelHost chrome can suppress this utility strip. */
+  showUtility?: boolean
 }
 
 const ExpandIcon = () => (
@@ -43,6 +45,7 @@ const CollapseIcon = () => (
 export function TaskDrawerHeader({
   task, buName, people, editable, archiveable, expanded, now,
   onStatusChange, onMarkComplete, onOpenPage, onExpandToggle, onClose, onArchive,
+  showUtility = true,
 }: TaskDrawerHeaderProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -58,7 +61,7 @@ export function TaskDrawerHeader({
   return (
     <header className={expanded ? 'dw-head dw-head-expanded' : 'dw-head'}>
       {/* Utility bar */}
-      <div className="dw-bar">
+      {showUtility && <div className="dw-bar">
         <span className="dw-crumb-mini">{expanded ? t('tasks.fullWidth') : t('tasks.label.task')}</span>
         <span className="dw-bar-spacer" />
         {onOpenPage && (
@@ -85,7 +88,7 @@ export function TaskDrawerHeader({
         >
           <CloseIcon />
         </button>
-      </div>
+      </div>}
 
       {/* Pinned action block */}
       <div className="dw-pinned">

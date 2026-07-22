@@ -43,9 +43,11 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
 function ShellContent() {
   const isNarrow = useIsNarrow()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerOpener, setDrawerOpener] = useState<'hamburger' | 'more'>('hamburger')
   const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
   const { open: openSignalComposer } = useSignalComposer()
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
+  const focusMoreRef = useRef<(() => void) | undefined>(undefined)
 
   // Lane B2 — reconcile Deputy (right-floating slide-over) with any shell-owner overlay (Inbox
   // quick-triage), which share the same right-edge z-drawer track. Mounted here because
@@ -81,7 +83,7 @@ function ShellContent() {
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
         <TopBar
           drawerOpen={drawerOpen}
-          onOpenDrawer={() => setDrawerOpen(true)}
+          onOpenDrawer={() => { setDrawerOpener('hamburger'); setDrawerOpen(true) }}
           onOpenSearch={() => setSearchOpen(true)}
           onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
         />
@@ -105,8 +107,9 @@ function ShellContent() {
         {/* BottomTabBar — grid-area: tabbar, phone-first primary nav (ADR-0019 D8, plan §4.4) */}
         {isNarrow && (
           <BottomTabBar
-            onOpenMore={() => setDrawerOpen(true)}
+            onOpenMore={() => { setDrawerOpener('more'); setDrawerOpen(true) }}
             onOpenActionLauncher={() => setSearchOpen(true)}
+            onRegisterMoreFocus={(focus) => { focusMoreRef.current = focus }}
           />
         )}
 
@@ -128,7 +131,10 @@ function ShellContent() {
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        focusOpener={() => focusHamburgerRef.current?.()}
+        focusOpener={() => {
+          if (drawerOpener === 'more') focusMoreRef.current?.()
+          else focusHamburgerRef.current?.()
+        }}
       />
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). Share

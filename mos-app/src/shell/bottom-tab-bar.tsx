@@ -31,6 +31,8 @@ type BottomTabBarProps = {
   onOpenMore?: () => void
   /** Opens the shared Action Launcher/command registry. */
   onOpenActionLauncher?: () => void
+  /** Registers the More button as the focus return target for the mobile drawer. */
+  onRegisterMoreFocus?: (focus: () => void) => void
 }
 
 /**
@@ -42,7 +44,7 @@ type BottomTabBarProps = {
  * More button carries it (Rule 5 / Rule 9). The 3rd primary slot is role-scoped
  * (OD-REDESIGN-68): the viewer's module, or omitted for an org-wide role.
  */
-export function BottomTabBar({ onOpenMore, onOpenActionLauncher }: BottomTabBarProps) {
+export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreFocus }: BottomTabBarProps) {
   const isNarrow = useIsNarrow()
   const t = useT()
   const { pathname } = useLocation()
@@ -98,6 +100,9 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher }: BottomTabBarP
       })}
       <button
         type="button"
+        ref={(node) => {
+          if (node) onRegisterMoreFocus?.(() => node.focus())
+        }}
         aria-label={t('nav.more')}
         aria-current={moreActive ? 'page' : undefined}
         className={`bottom-tab${moreActive ? ' bottom-tab--active' : ''}`}

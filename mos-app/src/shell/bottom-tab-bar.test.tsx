@@ -48,13 +48,14 @@ function renderTabBar(initialPath = '/', {
   narrow = true,
   onOpenMore = vi.fn(),
   onOpenActionLauncher = vi.fn(),
-}: { narrow?: boolean; onOpenMore?: () => void; onOpenActionLauncher?: () => void } = {}) {
+  onRegisterMoreFocus,
+}: { narrow?: boolean; onOpenMore?: () => void; onOpenActionLauncher?: () => void; onRegisterMoreFocus?: (focus: () => void) => void } = {}) {
   mockUseIsNarrow.mockReturnValue(narrow)
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
-          <Route path="*" element={<BottomTabBar onOpenMore={onOpenMore} onOpenActionLauncher={onOpenActionLauncher} />} />
+          <Route path="*" element={<BottomTabBar onOpenMore={onOpenMore} onOpenActionLauncher={onOpenActionLauncher} onRegisterMoreFocus={onRegisterMoreFocus} />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
@@ -111,6 +112,15 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     renderTabBar('/', { onOpenMore })
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i }))
     expect(onOpenMore).toHaveBeenCalledOnce()
+  })
+
+  it('registers the More button as the drawer focus-return target', () => {
+    let returnFocus: (() => void) | undefined
+    renderTabBar('/', { onRegisterMoreFocus: (focus) => { returnFocus = focus } })
+    const more = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: /More/i })
+    expect(returnFocus).toBeDefined()
+    returnFocus?.()
+    expect(more).toHaveFocus()
   })
 
   it('the persistent phone plus launcher opens the approved action launcher', () => {

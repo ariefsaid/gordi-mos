@@ -2,6 +2,19 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach } from 'vitest'
 import { cleanup, configure } from '@testing-library/react'
 
+// React Router constructs navigation requests with the jsdom AbortSignal realm while
+// Node's undici Request validates against its own AbortSignal constructor. These tests
+// exercise client-side history/state only (no loaders), so omit that signal at the test
+// boundary instead of producing unhandled cross-realm RequestInit failures.
+if (typeof globalThis.Request !== 'undefined') {
+  const NativeRequest = globalThis.Request
+  globalThis.Request = class TestRequest extends NativeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      super(input, init?.signal ? { ...init, signal: undefined } : init)
+    }
+  } as typeof Request
+}
+
 // Paired with css:false in vite.config.ts (the root overhead/contention fix), raise RTL's
 // default async budget ONCE, GLOBALLY. Under parallel-test load the host event loop can be
 // preempted long enough that the stock 1000ms waitFor lapses on even a trivial assertion

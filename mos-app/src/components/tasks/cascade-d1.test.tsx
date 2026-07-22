@@ -53,6 +53,7 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockListObjectives = vi.mocked(listObjectives)
@@ -122,7 +123,7 @@ function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>>
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <TasksWorkspace {...props} />
+        <OverlayHostProvider><TasksWorkspace {...props} /></OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
