@@ -2,7 +2,6 @@ import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
-import { DueRunsTrigger } from '@/components/processes/due-runs-trigger'
 import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import { useT } from '@/i18n/use-t'
 import type {
@@ -26,8 +25,8 @@ export type TasksToolbarProps = {
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: CollectionToolbarSavedViews
-  /** Design-fix (F5): the "N due to start" disclosure is one of the toolbar's attention-count
-   * affordances, not a separate floating band — it renders inline beside the overdue count. */
+  /** The recurring-runs-due-to-start source. Its count folds into the single attention pill
+   * (item 3(a)); the pill also toggles this list's disclosure when due work exists. */
   dueRuns?: UseDueRunsResult
 }
 
@@ -87,6 +86,16 @@ export function TasksToolbar({
     if (key === 'overdue') return t('tasks.saved.overdue')
     return t('tasks.saved.followups')
   }
+
+  // Item 3(a) (critic-cited "Wall-of-Options" at w1024): the two former stat pills —
+  // "N overdue" (overdue-task filter) and "N due to start" (recurring-run disclosure) —
+  // fold into ONE count-labeled attention pill. Its count is the combined attention load;
+  // clicking it opens the overdue filter and, when recurring work is due to start, reveals
+  // that list. Capability gating + team scoping stay in useDueRuns (the due portion is 0 for
+  // a viewer without process.start or with no due work in their teams), and the runs list
+  // stays collapsed-by-default so it never floods the table (design-review step-6 CRITICAL).
+  const dueCount = dueRuns?.due.length ?? 0
+  const attentionCount = overdueCount + dueCount
 
   return (
     <CollectionToolbar
@@ -180,21 +189,27 @@ export function TasksToolbar({
             />
             <span>{t('tasks.filter.showArchived')}</span>
           </label>
-          {/* F5 design fix: the "N due to start" disclosure and the "N overdue" count are the
-              toolbar's two attention-count affordances — they render adjacent, in one shared
-              tinted-pill grammar (see .overdue-filter-btn / .due-runs-trigger), instead of one
-              living in a separate floating band below the toolbar. */}
-          {dueRuns ? (
-            <DueRunsTrigger due={dueRuns.due} expanded={dueRuns.expanded} onToggle={dueRuns.toggleExpanded} />
-          ) : null}
-          {overdueCount > 0 ? (
+          {/* One count-labeled attention pill (item 3(a)) — folds the former "N overdue" +
+              "N due to start" pills. When due work exists it also carries the runs disclosure
+              (aria-expanded reflects the list state); when it is overdue-only it keeps the
+              "Filter to N overdue tasks" name so the overdue filter stays the same reachable,
+              clearable control. */}
+          {attentionCount > 0 ? (
             <button
               type="button"
               className="overdue-filter-btn"
-              aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
-              onClick={onOverdueFilter}
+              aria-label={dueCount > 0
+                ? t('tasks.filter.attentionCount', { count: attentionCount })
+                : t('tasks.filter.overdueAria', { count: overdueCount })}
+              aria-expanded={dueCount > 0 ? (dueRuns?.expanded ?? false) : undefined}
+              onClick={() => {
+                if (overdueCount > 0) onOverdueFilter()
+                if (dueCount > 0) dueRuns?.toggleExpanded()
+              }}
             >
-              {t('tasks.filter.overdueCount', { count: overdueCount })}
+              {dueCount > 0
+                ? t('tasks.filter.attentionCount', { count: attentionCount })
+                : t('tasks.filter.overdueCount', { count: overdueCount })}
             </button>
           ) : null}
           {query.overdueOnly ? (
