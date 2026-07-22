@@ -131,6 +131,19 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > **3,238 passed / 2 failed**; both failures were these stale expectations/guard and are covered by the
 > focused rerun. A full rerun and rendered owner gate remain intentionally open.
 
+> **MOCKUP PRESERVATION AUDIT (2026-07-22):** The E7 prototype worktree/branch
+> (`codex/e7-prototype`, commit `6f0a46a`) is retained verbatim as a runnable reference, but it is
+> not the only preserved design history and is not the current oracle by itself. The canonical
+> `v3-redesign` tree contains 104 versioned mockup files, including the older IA archive, the
+> 2026-07-08 A/B/C exploration, the consolidated E7 candidate, and convergence-flow payload added
+> in `962de90`. The origin critique, 50+ QnA grill, and frustration/buildout prompts are extracted
+> verbatim in `docs/reference/provenance/`; `docs/requirements-evolution.md`,
+> `docs/redesign-decision-index.md`, `SALVAGE-INVENTORY.md`, and Git history provide the
+> cross-version/supersession map. The deleted V3 implementation lanes contained no unique mockup
+> generation; their residue was archived outside the repo and their product commits were already
+> represented by the canonical history. Raw source-session JSONL remains local/unversioned as noted
+> by the provenance README; the in-repo extracts are the durable handoff.
+
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
 > `docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`).** Tip `8cd1053` at session start.

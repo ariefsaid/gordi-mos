@@ -280,3 +280,14 @@ was silently discarded. A stale mobile focus-ring override and an outdated Inbox
 corrected. Focused closure is **71/71**, with typecheck, changed-file ESLint, and Stylelint passing.
 This cleanup does not change the NO-SHIP verdict: the full rerun, rendered owner walkthrough, and the
 open V3 requirement gaps above still block completion.
+
+## Mockup preservation verification — 2026-07-22
+
+The retained E7 worktree is a runnable reference, not the only historical source. The canonical branch
+contains **104 versioned files** under `docs/design-mockups/`, including the archived early IA rounds,
+the 2026-07-08 full-redesign A/B/C exploration, the E7 candidate, and the convergence-flow payload.
+The mockup payload that had previously existed only as an untracked sibling-worktree artifact was
+committed in `962de90`; the verbatim owner-origin, grill, and frustration/buildout extracts are in
+`docs/reference/provenance/`. Deleted V3 implementation lanes did not contain unique mockup generations.
+The composite oracle remains `owner-directives-index.md` plus the locked decisions and Experience
+Contract; E7 is the visual reference, not a snapshot to copy wholesale.

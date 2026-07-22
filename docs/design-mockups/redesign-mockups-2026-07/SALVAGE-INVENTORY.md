@@ -13,6 +13,15 @@ Live reference servers (in the `gordi-mos-e7-prototype` working copy,
 `docs/design-mockups/redesign-mockups-2026-07/`): e7 shell `python3 serve-e7.py` → :8766/e7-prototype.html ·
 convergence flows `python3 convergence-flows/serve-flows.py` → :8134.
 
+**Preservation boundary (2026-07-22):** the sibling `codex/e7-prototype` worktree is retained as a
+verbatim runnable E7 prototype, but it is **not** the sole mockup archive or the redesign oracle. The
+canonical `v3-redesign` tree contains the versioned mockup payload and can serve both prototypes from
+this directory as well. Earlier IA proposals and variants remain under `archive/`, `full-redesign-2026-07/`,
+`cascade/`, `kitchen/`, `tasks-*`, and `ui-revamp/`; the owner’s design evolution and reasoning are
+preserved in `docs/reference/provenance/`, `docs/requirements-evolution.md`, and the Git history of
+`docs/design-mockups/`. The composite oracle is `docs/reference/provenance/owner-directives-index.md`,
+not E7 alone.
+
 ## Surface ownership
 
 ### e7 shell (`e7-prototype.html` + `e7-views.js` / `e7-records.js` / `e7-data.js` / `e7-prototype.css`) OWNS:
