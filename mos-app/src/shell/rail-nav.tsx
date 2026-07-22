@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, UTILITY, isLive, modulesByBUForRoles, type Destination } from './destinations'
 import type { Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
+import type { RailCounts } from '@/lib/db/rail-counts'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -13,9 +14,10 @@ import { can } from '@/lib/capabilities'
 // render in E7's top-down order — Execution → Work systems → Direction → Cadence. (E7's Execution
 // also holds Process Runs, Work systems also holds Processes + Standards, Cadence also holds
 // Follow-ups; those entries are not in our IA, so each of our families carries only the child we
-// have.) Per-item counts are intentionally omitted: the rail loads no record data and the
-// owner-artifact note forbids adding a query per item — a count here would be a new fetch, so it
-// stays data-gated until a cheap already-loaded source exists.
+// have.) Per-item counts (E7's `.e7-count` badges) are wired for TWO items only — Tasks (open
+// count) and Signals (needs-attention count) — from ONE cheap shell-level aggregate (rail.tsx →
+// useRailCounts, a single mount-time fetch, no polling). Every other child omits its badge: they
+// have no already-loaded source, and the owner-artifact note forbids a query per item.
 const WORK_SUBSECTIONS: { labelKey: MessageKey; paths: readonly string[] }[] = [
   { labelKey: 'rail.work.execution', paths: ['/work/tasks'] },
   { labelKey: 'rail.work.workSystems', paths: ['/work/projects'] },
@@ -23,8 +25,18 @@ const WORK_SUBSECTIONS: { labelKey: MessageKey; paths: readonly string[] }[] = [
   { labelKey: 'rail.work.cadence', paths: ['/work/signals'] },
 ]
 
+// The ONE render seam for the rail count badges: which path shows which count (undefined → no badge).
+function badgeCountFor(path: string, counts?: RailCounts | null): number | undefined {
+  if (!counts) return undefined
+  if (path === '/work/tasks') return counts.openTasks
+  if (path === '/work/signals') return counts.attentionSignals
+  return undefined
+}
+
 type RailNavProps = {
   onNavigate?: () => void
+  /** Rail badge counts (open Tasks · needs-attention Signals). Undefined/null → no badges. */
+  counts?: RailCounts | null
 }
 
 // Rail item chrome. Active state ports e7's selected treatment (DESIGN-FIDELITY-1, 2026-07-18):
@@ -97,8 +109,22 @@ function WorkSubLabel({ children }: { children: string }) {
   )
 }
 
+// A quiet E7 count badge (`.e7-nav-item .e7-count`): margin-left auto, pill, muted neutral fill,
+// tabular digits. Rendered ONLY for a positive count (zero/undefined → nothing, E7 quiet rule).
+function RailCountBadge({ count }: { count?: number }) {
+  if (count === undefined || count <= 0) return null
+  return (
+    <span
+      className="ml-auto inline-flex items-center h-[18px] px-[7px] rounded-full text-[11px] font-semibold text-muted-foreground bg-[color:var(--secondary)] tabular-nums"
+      aria-hidden="true"
+    >
+      {count}
+    </span>
+  )
+}
+
 // A Work child (always expanded). Default aria-current="page" when active.
-function WorkChild({ section, onNavigate }: { section: Section; onNavigate?: () => void }) {
+function WorkChild({ section, onNavigate, badge }: { section: Section; onNavigate?: () => void; badge?: number }) {
   const t = useT()
   return (
     <NavLink
@@ -110,16 +136,20 @@ function WorkChild({ section, onNavigate }: { section: Section; onNavigate?: () 
         /* B2 (owner sketch, ratified 2026-07-18): Work children are PLAIN indented labels —
            the sketch showed no icons; the icons were a builder default parked in a scorecard
            footnote (parity-sweep axis-2 finding B2). Icon stays in the Section data for the
-           bottom-nav/⌘K; the rail child renders label-only. */
-        <span>
-          {section.labelKey ? t(section.labelKey) : section.label}
-        </span>
+           bottom-nav/⌘K; the rail child renders label-only. The optional count badge (Tasks ·
+           Signals) sits at the trailing edge (ml-auto). */
+        <>
+          <span>
+            {section.labelKey ? t(section.labelKey) : section.label}
+          </span>
+          <RailCountBadge count={badge} />
+        </>
       )}
     </NavLink>
   )
 }
 
-export function RailNav({ onNavigate }: RailNavProps) {
+export function RailNav({ onNavigate, counts }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
 
@@ -184,7 +214,7 @@ export function RailNav({ onNavigate }: RailNavProps) {
                         <div key={sub.labelKey} className="flex flex-col gap-[2px]">
                           <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>
                           {items.map((c) => (
-                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} />
+                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} />
                           ))}
                         </div>
                       )

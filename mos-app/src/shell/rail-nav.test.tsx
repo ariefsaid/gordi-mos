@@ -373,3 +373,62 @@ describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
     expect(screen.queryByRole('group', { name: /language|bahasa/i })).toBeNull()
   })
 })
+
+// Rail count badges (E7 `.e7-count`) — Tasks (open count) + Signals (needs-attention count) from
+// ONE shell aggregate. Quiet rule: a count that is zero or unavailable shows NO badge. The badge is
+// aria-hidden (a redundant glance cue), so the link's accessible name is unchanged.
+import type { RailCounts } from '@/lib/db/rail-counts'
+function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null | undefined) {
+  return render(
+    <ThemeProvider>
+      <I18nProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="*" element={<RailNav counts={counts} />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </ThemeProvider>,
+  )
+}
+
+describe('Rail count badges (Tasks · Signals)', () => {
+  it('renders the open-Tasks and attention-Signals counts as trailing badges', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
+    const tasks = screen.getByRole('link', { name: 'Tasks' })
+    const signals = screen.getByRole('link', { name: 'Signals' })
+    expect(within(tasks).getByText('11')).toBeInTheDocument()
+    expect(within(signals).getByText('3')).toBeInTheDocument()
+  })
+
+  it('shows a badge ONLY on Tasks and Signals — never on the other Work children', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
+    // Projects & Processes / Objectives carry no already-loaded source → no numeric badge.
+    expect(within(screen.getByRole('link', { name: 'Projects & Processes' })).queryByText(/\d/)).toBeNull()
+    expect(within(screen.getByRole('link', { name: 'Objectives' })).queryByText(/\d/)).toBeNull()
+  })
+
+  it('omits a badge when its count is zero (E7 quiet rule)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 0, attentionSignals: 0 })
+    expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
+    expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
+  })
+
+  it('omits all badges when counts are unavailable (null)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', null)
+    expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
+    expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
+  })
+
+  it('keeps the badge aria-hidden so the link accessible name is just the label', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 7, attentionSignals: 0 })
+    // Accessible name resolves to "Tasks" (the aria-hidden count is excluded).
+    const tasks = screen.getByRole('link', { name: 'Tasks' })
+    expect(within(tasks).getByText('7').getAttribute('aria-hidden')).toBe('true')
+  })
+})
