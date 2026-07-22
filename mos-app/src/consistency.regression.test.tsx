@@ -383,7 +383,6 @@ describe('RI-IXD-5: no raw select outside documented Tasks exceptions', () => {
   const allowedRawSelectFiles = new Set([
     'components/tasks/tasks-toolbar.tsx',
     'components/tasks/task-surface.tsx',
-    'components/tasks/record-details-panel.tsx',
     'components/ui/select.tsx',
   ])
 

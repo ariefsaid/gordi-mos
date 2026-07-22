@@ -145,7 +145,7 @@ export interface TaskRecordLabels {
 const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
   typeLabel: 'Task',
   ownershipSection: 'Task ownership',
-  statusSection: 'Status',
+  statusSection: 'Status & Timing',
   detailsSection: 'Task details',
   statusField: 'Status',
   descriptionField: 'Description',
@@ -254,65 +254,6 @@ function dueField(
   })
 }
 
-export interface TaskPanelAdapterInput {
-  task: TaskListRow
-  editable: boolean
-  /** Shown on every field when not editable (archived / no permission). */
-  readOnlyReason?: string
-  people: readonly PersonOption[]
-  businessUnits: readonly BusinessUnitOption[]
-  /** Only a real task.team_id lookup may populate this (Issue 8 dependency). */
-  team?: TaskTeamView | null
-  /** Locale-resolved field labels (LocaleParityContract). Defaults to English. */
-  labels?: TaskFieldLabels
-  /** Locale-resolved section label. Defaults to "Ownership". */
-  sectionLabel?: string
-}
-
-/**
- * The metadata-only Task adapter for the LIVE RecordDetailsPanel (V3 Issue 5 tenant half).
- *
- * The panel renders the Task's ownership + due fields through the shared RecordViewer/RecordField
- * grammar, while the drawer header (identity + status) and the RecordFeed (activity / checklist /
- * notes) keep their own chrome. So this adapter is deliberately metadata-ONLY: no activity, no
- * content slots, no actions — those would duplicate the header/feed. Commits route through
- * createTaskFieldCommit at the TaskSurface DAL seam. Business Unit and Team stay DISTINCT.
- */
-export function createTaskPanelAdapter(input: TaskPanelAdapterInput): RecordViewerAdapter {
-  const { task, editable, people, businessUnits, team } = input
-  const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
-  const readOnlyReason = input.readOnlyReason ?? "You don't have permission to edit this task."
-
-  // One labelled group so the panel shows a single ownership landmark (Business Unit · PIC ·
-  // Supervisor · Team · Due) — the identity/status/catalog/checklist stay panel chrome.
-  const ownership: RecordMetadataSection = {
-    id: 'ownership',
-    label: input.sectionLabel ?? 'Ownership',
-    fields: [
-      ...ownershipFields(task, editable, readOnlyReason, people, businessUnits, team, labels),
-      dueField(task, editable, readOnlyReason, labels.dueDate),
-    ],
-  }
-
-  return {
-    kind: 'task',
-    id: task.id,
-    title: task.title,
-    typeLabel: 'Task',
-    metadata: [ownership],
-    relations: [],
-    contentSlots: [],
-    activity: [],
-    actions: [],
-    permission: {
-      readOnly: !editable,
-      reason: editable ? undefined : readOnlyReason,
-      allowedActionIds: [],
-    },
-    state: 'ready',
-  }
-}
-
 /** Dispatch a domain-facing field commit to the correct DAL callback. Status is the
  *  one non-`updateTaskFields` field; every other key flows through onUpdateField. */
 export function createTaskFieldCommit(
@@ -344,19 +285,36 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     readOnlyReason: editable ? undefined : readOnlyReason,
   })
 
-  // Ownership landmark — Business Unit · PIC · Supervisor · Due (Due lives with ownership,
-  // matching the live panel; the oracle's accessible name is "Task ownership"). Team stays
-  // gated off until Issue 8's real team_id contract (§Task-11).
+  // Document anatomy (E7 record): Ownership → Status & Timing → Details → Activity. A Task
+  // reads as a calm document, not a settings form — each field renders its value first
+  // (RecordField value-first grammar) and swaps in its control on activation.
+  const workLineName = workLines.find((row) => row.id === task.work_line_id)?.name ?? null
+  const objectiveName = objectives.find((row) => row.id === task.objective_id)?.name ?? null
+
+  // Ownership landmark — Business Unit · PIC · Supervisor · Source (Classification/Source). Source
+  // is a read-only DERIVED provenance summary (parent work-line · objective · honest "Ad hoc").
+  // Team stays gated off until Issue 8's real team_id contract (§Task-11). The oracle's
+  // accessible name is "Task ownership".
   const ownership: RecordMetadataSection = {
     id: 'ownership',
     label: L.ownershipSection,
     fields: [
       ...ownershipFields(task, editable, readOnlyReason, people, businessUnits, team, labels),
-      dueField(task, editable, readOnlyReason, labels.dueDate),
+      // Source/provenance — read-only derived summary (never editable; it mirrors the selects).
+      {
+        key: 'source',
+        label: L.sourceField,
+        control: 'text',
+        value: task.work_line_id ?? task.objective_id ?? null,
+        displayValue: workLineName ?? objectiveName ?? L.sourceAdHoc,
+        editable: false,
+        readOnlyReason: undefined,
+      },
     ],
   }
 
-  // Status — the lifecycle control; a single prominent field so it stays above the fold.
+  // Status & Timing — the lifecycle pill + Due, then the provenance/attribution relations we
+  // actually hold (Project/Process, Objective) woven in as relation chips WHERE the data exists.
   const statusSection: RecordMetadataSection = {
     id: 'status',
     label: L.statusSection,
@@ -369,27 +327,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         displayValue: task.status,
         options: TASK_STATUSES.map((s) => ({ value: s, label: s })),
       }),
-    ],
-  }
-
-  // Catalog attribution + provenance. Title is NOT re-listed here: the RecordViewer identity
-  // header already owns the record-name heading (no-duplicate-h1 / ViewerIdentitySuppression
-  // contract), so a Title field would render the same name twice. Source is a read-only DERIVED
-  // provenance summary (parent work-line · objective · honest "Ad hoc") — distinct from the
-  // editable Project/Process and Objective selects that source it.
-  const workLineName = workLines.find((row) => row.id === task.work_line_id)?.name ?? null
-  const objectiveName = objectives.find((row) => row.id === task.objective_id)?.name ?? null
-  const details: RecordMetadataSection = {
-    id: 'details',
-    label: L.detailsSection,
-    fields: [
-      editSpec({
-        key: 'description',
-        label: L.descriptionField,
-        control: 'textarea',
-        value: task.description,
-        displayValue: task.description ?? L.noneMarker,
-      }),
+      dueField(task, editable, readOnlyReason, labels.dueDate),
       editSpec({
         key: 'projectProcess',
         label: L.projectProcessField,
@@ -406,16 +344,23 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         displayValue: objectiveName ?? L.noneMarker,
         options: [{ value: '', label: L.noneMarker }, ...objectives.map((row) => ({ value: row.id, label: row.name }))],
       }),
-      // Source/provenance — read-only derived summary (never editable; it mirrors the selects).
-      {
-        key: 'source',
-        label: L.sourceField,
-        control: 'text',
-        value: task.work_line_id ?? task.objective_id ?? null,
-        displayValue: workLineName ?? objectiveName ?? L.sourceAdHoc,
-        editable: false,
-        readOnlyReason: undefined,
-      },
+    ],
+  }
+
+  // Details — description as prose (prose-first). Title is NOT re-listed: the RecordViewer
+  // identity header already owns the record-name heading (no-duplicate-h1 / ViewerIdentity-
+  // Suppression contract), so a Title field would render the same name twice.
+  const details: RecordMetadataSection = {
+    id: 'details',
+    label: L.detailsSection,
+    fields: [
+      editSpec({
+        key: 'description',
+        label: L.descriptionField,
+        control: 'textarea',
+        value: task.description,
+        displayValue: task.description ?? L.noneMarker,
+      }),
     ],
   }
 

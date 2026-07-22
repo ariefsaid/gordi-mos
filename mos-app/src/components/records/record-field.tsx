@@ -80,14 +80,22 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
   // When an edit session ends via the keyboard (Enter/Escape), focus returns to the value
   // activation control so keyboard users keep their place (focus-return contract).
   const returnFocusRef = useRef(false)
+  // Synchronous mirrors so the upstream-sync effect can read the CURRENT edit state without
+  // adding them to its dependency list (it must run on spec.value changes only).
+  const editingRef = useRef(editing)
+  editingRef.current = editing
+  const statusRef = useRef(status)
+  statusRef.current = status
 
-  // Track upstream commits: when the adapter re-supplies a new saved value, adopt it as the
-  // baseline. An upstream change also ends any in-progress edit (the value is now canonical).
+  // Adopt an upstream value ONLY when the field is at rest. During an active edit, an in-flight
+  // save, or a preserved-after-error draft, the field owns its own draft and must NOT be
+  // clobbered — the live TaskSurface churns spec.value optimistically on every write (and rolls
+  // it back on a rejected one), which would otherwise reset the draft and drop the error/Retry.
   useEffect(() => {
+    if (editingRef.current || statusRef.current === 'saving' || statusRef.current === 'error') return
     setSaved(spec.value)
     setDraft(toInputValue(spec.value))
     setStatus('idle')
-    setEditing(false)
   }, [spec.value])
 
   // Return focus to the value activation control after a keyboard-driven exit from edit mode.
@@ -124,8 +132,11 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange }: RecordF
       returnFocusRef.current = viaKeyboard
       setEditing(false)
     } catch {
-      // Preserve the draft and STAY in edit mode; the user retries the same edit
-      // (FieldErrorRetryContract).
+      // STAY in edit mode and surface the error. For a text-like control the draft is PRESERVED
+      // so the user retries the same edit (FieldErrorRetryContract). For an option control
+      // re-picking IS the retry, so revert the visible selection to the saved baseline (matching
+      // the tenant's optimistic rollback) rather than leaving the failed choice selected.
+      if (OPTION_CONTROLS.has(spec.control)) setDraft(toInputValue(saved))
       setStatus('error')
     }
   }

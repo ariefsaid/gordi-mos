@@ -146,6 +146,13 @@ function renderDetail(auth: AuthState = authedState) {
   )
 }
 
+// Value-first record grammar: a field renders its VALUE first and swaps in its control only when
+// the row is activated. Click the field's edit affordance, then query its control.
+function activateFieldByKey(key: string) {
+  const btn = document.querySelector(`[data-field-key="${key}"] [data-field-edit]`) as HTMLElement
+  fireEvent.click(btn)
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   // Clear per-task feed-tab memory (sessionStorage) so a Checklist/Notes-tab
@@ -186,17 +193,19 @@ describe('AC-070 — detail page renders task fields', () => {
     // Status pill
     expect(screen.getByText('Open')).toBeTruthy()
 
-    // Due date — renders as a native <input type="date">; assert via the labeled control's value.
+    // Due date — value-first: activate the row, then the native <input type="date"> holds the value.
+    activateFieldByKey('dueDate')
     expect(screen.getByLabelText('Due')).toHaveValue('2026-06-20')
 
-    // Business unit (resolved from directory) — in the identity sub-line
-    const identitySub = screen.getByText(/cafe operations ·/i)
-    expect(identitySub).toBeTruthy()
+    // Business unit (resolved from directory) — a value-first Ownership field in the record
+    // document (the old TaskDetail identity sub-line is gone; the RecordViewer header owns identity).
+    expect(screen.getAllByText('Cafe Operations').length).toBeGreaterThan(0)
 
-    // PIC and Supervisor names (resolved from directory) — left details panel. Both render as
-    // person <select>s listing all people, so the name appears in multiple <option>s; query the
-    // select value instead of a global text match.
+    // PIC and Supervisor names (resolved from directory) — value-first person <select>s reached by
+    // activating each row; query the select value (the name appears in multiple <option>s).
+    activateFieldByKey('pic')
     expect(screen.getByLabelText('PIC')).toHaveValue(VIEWER_ID)
+    activateFieldByKey('supervisor')
     expect(screen.getByLabelText('Supervisor')).toHaveValue(VIEWER_ID)
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     // No RACI grammar: match the parenthesized RACI labels only (bare "Consulted"/"Informed"
@@ -206,9 +215,9 @@ describe('AC-070 — detail page renders task fields', () => {
     // Activity log region (the feed default tab)
     expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
 
-    // Description now lives behind the Notes feed tab (no new entity)
+    // Description lives in the Details section prose AND the Notes feed tab; both surface the text.
     fireEvent.click(screen.getByRole('tab', { name: /notes/i }))
-    expect(screen.getByText(/espresso machine on floor 2 is broken/i)).toBeTruthy()
+    expect(screen.getAllByText(/espresso machine on floor 2 is broken/i).length).toBeGreaterThan(0)
 
     // Checklist items behind the Checklist feed tab
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
@@ -241,13 +250,11 @@ describe('AC-071 — inline status change', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    // Open status dropdown
-    const trigger = screen.getByRole('button', { name: /change status/i })
-    fireEvent.click(trigger)
-
-    // Pick "In Progress"
-    const option = screen.getByRole('option', { name: 'In Progress' })
-    fireEvent.click(option)
+    // Value-first: Status is the record field — activate the row, then pick "In Progress" from the
+    // select (a select's change IS the commit intent). The pill updates in place, no navigation.
+    activateFieldByKey('status')
+    const statusSelect = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
+    fireEvent.change(statusSelect, { target: { value: 'In Progress' } })
 
     await waitFor(() => {
       expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID)
@@ -266,10 +273,10 @@ describe('AC-072 — typed Task ownership', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    // PIC reassignment journey: the record adapter exposes PIC as an editable person <select>
-    // (not a bespoke "Reassign PIC" button — TaskOwnershipCard exists but isn't wired into the
-    // adapter). The goal-oracle "reassigns the PIC through the visible Task path" is met by
-    // changing the select value; the journey step changed from button+option to the field control.
+    // PIC reassignment journey: the record adapter exposes PIC as a value-first person <select>
+    // reached by activating the row. The goal-oracle "reassigns the PIC through the visible Task
+    // path" is met by picking a person; the journey step is "activate the field, then choose".
+    activateFieldByKey('pic')
     const picSelect = screen.getByLabelText('PIC')
     fireEvent.change(picSelect, { target: { value: OTHER_ID } })
 
@@ -557,9 +564,10 @@ describe('I2 — PIC reassignment on detail page', () => {
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    // PIC reassignment journey: the record adapter exposes PIC as an editable person <select>
-    // (not a bespoke "Reassign PIC" button — see AC-072 note). Goal-oracle: manager can reassign
-    // PIC through the visible Task path without governance-role editing.
+    // PIC reassignment journey: the record adapter exposes PIC as a value-first person <select>
+    // reached by activating the row (see AC-072 note). Goal-oracle: manager can reassign PIC
+    // through the visible Task path without governance-role editing.
+    activateFieldByKey('pic')
     const picSelect = screen.getByLabelText('PIC')
     fireEvent.change(picSelect, { target: { value: VIEWER_ID } })
 

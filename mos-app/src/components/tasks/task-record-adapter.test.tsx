@@ -7,7 +7,6 @@ import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import {
   createTaskRecordAdapter,
-  createTaskPanelAdapter,
   createTaskFieldCommit,
   teamOwnershipField,
   type TaskRecordAdapterInput,
@@ -75,62 +74,10 @@ function fieldByKey(adapter: RecordViewerAdapter, key: string): RecordFieldSpec 
   return f
 }
 
-describe('createTaskPanelAdapter (metadata-only, for the live RecordDetailsPanel)', () => {
-  it('TaskPanelAdapterContract: renders ONLY ownership + due metadata — no activity, content, or actions', () => {
-    const adapter = createTaskPanelAdapter({
-      task: makeTask(), editable: true, people, businessUnits,
-    })
-    expect(adapter.kind).toBe('task')
-    // Ownership + due fields render through the shared field grammar.
-    expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
-    expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
-    expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Ibnu')
-    expect(fieldByKey(adapter, 'dueDate').value).toBe('2026-07-25')
-    // Metadata-only: no activity/content/actions (the drawer header + RecordFeed own those).
-    expect(adapter.activity).toEqual([])
-    expect(adapter.contentSlots).toEqual([])
-    expect(adapter.actions).toEqual([])
-    // Status is NOT a panel field (owned by the header / status trigger).
-    expect(fieldsOf(adapter).find((f) => f.key === 'status')).toBeUndefined()
-  })
-
-  it('§Task-11 (Issue-8 gate): Business Unit renders; NO Team field is rendered before the real team_id contract', () => {
-    // DELIBERATE goal change (record-collection plan §Task-11): the Task collection has no visible
-    // Team field until Issue 8 lands the real mos.tasks.team_id contract. Business Unit stays; the
-    // legacy honest-missing "Team not assigned yet" field must not appear in the record panel.
-    const adapter = createTaskPanelAdapter({ task: makeTask(), editable: true, people, businessUnits })
-    const bu = fieldByKey(adapter, 'businessUnit')
-    expect(bu.label).toBe('Business Unit')
-    expect(bu.displayValue).toBe('Retail Ops')
-    // The Team field is not rendered (Issue-8 gate); Business Unit is never relabelled Team.
-    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
-    for (const f of fieldsOf(adapter)) expect(f.label).not.toMatch(/^team$/i)
-    // No RACI vocabulary anywhere.
-    for (const f of fieldsOf(adapter)) {
-      expect(f.label).not.toMatch(/responsible|accountable|consulted|informed|raci/i)
-    }
-  })
-
-  it('§Task-11 (Issue-8 gate): even a real Team lookup renders no Team field yet (internal model preserved, not rendered)', () => {
-    // DELIBERATE goal change (§Task-11): the adapter still ACCEPTS a TaskTeamView input (the internal
-    // model stays honest for Issue 8) but must not render a Team field until Issue 8.
-    const adapter = createTaskPanelAdapter({
-      task: makeTask(), editable: true, people, businessUnits,
-      team: { id: 'team-hq', label: 'HQ Kitchen' },
-    })
-    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
-  })
-
-  it('AC-V3-009: a non-editor sees read-only fields with the permission reason', () => {
-    const adapter = createTaskPanelAdapter({
-      task: makeTask(), editable: false, people, businessUnits,
-      readOnlyReason: 'This task is archived',
-    })
-    expect(adapter.permission.readOnly).toBe(true)
-    expect(fieldByKey(adapter, 'pic').editable).toBe(false)
-    expect(fieldByKey(adapter, 'pic').readOnlyReason).toBe('This task is archived')
-  })
-})
+// NOTE: createTaskPanelAdapter + the RecordDetailsPanel it fed were deleted in the value-first
+// record-document redesign — the live TaskSurface renders createTaskRecordAdapter directly through
+// RecordViewer, so the metadata-only panel adapter became dead code. Its §Task-11 / AC-V3-009
+// coverage is retained by the createTaskRecordAdapter suite below.
 
 describe('createTaskRecordAdapter', () => {
   it('FR-V3-003 / TaskAdapterContract: renders Task identity, BU, PIC/Supervisor/status/due, checklist, events, actions', () => {

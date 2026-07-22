@@ -114,6 +114,13 @@ function renderSurface(props: Partial<Parameters<typeof TaskSurface>[0]> = {}, a
   )
 }
 
+// Value-first record grammar: a field renders its VALUE first and swaps in its control only when
+// the row is activated. Click the field's edit affordance, then query its control.
+function activateFieldByKey(key: string) {
+  const btn = document.querySelector(`[data-field-key="${key}"] [data-field-edit]`) as HTMLElement
+  fireEvent.click(btn)
+}
+
 function renderIndonesianSurface() {
   return render(
     <I18nProvider>
@@ -275,6 +282,7 @@ describe('TaskSurface — view mode', () => {
       .mockResolvedValueOnce({ task: makeTask({ status: 'In Progress' }), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    activateFieldByKey('status')
     const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
     fireEvent.change(status, { target: { value: 'In Progress' } })
     await waitFor(() => {
@@ -326,6 +334,7 @@ describe('TaskSurface — mutation handlers', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // V3 Issue 5: PIC is now a RecordViewer/RecordField select (was a bespoke person picker).
+    activateFieldByKey('pic')
     const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
     fireEvent.change(pic, { target: { value: 'other-id' } })
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
@@ -371,6 +380,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockUpdateTaskStatus.mockResolvedValue()
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    activateFieldByKey('status')
     const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
     fireEvent.change(status, { target: { value: 'In Progress' } })
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/status changed to In Progress/i))
@@ -381,6 +391,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockUpdateTaskStatus.mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    activateFieldByKey('status')
     const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
     fireEvent.change(status, { target: { value: 'Blocked' } })
     await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalled())
@@ -421,6 +432,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    activateFieldByKey('pic')
     const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
     fireEvent.change(pic, { target: { value: 'other-id' } })
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -474,6 +486,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     const onTaskChanged = vi.fn()
     renderDrawer({ onTaskChanged })
     await waitFor(() => screen.getByText('Fix the coffee machine'))
+    activateFieldByKey('status')
     const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
     fireEvent.change(status, { target: { value: 'In Progress' } })
     await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID))

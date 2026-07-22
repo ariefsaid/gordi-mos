@@ -146,6 +146,15 @@ function renderView(taskOverrides: Partial<TaskListRow> = {}) {
   )
 }
 
+// Value-first record grammar: Project/Process + Objective render their VALUE first and swap in
+// their <select> only when the row is activated. Click the field's edit affordance first.
+async function activateFieldByKey(key: string) {
+  const btn = await waitFor(
+    () => document.querySelector(`[data-field-key="${key}"] [data-field-edit]`) as HTMLElement,
+  )
+  fireEvent.click(btn)
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // CREATE FORM
 // ═══════════════════════════════════════════════════════════════════════
@@ -256,6 +265,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
   it('FR-245: changing the Work-line select calls updateTaskFields with { work_line_id }', async () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('projectProcess')
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-2' } })
     await waitFor(() => {
@@ -270,6 +280,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
   it('FR-246: clearing Work-line (back to "— None —") calls updateTaskFields with { work_line_id: null }', async () => {
     renderView({ work_line_id: 'wl-1' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('projectProcess')
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     // Clear it
     fireEvent.change(wlSelect, { target: { value: '' } })
@@ -287,6 +298,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   it('FR-247: changing the Objective select calls updateTaskFields with { objective_id }', async () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('objective')
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: 'obj-1' } })
     await waitFor(() => {
@@ -301,6 +313,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   it('FR-248: clearing Objective calls updateTaskFields with { objective_id: null }', async () => {
     renderView({ objective_id: 'obj-2' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('objective')
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: '' } })
     await waitFor(() => {

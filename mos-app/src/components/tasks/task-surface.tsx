@@ -309,7 +309,7 @@ function ViewSurface({
       recordLabels: {
         typeLabel: t('tasks.label.task'),
         ownershipSection: t('tasks.ownership'),
-        statusSection: t('tasks.status.label'),
+        statusSection: t('tasks.statusTiming'),
         detailsSection: t('tasks.detailsTitle'),
         statusField: t('tasks.status.label'),
         descriptionField: t('tasks.create.description'),

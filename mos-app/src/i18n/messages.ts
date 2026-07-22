@@ -185,6 +185,7 @@ export const messages = {
     'tasks.followups.copy': 'Choose another view to review tasks while follow-ups are being added.',
     'tasks.label.task': 'Task',
     'tasks.ownership': 'Task ownership',
+    'tasks.statusTiming': 'Status & Timing',
     'tasks.team': 'Team',
     // V3 Issue 5 — Business Unit is a DISTINCT field from Team in the RecordViewer panel.
     'tasks.field.businessUnit': 'Business Unit',
@@ -833,6 +834,7 @@ export const messages = {
     'tasks.followups.copy': 'Pilih tampilan lain untuk meninjau tugas sambil tindak lanjut sedang ditambahkan.',
     'tasks.label.task': 'Tugas',
     'tasks.ownership': 'Kepemilikan tugas',
+    'tasks.statusTiming': 'Status & Waktu',
     'tasks.team': 'Tim',
     'tasks.field.businessUnit': 'Unit Bisnis',
     'tasks.field.teamUnassigned': 'Tim belum ditetapkan (migrasi data)',

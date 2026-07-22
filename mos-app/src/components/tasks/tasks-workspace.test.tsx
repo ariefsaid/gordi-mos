@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -757,7 +757,9 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
 
     await waitFor(() => screen.getByText('Dirty task'))
     fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
-    const due = await screen.findByLabelText('Due') as HTMLInputElement
+    // Value-first: activate the Due row to swap in the date control.
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Due' }))
+    const due = screen.getByLabelText('Due') as HTMLInputElement
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
     fireEvent.change(due, { target: { value: '2026-08-01' } })
     fireEvent.keyDown(due, { key: 'Enter' })
@@ -828,24 +830,32 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
 
     await waitFor(() => screen.getByText('Dirty escape task'))
     fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
-    const due = await screen.findByLabelText('Due') as HTMLInputElement
+    // Value-first: activate the Due row to swap in the date control.
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Due' }))
+    const due = screen.getByLabelText('Due') as HTMLInputElement
 
-    // (1) FIRST Escape — focused + dirty: cancels ONLY the field draft. No retain/discard
-    // dialog, panel stays open, value restored to the saved baseline (OD-REDESIGN-83.1).
+    // (1) FIRST Escape — focused editing field + dirty: cancels ONLY the field draft and RETURNS
+    // to the value rendering. No retain/discard dialog, panel stays open, value restored to the
+    // saved baseline (OD-REDESIGN-83.1).
     fireEvent.change(due, { target: { value: '2026-09-01' } })
     fireEvent.keyDown(due, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
-    expect((screen.getByLabelText('Due') as HTMLInputElement).value).toBe('2026-07-01')
+    // Back in value mode: the edit control is gone and the field shows the saved baseline date.
+    expect(screen.queryByLabelText('Due')).toBeNull()
+    const dueField = document.querySelector('[data-field-key="dueDate"]') as HTMLElement
+    expect(within(dueField).getByText('2026-07-01')).toBeInTheDocument()
 
     // (2) Re-dirty the record via a FAILED commit (FieldErrorRetryContract) — the persisted
-    // tenant dirty state attaches the leave-guard. The next Escape is the panel-close intent,
-    // not a field cancel, so it is dispatched on the overlay host: a panel-level keystroke
-    // does not pass through the field's capture listener (focus is outside the field — the
-    // field only isolates a focused dirty draft).
+    // tenant dirty state attaches the leave-guard. Re-activate the field, then the failed Enter
+    // keeps the draft in edit mode. The next Escape is the panel-close intent, not a field
+    // cancel, so it is dispatched on the overlay host: a panel-level keystroke does not pass
+    // through the field's capture listener (focus is outside the field).
     mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
-    fireEvent.change(due, { target: { value: '2026-08-01' } })
-    fireEvent.keyDown(due, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Due' }))
+    const due2 = screen.getByLabelText('Due') as HTMLInputElement
+    fireEvent.change(due2, { target: { value: '2026-08-01' } })
+    fireEvent.keyDown(due2, { key: 'Enter' })
     await screen.findByRole('alert')
 
     const panel = document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement

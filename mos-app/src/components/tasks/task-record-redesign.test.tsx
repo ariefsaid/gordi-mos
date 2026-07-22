@@ -106,18 +106,22 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.queryByText('Team')).toBeNull()
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
     expect(screen.getByText('PIC')).toBeInTheDocument()
-    // PIC + Supervisor render as editable selects (each lists all people as options), so a
-    // person's name legitimately appears as an <option> in BOTH selects. Assert via the select's
-    // value (the selected option), not a global text match (which would be brittle to the option
-    // list). The goal: verify the PIC field holds Cahya Cafe and the Supervisor holds Arief Said.
+    // Value-first document grammar: ownership fields render their VALUE first, then swap in the
+    // edit control on activation (click the row). PIC + Supervisor are editable person selects;
+    // a person's name appears as an <option> in BOTH, so assert via the select's value (the
+    // selected option) after activating. The goal: PIC holds Cahya Cafe, Supervisor holds Arief.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit PIC' }))
     expect(screen.getByLabelText('PIC')).toHaveValue(VIEWER_ID)
     expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
     expect(screen.getByLabelText('Supervisor')).toHaveValue(SUPERVISOR_ID)
+    // Source is a read-only derived classification (never activated) — its value shows directly.
     expect(screen.getByText('Source')).toBeInTheDocument()
     const sourceField = document.querySelector('[data-field-key="source"]') as HTMLElement
     expect(within(sourceField).getByText('Today opening')).toBeInTheDocument()
-    // Due date renders as a native <input type="date"> (its value is the ISO date in the attribute,
-    // not visible text). Assert via the labeled control's value, matching the PIC/Supervisor pattern.
+    // Due date renders as a native <input type="date"> once activated (its value is the ISO date
+    // in the attribute, not visible text). Assert via the labeled control's value.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Due' }))
     expect(screen.getByLabelText('Due')).toHaveValue('2026-07-20')
     // No RACI grammar: assert the parenthesized RACI labels (Responsible (R), Accountable (A), etc.)
     // never render. The bare words "Consulted"/"Informed" are intentionally NOT matched here — the
@@ -132,9 +136,11 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(task.id, 'Open', 'Done', VIEWER_ID))
 
     // PIC reassignment journey: the record adapter exposes PIC as an editable person <select>
-    // (not a bespoke "Reassign PIC" button — TaskOwnershipCard exists but isn't wired into the
-    // adapter). The goal-oracle "manager can reassign PIC through the visible Task path" is met by
-    // changing the select; the journey step changed from a button to the field control.
+    // reached by activating the value row (value-first). The goal-oracle "manager can reassign
+    // PIC through the visible Task path" is met by changing the select; the journey step is now
+    // "activate the field, then pick the person". (The Mark-complete refetch returned every field
+    // to its value rendering, so re-activate PIC before reassigning.)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit PIC' }))
     const picSelect = screen.getByLabelText('PIC')
     fireEvent.change(picSelect, { target: { value: SUPERVISOR_ID } })
     await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
