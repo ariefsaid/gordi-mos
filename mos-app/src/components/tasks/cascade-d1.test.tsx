@@ -120,13 +120,18 @@ function stubMatchMedia(split = true, desktop = true) {
 }
 
 function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
-  return render(
+  const utils = render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
         <OverlayHostProvider><TasksWorkspace {...props} /></OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
+  // Grouping and sorting are intentionally behind the desktop View options disclosure.
+  // These legacy cascade tests exercise the controls, not the disclosure itself.
+  const viewOptions = screen.queryByRole('button', { name: /view options/i })
+  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
+  return utils
 }
 
 beforeEach(() => {

@@ -50,6 +50,15 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
   )
 }
 
+describe('TaskRow — shared title + metadata cell grammar', () => {
+  it('renders the E7 title and typed Business Unit metadata in one identity cell', () => {
+    renderRow({ businessUnitName: 'Café Operations' })
+    const identity = document.querySelector('.collection-grammar-title-cell')!
+    expect(identity.querySelector('.collection-grammar-title')).toHaveTextContent('Finalise Q3 roastery output forecast')
+    expect(identity.querySelector('.collection-grammar-meta')).toHaveTextContent('Café Operations')
+  })
+})
+
 describe('TaskRow — AC-T03 name cell is a Chip-link to /tasks/:id', () => {
   it('AC-T03: name link preserves ?view= on open-in-new-tab-safe hrefs', () => {
     renderRow({ recordSearch: '?view=overdue' })

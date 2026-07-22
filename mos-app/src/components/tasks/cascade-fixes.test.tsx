@@ -123,6 +123,8 @@ function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView
 
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
+  const viewOptions = screen.queryByRole('button', { name: /view options/i })
+  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
   fireEvent.click(screen.getByRole('button', { name: 'All' }))
   await waitFor(() => {
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
@@ -259,6 +261,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     ])
     renderWorkspace()
     await waitFor(() => screen.getByText('Task A'))
+    await switchToAll()
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })

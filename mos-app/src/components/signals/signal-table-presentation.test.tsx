@@ -10,7 +10,8 @@ import { SignalCollectionActionsProvider, type SignalCollectionActions } from '.
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
 import { SIGNAL_COLLECTION_NEUTRAL_QUERY } from './signal-collection-adapter'
 
-vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => true }))
+const desktopState = vi.hoisted(() => ({ value: true }))
+vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
@@ -84,7 +85,9 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(screen.queryByText(/^PIC$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/supervisor/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /status/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('table')).toHaveClass('record-collection-table')
+    expect(screen.getByRole('table')).toHaveClass('record-collection-table', 'collection-grammar-table')
+    expect(screen.getByRole('button', { name: 'The freezer alarm went off' })).toHaveClass('collection-grammar-title')
+    expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
   })
 
   it('AC-V3-014: Signal table headers use the same native keyboard-sort contract as Tasks', async () => {
@@ -152,6 +155,7 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
       </I18nProvider>,
     )
     // Group headers should render with labels and counts - find group header rows by class
+    expect(document.querySelector('.signal-collection-presentation')).toBeInTheDocument()
     const groupHeaderRows = screen.getAllByRole('row').filter(r => r.classList.contains('dt-group-row'))
     const hqGroupRow = groupHeaderRows.find(r => r.textContent?.includes('HQ Operations'))
     const radiantGroupRow = groupHeaderRows.find(r => r.textContent?.includes('Radiant Operations'))
@@ -166,6 +170,8 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     // Row counts (in group header)
     expect(hqGroupRow).toHaveTextContent('1')
     expect(radiantGroupRow).toHaveTextContent('1')
+    expect(hqGroupRow?.querySelector('.dt-group-bar')).toBeInTheDocument()
+    expect(hqGroupRow?.querySelector('.dt-group-toggle')).toHaveAttribute('aria-expanded', 'true')
   })
 
   // Issue: Every Signal presentation must use the injected opener and preserve collection query state.
@@ -191,5 +197,19 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     renderTable([row({ id: 'signal-1' })])
     expect(screen.queryByRole('checkbox', { name: /select signal/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /select/i })).not.toBeInTheDocument()
+  })
+
+  it('phone cards keep the shared title/detail anatomy while retaining Signal fields', () => {
+    desktopState.value = false
+    try {
+      renderTable([row({ body: 'Phone-readable signal', category: 'Equipment/facility' })])
+      const card = document.querySelector('.signal-collection-presentation .dt-card')
+      expect(card).toBeInTheDocument()
+      expect(card?.querySelector('.collection-grammar-title')).toHaveTextContent('Phone-readable signal')
+      expect(card?.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
+      expect(card?.querySelector('.dt-card-detail')).toBeInTheDocument()
+    } finally {
+      desktopState.value = true
+    }
   })
 })

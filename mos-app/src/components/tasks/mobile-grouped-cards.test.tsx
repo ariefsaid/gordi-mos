@@ -143,6 +143,9 @@ describe('MobileGroupedCards', () => {
     renderCards()
     const cards = document.querySelectorAll('[data-testid="task-card"]')
     expect(cards.length).toBe(2)
+    expect(cards[0]).toHaveClass('collection-grammar-card')
+    expect(cards[0].querySelector('.collection-grammar-title')).toHaveTextContent('Task A')
+    expect(cards[0].querySelector('.collection-grammar-card-details')).toBeInTheDocument()
   })
 
   // Design fix wave item 3 (Rule 9 — occurrence group parity, phone width). Desktop's
