@@ -2,7 +2,7 @@
 
 > **LATEST HANDOFF OVERRIDE — 2026-07-22:** Read `docs/agent-context.md`’s canonical current-state
 > block first. This handoff contains historical lanes and is intentionally not rewritten line-by-line.
-> The active local state is `v3-redesign` at committed tip `6ad6dc7` plus an uncommitted RecordViewer
+> The active local state is `v3-redesign` at committed docs tip `023d62e` plus an uncommitted RecordViewer
 > slice; no push/merge/deploy/Supabase start. The current post-slice collection/header smoke is 107/107
 > focused tests, typecheck/CSS lint/changed ESLint, and inventory 58/13/76. The earlier 126/126 run is
 > pre-header evidence. The focused TaskSurface/TasksLayout regression run is RED (25 failed / 77), so

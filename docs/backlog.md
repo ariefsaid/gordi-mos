@@ -3,7 +3,7 @@
 > ## CANONICAL CURRENT STATE — 2026-07-22
 >
 > The backlog’s dated strata below are historical evidence. Current reality is the local
-> `v3-redesign` worktree at committed tip `6ad6dc7` plus an uncommitted RecordViewer/collection slice;
+> `v3-redesign` worktree at committed docs tip `023d62e` plus an uncommitted RecordViewer/collection slice;
 > nothing is pushed, merged, deployed, or running Supabase. The current OOM-safe collection/header smoke
 > proves **107/107 focused tests**, typecheck, CSS lint, changed-file ESLint, and a fresh inventory
 > (**58 routes / 13 shared jobs / 76 CSS families**). A separate TaskSurface/TasksLayout regression

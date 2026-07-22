@@ -4,7 +4,7 @@
 >
 > This block is the current-state register. It supersedes older score, tip, lane, and “gate met” prose
 > later in this file. The canonical V3 worktree is `/Users/ariefsaid/Coding/gordi-mos/.claude/worktrees/v3-redesign`,
-> branch `v3-redesign`, at committed tip `6ad6dc7` with an **uncommitted local convergence slice**.
+> branch `v3-redesign`, at committed docs tip `023d62e` with an **uncommitted local convergence slice**.
 > No push, merge, deploy, or Supabase start has occurred in this state.
 >
 > **Verified now (bounded, OOM-safe evidence):** the post-slice collection/header smoke is **107/107
