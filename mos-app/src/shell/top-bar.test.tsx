@@ -45,12 +45,12 @@ const viewer = {
   accessRoles: [],
 }
 
-function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
+function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn(), onOpenCreate = vi.fn()) {
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} />} />
+          <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} onOpenCreate={onOpenCreate} />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
@@ -112,6 +112,36 @@ describe('AC-014: TopBar layout (OD-57)', () => {
     renderTopBar()
     expect(screen.getByRole('button', { name: /Cari/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kotak Masuk' })).toBeInTheDocument()
+  })
+})
+
+// E7 topbar parity — the Create button (Action Launcher trigger). Desktop-only; opens the
+// shared command registry (the same command menu the mobile plus opens). Its accessible name
+// is "Open actions" (actionLauncher.open), NOT "Create Task", so AC-014's no-universal-action
+// assertion above still holds.
+describe('E7 parity: Create button (Action Launcher)', () => {
+  it('renders the Create button after the deputy launcher on desktop', () => {
+    renderTopBar()
+    const create = screen.getByRole('button', { name: 'Open actions' })
+    expect(create).toBeInTheDocument()
+    expect(create).toHaveTextContent('Create')
+    const deputy = screen.getByRole('button', { name: /Open deputy/i })
+    const precedes = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(precedes(deputy, create)).toBe(true)
+  })
+
+  it('clicking Create calls onOpenCreate', () => {
+    const onOpenCreate = vi.fn()
+    renderTopBar('/work/tasks', vi.fn(), vi.fn(), onOpenCreate)
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions' }))
+    expect(onOpenCreate).toHaveBeenCalledOnce()
+  })
+
+  it('is desktop-only — absent at <920px (the bottom-tab plus is the phone launcher)', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    renderTopBar()
+    expect(screen.queryByRole('button', { name: 'Open actions' })).toBeNull()
   })
 })
 

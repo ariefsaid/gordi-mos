@@ -15,6 +15,13 @@ type TopBarProps = {
   onOpenDrawer: () => void
   /** Opens the ⌘K command menu (wired in AppShell). */
   onOpenSearch?: () => void
+  /**
+   * Opens the Action Launcher — the create-focused entry into the shared command registry
+   * (Create Task · Share Signal · Ask Deputy). Reuses the same command menu the mobile
+   * action-launcher plus opens (AppShell wires both to one opener). Desktop-only; phones
+   * carry the plus in the bottom tab bar.
+   */
+  onOpenCreate?: () => void
   /** Receives a function that focuses the hamburger; used by MobileDrawer to restore focus on close. */
   onRegisterHamburgerFocus?: (focusFn: () => void) => void
 }
@@ -91,6 +98,25 @@ export function DeputyIcon() {
       <path d="M3 12h3" />
       <path d="M18 12h3" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+// Plus icon — 16px, stroke-2, aria-hidden (Create / Action Launcher trigger, E7 topbar parity)
+function PlusIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   )
 }
@@ -202,11 +228,33 @@ function NotificationBell() {
   )
 }
 
+// The Create button (E7 topbar parity) — the create-focused Action Launcher trigger, a filled
+// primary control that opens the SAME shared command registry as the mobile plus (Create Task ·
+// Share Signal · Ask Deputy). Desktop-only: phones already carry the plus in the bottom tab bar,
+// so a topbar Create would double the affordance. Reuse, not invent (onOpenCreate === the command
+// menu opener). At intermediate widths the label collapses to the icon (E7 --e7-create-text rule).
+function CreateButton({ onOpenCreate }: { onOpenCreate?: () => void }) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      aria-label={t('actionLauncher.open')}
+      aria-haspopup="dialog"
+      className="flex items-center gap-1.5 rounded-sm bg-primary px-3 font-semibold text-primary-foreground hover:bg-primary/90 flex-none"
+      style={{ height: 34, fontSize: 13 }}
+      onClick={onOpenCreate}
+    >
+      <PlusIcon />
+      <span>{t('topBar.create')}</span>
+    </button>
+  )
+}
+
 // Global top bar (ADR-0013 D1).
-// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · deputy]
+// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · deputy · create]
 // At <920px the leading hamburger appears and calls onOpenDrawer.
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
-export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegisterHamburgerFocus }: TopBarProps) {
+export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onOpenCreate, onRegisterHamburgerFocus }: TopBarProps) {
   const t = useT()
   const isNarrow = useIsNarrow()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
@@ -314,6 +362,11 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).
             Absent when SHOW_ASSISTANT=false. */}
         {SHOW_ASSISTANT && <AssistantTopBarButton />}
+
+        {/* Create (E7 topbar parity) — the create-focused Action Launcher, desktop-only
+            (phones use the bottom-tab plus). Last in the right cluster, matching E7's
+            Search · Inbox · Deputy · Create order. */}
+        {!isNarrow && <CreateButton onOpenCreate={onOpenCreate} />}
 
       </div>
     </header>
