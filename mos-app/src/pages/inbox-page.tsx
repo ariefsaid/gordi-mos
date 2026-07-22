@@ -1,6 +1,7 @@
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useT } from '@/i18n/use-t'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
+import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 
 /**
  * InboxPage — the Inbox destination (ADR-0019 D2/D9). A to-triage list of the viewer's
@@ -13,11 +14,15 @@ import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
  */
 export function InboxPage() {
   const t = useT()
+  const host = useOptionalOverlayHost()
   return (
     // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence
     // (no surface-title glyph — the ✉ was the "several apps" tell).
     <PageFamilyFrame family="workspace" title={t('inbox.title')} jobSentence={t('job.inbox')}>
-      <InboxTriageConnected mode="page" />
+      <div className="record-split inbox-page-split">
+        <InboxTriageConnected mode="page" />
+        {host ? <OverlayHostSlot owner="inbox" /> : null}
+      </div>
     </PageFamilyFrame>
   )
 }

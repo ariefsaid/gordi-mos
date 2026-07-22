@@ -162,7 +162,7 @@
 }
 
 /* Issue 7 in-context record door — the arrival context the shared host opens for a notification.
-   Chrome-free (the host owns the header/close); the door owns the canonical full-record action. */
+   Chrome-free (the host owns header, close, and canonical page promotion). */
 .inbox-record-door {
   display: flex;
   flex-direction: column;
@@ -195,12 +195,6 @@
   line-height: 1.45;
   color: var(--muted-foreground);
 }
-.inbox-record-door__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
 /* Visually-hidden polite live region for optimistic open/action announcements. */
 .inbox-triage__status {
   position: absolute;

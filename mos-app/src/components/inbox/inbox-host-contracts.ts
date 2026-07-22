@@ -11,8 +11,8 @@
  *
  * WIRING RECONCILIATION (2026-07-20): the seam previously declared `OverlayOwner = 'shell' | 'record'`.
  * That was wrong: in the real model `'record'` is an OverlayEntry *tenant*, not an owner, and the real
- * `OverlayOwner` is `'shell' | 'tasks' | 'signals'`. Inbox entries correctly use owner `'shell'`, so
- * pinning to the real union is a pure type fix with no behavior change.
+ * `OverlayOwner` now includes the page-owned `'inbox'` slot as well as the shell quick-triage slot;
+ * page and bell doors therefore share the host without sharing the wrong geometry regime.
  */
 import type { To } from 'react-router-dom'
 import type { OverlayEntry, OverlayTenant } from '@/shell/overlay-host'

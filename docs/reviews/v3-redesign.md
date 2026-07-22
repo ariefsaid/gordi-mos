@@ -717,7 +717,7 @@ interaction-door sweep) against the integrated tip; findings feed the next fix b
 | Finding | Lane | Commit | Resolution |
 |---|---|---|---|
 | CRITICAL C — `buildInboxTargetDeps` hardcodes true | A1 | `4de6339` | Real `can()` capability wiring + structural-cause documentation (RLS gates org, canonical page handles not-found); 6 production-deps tests |
-| C — Inbox record door bypasses pageTo | B3 | `3ad5d9d` | `pageTo` added to `OverlayEntryDraft`; bespoke `openFull` nav button retained as explicit R-T-4 route-seam fallback |
+| C — Inbox record door bypasses pageTo | B3 | `3ad5d9d` → superseded by current Inbox convergence | `pageTo` is now the single host-owned page-promotion door; the bespoke `openFull` fallback was removed after R-T-4 landed |
 | A — Follow-up queue row links directly to record page | B4 | `f9c0d26` | `FollowUpRow` opens via shared host (`openRoot` + `FollowUpRecordHost mode="panel"`); drawer-first test proven (counterparty name appears twice = queue row + panel title) |
 | C — Bell shell-slot unpositioned aside | B1 | `1c7da9b` | `OverlayHostSlot` passes `rootClassName="drawer-shell-split"` when `owner === "shell"`; new desktop CSS rule (right-anchored, `min(44%, 480px)`, full-height). Geometry verified: `x=800, width=480` |
 | C — Deputy can coexist with a Bell panel | B2 | `7cc45f2` | `useDeputyOverlayCoexistence()` hook; single-effect newest-intent-wins reconciliation; collection overlays coexist (grid pane vs floating). 4 new + 401 existing tests pass |
@@ -877,6 +877,11 @@ The canonical consolidation worktree is `/Users/ariefsaid/Coding/gordi-mos/.clau
 Clean historical V3/Codex worktrees were removed while retaining their branches; dirty handoff lanes
 were preserved. Stale Vite/esbuild processes for this branch and `v3/rv-live` were stopped. No
 Supabase process was started, and no push/merge/deploy occurred.
+
+The current Inbox page also owns an `inbox` collection slot. Its records use the same shared host and
+44% side-panel track as Tasks/Signals at split widths; the bell’s ephemeral quick-triage remains the
+shell-owned fixed overlay by design. The old plan-era claim that Inbox always uses only `owner: shell`
+is historical and no longer describes the page route.
 
 ### Responsive collection follow-up — 2026-07-22 (local)
 

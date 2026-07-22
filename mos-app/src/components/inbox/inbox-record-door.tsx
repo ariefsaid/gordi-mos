@@ -1,11 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import './inbox.css'
 import type { To } from 'react-router-dom'
-import { useNavigate } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
-import { Button } from '@/components/ui/button'
-import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { can } from '@/lib/capabilities'
 import type { NotificationRow } from '@/lib/db/notifications'
@@ -16,6 +13,7 @@ import type {
   TargetRegistry,
 } from './inbox-target'
 import type { OverlayEntryDraft } from './inbox-host-contracts'
+import type { OverlayOwner } from '@/shell/overlay-navigation'
 
 /**
  * inbox-record-door — the Issue 7 seam that turns a resolved notification target into a real,
@@ -25,8 +23,8 @@ import type { OverlayEntryDraft } from './inbox-host-contracts'
  * (typed field/relation/activity hierarchy) is NOT re-implemented here — record-viewer and
  * task/signal collection code are out of this slice. This door renders the notification's arrival
  * context (why it landed) inside the shared host and offers the ONE canonical door to the full
- * record page. Opening in-context keeps the queue behind the panel; "Open full record" navigates to
- * the canonical route and closes the overlay.
+ * record page. Opening in-context keeps the queue behind the panel; the host chrome owns canonical
+ * page promotion and closes the overlay through the shared route seam.
  *
  * The producer `entity.route` is never used as authority — `CANONICAL_ROUTE` is the only route
  * source, keyed by the typed `{ type }`. `follow_up` is intentionally absent from the registry so
@@ -55,30 +53,18 @@ const SEVERITY_KEY = {
  * The in-context record door rendered inside the shared overlay host. Shows the arrival context
  * (type · title · body · severity) so a triager understands why the item landed (J06).
  *
- * Navigation: the entry carries `pageTo`, so the host chrome renders its own Open-full-page button
- * (RecordPanelHost → host.openPage). HOWEVER host.openPage only closes the panel today — the actual
- * navigation is performed by the route seam (R-T-4, plan 2026-07-20-v3-overlay-host Task 5), which
- * is not yet wired. Until R-T-4 lands, this door also renders a primary "Open full record" button
- * that closes the overlay and navigates directly, so the user is never stranded. When R-T-4 lands,
- * remove this button + the navigate/pageTo props — the host chrome becomes the one door.
+ * Navigation: the entry carries `pageTo`, so the shared host chrome owns the one Open-full-page
+ * action (RecordPanelHost → host.openPage). The door itself stays chrome-free and does not create a
+ * second route or button grammar.
  */
 export function InboxRecordDoor({
   row,
   targetRef,
-  pageTo,
 }: {
   row: NotificationRow
   targetRef: NotificationTargetRef
-  pageTo: To
 }) {
   const t = useT()
-  const navigate = useNavigate()
-  const host = useOptionalOverlayHost()
-
-  const openFull = () => {
-    void host?.close()
-    navigate(pageTo)
-  }
 
   return (
     <div className="inbox-record-door">
@@ -91,11 +77,6 @@ export function InboxRecordDoor({
       </p>
       <h3 className="inbox-record-door__title">{row.title}</h3>
       {row.body ? <p className="inbox-record-door__body">{row.body}</p> : null}
-      <div className="inbox-record-door__actions">
-        <Button variant="primary" onClick={openFull}>
-          {t('inbox.openRecord')}
-        </Button>
-      </div>
     </div>
   )
 }
@@ -141,6 +122,7 @@ const TARGET_OPEN_CAPABILITY: Partial<Record<NotificationTargetType, string>> = 
 export function buildInboxTargetDeps(
   row: NotificationRow,
   accessRoles: readonly string[] = [],
+  owner: OverlayOwner = 'shell',
 ): ResolveTargetDeps {
   const registry: TargetRegistry = {}
   for (const type of ['task', 'signal'] as const) {
@@ -151,7 +133,7 @@ export function buildInboxTargetDeps(
         const pageTo = toRoute(targetRef.id)
         return {
           key: `${targetRef.type}:${targetRef.id}`,
-          owner: 'shell',
+          owner,
           tenant: 'record',
           label: row.title,
           title: <RecordDoorTitle type={targetRef.type} />,
@@ -161,7 +143,7 @@ export function buildInboxTargetDeps(
           // NOTE: host.openPage closes the panel but does NOT navigate until R-T-4 (route seam) lands;
           // the door content below carries a fallback nav button until then.
           pageTo,
-          content: <InboxRecordDoor row={row} targetRef={targetRef} pageTo={pageTo} />,
+          content: <InboxRecordDoor row={row} targetRef={targetRef} />,
         }
       },
     }

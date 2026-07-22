@@ -118,6 +118,12 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 > The shared Save View editor restores focus to its trigger on Escape, Cancel, and successful Save;
 > CollectionToolbar owns this contract for Tasks and Signals.
 
+> **INBOX PAGE GEOMETRY FOLLOW-UP (2026-07-22, local):** `/inbox` now opens records through the
+> page-owned `OverlayHostSlot owner="inbox"` inside the shared `.record-split`; the bell’s ephemeral
+> quick triage remains `owner="shell"`. The host primitive, 44% track, focus, Escape, and page door are
+> shared. Focused Inbox/host evidence is 50/50 plus typecheck/lint; seeded-notification and handled
+> semantics remain owner/data-gated.
+
 
 > **SECOND-SESSION STATE (2026-07-21 late — quota handoff; read WITH the claims table in
 > `docs/reviews/v3-redesign-convergence-handoff-2026-07-21.md`).** Tip `8cd1053` at session start.
@@ -140,9 +146,9 @@ authoritative product/decision docs are linked at the bottom. Keep this file upd
 >   never-started. Director implemented A1 directly: real `can()` capability wiring into
 >   `buildInboxTargetDeps`, `isSameOrg`/`recordExists` document the structural causes (RLS gates org,
 >   canonical page renders not-found), 6 production-deps tests.
-> - `3ad5d9d` — **Lane B3 (inbox pageTo + route-seam fallback):** `pageTo` added to the inbox record
->   door's `OverlayEntryDraft`; the bespoke `openFull` nav button stays as the explicit route-seam
->   fallback (R-T-4 `host.openPage` only closes the panel; full navigation is still unwired).
+> - `3ad5d9d` — **Lane B3 (historical inbox pageTo seam):** `pageTo` was added to the inbox record
+>   door's `OverlayEntryDraft`. R-T-4 later landed; the bespoke fallback button is removed at the
+>   current Inbox convergence tip, and host chrome owns page promotion.
 > - `f9c0d26` — **Lane B4 (follow-up drawer-first):** `FollowUpRow` opens via the shared host
 >   (`openRoot` with `FollowUpRecordHost mode="panel"`); counterparty cell is a button when
 >   `onOpenRecord` is provided, else legacy `<Link>`. Test asserts `[data-overlay-host]` length === 1

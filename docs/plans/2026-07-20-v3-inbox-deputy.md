@@ -170,10 +170,10 @@ approval token exactly once after allow. The active tenant owns the confirmation
 only, never a Task/Signal row or viewer field map. `OverlayHostSlot` remains the only renderer of
 `RecordPanelHost` and the only source of `data-overlay-host="true"`.
 
-Inbox quick triage and Deputy use `owner: 'shell'`; they do not add an `OverlayOwner` or mount a
-second slot. A quick triage root is ephemeral and does not change the URL on desktop; `/inbox` is the
-phone/bell fallback and direct route door. If the landed source does not expose this exact async
-surface, stop and record the dependency contradiction rather than extending Issue 4 in Issue 7.
+Inbox quick triage and Deputy use `owner: 'shell'`; this plan-era statement applies to the ephemeral
+bell/Deputy doors only. The current `/inbox` page route uses the added page-owned `owner: 'inbox'`
+slot so its record panel participates in the collection split geometry. A quick triage root remains
+ephemeral and does not change the URL on desktop; `/inbox` remains the direct route door.
 
 ### Evidence-led data seam gate
 

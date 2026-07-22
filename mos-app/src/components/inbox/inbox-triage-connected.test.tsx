@@ -37,7 +37,7 @@ function hook(over: Partial<UseNotifications> = {}): UseNotifications {
   }
 }
 
-// Renders the connected triage as a page body plus the ONE shared shell host slot, so an opened
+// Renders the connected triage as a page body plus the ONE shared Inbox host slot, so an opened
 // record actually mounts through the real overlay host (no bespoke drawer).
 function renderConnected() {
   return render(
@@ -45,7 +45,7 @@ function renderConnected() {
       <MemoryRouter initialEntries={['/inbox']}>
         <OverlayHostProvider>
           <InboxTriageConnected mode="page" />
-          <OverlayHostSlot owner="shell" />
+          <OverlayHostSlot owner="inbox" />
           <Routes>
             <Route path="*" element={<LocationProbe />} />
           </Routes>
@@ -77,7 +77,8 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     // one canonical full-record door.
     expect(markRead).toHaveBeenCalledWith('n1')
     expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /open full record/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
+    expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
     // One physical overlay host — never a second panel.
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
@@ -108,12 +109,12 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(0)
   })
 
-  it('the "Open full record" door navigates to the canonical page and closes the overlay', () => {
+  it('the host "Open full page" door navigates to the canonical page and closes the overlay', () => {
     mockUse.mockReturnValue(hook({ notifications: [notif()] }))
     renderConnected()
 
     fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
-    fireEvent.click(screen.getByRole('button', { name: /open full record/i }))
+    fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
 
     expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks/t1')
     // The overlay is closed after promotion — no stacked panel behind the page.

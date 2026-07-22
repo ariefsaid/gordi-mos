@@ -4,6 +4,7 @@ import type { MessageKey } from '@/i18n/messages'
 import { useAuth } from '@/auth/use-auth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import type { OverlayOwner } from '@/shell/overlay-navigation'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import { InboxTriage, type InboxTriageState } from './inbox-triage'
 import { matchesFilter, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
@@ -19,7 +20,7 @@ import { buildInboxTargetDeps } from './inbox-record-door'
  * It owns: the notification data (via useNotifications), the All/Unread filter, and the open
  * grammar. Opening a row resolves a SAFE typed target (inbox-target.ts) and, when available, marks
  * it read (only) and opens the canonical record IN CONTEXT through the shared host:
- *   - from the page (no active session) it opens a record root over the page;
+ *   - from the page (no active session) it opens a record root in the Inbox collection split;
  *   - from quick triage (an active session) it PUSHES the record so internal Back returns to the
  *     exact triage queue.
  * An unavailable/denied/malformed target never opens a record; it surfaces honest, localized copy.
@@ -27,7 +28,10 @@ import { buildInboxTargetDeps } from './inbox-record-door'
  * Handled stays withheld (`handledFilterAvailable={false}`) until the owner-gated migration/RLS/
  * pgTAP prerequisite lands — opening marks read, never handled (read-handled-semantics.ts).
  */
-export function InboxTriageConnected({ mode }: { mode: 'page' | 'quick' }) {
+export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' : 'shell' }: {
+  mode: 'page' | 'quick'
+  owner?: OverlayOwner
+}) {
   const t = useT()
   const { notifications, loading, error, refresh, markRead } = useNotifications()
   const host = useOptionalOverlayHost()
@@ -48,7 +52,7 @@ export function InboxTriageConnected({ mode }: { mode: 'page' | 'quick' }) {
 
   const onOpen = (row: TriageNotificationRow) => {
     setUnavailableKey(null)
-    const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles))
+    const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles, owner))
     // Opening marks READ only (never handled) — the queue truth updates even when the target
     // cannot be shown, because the person has now seen the notification.
     void markRead(row.id)

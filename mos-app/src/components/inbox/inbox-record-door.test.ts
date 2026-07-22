@@ -81,6 +81,14 @@ describe('buildInboxTargetDeps — production wiring (FR-V3-008 / J06, Luna audi
     expect(res.status).toBe('available')
   })
 
+  it('can target the page-owned Inbox slot while the bell keeps the shell slot', () => {
+    const deps = buildInboxTargetDeps(taskRow(), ['member'], 'inbox')
+    const res = resolveNotificationTarget(taskRow(), deps)
+    expect(res.status).toBe('available')
+    if (res.status !== 'available') throw new Error('unreachable')
+    expect(res.entry.owner).toBe('inbox')
+  })
+
   it('follow_up target is feature-off while SHOW_FOLLOWUPS is false (the registry omits it)', () => {
     const fuRow: NotificationRow = {
       id: 'n1',

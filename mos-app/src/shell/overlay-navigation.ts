@@ -8,7 +8,7 @@ export const OVERLAY_HISTORY_KEY = '__mosOverlay'
 
 export type OverlayHistoryMode = 'route' | 'ephemeral'
 
-export type OverlayOwner = 'shell' | 'tasks' | 'signals'
+export type OverlayOwner = 'shell' | 'inbox' | 'tasks' | 'signals'
 
 export type OverlayHistoryMarker = {
   sessionId: string

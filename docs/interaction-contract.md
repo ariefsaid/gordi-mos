@@ -46,7 +46,7 @@ Proof cell is a defect, not a gap.
 |---|---|---|---|---|---|---|---|---|
 | Task record | ✅ | ✅ | ✅ (row menu) | ✅ (archive confirm) | ❌ I5 unbuilt | ✅ | ✅ | task-drawer/split-view suites · `confirm-archive.test` · `task-row.test` "I7 open/cursor is aria-selected" |
 | Signal record | ✅ shared `OverlayHost` (in-list record query → split/modal; direct `/work/signals/:id` → page) | ✅ | — | — | ❌ | partial | ✅ | Signals archive focused suite + overlay-host route seam |
-| Inbox | ✅ shared-host triage door (seeded notification proof and handled semantics still open) | partial | — | — | — | — | ✅ | inbox host tests; seeded-notification acceptance pending |
+| Inbox | ✅ shared host; page records use the page-owned split slot and bell quick triage uses the shell slot (seeded notification proof and handled semantics still open) | partial | — | — | — | — | ✅ | inbox host tests; seeded-notification acceptance pending |
 | Deputy | own host (chrome drift) | partial | — | — | — | — | n/a | host P4 |
 | User menu | — | ✅ | ✅ | — | — | — | — | user-chip suite |
 | Admin people menu | — | ✅ | ✅ (⋯ + mobile sheet) | — | — | — | — | user-table I3 suite |

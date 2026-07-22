@@ -3889,7 +3889,7 @@
         "line-height": 6,
         "padding": 7,
         "margin": 6,
-        "gap": 9,
+        "gap": 8,
         "width": 4,
         "height": 10
       },
@@ -4918,7 +4918,7 @@
       "line-height": 42,
       "padding": 283,
       "margin": 85,
-      "gap": 223,
+      "gap": 222,
       "width": 343,
       "height": 267
     },
