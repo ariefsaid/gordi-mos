@@ -10,6 +10,7 @@ import { formatWibDateTime } from '@/lib/wib-time'
 import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
+import { useSignalCollectionActions } from './signal-collection-actions'
 import './signal-table-presentation.css'
 
 type SignalTableProps = CollectionPresentationProps<
@@ -21,6 +22,7 @@ type SignalTableProps = CollectionPresentationProps<
 >
 
 export function SignalTablePresentation({
+  query,
   projection,
   context,
   onOpenRecord,
@@ -29,6 +31,7 @@ export function SignalTablePresentation({
 }: SignalTableProps) {
   const t = useT()
   const isDesktop = useIsDesktop()
+  const actions = useSignalCollectionActions()
 
   const columns: DataTableColumn<SignalRow>[] = [
     {
@@ -64,11 +67,13 @@ export function SignalTablePresentation({
     {
       key: 'occurredAt',
       header: t('signals.table.occurredAt'),
+      sortable: Boolean(actions.onSort),
       render: (signal) => formatWibDateTime(signal.occurred_at),
     },
     {
       key: 'attention',
       header: t('signals.table.attention'),
+      sortable: Boolean(actions.onSort),
       render: (signal) =>
         signal.retracted_at ? (
           <span aria-hidden="true">—</span>
@@ -95,6 +100,7 @@ export function SignalTablePresentation({
 
   return (
       <DataTable
+        tableClassName="record-collection-table signal-collection-table"
         columns={columns}
         rows={[]}
         groups={groups.length > 0 ? groups : undefined}
@@ -104,6 +110,14 @@ export function SignalTablePresentation({
         state={projection.visibleRecords.length === 0 ? 'empty' : 'ready'}
         emptyLabel={t('signals.table.empty')}
         caption={t('signals.table.caption')}
+        sort={{
+          key: query.sort,
+          dir: query.direction === 'ascending' ? 'asc' : 'desc',
+        }}
+        onSortChange={(next) => {
+          if (next.key !== 'occurredAt' && next.key !== 'attention') return
+          actions.onSort?.(next.key, next.dir === 'asc' ? 'ascending' : 'descending')
+        }}
         rowClassName={(signal) =>
           [signal.retracted_at ? 'signal-table-row--retracted' : undefined]
             .filter(Boolean)

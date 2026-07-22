@@ -1,4 +1,4 @@
-// TaskRow — one dense 50px record row (PR-2). Extracted verbatim from
+// TaskRow — one shared E7-measure record row (PR-2). Extracted verbatim from
 // TasksWorkspace.renderRow, then given a hover-revealed leading RowCheckbox
 // (AC-T02/T07) + trailing RowMenu ⋯ (AC-T02). The name cell is a real
 // <a href="/work/tasks/:id"> Chip-link (AC-T03); status is a soft StatusPill that

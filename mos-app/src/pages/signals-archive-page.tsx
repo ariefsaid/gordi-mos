@@ -77,6 +77,7 @@ export function SignalsArchivePage() {
   const actions: SignalCollectionActions = {
     onCategorize: (signalId, category) => { void handleCategorize(signalId, category) },
     onShareClick: openSignalComposer,
+    onSort: (sort, direction) => setQuery({ sort, direction }),
   }
 
   // The list-search query minus ?record= — shared by the canonical-page redirect and the

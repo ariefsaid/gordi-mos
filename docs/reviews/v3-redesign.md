@@ -957,3 +957,27 @@ host and the correct Deputy regime remain mounted at desktop and phone widths. T
 bounded coexistence seam: Deputy still owns a separate physical panel and does not yet participate in
 the host's Back/stack/promotion transaction. Full shared-host migration plus rendered 1280/1024/390
 geometry remain **NO-SHIP** gates. No Supabase, dev server, push, merge, or deploy was used.
+
+## Tasks/Signals collection-table convergence — 2026-07-22 (local, unpushed)
+
+The prior current-tip critic correctly found that sharing the engine, toolbar, and outer card did not
+make the two live tables one visual/interaction family. This bounded slice closes the concrete table
+seam without flattening the domains into one schema:
+
+- Tasks and Signals now opt into one explicit `record-collection-table` class. The shared skin owns
+  full-width fixed layout, 14px table typography, 38px headers, 52px rows, 12px cell padding, and one
+  divider. Task-specific decision columns and Signal-specific archive columns remain distinct.
+- Signal columns use stable proportions so Message stays primary and the table occupies the full
+  collection width instead of reading as a short-content island. Long messages remain one-line,
+  accessibly named open buttons with visual ellipsis.
+- Signal Occurred and Attention headers are native sort buttons with `aria-sort`. They update the same
+  URL-owned typed collection query used by the toolbar; the page-level goal test proves both the
+  `dir=ascending` URL state and the resulting visible row order. Tasks retains its existing native
+  header-sort contract.
+
+Focused evidence: the Signals table/page, Tasks workspace/row, shared RecordCollection, and DataTable
+suites pass **151/151**; typecheck, changed-file ESLint, and Stylelint pass. This is source/test closure
+only. No server or Supabase was started, so computed-style/rendered parity at 1280/1024/390 and the
+owner's final “one app” judgment remain open. Feed/Card presentation anatomy, cross-surface
+filter/group/saved-view/open/Back/focus driving, Inbox collection adoption, and Deputy physical-host
+migration remain separate gates. No push, merge, or deploy was performed.

@@ -16,6 +16,9 @@
    page-level object is the same E7 card: border, radius, resting lift, and
    overflow. This is the visual counterpart to the shared engine/toolbar. */
 .record-collection-view {
+  /* E7's collection rhythm is 52px. Keep the older generic list token scoped out of
+     unrelated legacy tables while every RecordCollection presentation shares this value. */
+  --row-min-h: 52px;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -24,17 +27,32 @@
   box-shadow: var(--shadow-rest);
 }
 
-.record-collection-view--table .dt-table {
+.record-collection-table {
+  width: 100%;
+  table-layout: fixed;
   font-size: 14px;
 }
 
-/* Collection tables share the Task decision-table header measure. Signals keeps its
-   domain columns, but its E7 table chrome must not introduce a shorter, rival header
-   rhythm (OD-REDESIGN-72/79). */
-.record-collection-view--table .dt-table thead th {
+/* One live collection-table skin. Tasks keeps its decision columns and Signals keeps its
+   archive columns, while both consume the same header/body measure, typography, padding,
+   and divider. The shared class is applied by both renderers rather than inferred from a
+   page-specific descendant selector (OD-REDESIGN-72/79). */
+.record-collection-view .record-collection-table thead th {
   height: 38px;
   padding: 0 12px;
   line-height: 1.3;
+}
+
+.record-collection-view .record-collection-table tbody tr:not(.dt-group-row) {
+  height: var(--row-min-h);
+}
+
+.record-collection-view .record-collection-table tbody td {
+  height: var(--row-min-h);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--row-divider);
+  line-height: 1.4;
+  vertical-align: middle;
 }
 
 .record-collection-readonly {

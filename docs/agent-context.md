@@ -513,3 +513,10 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
   phone keeps the allowed modal-above-record behavior. Two OD-REDESIGN-80 goal tests prove both record
   and Deputy remain mounted. This does **not** complete physical `RecordPanelHost`/stack migration, and
   no rendered 1280/1024/390 geometry has been claimed.
+- **Tasks/Signals table convergence (local):** both live table renderers now consume the same explicit
+  `record-collection-table` skin (full-width fixed layout · 14px body type · 38px header · 52px row ·
+  shared padding/divider). Signals keeps its own Message/Author/Team/Occurred/Attention/Category
+  anatomy, with stable column proportions, and its Occurred/Attention headers now use the same native
+  keyboard-sort/`aria-sort` contract as Tasks while updating the URL-owned query. Focused source/goal
+  evidence is recorded in `docs/reviews/v3-redesign.md`; no current render or owner three-width verdict
+  is implied.

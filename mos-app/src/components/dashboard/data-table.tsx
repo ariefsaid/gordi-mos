@@ -50,6 +50,8 @@ export interface DataTableGroup<Row> {
 export interface DataTableProps<Row> {
   columns: DataTableColumn<Row>[]
   rows: Row[]
+  /** Optional shared-surface class for consumers that converge on a collection table skin. */
+  tableClassName?: string
   /** grouped mode (OD-P3-6 group-header row). When provided, `groups` wins over `rows`. */
   groups?: DataTableGroup<Row>[]
   /** Controlled grouped-collapse state for collection engines that persist it across views. */
@@ -86,6 +88,7 @@ function rowKey<Row>(row: Row, fallback: number): string | number {
 export function DataTable<Row extends object>({
   columns,
   rows,
+  tableClassName,
   groups,
   collapsedGroupKeys,
   onToggleGroup: onToggleGroupProp,
@@ -136,6 +139,7 @@ export function DataTable<Row extends object>({
         <DesktopTable
           columns={columns}
           rows={rows}
+          tableClassName={tableClassName}
           groups={groups}
           rowClassName={rowClassName}
           sort={sort}
@@ -166,6 +170,7 @@ export function DataTable<Row extends object>({
 interface DesktopTableProps<Row> {
   columns: DataTableColumn<Row>[]
   rows: Row[]
+  tableClassName?: string
   groups?: DataTableGroup<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
@@ -249,6 +254,7 @@ function GroupHeaderRow<Row>({
 function DesktopTable<Row>({
   columns,
   rows,
+  tableClassName,
   groups,
   rowClassName,
   sort,
@@ -261,7 +267,7 @@ function DesktopTable<Row>({
   onToggleGroup,
 }: DesktopTableProps<Row>) {
   return (
-    <table className="dt-table" aria-label={caption}>
+    <table className={`dt-table${tableClassName ? ` ${tableClassName}` : ''}`} aria-label={caption}>
       <caption className="dt-caption">{caption}</caption>
       <thead>
         <tr>

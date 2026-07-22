@@ -228,14 +228,13 @@
    (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
 .sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--primary); }
 .td-main, .td-cell {
-  height: 50px; line-height: 1.4; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; /* OD-P3-6: dense DB-view row (not the 54px default); line-height pins the box so a short single-line cell can't collapse the 50px below ~38px (capstone regression). */
+  height: var(--row-min-h); line-height: 1.4; padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; /* RecordCollection scopes the E7 table row to 52px; line-height pins the box so a short single-line cell cannot collapse the shared measure. */
 }
 /* Due/Activity: LEFT-aligned like every other column (uniform grid), but never wrap. */
 .td-nowrap { white-space: nowrap; }
-/* OD-P3-6 robust pin: also set the height on the ROW. `height` on a <td> is only a
-   minimum and the live capstone review measured ~38.5px; pinning the <tr> (higher
-   specificity context for the cells) holds the dense 50px regardless of cell content. */
-.task-row { cursor: pointer; height: 50px; }
+/* Robust pin: also set the shared height on the ROW. `height` on a <td> is only a
+   minimum; pinning the <tr> keeps the E7 measure stable regardless of cell content. */
+.task-row { cursor: pointer; height: var(--row-min-h); }
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
 .task-row.row-selected td { background: var(--secondary); } /* CONV: neutral-grey selected/open row — de-blued (owner pref + One-Blue Rule) */
@@ -334,13 +333,13 @@ tr:focus-within .row-menu { visibility: visible; }
 .act { color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
 
 /* ── Loading skeleton ── */
-.sk-cell { height: 50px; padding: 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); vertical-align: middle; }
+.sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
 .sk { background: var(--secondary); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: 999px; display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: 999px; display: block; }
 /* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
 .skeleton-cards { padding: 8px 12px; }
-.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: 50px; border-bottom: 1px solid color-mix(in srgb, var(--border-medium) 70%, transparent); }
+.sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: var(--row-min-h); border-bottom: 1px solid var(--row-divider); }
 
 /* ── Error / Empty (IXD-5, PR-2) ── */
 /* The Tasks error + empty states use the shared <ErrorState> / <EmptyState>

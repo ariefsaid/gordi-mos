@@ -14,6 +14,11 @@ export interface SignalCollectionActions {
   onCategorize?: (signalId: string, category: SignalCategory) => void
   /** Open the shared Signal composer host. */
   onShareClick?: () => void
+  /** Apply the table's native column-header sort through the collection query owner. */
+  onSort?: (
+    sort: 'occurredAt' | 'attention',
+    direction: 'ascending' | 'descending',
+  ) => void
 }
 
 const SignalCollectionActionsContext = createContext<SignalCollectionActions>({})

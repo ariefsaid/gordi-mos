@@ -1092,6 +1092,7 @@ describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted �
     await waitFor(() => screen.getByText('Overline task'))
     const th = screen.getByRole('columnheader', { name: /Task/ })
     expect(th.className).toContain('th-cell')
+    expect(th.closest('table')).toHaveClass('record-collection-table')
   })
 
   it('WCAG 2.1.1 (convention audit 2026-07-18): sort headers are real buttons, keyboard-operable', async () => {
@@ -1122,7 +1123,7 @@ describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted �
 })
 
 // ── PR-2 AC-T03..T07 wiring — the kit row craft (name Chip-link, status nowrap,
-//    50px rows, hover-revealed checkbox + ⋯, select-all aria-checked="mixed").
+//    shared E7-measure rows, hover-revealed checkbox + ⋯, select-all aria-checked="mixed").
 //    Goal-oracle: the populated row carries the same 8-col anatomy the loading
 //    skeleton already renders, the name is a real <a> with hover-bg + title, and
 //    status never wraps. The app conforms to these; do not weaken them.
@@ -1169,10 +1170,10 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
     expect(statusCell!.className).toContain('td-nowrap')
   })
 
-  it('AC-T06: body row is 50px tall (OD-P3-6 dense DB-view)', () => {
-    // The row height is owned by .td-main/.td-cell (height:50px). Assert the rule.
+  it('AC-T06: body rows consume the one RecordCollection row measure', () => {
+    // The surface-scoped RecordCollection skin resolves this token to E7's 52px measure.
     const body = cssRuleBody('.td-main, .td-cell')
-    expect(body).toMatch(/height:\s*50px/)
+    expect(body).toMatch(/height:\s*var\(--row-min-h\)/)
   })
 
   it('AC-T07: thead has a select-all checkbox exposing aria-checked="mixed" when partial', async () => {

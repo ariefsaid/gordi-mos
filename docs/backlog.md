@@ -76,9 +76,13 @@ Current blockers and required proof:
   retain/discard and the goal test drives the real overlay close path (FR-V3-009 / AC-V3-008). Fresh
   browser Back/three-width evidence remains open, and the direct route's browser blocker is still a
   separate seam.
-- **P1 collection grammar:** Tasks and Signals still use different live table implementations and
-  CSS families. Shared engine/toolbar/outer wrapper is only partial convergence. Measure computed
-  styles and drive sort/filter/group/saved-view/open/Back at 1280, 1024, and 390px.
+- **P1 collection grammar (bounded source/test seam implemented locally):** Tasks and Signals keep
+  their domain renderers, but both live tables now opt into one `record-collection-table` skin:
+  full-width fixed layout, 14px table type, 38px headers, 52px rows, one padding/divider rhythm.
+  Signal Occurred/Attention headers now use the same native keyboard-sort + `aria-sort` contract as
+  Tasks and update the shareable collection query. Remaining gate: rendered computed-style proof and
+  driven filter/group/saved-view/open/Back/focus comparison at 1280, 1024, and 390px; Feed/Card anatomy
+  may remain domain-specific but must read as one collection family.
 - **P1 host/IA:** Inbox remains a bespoke triage surface outside `RecordCollectionSurface`; its
   All/Unread-only local controls and absent seeded Bell → queue → record → Back proof are open.
   Handled semantics remain owner/data-gated, not an invented defect.

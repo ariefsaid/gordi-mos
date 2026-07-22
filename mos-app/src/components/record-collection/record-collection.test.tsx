@@ -263,8 +263,10 @@ describe('NFR-V3-006: selection chrome meets the 44px keyboard target', () => {
 describe('OD-REDESIGN-72/79: collection table chrome stays shared', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/components/record-collection/record-collection.css'), 'utf8')
 
-  it('gives typed table presentations the same 38px E7 header measure as Tasks', () => {
-    expect(css).toMatch(/\.record-collection-view--table \.dt-table thead th[\s\S]*?height:\s*38px/)
-    expect(css).toMatch(/\.record-collection-view--table \.dt-table thead th[\s\S]*?padding:\s*0 12px/)
+  it('gives every opted-in collection table one 14px / 38px / 52px E7 rhythm', () => {
+    expect(css).toMatch(/\.record-collection-view\s*\{[\s\S]*?--row-min-h:\s*52px/)
+    expect(css).toMatch(/\.record-collection-table\s*\{[\s\S]*?font-size:\s*14px/)
+    expect(css).toMatch(/\.record-collection-view \.record-collection-table thead th[\s\S]*?height:\s*38px/)
+    expect(css).toMatch(/\.record-collection-view \.record-collection-table tbody td[\s\S]*?height:\s*var\(--row-min-h\)/)
   })
 })

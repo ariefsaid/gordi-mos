@@ -2,8 +2,31 @@
    rules only skin the Signal-specific cells: the message link, the retracted tombstone, the attention
    pill, and the retracted row state. E7 tokens only. */
 
+/* Domain-specific anatomy inside the shared full-width collection table. Fixed layout prevents a
+   short archive from collapsing into a 60%-wide visual island; these proportions keep the message
+   primary while leaving stable scanning columns for provenance and attention. */
+.signal-collection-table th:nth-child(1),
+.signal-collection-table td:nth-child(1) { width: 30%; }
+.signal-collection-table th:nth-child(2),
+.signal-collection-table td:nth-child(2) { width: 13%; }
+.signal-collection-table th:nth-child(3),
+.signal-collection-table td:nth-child(3) { width: 15%; }
+.signal-collection-table th:nth-child(4),
+.signal-collection-table td:nth-child(4) { width: 18%; }
+.signal-collection-table th:nth-child(5),
+.signal-collection-table td:nth-child(5) { width: 12%; }
+.signal-collection-table th:nth-child(6),
+.signal-collection-table td:nth-child(6) { width: 12%; }
+.signal-collection-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .signal-table-message {
-  display: inline;
+  display: block;
+  width: 100%;
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: transparent;
@@ -12,6 +35,8 @@
   font-weight: 500;
   text-align: left;
   text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 .signal-table-message:hover {

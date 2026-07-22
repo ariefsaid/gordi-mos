@@ -118,6 +118,23 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
   })
 
+  it('AC-V3-014: column-header sorting updates the same shareable query and visible row order', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 'signal-old', body: 'Older signal', occurred_at: '2026-07-16T02:00:00Z' }),
+      row({ id: 'signal-new', body: 'Newer signal', occurred_at: '2026-07-16T04:00:00Z' }),
+    ])
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Newer signal')).toBeInTheDocument())
+
+    const visibleMessages = () => Array.from(document.querySelectorAll('.signal-table-message'))
+      .map((element) => element.textContent)
+    expect(visibleMessages()).toEqual(['Newer signal', 'Older signal'])
+
+    await userEvent.click(screen.getByRole('button', { name: /^occurred$/i }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('dir=ascending'))
+    expect(visibleMessages()).toEqual(['Older signal', 'Newer signal'])
+  })
+
   it('lists readable Signals with author · Team · attention', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())

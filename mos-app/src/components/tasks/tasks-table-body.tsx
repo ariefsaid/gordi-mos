@@ -133,7 +133,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
       <div aria-busy="true" aria-label={t('tasks.loading')}>
         <span className="sr-only" role="status">{t('tasks.loading')}</span>
         {isDesktop ? (
-          <table className="tasks-table" aria-label={t('tasks.loading')}>
+          <table className="tasks-table record-collection-table" aria-label={t('tasks.loading')}>
             <tbody>
               <SkeletonRow /><SkeletonRow />
               <SkeletonRow /><SkeletonRow />
@@ -201,7 +201,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
       {captionEl}
-      <table className="tasks-table" aria-label={t('tasks.title')}>
+      <table className="tasks-table record-collection-table" aria-label={t('tasks.title')}>
         <thead>
           <tr>
             {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}

@@ -6,6 +6,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import { SignalTablePresentation } from './signal-table-presentation'
+import { SignalCollectionActionsProvider, type SignalCollectionActions } from './signal-collection-actions'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
 import { SIGNAL_COLLECTION_NEUTRAL_QUERY } from './signal-collection-adapter'
 
@@ -34,6 +35,7 @@ function renderTable(
   selectedIds = new Set<string>(),
   onToggleSelected = vi.fn(),
   onOpenRecord = vi.fn(),
+  actions: SignalCollectionActions = {},
 ) {
   const projection: CollectionProjection<SignalRow, SignalRenderGroup> = {
     visibleRecords: rows,
@@ -60,7 +62,9 @@ function renderTable(
   const utils = render(
     <I18nProvider>
       <MemoryRouter initialEntries={['/work/signals']}>
-        <SignalTablePresentation {...props} />
+        <SignalCollectionActionsProvider actions={actions}>
+          <SignalTablePresentation {...props} />
+        </SignalCollectionActionsProvider>
       </MemoryRouter>
     </I18nProvider>,
   )
@@ -80,6 +84,23 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(screen.queryByText(/^PIC$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/supervisor/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /status/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('table')).toHaveClass('record-collection-table')
+  })
+
+  it('AC-V3-014: Signal table headers use the same native keyboard-sort contract as Tasks', async () => {
+    const onSort = vi.fn()
+    renderTable([row()], new Set(), vi.fn(), vi.fn(), { onSort })
+
+    const occurredAt = screen.getByRole('button', { name: /^occurred$/i })
+    expect(occurredAt.tagName).toBe('BUTTON')
+    expect(occurredAt.closest('th')).toHaveAttribute('aria-sort', 'descending')
+    await userEvent.click(occurredAt)
+    expect(onSort).toHaveBeenCalledWith('occurredAt', 'ascending')
+
+    const attention = screen.getByRole('button', { name: /^attention$/i })
+    expect(attention.closest('th')).toHaveAttribute('aria-sort', 'none')
+    await userEvent.click(attention)
+    expect(onSort).toHaveBeenCalledWith('attention', 'ascending')
   })
 
   it('NFR-V3-001: a retracted Signal is an explicit tombstone (message + reason), not a link', () => {

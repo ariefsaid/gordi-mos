@@ -349,7 +349,8 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const rowVirtualizer = useVirtualizer({
     count: virtualize ? flatRows.length : 0,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 50,
+    // The shared collection-table skin owns the 52px E7 row measure for Tasks and Signals.
+    estimateSize: () => 52,
     overscan: 8,
     initialRect: { width: 0, height: 600 },
   })

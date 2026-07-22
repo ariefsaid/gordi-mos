@@ -1,7 +1,7 @@
 // TaskRow — PR-2 AC-T03/T04/T05/T06. Extracted from TasksWorkspace.renderRow;
 // adds the hover-revealed leading checkbox (RowCheckbox) + trailing ⋯ menu
 // (RowMenu). The name cell is a real <a href="/work/tasks/:id"> Chip-link; status is
-// a soft StatusPill that never wraps; body rows are 50px (OD-P3-6).
+// a soft StatusPill that never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -107,12 +107,12 @@ describe('TaskRow — AC-T05 status is a soft pill (dot+text never color-alone) 
   })
 })
 
-describe('TaskRow — AC-T06 body row is 50px (OD-P3-6 dense DB-view)', () => {
-  it('AC-T06: the row renders td-cell cells whose CSS rule sets height: 50px', () => {
+describe('TaskRow — AC-T06 body row uses the shared RecordCollection measure', () => {
+  it('AC-T06: the row renders td-cell cells whose CSS rule consumes --row-min-h', () => {
     renderRow()
     expect(document.querySelector('tr.task-row td.td-cell, tr.task-row td.td-main')).toBeTruthy()
     const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-    expect(css).toMatch(/\.td-main,\s*\.td-cell\s*\{[^}]*height:\s*50px/)
+    expect(css).toMatch(/\.td-main,\s*\.td-cell\s*\{[^}]*height:\s*var\(--row-min-h\)/)
   })
 })
 
