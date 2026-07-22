@@ -83,9 +83,12 @@ Current blockers and required proof:
   Tasks and update the shareable collection query. Remaining gate: rendered computed-style proof and
   driven filter/group/saved-view/open/Back/focus comparison at 1280, 1024, and 390px; Feed/Card anatomy
   may remain domain-specific but must read as one collection family.
-- **P1 host/IA:** Inbox remains a bespoke triage surface outside `RecordCollectionSurface`; its
-  All/Unread-only local controls and absent seeded Bell → queue → record → Back proof are open.
-  Handled semantics remain owner/data-gated, not an invented defect.
+- **P1 host/IA (source seam largely closed):** Inbox page and Bell quick-triage now share the same
+  `InboxTriageConnected` surface and shared host; Bell → queue → record → Back is covered by connected
+  and host tests. Inbox intentionally remains a notification-specific list rather than a generic
+  `RecordCollectionSurface`, and its All/Unread-only state is owner/data-gated until Handled is
+  ratified. Remaining proof is seeded live notification data plus rendered three-width behavior—not
+  another host rewrite.
 - **P1 host grammar (bounded coexistence seam implemented locally):** Deputy still has a separate
   physical panel/stack, so full `RecordPanelHost` migration remains open. It now consumes the live
   overlay session: an open record contracts desktop Deputy into a compact adjacent surface that cannot

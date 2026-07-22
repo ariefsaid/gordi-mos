@@ -980,8 +980,9 @@ suites pass **151/151**; typecheck, changed-file ESLint, and Stylelint pass. Ref
 **58 routes / 13 shared jobs / 74 CSS families**. This is source/test closure only. No server or
 Supabase was started, so computed-style/rendered parity at 1280/1024/390 and the
 owner's final “one app” judgment remain open. Feed/Card presentation anatomy, cross-surface
-filter/group/saved-view/open/Back/focus driving, Inbox collection adoption, and Deputy physical-host
-migration remain separate gates. No push, merge, or deploy was performed.
+filter/group/saved-view/open/Back/focus driving, Inbox seeded live-data/Handled semantics, and Deputy
+physical-host migration remain separate gates. Inbox’s shared triage/host source seam is not an open
+rewrite. No push, merge, or deploy was performed.
 
 ## Café noun + residual E7 token polish — 2026-07-22 (local, unpushed)
 

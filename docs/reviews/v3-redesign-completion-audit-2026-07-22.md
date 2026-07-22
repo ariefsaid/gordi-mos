@@ -348,6 +348,15 @@ three-width acceptance are still open. The Deputy preference is recorded provisi
 wide adjacent/compact where possible, phone compact-on-top acceptable, never a covering second desktop
 drawer. No Supabase or broad render run was performed.
 
+## Inbox wording reconciliation — 2026-07-22 (local, unpushed)
+
+The older critic baseline described Inbox as a bespoke host/collection with an absent Bell journey.
+Current source/tests supersede that phrasing: `/inbox` and the Bell quick door both render
+`InboxTriageConnected`; the Bell path opens a shared-host root, pushes a notification record, and Back
+returns to the same queue. The remaining Inbox gate is seeded live notification data plus the
+owner/data-gated Handled decision and fresh three-width rendering. Inbox remains intentionally
+notification-specific rather than being forced into the generic Task/Signal collection schema.
+
 ## Collection-table follow-up — 2026-07-22 (local, unpushed)
 
 The earlier table-grammar contradiction was measured against the `a7eef31` baseline and is now closed
