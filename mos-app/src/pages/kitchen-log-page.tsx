@@ -336,7 +336,11 @@ export function KitchenLogPage() {
       <PageFamilyFrame family="workspace" title="Café · Log" jobSentence={t('job.cafe')} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
+          {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
+              fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
+              all done" instead of "nothing CAN be logged until items exist". */}
           <EmptyState
+            variant="blank"
             title="No active WIP items"
             copy="Ask an ops lead to add items."
           />

@@ -71,6 +71,20 @@ beforeEach(() => {
   mockGetPeople.mockResolvedValue([])
 })
 
+// Half B convergence: the fetch-in-flight state uses the shared LoadingShell (role=status +
+// aria-busy), never a bare SkeletonRows with no busy announcement.
+describe('Loading state (Half B — shared LoadingShell, not a bare skeleton)', () => {
+  it('announces role=status aria-busy while the opening fetch is in flight', () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockReturnValue(new Promise(() => {})) // never resolves
+
+    renderPanel()
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
+  })
+})
+
 // ── AC-712: capable viewer, not started → Start today's opening ─────────────
 describe('AC-712 — capable viewer, opening not started', () => {
   it('renders a control whose accessible name is exactly "Start today\'s opening" and it calls startTodayOpening on click', async () => {

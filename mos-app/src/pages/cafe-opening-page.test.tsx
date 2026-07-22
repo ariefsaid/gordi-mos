@@ -193,5 +193,24 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
       expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     })
     expect(mockListStartableCafeTeams).not.toHaveBeenCalled()
+    // Half B convergence: missing configuration is never the 'quiet' ✓ earned-all-clear glyph —
+    // it reads as "you're done" when actually an admin still needs to set this up. 'blank' (—)
+    // is the honest "no source configured" variant.
+    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
+  })
+
+  it("Half B convergence: renders the 'blank' (never 'quiet' ✓) EmptyState when the viewer has no café branch Team", async () => {
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    mockListStartableCafeTeams.mockResolvedValue([])
+    mockListAuthorTeams.mockResolvedValue([])
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
   })
 })

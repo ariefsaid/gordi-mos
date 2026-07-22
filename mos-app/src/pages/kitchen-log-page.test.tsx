@@ -179,6 +179,18 @@ describe('Empty state — no WIP items (FR-011)', () => {
       expect(screen.getByText(/no active wip items/i)).toBeInTheDocument()
     })
   })
+
+  // Half B convergence: missing WIP-item configuration is never the 'quiet' ✓ earned-all-clear
+  // glyph — it reads as "nothing to log, all done" when it actually means "nothing CAN be
+  // logged until an ops lead adds items". 'blank' (—) is the honest "no source configured" read.
+  it("Half B convergence: uses the 'blank' (never 'quiet' ✓) EmptyState variant", async () => {
+    mockListActiveWipItems.mockResolvedValue([])
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
+    })
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
+  })
 })
 
 // ── error state ───────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import './inbox.css'
 import { useT } from '@/i18n/use-t'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import {
   INBOX_FILTERS,
   isHandled,
@@ -89,9 +89,7 @@ export function InboxTriage({
       </div>
 
       {state === 'loading' ? (
-        <div role="status" aria-label={t('inbox.title')} aria-busy="true">
-          <SkeletonRows count={4} />
-        </div>
+        <LoadingShell count={4} label={t('inbox.title')} />
       ) : state === 'error' ? (
         <ErrorState
           message={t('inbox.errorTitle')}

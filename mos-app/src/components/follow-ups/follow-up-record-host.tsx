@@ -6,7 +6,7 @@
 // page / modal regime) is owned by the host slot, never here.
 import { useCallback, useEffect, useState } from 'react'
 import { useT } from '@/i18n/use-t'
-import { ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordViewer } from '@/components/records/record-viewer'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
 import {
@@ -56,11 +56,7 @@ export function FollowUpRecordHost({ followUpId, mode = 'panel' }: FollowUpRecor
   useEffect(() => load(), [load])
 
   if (state === 'loading') {
-    return (
-      <div role="status" aria-label={t('followUps.loading')} aria-busy="true">
-        <SkeletonRows count={4} />
-      </div>
-    )
+    return <LoadingShell count={4} label={t('followUps.loading')} />
   }
   if (state === 'not-found') {
     return <ErrorState message={t('followUps.notFound')} onRetry={load} />

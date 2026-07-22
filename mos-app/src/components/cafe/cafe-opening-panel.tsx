@@ -4,7 +4,7 @@ import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { getTodayOpeningForTeam, startTodayOpening } from '@/lib/db/cafe-opening'
 import { listPendingTasks } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
@@ -96,7 +96,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
     load() // refresh the roll-up + surface the newly-materialized Task
   }
 
-  if (state === 'loading') return <SkeletonRows count={2} />
+  if (state === 'loading') return <LoadingShell count={2} />
   if (state === 'error') return <ErrorState message={t('tasks.error.load')} onRetry={load} />
 
   if (!started) {
@@ -145,7 +145,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
 
       {canStart && rollup.pending_unresolved > 0 && (
         <div className="cafe-opening-pending">
-          {pendingLoading && <SkeletonRows count={1} />}
+          {pendingLoading && <LoadingShell count={1} />}
           {!pendingLoading && pending.map((p) => (
             <PendingResolution
               key={p.id}

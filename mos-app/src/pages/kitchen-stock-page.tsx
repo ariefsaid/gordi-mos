@@ -143,7 +143,10 @@ export function KitchenStockPage() {
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
+        // 'awaiting' — stock derives from approved Café activity that will land as the day
+        // progresses (matches kitchen-review/pushes' awaiting pattern), never 'quiet' ✓.
         <EmptyState
+          variant="awaiting"
           title="No stock to show"
           copy={`No approved Café activity for ${asOf} yet.`}
         />

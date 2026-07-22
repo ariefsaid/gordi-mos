@@ -10,7 +10,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 import { isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { formatIDR } from '@/lib/format/money'
@@ -170,7 +170,7 @@ export function FollowUpQueueTable({
 
   return (
     <>
-      {state === 'loading' && <SkeletonRows count={5} />}
+      {state === 'loading' && <LoadingShell count={5} label={t('followUps.loading')} />}
       {state === 'error' && (
         <ErrorState message={error ?? t('followUps.error')} onRetry={() => { load() }} />
       )}

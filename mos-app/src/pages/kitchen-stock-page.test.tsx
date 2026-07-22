@@ -105,6 +105,17 @@ describe('KitchenStockPage — states', () => {
     expect(await screen.findByText(/no .*stock|nothing/i)).toBeInTheDocument()
   })
 
+  // Half B convergence: stock derives from approved activity that will land as the day
+  // progresses — 'awaiting' (↻), never 'quiet' (✓ earned-all-clear, which would misread "no
+  // approved activity yet" as an achievement).
+  it("Half B convergence: uses the 'awaiting' (never 'quiet' ✓) EmptyState variant", async () => {
+    mockFetch.mockResolvedValue([])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText(/no .*stock|nothing/i)
+    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
+  })
+
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockFetch.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })

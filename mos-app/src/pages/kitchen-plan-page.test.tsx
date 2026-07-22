@@ -199,6 +199,17 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })
 
+  // Half B convergence: no WIP items configured is never the 'quiet' ✓ earned-all-clear glyph —
+  // it reads as "nothing to plan, all done" when it actually means "nothing CAN be planned
+  // until an admin adds items". 'blank' (—) is the honest "no source configured" read.
+  it("Half B convergence: no WIP items uses the 'blank' (never 'quiet' ✓) EmptyState variant", async () => {
+    mockItems.mockResolvedValue([])
+    render(<KitchenPlanPage />)
+    await screen.findByText(/no active wip items/i)
+    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
+  })
+
   it('offline: edits blocked + a banner (online-only writes, NFR-008)', async () => {
     const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
     render(<KitchenPlanPage />)
@@ -392,6 +403,17 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue([])
     render(<KitchenPlanPage />)
     expect(await screen.findByText(/nothing planned/i)).toBeInTheDocument()
+  })
+
+  // Half B convergence: the forward horizon source exists and will fill as the lead plans
+  // ahead — 'awaiting' (↻), never 'quiet' (✓ earned-all-clear, which would misread "nothing
+  // planned yet" as an achievement).
+  it("Half B convergence: uses the 'awaiting' (never 'quiet' ✓) EmptyState variant", async () => {
+    mockPesanan.mockResolvedValue([])
+    render(<KitchenPlanPage />)
+    await screen.findByText(/nothing planned/i)
+    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'awaiting')
+    expect(screen.queryByText('✓')).not.toBeInTheDocument()
   })
 
   it('member rows are grouped by date with the planned qty shown', async () => {

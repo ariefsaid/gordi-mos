@@ -291,7 +291,11 @@ function PlanEditor() {
       )}
 
       {load.kind === 'ready' && items.length === 0 && (
+        // 'blank' — no WIP items are configured yet (an admin task), not a data source that
+        // will fill on its own; never the 'quiet' ✓ (that would misread as "nothing to plan,
+        // all done" instead of "nothing CAN be planned until items exist").
         <EmptyState
+          variant="blank"
           title="No active WIP items"
           copy="Ask an admin to add café items first."
         />
@@ -401,7 +405,11 @@ function PesananView() {
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
+        // 'awaiting' — the plan source exists and will fill as the lead plans ahead (matches
+        // the sibling "Nothing to review" / "No pushes yet" awaiting pattern on kitchen-review
+        // / kitchen-pushes), never the 'quiet' ✓ earned-all-clear.
         <EmptyState
+          variant="awaiting"
           title="Nothing planned"
           copy={`No planned items in the next ${PESANAN_HORIZON_DAYS} days yet.`}
         />

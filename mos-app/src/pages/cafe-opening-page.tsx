@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
 import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib/db/cafe-opening'
 import { listAuthorTeams } from '@/lib/db/signals'
@@ -106,13 +106,15 @@ export function CafeOpeningPage() {
       meta={wibToday()}
       state={frameState}
     >
-      {state === 'loading' && <SkeletonRows count={2} />}
+      {state === 'loading' && <LoadingShell count={2} />}
       {state === 'error' && <ErrorState message={t('tasks.error.load')} onRetry={load} />}
       {state === 'no-process' && (
-        <EmptyState variant="quiet" title={t('cafe.opening.noProcess')} />
+        // 'blank' (never 'quiet' — no config exists yet, so the ✓ earned-all-clear glyph would
+        // misread as "you're done" instead of "an admin still needs to set this up").
+        <EmptyState variant="blank" title={t('cafe.opening.noProcess')} />
       )}
       {state === 'no-team' && (
-        <EmptyState variant="quiet" title={t('cafe.opening.noTeam')} />
+        <EmptyState variant="blank" title={t('cafe.opening.noTeam')} />
       )}
       {state === 'choice' && (
         <section className="cafe-team-choice" aria-label={t('cafe.opening.chooseTeam')}>

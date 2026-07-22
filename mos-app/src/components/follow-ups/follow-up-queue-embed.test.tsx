@@ -94,4 +94,13 @@ describe('FollowUpQueueEmbed', () => {
       'href', '/work/follow-ups/fu-1',
     )
   })
+
+  // Half B convergence: the shared LoadingShell (role=status + aria-busy), never a bare
+  // SkeletonRows with no busy announcement.
+  it('announces role=status aria-busy while the queue loads', async () => {
+    mockListFollowUps.mockReturnValue(new Promise(() => {})) // never resolves
+    renderEmbed()
+    const status = await screen.findByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
+  })
 })
