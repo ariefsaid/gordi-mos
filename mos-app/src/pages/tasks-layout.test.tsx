@@ -44,6 +44,8 @@ import { TasksLayout } from './tasks-layout'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { __resetExpandPrefForTests } from '@/components/tasks/use-expand-pref'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
+import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
@@ -140,28 +142,43 @@ function renderAt(path: string) {
   )
 }
 
+// F3: a fake Deputy runtime so the record-scoped Ask Deputy affordance actually renders
+// (AskDeputyAction renders nothing with the default null-runtime context — see
+// ask-deputy-action.tsx). Mirrors ask-deputy-action.test.tsx's makeFakeRuntime.
+function makeFakeRuntime(): AgentRuntime {
+  return {
+    createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
+    followUp: vi.fn(async () => {}),
+    openThread: vi.fn(),
+    control: vi.fn(async () => {}),
+    subscribe: vi.fn(async function* (): AsyncGenerator<AgentEvent> {}),
+  }
+}
+
 // OD-63: a direct/new-tab/refresh (or the "Open full page" escalation) renders the
 // record as a standalone full canonical PAGE. In jsdom there's no
 // PerformanceNavigationTiming, so the boot direct-load path stays null; the
 // explicit state escalation ({ taskSurface: 'page' }) is the unit-test seam, and the
 // real-browser direct-open branch is proven by the e2e.
-function renderAtState(path: string, state: unknown) {
+function renderAtState(path: string, state: unknown, runtime: AgentRuntime | null = null) {
   // Split the query off the path: react-router does not re-parse a `pathname` that
   // already carries `?…` when the initial entry is an object, so pass search explicitly.
   const [pathname, query = ''] = path.split('?')
   const search = query ? `?${query}` : ''
   return render(
     <AuthContext.Provider value={authedState}>
-      <MemoryRouter initialEntries={[{ pathname, search, state }] as never}>
-        <OverlayHostProvider>
-          <Routes>
-            <Route path="/work/tasks" element={<TasksLayout />}>
-              <Route path="new" element={<TaskDrawer mode="create" />} />
-              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
-            </Route>
-          </Routes>
-        </OverlayHostProvider>
-      </MemoryRouter>
+      <AgentRuntimeProvider runtime={runtime}>
+        <MemoryRouter initialEntries={[{ pathname, search, state }] as never}>
+          <OverlayHostProvider>
+            <Routes>
+              <Route path="/work/tasks" element={<TasksLayout />}>
+                <Route path="new" element={<TaskDrawer mode="create" />} />
+                <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+              </Route>
+            </Routes>
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </AgentRuntimeProvider>
     </AuthContext.Provider>,
   )
 }
@@ -609,6 +626,31 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+  })
+
+  // F3 (E7 floor): the drawer and the expanded@split pseudo-full-page already carry the
+  // record-scoped Ask Deputy affordance via RecordPanelHost's chrome (task-drawer.tsx
+  // hostActions, showPanelUtility=false there). The standalone canonical page (this
+  // direct-open path) has no RecordPanelHost — TaskSurface's own internal chrome row is
+  // the only header the record has, so IT now carries the same affordance, top-right of
+  // that row (mirrors E7's `data-journey="J05"` "Ask @Deputy about this" record-header button).
+  it('F3: the standalone full-page record carries the record-scoped Ask Deputy affordance in its own chrome row', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' }, makeFakeRuntime())
+
+    await screen.findByRole('heading', { level: 2, name: 'Open me' })
+
+    // Lives in the record's own top utility row (.record-chrome), not buried in the body.
+    const chromeRow = document.querySelector('.record-chrome')
+    expect(chromeRow).toBeTruthy()
+    const askButton = within(chromeRow as HTMLElement).getByRole('button', { name: 'Ask Deputy' })
+    expect(askButton).toBeInTheDocument()
+  })
+
+  it('F3: no Ask Deputy affordance renders while the record is still loading', () => {
+    mockGetTask.mockReturnValue(new Promise(() => {}))
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' }, makeFakeRuntime())
+    expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
   })
 
   it('Focused record family: the shell shows the loading state before the title resolves', () => {

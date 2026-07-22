@@ -25,6 +25,7 @@ import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { RecordFeed } from './record-feed'
 import type { FeedTab } from './record-feed'
+import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useTabMemory } from './use-tab-memory'
 import type { TabKey } from './use-tab-memory'
 import { useT } from '@/i18n/use-t'
@@ -602,15 +603,20 @@ function ViewSurface({
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
 
-      {/* Record chrome — when promoted from the drawer (expanded@split) the host
-          passes collapse/close callbacks; carry them in a quiet utility row so the
-          expand control stays reversible (collapse back to split) and the surface
-          is never a dead end. A standalone full-page route host would pass neither
-          and render no chrome bar. (AC-R06 / IxD: post-action feedback + next step.) */}
-      {showPanelUtility && (onExpandToggle || onClose) && (
+      {/* Record chrome — when promoted from the drawer (expanded@split) the host passes
+          collapse/close callbacks; carry them in a quiet utility row so the expand control
+          stays reversible (collapse back to split) and the surface is never a dead end. A
+          standalone full-page route host (TaskRecordPage) passes neither, so this row is
+          the ONLY header the record has — it still renders, carrying the record-scoped Ask
+          Deputy affordance top-right (E7 floor F3, J05): RecordPanelHost already supplies
+          that button when showPanelUtility is false (the drawer/expanded@split host owns
+          its own chrome instead), so this internal bar only needs to fill the gap the host
+          doesn't cover. */}
+      {showPanelUtility && (
         <div className="dw-bar record-chrome">
           <span className="dw-crumb-mini">{t('tasks.fullWidth')}</span>
           <span className="dw-bar-spacer" />
+          <AskDeputyAction draft={t('assistant.askAbout.task', { title: task.title })} />
           {onExpandToggle && (
             <button
               type="button"
