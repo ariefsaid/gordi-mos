@@ -143,11 +143,20 @@ beforeEach(() => {
 
 // ── FR-231: Work-line option in the Group chip ────────────────────────────────
 
+
+// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
+// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+function ensureViewOptionsOpen() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
+
 describe('FR-231 — Work-line option in the Group chip', () => {
   it('the Group chip includes a "Work-line" option', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
     expect(options).toContain('Project/Process')
@@ -165,6 +174,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     renderTable()
     await waitFor(() => screen.getByText('Shoot Tuesday reel'))
     // Switch groupBy to 'workline'
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -188,6 +198,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     ])
     renderTable()
     await waitFor(() => screen.getByText('Orphan task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -208,6 +219,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     ])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     // Still works for status
     fireEvent.change(groupSelect, { target: { value: 'status' } })
@@ -226,6 +238,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Daily task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -240,6 +253,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Project task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -258,6 +272,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Orphan'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -272,6 +287,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Process task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -328,6 +344,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     // Wait for data
     await waitFor(() => screen.getByText('IG task'))
     // Switch to groupby=workline
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     // Filter to a single person (Maya)
@@ -350,6 +367,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     ])
     renderTable()
     await waitFor(() => screen.getByText('My IG task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -366,6 +384,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     ])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     // no personFilter set — wait for the group header to appear
@@ -382,6 +401,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Status task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'status' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })

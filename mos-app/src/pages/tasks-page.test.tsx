@@ -261,9 +261,9 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     mockListTasks.mockRejectedValue(new Error('boom'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    // toolbar filter control labels visible
-    expect(screen.getAllByText(/business unit/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/^status$/i).length).toBeGreaterThan(0)
+    // toolbar stays rendered: the labelled filter comboboxes remain reachable
+    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
   })
 })
 
@@ -545,6 +545,10 @@ describe('AC-065 — archived rows hidden by default; show-archived toggle revea
     renderPage()
     await waitFor(() => screen.getByText('Active task'))
 
+    {
+      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    }
     const toggle = screen.getByRole('checkbox', { name: /show archived/i })
     fireEvent.click(toggle)
 
@@ -798,6 +802,10 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     await switchToAll()
 
     // Toggle show archived
+    {
+      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    }
     const toggle = screen.getByRole('checkbox', { name: /show archived/i })
     fireEvent.click(toggle)
 
@@ -1151,6 +1159,10 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     await waitFor(() => {
       expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
     })
+    {
+      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    }
     expect(screen.getByLabelText(/^group$/i)).toHaveValue('occurrence')
     expect(document.body.textContent).not.toMatch(/Process Run/)
   })

@@ -174,7 +174,9 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
       'shell/mobile-drawer.tsx',
       'components/tasks/task-drawer-header.tsx',
       'components/tasks/task-surface.tsx',
-      'components/assistant/AssistantPanel.tsx',
+      // Deputy close chrome moved from AssistantPanel into the ONE shared host (3d6c39c —
+      // the shared host owns panel chrome for records AND Deputy).
+      'shell/record-panel-host.tsx',
       'components/admin/role-editor.tsx',
     ]) {
       const body = readSrc(f)
@@ -220,10 +222,11 @@ describe('CHROME-DUR: transition-duration tokens', () => {
     expect(offenders, 'these durations must reference var(--dur-*)').toEqual([])
   })
 
-  it('CHROME-DUR: the AssistantPanel slide uses the token, not a raw 180ms', () => {
+  it('CHROME-DUR: the Deputy panel declares no raw ms duration (the shared host owns its motion)', () => {
+    // The slide moved with the chrome into the shared host (3d6c39c); its CSS is covered by
+    // the blanket no-hardcoded-duration scan above. AssistantPanel itself must stay motion-free.
     const body = readSrc('components/assistant/AssistantPanel.tsx')
-    expect(body).not.toMatch(/transform 180ms/)
-    expect(body).toMatch(/var\(--dur-slow\)/)
+    expect(body).not.toMatch(/\b\d+ms\b/)
   })
 })
 

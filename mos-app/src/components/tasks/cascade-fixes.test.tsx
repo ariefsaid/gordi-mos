@@ -164,6 +164,14 @@ beforeEach(() => {
 
 // ── RI-3: Task column never 0 width + scroll container scrollable ─────────────
 
+
+// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
+// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+function ensureViewOptionsOpen() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
+
 describe('RI-3 — Task column width and scroll container', () => {
   it('RI-3: .tasks-scroll has overflow-x: auto so wide content scrolls instead of clipping', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
@@ -180,11 +188,12 @@ describe('RI-3 — Task column width and scroll container', () => {
     expect(body).not.toMatch(/overflow-x:\s*visible/)
   })
 
-  it('RI-3: .tasks-table gives the Task identity column a proportional share', () => {
+  it('RI-3: the Task identity column absorbs slack and can never be starved to 0px', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
     const css = readFileSync(cssPath, 'utf8')
-    // The table must reserve a proportional Task share. A width:auto column beside fixed
-    // secondary widths regressed to 0px in the live 1024px render.
+    // Score-gate slice (2026-07-22): Task is width:auto so titles never truncate, and the
+    // 0px regression RI-3 originally guarded (auto beside FIXED-PX secondaries) stays
+    // impossible because every secondary column is a bounded %-share summing well under 100.
     const idx = css.indexOf('.tasks-table {')
     expect(idx).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', idx)
@@ -197,8 +206,21 @@ describe('RI-3 — Task column width and scroll container', () => {
     const taskRuleOpen = css.indexOf('{', taskRuleIdx)
     const taskRuleClose = css.indexOf('}', taskRuleOpen)
     const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
-    expect(taskRule).toMatch(/width:\s*22%/)
-    expect(taskRule).not.toMatch(/width:\s*auto/)
+    expect(taskRule).toMatch(/width:\s*auto/)
+    // Secondary columns (3..6) at the base tier: all %-shares, summing < 70% so the auto
+    // Task column always keeps a readable share.
+    const shares: number[] = []
+    for (const col of [3, 4, 5, 6]) {
+      const sel = `.tasks-table th:nth-child(${col}), .tasks-table td:nth-child(${col})`
+      const colIdx = css.indexOf(sel)
+      expect(colIdx, `expected a width rule for column ${col}`).toBeGreaterThanOrEqual(0)
+      const colOpen = css.indexOf('{', colIdx)
+      const colClose = css.indexOf('}', colOpen)
+      const match = css.slice(colOpen + 1, colClose).match(/width:\s*(\d+(?:\.\d+)?)%/)
+      expect(match, `column ${col} must use a bounded %-share, not a fixed px width`).toBeTruthy()
+      shares.push(Number(match![1]))
+    }
+    expect(shares.reduce((a, b) => a + b, 0)).toBeLessThan(70)
   })
 })
 
@@ -215,6 +237,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
 
     await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
 
@@ -236,6 +259,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     ])
     renderWorkspace()
     await waitFor(() => screen.getByText('Task A'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -369,6 +393,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -394,6 +419,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -420,6 +446,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -442,6 +469,7 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
