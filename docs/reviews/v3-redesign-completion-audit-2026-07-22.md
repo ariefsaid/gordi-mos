@@ -204,7 +204,7 @@ by live collection consumers, origin/context and focus semantics are driven end-
 is explicit, Inbox/Follow-ups/Money gaps are dispositioned, and the rendered three-width owner gate plus
 fresh verification ledger are green.
 
-## Implementation follow-up — 2026-07-22 (checkpoint `08defcc`, local; not pushed)
+## Implementation follow-up — 2026-07-22 (checkpoint `fc10a8e`, includes `08defcc`; local; not pushed)
 
 The Director applied a bounded convergence slice after this audit. This is new evidence, not a replacement
 for the audit verdict:
