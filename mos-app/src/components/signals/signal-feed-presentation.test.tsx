@@ -64,7 +64,7 @@ function renderFeed(
 }
 
 describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS context', () => {
-  it('renders the Signal cards with resolved author/Team names', () => {
+  it('renders the Signal rows with resolved author/Team names', () => {
     renderFeed([row()], {})
     expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument()
     expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()

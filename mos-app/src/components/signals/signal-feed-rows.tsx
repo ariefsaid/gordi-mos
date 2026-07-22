@@ -4,13 +4,16 @@ import { formatWibDateTime } from '@/lib/wib-time'
 import { orderSignalsForFeed } from '@/lib/db/signals'
 import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
+import './signal-feed-rows.css'
 
-// SignalFeedRows — the Home ambient Signals tail (owner redirect 2026-07-22: Signals render as ROWS
-// in the same record-row grammar as the ranked stream, NOT fat cards, so Home reads as one calm
-// system). Home-only presentation (does NOT reuse the shared SignalCard, which the Signals archive
-// collection owns — de-scoped). Preserves every contract the ambient feed already had: the composer
-// action row, resolved author/Team, the "Open signal: <body>" affordance, "Add category", the empty
-// state, and Feed ordering (Urgent/Needs-attention weighted above FYI).
+// SignalFeedRows — the ONE Signal row anatomy (owner redirect 2026-07-22: Signals render as ROWS in
+// the same record-row grammar as the ranked stream, NOT fat cards, so Home reads as one calm
+// system). Shared by BOTH consumers — the Home ambient tail (SignalFeedSection) and the Signals
+// archive Feed presentation (SignalFeedPresentation) — so a Signal has exactly one visual anatomy
+// across the app, never a bordered card in one place and a row in another
+// (rule:product-ban-inconsistent-components). Preserves every contract the feed already had: the
+// composer action row, resolved author/Team, the "Open signal: <body>" affordance, "Add category",
+// the empty state, and Feed ordering (Urgent/Needs-attention weighted above FYI).
 
 export interface SignalFeedRowsProps {
   signals: SignalRow[]
