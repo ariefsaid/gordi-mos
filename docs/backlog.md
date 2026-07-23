@@ -1,5 +1,12 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
+- **Dead-code sweep after the attention-pill fold (deferred 2026-07-23):** `DueRunsTrigger`
+  (component + test + `.due-runs-trigger`/`.due-runs-chev` CSS in `due-runs.css`) went dormant
+  when the two toolbar stat pills folded into one attention pill (commit `61f6087`). Deferred
+  deliberately: the OD-84.1 toolbar disclosure rework (v3/luna-a lane) touches the same seam —
+  sweep AFTER it merges, verifying what is actually dormant then. `DueRunsList` + `useDueRuns`
+  remain live.
+
 > ## CANONICAL CURRENT STATE — 2026-07-22
 >
 > The backlog’s dated strata below are historical evidence. Current reality is the local
