@@ -262,7 +262,9 @@
   align-items: center;
   gap: 8px;
   font-size: var(--font-size-label);
-  color: var(--destructive);
+  /* I4: error TEXT at small size uses the AA-darkened red, never base --destructive
+     (3.82:1 on cream at 12px — the axe finding from the record-field stories). */
+  color: var(--field-error-text);
 }
 
 .record-field__retry {

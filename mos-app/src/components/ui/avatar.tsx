@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import './Avatar.css'
 
@@ -60,6 +61,7 @@ export function Avatar({
   className,
   style,
 }: AvatarProps) {
+  const [imgFailed, setImgFailed] = useState(false)
   const px = SIZE_PX[size]
   const fam = seedFamily(placeholder ?? '')
   const seedBg = `var(--ds-color-${fam}3)`
@@ -68,15 +70,15 @@ export function Avatar({
     width: px,
     height: px,
     fontSize: Math.max(8, Math.round(px * 0.42)),
-    background: backgroundColor ?? (avatarUrl ? undefined : seedBg),
-    color: color ?? (avatarUrl ? undefined : seedText),
+    background: backgroundColor ?? (avatarUrl && !imgFailed ? undefined : seedBg),
+    color: color ?? (avatarUrl && !imgFailed ? undefined : seedText),
     ...style,
   }
   const cls = ['mk-avatar', `mk-avatar--${type}`, className].filter(Boolean).join(' ')
 
   let content: ReactNode = null
-  if (avatarUrl) {
-    content = <img src={avatarUrl} alt="" />
+  if (avatarUrl && !imgFailed) {
+    content = <img src={avatarUrl} alt="" onError={() => setImgFailed(true)} />
   } else if (placeholder && placeholder.trim()) {
     content = placeholder.trim().charAt(0).toUpperCase()
   } else if (Icon != null) {

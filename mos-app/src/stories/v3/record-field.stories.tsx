@@ -39,21 +39,13 @@ export const v3Matrix = {
     { symbol: 'RecordField', file: 'mos-app/src/components/records/record-field.tsx', importPath: '@/components/records/record-field' },
     { symbol: 'Button', file: 'mos-app/src/components/ui/button.tsx', importPath: '@/components/ui/button' },
   ],
-  debt: [
-    "record-field__error red text on the cream background measures 3.82:1 at 12px (axe color-contrast needs 4.5:1). Component CSS debt — the two error stories scope the axe rule off that one element so the violation is documented, not silently green.",
-  ],
+  debt: [],
   scope: { applicationMigration: false, representativeAcceptance: false, futureIssue4Host: false },
 } as const
 
-/** Known component debt (see v3Matrix.debt): exclude ONLY the record-field error line from axe's
- *  color-contrast rule; every other element on the story keeps the full error-level a11y gate. */
-const errorContrastDebtA11y = {
-  a11y: {
-    config: {
-      rules: [{ id: 'color-contrast', selector: '*:not(.record-field__error):not(.record-field__error *)' }],
-    },
-  },
-} as const
+/** Contrast debt PAID (record-viewer.css now uses --field-error-text, the AA-darkened red) —
+ *  the error stories run the full unscoped axe gate. */
+const errorContrastDebtA11y = {} as const
 
 const meta = {
   title: 'Record field',
