@@ -26,6 +26,7 @@ vi.mock('../../lib/db/directory', () => ({
 
 import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskDrawer } from './task-drawer'
 import { __resetExpandPrefForTests } from './use-expand-pref'
 
@@ -118,6 +119,40 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
   it('create mode renders an aside labelled "Create task"', async () => {
     renderAt('/work/tasks/new', 'create')
     expect(await screen.findByRole('complementary', { name: /create task/i })).toBeInTheDocument()
+  })
+
+  it('owner-eyes item 1: the drawer panel chrome label follows the ACTIVE locale (not a pinned string)', async () => {
+    // The reported "Detail tugas in an English UI" leak would be a chrome label pinned to one
+    // locale while content stays in another. The panel label is t('tasks.detail.title'); guard that
+    // the aside's accessible name tracks the ACTIVE locale — Indonesian chrome ONLY under id, English
+    // chrome under en — so a chrome/content locale split can never regress silently.
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+
+    function renderWithLocale(locale: 'en' | 'id') {
+      localStorage.setItem('mos.locale', locale)
+      return render(
+        <I18nProvider>
+          <AuthContext.Provider value={authedState}>
+            <MemoryRouter initialEntries={['/work/tasks/task-abc']}>
+              <Routes>
+                <Route path="/work/tasks/:taskId" element={<TaskDrawer mode="view" />} />
+              </Routes>
+            </MemoryRouter>
+          </AuthContext.Provider>
+        </I18nProvider>,
+      )
+    }
+
+    const id = renderWithLocale('id')
+    expect(await screen.findByRole('complementary', { name: 'Detail tugas' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Task detail' })).toBeNull()
+    id.unmount()
+
+    renderWithLocale('en')
+    expect(await screen.findByRole('complementary', { name: 'Task detail' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Detail tugas' })).toBeNull()
+
+    localStorage.removeItem('mos.locale')
   })
 
   it('AC-104/105: when the expand pref is persisted true (@split), the surface renders the full-width single-column record document', async () => {
