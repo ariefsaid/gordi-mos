@@ -631,17 +631,18 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
   })
 
-  // P1-2: the standalone canonical page's record-chrome row collapses to ONE compact row — a
-  // Back-to-collection affordance leading, the record actions (Ask Deputy) trailing.
+  // P1-2 / H3 (Luna floor): the standalone canonical page's Back lives at the SHARED record-page
+  // seam (.record-page-chrome) now — the same chrome every record kind (Task, Signal, …) uses — a
+  // source-aware "Back to <collection>" affordance leading, the record actions (Ask Deputy) trailing.
   it('P1-2: the standalone full-page record chrome carries a Back-to-Tasks affordance', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
 
     await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
-    const chromeRow = document.querySelector('.record-chrome') as HTMLElement
+    const chromeRow = document.querySelector('.record-page-chrome') as HTMLElement
     expect(chromeRow).toBeTruthy()
-    const backLink = within(chromeRow).getByRole('link', { name: 'Back' })
+    const backLink = within(chromeRow).getByRole('link', { name: /back to tasks/i })
     expect(backLink).toHaveAttribute('href', '/work/tasks')
   })
 
@@ -657,8 +658,8 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
-    // Lives in the record's own top utility row (.record-chrome), not buried in the body.
-    const chromeRow = document.querySelector('.record-chrome')
+    // Lives in the shared record-page chrome (.record-page-chrome), not buried in the body.
+    const chromeRow = document.querySelector('.record-page-chrome')
     expect(chromeRow).toBeTruthy()
     const askButton = within(chromeRow as HTMLElement).getByRole('button', { name: 'Ask Deputy' })
     expect(askButton).toBeInTheDocument()

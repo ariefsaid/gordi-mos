@@ -29,6 +29,16 @@
 .record-panel-btn:hover { background: var(--accent); color: var(--foreground); }
 .record-panel-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
+/* H3 (Luna floor): "Open full page" carries an explicit visible label (E7 grammar) — an icon-only
+   chrome control fails recognition on the panel's most consequential escalation. The labelled
+   variant grows to an auto-width pill; icon + text sit inline. */
+.record-panel-btn--labelled {
+  width: auto; min-width: 44px; gap: 6px; padding: 0 10px;
+  display: inline-flex; align-items: center;
+}
+.record-panel-btn__label { font-size: var(--font-size-label); font-weight: 500; white-space: nowrap; }
+
 @media (pointer: fine) {
   .record-panel-btn { width: 32px; height: 32px; }
+  .record-panel-btn--labelled { width: auto; height: 32px; }
 }

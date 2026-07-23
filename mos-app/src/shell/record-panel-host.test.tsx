@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -123,7 +123,7 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
   it('defaults to the 44px touch floor and tightens to the 32px control token only for a fine pointer', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
     expect(css).toMatch(/\.record-panel-btn\s*\{[^}]*width:\s*44px;\s*height:\s*44px;/s)
-    expect(css).toMatch(/@media \(pointer: fine\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}\s*\}/s)
+    expect(css).toMatch(/@media \(pointer: fine\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}/s)
   })
 
   it('no title → no chrome (the tenant owns its own header — Task zero-change path)', () => {
@@ -143,7 +143,11 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
   it('onOpenPage → renders the "Open full page" escalation that calls it', () => {
     const onOpenPage = vi.fn()
     renderHost({ title: 'Signal', onOpenPage })
-    fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
+    const btn = screen.getByRole('button', { name: /open full page/i })
+    // H3 (Luna floor): the escalation carries an EXPLICIT visible label (E7 grammar), not an
+    // unlabelled glyph — the panel's most consequential control must read, not be guessed.
+    expect(within(btn).getByText('Open full page')).toBeInTheDocument()
+    fireEvent.click(btn)
     expect(onOpenPage).toHaveBeenCalledTimes(1)
   })
 

@@ -8,6 +8,7 @@ import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
+import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { useT } from '@/i18n/use-t'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
@@ -130,11 +131,34 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
       state={title ? 'default' : 'loading'}
       hideHead
     >
+      {/* H3 (Luna floor): the record-page Back lives at the SHARED record-page seam now (mirror of
+          the Signal page), not baked into TaskSurface — so every record kind returns the same way.
+          TaskSurface's own utility strip is suppressed (showPanelUtility={false}); its record-scoped
+          Ask Deputy + the collapse-to-split affordance ride this shared chrome instead. */}
+      <RecordPageChrome
+        backTo={{ pathname: '/work/tasks', search: location.search }}
+        backLabel={t('tasks.title')}
+        deputyDraft={title ? t('assistant.askAbout.task', { title }) : null}
+        trailing={
+          <button
+            type="button"
+            className="record-page-collapse"
+            aria-label={t('tasks.backToSplit')}
+            title={t('tasks.backToSplit')}
+            onClick={collapseToSplit}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+            </svg>
+          </button>
+        }
+      />
       <TaskSurface
         taskId={taskId}
         mode="view"
         width="full"
         presentation="page"
+        showPanelUtility={false}
         onTitleResolved={setTitle}
         onCollapseToSplit={collapseToSplit}
         identityHeadingLevel={1}

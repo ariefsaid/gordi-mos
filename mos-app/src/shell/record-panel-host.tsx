@@ -194,13 +194,14 @@ export function RecordPanelHost({
       {onOpenPage && (
         <button
           type="button"
-          className="record-panel-btn"
+          className="record-panel-btn record-panel-btn--labelled"
           aria-label={t('record.openFullPage')}
           title={t('record.openFullPage')}
           onClick={onOpenPage}
           {...busy}
         >
           <OpenPageIcon />
+          <span className="record-panel-btn__label">{t('record.openFullPage')}</span>
         </button>
       )}
       <button
