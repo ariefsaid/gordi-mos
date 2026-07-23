@@ -4,7 +4,7 @@
 // available snapshot window (FR-014 — dates outside [earliest, latest] are disabled).
 // Selecting a preset emits {kind:'preset', days:N}; changing a date emits
 // {kind:'custom', from, to}. Reuses the `seg` grammar (CutToggle's tablist shape).
-import type { KeyboardEvent } from 'react'
+import { useRef, type KeyboardEvent } from 'react'
 import type { WindowSpec } from '@/lib/dashboard'
 import { isoDaysBefore } from '@/lib/trailing-window'
 import './window-selector.css'
@@ -39,6 +39,7 @@ export function WindowSelector({
 }: WindowSelectorProps) {
   const options = ['7d', '30d', '60d', 'Custom']
   const activeId = value.kind === 'preset' ? `${value.days}d` : 'Custom'
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null
@@ -54,6 +55,9 @@ export function WindowSelector({
     if (nextIndex !== null) {
       e.preventDefault()
       selectOption(options[nextIndex])
+      // r5 F-4: focus follows selection — "Custom" must be genuinely arrow-reachable,
+      // not just aria-selected while focus strands on a tabIndex=-1 button.
+      tabRefs.current[nextIndex]?.focus()
     }
   }
 
@@ -81,6 +85,7 @@ export function WindowSelector({
           return (
             <button
               key={option}
+              ref={el => { tabRefs.current[index] = el }}
               type="button"
               role="tab"
               aria-selected={isSelected}

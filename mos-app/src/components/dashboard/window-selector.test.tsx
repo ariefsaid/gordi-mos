@@ -73,6 +73,26 @@ describe('WindowSelector — preset seg', () => {
     fireEvent.keyDown(tab7, { key: 'ArrowRight' })
     expect(onChange).toHaveBeenCalledWith({ kind: 'preset', days: 30 })
   })
+
+  it('r5 F-4: focus FOLLOWS selection — "Custom" is genuinely arrow-reachable (End from 60d)', () => {
+    const onChange = vi.fn()
+    render(
+      <WindowSelector
+        value={{ kind: 'preset', days: 60 }}
+        onChange={onChange}
+        bounds={BOUNDS}
+      />,
+    )
+    const tab60 = screen.getByRole('tab', { name: /60d/i })
+    tab60.focus()
+    fireEvent.keyDown(tab60, { key: 'ArrowRight' })
+    // Selection emitted the seeded custom spec AND focus landed on the Custom tab —
+    // never stranded on the old tabIndex=-1 button.
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'custom' }),
+    )
+    expect(screen.getByRole('tab', { name: /custom/i })).toHaveFocus()
+  })
 })
 
 describe('WindowSelector — custom date range', () => {

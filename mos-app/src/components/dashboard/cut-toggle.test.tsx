@@ -86,6 +86,16 @@ describe('CutToggle', () => {
     })
   })
 
+  it('r5 F-4: focus FOLLOWS selection — ArrowRight lands focus on the newly-current tab, not a stranded tabIndex=-1 node', () => {
+    const onChange = vi.fn()
+    render(<CutToggle options={OPTIONS} value="Branch" onChange={onChange} />)
+    const branchTab = screen.getByRole('tab', { name: 'Branch' })
+    branchTab.focus()
+    fireEvent.keyDown(branchTab, { key: 'ArrowRight' })
+    expect(onChange).toHaveBeenCalledWith('Activity')
+    expect(screen.getByRole('tab', { name: 'Activity' })).toHaveFocus()
+  })
+
   it('renders a 44px touch target marker on each tab (phone tap target)', () => {
     render(<CutToggle options={OPTIONS} value="Branch" onChange={vi.fn()} />)
     screen.getAllByRole('tab').forEach(tab => {
