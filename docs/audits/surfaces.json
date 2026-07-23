@@ -84,7 +84,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/src/components/home/guard-do16-home-layout.css.test.ts",
@@ -177,7 +177,7 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "6d32409",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
@@ -220,7 +220,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "6d32409",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/src/shell/record-panel-host.test.tsx",
@@ -258,7 +258,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-430-post-a-signal.spec.ts"
@@ -299,7 +299,7 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "6d32409",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/src/components/records/guard-record-page-measure.css.test.tsx"
@@ -612,7 +612,7 @@
       "generation": 1,
       "auditedAt": "7689133",
       "ratifiedBy": "Director",
-      "lockedAt": "7689133",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-PB-012-budget-pricing-preflight.spec.ts"
@@ -728,7 +728,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "7e31910",
       "bumped": false,
       "pins": [
         "mos-app/src/components/admin/guard-flex-basis-balloon.css.test.ts"

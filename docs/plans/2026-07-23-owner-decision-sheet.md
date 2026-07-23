@@ -190,6 +190,12 @@ surface and both pages passed their census.
   Project/Objective fields exist as record inline-edits (`task-surface.tsx:307-308`) but the create-time
   hidden-when-empty + single "Add context" affordance is unbuilt. Stands.
 
+**B4 · The 15px type rung.** The final token sweep pinned ~65 uses of 15px (TaskSurface ×19+,
+TasksWorkspace ×15, auth pages ×10…) — the app's biggest off-ladder size, sitting between body
+(14) and none. One ruling: **mint `--font-size-body-lg: 15px`** as a sanctioned rung, or collapse
+all to body 14? **Recommend: mint the rung** — 65 organic uses is a de-facto rung; collapsing
+risks density regressions across the record grammar.
+
 ## E · Ratify register (deviations awaiting formal sign-off)
 
 1. Pill radius rounded-rect vs DESIGN.md 999px (ledger RATIFY item). **Recommend: ratify rounded-rect.**
