@@ -725,3 +725,9 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
 - **Money drill-through to contributing records (deferred 2026-07-23, journey JQ-5):** the dip
   investigation dead-ends at the branch aggregate — J19 half-met. Needs read-model support for
   record-level attribution; scope with the reporting schema, Phase-4 feature work.
+
+- **STAGING DEPLOY CHECKLIST — kitchen RLS migration (BLOCKING for the next `db push`):**
+  20260723000001 fail-closes kitchen-log writes to BU members — wire Ibnu + Ansori (and any real
+  kitchen member staff) into a retail_ops-BU team membership in the same deploy, or they lose
+  submit (audit verify 2026-07-23). Also: 3 positive-branch pgTAP follow-ups + align
+  viewerSeesCafe's basis with membership once the viewer payload carries teams.

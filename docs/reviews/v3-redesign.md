@@ -1700,3 +1700,10 @@ downstream conformance debt to reconcile.
   team membership exists before shipping (fail-closed risk); route guard needs a team-aware
   `RequireTeamInBU` (access-role vocabulary can't express it), or minimum: hide the cafe rail
   entry for non-members. Fix lane: `v3/sec-kitchen-rls`.
+- security (SEC-1 remediation verify): **CONFORMS** — INVOKER helper sound (mirrors is_manager_of,
+  caller-RLS reads, fail-closed), both predicates close the gaps, seed BU chain verified
+  (hq_operations → Retail Ops …014 == kitchen_logs BU), reversible, pgTAP adequate.
+  **DEPLOY CAVEAT (MEDIUM, operational):** staging's real kitchen members (Ibnu/Ansori) carry NO
+  team membership — wire retail_ops memberships IN THE SAME staging deploy as this migration or
+  they fail-closed out of log submission (Riri survives via ops_lead). LOW follow-ups: 3 positive-
+  branch pgTAP cases; viewerSeesCafe role-name basis vs RLS membership basis (cosmetic mismatch).
