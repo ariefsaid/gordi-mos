@@ -152,7 +152,7 @@ describe('DashboardPage — states', () => {
     expect(heading.closest('[data-testid="empty-state"]')).toHaveClass('dash-empty-fill')
   })
 
-  it('census r3: the channel-mix tile spans 2 tracks on narrow grids — span hook on the tile + the pinned span rule — so the no-wrap value never paints past its tile', async () => {
+  it('census r3 + r5 F-5: the channel-mix tile spans 2 tracks at EVERY width — span hook on the tile + the unconditional pinned rule — no value spill, no ragged trailing void', async () => {
     mockRev.mockResolvedValue(sixtyDaysRevenue())
     mockMarg.mockResolvedValue(sixtyDaysMargin())
     renderPage()
@@ -163,10 +163,11 @@ describe('DashboardPage — states', () => {
     expect(tile).toHaveClass('dash-kpi-tile--mix')
 
     // Structural pin of the rule (jsdom computes no grid layout — the stylesheet is the
-    // oracle): below 1024px the hook spans 2 tracks; the no-wrap number grammar stays.
+    // oracle). r5 F-5 deliberately made the span UNCONDITIONAL: it must live in the base
+    // sheet (before any @media), so desktop 3-up rows are full (3 + 1+2) — no void.
     const css = readFileSync(resolve(process.cwd(), 'src/pages/dashboard-page.css'), 'utf8')
-    const narrow = css.split('@media (max-width: 1023.98px)')[1] ?? ''
-    expect(narrow).toMatch(/\.dash-kpi-tile--mix\s*\{\s*grid-column:\s*span 2;/)
+    expect(css).toMatch(/\.dash-kpi-tile--mix\s*\{\s*grid-column:\s*span 2;/)
+    expect(css.indexOf('.dash-kpi-tile--mix')).toBeLessThan(css.indexOf('@media'))
   })
 
   it('AC-023: error — non-secret retry, no DSN/token/SQL/stack text', async () => {

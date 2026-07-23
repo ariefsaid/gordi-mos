@@ -144,10 +144,11 @@ function KpiMixSpanSpecimen() {
       <section className="v3-story-section" aria-labelledby="money-mix-title">
         <h1 id="money-mix-title" className="v3-story-section__title">Channel-mix span on narrow grids</h1>
         <p className="v3-story-section__copy">
-          The 23px no-wrap mix value outgrows any track narrower than ~264px, so below 1024px the
-          composition marks the tile with the className passthrough (dash-kpi-tile--mix) and it
-          spans 2 tracks — full row at phone 2-up — instead of painting over its neighbour. The
-          clamp floor (17px) only engages below ~371px viewports; the grammar never wraps.
+          The 23px no-wrap mix value outgrows any track narrower than ~264px, so the composition
+          marks the tile with the className passthrough (dash-kpi-tile--mix) and it spans 2 tracks
+          at EVERY width (r5 F-5) — full row at phone 2-up, 3 + 1+2 at desktop 3-up — instead of
+          painting over its neighbour or leaving a ragged trailing void. The clamp floor (17px)
+          only engages below ~371px viewports; the grammar never wraps.
         </p>
         <div className="dash-kpi-grid" data-testid="mix-span-grid">
           <KPITile label="Trailing 7-day revenue" value="Rp 285,2 jt" />
