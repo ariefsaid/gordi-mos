@@ -20,7 +20,7 @@
 
 /* ── log date chip in the PageHead meta slot ── */
 .kl-date {
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   color: var(--muted-foreground);
   background: var(--muted);
   padding: 2px 8px;
@@ -35,7 +35,7 @@
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   margin-bottom: 16px;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 .kl-banner-offline {
   background: color-mix(in srgb, var(--warning) 12%, transparent);
@@ -66,12 +66,12 @@
 /* ── Dish cell (name + category) in the shared DataTable ── */
 .kl-dish { display: inline-flex; flex-direction: column; min-width: 0; }
 .kl-dish-name {
-  font-size: 13.5px;
+  font-size: var(--font-size-control);
   font-weight: 500;
   color: var(--foreground);
 }
 .kl-dish-cat {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 400;
   color: var(--muted-foreground);
 }
@@ -100,12 +100,12 @@
   min-width: 0;
 }
 .kl-tally-num {
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--foreground);
 }
 .kl-tally-sub {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 .kl-footer-actions {
@@ -122,7 +122,7 @@
    required variance note is still empty.  Uses muted text so it reads as a
    hint, not an error (the error itself lives on the row's note field). */
 .kl-submit-reason {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   align-self: center;
   text-align: right;
@@ -139,7 +139,7 @@
 .kl-error-msg {
   color: var(--status-lost-text);
   margin-bottom: 12px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 .kl-unauth {
   text-align: center;

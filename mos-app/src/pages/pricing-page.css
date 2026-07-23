@@ -4,7 +4,7 @@
 }
 .pp-help {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   margin: 0 0 16px;
   max-width: 720px;
 }
@@ -27,16 +27,16 @@
   margin-bottom: 12px;
 }
 .pp-meta-item {
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   color: var(--muted-foreground);
 }
 .pp-warn {
   color: var(--destructive);
   background: color-mix(in srgb, var(--destructive) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--destructive) 35%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   margin: 0 0 16px;
   max-width: 720px;
 }
@@ -51,12 +51,12 @@
   gap: 4px;
   padding: 12px 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--background);
   min-width: 140px;
 }
 .pp-result-label {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -69,6 +69,6 @@
 }
 .pp-floor-warn {
   color: var(--warning-foreground, var(--warning));
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   margin: 8px 0 0;
 }

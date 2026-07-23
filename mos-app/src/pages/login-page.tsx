@@ -243,7 +243,7 @@ export function LoginPage() {
         {/* Card title — subheading (18px/600) per design-plan §1 */}
         <h1
           className="text-foreground font-semibold"
-          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
+          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
         >
           Sign in
         </h1>
@@ -297,7 +297,7 @@ export function LoginPage() {
               <p
                 id={emailErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'var(--status-lost-text)' }}
+                style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
               >
                 {emailError}
               </p>
@@ -326,7 +326,7 @@ export function LoginPage() {
                 type="button"
                 className="text-primary font-medium hover:underline focus-visible:underline"
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--font-size-label)',
                   minHeight: 44,
                   display: 'inline-flex',
                   alignItems: 'center',

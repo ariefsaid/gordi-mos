@@ -23,13 +23,13 @@ export function DemoLogin({
       {/* Overline title — 11px/600, uppercase, muted (mirrors AuthShell overline) */}
       <p
         className="text-muted-foreground font-semibold uppercase tracking-[0.06em] text-center"
-        style={{ fontSize: 11 }}
+        style={{ fontSize: 'var(--font-size-overline)' }}
       >
         Demo login
       </p>
       <p
         className="text-muted-foreground text-center mt-1"
-        style={{ fontSize: 12 }}
+        style={{ fontSize: 'var(--font-size-label)' }}
       >
         password:{' '}
         <code className="font-mono text-foreground">{DEMO_PASSWORD}</code>

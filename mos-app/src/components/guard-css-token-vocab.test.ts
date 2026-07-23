@@ -1,7 +1,9 @@
 /**
- * MECH-GUARD TOKEN-VOCAB — the whole component/shell CSS surface speaks the semantic
+ * MECH-GUARD TOKEN-VOCAB — the whole component/shell/page CSS surface speaks the semantic
  * token vocabulary (structural layer; extends the kit-only kit-vocab.test.ts ratchet
- * beyond src/components/ui to ALL of src/components plus src/shell).
+ * beyond src/components/ui to ALL of src/components plus src/shell, plus — census DO-9/DO-10
+ * guard C3 widening (SYS-5) — src/pages/**.css and src/styles/** (src/styles/tokens is the
+ * token DEFINITION layer, foreign --ds-* family, and is excluded by design).
  *
  * Owner catch: "multiple font sizes that feel untidy instead of deliberate" — size soup
  * happens one raw `font-size: 15px` at a time, below any reviewer's threshold of notice.
@@ -28,6 +30,7 @@ import { join, relative, resolve } from 'node:path'
 
 const SRC = resolve(process.cwd(), 'src')
 const KIT_DIR = resolve(SRC, 'components/ui') // stricter kit-vocab.test.ts owns this dir
+const TOKENS_DIR = resolve(SRC, 'styles/tokens') // token definitions (--ds-* source), not consumers
 
 const FONT_SIZE_TOKENS = new Set([
   'page-title', 'heading', 'subheading', 'body', 'control', 'mono', 'label', 'overline', 'micro',
@@ -147,6 +150,27 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'border-radius: 6px': 2,
     'border-radius: 2px': 1,
   },
+  // ---- pages scope (census DO-9/DO-10 C3 widening). Byte-adjacent values were tokenized
+  // mechanically; the entries below have NO byte-identical ladder token — pinned, not endorsed.
+  'src/pages/budget-page.css': {
+    'font-size: 16px': 1, // .bp-h2 — between body(14) and subheading(18); needs a design remap call
+    'font-size: 22px': 1, // .bp-total big-number, same class as the kpi-tile 23px display size
+  },
+  'src/pages/dashboard-page.css': {
+    'font-size: 11.5px': 1, // .dash-footnote — matches the ledgered 11.5px cluster in dashboard components
+  },
+  'src/pages/home-page.css': {
+    'border-radius: 6px': 1, // segmented-option inner radius (outer 8px − 2px inset), as in home-stream.css
+  },
+  'src/pages/kitchen-pushes-page.css': {
+    'font-size: 16px': 1, // .kpu-forbidden-title — between body(14) and subheading(18)
+  },
+  'src/pages/kitchen-review-page.css': {
+    'font-size: 16px': 1, // .kr-forbidden-title — between body(14) and subheading(18)
+  },
+  'src/pages/pricing-page.css': {
+    'font-size: 22px': 1, // .pp-result-value big-number, same class as the kpi-tile 23px display size
+  },
   'src/shell/page-head.css': {
     'font-size: 15px': 1,
   },
@@ -178,6 +202,8 @@ function scannedFiles(): { rel: string; css: string }[] {
   const files = [
     ...cssFilesUnder(resolve(SRC, 'components'), KIT_DIR),
     ...cssFilesUnder(resolve(SRC, 'shell')),
+    ...cssFilesUnder(resolve(SRC, 'pages')),
+    ...cssFilesUnder(resolve(SRC, 'styles'), TOKENS_DIR),
   ]
   return files.map((f) => ({
     rel: relative(process.cwd(), f),

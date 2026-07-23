@@ -9,7 +9,7 @@ export function NotFoundPage() {
     <PageFrame>
       <h1
         className="font-semibold text-foreground"
-        style={{ fontSize: 26, lineHeight: 1.2, letterSpacing: '-0.01em', marginBottom: 16 }}
+        style={{ fontSize: 'var(--font-size-page-title)', lineHeight: 1.2, letterSpacing: '-0.01em', marginBottom: 16 }}
       >
         Page not found.
       </h1>

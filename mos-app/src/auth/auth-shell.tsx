@@ -56,7 +56,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           {/* Overline: 11px/600, ls 0.06em, uppercase, muted-foreground */}
           <span
             className="text-muted-foreground font-semibold uppercase tracking-[0.06em]"
-            style={{ fontSize: 11 }}
+            style={{ fontSize: 'var(--font-size-overline)' }}
           >
             Management OS
           </span>

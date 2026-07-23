@@ -33,7 +33,7 @@ function FieldLabel({ htmlFor, children, srOnly }: { htmlFor: string; children: 
     <label
       htmlFor={htmlFor}
       className={srOnly ? 'sr-only' : 'block text-muted-foreground font-medium'}
-      style={srOnly ? undefined : { fontSize: 12, marginBottom: 4 }}
+      style={srOnly ? undefined : { fontSize: 'var(--font-size-label)', marginBottom: 4 }}
     >
       {children}
     </label>
@@ -45,8 +45,8 @@ function FieldLabel({ htmlFor, children, srOnly }: { htmlFor: string; children: 
 function ReadonlyRow({ term, value }: { term: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground font-medium" style={{ fontSize: 12, marginBottom: 2 }}>{term}</dt>
-      <dd className="text-foreground" style={{ fontSize: 14, margin: 0 }}>{value}</dd>
+      <dt className="text-muted-foreground font-medium" style={{ fontSize: 'var(--font-size-label)', marginBottom: 2 }}>{term}</dt>
+      <dd className="text-foreground" style={{ fontSize: 'var(--font-size-body)', margin: 0 }}>{value}</dd>
     </div>
   )
 }
@@ -78,7 +78,7 @@ export function ProfilePage() {
                   value={viewer.roles.map((r) => r.name).join(' · ') || '—'}
                 />
               </dl>
-              <p className="text-muted-foreground" style={{ fontSize: 12, margin: 0 }}>
+              <p className="text-muted-foreground" style={{ fontSize: 'var(--font-size-label)', margin: 0 }}>
                 {t('profile.managedByAdmin')}
               </p>
             </div>

@@ -10,11 +10,11 @@
 }
 .bp-muted {
   color: var(--muted-foreground);
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 .bp-help {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   margin: 0 0 12px;
   max-width: 720px;
 }
@@ -33,19 +33,19 @@
   color: var(--foreground);
 }
 .bp-incomplete {
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   font-weight: 400;
   color: var(--muted-foreground);
 }
 .bp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 .bp-table caption {
   text-align: left;
   caption-side: top;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   margin-bottom: 6px;
 }
@@ -57,7 +57,7 @@
   vertical-align: top;
 }
 .bp-table thead th {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -72,7 +72,7 @@
 }
 .bp-ing-code {
   display: block;
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
   font-weight: 400;
 }
@@ -99,11 +99,11 @@
 }
 .bp-saved {
   color: var(--success);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 .bp-error {
   color: var(--destructive);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 
 /* r5 F-7 (census): the three semantic bp-tables (BOM × costs, cost lines,

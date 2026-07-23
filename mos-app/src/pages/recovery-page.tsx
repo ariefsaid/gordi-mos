@@ -148,7 +148,7 @@ export function RecoveryPage() {
         {/* Card title */}
         <h1
           className="text-foreground font-semibold"
-          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
+          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
         >
           Set a new password
         </h1>
@@ -206,7 +206,7 @@ export function RecoveryPage() {
               <p
                 id={mismatchErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'var(--destructive)' }}
+                style={{ fontSize: 'var(--font-size-label)', color: 'var(--destructive)' }}
               >
                 {mismatchError}
               </p>
