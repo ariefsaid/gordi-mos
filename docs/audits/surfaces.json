@@ -130,7 +130,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "1be4fd3",
+      "lockedAt": "669f14f",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx",

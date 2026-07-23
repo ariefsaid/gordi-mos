@@ -26,7 +26,7 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 | Surface | Routes | Status | Gen | audited@ | locked@ | Pins | Persona-differs | Due axes |
 |---|---|---|---|---|---|---|---|---|
 | Home | `/` | LOCKED | 1 | `ab61009` | `7e31910` | 2 | member: rail shows only viewer-affiliated module (OD-REDESIGN-68); my-work list scoped to own tasks | persona:member (rail-module + my-work scoping never audited); states: hover/loading/error NOT-REVIEWED (census-r2 3.1) |
-| Tasks workspace | `/work/tasks`, `/work/tasks?view=*` | LOCKED | 1 | `ab61009` | `1be4fd3` | 6 | — | states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2) |
+| Tasks workspace | `/work/tasks`, `/work/tasks?view=*` | LOCKED | 1 | `ab61009` | `669f14f` | 6 | — | states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2) |
 | Task record (drawer + full page) | `/work/tasks/:taskId` | LOCKED | 2 | `ab61009` | `7e31910` | 3 | member: read-only record — no edit affordances (census-r2 3.3 Kitchen persona) | anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned; states: loading/error NOT-REVIEWED (census-r2 3.3) |
 | Task create (new) | `/work/tasks/new` | LOCKED | 1 | `ab61009` | `7e31910` | 2 | — | states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4) |
 | Signals archive | `/work/signals` | LOCKED | 1 | `ab61009` | `7e31910` | 1 | — | states: empty/error/hover NOT-REVIEWED (census-r2 3.5) |
