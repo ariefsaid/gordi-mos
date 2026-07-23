@@ -238,6 +238,26 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
   })
 })
 
+describe('AdminUsersPage — DO-22(b) (Census R2, admin-people P2-B): no nested cards', () => {
+  it('DO-22(b): on phone the outer container drops its card chrome — person cards never nest inside a card', async () => {
+    vi.mocked(useIsDesktop).mockReturnValue(false)
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+    const outer = screen.getByTestId('people-list-container')
+    expect(outer.style.border).toBe('')
+    expect(outer.style.background).toBe('')
+  })
+
+  it('DO-22(b): the desktop table presentation keeps the container card chrome', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+    const outer = screen.getByTestId('people-list-container')
+    expect(outer.style.border).toContain('1px solid')
+  })
+})
+
 // V3 Issue 3, Task 11/12 — People is the Management page-family representative.
 describe('AdminUsersPage — V3 Management frame', () => {
   it('renders People inside the Management page family with one main, one h1, and the People job sentence', async () => {

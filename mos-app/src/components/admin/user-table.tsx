@@ -22,7 +22,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/state-kit'
 import { ViewTabs } from '@/components/ui/view-tabs'
-import { useIsDesktop } from '@/shell/use-is-desktop'
+import { usePeopleListPresentsCards } from './use-people-list-presents-cards'
 import { roleLabel } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow, LoginStatus } from '@/lib/db/admin-users.types'
 import './people-toolbar.css'
@@ -336,7 +336,10 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
         aria-label={`More actions for ${person.full_name}`}
         aria-haspopup="true"
         aria-expanded={open}
-        className="rounded-sm p-1 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+        // DO-22(a) (census admin-people P2-A): persistent low-emphasis rest state — the old
+        // `opacity-0` hover-reveal made the row's ONLY action door invisible at rest and
+        // unreachable without hover.
+        className="rounded-sm p-1 opacity-60 group-hover/row:opacity-100 focus:opacity-100 hover:opacity-100"
         style={{ color: 'var(--muted-foreground)' }}
         onClick={() => setOpen((v) => !v)}
       >
@@ -444,7 +447,7 @@ function DesktopTable({
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '40%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '50%' }}
           >
             Person
           </th>
@@ -455,10 +458,12 @@ function DesktopTable({
           >
             Login
           </th>
+          {/* DO-22(c) (census admin-people P3-C): rebalance — the 45% roles column held 1–2
+              small chips (sparse mid-row void) while Person carried the dense content. */}
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '45%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '35%' }}
           >
             Access roles
           </th>
@@ -717,7 +722,7 @@ export interface UserTableProps {
 }
 
 export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: UserTableProps) {
-  const isDesktop = useIsDesktop()
+  const presentsCards = usePeopleListPresentsCards()
 
   // Filter state owned here (client-side, no refetch)
   const [segment, setSegment] = useState<StatusSegment>('all')
@@ -777,10 +782,10 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: Use
             </Button>
           </EmptyState>
         </div>
-      ) : isDesktop ? (
-        <DesktopTable people={filteredPeople} onAction={onAction} />
-      ) : (
+      ) : presentsCards ? (
         <MobileCardList people={filteredPeople} onAction={onAction} />
+      ) : (
+        <DesktopTable people={filteredPeople} onAction={onAction} />
       )}
     </>
   )

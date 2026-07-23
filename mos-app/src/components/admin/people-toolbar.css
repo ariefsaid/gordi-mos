@@ -78,6 +78,12 @@
   .people-search-mini {
     max-width: 100%;
     min-width: 0;
+    /* Census R2 DO-3 (admin-people P1): in this column context the base `flex: 1 1 180px`
+       WIDTH-basis governs HEIGHT — the search field ballooned to ~180px tall. Reset the
+       basis; keep the 44px coarse floor. (Cafe's twin `.cafe-capture-link` is the cafe
+       lane's fix — same root cause.) */
+    flex: 0 0 auto;
+    min-height: 44px;
   }
 
   .people-status-tabs .view-tabs {
@@ -92,6 +98,9 @@
     font-size: var(--font-size-label);
     text-align: center;
     justify-content: center;
+    /* DO-22(d) (admin-people P3-E): "No login" wrapped to two lines inside the equal-share
+       phone strip — a tab label always fits one line. */
+    white-space: nowrap;
   }
 
   .people-tb-spacer {

@@ -16,6 +16,11 @@ vi.mock('@/shell/use-is-desktop')
 import { useIsDesktop } from '@/shell/use-is-desktop'
 const mockUseIsDesktop = vi.mocked(useIsDesktop)
 
+// DO-22(a): mock the pointer-modality hook so tests can flip a touch tablet on
+vi.mock('@/shell/use-is-coarse-pointer')
+import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
+const mockUseIsCoarsePointer = vi.mocked(useIsCoarsePointer)
+
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 const ACTIVE_ADMIN: AdminPersonRow = {
@@ -68,8 +73,9 @@ const TWO_ADMINS = [ACTIVE_ADMIN, { ...ACTIVE_MEMBER, id: 'p-admin-2', access_ro
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Default to desktop
+  // Default to desktop + fine pointer
   mockUseIsDesktop.mockReturnValue(true)
+  mockUseIsCoarsePointer.mockReturnValue(false)
 })
 
 function renderTable(
@@ -367,6 +373,34 @@ describe('UserTable — mobile action sheet', () => {
     await user.click(screen.getByRole('menuitem', { name: /manage roles/i }))
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+})
+
+// ── DO-22 (Census R2, admin-people P2-A / P3-C): row door reachability ───────
+
+describe('UserTable — DO-22 row-action reachability', () => {
+  it('DO-22(a): a coarse pointer at desktop width presents the Manage cards, not the hover-dependent table', () => {
+    // Touch tablet at 768–1024: "desktop" by width, but hover does not exist — row
+    // actions must live behind the always-visible Manage door, not the hover ⋯.
+    mockUseIsCoarsePointer.mockReturnValue(true)
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { isDesktop: true })
+
+    expect(screen.getByRole('button', { name: /manage budi santoso/i })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('DO-22(a): the desktop ⋯ trigger is visible at rest — never opacity-0 hover-reveal', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const trigger = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    expect(trigger.className).not.toContain('opacity-0')
+  })
+
+  it('DO-22(c): the Person column is authored at least as wide as the access-roles column', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const person = screen.getByRole('columnheader', { name: /person/i })
+    const roles = screen.getByRole('columnheader', { name: /access roles/i })
+    const pct = (el: HTMLElement) => Number.parseFloat(el.style.width)
+    expect(pct(person as HTMLElement)).toBeGreaterThanOrEqual(pct(roles as HTMLElement))
   })
 })
 

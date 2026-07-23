@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
 import type { PersonAction } from '@/components/admin/user-table'
+import { usePeopleListPresentsCards } from '@/components/admin/use-people-list-presents-cards'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
 import { RoleEditor } from '@/components/admin/role-editor'
@@ -51,6 +52,9 @@ type PendingConfirm =
 export function AdminUsersPage() {
   const auth = useAuth()
   const viewerPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  // DO-22(b): same presentation decision the UserTable itself makes — chrome and list
+  // presentation can never disagree.
+  const presentsCards = usePeopleListPresentsCards()
 
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [people, setPeople] = useState<AdminPersonRow[]>([])
@@ -201,9 +205,14 @@ export function AdminUsersPage() {
         </div>
       )}
 
+      {/* DO-22(b) (census admin-people P2-B): when the list presents as CARDS (phone /
+          coarse pointer) the person cards carry their own card chrome — the outer
+          container drops its border/shadow/bg so cards never nest inside a card. The
+          container card exists for the table presentation only. */}
       <div
+        data-testid="people-list-container"
         className="mx-6 mb-6 rounded-lg overflow-hidden"
-        style={{
+        style={presentsCards ? undefined : {
           border: '1px solid var(--border)',
           boxShadow: 'var(--shadow-rest)',
           background: 'var(--card)',
