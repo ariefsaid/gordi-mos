@@ -14,13 +14,14 @@
 //   item 14: self-assign copy → plain language
 
 import { useState, useEffect, useId } from 'react'
+import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { CloseIcon } from '@/shell/icons'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
-import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
+import { ASSIGNABLE_ROLES, localizedRoleMeta } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 
 // Roles protected by self-assign guard (FR-023)
@@ -59,6 +60,7 @@ export function RoleEditor({
   onDone,
   onShowToast,
 }: RoleEditorProps) {
+  const t = useT()
   const auth = useAuth()
   const viewerPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const isSelf = person.id === viewerPersonId
@@ -80,16 +82,18 @@ export function RoleEditor({
     setBusy(true)
     setError('')
     try {
+      // The toast names the role in the viewer's locale (it previously leaked the raw slug).
+      const roleName = localizedRoleMeta(role, t).label
       if (isGranted) {
         await revokeRole(person.id, role)
-        onShowToast?.(`${role} removed from ${person.full_name}.`)
+        onShowToast?.(t('admin.roles.removedToast', { role: roleName, name: person.full_name }))
       } else {
         await grantRole(person.id, role)
-        onShowToast?.(`${role} granted to ${person.full_name}.`)
+        onShowToast?.(t('admin.roles.grantedToast', { role: roleName, name: person.full_name }))
       }
       onDone()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Role change failed. Try again.')
+      setError(err instanceof Error ? err.message : t('admin.roles.error'))
     } finally {
       setBusy(false)
     }
@@ -112,7 +116,7 @@ export function RoleEditor({
               className="subheading text-lg font-semibold"
               style={{ color: 'var(--foreground)' }}
             >
-              Manage roles
+              {t('admin.people.action.manageRoles')}
             </h2>
             <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
               {person.full_name}
@@ -120,7 +124,7 @@ export function RoleEditor({
           </div>
           <button
             type="button"
-            aria-label="Dismiss dialog"
+            aria-label={t('admin.roles.dismissAria')}
             className="-mr-1 -mt-1 rounded-sm p-1 hover:bg-accent/60"
             style={{ color: 'var(--muted-foreground)' }}
             onClick={onClose}
@@ -134,7 +138,7 @@ export function RoleEditor({
         {/* Role rows — grouped bordered container, label + description per row */}
         <div className="px-6 py-5">
           <fieldset disabled={busy}>
-            <legend className="sr-only">Access roles for {person.full_name}</legend>
+            <legend className="sr-only">{t('admin.roles.legend', { name: person.full_name })}</legend>
             <div
               className="overflow-hidden rounded-md"
               style={{ border: '1px solid var(--input)' }}
@@ -145,13 +149,13 @@ export function RoleEditor({
                 // Last-admin guard: disable the admin checkbox for the last active admin (item 5)
                 const isLastAdminGuarded = role === 'admin' && lastAdmin
                 const isDisabled = isSelfGuarded || isLastAdminGuarded || busy
-                const meta = ROLE_META[role] ?? { label: role, description: '' }
+                const meta = localizedRoleMeta(role, t)
 
                 // Reason for disabled state (tooltip/title)
                 const disabledReason = isSelfGuarded
-                  ? "You can't change your own admin/finance role" // item 14: plain language
+                  ? t('admin.roles.selfGuard') // item 14: plain language
                   : isLastAdminGuarded
-                    ? "Can't remove the last admin"
+                    ? t('admin.people.lastAdmin')
                     : undefined
 
                 return (
@@ -184,8 +188,8 @@ export function RoleEditor({
                       >
                         {(isSelfGuarded || isLastAdminGuarded)
                           ? isLastAdminGuarded
-                            ? 'Only admin — assign another first'
-                            : "Can't change your own admin/finance role"
+                            ? t('admin.roles.lastAdminHint')
+                            : t('admin.roles.selfGuardShort')
                           : meta.description}
                       </span>
                     </span>
@@ -215,7 +219,7 @@ export function RoleEditor({
         <div style={{ borderTop: '1px solid var(--border)' }} />
         <div className="flex justify-end px-6 py-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
-            Close
+            {t('admin.roles.close')}
           </Button>
         </div>
       </div>

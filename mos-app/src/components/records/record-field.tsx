@@ -431,9 +431,11 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
   const empty = isEmptyValue(spec)
   if (spec.control === 'status') {
     // A token-themed pill (records/ stays decoupled from the Task-typed StatusPill); the
-    // data-status attribute drives the semantic hue in record-viewer.css.
+    // data-status attribute drives the semantic hue in record-viewer.css. It carries the RAW
+    // enum `value` (stable, English) — `displayValue` is the locale-facing text (DO-13/I18N-2),
+    // so keying the hue off it would break the pill colors outside `en`.
     return (
-      <span className="record-field__pill" data-status={spec.displayValue}>
+      <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
         <span className="record-field__pill-dot" aria-hidden="true" />
         {spec.displayValue}
       </span>

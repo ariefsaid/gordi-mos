@@ -293,6 +293,8 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
           discussion,
           facts,
           history,
+          // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
+          typeLabel: t('signals.record.title'),
         })}
         mode={mode}
         // SR-8 (mirrors TaskRecordPage): in page mode the RecordViewer identity IS the page's h1

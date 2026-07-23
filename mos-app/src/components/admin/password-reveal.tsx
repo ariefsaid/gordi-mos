@@ -6,6 +6,7 @@
 // Password is dropped from component state when onDone is called (never persisted).
 
 import { useState } from 'react'
+import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 
 // Button is still used for the Done button below
@@ -37,6 +38,7 @@ export function PasswordReveal({
   headingId = 'reveal-heading',
   warningId = 'reveal-warning',
 }: PasswordRevealProps) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const [clipboardBlocked, setClipboardBlocked] = useState(false)
 
@@ -52,8 +54,8 @@ export function PasswordReveal({
 
   const heading =
     context === 'create'
-      ? `Login created for ${personName}`
-      : `Password reset for ${personName}`
+      ? t('admin.reveal.createdTitle', { name: personName })
+      : t('admin.reveal.resetTitle', { name: personName })
 
   return (
     <div>
@@ -74,7 +76,7 @@ export function PasswordReveal({
         role="status"
       >
         <span className="font-medium text-sm">
-          Copy this now — you won't be able to see it again.
+          {t('admin.reveal.warning')}
         </span>
       </div>
 
@@ -85,7 +87,7 @@ export function PasswordReveal({
       >
         {email && (
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Sign-in name</div>
+            <div className="text-xs font-medium text-muted-foreground mb-1">{t('admin.create.signInName')}</div>
             <code
               className="select-text text-sm"
               style={{ fontFamily: 'var(--font-mono)', userSelect: 'text' }}
@@ -97,7 +99,7 @@ export function PasswordReveal({
 
         <div>
           <div className="text-xs font-medium text-muted-foreground mb-1" id="pw-label">
-            Temporary password
+            {t('admin.reveal.tempPassword')}
           </div>
           <code
             aria-labelledby="pw-label"
@@ -110,12 +112,12 @@ export function PasswordReveal({
 
         {/* aria-live region for copy confirmation (design-plan §4.4) */}
         <div aria-live="polite" className="sr-only" role="status">
-          {copied ? 'Password copied to clipboard' : ''}
+          {copied ? t('admin.reveal.copiedAnnounce') : ''}
         </div>
 
         {clipboardBlocked ? (
           <p className="text-xs text-muted-foreground">
-            Select and copy manually — clipboard access is unavailable.
+            {t('admin.reveal.clipboardBlocked')}
           </p>
         ) : (
           // Native button is the first focusable control, so ModalShell focuses it.
@@ -123,9 +125,9 @@ export function PasswordReveal({
             type="button"
             className="btn btn-primary"
             onClick={handleCopy}
-            aria-label="Copy password"
+            aria-label={t('admin.reveal.copy')}
           >
-            {copied ? 'Copied ✓' : 'Copy password'}
+            {copied ? t('admin.reveal.copied') : t('admin.reveal.copy')}
           </button>
         )}
       </div>
@@ -133,7 +135,7 @@ export function PasswordReveal({
       {/* Done — the ONLY dismiss path (no Esc, no backdrop, design-plan §4.4) */}
       <div className="mt-4 flex justify-end">
         <Button variant="outline" onClick={onDone}>
-          Done
+          {t('admin.reveal.done')}
         </Button>
       </div>
     </div>

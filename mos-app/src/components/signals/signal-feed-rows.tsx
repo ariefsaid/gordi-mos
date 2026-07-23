@@ -112,7 +112,9 @@ export function SignalFeedRows({
                 </div>
                 <div className="home-signal-tail">
                   <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
-                    {signal.attention}
+                    {signal.attention === 'Urgent' ? t('signals.archive.attentionUrgent')
+                      : signal.attention === 'Needs attention' ? t('signals.archive.viewAttention')
+                      : signal.attention /* FYI — the loanword, catalog-wide (archive filter ditto) */}
                   </span>
                   <SignalCategoryPicker
                     category={signal.category}

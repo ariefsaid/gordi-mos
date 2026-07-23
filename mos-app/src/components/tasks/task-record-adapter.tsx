@@ -153,6 +153,12 @@ export interface TaskRecordLabels {
   /** Content-first anatomy (OD-REDESIGN-90 §2.3): the Relations region heading. */
   relatedSection: string
   statusField: string
+  /** DO-13/I18N-2 — the record-door status pill + picker options localize the enum text
+   *  (the pill's semantic hue stays keyed to the raw `value`, see record-field.tsx). */
+  statusOpen: string
+  statusInProgress: string
+  statusBlocked: string
+  statusDone: string
   descriptionField: string
   projectProcessField: string
   objectiveField: string
@@ -179,6 +185,10 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
   detailsSection: 'Task details',
   relatedSection: 'Related',
   statusField: 'Status',
+  statusOpen: 'Open',
+  statusInProgress: 'In Progress',
+  statusBlocked: 'Blocked',
+  statusDone: 'Done',
   descriptionField: 'Description',
   projectProcessField: 'Project/Process',
   objectiveField: 'Objective',
@@ -302,6 +312,14 @@ export function createTaskFieldCommit(
   }
 }
 
+/** Locale-facing text for a status enum (DO-13/I18N-2) — the raw value stays the commit payload. */
+function statusLabel(s: TaskStatus, L: TaskRecordLabels): string {
+  return s === 'Open' ? L.statusOpen
+    : s === 'In Progress' ? L.statusInProgress
+    : s === 'Blocked' ? L.statusBlocked
+    : L.statusDone
+}
+
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
   const { detail, viewerId, isManager, people, businessUnits, objectives = [], workLines = [], team } = input
   const formatDate = input.formatDate ?? ((iso: string) => iso)
@@ -355,8 +373,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         label: L.statusField,
         control: 'status',
         value: task.status,
-        displayValue: task.status,
-        options: TASK_STATUSES.map((s) => ({ value: s, label: s })),
+        displayValue: statusLabel(task.status, L),
+        options: TASK_STATUSES.map((s) => ({ value: s, label: statusLabel(s, L) })),
       }),
       dueField(task, editable, labels.dueDate, formatDate),
     ],

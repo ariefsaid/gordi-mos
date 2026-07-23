@@ -1,5 +1,7 @@
 import { type Theme } from '@/theme/use-theme';
 import { useThemeContext } from '@/theme/theme-provider';
+import { useT } from '@/i18n/use-t';
+import type { MessageKey } from '@/i18n/messages';
 
 /** Sun icon — 16px, aria-hidden, stroke-2, currentColor */
 function SunIcon() {
@@ -89,14 +91,14 @@ function CheckIcon() {
 
 type Option = {
   value: Theme;
-  label: string;
+  labelKey: MessageKey;
   icon: React.ReactNode;
 };
 
 const OPTIONS: Option[] = [
-  { value: 'light', label: 'Light', icon: <SunIcon /> },
-  { value: 'dark', label: 'Dark', icon: <MoonIcon /> },
-  { value: 'system', label: 'System', icon: <MonitorIcon /> },
+  { value: 'light', labelKey: 'account.appearance.light', icon: <SunIcon /> },
+  { value: 'dark', labelKey: 'account.appearance.dark', icon: <MoonIcon /> },
+  { value: 'system', labelKey: 'account.appearance.system', icon: <MonitorIcon /> },
 ];
 
 /**
@@ -111,21 +113,22 @@ const OPTIONS: Option[] = [
  */
 export function AppearanceControl() {
   const { theme, setTheme } = useThemeContext();
+  const t = useT();
 
   return (
     <div>
       {/* Group label — visible, muted, overline size */}
       <div
         className="px-3 text-muted-foreground select-none"
-        style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}
+        style={{ fontSize: 'var(--font-size-overline)', fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}
         aria-hidden="true"
       >
-        Appearance
+        {t('account.appearance')}
       </div>
 
       {/* Three option buttons */}
-      <div role="group" aria-label="Appearance">
-        {OPTIONS.map(({ value, label, icon }) => {
+      <div role="group" aria-label={t('account.appearance')}>
+        {OPTIONS.map(({ value, labelKey, icon }) => {
           const isActive = theme === value;
           return (
             <button
@@ -147,7 +150,7 @@ export function AppearanceControl() {
                 {icon}
               </span>
               {/* Label */}
-              <span className="flex-1 text-left">{label}</span>
+              <span className="flex-1 text-left">{t(labelKey)}</span>
               {/* Active check */}
               {isActive && (
                 <span className="text-primary">

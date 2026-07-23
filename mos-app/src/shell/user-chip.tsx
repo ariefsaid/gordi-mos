@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
 import { AppearanceControl } from './appearance-control'
 
@@ -30,6 +31,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
   // menu's open direction differs (rail opens up, drawer opens down — see menuOpensUp below).
   const isFullWidth = variant === 'rail' || variant === 'drawer'
   const menuOpensUp = variant === 'rail'
+  const t = useT()
   const auth = useAuth()
   const [open, setOpen] = useState(false)
   const chipRef = useRef<HTMLButtonElement>(null)
@@ -145,7 +147,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
               signOut?.()
             }}
           >
-            Sign out
+            {t('account.signOut')}
           </button>
         </div>
       )}

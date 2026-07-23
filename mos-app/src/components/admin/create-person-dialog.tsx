@@ -12,6 +12,7 @@
 //   item 13: heading uses .heading CSS class instead of fontSize: '20px'
 
 import { useState, useEffect, useId } from 'react'
+import { useT } from '@/i18n/use-t'
 import { TextInput } from '@/components/ui/text-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
@@ -20,7 +21,7 @@ import { ErrorState } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { PasswordReveal } from './password-reveal'
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
-import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
+import { ASSIGNABLE_ROLES, localizedRoleMeta } from '@/lib/db/admin-users.types'
 
 export interface CreatePersonDialogProps {
   open: boolean
@@ -45,6 +46,7 @@ export function CreatePersonDialog({
   takenEmails,
   onShowToast,
 }: CreatePersonDialogProps) {
+  const t = useT()
   const [phase, setPhase] = useState<Phase>('form')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -102,7 +104,7 @@ export function CreatePersonDialog({
     setSubmitError('')
 
     if (!fullName.trim()) {
-      setNameError('Enter a name')
+      setNameError(t('admin.create.nameError'))
       return
     }
 
@@ -120,7 +122,7 @@ export function CreatePersonDialog({
       // Nothing was written — the honest "couldn't create this person, try again" path.
       setPhase('form')
       setSubmitError(
-        err instanceof Error ? err.message : "Couldn't create this person. Try again.",
+        err instanceof Error ? err.message : t('admin.create.error'),
       )
       return
     }
@@ -128,7 +130,7 @@ export function CreatePersonDialog({
     if (!createLoginNow) {
       // No login requested — close + notify + toast.
       onCreated()
-      onShowToast?.(`${fullName.trim()} added.`)
+      onShowToast?.(t('admin.create.addedToast', { name: fullName.trim() }))
       onClose()
       return
     }
@@ -146,9 +148,7 @@ export function CreatePersonDialog({
       setPhase('reveal')
     } catch {
       onCreated()
-      onShowToast?.(
-        `${fullName.trim()} added, but the sign-in couldn't be created. Open their ⋯ menu to Create login.`,
-      )
+      onShowToast?.(t('admin.create.loginFailedToast', { name: fullName.trim() }))
       onClose()
     }
   }
@@ -194,10 +194,10 @@ export function CreatePersonDialog({
                 className="heading text-xl font-semibold"
                 style={{ color: 'var(--foreground)' }}
               >
-                Add person
+                {t('admin.create.title')}
               </h2>
               <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                Create a directory entry, and optionally a sign-in.
+                {t('admin.create.subtitle')}
               </p>
             </div>
             <div style={{ borderTop: '1px solid var(--border)' }} />
@@ -208,7 +208,7 @@ export function CreatePersonDialog({
               <div className="flex flex-col gap-1.5">
                 <TextInput
                   id={nameId}
-                  label="Full name"
+                  label={t('admin.create.fullName')}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   error={!!nameError}
@@ -233,7 +233,7 @@ export function CreatePersonDialog({
               <div className="flex flex-col gap-2">
                 <TextInput
                   id={emailId}
-                  label="Email"
+                  label={t('admin.create.email')}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -253,9 +253,9 @@ export function CreatePersonDialog({
                     checked={noEmail}
                     onChange={(v) => setNoEmail(v)}
                     disabled={isSubmitting}
-                    aria-label="No email — this person has no email"
+                    aria-label={t('admin.create.noEmailAria')}
                   />
-                  <span>This person has no email</span>
+                  <span>{t('admin.create.noEmail')}</span>
                 </label>
 
                 {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
@@ -268,7 +268,7 @@ export function CreatePersonDialog({
                       className="text-xs font-medium"
                       style={{ color: 'var(--muted-foreground)' }}
                     >
-                      Sign-in name
+                      {t('admin.create.signInName')}
                     </div>
                     <code
                       className="mt-0.5 block text-sm"
@@ -286,7 +286,7 @@ export function CreatePersonDialog({
                   className="mb-1 text-sm font-medium"
                   style={{ color: 'var(--foreground)' }}
                 >
-                  Access roles
+                  {t('admin.people.col.roles')}
                 </legend>
                 <div
                   className="overflow-hidden rounded-md"
@@ -296,7 +296,7 @@ export function CreatePersonDialog({
                     // At create-time the new person is never the actor — self-assign guard never
                     // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
                     const isDisabled = isSubmitting
-                    const meta = ROLE_META[role] ?? { label: role, description: '' }
+                    const meta = localizedRoleMeta(role, t)
 
                     return (
                       <label
@@ -349,10 +349,10 @@ export function CreatePersonDialog({
                     value={createLoginNow}
                     onChange={(v) => setCreateLoginNow(v)}
                     disabled={isSubmitting}
-                    aria-label="Create a login now"
+                    aria-label={t('admin.create.createLoginNow')}
                   />
                   <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                    Create a login now
+                    {t('admin.create.createLoginNow')}
                   </span>
                 </label>
                 <p
@@ -362,15 +362,13 @@ export function CreatePersonDialog({
                     paddingLeft: 'calc(28px + 0.75rem)',
                   }}
                 >
-                  {createLoginNow
-                    ? 'A temporary password will be shown once after you create.'
-                    : 'Off: a directory entry only — you can add a sign-in later.'}
+                  {createLoginNow ? t('admin.create.loginHelpOn') : t('admin.create.loginHelpOff')}
                 </p>
               </div>
 
               {/* Form-level error */}
               {submitError && (
-                <ErrorState message="Couldn't create this person. Try again." />
+                <ErrorState message={t('admin.create.error')} />
               )}
             </div>
 
@@ -383,10 +381,10 @@ export function CreatePersonDialog({
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button type="submit" variant="primary" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating…' : 'Create person'}
+                {isSubmitting ? t('admin.create.creating') : t('admin.create.submit')}
               </Button>
             </div>
         </form>

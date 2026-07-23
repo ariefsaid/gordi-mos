@@ -41,6 +41,9 @@ export interface WrapSignalRecordInput {
   facts: ReactNode
   /** Region 5 node (edited disclosure) built by the host; null when never edited. */
   history: ReactNode | null
+  /** DO-13/I18N-2 — the identity type-kicker text; the live host passes the locale-resolved
+   *  `t('signals.record.title')`. Defaults to English so adapter unit tests keep their literal. */
+  typeLabel?: string
 }
 
 /**
@@ -52,7 +55,7 @@ export interface WrapSignalRecordInput {
  * and every mutating action lives in the one reach register (F5/LAW-3).
  */
 export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdapter {
-  const { detail, occurredLabel, reach, discussion, facts, history } = input
+  const { detail, occurredLabel, reach, discussion, facts, history, typeLabel = 'Signal' } = input
   const signal = detail.signal
   const retracted = signal.retracted_at !== null
   const title = firstLine(signal.body)
@@ -83,7 +86,7 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
     kind: 'signal',
     id: signal.id,
     title,
-    typeLabel: 'Signal',
+    typeLabel,
     metadata: [],
     relations: [],
     contentSlots,

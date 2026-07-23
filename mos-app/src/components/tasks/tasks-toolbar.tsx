@@ -110,7 +110,7 @@ export function TasksToolbar({
         value: query.layout,
         options: [
           { value: 'table', label: t('tasks.tab.table') },
-          { value: 'card', label: 'Card' },
+          { value: 'card', label: t('tasks.tab.card') },
         ],
         onChange: onPresentationChange,
       }}
