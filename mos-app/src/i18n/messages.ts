@@ -751,12 +751,17 @@ export const messages = {
     'signals.composer.noTeams.copy': 'A Signal is always posted to a team you belong to, and you are not a member of any team yet — so there is nowhere to share this.',
     'signals.composer.noTeams.note': 'Ask an admin or your team lead to add you to a team.',
     'signals.action.share': 'Share Signal',
+    // DO-17 F3 (signal-composer): a loading affordance beyond `disabled` while the post is in flight.
+    'signals.action.sharing': 'Sharing…',
     'signals.composer.close': 'Close Share Signal',
     'signals.mention.pickerLabel': 'Mention a person, team, or BU',
     'signals.mention.noMatches': 'No matches — Person/Team/BU only. Site is a location pill, not a mention.',
     'signals.mention.group.person': 'Person',
     'signals.mention.group.team': 'Team',
     'signals.mention.group.bu': 'BU',
+    // DO-17 F4 (signal-mention-picker): the reason a @BU row is disabled — a disabled control with
+    // no explanation is a dead affordance; the title/description states why it can't be picked.
+    'signals.mention.buDisabledReason': "You don't have permission to mention a Business Unit.",
     'signals.composer.visibleTo': 'Visible to ${team}',
     // SR-1 (owner ruling, provenance/02-the-50plus-qna-grill-2026-07-10_12.md:1924,2317 — "notify N
     // people"): the notify count carries its NOUN, never a naked number. English inflects the noun
@@ -1666,12 +1671,14 @@ export const messages = {
     'signals.composer.noTeams.copy': 'Sinyal selalu diposting ke tim yang Anda ikuti, dan Anda belum menjadi anggota tim mana pun — jadi belum ada tujuan untuk membagikannya.',
     'signals.composer.noTeams.note': 'Minta admin atau ketua tim Anda untuk menambahkan Anda ke sebuah tim.',
     'signals.action.share': 'Bagikan Sinyal',
+    'signals.action.sharing': 'Membagikan…',
     'signals.composer.close': 'Tutup Bagikan Sinyal',
     'signals.mention.pickerLabel': 'Sebut orang, tim, atau BU',
     'signals.mention.noMatches': 'Tidak ada hasil — hanya Orang/Tim/BU. Site adalah pil lokasi, bukan sebutan.',
     'signals.mention.group.person': 'Orang',
     'signals.mention.group.team': 'Tim',
     'signals.mention.group.bu': 'BU',
+    'signals.mention.buDisabledReason': 'Anda tidak memiliki izin untuk menyebut Unit Bisnis.',
     'signals.composer.visibleTo': 'Terlihat oleh ${team}',
     // SR-1: Indonesian "orang" is invariant (no singular/plural inflection) — both keys resolve to
     // it, so the count still reads with its noun in either locale.

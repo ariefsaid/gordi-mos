@@ -42,6 +42,10 @@ export function SignalMentionPicker({
             role="option"
             aria-selected={false}
             disabled={disabled}
+            // DO-17 F4: a disabled @BU row states WHY it can't be picked (title + aria-description),
+            // instead of a silent dead control.
+            title={disabled ? t('signals.mention.buDisabledReason') : undefined}
+            aria-description={disabled ? t('signals.mention.buDisabledReason') : undefined}
             className="mention-row"
             onMouseDown={(e) => e.preventDefault()} // keep the textarea focused/selection intact
             onClick={() => onSelect(kind, option)}

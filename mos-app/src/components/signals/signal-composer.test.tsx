@@ -213,6 +213,8 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
     const buOption = await screen.findByRole('option', { name: /Retail Ops/i })
     expect(buOption).toBeDisabled()
+    // DO-17 F4: the disabled @BU row states WHY it can't be picked, not a silent dead control.
+    expect(buOption).toHaveAttribute('title', expect.stringMatching(/permission to mention a Business Unit/i))
     unmount()
 
     renderComposer({ canMentionBu: true })
@@ -221,6 +223,22 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     await userEvent.type(body2, '@')
     const enabledBuOption = await screen.findByRole('option', { name: /Retail Ops/i })
     expect(enabledBuOption).toBeEnabled()
+  })
+
+  // DO-17 F3: while a post is in flight the primary button shows an explicit loading affordance
+  // (a "Sharing…" label + aria-busy), not merely a disabled control.
+  it('DO-17 F3: shows a loading affordance on the Share button while the post is in flight', async () => {
+    let resolvePost: (id: string) => void = () => {}
+    mockCreateSignal.mockReturnValue(new Promise<string>((r) => { resolvePost = r }))
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+
+    const posting = await screen.findByRole('button', { name: /sharing/i })
+    expect(posting).toHaveAttribute('aria-busy', 'true')
+    resolvePost('signal-new')
   })
 
   it('selecting a mention option inserts an @Name chip in the body and stages the mention', async () => {

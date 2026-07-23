@@ -227,9 +227,11 @@ export function SignalComposer({
         <Button
           variant="primary"
           disabled={!body.trim() || !teamId || posting}
+          aria-busy={posting}
           onClick={() => { void submit() }}
         >
-          {t('signals.action.share')}
+          {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
+          {posting ? t('signals.action.sharing') : t('signals.action.share')}
         </Button>
       </div>
     </div>
