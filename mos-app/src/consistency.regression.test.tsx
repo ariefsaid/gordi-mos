@@ -484,6 +484,9 @@ describe('RI-IA-10: Café surfaces do not leak the retired Kitchen noun', () => 
         .filter(({ line }) => !line.startsWith('import ') && !line.startsWith('} from '))
         .filter(({ line }) => !line.includes('id="kitchen-log-form"'))
         .filter(({ line }) => !line.includes("t('kitchen."))
+        // labelKey indirection (kitchen r2 FLAG-E): still a translation KEY, which the rule
+        // explicitly permits — rendered copy flows through t() and says Café.
+        .filter(({ line }) => !line.includes("labelKey: 'kitchen."))
 
       expect(offenders).toEqual([])
     })
