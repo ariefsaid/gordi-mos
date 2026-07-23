@@ -716,3 +716,8 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
   composer's own draft has no leave-guard on modal close (only the mention-picker Escape isolation
   shipped). A full composer leave-guard is a create-grammar concern — align with GAP-5/GAP-6 rulings
   when the owner takes the interaction decision sheet.
+
+- **ESB push retry action (deferred 2026-07-23, kitchen census FLAG-B):** a retryable `failed`
+  push (e.g. HTTP 502) offers no in-app recovery while `dead_letter` says "Escalate to platform".
+  A row-level Retry needs the ESB worker's retry semantics — design it with the ESB worker
+  workstream, not as a UI-only affordance.
