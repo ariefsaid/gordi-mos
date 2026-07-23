@@ -1,0 +1,133 @@
+/* Catalog collection list presentation (V3 catalog grammar — Projects & Processes / Objectives).
+   A single quiet list of small catalog rows: name + optional type tag + up/down trace, with the
+   inline management actions (Rename / Archive / Unarchive) that ARE the row's primary interaction.
+   DESIGN.md tokens only; 44px coarse targets. */
+
+.catalog-collection__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-collection__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card, var(--background));
+}
+
+.catalog-collection__row--archived {
+  background: transparent;
+  opacity: 0.66;
+}
+
+.catalog-collection__identity {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: 10px;
+}
+
+.catalog-collection__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-collection__row--archived .catalog-collection__name {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+.catalog-collection__trace {
+  flex-basis: 100%;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.catalog-collection__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Inline rename editor — one commit contract (Enter/Save, Esc/Cancel). */
+.catalog-collection__edit {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.catalog-collection__edit-field {
+  min-width: 180px;
+  flex: 1 1 220px;
+}
+
+.catalog-collection__error {
+  flex-basis: 100%;
+  color: var(--field-error-text);
+  font-size: 12px;
+}
+
+/* Coarse-pointer targets: every row control clears 44px without changing the fine-pointer look. */
+@media (pointer: coarse) {
+  .catalog-collection__actions .btn,
+  .catalog-collection__edit .btn {
+    min-height: 44px;
+  }
+}
+
+/* ── Page-level inline create bar (the ONE primary create affordance) ───────────────────────── */
+.catalog-create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.catalog-create__name {
+  flex: 1 1 240px;
+  min-width: 220px;
+}
+
+.catalog-create__type-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.catalog-create__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--field-error-text);
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .catalog-create .btn {
+    min-height: 44px;
+  }
+}

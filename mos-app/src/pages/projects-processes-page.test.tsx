@@ -1,8 +1,10 @@
-// AC-406 (FR-422): ProjectsProcessesPage up-trace — each project/process shows its parent
-// objective(s) + the per-objective task count, inferred from task linkage (work_lines has no
-// objective_id column) over listTasks + listObjectivesAll (no schema change). Reuses CatalogManager.
+// ProjectsProcessesPage — V3 catalog collection grammar (RecordCollectionSurface + CollectionToolbar).
+// AC-406 (FR-422): each project/process shows its parent objective(s) + the per-objective task count,
+// inferred from task linkage (work_lines has no objective_id column) over listTasks + listObjectivesAll
+// (no schema change). The management CRUD (create with a Type field / rename / archive / unarchive) and
+// the Project·Process type filter are preserved; journeys assert the goal, not the old inline-add chrome.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -16,7 +18,9 @@ vi.mock('@/lib/db/work-lines', () => ({
 vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 
-import { listWorkLinesAll } from '@/lib/db/work-lines'
+import {
+  listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
+} from '@/lib/db/work-lines'
 import { listObjectivesAll } from '@/lib/db/objectives'
 import { listTasks } from '@/lib/db/tasks'
 import { ProjectsProcessesPage } from './projects-processes-page'
@@ -52,6 +56,9 @@ beforeEach(() => {
     { id: 'obj-1', name: 'Grow revenue', archived_at: null },
     { id: 'obj-2', name: 'Brand love', archived_at: null },
   ])
+  vi.mocked(createWorkLine).mockResolvedValue({ id: 'wl-new', name: 'New', type: 'project', archived_at: null })
+  vi.mocked(renameWorkLine).mockResolvedValue()
+  vi.mocked(setWorkLineArchived).mockResolvedValue()
 })
 
 describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
@@ -71,8 +78,6 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
   })
 
   it('surfaces "no parent objective (N)" for a work_line whose tasks have a work_line but no objective (FR-422 edge case)', async () => {
-    // wl-1 has an objective-linked task; wl-2 has only an unlinked task → wl-2 must NOT be dropped:
-    // it shows a "no parent objective" trace with the count (the review-flagged edge case).
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1'),
       task('t2', null, 'wl-2'),
@@ -81,7 +86,6 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
     await screen.findByText('Menu launch')
     await screen.findByText('Daily prep')
     await waitFor(() => {
-      // both work_lines are traced now (wl-1 → parent objective; wl-2 → no parent objective)
       expect(container.querySelectorAll('[data-testid="catalog-trace"]')).toHaveLength(2)
     })
     const traces = [...container.querySelectorAll('[data-testid="catalog-trace"]')].map((n) => n.textContent)
@@ -89,13 +93,84 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
   })
 })
 
-describe('Catalog-Manage archetype conformance (Wave 2: W2-1)', () => {
-  it('V3: the typed-field surface uses the shared Management family measure', async () => {
-    vi.mocked(listTasks).mockResolvedValue([])
+describe('V3 collection grammar conformance', () => {
+  beforeEach(() => { vi.mocked(listTasks).mockResolvedValue([]) })
+
+  it('renders on the shared Management family frame with the V3 surface + toolbar', async () => {
     const { container } = renderPage()
     await screen.findByText('Menu launch')
     const main = container.querySelector('main')
     expect(main).toHaveAttribute('data-page-family', 'management')
     expect(main?.querySelector(':scope > .page-frame__content')).toBeTruthy()
+    expect(container.querySelector('[data-testid="record-collection-toolbar"]')).toBeTruthy()
+  })
+
+  it('each row carries its Project / Process type tag', async () => {
+    renderPage()
+    await screen.findByText('Menu launch')
+    // Scope to the collection list so the create-bar Type <option>s don't match.
+    const list = screen.getByRole('list', { name: 'Active' })
+    expect(within(list).getByText('Project')).toBeInTheDocument()
+    expect(within(list).getByText('Process')).toBeInTheDocument()
+  })
+
+  it('exactly ONE create affordance — the inline Add bar (the head carries no action slot)', async () => {
+    const { container } = renderPage()
+    await screen.findByText('Menu launch')
+    expect(container.querySelector('.ch-action')).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Add project or process' })).toHaveLength(1)
+  })
+})
+
+describe('Catalog CRUD + type filter are preserved under the new grammar', () => {
+  beforeEach(() => { vi.mocked(listTasks).mockResolvedValue([]) })
+
+  it('create: the inline Add bar creates a work_line with the chosen Type (FR-013/014)', async () => {
+    renderPage()
+    await screen.findByText('Menu launch')
+    const form = screen.getByRole('form', { name: 'Add project or process' })
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Weekly stock opname' } })
+    fireEvent.change(within(form).getByRole('combobox'), { target: { value: 'process' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Add project or process' }))
+    await waitFor(() => expect(createWorkLine).toHaveBeenCalledWith('Weekly stock opname', 'process'))
+  })
+
+  it('rename: the inline row editor calls renameWorkLine with the new name', async () => {
+    renderPage()
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Menu launch' }))
+    const editor = await screen.findByLabelText('Rename Menu launch')
+    fireEvent.change(editor, { target: { value: 'Menu relaunch' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(renameWorkLine).toHaveBeenCalledWith('wl-1', 'Menu relaunch'))
+  })
+
+  it('archive: the row Archive action soft-archives the work_line', async () => {
+    renderPage()
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Archive Menu launch' }))
+    await waitFor(() => expect(setWorkLineArchived).toHaveBeenCalledWith('wl-1', true))
+  })
+
+  it('unarchive: the Archived view exposes Unarchive, which restores the work_line', async () => {
+    vi.mocked(listWorkLinesAll).mockResolvedValue([
+      { id: 'wl-1', name: 'Menu launch', type: 'project', archived_at: null },
+      { id: 'wl-3', name: 'Retired process', type: 'process', archived_at: '2026-01-01T00:00:00Z' },
+    ])
+    renderPage()
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Archived' }))
+    const unarchive = await screen.findByRole('button', { name: 'Unarchive Retired process' })
+    fireEvent.click(unarchive)
+    await waitFor(() => expect(setWorkLineArchived).toHaveBeenCalledWith('wl-3', false))
+  })
+
+  it('type filter: narrowing to Processes hides the Projects', async () => {
+    const { container } = renderPage()
+    await screen.findByText('Menu launch')
+    const typeFilter = container.querySelector('#collection-filter-type') as HTMLSelectElement
+    fireEvent.change(typeFilter, { target: { value: 'process' } })
+    await waitFor(() => expect(screen.queryByText('Menu launch')).toBeNull())
+    expect(screen.getByText('Daily prep')).toBeInTheDocument()
   })
 })
