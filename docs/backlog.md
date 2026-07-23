@@ -1,16 +1,23 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **REDESIGN CONVERGENCE QUEUE (2026-07-23, Director) — work these in order after the in-flight
-> lanes land:** ① merge `v3/owner-r2` + sweep fix lanes (`v3/sweep-*`) per the integration
-> protocol in `docs/agent-context.md` · ② execute `docs/plans/2026-07-23-component-interrogation.md`
-> (fossil-deletes → replaces → redesigns → Storybook coverage plan; only 7 stories exist for
-> ~109 components) · ③ post-cockpit orphan sweep (entry below) + DueRunsTrigger sweep (entry
-> below) · ④ P&P/Objectives record panels (deferred from the catalog rebuild — rows currently
-> manage inline only) · ⑤ full-suite + reseed + owner walkthrough (impeccable `live` ready) ·
-> ⑥ single Luna pass on owner request · ⑦ RATIFY register (ledger): pill radius rounded-rect vs
-> DESIGN.md 999px · A12 re-expression (attention-worthy Signals in the ranked stream) · OD-18
-> re-expression (ranking preference) · Signals feed-first default · phone View&filters wrapper
-> non-dedup rationale. Then feature work resumes.
+> **REDESIGN CONVERGENCE QUEUE (re-sequenced per OD-REDESIGN-87, 2026-07-23):**
+> **PHASE 1 — CAPTURE (close it out):** ✅ owner-r2 + 8 sweep lanes merged (`d798e90`) · ✅ component
+> interrogation 111/111 (`docs/plans/2026-07-23-component-interrogation.md`, flag-owner pre-answered) ·
+> ✅ parity ledger S1–S7 (`docs/plans/2026-07-23-feature-parity-ledger.md`) · ⏳ interaction-consistency
+> divergence ledger (in flight) · ⏳ last 3 sweep fixers (profile/auth/admin-people).
+> **PHASE 2 — GRAMMAR:** execute the interrogation work-order (fossil-deletes → replaces → redesigns)
+> + interaction-divergence fixes · mechanical guard suite (`v3/mech-guards` lane) + top-10 from
+> `docs/plans/2026-07-23-skill-rule-mechanization.md` wired into `pre-merge-check.sh` · Storybook
+> coverage (shared engine first: record-field/record-collection/collection-toolbar/state-kit, then
+> the ~35 flagged) · orphan sweeps (entries below) · P&P/Objectives record panels.
+> **PHASE 3 — SCORE:** full suite + reseed + owner walkthrough (impeccable `live`) · Luna pass on
+> fresh attested renders (Nielsen ≥32 / anti-slop >8.5 / no axis below E7 + consistency) · RATIFY
+> register (pill radius · A12 re-expression · OD-18 re-expression · Signals feed default · phone
+> View&filters non-dedup) + the 3 surviving owner items (deputy-bubble mockup pick · block-vs-warn ·
+> ⌘K Signals scope).
+> **PHASE 4 — FEATURES:** the S1–S7 restoration queue (ledger §5; S2/S3 need their deferred schema
+> ADRs first) + Issue-10 editor, Shifts, module stubs. Feature work before the Phase-3 gate is out
+> of order (OD-87).
 
 - **R6(b) record-door unification (deferred from `v3/owner-r2`, 2026-07-23):** Tasks opens
   records path-based (`/work/tasks/:id`) while Signals uses the `?record=` query seam — two door

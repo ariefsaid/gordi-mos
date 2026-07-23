@@ -2049,3 +2049,18 @@ mockup drew it; see the CLAUDE.md "mockup fidelity is not a data spec" rule this
 produced); cockpit scaffold deleted (OD-85). Fossil disposition discipline for all agents:
 DELETE (function served elsewhere) / REPLACE (rebuild better in V3 grammar, same slice) /
 FLAG (genuine ambiguity → owner).
+
+### OD-REDESIGN-87 — convergence sequence: capture → grammar → score → features (owner 2026-07-23)
+
+Owner verbatim: "capture missings first. redesign for better UI/UX/IA/IxD than previous mockups.
+once we have the design grammar fixed *ASAP*, including pixel fixing process and storybook in
+place, as well as the nielsen and consistency score goes up, we should start churning out the
+features." Binding order: **(1) CAPTURE** every missing — the parity ledger's S1–S7 restoration
+queue (`docs/plans/2026-07-23-feature-parity-ledger.md` §5), interaction divergences, sweep
+findings — all into tracked queues, nothing silent. **(2) GRAMMAR** — redesign to beat the prior
+mockups on UI/UX/IA/IxD; the pixel-fixing process = mechanical guard suite + the binding 7-step
+audit protocol (`docs/plans/2026-07-23-skill-rule-mechanization.md`); Storybook coverage for the
+shared engine + state-rich components (interrogation plan). **(3) SCORE** — Nielsen ≥32 / anti-slop
+>8.5 / no axis below E7, plus interaction-consistency, measured by Luna on fresh attested renders.
+**(4) FEATURES** — only then the restoration queue + feature backlog resumes. Feature work before
+the score gate is out of order.
