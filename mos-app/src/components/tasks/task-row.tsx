@@ -98,7 +98,7 @@ export function TaskRow({
     onCommit: (next) => (onEditTitle ? onEditTitle(task.id, next) : undefined),
     rollbackMessage: t('tasks.feedback.rollback'),
   })
-  const { draft, setDraft, pending, commit, cancel, liveMessage } = inline
+  const { draft, setDraft, pending, error: saveError, retry, commit, cancel, liveMessage } = inline
   const displayTitle = draft
 
   useEffect(() => {
@@ -230,6 +230,22 @@ export function TaskRow({
               <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
             )}
           </Link>
+        )}
+        {/* OD-REDESIGN-22 (D-C1): a failed rename surfaces a VISIBLE error + Retry — not a sr-only
+            rollback the sighted user never sees. Retry re-sends the preserved attempt. The sr-only
+            live region still announces the revert for AT. */}
+        {saveError && (
+          <span role="alert" className="task-row-save-error">
+            {t('record.field.saveError')}
+            <button
+              type="button"
+              className="task-row-retry"
+              // Row click opens the record; a retry click must not leak into that opener.
+              onClick={(e) => { e.stopPropagation(); retry() }}
+            >
+              {t('record.field.retry')}
+            </button>
+          </span>
         )}
         {liveMessage && (
           <span role="status" aria-live="polite" className="sr-only">{liveMessage}</span>

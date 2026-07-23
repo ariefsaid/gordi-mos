@@ -242,3 +242,26 @@
 .signal-collection-presentation .dt-card-detail {
   gap: 6px 12px;
 }
+
+/* OD-REDESIGN-22 (D-C1): a failed inline rename surfaces a VISIBLE error + Retry in the row
+   (not a sr-only-only rollback). Mirrors the RecordField error/retry treatment. */
+.task-row-save-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--destructive);
+}
+
+.task-row-retry {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--destructive);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}

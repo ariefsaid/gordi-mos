@@ -34,6 +34,12 @@ function NumberField(props: {
         onBlur={ic.onBlur}
       />
       <button type="button" aria-label="dec" onClick={() => ic.commit(ic.draft - 1)}>−</button>
+      {ic.error && (
+        <span role="alert">
+          Couldn’t save
+          <button type="button" aria-label="retry" onClick={ic.retry}>Retry</button>
+        </span>
+      )}
       <span role="status" aria-live="polite">{ic.liveMessage}</span>
     </div>
   )
@@ -129,6 +135,64 @@ describe('useInlineCommit — async pending + rollback (reuses the I6 optimistic
     d.reject(new Error('write failed'))
     await waitFor(() => expect(input).toHaveValue(5)) // rolled back
     await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/reverted/i))
+  })
+})
+
+// OD-REDESIGN-22: a failed autosave must show a VISIBLE error + retry — not sr-only only —
+// and preserve the user's attempt so Retry re-sends the SAME value (fixes D-C1/DIV-G1).
+describe('useInlineCommit — visible error + retry (OD-REDESIGN-22)', () => {
+  it('AC-I5-6: a rejected commit exposes a VISIBLE error (role=alert), not only the sr-only announce', async () => {
+    const d = deferred<void>()
+    render(<NumberField value={5} onCommit={() => d.promise} />)
+    const input = screen.getByLabelText('qty')
+    fireEvent.change(input, { target: { value: '8' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('alert')).toBeNull() // no error before the write settles
+    d.reject(new Error('write failed'))
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+  })
+
+  it('AC-I5-7: Retry re-sends the SAME attempted value (the preserved attempt), not the rolled-back saved value', async () => {
+    const first = deferred<void>()
+    const attempts: number[] = []
+    const onCommit = vi.fn((next: number) => {
+      attempts.push(next)
+      return attempts.length === 1 ? first.promise : Promise.resolve()
+    })
+    render(<NumberField value={5} onCommit={onCommit} />)
+    const input = screen.getByLabelText('qty')
+    fireEvent.change(input, { target: { value: '8' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    first.reject(new Error('write failed'))
+    await waitFor(() => expect(input).toHaveValue(5)) // rolled back to saved
+    fireEvent.click(await screen.findByLabelText('retry'))
+    await waitFor(() => expect(attempts).toEqual([8, 8])) // Retry re-sent the attempt, not 5
+  })
+
+  it('AC-I5-8: a successful Retry clears the visible error', async () => {
+    const first = deferred<void>()
+    let call = 0
+    const onCommit = () => { call += 1; return call === 1 ? first.promise : Promise.resolve() }
+    render(<NumberField value={5} onCommit={onCommit} />)
+    const input = screen.getByLabelText('qty')
+    fireEvent.change(input, { target: { value: '8' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    first.reject(new Error('write failed'))
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    fireEvent.click(screen.getByLabelText('retry'))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+
+  it('AC-I5-9: Escape (cancel) clears a shown error', async () => {
+    const d = deferred<void>()
+    render(<NumberField value={5} onCommit={() => d.promise} />)
+    const input = screen.getByLabelText('qty')
+    fireEvent.change(input, { target: { value: '8' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    d.reject(new Error('write failed'))
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    fireEvent.keyDown(input, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   })
 })
 

@@ -48,6 +48,17 @@ export interface UseInlineCommitResult<T> {
   setDraft: (v: T) => void
   /** True while an async commit is in flight — drive `disabled` + `aria-busy`. */
   pending: boolean
+  /**
+   * True after an async commit REJECTED — drive a VISIBLE "Couldn't save · Retry" affordance
+   * (OD-REDESIGN-22: autosave shows pending/saved/error/retry, never a sr-only-only rollback).
+   * Cleared when a new commit starts, on `retry`, on `cancel`, and when `value` syncs upstream.
+   */
+  error: boolean
+  /**
+   * Re-send the LAST rejected attempt (the preserved value the user typed) — Retry re-commits
+   * the same draft, it does NOT re-send the rolled-back saved value. No-op with nothing to retry.
+   */
+  retry: () => void
   /** Commit the current draft, or an explicit `override` (e.g. a stepper ± click). */
   commit: (override?: T) => void
   /** Escape — restore the saved value WITHOUT committing. */
@@ -73,14 +84,23 @@ export function useInlineCommit<T>({
 }: UseInlineCommitOptions<T>): UseInlineCommitResult<T> {
   const [draft, setDraft] = useState<T>(value)
   const [pending, setPending] = useState(false)
+  const [error, setError] = useState(false)
   const [liveMessage, setLiveMessage] = useState('')
   const pendingRef = useRef(false)
+  // The last value handed to a rejecting commit — preserved so Retry re-sends the user's
+  // attempt (not the rolled-back saved value). `null` means there is nothing to retry.
+  const lastAttemptRef = useRef<{ value: T } | null>(null)
 
   // Keep the draft synced to the committed value when it changes upstream (a confirmed
   // save, an external edit, or — for the qty cells — an action-type switch). Never
   // clobber an in-flight edit: while a commit is pending the draft is authoritative.
+  // A confirmed upstream value also clears any stale error/retry (the field is at rest).
   useEffect(() => {
-    if (!pendingRef.current) setDraft(value)
+    if (!pendingRef.current) {
+      setDraft(value)
+      setError(false)
+      lastAttemptRef.current = null
+    }
   }, [value])
 
   // Re-announce even identical consecutive outcomes: clear then set on the next frame
@@ -99,6 +119,7 @@ export function useInlineCommit<T>({
     if (override !== undefined) setDraft(override)
     if (disabled) return
     if (equals(next, value)) return // no-op — no needless write
+    setError(false) // a fresh attempt clears any prior error/retry state
     const result = onCommit(next)
     if (isThenable(result)) {
       pendingRef.current = true
@@ -107,19 +128,29 @@ export function useInlineCommit<T>({
         () => {
           pendingRef.current = false
           setPending(false)
+          lastAttemptRef.current = null
         },
         () => {
           pendingRef.current = false
           setPending(false)
-          setDraft(value) // rollback to the saved value
+          lastAttemptRef.current = { value: next } // preserve the attempt for Retry
+          setDraft(value) // rollback the visible draft to the saved value
+          setError(true) // surface a VISIBLE error + Retry (OD-REDESIGN-22)
           if (rollbackMessage) announce(rollbackMessage)
         },
       )
     }
   }, [draft, disabled, equals, value, onCommit, rollbackMessage, announce])
 
+  const retry = useCallback(() => {
+    const attempt = lastAttemptRef.current
+    if (attempt) commit(attempt.value)
+  }, [commit])
+
   const cancel = useCallback(() => {
     setDraft(value) // Escape — discard the draft, restore saved; never commit
+    setError(false)
+    lastAttemptRef.current = null
   }, [value])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -136,5 +167,5 @@ export function useInlineCommit<T>({
     commit()
   }, [commit])
 
-  return { draft, setDraft, pending, commit, cancel, liveMessage, onKeyDown, onBlur }
+  return { draft, setDraft, pending, error, retry, commit, cancel, liveMessage, onKeyDown, onBlur }
 }

@@ -230,6 +230,24 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("Couldn't save — reverted"))
   })
 
+  it('OD-REDESIGN-22 (D-C1): a rejected rename shows a VISIBLE Retry that re-sends the same title', async () => {
+    const onEditTitle = vi.fn()
+      .mockRejectedValueOnce(new Error('write failed'))
+      .mockResolvedValueOnce(undefined)
+    renderRow({ onEditTitle })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: 'Doomed rename' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // A visible (not sr-only) retry affordance appears once the write rejects.
+    const retry = await screen.findByRole('button', { name: /retry/i })
+    fireEvent.click(retry)
+    // Retry re-sends the PRESERVED attempt, not the rolled-back saved title.
+    await waitFor(() => expect(onEditTitle).toHaveBeenNthCalledWith(2, 'task-7', 'Doomed rename'))
+    // A successful retry clears the error affordance and lands the new title.
+    await waitFor(() => expect(screen.queryByRole('button', { name: /retry/i })).toBeNull())
+    expect(document.querySelector('.task-name')).toHaveTextContent('Doomed rename')
+  })
+
   it('an empty draft is a no-op restore — never commits a blank title', () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
