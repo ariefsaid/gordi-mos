@@ -394,6 +394,7 @@ export function HomePage() {
         authorNamesById={signalData?.context.authorNamesById ?? new Map()}
         teamNamesById={signalData?.context.teamNamesById ?? new Map()}
         loading={signalController.state.status === 'loading'}
+        error={signalController.state.status === 'error'}
         onReload={signalRetry}
       />
     </PageFamilyFrame>

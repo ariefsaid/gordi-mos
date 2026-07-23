@@ -137,4 +137,15 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     const { container } = renderSection({ loading: true })
     expect(container.querySelector('.signal-feed-section')).toBeNull()
   })
+
+  // DIV-G5 (fix work-order item 8): a failed load must surface ErrorState + Retry — never the
+  // "No Signals yet" empty state, which reads as a false all-clear while the service is down.
+  it('a failed shared read shows ErrorState + Retry (no false "No Signals yet"), Retry re-runs the read', async () => {
+    const onReload = vi.fn()
+    renderSection({ signals: [], error: true, onReload })
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/couldn't load signals/i))
+    expect(screen.queryByText(/No Signals yet/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(onReload).toHaveBeenCalledTimes(1)
+  })
 })

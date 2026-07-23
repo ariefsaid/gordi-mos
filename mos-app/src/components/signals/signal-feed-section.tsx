@@ -5,6 +5,7 @@ import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useT } from '@/i18n/use-t'
+import { ErrorState } from '@/components/ui/state-kit'
 import { SignalRecordHost } from './signal-record-host'
 import { SignalFeedRows } from './signal-feed-rows'
 import './signal-feed-section.css'
@@ -12,9 +13,10 @@ import './signal-feed-section.css'
 // C3b (AC-426/FR-414): the Home ambient feed slot — the FYI-only tail of the Signals split
 // (OD-84.1 / Luna P0-1: attention-worthy Signals lead the stream as band 0; FYI stay ambient here).
 // Presentational: HomePage owns the ONE shared signal read (FR-V3-013 — no second Signal loader) and
-// passes the FYI signals + resolved author/Team names + a reload callback down. Home keeps its quiet-
-// degradation policy (render the feed + composer row even when the fetch fails). Task creation remains
-// on the focused Signal record where the real follow-up Task flow lives; this card advertises no dead action.
+// passes the FYI signals + resolved author/Team names + a reload callback down. A FAILED read renders
+// the state-kit ErrorState + Retry (DIV-G5: the old quiet degradation showed "No Signals yet" on a
+// load failure — a false all-clear). Task creation remains on the focused Signal record where the real
+// follow-up Task flow lives; this card advertises no dead action.
 
 export interface SignalFeedSectionProps {
   /** The ambient (FYI) Signals — the attention-worthy split already leads the stream. */
@@ -25,7 +27,9 @@ export interface SignalFeedSectionProps {
   teamNamesById: ReadonlyMap<string, string>
   /** The shared read's initial-load state — Home's own skeleton regions cover it (NFR-405). */
   loading?: boolean
-  /** Re-run the shared signal read (after a categorize correction, or a Share elsewhere). */
+  /** The shared read failed — render ErrorState + Retry, never an empty-looking all-clear (DIV-G5). */
+  error?: boolean
+  /** Re-run the shared signal read (after a categorize correction, a Share elsewhere, or Retry). */
   onReload?: () => void
 }
 
@@ -34,7 +38,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 }
 
 export function SignalFeedSection({
-  signals, authorNamesById, teamNamesById, loading = false, onReload,
+  signals, authorNamesById, teamNamesById, loading = false, error = false, onReload,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -78,14 +82,20 @@ export function SignalFeedSection({
           {t('nav.work.signals')} →
         </Link>
       </div>
-      <SignalFeedRows
-        signals={signals}
-        authorNamesById={namesToRecord(authorNamesById)}
-        teamNamesById={namesToRecord(teamNamesById)}
-        onShareClick={openSignalComposer}
-        onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
-        onOpen={(signal) => openRecord(signal.id)}
-      />
+      {error ? (
+        // The error/retry branch every engine collection has (DIV-G5): a failed load must never
+        // read as "No Signals yet".
+        <ErrorState message={t('signals.feed.error')} onRetry={onReload} retryLabel={t('signals.feed.retry')} />
+      ) : (
+        <SignalFeedRows
+          signals={signals}
+          authorNamesById={namesToRecord(authorNamesById)}
+          teamNamesById={namesToRecord(teamNamesById)}
+          onShareClick={openSignalComposer}
+          onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
+          onOpen={(signal) => openRecord(signal.id)}
+        />
+      )}
       {host ? <OverlayHostSlot owner="signals" /> : null}
     </section>
   )
