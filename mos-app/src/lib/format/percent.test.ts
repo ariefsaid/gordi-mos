@@ -3,8 +3,8 @@
 // id-ID (comma decimals) — never a raw-period "23.1%" beside a comma "36,7%".
 import { describe, it, expect } from 'vitest'
 import { formatPercent } from './percent'
-import { formatMarginPct } from '../dashboard'
-import { formatPct } from '../plan-budget-logic'
+import { formatMarginPct } from '@/lib/dashboard'
+import { formatPct } from '@/lib/plan-budget-logic'
 
 describe('formatPercent (r5 F-2: one locale-aware percent everywhere)', () => {
   it('formats a fraction with id-ID comma decimals at the default 1dp', () => {

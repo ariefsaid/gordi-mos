@@ -302,7 +302,7 @@ function budgetRow(id: string, label: string) {
     menu_item_esb_code: 'MENU-CAPPUC',
     menu_item_name: 'Cappuccino',
     scenario_label: label,
-    scenario_type: 'baseline',
+    scenario_type: 'baseline' as const,
     owning_bu_id: 'bu-1',
     total_budgeted_cogs: 9000,
     cost_basis_as_of: FRESH_BASIS,
@@ -352,9 +352,12 @@ describe('GUARD-R2 (r5 F-1): the Budget page head never shows a number without a
     await waitFor(() => expect(screen.getAllByText('Fresh Milk').length).toBeGreaterThan(0))
 
     const head = screen.getByTestId('page-head')
+    // The scenario list hydrates in a second effect (per-menu fetch) — wait on the meta.
+    await waitFor(() =>
+      expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('2 scenarios'),
+    )
     const metaLines = head.querySelectorAll('.ch-meta-line')
     expect(metaLines).toHaveLength(1)
-    expect(metaLines[0].textContent?.trim()).toBe('2 scenarios')
     expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
     expect(bareNumberLeaves(head)).toHaveLength(0)
   })
