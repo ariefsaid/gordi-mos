@@ -30,6 +30,8 @@ export type RecordFeedProps = {
   onReorderChecklist: (id: string, direction: 'up' | 'down') => void
   onDeleteChecklist: (id: string) => void
   onPostComment: (body: string) => Promise<void> | void
+  /** OD-REDESIGN-22 (D-C1): a failed checklist write → visible error + Retry (forwarded to ChecklistCard). */
+  checklistError?: { message: string; onRetry: () => void } | null
 }
 
 // The right-hand record feed (ADR-0013 D3): a tab strip Activity / Checklist /
@@ -41,7 +43,7 @@ export function RecordFeed({
   task, checklist, events, comments, people, now, editable, viewerId,
   activeTab, onSelectTab,
   onAddChecklist, onToggleChecklist, onReorderChecklist, onDeleteChecklist,
-  onPostComment,
+  onPostComment, checklistError = null,
 }: RecordFeedProps) {
   const t = useT()
   const done = checklist.filter(i => i.is_done).length
@@ -131,6 +133,7 @@ export function RecordFeed({
             onToggle={onToggleChecklist}
             onReorder={onReorderChecklist}
             onDelete={onDeleteChecklist}
+            saveError={checklistError}
           />
         )}
       </div>

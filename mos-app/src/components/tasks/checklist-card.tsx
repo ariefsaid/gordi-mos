@@ -12,9 +12,15 @@ export type ChecklistCardProps = {
   onToggle: (id: string, isDone: boolean) => void
   onReorder: (id: string, direction: 'up' | 'down') => void
   onDelete: (id: string) => void
+  /**
+   * OD-REDESIGN-22 (D-C1): when the last optimistic checklist write FAILED, the owner passes a
+   * visible error message + a retry that re-runs it. `null` (default) = no error. The optimistic
+   * rollback already reverts the row visually; this adds the clickable Retry a sighted user needs.
+   */
+  saveError?: { message: string; onRetry: () => void } | null
 }
 
-export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete }: ChecklistCardProps) {
+export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete, saveError = null }: ChecklistCardProps) {
   const t = useT()
   const [draft, setDraft] = useState('')
   const done = items.filter(i => i.is_done).length
@@ -88,6 +94,15 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
           </li>
         ))}
       </ul>
+
+      {saveError && (
+        <p role="alert" className="checklist-save-error">
+          {saveError.message}
+          <button type="button" className="checklist-retry" onClick={saveError.onRetry}>
+            {t('record.field.retry')}
+          </button>
+        </p>
+      )}
 
       {editable && (
         <input
