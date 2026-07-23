@@ -148,7 +148,6 @@ export function ProjectsProcessesPage() {
       family="management"
       title={t('nav.work.projects')}
       jobSentence={t('job.projects')}
-      meta={<span>{t('catalog.projects.subtitle')}</span>}
       count={projection ? projection.visibleRecords.length : null}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
