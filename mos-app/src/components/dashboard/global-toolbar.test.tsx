@@ -25,7 +25,7 @@ beforeEach(() => {
 })
 
 describe('GlobalToolbar (AC-011)', () => {
-  it('AC-011: renders the cut toggle, window selector, and freshness label together', () => {
+  it('AC-011: renders the cut toggle and window selector together', () => {
     render(
       <GlobalToolbar
         cut="Branch"
@@ -33,7 +33,6 @@ describe('GlobalToolbar (AC-011)', () => {
         window={WINDOW}
         onWindowChange={vi.fn()}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
       />,
     )
     // CutToggle (3 options)
@@ -43,8 +42,6 @@ describe('GlobalToolbar (AC-011)', () => {
     expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument()
     // WindowSelector
     expect(screen.getByRole('tablist', { name: /time window/i })).toBeInTheDocument()
-    // FreshnessLabel
-    expect(screen.getByText(/as of/i)).toBeInTheDocument()
   })
 
   it('AC-011: passes the cut change through onCutChange', () => {
@@ -56,7 +53,6 @@ describe('GlobalToolbar (AC-011)', () => {
         window={WINDOW}
         onWindowChange={vi.fn()}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
       />,
     )
     fireEvent.click(screen.getByRole('tab', { name: /channel/i }))
@@ -72,39 +68,25 @@ describe('GlobalToolbar (AC-011)', () => {
         window={WINDOW}
         onWindowChange={onWindowChange}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
       />,
     )
     fireEvent.click(screen.getByRole('tab', { name: /^7d$/i }))
     expect(onWindowChange).toHaveBeenCalledWith({ kind: 'preset', days: 7 })
   })
 
-  it('renders the freshness timestamp when snapshotAsOf is provided', () => {
-    render(
+  it('r5 F-6 (redundancy law): the toolbar NEVER renders a freshness stamp — head meta + chart own "as of"', () => {
+    const { container } = render(
       <GlobalToolbar
         cut="Branch"
         onCutChange={vi.fn()}
         window={WINDOW}
         onWindowChange={vi.fn()}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
-      />,
-    )
-    expect(screen.getByText(/2026/i)).toBeInTheDocument()
-  })
-
-  it('omits the freshness label when snapshotAsOf is null', () => {
-    render(
-      <GlobalToolbar
-        cut="Branch"
-        onCutChange={vi.fn()}
-        window={WINDOW}
-        onWindowChange={vi.fn()}
-        bounds={BOUNDS}
-        snapshotAsOf={null}
       />,
     )
     expect(screen.queryByText(/as of/i)).toBeNull()
+    expect(container.querySelector('.global-toolbar-freshness')).toBeNull()
+    expect(container.querySelector('.freshness-label')).toBeNull()
   })
 
   it('DO-21: on phone, the Custom From/To pair renders on its own row BELOW the rail — never inline in the horizontal scroller — and all 3 cut options stay reachable', () => {
@@ -115,7 +97,6 @@ describe('GlobalToolbar (AC-011)', () => {
         window={CUSTOM}
         onWindowChange={vi.fn()}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
       />,
     )
     // The pair exists once, in the dedicated range row outside the scrolling rail.
@@ -143,7 +124,6 @@ describe('GlobalToolbar (AC-011)', () => {
         window={CUSTOM}
         onWindowChange={onWindowChange}
         bounds={BOUNDS}
-        snapshotAsOf={null}
       />,
     )
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-06-10' } })
@@ -161,7 +141,6 @@ describe('GlobalToolbar (AC-011)', () => {
         window={CUSTOM}
         onWindowChange={vi.fn()}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
       />,
     )
     expect(container.querySelector('.global-toolbar-range-row')).toBeNull()
@@ -178,7 +157,6 @@ describe('GlobalToolbar (AC-011)', () => {
         window={WINDOW}
         onWindowChange={vi.fn()}
         bounds={BOUNDS}
-        snapshotAsOf="2026-07-01T03:14:00Z"
       />,
     )
     expect(screen.getByRole('tab', { name: /branch/i })).toBeInTheDocument()

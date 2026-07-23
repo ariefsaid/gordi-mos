@@ -206,7 +206,6 @@ function ToolbarHarness({ initial }: { initial: WindowSpec }) {
       window={windowSpec}
       onWindowChange={setWindowSpec}
       bounds={BOUNDS}
-      snapshotAsOf="2026-07-01T03:14:00Z"
     />
   )
 }

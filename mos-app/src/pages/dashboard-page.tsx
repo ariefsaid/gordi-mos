@@ -209,7 +209,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
-          bounds={bounds} snapshotAsOf={snapshotAsOf}
+          bounds={bounds}
           tab={tab} onTab={setTab}
         />
         {/* The `.dash-loading` wrapper is THE single page-level loading status; the
@@ -235,7 +235,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
-          bounds={bounds} snapshotAsOf={snapshotAsOf}
+          bounds={bounds}
           tab={tab} onTab={setTab}
         />
         <ErrorState
@@ -253,7 +253,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
-          bounds={bounds} snapshotAsOf={snapshotAsOf}
+          bounds={bounds}
           tab={tab} onTab={setTab}
         />
         <EmptyState
@@ -301,7 +301,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       <DashboardChrome
         cut={cut} onCut={setCut}
         windowSpec={windowSpec} onWindow={setWindowSpec}
-        bounds={bounds} snapshotAsOf={snapshotAsOf}
+        bounds={bounds}
         tab={tab} onTab={setTab}
         trailing={<span>Applies to both: <b>{cut}</b> · <b>{windowLabel}</b></span>}
       />
@@ -458,7 +458,6 @@ interface DashboardChromeProps {
   windowSpec: WindowSpec
   onWindow: (w: WindowSpec) => void
   bounds: { earliest: string; latest: string } | null
-  snapshotAsOf: string | null
   tab: string
   onTab: (id: string) => void
   trailing?: React.ReactNode
@@ -473,7 +472,6 @@ function DashboardChrome(props: DashboardChromeProps) {
         window={props.windowSpec}
         onWindowChange={props.onWindow}
         bounds={props.bounds}
-        snapshotAsOf={props.snapshotAsOf}
       />
       <ViewTabs
         ariaLabel="Money view"

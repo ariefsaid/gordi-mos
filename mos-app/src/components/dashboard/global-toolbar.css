@@ -1,6 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════════
    GlobalToolbar — the one toolbar above both tabs (design-plan §2.8, FR-011/AC-011).
-   Desktop: single flex row (window group · 1px divider · cut group · freshness),
+   Desktop: single flex row (window group · 1px divider · cut group — NO freshness
+   stamp, r5 F-6 redundancy law: head meta + chart own "as of"),
    carried by the inner .global-toolbar-rail. Flat utility surface — NO resting
    shadow (Soft-Elevation Rule: shadow only on tiles/chart/table/stub).
    Token-only (DESIGN.md).
@@ -40,10 +41,6 @@
   color: var(--muted-foreground);
 }
 
-.global-toolbar-freshness {
-  margin-left: auto;
-}
-
 /* Mobile: sticky filter rail BELOW the tab strip (not over it). The tab strip
    sticks at top:0 (z-index 2, height 40px); this rail sticks at top:40px so both
    stay visible. The inner rail scrolls horizontally so the 3-option CutToggle
@@ -77,10 +74,6 @@
     display: none; /* rail scrolls horizontally; no room for the divider/overline */
   }
   .global-toolbar-group {
-    flex: none;
-  }
-  .global-toolbar-freshness {
-    margin-left: 0;
     flex: none;
   }
   /* DO-21 (money F-4): the Custom From/To pair lives on its OWN full-width row
