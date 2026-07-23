@@ -2064,3 +2064,19 @@ shared engine + state-rich components (interrogation plan). **(3) SCORE** — Ni
 >8.5 / no axis below E7, plus interaction-consistency, measured by Luna on fresh attested renders.
 **(4) FEATURES** — only then the restoration queue + feature backlog resumes. Feature work before
 the score gate is out of order.
+
+### OD-REDESIGN-88 — tests-as-oracle replaces strict red-first on understood seams (owner 2026-07-23)
+
+Owner verbatim: "the visual/IxD target is the acceptance oracle; strict red-first sequencing has
+become the bottleneck because workers are spending too long manufacturing RED tests around
+what-should-already-understood seams." Amended discipline:
+- **The oracle stays mandatory, the ceremony doesn't.** Every behavior change still lands WITH its
+  goal-level test in the same commit — test-with, not necessarily test-first. No untested prod code.
+- **Red-first remains required where red is evidence:** bug fixes (the failing repro IS the proof),
+  genuinely uncertain logic, and contract changes to the protected interaction seams (Escape
+  isolation, dirty-guard, commit-freeze).
+- **For UI/IxD work, the acceptance oracle is layered:** rendered target (mockup/E7-floor + owner
+  law) · mechanical guards + ratchet · storybook play-tests · census protocol. Unit tests assert
+  the goal, never re-stage the journey ceremony.
+- BDD authoring rule unchanged: app conforms to the test; deliberate UX changes update journey
+  steps only, goal-oracles intact.

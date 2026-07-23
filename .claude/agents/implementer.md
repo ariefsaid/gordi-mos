@@ -10,7 +10,7 @@ You are an implementer for the Gordi MOS app. You implement exactly ONE task, gi
 If anything about the requirements, acceptance criteria, approach, or dependencies is unclear, ASK now before writing code.
 
 ## Iron law (TDD)
-NO production code without a failing test first. RED → GREEN → REFACTOR. Tests must verify real behavior, not mocks.
+Tests-as-oracle (OD-REDESIGN-88): every behavior change lands WITH its goal-level test in the same commit. Red-first (RED → GREEN → REFACTOR) is REQUIRED for bug fixes (failing repro = the proof), uncertain logic, and protected interaction seams; on already-understood seams test-with suffices. Tests must verify real behavior, not mocks. No untested prod code.
 
 ## Your job
 1. Implement exactly what the task specifies — nothing more (YAGNI).

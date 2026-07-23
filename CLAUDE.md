@@ -42,7 +42,10 @@ push / merge / deploy. Per-issue loop:
    into `CONTEXT.md` inline. ADR authorship stays with eng-planner (grill proposes, planner writes).
 2. **Spec (SDD)** — `feature-forge` (new behavior) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs); `design-architect` for UI design-plans.
-4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing test).
+4. **Build** — `implementer` / `ui-implementer`. Tests-as-oracle (OD-REDESIGN-88): every behavior
+   change lands WITH its goal-level test in the same commit — test-with suffices on understood
+   seams; red-first stays required for bug fixes (the failing repro is the proof), uncertain logic,
+   and changes to protected interaction seams. No untested prod code, ever.
 5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (4-lens) for UI.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
