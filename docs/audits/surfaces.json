@@ -174,18 +174,18 @@
         1280,
         1870
       ],
-      "generation": 1,
+      "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
       "lockedAt": "1be4fd3",
-      "bumped": false,
+      "bumped": true,
       "pins": [
         "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
         "mos-app/src/components/records/guard-record-page-measure.css.test.tsx",
         "mos-app/e2e/tasks-canonical-page.spec.ts"
       ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#33-task-record",
-      "due": false,
+      "due": true,
       "dueAxes": [
         "anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned",
         "states: loading/error NOT-REVIEWED (census-r2 3.3)"
@@ -685,11 +685,11 @@
         1280,
         1870
       ],
-      "generation": 1,
+      "generation": 2,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
-      "bumped": false,
+      "bumped": true,
       "pins": [],
       "findings": null,
       "due": true,
