@@ -196,9 +196,25 @@
 .stream-all-clear .empty-state-glyph { font-size: 13px; }
 .stream-all-clear .empty-title { font-size: 15px; }
 
-/* Phone: keep rows tappable; let the reason chip + status pill wrap under the title
-   if the tail can't fit, rather than clipping the title. */
+/* Phone (Luna P0-1(b), ≤390 measured): the row becomes a single column — the metadata
+   subline AND the attention tail (reason chip + status pill) stack BENEATH the primary
+   title instead of competing for a fixed trailing column. This gives the title the full
+   row width (≥240px, was 152–169px) and lets it WRAP instead of ellipsis-truncating with
+   horizontal scroll (impeccable ban-text-overflow). Applied across the phone range so the
+   ≤390 fix isn't a lone island above a still-squeezed 391–480. */
 @media (max-width: 480px) {
-  .stream-row-link { align-items: flex-start; }
-  .stream-row-tail { align-self: flex-start; margin-top: 2px; }
+  .stream-row-link {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .stream-row-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .stream-row-tail {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
 }
