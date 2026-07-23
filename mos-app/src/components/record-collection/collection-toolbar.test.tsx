@@ -200,4 +200,28 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
 
     expect(screen.getByText('Saved view')).toBeInTheDocument()
   })
+
+  it('DO-20(c) (census objectives F5): a host WITHOUT the savedViews capability labels the view zone plain "View", never "Saved view"', () => {
+    // The catalogs' Active/Archived toggle has saved views structurally disabled — promising
+    // "Saved view" there mislabels the control (census R2, objectives F5).
+    render(
+      <I18nProvider>
+        <CollectionToolbar
+          presentation={{
+            label: 'Presentation', value: 'table',
+            options: [{ value: 'table', label: 'Table' }], onChange: vi.fn(),
+          }}
+          views={{
+            label: 'Views', value: 'active',
+            options: [{ value: 'active', label: 'Active' }, { value: 'archived', label: 'Archived' }],
+            onChange: vi.fn(),
+          }}
+        />
+      </I18nProvider>,
+    )
+
+    const group = screen.getByRole('group', { name: 'Views' })
+    expect(within(group).getByText('View')).toBeInTheDocument()
+    expect(screen.queryByText('Saved view')).not.toBeInTheDocument()
+  })
 })

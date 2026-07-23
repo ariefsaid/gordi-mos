@@ -125,12 +125,14 @@ export function ObjectivesPage() {
   )
 
   return (
+    // Census R2 DO-7 (objectives F7) + DO-20(d) (F6): no bare head count pill — the labeled
+    // result-header inside the collection already carries the count ("N items in your scope"),
+    // so the naked pill was a GUARD-R2-class duplicate. The extra meta subtitle overlapped the
+    // job sentence (two subtitles vs Projects' one) and is dropped with it.
     <PageFamilyFrame
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
-      meta={<span>{t('catalog.objectives.subtitle')}</span>}
-      count={projection ? projection.visibleRecords.length : null}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 

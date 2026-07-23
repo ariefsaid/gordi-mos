@@ -29,6 +29,9 @@ export const messages = {
     // Shared E7 result-header framing (OD-REDESIGN-72/79 collection convergence; E7-floor
     // reframe 2026-07-22 replaces "N results" with E7's own "N items in your scope").
     'common.savedView': 'Saved view',
+    // DO-20(c): the view-zone label for hosts WITHOUT saved views (the catalogs'
+    // Active/Archived toggle) — "Saved view" there promised a disabled feature.
+    'common.view': 'View',
     'common.resultCount': '${count} items in your scope',
     // Nav sub-item labels — every nav string flows through the catalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id shape-identical (AC-409).
@@ -509,7 +512,6 @@ export const messages = {
     'catalog.objectives.empty.copy': 'Add your first objective above.',
     'catalog.objectives.error': 'Couldn’t load objectives.',
     'catalog.objectives.loading': 'Loading objectives…',
-    'catalog.objectives.subtitle': 'Yearly goals that work rolls up to. Admin-managed.',
     'catalog.projects.add': 'Add project or process',
     'catalog.projects.adding': 'Adding…',
     'catalog.projects.empty.title': 'No projects or processes yet',
@@ -767,6 +769,7 @@ export const messages = {
     'common.cancel': 'Batal',
     'common.saving': 'Menyimpan…',
     'common.savedView': 'Tampilan tersimpan',
+    'common.view': 'Tampilan',
     'common.resultCount': '${count} item dalam cakupan Anda',
     'dest.home': 'Beranda',
     'dest.work': 'Kerja',
@@ -1231,7 +1234,6 @@ export const messages = {
     'catalog.objectives.empty.copy': 'Tambahkan objective pertama Anda di atas.',
     'catalog.objectives.error': 'Tidak dapat memuat objective.',
     'catalog.objectives.loading': 'Memuat objective…',
-    'catalog.objectives.subtitle': 'Sasaran tahunan yang menjadi muara kerja. Dikelola admin.',
     'catalog.projects.add': 'Tambah proyek atau proses',
     'catalog.projects.adding': 'Menambahkan…',
     'catalog.projects.empty.title': 'Belum ada proyek atau proses',

@@ -75,6 +75,9 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
     expect(trace.textContent).toContain('Under:')
     expect(trace.textContent).toContain('Grow revenue (2)')
     expect(trace.textContent).toContain('Brand love (1)')
+    // DO-20(a) (census F3): the counts carry their unit — the up-trace mirrors the
+    // down-trace grammar with a trailing labeled total, never bare "(2)" figures alone.
+    expect(trace.textContent).toContain('3 tasks')
   })
 
   it('surfaces "no parent objective (N)" for a work_line whose tasks have a work_line but no objective (FR-422 edge case)', async () => {

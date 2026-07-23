@@ -144,11 +144,12 @@ export function ProjectsProcessesPage() {
   )
 
   return (
+    // Census R2 DO-7 (objectives F7, sibling sweep): no bare head count pill — the labeled
+    // result-header inside the collection already carries the count.
     <PageFamilyFrame
       family="management"
       title={t('nav.work.projects')}
       jobSentence={t('job.projects')}
-      count={projection ? projection.visibleRecords.length : null}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 

@@ -172,11 +172,20 @@ export function AdminUsersPage() {
   const frameState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : 'default'
 
   return (
+    // Census R2 DO-7 sibling sweep (GUARD-R2 class): People has no in-body result-header, so its
+    // count moves into the head as ONE labeled meta sentence ("9 people" — the Tasks grammar),
+    // never the bare ".ch-count" digit pill; "—" while counts are unknown.
     <PageFamilyFrame
       family="management"
       title="People"
       jobSentence="Manage who can sign in and what they can do."
-      count={loadState === 'loaded' ? people.length : null}
+      meta={
+        <span data-testid="people-count-line" className="ch-meta-line tabular-nums">
+          {loadState === 'loaded'
+            ? `${people.length} ${people.length === 1 ? 'person' : 'people'}`
+            : '—'}
+        </span>
+      }
       action={<Button variant="primary" onClick={() => setAddOpen(true)}>+ Add person</Button>}
       state={frameState}
     >

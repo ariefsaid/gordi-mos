@@ -181,7 +181,11 @@ function buildWorkLineUpTrace(
     const orphan = objCounts.get(NO_OBJ) ?? 0
     if (orphan > 0) segments.push(`no parent objective (${orphan})`)
     if (segments.length === 0) continue
-    map.set(workLineId, `Under: ${segments.join(', ')}`)
+    // Census R2 DO-20(a) (objectives F3): the up-trace units its counts exactly like the sibling
+    // down-trace ("3 tasks · Menu launch (2)") — a trailing "· N tasks" total gives the bare
+    // per-objective "(n)" figures their noun instead of leaving naked numbers (GUARD-R2 class).
+    const total = [...objCounts.values()].reduce((sum, n) => sum + n, 0)
+    map.set(workLineId, `Under: ${segments.join(', ')} · ${total} task${total === 1 ? '' : 's'}`)
   }
   return map
 }

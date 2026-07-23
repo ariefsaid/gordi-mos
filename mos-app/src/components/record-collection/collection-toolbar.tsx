@@ -141,7 +141,12 @@ export function CollectionToolbar<
           primary axis, so they come first — never behind or beside the Table/Board decision. */}
       <div className="collection-toolbar__primary">
         <div className="collection-toolbar__views" role="group" aria-label={views.label}>
-          <span className="collection-toolbar__views-label" aria-hidden="true">{t('common.savedView')}</span>
+          {/* DO-20(c) (objectives F5): "Saved view" is only honest where saved views exist. A host
+              without the savedViews capability (the catalogs' Active/Archived toggle) labels the
+              zone plain "View" instead of promising a feature the surface structurally disables. */}
+          <span className="collection-toolbar__views-label" aria-hidden="true">
+            {t(savedViews ? 'common.savedView' : 'common.view')}
+          </span>
           {views.options.map((option) => {
             const active = option.value === views.value && !savedViews?.selectedId
             return (

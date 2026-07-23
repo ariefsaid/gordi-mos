@@ -219,20 +219,22 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     expect(screen.getAllByRole('button', { name: /add person/i })).toHaveLength(1)
   })
 
-  it('W2-3: the count pill reflects people.length when loaded', async () => {
+  // DELIBERATE goal change (Census R2 DO-7 sibling sweep, GUARD-R2 class): the bare ".ch-count"
+  // digit pill becomes ONE labeled meta sentence — "5 people" — in the Tasks head grammar.
+  it('DO-7: the head carries a labeled people-count sentence, never a naked digit pill', async () => {
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
     const { container } = renderPage()
     await screen.findByText('Budi Santoso')
-    const pill = container.querySelector('.ch-count')
-    expect(pill).toBeTruthy()
-    expect(pill!.textContent).toBe(String(PEOPLE_ALL_STATES.length))
+    expect(container.querySelector('.ch-count')).toBeNull()
+    expect(screen.getByTestId('people-count-line').textContent?.trim())
+      .toBe(`${PEOPLE_ALL_STATES.length} people`)
   })
 
-  it('W2-3: the count pill is omitted while loading', () => {
+  it('DO-7: while counts are unknown the head shows a placeholder, never a stale bare digit', () => {
     mockListAdminPeople.mockReturnValue(new Promise(() => {}))
     const { container } = renderPage()
     expect(container.querySelector('.ch-count')).toBeNull()
-    expect(screen.getByTestId('page-head')).toBeInTheDocument()
+    expect(screen.getByTestId('people-count-line').textContent?.trim()).toBe('—')
   })
 })
 

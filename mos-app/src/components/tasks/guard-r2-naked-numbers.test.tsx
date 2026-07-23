@@ -13,6 +13,11 @@
  * Structure asserted (jsdom, no pixels): the rendered Tasks head contains exactly one
  * `.ch-meta-line` whose text is a labeled sentence, NO `.ch-count` pill sibling, and no
  * descendant leaf anywhere in the head whose entire text is a bare number.
+ *
+ * ENUMERATION (Census R2 DO-7): this guard was Tasks-only, so the same class re-grew on
+ * sibling heads. The page-level sweep lives in src/pages/guard-r2-naked-heads.test.tsx
+ * (Objectives / Projects / Admin People; Money joins when its lane lands). A new page head
+ * MUST be added to that sweep.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'

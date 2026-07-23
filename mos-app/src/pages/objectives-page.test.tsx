@@ -107,12 +107,16 @@ describe('V3 collection grammar conformance', () => {
     expect(container.querySelector('[data-testid="collection-result-header"]')).toBeTruthy()
   })
 
-  it('the head count pill reflects the active objective count', async () => {
+  // DELIBERATE goal change (Census R2 DO-7 · objectives F7): the bare head ".ch-count" digit
+  // pill is a GUARD-R2-class naked number; the labeled result-header inside the collection is
+  // the ONE place the count lives ("2 items in your scope").
+  it('DO-7: the head shows no naked count pill — the labeled result-header carries the count', async () => {
     const { container } = renderPage()
     await screen.findByText('Grow revenue')
-    const pill = container.querySelector('.ch-count')
-    expect(pill).toBeTruthy()
-    expect(pill!.textContent).toBe('2') // two active objectives in the fixture
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelector('.ch-count')).toBeNull()
+    const resultHeader = container.querySelector('[data-testid="collection-result-header"]')
+    expect(resultHeader?.textContent).toContain('2 items in your scope')
   })
 
   it('exactly ONE create affordance — the inline Add bar (the head carries no action slot)', async () => {
