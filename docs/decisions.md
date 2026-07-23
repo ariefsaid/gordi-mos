@@ -2024,3 +2024,12 @@ ratifications before any build.
    no-selection stance is the shared grammar; the checkbox column + select-all scaffolding is a
    dead affordance (taste rule). Reintroduce with the first real bulk action. Closes the last
    NEEDS-DECISION row of `docs/reviews/v3-table-parity-matrix.md`.
+
+### OD-REDESIGN-84 — toolbar lean+disclosure + 1024 icon rail (owner 2026-07-23)
+
+Resolving the critic oscillation with Luna's official evidence: 1. **Collection toolbar =
+lean + disclosure**: row 1 saved views + presentation; row 2 search + ONE labelled
+"View & filters" affordance holding filters/group/sort/archived. The round-1 flat-row
+directive is superseded. 2. **1024 compact icon rail**: ≤1100px the rail collapses to a
+~72px icon rail (accessible labels), phone regime unchanged. Both are Luna-measured
+E7-floor items, owner-ratified.
