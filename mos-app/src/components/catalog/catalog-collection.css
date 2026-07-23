@@ -32,7 +32,11 @@
 .catalog-collection__identity {
   display: flex;
   min-width: 0;
-  flex: 1 1 220px;
+  /* basis 0 (not 220px): the name shares one line with the flex-none actions cluster and
+     ellipsizes only when genuinely too long. A non-zero basis forced the whole cluster to wrap
+     onto its own line at phone widths (220 + gap + actions > row), ballooning the row and
+     right-flushing the actions with dead whitespace beside the name. */
+  flex: 1 1 0;
   align-items: center;
   gap: 10px;
 }
