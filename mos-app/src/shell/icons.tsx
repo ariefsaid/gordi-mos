@@ -78,23 +78,6 @@ export function CloseIcon({ className, size = 16 }: { className?: string; size?:
   )
 }
 
-export function MyWeekIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M3 9h18" />
-    </svg>
-  )
-}
-
 export function TasksIcon() {
   return (
     <svg
@@ -108,62 +91,6 @@ export function TasksIcon() {
     >
       <path d="M9 11l3 3 8-8" />
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  )
-}
-
-export function UpdatesIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <path d="M4 4h16v16H4z" />
-      <path d="M8 9h8M8 13h5" />
-    </svg>
-  )
-}
-
-export function OpsIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <path d="M12 6v6l4 2" />
-      <circle cx="12" cy="12" r="9" />
-    </svg>
-  )
-}
-
-// KitchenIcon — chef's hat silhouette, stroke-based, 18px, currentColor.
-// NFR-002: no icon library; same stroke-2/aria-hidden convention as the other nav icons.
-export function KitchenIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {/* Chef's hat: dome + brim bar */}
-      <path d="M6 14V19H18V14" />
-      <path d="M6 14C4 14 3 12.5 3 11C3 9 4.5 7.5 6.5 7.5C6.8 5.5 8.7 4 11 4C13 4 14.7 5 15.5 6.5C15.7 6.5 15.8 6.5 16 6.5C17.7 6.5 19 7.8 19 9.5C19 11 18 12.5 16 13.5" />
     </svg>
   )
 }
@@ -236,27 +163,6 @@ export function WorkLineIcon() {
   )
 }
 
-// SalesIcon — a rising trend line, the sales-reporting dashboard (Issue 1).
-// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
-export function SalesIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 17l6-6 4 4 8-8" />
-      <path d="M15 7h6v6" />
-    </svg>
-  )
-}
-
 // HomeIcon — house silhouette, the Home destination (ADR-0019 D2/D8).
 // NFR-002: no icon library; stroke-2, 18px, aria-hidden.
 export function HomeIcon() {
@@ -275,28 +181,6 @@ export function HomeIcon() {
       <path d="M3 11l9-7 9 7" />
       <path d="M5 10v10h14V10" />
       <path d="M9 20v-6h6v6" />
-    </svg>
-  )
-}
-
-// PlanIcon — a checklist/map, the Plan destination (not yet rolled in — ADR-0019 D2).
-// NFR-002: no icon library; stroke-2, 18px, aria-hidden.
-export function PlanIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M9 4h11v16H9z" />
-      <path d="M4 4h2v2H4zM4 11h2v2H4zM4 18h2v2H4z" />
-      <path d="M13 8h4M13 13h4" />
     </svg>
   )
 }
