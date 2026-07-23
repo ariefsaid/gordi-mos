@@ -59,9 +59,6 @@
    page is one comfortable single column capped for reading measure; we match it.
    All raw values are DESIGN.md CSS-var tokens.
    ════════════════════════════════════════════════════════════════════════════ */
-.record-actions {
-  display: flex; justify-content: flex-end; margin-bottom: 12px;
-}
 /* Promoted-from-drawer chrome (collapse + close) above the record document. It
    reuses .dw-bar/.dw-iconbtn; here it is a standalone strip (no bottom rule of
    its own — the .record-doc card below carries the border). */
