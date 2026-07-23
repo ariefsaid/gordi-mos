@@ -24,7 +24,11 @@
   defect class becomes a deterministic guard — split height parity, no naked head numbers, one
   solid primary per surface, toolbar label gap, ≤1 permission note per record, token vocabulary
   scan widened beyond `ui/`, 44px tap targets (structural Vitest + Playwright geometry spec).
-  Wire the geometry spec into `pre-merge-check.sh` once merged.
+  Wire the geometry spec into `pre-merge-check.sh` once merged. **Master plan:**
+  `docs/plans/2026-07-23-skill-rule-mechanization.md` — full skill-rule inventory (7 mechanized /
+  43 mechanizable — ~35 already implemented in impeccable's detector, wire as gate / 18 census /
+  5 judgment), the top-10 build order (closes defect classes D2–D9), and the binding 7-step audit
+  protocol (an audit reporting a score without all 7 census artifacts is void).
 
 - **Post-cockpit orphan sweep (2026-07-23):** the OD-85 deletion orphaned `directory.ts
   getRoles()`, `use-company-finance-kpis.ts`, and the e2e `MEMBER` fixture + its global-setup
