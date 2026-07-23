@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
@@ -119,6 +119,43 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks/t1')
     // The overlay is closed after promotion — no stacked panel behind the page.
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(0)
+  })
+
+  // D-A3 (fix work-order item 5): the /inbox page opens the record in ROUTE mode, so browser Back
+  // closes the panel and returns to the Inbox queue. An ephemeral open pushed no history entry, so
+  // Back ejected the user OUT of Inbox entirely — the dead-end I2 + OD-REDESIGN-20 ("Back returns
+  // to Inbox") forbid.
+  it('browser Back closes the record panel and returns to Inbox (never ejects the section)', async () => {
+    mockUse.mockReturnValue(hook({ notifications: [notif()] }))
+    let current: ReturnType<typeof useLocation> | null = null
+    const getPath = () => current?.pathname
+    function Probe() {
+      current = useLocation()
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate(-1)}>Back</button>
+    }
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/tasks', '/inbox']} initialIndex={1}>
+          <OverlayHostProvider>
+            <Probe />
+            <InboxTriageConnected mode="page" />
+            <OverlayHostSlot owner="inbox" />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
+    expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    // Panel closes …
+    await waitFor(() => expect(document.querySelectorAll('[data-overlay-host]').length).toBe(0))
+    // … and we remain on Inbox (Back did not eject to /work/tasks). The queue is still shown.
+    expect(getPath()).toBe('/inbox')
+    expect(screen.getByRole('button', { name: /Budget review/ })).toBeInTheDocument()
   })
 
   it('the Unread filter narrows the queue by read state; Handled stays withheld (no dead tab)', () => {

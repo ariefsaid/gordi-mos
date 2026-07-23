@@ -27,6 +27,11 @@ export function FollowUpsPage() {
   // button (the entry carries pageTo). Falls back to no callback when the host is unavailable
   // (defensive — FollowUpsPage always renders under the shell host, but the fallback keeps the
   // table's contract honest for isolated test/embed use).
+  //
+  // D-A3 (fix work-order item 5): opens in ROUTE mode, not ephemeral. Route mode pushes a real
+  // `__mosOverlay` history marker, so browser Back closes the panel and returns to the queue.
+  // Ephemeral pushed no history entry, so Back ejected the user OUT of the section entirely
+  // (panel AND queue gone) — the dead-end I2 + OD-REDESIGN-20 forbid.
   const onOpenRecord = (row: FollowUpRow) => {
     if (!host) return
     void host.openRoot(
@@ -39,7 +44,7 @@ export function FollowUpsPage() {
         pageTo: { pathname: `/work/follow-ups/${row.id}` },
         content: <FollowUpRecordHost followUpId={row.id} mode="panel" />,
       },
-      'ephemeral',
+      'route',
     )
   }
 

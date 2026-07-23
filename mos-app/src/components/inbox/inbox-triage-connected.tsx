@@ -63,9 +63,12 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
     if (!host) return
     const entry: OverlayEntry = resolution.entry
     // Active session (quick triage) → push so Back returns to the queue; otherwise open a root
-    // over the underlying page.
+    // over the underlying page in ROUTE mode (D-A3, fix work-order item 5): route mode pushes a real
+    // `__mosOverlay` history marker, so browser Back closes the panel and returns to Inbox. An
+    // ephemeral root pushed no history entry, so Back ejected the user OUT of Inbox — the dead-end
+    // I2 + OD-REDESIGN-20 ("Back returns to Inbox") forbid.
     if (host.session) void host.push(entry)
-    else void host.openRoot(entry, 'ephemeral')
+    else void host.openRoot(entry, 'route')
   }
 
   return (

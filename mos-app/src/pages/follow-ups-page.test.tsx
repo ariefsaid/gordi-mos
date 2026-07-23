@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { OverlayHostProvider, OverlayHostSlot } from '@/shell/overlay-host'
@@ -213,6 +213,45 @@ describe('FollowUpsPage', () => {
       // panel — drawer-first preserves context) and once in the panel title (host chrome renders
       // entry.title = row.counterparty). This double-occurrence IS the drawer-first proof.
       expect(screen.getAllByText('PT Big Buyer').length).toBe(2)
+    })
+
+    // D-A3 (fix work-order item 5): the follow-up must open in ROUTE mode so browser Back closes the
+    // panel and returns to the queue. An ephemeral open pushes no history entry, so Back ejects the
+    // user OUT of the section (panel AND queue gone) — the dead-end I2 + OD-REDESIGN-20 forbid.
+    function renderWithHostAndBack(initialEntries: string[], initialIndex: number) {
+      let current: ReturnType<typeof useLocation> | null = null
+      function Probe() {
+        current = useLocation()
+        const navigate = useNavigate()
+        return <button type="button" onClick={() => navigate(-1)}>Back</button>
+      }
+      const utils = render(
+        <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+          <I18nProvider>
+            <OverlayHostProvider>
+              <Probe />
+              <FollowUpsPage />
+              <OverlayHostSlot owner="shell" />
+            </OverlayHostProvider>
+          </I18nProvider>
+        </MemoryRouter>,
+      )
+      return { ...utils, getLocation: () => current }
+    }
+
+    it('D-A3: browser Back closes the follow-up panel and returns to the queue (never ejects the section)', async () => {
+      const { container, getLocation } = renderWithHostAndBack(['/inbox', '/work/follow-ups'], 1)
+      const openBtn = await screen.findByRole('button', { name: /Open follow-up INV-1001/i })
+      await userEvent.setup().click(openBtn)
+      await waitFor(() => expect(container.querySelectorAll('[data-overlay-host]').length).toBe(1))
+
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Back' }))
+
+      // The panel closes …
+      await waitFor(() => expect(container.querySelectorAll('[data-overlay-host]').length).toBe(0))
+      // … and the queue is STILL mounted on its own route (Back did not eject to /inbox).
+      expect(getLocation()?.pathname).toBe('/work/follow-ups')
+      expect(screen.getByText('PT Big Buyer')).toBeInTheDocument()
     })
   })
 })
