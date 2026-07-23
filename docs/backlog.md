@@ -707,3 +707,7 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
   Independent verification at `3d6c39c` is 94/94 focused tests plus typecheck, ESLint/CSS lint, and
   diff-check. Remaining gates are controller-owned browser-Back/one-session stack semantics and
   rendered 1280/1024/390 geometry/focus/phone scroll containment. No new chrome rewrite is needed.
+
+- **Pre-existing storybook red (deferred 2026-07-23):** `overlays.stories.tsx › CurrentRecordPanelShell`
+  play-test — panel never receives the `complementary` role after the open click; fails identically on
+  the baseline before the story-coverage lane. Diagnose the shell's role timing (story vs component).
