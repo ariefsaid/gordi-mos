@@ -16,8 +16,10 @@
  *
  * ENUMERATION (Census R2 DO-7): this guard was Tasks-only, so the same class re-grew on
  * sibling heads. The page-level sweep lives in src/pages/guard-r2-naked-heads.test.tsx
- * (Objectives / Projects / Admin People; Money joins when its lane lands). A new page head
- * MUST be added to that sweep.
+ * (Objectives / Projects / Admin People). A new page head MUST be added to that sweep.
+ * The MONEY head is enumerated HERE — its cut row-count folds into one labeled meta
+ * sentence ("5 branches · as of …"); loading / empty / error show the "—" placeholder,
+ * never a bare digit pill.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -49,11 +51,23 @@ vi.mock('../../lib/db/directory', () => ({
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
+vi.mock('@/lib/db/reporting', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')
+  return { ...actual, listSalesDailyRevenue: vi.fn() }
+})
+vi.mock('@/lib/db/reporting-margin', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')
+  return { ...actual, listSalesMarginDaily: vi.fn() }
+})
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
+import { listSalesMarginDaily } from '@/lib/db/reporting-margin'
+import { DashboardPage } from '../../pages/dashboard-page'
 import { TasksWorkspace } from './tasks-workspace'
 import { __resetExpandPrefForTests } from './use-expand-pref'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
@@ -173,6 +187,92 @@ describe('GUARD-R2: the Tasks page head never shows a number without a label sen
     const metaLine = head.querySelector('.ch-meta-line')
     expect(metaLine).not.toBeNull()
     expect(metaLine?.textContent?.trim()).toBe('—')
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+})
+
+// ── DO-7 (census sweep r2) — the MONEY head under the same guard ─────────────────────
+
+const MONEY_LATEST = '2026-06-30'
+function moneyIsoDaysFrom(dateIso: string, delta: number): string {
+  const d = new Date(`${dateIso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+function moneyRevRow(
+  date: string, channel: 'POS' | 'B2B', branchCode: string, branchName: string,
+): SalesDailyRevenueRow {
+  return {
+    revenue_date: date,
+    channel,
+    esb_code: channel === 'B2B' ? 'GRI' : 'GKID',
+    branch_code: branchCode,
+    branch_name: branchName,
+    transactions: 100,
+    clean_revenue: 10_000_000,
+    snapshot_as_of: '2026-07-01T03:14:00Z',
+    source_contract_version: 'v1',
+  }
+}
+function moneyRevenueRows(): SalesDailyRevenueRow[] {
+  const rows: SalesDailyRevenueRow[] = []
+  for (let i = 59; i >= 0; i--) {
+    const d = moneyIsoDaysFrom(MONEY_LATEST, -i)
+    rows.push(moneyRevRow(d, 'POS', 'GHQ', 'Gordi HQ'))
+    rows.push(moneyRevRow(d, 'B2B', 'GRI', 'Gordi Roastery'))
+  }
+  return rows
+}
+
+function renderMoney() {
+  return render(
+    <MemoryRouter initialEntries={['/money']}>
+      <DashboardPage />
+    </MemoryRouter>,
+  )
+}
+
+describe('GUARD-R2 (DO-7): the Money page head never shows a number without a label sentence', () => {
+  it('GUARD-R2: populated head meta is one .ch-meta-line labeled sentence ("2 branches · as of …") — no .ch-count pill, no bare-number leaf', async () => {
+    vi.mocked(listSalesDailyRevenue).mockResolvedValue(moneyRevenueRows())
+    vi.mocked(listSalesMarginDaily).mockResolvedValue([])
+
+    renderMoney()
+    await waitFor(() => expect(screen.getByText(/channel mix/i)).toBeInTheDocument())
+
+    const head = screen.getByTestId('page-head')
+    const metaLines = head.querySelectorAll('.ch-meta-line')
+    expect(metaLines).toHaveLength(1)
+    // Count carries its noun AND the freshness sentence rides the same labeled line.
+    expect(metaLines[0].textContent?.trim()).toMatch(/^2 branches · as of /)
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+
+  it('GUARD-R2: while Money data is loading the head shows the "—" placeholder, never a stale bare digit', async () => {
+    vi.mocked(listSalesDailyRevenue).mockReturnValue(new Promise(() => {}))
+    vi.mocked(listSalesMarginDaily).mockReturnValue(new Promise(() => {}))
+
+    renderMoney()
+    const head = await screen.findByTestId('page-head')
+    const metaLine = head.querySelector('.ch-meta-line')
+    expect(metaLine).not.toBeNull()
+    expect(metaLine?.textContent?.trim()).toBe('—')
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+
+  it('GUARD-R2: the empty state (no snapshot rows) keeps the placeholder — no "0" pill', async () => {
+    vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
+    vi.mocked(listSalesMarginDaily).mockResolvedValue([])
+
+    renderMoney()
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /no sales snapshot/i })).toBeInTheDocument(),
+    )
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—')
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
     expect(bareNumberLeaves(head)).toHaveLength(0)
   })
 })

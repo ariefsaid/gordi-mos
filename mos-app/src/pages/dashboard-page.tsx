@@ -66,6 +66,18 @@ function windowQueryValue(spec: WindowSpec): string {
   return spec.kind === 'preset' ? `${spec.days}d` : 'custom'
 }
 
+// GUARD-R2 (census DO-7 · Money): the page head never renders a naked count pill. The
+// cut row-count folds into ONE labeled meta sentence ("5 branches · as of …"), matching
+// the Tasks head ("14 tasks · 2 blocked") — a digit with no attached noun carries no
+// meaning. Loading / empty / error show the "—" placeholder, never a stale bare digit.
+function cutNoun(cut: DashboardCut, n: number): string {
+  if (cut === 'Channel') return n === 1 ? 'channel' : 'channels'
+  if (cut === 'Activity') return n === 1 ? 'activity' : 'activities'
+  return n === 1 ? 'branch' : 'branches'
+}
+
+const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
+
 interface DashboardTableRow {
   id: string
   dimension: string
@@ -192,7 +204,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (load === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} state="loading">
+      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
@@ -218,7 +230,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Error ────────────────────────────────────────────────────────────────────
   if (load === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} state="error">
+      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
@@ -236,7 +248,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Empty (no snapshot rows) ─────────────────────────────────────────────────
   if (revenueRows.length === 0 || !latestDate || !rev7d || !rev30d || !revKpis) {
     return (
-      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} count={0} state="empty">
+      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
@@ -277,8 +289,12 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       family="workspace"
       title="Money"
       jobSentence={t('job.money')}
-      count={cutRows.length}
-      meta={snapshotAsOf ? <FreshnessLabel asOf={snapshotAsOf} /> : undefined}
+      meta={
+        <span className="ch-meta-line tabular-nums">
+          {cutRows.length} {cutNoun(cut, cutRows.length)}
+          {snapshotAsOf && <> · <FreshnessLabel asOf={snapshotAsOf} /></>}
+        </span>
+      }
     >
 
       <DashboardChrome
