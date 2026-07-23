@@ -36,6 +36,14 @@ git clone --depth 1 https://github.com/pbakaus/impeccable.git "$TMP/impeccable"
 rm -rf "${DEST:?}/impeccable"
 cp -R "$TMP/impeccable/skill" "$DEST/impeccable"
 [ -f "$DEST/impeccable/SKILL.src.md" ] && mv "$DEST/impeccable/SKILL.src.md" "$DEST/impeccable/SKILL.md"
+# the mechanical detector ENGINE lives outside skill/ upstream (cli/engine/); vendor it to the
+# path detect.mjs probes first (scripts/detector/) so `node scripts/detect.mjs` works vendored
+if [ -f "$TMP/impeccable/cli/engine/detect-antipatterns.mjs" ]; then
+  mkdir -p "$DEST/impeccable/scripts/detector"
+  cp "$TMP/impeccable/cli/engine/detect-antipatterns.mjs" "$DEST/impeccable/scripts/detector/"
+  # engine deps, if any, ride along
+  [ -d "$TMP/impeccable/cli/engine/lib" ] && cp -R "$TMP/impeccable/cli/engine/lib" "$DEST/impeccable/scripts/detector/lib"
+fi
 # caveat: hard-disable the impeccable.style version phone-home in the vendored copy
 if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   sed -i.bak 's#if (process.env.IMPECCABLE_NO_UPDATE_CHECK) return null;#return null; // vendored: phone-home disabled#' "$DEST/impeccable/scripts/context.mjs"
