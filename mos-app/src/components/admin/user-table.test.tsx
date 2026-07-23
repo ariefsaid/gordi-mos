@@ -6,8 +6,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
+
+/** Reports the router's current `?search` string to the test whenever it changes. */
+function LocationSearchProbe({ onChange }: { onChange: (search: string) => void }) {
+  const location = useLocation()
+  useEffect(() => { onChange(location.search) }, [location.search, onChange])
+  return null
+}
 import { shouldFlipUp } from './menu-position'
 import type { PersonAction } from './user-table'
 
@@ -85,20 +94,63 @@ function renderTable(
     onAction?: (action: PersonAction, person: AdminPersonRow) => void
     onAddPerson?: () => void
     isDesktop?: boolean
+    initialPath?: string
   } = {},
 ) {
   // Control desktop/mobile via the mocked useIsDesktop hook
   mockUseIsDesktop.mockReturnValue(opts.isDesktop !== false)
 
   return render(
-    <UserTable
-      people={people}
-      viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
-      onAction={opts.onAction ?? vi.fn()}
-      onAddPerson={opts.onAddPerson ?? vi.fn()}
-    />,
+    <MemoryRouter initialEntries={[opts.initialPath ?? '/admin/people']}>
+      <UserTable
+        people={people}
+        viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
+        onAction={opts.onAction ?? vi.fn()}
+        onAddPerson={opts.onAddPerson ?? vi.fn()}
+      />
+    </MemoryRouter>,
   )
 }
+
+// ── I7 / D-E1: filter + search state is URL-synced (survives refresh/share) ─────
+
+describe('UserTable — URL-synced filter/search state (I7 / D-E1)', () => {
+  const NO_LOGIN_ANDI: AdminPersonRow = {
+    id: 'p-andi', full_name: 'Andi Wijaya', email: 'andi@gordi.id',
+    archived_at: null, login: 'none', access_roles: ['member'],
+  }
+  const DISABLED_ANDI: AdminPersonRow = {
+    id: 'p-andi2', full_name: 'Andi Disabled', email: 'andid@gordi.id',
+    archived_at: null, login: 'disabled', access_roles: ['member'],
+  }
+
+  it('hydrates the status filter + search from the URL on load (a shared/refreshed link reproduces the view)', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER, NO_LOGIN_ANDI, DISABLED_ANDI], {
+      initialPath: '/admin/people?status=disabled&q=andi',
+    })
+    // Search box hydrated from ?q= …
+    expect(screen.getByRole('searchbox', { name: /search people/i })).toHaveValue('andi')
+    // … the Disabled segment is selected from ?status= …
+    expect(screen.getByRole('tab', { name: 'Disabled' })).toHaveAttribute('aria-selected', 'true')
+    // … and the visible rows are exactly the disabled 'andi' match.
+    expect(screen.getByText('Andi Disabled')).toBeInTheDocument()
+    expect(screen.queryByText('Andi Wijaya')).not.toBeInTheDocument() // no-login, filtered out by status
+    expect(screen.queryByText('Admin Gordi')).not.toBeInTheDocument()
+  })
+
+  it('writes the status filter back to the URL when the segment changes', async () => {
+    const user = userEvent.setup()
+    let currentSearch = ''
+    render(
+      <MemoryRouter initialEntries={['/admin/people']}>
+        <LocationSearchProbe onChange={(s) => { currentSearch = s }} />
+        <UserTable people={[ACTIVE_ADMIN, DISABLED_ANDI]} viewerPersonId="viewer-id" onAction={vi.fn()} onAddPerson={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByRole('tab', { name: 'Disabled' }))
+    expect(currentSearch).toContain('status=disabled')
+  })
+})
 
 // ── Desktop ⋯ menu tests ──────────────────────────────────────────────────────
 

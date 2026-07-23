@@ -43,6 +43,7 @@ import {
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -122,10 +123,10 @@ export function KitchenLogPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
 
-  // NEW presentational state (P-3): client-side search + category. Group collapse
-  // is INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('All')
+  // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
+  // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [category, setCategory] = useSearchParamState('category', 'All')
 
   // Derived KPIs (P-1) — pure useMemo over `lines`; no fetch/RPC/persistence.
   const kpis = useKitchenKpis(lines)

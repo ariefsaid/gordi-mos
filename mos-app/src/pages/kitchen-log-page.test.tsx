@@ -84,12 +84,12 @@ const STOCK_MAP = {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-async function renderPage(auth: AuthState = VIEWER_MEMBER) {
+async function renderPage(auth: AuthState = VIEWER_MEMBER, initialPath = '/mos/kitchen/log') {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <MemoryRouter initialEntries={['/mos/kitchen/log']}>
+      <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
           <Route path="/mos/kitchen/log/success" element={<div>Submitted</div>} />
@@ -848,6 +848,16 @@ describe('OD-K-5: search-mini filters', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: /find a dish/i }), { target: { value: 'nasi' } })
     // only Nasi Goreng remains
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('I7 / D-E1: hydrates the search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log?q=nasi')
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+
+    // The search box is pre-filled from the URL and the table is already narrowed — no retype.
+    expect(screen.getByRole('searchbox', { name: /find a dish/i })).toHaveValue('nasi')
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 })

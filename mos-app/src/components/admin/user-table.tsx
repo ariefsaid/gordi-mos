@@ -14,6 +14,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId, useMe
 import { createPortal } from 'react-dom'
 import { shouldFlipUp } from './menu-position'
 import { useMenuPopover } from '@/lib/use-menu-popover'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { Pill } from '@/components/ui/pill'
 import type { PillTone } from '@/components/ui/pill'
 import { Tag } from '@/components/ui/tag'
@@ -724,9 +725,15 @@ export interface UserTableProps {
 export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: UserTableProps) {
   const presentsCards = usePeopleListPresentsCards()
 
-  // Filter state owned here (client-side, no refetch)
-  const [segment, setSegment] = useState<StatusSegment>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  // Filter state is URL-synced (I7 / D-E1): status + search survive refresh and are shareable, so
+  // "filter to Disabled + search andi, then share the link" reproduces the same view. Client-side
+  // still — the query never refetches; the URL is the source of truth for the view.
+  const [statusParam, setStatusParam] = useSearchParamState('status', 'all')
+  const segment: StatusSegment = SEGMENT_OPTIONS.some((o) => o.value === statusParam)
+    ? (statusParam as StatusSegment)
+    : 'all'
+  const setSegment = (next: StatusSegment) => setStatusParam(next)
+  const [searchQuery, setSearchQuery] = useSearchParamState('q', '')
 
   // Filtered people (memoised)
   const filteredPeople = useMemo(() => {

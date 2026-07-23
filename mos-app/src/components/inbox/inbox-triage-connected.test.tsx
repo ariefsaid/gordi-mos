@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useEffect } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+
+/** Reports the router's current `?search` string to the test whenever it changes. */
+function LocationSearchProbe({ onChange }: { onChange: (search: string) => void }) {
+  const location = useLocation()
+  useEffect(() => { onChange(location.search) }, [location.search, onChange])
+  return null
+}
 import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { OverlayHostProvider, OverlayHostSlot } from '@/shell/overlay-host'
@@ -200,6 +208,56 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     fireEvent.click(screen.getByRole('button', { name: 'Unread' }))
     expect(screen.getByText('Unread one')).toBeInTheDocument()
     expect(screen.queryByText('Read one')).toBeNull()
+  })
+
+  it('I7 / D-E1: the /inbox PAGE filter is URL-synced (hydrates from ?filter=unread + writes it back)', () => {
+    mockUse.mockReturnValue(hook({
+      notifications: [
+        notif({ id: 'a', title: 'Unread one', read_at: null }),
+        notif({ id: 'b', title: 'Read one', read_at: '2026-07-20T02:00:00Z' }),
+      ],
+    }))
+    let search = ''
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/inbox?filter=unread']}>
+          <OverlayHostProvider>
+            <InboxTriageConnected mode="page" />
+            <Routes>
+              <Route path="*" element={<LocationSearchProbe onChange={(s) => { search = s }} />} />
+            </Routes>
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    // Hydrated from the URL: Unread is active and the read row is already filtered out.
+    expect(screen.getByRole('button', { name: 'Unread' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('Read one')).toBeNull()
+    // Switching back to All writes the URL (?filter= dropped at the default).
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    expect(search).not.toContain('filter=unread')
+  })
+
+  it('I7 / D-E1: the bell quick-triage filter is LOCAL (never stamps ?filter= on the host page URL)', () => {
+    mockUse.mockReturnValue(hook({
+      notifications: [notif({ id: 'a', title: 'Unread one', read_at: null })],
+    }))
+    let search = ''
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/money']}>
+          <OverlayHostProvider>
+            <InboxTriageConnected mode="quick" />
+            <Routes>
+              <Route path="*" element={<LocationSearchProbe onChange={(s) => { search = s }} />} />
+            </Routes>
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Unread' }))
+    // The bell was opened over /money — its filter must not pollute that page's URL.
+    expect(search).toBe('')
   })
 
   it('renders the shared loading skeleton (never a bare/empty surface) while data is in flight', () => {

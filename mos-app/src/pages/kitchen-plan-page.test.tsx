@@ -97,7 +97,7 @@ beforeEach(() => {
 describe('KitchenPlanPage — auth', () => {
   it('auth loading: shows a busy state', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as AuthState)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
@@ -121,7 +121,7 @@ describe('KitchenPlanPage — auth', () => {
 describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   it('loads active items + the date plan; renders one editable qty per item', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     await waitFor(() => expect(mockPlans).toHaveBeenCalled())
     // editable qty inputs exist (the editor affordance) — one per item
@@ -131,7 +131,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('FR-031: editing a cell + save calls upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
@@ -147,7 +147,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('does not save when the value is unchanged (no needless write)', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.blur(input) // blur with the same value 12
@@ -156,7 +156,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('shows a quiet saved confirmation after a successful save (no view transition)', async () => {
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
@@ -168,7 +168,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('save error: surfaces a message, keeps the edit on screen', async () => {
     mockUpsert.mockRejectedValueOnce(new Error('denied'))
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
@@ -186,14 +186,14 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('empty: ops_lead sees an editable blank grid (items, all qty 0) — not "no plan"', async () => {
     mockPlans.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(0)
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockItems.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
@@ -204,7 +204,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   // until an admin adds items". 'blank' (—) is the honest "no source configured" read.
   it("Half B convergence: no WIP items uses the 'blank' (never 'quiet' ✓) EmptyState variant", async () => {
     mockItems.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText(/no active wip items/i)
     expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
     expect(screen.queryByText('✓')).not.toBeInTheDocument()
@@ -212,7 +212,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('offline: edits blocked + a banner (online-only writes, NFR-008)', async () => {
     const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     expect(screen.getByText(/offline/i)).toBeInTheDocument()
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
@@ -257,7 +257,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → planned total = 12
     const region = screen.getByRole('region', { name: /planning summary/i })
@@ -277,7 +277,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
 
     // census DEFECT-1: two real metric tiles only — the Log labels stay absent AND the
@@ -306,7 +306,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
       }),
     })
     mockPlans.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
 
     expect(screen.getByText(/no plan created yet/i)).toBeInTheDocument()
@@ -327,14 +327,14 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
       }),
     })
     mockPlans.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
 
     expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
-    const { container } = render(<KitchenPlanPage />)
+    const { container } = render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards).
     // Selector note: grouping now renders via the shared DataTable. Phone cards emit the
@@ -346,7 +346,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
     expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
@@ -365,7 +365,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     expect(await screen.findByRole('table', { name: /café plan/i })).toBeInTheDocument()
   })
 })
@@ -376,7 +376,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('AC-024: member sees the 14-day forward horizon read-only', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     await waitFor(() => expect(mockPesanan).toHaveBeenCalled())
@@ -387,7 +387,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('Café hygiene: the member view speaks Café — its title is café-facing and never leaks the internal "Pesanan" noun', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('heading', { name: 'Café · Plan' })).toBeInTheDocument()
     expect(screen.queryByText(/pesanan/i)).toBeNull()
@@ -395,7 +395,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('AC-024: member NEVER gets edit/save affordances or calls the editor read/write', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('button', { name: /save|edit|approve|submit/i })).toBeNull()
@@ -405,7 +405,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('member empty: a calm "nothing planned" — not a broken table', async () => {
     mockPesanan.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     expect(await screen.findByText(/nothing planned/i)).toBeInTheDocument()
   })
 
@@ -414,7 +414,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   // planned yet" as an achievement).
   it("Half B convergence: uses the 'awaiting' (never 'quiet' ✓) EmptyState variant", async () => {
     mockPesanan.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText(/nothing planned/i)
     expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'awaiting')
     expect(screen.queryByText('✓')).not.toBeInTheDocument()
@@ -422,7 +422,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('member rows are grouped by date with the planned qty shown', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     await screen.findByText('Ayam Bakar')
     // the planned qty renders (tabular)
     expect(screen.getByText('12')).toBeInTheDocument()
@@ -433,7 +433,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('member error + retry: re-fetches the horizon', async () => {
     mockPesanan.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<MemoryRouter><KitchenPlanPage /></MemoryRouter>)
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()

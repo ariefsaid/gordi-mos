@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { useAuth } from '@/auth/use-auth'
@@ -37,7 +38,16 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   const host = useOptionalOverlayHost()
   const auth = useAuth()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const [filter, setFilter] = useState<InboxFilter>('all')
+  // The All/Unread filter is URL-synced on the /inbox PAGE (I7 / D-E1) so a refreshed/shared link
+  // reproduces the same view. The bell's ephemeral quick-triage keeps a LOCAL filter — it must not
+  // stamp ?filter= onto whatever host page the bell was opened over. (Handled stays withheld.)
+  const [filterParam, setFilterParam] = useSearchParamState('filter', 'all')
+  const [localFilter, setLocalFilter] = useState<InboxFilter>('all')
+  const filter: InboxFilter = mode === 'page' ? (filterParam === 'unread' ? 'unread' : 'all') : localFilter
+  const setFilter = (next: InboxFilter) => {
+    if (mode === 'page') setFilterParam(next)
+    else setLocalFilter(next)
+  }
   const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
 
   const rows = notifications.filter((n) => matchesFilter(n, filter))

@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { useAuth } from '@/auth/use-auth'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
@@ -64,9 +65,9 @@ export function KitchenStockPage() {
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
-  // NEW presentational state (P-3): reflow branch + client-side search filter.
+  // Client-side search filter (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   const isDesktop = useIsDesktop()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useSearchParamState('q', '')
   // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
   const kpiData = useStockKpiStripData(rows)
   const hasLoggedStockData = rows.some(row => row.stok !== 0 || row.tersedia !== 0)

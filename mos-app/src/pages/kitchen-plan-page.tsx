@@ -20,6 +20,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useSearchParamState } from '@/lib/use-search-param-state'
 import { listActiveWipItems } from '@/lib/db/kitchen-logs'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
@@ -104,10 +105,10 @@ function PlanEditor() {
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveError, setSaveError] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
-  // NEW presentational state (P-3): reflow branch + client-side search/category filter.
+  // Client-side search/category filter (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   const isDesktop = useIsDesktop()
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('All')
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [category, setCategory] = useSearchParamState('category', 'All')
   // Derived plan KPIs (P-1) — pure view over `cells` for the current action.
   const kpiData = usePlanKpiStripData(cells, action)
   const hasPlannedItems = cells.some(cell => cell.action_type === action && cell.qty_porsi > 0)
