@@ -5,10 +5,16 @@
 // PageHead: this mounts inside TasksWorkspace's own content region (Rule 6),
 // which owns the region landmark + aria-label around both the placeholder and
 // live states.
+//
+// JQ-4 / interaction D-A4: this embed now passes the SAME shared record opener the canonical page
+// uses, so the counterparty cell opens the follow-up in the shared overlay-host panel instead of a
+// bare <Link> page-jump — one open grammar across every door.
 import { useFollowUpQueue } from './use-follow-up-queue'
 import { FollowUpQueueTable } from './follow-up-queue-table'
+import { useFollowUpRecordOpener } from './use-follow-up-record-opener'
 
 export function FollowUpQueueEmbed() {
   const queue = useFollowUpQueue()
-  return <FollowUpQueueTable queue={queue} />
+  const onOpenRecord = useFollowUpRecordOpener()
+  return <FollowUpQueueTable queue={queue} onOpenRecord={onOpenRecord} />
 }

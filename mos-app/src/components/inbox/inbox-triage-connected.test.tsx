@@ -12,6 +12,22 @@ vi.mock('@/hooks/useNotifications', () => ({ useNotifications: vi.fn() }))
 import { useNotifications } from '@/hooks/useNotifications'
 const mockUse = vi.mocked(useNotifications)
 
+// JQ-4 / D-A4: opening a notification now mounts the SAME actionable record host every other door
+// uses. This wiring test's oracle is the HOST grammar (mark-read, one physical host, Open-full-page,
+// Back→Inbox) — NOT the record internals (those have their own suites) — so the shared record hosts
+// are stubbed to a lightweight marker carrying the id, proving the door mounts the real record host
+// (never a bespoke zero-action summary) without coupling this test to every record DAL.
+vi.mock('@/components/tasks/task-surface', () => ({
+  TaskSurface: ({ taskId }: { taskId: string | null }) => (
+    <div data-testid="task-record-host" data-task-id={taskId ?? ''} />
+  ),
+}))
+vi.mock('@/components/signals/signal-record-host', () => ({
+  SignalRecordHost: ({ signalId }: { signalId: string }) => (
+    <div data-testid="signal-record-host" data-signal-id={signalId} />
+  ),
+}))
+
 function notif(over: Partial<NotificationRow> = {}): NotificationRow {
   return {
     id: 'n1',
@@ -66,20 +82,33 @@ beforeEach(() => {
 })
 
 describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008 / J06)', () => {
-  it('opening a safe target marks it read (only) and opens the record IN CONTEXT through the shared host', () => {
+  it('opening a safe target marks it read (only) and mounts the shared actionable record host (JQ-4: never a zero-action summary)', () => {
     const markRead = vi.fn()
     mockUse.mockReturnValue(hook({ notifications: [notif()], markRead }))
     renderConnected()
 
     fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
 
-    // Read is stamped; the record door opens in the shared host with the arrival context + the
-    // one canonical full-record door.
+    // Read is stamped; the shared canonical record host opens IN the Inbox panel — the same host
+    // every other door mounts, so the triager can act on the record here (D-A4), plus the one
+    // host-owned Open-full-page escalation.
     expect(markRead).toHaveBeenCalledWith('n1')
-    expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument()
+    expect(screen.getByTestId('task-record-host')).toHaveAttribute('data-task-id', 't1')
     expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
     expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
     // One physical overlay host — never a second panel.
+    expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
+  })
+
+  it('JQ-4: a signal notification mounts the shared SignalRecordHost (its actions live in the panel)', () => {
+    mockUse.mockReturnValue(hook({
+      notifications: [notif({ metadata: { entity: { type: 'signal', id: 's9' } } })],
+    }))
+    renderConnected()
+
+    fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
+
+    expect(screen.getByTestId('signal-record-host')).toHaveAttribute('data-signal-id', 's9')
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 

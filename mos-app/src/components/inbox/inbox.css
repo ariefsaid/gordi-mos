@@ -161,40 +161,6 @@
   line-height: 1.35;
 }
 
-/* Issue 7 in-context record door — the arrival context the shared host opens for a notification.
-   Chrome-free (the host owns header, close, and canonical page promotion). */
-.inbox-record-door {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-}
-.inbox-record-door__type {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.inbox-record-door__type .inbox-row__dot {
-  margin-top: 0;
-}
-.inbox-record-door__title {
-  margin: 0;
-  font-size: var(--font-size-subheading);
-  line-height: 1.3;
-  color: var(--foreground);
-}
-.inbox-record-door__body {
-  margin: 0;
-  font-size: var(--font-size-body);
-  line-height: 1.45;
-  color: var(--muted-foreground);
-}
 /* Visually-hidden polite live region for optimistic open/action announcements. */
 .inbox-triage__status {
   position: absolute;

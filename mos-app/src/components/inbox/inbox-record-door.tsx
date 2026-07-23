@@ -1,10 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import './inbox.css'
+import type { ReactNode } from 'react'
 import type { To } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { can } from '@/lib/capabilities'
+import { SignalRecordHost } from '@/components/signals/signal-record-host'
+import { TaskSurface } from '@/components/tasks/task-surface'
 import type { NotificationRow } from '@/lib/db/notifications'
 import type {
   NotificationTargetRef,
@@ -17,14 +20,15 @@ import type { OverlayOwner } from '@/shell/overlay-navigation'
 
 /**
  * inbox-record-door — the Issue 7 seam that turns a resolved notification target into a real,
- * openable overlay entry, and the small in-context record surface it opens.
+ * openable overlay entry.
  *
- * Scope boundary (docs/plans/2026-07-20-v3-inbox-deputy.md): the full Issue 5 RecordViewer render
- * (typed field/relation/activity hierarchy) is NOT re-implemented here — record-viewer and
- * task/signal collection code are out of this slice. This door renders the notification's arrival
- * context (why it landed) inside the shared host and offers the ONE canonical door to the full
- * record page. Opening in-context keeps the queue behind the panel; the host chrome owns canonical
- * page promotion and closes the overlay through the shared route seam.
+ * JQ-4 / interaction D-A4 (one shared RecordViewer for every open): opening a notification now
+ * mounts the SAME canonical, actionable record host every other door uses — `SignalRecordHost`
+ * for a signal, `TaskSurface` (chrome-free) for a task — inside the shared overlay host, so a
+ * triager can act on the record IN the Inbox (acknowledge / comment / create-follow-up) instead of
+ * reading a zero-action summary and having to hop to "Open full page" first. The host chrome (owned
+ * by RecordPanelHost) still owns ✕ / Open-full-page (via the entry's `pageTo`) / Back, so the record
+ * bodies stay chrome-free.
  *
  * The producer `entity.route` is never used as authority — `CANONICAL_ROUTE` is the only route
  * source, keyed by the typed `{ type }`. `follow_up` is intentionally absent from the registry so
@@ -37,48 +41,23 @@ const CANONICAL_ROUTE: Partial<Record<NotificationTargetType, (id: string) => To
   signal: (id) => ({ pathname: `/work/signals/${id}` }),
 }
 
+/**
+ * The shared, actionable record host mounted as the overlay entry's content, keyed by target type.
+ * Both bodies are chrome-free (the host owns ✕ / Open-full-page / Back) and self-fetch by id, so the
+ * Inbox reuses the exact record renderer the collections use — never a bespoke summary (D-A4).
+ * `showPanelUtility={false}` hands the Task's chrome to the host, matching the in-list drawer.
+ */
+const RECORD_CONTENT: Partial<Record<NotificationTargetType, (id: string) => ReactNode>> = {
+  signal: (id) => <SignalRecordHost signalId={id} mode="panel" />,
+  task: (id) => (
+    <TaskSurface taskId={id} mode="view" presentation="panel" width="drawer" showPanelUtility={false} />
+  ),
+}
+
 const TYPE_LABEL_KEY: Record<NotificationTargetType, MessageKey> = {
   task: 'inbox.target.type.task',
   signal: 'inbox.target.type.signal',
   follow_up: 'inbox.target.type.followUp',
-}
-
-const SEVERITY_KEY = {
-  info: 'inbox.severity.info',
-  warning: 'inbox.severity.warning',
-  critical: 'inbox.severity.critical',
-} as const
-
-/**
- * The in-context record door rendered inside the shared overlay host. Shows the arrival context
- * (type · title · body · severity) so a triager understands why the item landed (J06).
- *
- * Navigation: the entry carries `pageTo`, so the shared host chrome owns the one Open-full-page
- * action (RecordPanelHost → host.openPage). The door itself stays chrome-free and does not create a
- * second route or button grammar.
- */
-export function InboxRecordDoor({
-  row,
-  targetRef,
-}: {
-  row: NotificationRow
-  targetRef: NotificationTargetRef
-}) {
-  const t = useT()
-
-  return (
-    <div className="inbox-record-door">
-      <p className="inbox-record-door__type">
-        <span
-          className={`inbox-row__dot inbox-row__dot--${row.severity}`}
-          aria-label={t(SEVERITY_KEY[row.severity])}
-        />
-        {t(TYPE_LABEL_KEY[targetRef.type])}
-      </p>
-      <h3 className="inbox-record-door__title">{row.title}</h3>
-      {row.body ? <p className="inbox-record-door__body">{row.body}</p> : null}
-    </div>
-  )
 }
 
 /** Localized record-type label used as the host chrome title (a node so the host can render it). */
@@ -127,7 +106,8 @@ export function buildInboxTargetDeps(
   const registry: TargetRegistry = {}
   for (const type of ['task', 'signal'] as const) {
     const toRoute = CANONICAL_ROUTE[type]
-    if (!toRoute) continue
+    const toContent = RECORD_CONTENT[type]
+    if (!toRoute || !toContent) continue
     registry[type] = {
       buildEntry(targetRef: NotificationTargetRef): OverlayEntryDraft {
         const pageTo = toRoute(targetRef.id)
@@ -140,10 +120,9 @@ export function buildInboxTargetDeps(
           // pageTo routes the Open-full-page action through the host's leave-guarded openPage seam
           // (OverlayHostSlot reads active.entry.pageTo and renders the host-owned chrome button),
           // matching Task (task-collection-adapter.tsx:755) and Signal (signal-collection-adapter.tsx:330).
-          // NOTE: host.openPage closes the panel but does NOT navigate until R-T-4 (route seam) lands;
-          // the door content below carries a fallback nav button until then.
           pageTo,
-          content: <InboxRecordDoor row={row} targetRef={targetRef} />,
+          // JQ-4 / D-A4: the SAME actionable record host every other door mounts (never a summary).
+          content: toContent(targetRef.id),
         }
       },
     }

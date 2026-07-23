@@ -1,17 +1,25 @@
 // FollowUpQueueEmbed — Door 1's mount point (Step 9, AC-904/907/908). Proves it
 // composes the SAME hook + table pair the canonical FollowUpsPage uses.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider, OverlayHostSlot } from '@/shell/overlay-host'
 
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/follow-ups')>('@/lib/db/follow-ups')
   return { ...actual, listFollowUps: vi.fn(), transitionFollowUp: vi.fn() }
 })
+// JQ-4 / D-A4: with a host mounted the embed opens the SHARED record host in the panel. Stub the
+// record body so this test's oracle stays the OPEN grammar (panel mounts), not the record internals.
+vi.mock('./follow-up-record-host', () => ({
+  FollowUpRecordHost: ({ followUpId }: { followUpId: string }) => (
+    <div data-testid="follow-up-record-host" data-follow-up-id={followUpId} />
+  ),
+}))
 
 import { getBusinessUnits } from '@/lib/db/directory'
 import { listFollowUps, type FollowUpRow } from '@/lib/db/follow-ups'
@@ -87,12 +95,35 @@ describe('FollowUpQueueEmbed', () => {
     expect(screen.getByRole('button', { name: 'Settle' })).toBeInTheDocument()
   })
 
-  it('AC-908: the row source link points at the canonical /work/follow-ups/:id route', async () => {
+  it('AC-908: with no overlay host mounted, the row falls back to the canonical /work/follow-ups/:id <Link>', async () => {
     renderEmbed()
     await screen.findByText('PT Big Buyer')
     expect(screen.getByRole('link', { name: /Read-only source INV-1001/ })).toHaveAttribute(
       'href', '/work/follow-ups/fu-1',
     )
+  })
+
+  it('JQ-4 / D-A4: with the overlay host mounted, the row opens the shared record host in the panel (not a bare Link)', async () => {
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={viewer}>
+          <MemoryRouter initialEntries={['/work/tasks?view=followups']}>
+            <OverlayHostProvider>
+              <FollowUpQueueEmbed />
+              <OverlayHostSlot owner="shell" />
+            </OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await screen.findByText('PT Big Buyer')
+
+    // The counterparty cell now renders a BUTTON opening the shared panel — never the legacy Link.
+    expect(screen.queryByRole('link', { name: /Read-only source INV-1001/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Open follow-up INV-1001/ }))
+
+    expect(screen.getByTestId('follow-up-record-host')).toHaveAttribute('data-follow-up-id', 'fu-1')
+    expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 
   // Half B convergence: the shared LoadingShell (role=status + aria-busy), never a bare
