@@ -444,6 +444,16 @@ Read in this order. Everything else is evidence you consult when a specific ques
   statics and let the interaction layer fracture. Lens (b) must DRIVE these, not read code.
 - `CONTEXT.md` — the domain vocabulary. "Process Run" is not a user-facing noun; PIC/Supervisor,
   not RACI; Signal replaced Weekly Update + Daily Log.
+- **`docs/audits/REGISTER.md`** (machine half `docs/audits/surfaces.json`) — the **coverage authority**:
+  the enumerated surface × persona matrix with each surface's design generation, locked commit, pins,
+  and never-audited (DUE) cells. A UI merge requires the touched surface LOCKED or BUMPED
+  (`scripts/pre-merge-check.sh` enforces it). **`docs/quality-model.md`** — what "quality" decomposes
+  into (16 dimensions) and the check that owns each; the review battery is its per-merge slice.
+  **Lane-brief template (binding for UI lanes):** every UI lane brief cites its surface's register row —
+  the surface id, its **generation** + **pins**, and its declared **anatomy** section
+  (`docs/specs/record-page-anatomy.spec.md`) — and opens the lane with `audit-register.sh bump <id>`
+  when it is a redesign; the brief `lock`s the surface after ratify. Full design:
+  `docs/plans/wise-discovering-frog.md`.
 
 **2. The DECISIONS (why anything is the way it is):**
 - `docs/decisions.md` — OD-REDESIGN-1..79. The owner's word, chronological.
