@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
@@ -76,13 +77,17 @@ function renderTable(
   } = {},
 ) {
   mockUseIsDesktop.mockReturnValue(opts.isDesktop !== false)
+  // URL-synced filter state (I7 / interaction item 7) — the toolbar reads useSearchParams now,
+  // so the harness provides a Router (deliberate infra change; assertions untouched).
   return render(
-    <UserTable
-      people={people}
-      viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
-      onAction={opts.onAction ?? vi.fn()}
-      onAddPerson={opts.onAddPerson ?? vi.fn()}
-    />,
+    <MemoryRouter>
+      <UserTable
+        people={people}
+        viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
+        onAction={opts.onAction ?? vi.fn()}
+        onAddPerson={opts.onAddPerson ?? vi.fn()}
+      />
+    </MemoryRouter>,
   )
 }
 

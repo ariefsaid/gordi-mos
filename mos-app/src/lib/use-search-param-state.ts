@@ -35,3 +35,23 @@ export function useSearchParamState(
 
   return [value, setValue]
 }
+
+// Multi-key reset in ONE history replace. Two useSearchParamState setters called in the same
+// handler clobber each other (react-router's functional updater reads the last-RENDER params,
+// not the pending update) — a combined "Clear filters" must delete all its keys atomically.
+export function useSearchParamReset(keys: string[]): () => void {
+  const [, setParams] = useSearchParams()
+  return useCallback(
+    () =>
+      setParams(
+        (prev) => {
+          const updated = new URLSearchParams(prev)
+          for (const key of keys) updated.delete(key)
+          return updated
+        },
+        { replace: true },
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keys is a stable literal at call sites
+    [setParams, keys.join(',')],
+  )
+}

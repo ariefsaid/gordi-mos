@@ -14,7 +14,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId, useMe
 import { createPortal } from 'react-dom'
 import { shouldFlipUp } from './menu-position'
 import { useMenuPopover } from '@/lib/use-menu-popover'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useSearchParamState, useSearchParamReset } from '@/lib/use-search-param-state'
 import { Pill } from '@/components/ui/pill'
 import type { PillTone } from '@/components/ui/pill'
 import { Tag } from '@/components/ui/tag'
@@ -734,6 +734,7 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: Use
     : 'all'
   const setSegment = (next: StatusSegment) => setStatusParam(next)
   const [searchQuery, setSearchQuery] = useSearchParamState('q', '')
+  const resetFilterParams = useSearchParamReset(['status', 'q'])
 
   // Filtered people (memoised)
   const filteredPeople = useMemo(() => {
@@ -743,8 +744,8 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: Use
 
   // Clear all filters
   function clearFilters() {
-    setSegment('all')
-    setSearchQuery('')
+    // One atomic replace — sequential setters clobber each other (see useSearchParamReset).
+    resetFilterParams()
   }
 
   // Empty state: non-self count = 0 (org has only the admin — AC-060)
