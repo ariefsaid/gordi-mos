@@ -122,6 +122,16 @@ export type OverlayHostApi = {
   openRoot: (
     entry: OverlayEntry,
     mode: OverlaySession['mode'],
+    /**
+     * DO-18: when the caller (a collection) has ALREADY pushed the record's own URL history entry
+     * (e.g. `?record=<id>` via setSearchParams) before opening, pass `true` so the depth-0 route
+     * marker REPLACES that entry instead of pushing a duplicate. Otherwise opening a collection
+     * record costs TWO history steps for one logical state, and an explicit close's single `-1` pop
+     * (historyDeltaForClose(0)) lands on a still-`?record=` entry — re-exposing the record so the
+     * collection's open effect resurrects it (the census F3 defect). Route mode only; no-op for a
+     * caller that did not pre-push its own entry (route Back would then skip the collection URL).
+     */
+    replaceMarker?: boolean,
   ) => Promise<OverlayTransitionResult>
   replaceRoot: (entry: OverlayEntry) => Promise<OverlayTransitionResult>
   push: (entry: OverlayEntry) => Promise<OverlayTransitionResult>
@@ -412,16 +422,22 @@ export function OverlayHostProvider({
 
   // ── API: openRoot ───────────────────────────────────────────────────────────
   const openRoot = useCallback(
-    (entry: OverlayEntry, mode: OverlaySession['mode']): Promise<OverlayTransitionResult> => {
+    (
+      entry: OverlayEntry,
+      mode: OverlaySession['mode'],
+      replaceMarker = false,
+    ): Promise<OverlayTransitionResult> => {
       const prev = sessionRef.current
       const prevWasRoute = prev?.mode === 'route'
       const commit = () => {
         commitSession({ id: createId('ovs'), mode, frames: [makeFrame(entry)] })
         clearRouteSeam()
         if (mode === 'route') {
-          // Reflect a depth-0 marker for the new route session. If a route session was
-          // already live, REPLACE its marker (no second history entry); otherwise PUSH one.
-          syncRouteMarker(0, entry.key, prevWasRoute)
+          // Reflect a depth-0 marker for the new route session. REPLACE the current entry when a
+          // route session was already live (no second history entry) OR when the caller already
+          // pushed the record's own URL entry (`replaceMarker`, DO-18) — stamping the marker onto
+          // that entry instead of duplicating it. Otherwise PUSH a fresh marker entry.
+          syncRouteMarker(0, entry.key, prevWasRoute || replaceMarker)
         } else if (prevWasRoute) {
           // Switched route → ephemeral: pop the now-orphaned route marker.
           programmaticGo(-1)

@@ -277,7 +277,12 @@ export function TasksWorkspace({
     if (!active && openedRecordRef.current === recordId && hadTaskSession.current) return
     const hasTaskSession = host.session?.frames.some((frame) => frame.entry.owner === 'tasks')
     openedRecordRef.current = recordId
-    void (hasTaskSession ? host.replaceRoot(taskEntry) : host.openRoot(taskEntry, 'route'))
+    // DO-18: `onOpenTask` already PUSHed the record's ?record= URL entry, so the host stamps its
+    // depth-0 marker onto that SAME entry (replaceMarker) rather than pushing a duplicate. One
+    // history step per open means an explicit ✕/Escape close's single -1 pop lands on the clean
+    // collection URL — not a lingering ?record= entry that the open effect would resurrect. A
+    // hard-load/refresh restore also stamps onto the already-present ?record= entry (no extra step).
+    void (hasTaskSession ? host.replaceRoot(taskEntry) : host.openRoot(taskEntry, 'route', true))
   }, [host, taskEntry, recordId])
 
   // When the host session closes (explicit close, or a browser POP the host owns), drop the

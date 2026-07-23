@@ -924,6 +924,19 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  // NOTE (DO-18): the "clean panel closed via ✕/Escape stays closed (no self-reopen), ?record=
+  // cleared" regression is a REAL-BrowserRouter history bug — opening a task PUSHed TWO history
+  // entries (the collection's ?record= AND the host's route marker), so an explicit close's single
+  // -1 pop (historyDeltaForClose(0)) landed on a still-?record= entry and the collection open effect
+  // resurrected the just-closed session. MemoryRouter flushes navigate(-1) synchronously inside
+  // act(), so jsdom cannot reproduce the timing (AC-V3-008b already closes cleanly here on the
+  // unfixed code). Its regression proof lives at the e2e layer: e2e/tasks-record-close.spec.ts
+  // (mirrors tasks-browser-back-dirty-veto.spec.ts's real-browser rationale). The fix collapses the
+  // open to ONE history step: overlay-host's openRoot gained a `replaceMarker` flag, and this
+  // collection passes it (host.openRoot(taskEntry, 'route', true)) so the depth-0 marker REPLACES
+  // the ?record= entry the collection already pushed instead of duplicating it — close's -1 then
+  // lands on the clean collection URL. The single-push shape is asserted end-to-end by the e2e.
+
   // AC-V3-008c — the field-Escape isolation + dirty-record × Escape-key journey, ratified
   // by OD-REDESIGN-83.1: on a focused DIRTY field the FIRST Escape cancels only that
   // field's draft (no dialog, panel stays); a SECOND Escape — once the field draft is clean,
