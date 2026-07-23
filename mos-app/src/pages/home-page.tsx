@@ -5,9 +5,13 @@
 // E7 is the FLOOR (chromeless rows, calm rhythm); this beats it on one-glance "what do I do next".
 //
 // The stream has two ordered GROUPS (attention bands + the my-work band). The OD-18 order preference
-// reorders those two groups (attention-first / my-work-first) — never removing a band. Signals are
-// NOT in the ranked stream (A12 attention-vs-ambient boundary — RATIFY-BEFORE-MERGE): they render as
-// an explicitly-labelled ambient tail (SignalFeedSection) below the stream.
+// reorders those two groups (attention-first / my-work-first) — never removing a band.
+//
+// A12 RE-EXPRESSED (OD-REDESIGN-84.1 / Luna P0-1 — RATIFY-BEFORE-MERGE): the attention-vs-ambient
+// boundary runs THROUGH Signals by attention level, not around the record type. Attention-worthy
+// Signals (Urgent / Needs attention) ARE attention, so they LEAD the stream as band 0 (E7 puts the
+// exception first); only FYI Signals are ambient — the explicitly-labelled SignalFeedSection tail
+// below the stream. HomePage owns the ONE shared signal read and splits it (no second loader).
 //
 // This is presentation over the EXISTING data contracts: the same tasks/notifications/failed-check
 // projections and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
@@ -30,15 +34,39 @@ import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, openTaskCount,
-  type StreamBand,
+  mentionStreamItems, myWorkStreamItems, openTaskCount, signalStreamItems, isAttentionSignal,
+  type StreamBand, type StreamBandState,
 } from '@/lib/home-stream'
 import { resolveRegionOrder, setRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
 import { HomeStream } from '@/components/home/home-stream'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { useSignalComposer } from '@/shell/signal-composer-host'
+import {
+  signalCollectionDescriptor, SIGNAL_COLLECTION_NEUTRAL_QUERY, type SignalCollectionQuery,
+} from '@/components/signals/signal-collection-adapter'
 import './home-page.css'
 
 type FetchState = 'loading' | 'ready' | 'error'
+
+// The ONE Home signal read (FR-V3-013 — no second Signal loader): the shared collection descriptor
+// in fixed mode with a non-retracted Feed query. HomePage splits the result — attention-worthy
+// (Urgent / Needs attention) lead the stream as band 0; FYI stay the ambient SignalFeedSection tail.
+const HOME_FEED_QUERY: SignalCollectionQuery = {
+  ...SIGNAL_COLLECTION_NEUTRAL_QUERY,
+  layout: 'feed',
+  showRetracted: false,
+  savedViewId: null,
+}
+
+// CollectionStatus → the stream band's 3-state grammar (empty/filtered/permission all "resolved").
+function toBandState(status: string): StreamBandState {
+  if (status === 'loading') return 'loading'
+  if (status === 'error') return 'error'
+  return 'ready'
+}
+
+const SIGNAL_BAND_CAP = 6
 
 const MY_WORK_CAP = 7
 
@@ -251,8 +279,41 @@ export function HomePage() {
     onRetry: loadNotifications,
   }), [notificationsState, notifications, loadNotifications])
 
+  // ── Signals (the ONE shared read) — split attention-worthy → band 0, FYI → ambient tail ──
+  const signalController = useRecordCollection({
+    descriptor: signalCollectionDescriptor,
+    urlMode: 'fixed',
+    fixedQuery: HOME_FEED_QUERY,
+    viewerId: null,
+    accessRoles: [],
+  })
+  const { postCount: signalPostCount } = useSignalComposer()
+  const signalRetry = signalController.retry
+  // Reload after every successful Share so a freshly posted Signal appears without a manual refresh
+  // (AC-430 / FR-414) — the effect the ambient section used to own now lives with the lifted loader.
+  useEffect(() => {
+    if (signalPostCount > 0) signalRetry()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signalPostCount])
+
+  const signalData = signalController.state.data
+  const signalProjection = signalController.state.projection
+  const allSignals = useMemo(
+    () => (signalProjection ? [...signalProjection.visibleRecords] : []),
+    [signalProjection])
+  const ambientSignals = useMemo(() => allSignals.filter(s => !isAttentionSignal(s)), [allSignals])
+  const signalsBand: StreamBand = useMemo(() => ({
+    kind: 'signals',
+    state: toBandState(signalController.state.status),
+    items: signalStreamItems(allSignals, {
+      authors: signalData?.context.authorNamesById ?? new Map(),
+      teams: signalData?.context.teamNamesById ?? new Map(),
+    }).slice(0, SIGNAL_BAND_CAP),
+    onRetry: signalRetry,
+  }), [signalController.state.status, allSignals, signalData, signalRetry])
+
   const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
-  const attentionCountN = overdue.length + dueToday.length + blocked.length +
+  const attentionCountN = signalsBand.items.length + overdue.length + dueToday.length + blocked.length +
     failedChecksBand.items.length + mentionsBand.items.length
 
   // ── Order preference (OD-18) — per-user, default attention-first ──
@@ -318,15 +379,23 @@ export function HomePage() {
         blocked={blocked}
         myWork={myWork}
         openCount={openCount}
+        signals={signalsBand}
         failedChecks={failedChecksBand}
         mentions={mentionsBand}
         order={order}
         attentionAnchorId="attention-brief"
       />
 
-      {/* Ambient tail (A12 boundary — RATIFY-BEFORE-MERGE): Signals are read-context, never ranked
-          into the attention stream. Explicitly labelled, same row grammar, composer action row + link. */}
-      <SignalFeedSection />
+      {/* Ambient tail (A12 RE-EXPRESSED, OD-84.1 / Luna P0-1): only FYI Signals are ambient here —
+          the attention-worthy ones lead the stream as band 0 above. Same row grammar, composer + link.
+          Presentational: HomePage owns the ONE shared signal read and passes the FYI split down. */}
+      <SignalFeedSection
+        signals={ambientSignals}
+        authorNamesById={signalData?.context.authorNamesById ?? new Map()}
+        teamNamesById={signalData?.context.teamNamesById ?? new Map()}
+        loading={signalController.state.status === 'loading'}
+        onReload={signalRetry}
+      />
     </PageFamilyFrame>
   )
 }

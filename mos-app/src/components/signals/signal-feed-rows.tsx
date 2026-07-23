@@ -16,7 +16,7 @@ import './signal-feed-rows.css'
 // the empty state, and Feed ordering (Urgent/Needs-attention weighted above FYI).
 
 export interface SignalFeedRowsProps {
-  signals: SignalRow[]
+  signals: readonly SignalRow[]
   authorNamesById: Record<string, string>
   teamNamesById: Record<string, string>
   onShareClick?: () => void
@@ -32,7 +32,7 @@ export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
 }: SignalFeedRowsProps) {
   const t = useT()
-  const ordered = orderSignalsForFeed(signals)
+  const ordered = orderSignalsForFeed([...signals])
 
   return (
     <div className="home-signal-feed" data-testid="signal-feed">

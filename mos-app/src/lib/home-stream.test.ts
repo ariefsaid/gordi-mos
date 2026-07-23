@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   daysOverdue, overdueStreamItems, dueTodayStreamItems, blockedStreamItems,
   failedCheckStreamItems, mentionStreamItems, myWorkStreamItems, openTaskCount,
+  signalStreamItems, isAttentionSignal,
   type AttentionDirectory,
 } from './home-stream'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { SignalRow } from '@/lib/db/signals.types'
 import type { AttentionItem } from '@/lib/home-attention'
 
 const VIEWER = 'p-viewer'
@@ -119,5 +121,45 @@ describe('openTaskCount', () => {
       task({ status: 'Done' }),
       task({ responsible_person_id: 'x', accountable_person_id: 'y' }),
     ], VIEWER)).toBe(1)
+  })
+})
+
+describe('signalStreamItems (OD-84.1 / Luna P0-1 — attention-worthy Signals lead the stream)', () => {
+  function sig(over: Partial<SignalRow> = {}): SignalRow {
+    return {
+      id: 's', author_id: 'a1', owning_team_id: 'tm1', occurred_at: '2026-07-16T02:00:00Z',
+      body: 'A signal body', attention: 'FYI', category: null, source: 'human',
+      retracted_at: null, retract_reason: null, edited_at: null, created_at: '2026-07-16T02:00:00Z',
+      ...over,
+    }
+  }
+
+  it('isAttentionSignal is true for Urgent / Needs attention, false for FYI', () => {
+    expect(isAttentionSignal(sig({ attention: 'Urgent' }))).toBe(true)
+    expect(isAttentionSignal(sig({ attention: 'Needs attention' }))).toBe(true)
+    expect(isAttentionSignal(sig({ attention: 'FYI' }))).toBe(false)
+  })
+
+  it('keeps only attention-worthy Signals, Urgent-first then most-recent-first, and drops FYI', () => {
+    const items = signalStreamItems([
+      sig({ id: 'fyi', attention: 'FYI' }),
+      sig({ id: 'na-old', attention: 'Needs attention', occurred_at: '2026-07-15T00:00:00Z' }),
+      sig({ id: 'na-new', attention: 'Needs attention', occurred_at: '2026-07-17T00:00:00Z' }),
+      sig({ id: 'urg', attention: 'Urgent', occurred_at: '2026-07-10T00:00:00Z' }),
+    ])
+    expect(items.map(i => i.id)).toEqual(['urg', 'na-new', 'na-old'])
+    expect(items[0].reason).toEqual({ tone: 'urgent' })
+    expect(items[1].reason).toEqual({ tone: 'attention' })
+  })
+
+  it('maps body → title (first line), routes to the record, and decorates PIC + Team caption', () => {
+    const [item] = signalStreamItems(
+      [sig({ id: 'x', attention: 'Urgent', body: 'Freezer alarm\nsecond line' })],
+      { authors: new Map([['a1', 'Cahya Cafe']]), teams: new Map([['tm1', 'HQ Operations']]) },
+    )
+    expect(item.title).toBe('Freezer alarm')
+    expect(item.route).toBe('/work/signals?record=x')
+    expect(item.pic).toEqual({ name: 'Cahya Cafe', initials: 'CC' })
+    expect(item.caption).toBe('HQ Operations')
   })
 })

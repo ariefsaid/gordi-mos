@@ -619,6 +619,7 @@ export const messages = {
     // One prioritised flow ranked across record types; each row carries a reason chip that
     // makes the ranking legible, and quiet band dividers mark the rank bands within the stream.
     'home.stream.title': 'What needs you',
+    'home.stream.band.signals': 'Signals',
     'home.stream.band.overdue': 'Overdue',
     'home.stream.band.dueToday': 'Due today',
     'home.stream.band.blocked': 'Blocked',
@@ -626,6 +627,8 @@ export const messages = {
     'home.stream.band.mentions': 'Mentions',
     'home.stream.band.myWork': 'My work today',
     // Reason chips — the "why is this ranked here" cue on each row.
+    'home.stream.reason.urgent': 'Urgent',
+    'home.stream.reason.needsAttention': 'Needs attention',
     'home.stream.reason.overdue': 'Overdue · ${days}d',
     'home.stream.reason.dueToday': 'Due today',
     'home.stream.reason.blocked': 'Blocked',
@@ -1290,12 +1293,15 @@ export const messages = {
     'home.attention.summary': 'Perlu perhatian · ${n} →',
     // ── Home consequence-ranked stream (owner redirect 2026-07-22) ──────────────
     'home.stream.title': 'Yang perlu Anda kerjakan',
+    'home.stream.band.signals': 'Sinyal',
     'home.stream.band.overdue': 'Terlambat',
     'home.stream.band.dueToday': 'Jatuh tempo hari ini',
     'home.stream.band.blocked': 'Terhambat',
     'home.stream.band.failedChecks': 'Pemeriksaan gagal',
     'home.stream.band.mentions': 'Sebutan',
     'home.stream.band.myWork': 'Pekerjaan saya hari ini',
+    'home.stream.reason.urgent': 'Mendesak',
+    'home.stream.reason.needsAttention': 'Perlu perhatian',
     'home.stream.reason.overdue': 'Terlambat · ${days}h',
     'home.stream.reason.dueToday': 'Jatuh tempo hari ini',
     'home.stream.reason.blocked': 'Terhambat',

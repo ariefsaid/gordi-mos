@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useId } from 'react'
+import { useId } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { correctSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -6,55 +6,41 @@ import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useT } from '@/i18n/use-t'
 import { SignalRecordHost } from './signal-record-host'
-import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
-import {
-  signalCollectionDescriptor,
-  SIGNAL_COLLECTION_NEUTRAL_QUERY,
-  type SignalCollectionQuery,
-} from './signal-collection-adapter'
 import { SignalFeedRows } from './signal-feed-rows'
 import './signal-feed-section.css'
 
-// C3b (AC-426/FR-414): the Home ambient feed slot. It now shares the ONE signalCollectionDescriptor
-// with the Signals archive (FR-V3-013 — no second Signal loader): it drives the descriptor in
-// urlMode="fixed" with a fixed, non-retracted Feed query, so it never steals the Home route's URL.
-// The engine owns loading/error/empty; Home keeps its existing quiet-degradation policy (render the
-// feed + composer row even when the fetch fails). Task creation remains on the focused Signal
-// record where the real follow-up Task flow lives; this ambient card does not advertise a dead action.
+// C3b (AC-426/FR-414): the Home ambient feed slot — the FYI-only tail of the Signals split
+// (OD-84.1 / Luna P0-1: attention-worthy Signals lead the stream as band 0; FYI stay ambient here).
+// Presentational: HomePage owns the ONE shared signal read (FR-V3-013 — no second Signal loader) and
+// passes the FYI signals + resolved author/Team names + a reload callback down. Home keeps its quiet-
+// degradation policy (render the feed + composer row even when the fetch fails). Task creation remains
+// on the focused Signal record where the real follow-up Task flow lives; this card advertises no dead action.
 
-// The fixed embedded query: Feed presentation, no retracted tombstones, no saved-view identity.
-const HOME_FEED_QUERY: SignalCollectionQuery = {
-  ...SIGNAL_COLLECTION_NEUTRAL_QUERY,
-  layout: 'feed',
-  showRetracted: false,
-  savedViewId: null,
+export interface SignalFeedSectionProps {
+  /** The ambient (FYI) Signals — the attention-worthy split already leads the stream. */
+  signals: readonly SignalRow[]
+  /** Author id → display name, from the shared feed's resolved context. */
+  authorNamesById: ReadonlyMap<string, string>
+  /** Team id → display name, from the shared feed's resolved context. */
+  teamNamesById: ReadonlyMap<string, string>
+  /** The shared read's initial-load state — Home's own skeleton regions cover it (NFR-405). */
+  loading?: boolean
+  /** Re-run the shared signal read (after a categorize correction, or a Share elsewhere). */
+  onReload?: () => void
 }
 
 function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string> {
   return Object.fromEntries(map)
 }
 
-export function SignalFeedSection() {
+export function SignalFeedSection({
+  signals, authorNamesById, teamNamesById, loading = false, onReload,
+}: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
-  const { open: openSignalComposer, postCount } = useSignalComposer()
+  const { open: openSignalComposer } = useSignalComposer()
   const t = useT()
   const titleId = useId()
-
-  const controller = useRecordCollection({
-    descriptor: signalCollectionDescriptor,
-    urlMode: 'fixed',
-    fixedQuery: HOME_FEED_QUERY,
-    viewerId: null,
-    accessRoles: [],
-  })
-
-  // Reload after every successful Share (postCount bump) so a freshly posted Signal appears at the
-  // top of the ambient feed without a manual refresh (AC-430 / FR-414).
-  useEffect(() => {
-    if (postCount > 0) controller.retry()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postCount])
 
   function openRecord(signalId: string) {
     if (host) {
@@ -76,14 +62,10 @@ export function SignalFeedSection() {
   async function handleCategorize(signalId: string, category: SignalRow['category']) {
     if (!category) return
     await correctSignal(signalId, { category })
-    controller.retry()
+    onReload?.()
   }
 
-  const data = controller.state.data
-  const projection = controller.state.projection
-  const signals = useMemo(() => (projection ? [...projection.visibleRecords] : []), [projection])
-
-  if (controller.state.status === 'loading') return null // Home's own skeleton regions cover initial paint (NFR-405)
+  if (loading) return null // Home's own skeleton regions cover initial paint (NFR-405)
 
   return (
     <section className="signal-feed-section" aria-labelledby={titleId}>
@@ -98,8 +80,8 @@ export function SignalFeedSection() {
       </div>
       <SignalFeedRows
         signals={signals}
-        authorNamesById={data ? namesToRecord(data.context.authorNamesById) : {}}
-        teamNamesById={data ? namesToRecord(data.context.teamNamesById) : {}}
+        authorNamesById={namesToRecord(authorNamesById)}
+        teamNamesById={namesToRecord(teamNamesById)}
         onShareClick={openSignalComposer}
         onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
         onOpen={(signal) => openRecord(signal.id)}

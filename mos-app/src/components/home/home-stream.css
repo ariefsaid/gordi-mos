@@ -171,6 +171,8 @@
   font-weight: 600;
   white-space: nowrap;
 }
+.stream-reason--urgent    { background: color-mix(in srgb, var(--destructive) 16%, transparent); color: var(--status-lost-text); }
+.stream-reason--attention { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
 .stream-reason--overdue { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
 .stream-reason--due     { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); }
 .stream-reason--blocked { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }

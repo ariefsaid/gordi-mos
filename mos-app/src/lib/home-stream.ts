@@ -13,12 +13,17 @@
 //   5. mentions       — unread @-mentions / asks                    reason "Mentions you"
 //   6. my-work        — the rest of the viewer's open work today (off-track first, capped)
 //
-// Bands 1–5 are the "attention" group; band 6 is "my work". The OD-18 order preference reorders
+// Bands 0–5 are the "attention" group; band 6 is "my work". The OD-18 order preference reorders
 // those two GROUPS within the one stream (attention-first vs my-work-first) — it never removes a
-// band. Signals are NOT in this model (A12 attention-vs-ambient boundary — they render as a
-// separate ambient tail).
+// band.
+//
+// Signals refinement (OD-REDESIGN-84.1 / Luna P0-1, A12 RE-EXPRESSED): attention-worthy Signals
+// (Urgent / Needs attention) ARE attention, so they lead the attention group as band 0 (E7 puts
+// the exception first). Only FYI Signals stay ambient — they remain the SignalFeedSection tail.
+// This does not add a data path: HomePage reads the ONE shared signal collection and splits it.
 
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { Attention, SignalRow } from '@/lib/db/signals.types'
 import { raciOwner } from '@/lib/raci-member'
 import { formatDate } from '@/components/tasks/task-formatters'
 import type { Locale } from '@/i18n/messages'
@@ -26,11 +31,11 @@ import type { AttentionDirectory, AttentionItem, AttentionPic } from '@/lib/home
 
 export type { AttentionDirectory } from '@/lib/home-attention'
 
-export type StreamBandKind = 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'mentions' | 'my-work'
+export type StreamBandKind = 'signals' | 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'mentions' | 'my-work'
 export type StreamBandState = 'loading' | 'ready' | 'error'
 
 /** The tone a reason chip carries — drives its i18n label + colour token. `days` is set for overdue. */
-export type StreamReasonTone = 'overdue' | 'due' | 'blocked' | 'check' | 'mention'
+export type StreamReasonTone = 'urgent' | 'attention' | 'overdue' | 'due' | 'blocked' | 'check' | 'mention'
 export interface StreamReason {
   tone: StreamReasonTone
   /** Whole days overdue (tone === 'overdue' only). */
@@ -156,6 +161,53 @@ export function myWorkStreamItems(
       return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
     })
     .map(t => toStreamTaskItem(t, t.status === 'Blocked' ? { tone: 'blocked' } : undefined, locale, dir))
+}
+
+/** True for a Signal that is attention-worthy (Urgent / Needs attention) — i.e. NOT ambient FYI. */
+export function isAttentionSignal(signal: SignalRow): boolean {
+  return signal.attention !== 'FYI'
+}
+
+const SIGNAL_ATTENTION_TONE: Record<Exclude<Attention, 'FYI'>, StreamReasonTone> = {
+  Urgent: 'urgent',
+  'Needs attention': 'attention',
+}
+const SIGNAL_ATTENTION_WEIGHT: Record<Attention, number> = { Urgent: 3, 'Needs attention': 2, FYI: 1 }
+
+function firstLine(body: string): string {
+  const line = body.split('\n', 1)[0].trim()
+  return line || body.trim()
+}
+
+/** Attention-worthy Signals (Urgent / Needs attention) → StreamItems for the band-0 signals band,
+ *  Urgent-first then most-recent-first. Retracted signals are already excluded upstream (the Home
+ *  feed query is non-retracted). Author decorates the row as its PIC; the owning Team is the caption;
+ *  the reason chip carries the attention level so the ranking reads at a glance. FYI is dropped here
+ *  (it stays the ambient tail). `names` are the same author/team maps the shared feed already resolves. */
+export function signalStreamItems(
+  signals: readonly SignalRow[],
+  names: { authors: ReadonlyMap<string, string>; teams: ReadonlyMap<string, string> } = { authors: new Map(), teams: new Map() },
+): StreamItem[] {
+  return signals
+    .filter(isAttentionSignal)
+    .slice()
+    .sort((a, b) => {
+      const w = SIGNAL_ATTENTION_WEIGHT[b.attention] - SIGNAL_ATTENTION_WEIGHT[a.attention]
+      if (w !== 0) return w
+      return a.occurred_at < b.occurred_at ? 1 : a.occurred_at > b.occurred_at ? -1 : 0
+    })
+    .map((s) => {
+      const authorName = names.authors.get(s.author_id)
+      const teamName = names.teams.get(s.owning_team_id)
+      return {
+        id: s.id,
+        title: firstLine(s.body),
+        route: `/work/signals?record=${s.id}`,
+        caption: teamName ?? undefined,
+        pic: authorName ? { name: authorName, initials: initialsOf(authorName) } : undefined,
+        reason: { tone: SIGNAL_ATTENTION_TONE[s.attention as Exclude<Attention, 'FYI'>] },
+      }
+    })
 }
 
 /** Count of the viewer's open (R/A, non-Done) tasks — the "All tasks · N" figure. */

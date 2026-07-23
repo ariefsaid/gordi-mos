@@ -71,6 +71,9 @@ vi.mock('../lib/db/signals', async (importOriginal) => {
 vi.mock('../shell/signal-composer-host', () => ({
   useSignalComposer: () => ({ open: vi.fn(), postCount: 0 }),
 }))
+import { listReadableSignals } from '@/lib/db/signals'
+import type { SignalRow } from '@/lib/db/signals.types'
+const mockListReadableSignals = vi.mocked(listReadableSignals)
 
 import { HomePage } from './home-page'
 import { setRegionOrder, resolveRegionOrder } from '@/lib/home-region-order'
@@ -177,6 +180,45 @@ describe('OD-REDESIGN-82: the stream + Signals tail are chromeless section landm
       expect(region.tagName).toBe('SECTION')
       for (const c of shellClasses) expect(region).not.toHaveClass(c)
     }
+  })
+})
+
+describe('OD-84.1 / Luna P0-1 — attention-worthy Signals lead the stream; only FYI stays ambient', () => {
+  function sig(over: Partial<SignalRow> = {}): SignalRow {
+    return {
+      id: 's', author_id: 'a', owning_team_id: 'tm', occurred_at: '2026-07-16T02:00:00Z',
+      body: 'A signal', attention: 'FYI', category: null, source: 'human',
+      retracted_at: null, retract_reason: null, edited_at: null, created_at: '2026-07-16T02:00:00Z',
+      ...over,
+    }
+  }
+
+  it('loads Signals ONCE through the shared descriptor (FR-V3-013 — no second loader)', async () => {
+    await renderHome(memberViewer)
+    await screen.findByRole('region', STREAM)
+    // The descriptor's load signature — a second bespoke Home loader would call listReadableSignals({}).
+    expect(mockListReadableSignals).toHaveBeenCalledWith({ includeRetracted: true })
+    expect(mockListReadableSignals).toHaveBeenCalledTimes(1)
+  })
+
+  it('an Urgent Signal ranks in the attention group (band 0); a FYI Signal stays in the ambient tail', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      sig({ id: 'urg', body: 'Freezer alarm went off', attention: 'Urgent' }),
+      sig({ id: 'fyi', body: 'New oat-milk brand in stock', attention: 'FYI' }),
+    ])
+    await renderHome(memberViewer)
+
+    const attn = await screen.findByTestId('attention-group')
+    // The attention-worthy Signal leads the stream, carrying its "Urgent" reason chip…
+    expect(await within(attn).findByText('Freezer alarm went off')).toBeInTheDocument()
+    expect(within(attn).getByText('Urgent')).toBeInTheDocument()
+    // …and the FYI Signal is NOT ranked into the attention group.
+    expect(within(attn).queryByText('New oat-milk brand in stock')).toBeNull()
+
+    // The FYI Signal is the ambient Signals tail; the Urgent one is not duplicated there.
+    const tail = await screen.findByRole('region', { name: 'Signals' })
+    expect(within(tail).getByText('New oat-milk brand in stock')).toBeInTheDocument()
+    expect(within(tail).queryByText('Freezer alarm went off')).toBeNull()
   })
 })
 

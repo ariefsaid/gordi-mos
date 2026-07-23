@@ -29,12 +29,15 @@ const TASK_BAND_LABEL: Record<'overdue' | 'due-today' | 'blocked', MessageKey> =
   'due-today': 'home.stream.band.dueToday',
   blocked: 'home.stream.band.blocked',
 }
-const OTHER_BAND_LABEL: Record<'failed-checks' | 'mentions', MessageKey> = {
+const OTHER_BAND_LABEL: Record<'signals' | 'failed-checks' | 'mentions', MessageKey> = {
+  signals: 'home.stream.band.signals',
   'failed-checks': 'home.stream.band.failedChecks',
   mentions: 'home.stream.band.mentions',
 }
 
 const REASON_KEY: Record<StreamReason['tone'], MessageKey> = {
+  urgent: 'home.stream.reason.urgent',
+  attention: 'home.stream.reason.needsAttention',
   overdue: 'home.stream.reason.overdue',
   due: 'home.stream.reason.dueToday',
   blocked: 'home.stream.reason.blocked',
@@ -57,6 +60,9 @@ export interface HomeStreamProps {
   myWork: StreamItem[]
   /** The viewer's full open-task count — the "All tasks · N →" figure. */
   openCount: number
+  /** Signals band (attention-worthy Urgent / Needs-attention Signals) — leads the attention group
+   *  as band 0 (E7 exception-first). Its own independent fetch state (the shared signal feed). */
+  signals: StreamBand
   /** Failed-checks band (café rejected logs) — its own independent fetch state. */
   failedChecks: StreamBand
   /** Mentions band (unread @-mentions / asks) — its own independent fetch state. */
@@ -159,20 +165,24 @@ function IndependentBand({ band, label }: { band: StreamBand; label: string }) {
 
 export function HomeStream({
   taskState, onRetryTasks, overdue, dueToday, blocked, myWork, openCount,
-  failedChecks, mentions, order, attentionAnchorId,
+  signals, failedChecks, mentions, order, attentionAnchorId,
 }: HomeStreamProps) {
   const t = useT()
   const titleId = useId()
 
-  // All-clear: the shared tasks fetch succeeded with no attention-worthy task, AND both independent
-  // bands are ready+empty. The group persists — never a silent void.
+  // All-clear: the shared tasks fetch succeeded with no attention-worthy task, AND every independent
+  // band is ready+empty. The group persists — never a silent void.
   const attentionEmpty =
     taskState === 'ready' && overdue.length === 0 && dueToday.length === 0 && blocked.length === 0 &&
+    signals.state === 'ready' && signals.items.length === 0 &&
     failedChecks.state === 'ready' && failedChecks.items.length === 0 &&
     mentions.state === 'ready' && mentions.items.length === 0
 
   const attentionGroup = (
     <div key="attention" id={attentionAnchorId} className="stream-group stream-group--attention" data-testid="attention-group">
+      {/* Band 0 — attention-worthy Signals lead (E7 exception-first). Own fetch state; the FYI
+          remainder is the ambient SignalFeedSection tail below the stream. */}
+      {!attentionEmpty && <IndependentBand band={signals} label={t(OTHER_BAND_LABEL.signals)} />}
       {taskState === 'loading' && (
         <div className="stream-band" data-band="tasks-loading">
           <div className="stream-band-head"><h3 className="stream-band-label">{t('home.stream.title')}</h3></div>

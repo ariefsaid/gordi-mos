@@ -20,6 +20,7 @@ function renderStream(overrides: Partial<HomeStreamProps> = {}) {
     blocked: [],
     myWork: [],
     openCount: 0,
+    signals: emptyBand('signals'),
     failedChecks: emptyBand('failed-checks'),
     mentions: emptyBand('mentions'),
     order: 'attention-first',
@@ -58,6 +59,22 @@ describe('HomeStream — the consequence-ranked stream', () => {
     for (let i = 0; i < titles.length - 1; i++) {
       expect(Boolean(titles[i].compareDocumentPosition(titles[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     }
+  })
+
+  it('OD-84.1/Luna P0-1: attention-worthy Signals lead the attention group as band 0 (exception-first)', () => {
+    renderStream({
+      signals: { kind: 'signals', state: 'ready', items: [
+        item({ id: 's-urg', title: 'Freezer alarm went off', reason: { tone: 'urgent' } }),
+      ] },
+      overdue: [item({ id: 'o', title: 'Overdue row', reason: { tone: 'overdue', days: 2 } })],
+    })
+    // The urgent Signal's reason chip reads "Urgent"; its row precedes the Overdue row.
+    expect(screen.getByText('Urgent')).toBeInTheDocument()
+    const signal = screen.getByText('Freezer alarm went off')
+    const overdue = screen.getByText('Overdue row')
+    expect(Boolean(signal.compareDocumentPosition(overdue) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    // The signals band divider carries its count.
+    expect(screen.getByRole('heading', { name: 'Signals · 1' })).toBeInTheDocument()
   })
 
   it('default order = attention-first: the attention group precedes the my-work group', () => {
