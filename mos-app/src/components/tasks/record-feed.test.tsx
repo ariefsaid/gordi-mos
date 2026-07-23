@@ -101,6 +101,29 @@ describe('RecordFeed (AC-R03)', () => {
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
   })
 
+  it('owner-eyes item 5: both empty → ONE combined quiet line + composer, no orphan empty lines', () => {
+    renderFeed({ activeTab: 'activity', events: [], comments: [] })
+    expect(screen.getByText(/no activity yet — be the first to comment/i)).toBeInTheDocument()
+    // the separate "No activity yet." / "No comments yet." lines are collapsed away
+    expect(screen.queryByText('No activity yet.')).toBeNull()
+    expect(screen.queryByText('No comments yet.')).toBeNull()
+    // the composer still invites the first comment
+    expect(screen.getByRole('button', { name: /post comment/i })).toBeInTheDocument()
+  })
+
+  it('owner-eyes item 5: activity present + comments empty → a single quiet "No comments yet." line', () => {
+    renderFeed({ activeTab: 'activity', comments: [] }) // default events has one entry
+    expect(screen.getByText('No comments yet.')).toBeInTheDocument()
+    expect(screen.queryByText(/be the first to comment/i)).toBeNull()
+  })
+
+  it('owner-eyes item 5: both empty + not editable → one plain "No activity yet." line, no comment invite', () => {
+    renderFeed({ activeTab: 'activity', events: [], comments: [], editable: false })
+    expect(screen.getByText('No activity yet.')).toBeInTheDocument()
+    expect(screen.queryByText(/be the first to comment/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /post comment/i })).toBeNull()
+  })
+
   it('AC-R03: the feed never carries a weekly-update write/ack affordance', () => {
     renderFeed({ activeTab: 'activity' })
     expect(screen.queryByRole('button', { name: /write update|submit update|acknowledge/i })).toBeNull()

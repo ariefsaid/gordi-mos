@@ -321,6 +321,21 @@
 .event-when { font-size: 12px; color: var(--muted-foreground); }
 .event-label { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
 
+/* ── Comment composer (owner-eyes item 9) ──
+   Plain, conventional composer: the textarea fills the panel's content measure and holds a
+   comfortable ~3-line min-height; the submit is a real Button on its own row below, right-aligned.
+   Previously the textarea had NO rule at all, so it fell back to the browser default (~180px cols),
+   a tiny box that clipped and overlapped the empty-state line, with the action floating beside it. */
+.comment-composer { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; position: relative; }
+.comment-composer__input {
+  width: 100%; box-sizing: border-box; min-height: 76px; resize: vertical;
+  padding: 10px 12px; font: inherit; font-size: 15px; line-height: 1.5; color: var(--foreground);
+  background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
+}
+.comment-composer__input::placeholder { color: var(--muted-foreground); }
+.comment-composer__input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
+.comment-composer__actions { display: flex; justify-content: flex-end; }
+
 /* ── Not found ── */
 .not-found-panel { padding: 48px 0; }
 .not-found-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--foreground); }

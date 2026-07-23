@@ -90,12 +90,37 @@ export function RecordFeed({
         id={`rf-tabpanel-${activeTab}`}
         aria-labelledby={`rf-tab-${activeTab}`}
       >
-        {activeTab === 'activity' && (
-          <>
-            <ActivityCard events={events} people={people} now={now} />
-            <CommentThread comments={comments} people={people} canPost={editable} onPost={onPostComment} />
-          </>
-        )}
+        {activeTab === 'activity' && (() => {
+          // owner-eyes item 5 — collapse the empty stack. The old pane always stacked
+          // "Activity & updates / No activity yet. / Comments / No comments yet." + composer, four
+          // quiet lines and two orphan headings for an untouched task. Instead:
+          //   • both empty → ONE combined quiet line (+ the composer, when the viewer can post).
+          //   • only comments empty → a single quiet "No comments yet." line inside the (heading-
+          //     less) comment section; the activity list stays.
+          //   • only activity empty → just the comment list; no orphan activity-empty line.
+          // The Activity/Comments headings are sr-only here (the active tab already reads "Activity").
+          const activityEmpty = events.length === 0
+          const commentsEmpty = comments.length === 0
+          const bothEmpty = activityEmpty && commentsEmpty
+          const commentsEmptyLabel = bothEmpty
+            ? (editable ? t('tasks.feed.emptyCombined') : t('tasks.activityEmpty'))
+            : commentsEmpty
+              ? t('tasks.commentsEmpty')
+              : null
+          return (
+            <>
+              {!activityEmpty && <ActivityCard events={events} people={people} now={now} />}
+              <CommentThread
+                comments={comments}
+                people={people}
+                canPost={editable}
+                onPost={onPostComment}
+                heading="srOnly"
+                emptyLabel={commentsEmptyLabel}
+              />
+            </>
+          )
+        })()}
         {activeTab === 'checklist' && (
           <ChecklistCard
             items={checklist}
