@@ -711,3 +711,8 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
 - **Pre-existing storybook red (deferred 2026-07-23):** `overlays.stories.tsx › CurrentRecordPanelShell`
   play-test — panel never receives the `complementary` role after the open click; fails identically on
   the baseline before the story-coverage lane. Diagnose the shell's role timing (story vs component).
+
+- **Signal composer modal dirty-guard (deferred 2026-07-23, from the ix-guards lane):** the
+  composer's own draft has no leave-guard on modal close (only the mention-picker Escape isolation
+  shipped). A full composer leave-guard is a create-grammar concern — align with GAP-5/GAP-6 rulings
+  when the owner takes the interaction decision sheet.
