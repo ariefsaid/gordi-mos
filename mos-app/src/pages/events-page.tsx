@@ -23,6 +23,7 @@ export function EventsPage() {
     <PageFamilyFrame family="workspace" title={title} jobSentence={t('job.events')}>
       <EmptyState
         variant="blank"
+        headingLevel={2}
         title={t('events.empty.title')}
         copy={t('events.empty.copy')}
       />

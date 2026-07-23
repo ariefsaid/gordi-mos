@@ -65,6 +65,14 @@ describe('AC-1003 (events-stub): sanctioned quiet EmptyState, no fake action', (
     expect(screen.queryByText(/collection/i)).not.toBeInTheDocument()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
+
+  // AUTH-1 (census DO-14): the empty state IS the first content region under the page h1, so its
+  // title must be an h2 — the outline reads h1 → h2 with no skipped level (was h1 → h3).
+  it('AUTH-1: the empty-state title is an h2, so the heading outline has no skipped level', () => {
+    renderEvents()
+    expect(screen.getByRole('heading', { level: 2, name: 'Nothing scheduled yet' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 3 })).toBeNull()
+  })
 })
 
 // Post Issue-11: EventsPage is on the V3 Workspace PageFamilyFrame, so its own page head

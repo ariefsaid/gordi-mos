@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react'
 import { listThreads, type ThreadSummary } from '@/lib/agent/history'
+import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 
 export interface ThreadListProps {
   emptyText: string
@@ -28,20 +29,16 @@ export function ThreadList({ emptyText, onOpen }: ThreadListProps) {
     }
   }, [])
 
+  // DEP-1 (census DO-16): the loading + empty states join the shared state-kit grammar instead
+  // of a bare "…" (no role=status) / a naked <div>. `nested` drops the redundant region landmark
+  // (the History pane already sits inside the labelled Assistant drawer). 'blank' = an empty-BY-
+  // DESIGN surface (you have no past conversations yet), never a false ✓ / ↻.
   if (threads === null) {
-    return (
-      <div className="text-muted-foreground" style={{ padding: '1rem 0.25rem', fontSize: 14 }}>
-        …
-      </div>
-    )
+    return <LoadingShell count={3} />
   }
 
   if (threads.length === 0) {
-    return (
-      <div className="text-muted-foreground" style={{ padding: '1rem 0.25rem', fontSize: 14 }}>
-        {emptyText}
-      </div>
-    )
+    return <EmptyState variant="blank" nested title={emptyText} />
   }
 
   return (

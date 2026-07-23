@@ -49,6 +49,11 @@ export interface EmptyStateProps {
   /** Drop the region landmark when this sits inside an already-labelled landmark
    * (e.g. the Assistant drawer) — avoids a redundant nested region. */
   nested?: boolean
+  /** AUTH-1 (census DO-14): the heading level for the empty-state title. Defaults to 3 (the
+   * common case: an empty state nested under a section h2). When the empty state IS the first
+   * content region directly under a page h1 (e.g. the /events destination), pass 2 so the
+   * document outline reads h1 → h2 with no skipped level. */
+  headingLevel?: 2 | 3 | 4 | 5 | 6
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
@@ -76,10 +81,12 @@ export function EmptyState({
   icon,
   suggestions,
   nested = false,
+  headingLevel = 3,
   children,
   className,
 }: EmptyStateProps) {
   const titleId = useId()
+  const Heading = `h${headingLevel}` as const
 
   return (
     <div
@@ -94,7 +101,7 @@ export function EmptyState({
           <span className="empty-state-glyph">{icon ?? defaultEmptyGlyph(variant)}</span>
         </div>
         <div className="empty-state-body">
-          <h3 id={titleId} className="empty-title">{title}</h3>
+          <Heading id={titleId} className="empty-title">{title}</Heading>
           {copy && <p className="empty-copy">{copy}</p>}
           {note && <p className="empty-note">{note}</p>}
         </div>
