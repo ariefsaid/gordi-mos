@@ -182,7 +182,12 @@ export interface RecordCollectionDescriptor<
     viewerId: string | null
     accessRoles: readonly string[]
   }): CollectionAccess<TAction>
-  viewer: RecordViewerOpeningContract<TRecord>
+  /**
+   * The record-opening contract. Omitted for door-less collections (e.g. catalogs, whose
+   * presentations declare `recordOpening: false` and manage rows inline — D-A6/D-A7): the
+   * engine's `openRecord` is a no-op without it, never a guessed default door.
+   */
+  viewer?: RecordViewerOpeningContract<TRecord>
   /** Issue 4 overlay host, injected by the React hook. React-free engine calls this seam. */
   host?: CollectionOverlayHost
   runBulkAction?: (args: {

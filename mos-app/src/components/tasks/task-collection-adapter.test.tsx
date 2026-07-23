@@ -139,9 +139,11 @@ describe('FR-V3-003/004/006 seam: Task row opening', () => {
   it('preserves the collection query in the canonical route and tags the entry as the tasks owner', () => {
     const source = { collectionId: 'tasks', presentation: 'table', pathname: '/work/tasks', search: '?view=my-work&group=status' }
     const rec = toTaskCollectionRecord(rawTask({ id: 't-9', title: 'Fix the coffee machine' }))
-    const to = taskCollectionDescriptor.viewer.toCanonicalPage('t-9', source)
+    const viewer = taskCollectionDescriptor.viewer
+    if (!viewer) throw new Error('the tasks descriptor must define its opening seam')
+    const to = viewer.toCanonicalPage('t-9', source)
     expect(to).toEqual({ pathname: '/work/tasks/t-9', search: '?view=my-work&group=status' })
-    const entry = taskCollectionDescriptor.viewer.buildPanelEntry(rec, source)
+    const entry = viewer.buildPanelEntry(rec, source)
     expect(entry.owner).toBe('tasks')
     expect(entry.tenant).toBe('record')
     expect(entry.pageTo).toEqual({ pathname: '/work/tasks/t-9', search: '?view=my-work&group=status' })

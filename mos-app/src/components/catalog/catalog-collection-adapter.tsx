@@ -28,7 +28,6 @@ import type {
   CollectionSavedViewDescriptor,
   QueryKey,
   RecordCollectionDescriptor,
-  RecordViewerOpeningContract,
 } from '@/lib/record-collection/types'
 import { CatalogListPresentation } from './catalog-list-presentation'
 
@@ -215,11 +214,14 @@ function projectCatalog(
   }
 }
 
-// ── Descriptor scaffolding (saved views + record-opening are dormant for a catalog) ────────────────
+// ── Descriptor scaffolding (saved views are dormant for a catalog) ─────────────────────────────────
 
-// A catalog has no persisted saved views and no record panel. The engine's descriptor type requires
-// both seams structurally, so they are present but inert: the toolbar never exposes saved views and
-// no presentation opens a record, so buildSpec/applySpec and the viewer are never reached.
+// A catalog has no persisted saved views and no record panel (D-A7: catalog rows manage inline —
+// Rename/Archive — with no record door). The engine's descriptor type still requires the saved-view
+// seam structurally, so it is present but inert: the toolbar never exposes saved views, so
+// buildSpec/applySpec are never reached. The opening seam (`viewer`) is simply omitted — the
+// presentations declare `recordOpening: false` and the engine treats a viewer-less descriptor as
+// door-less (D-A6 cleanup: the previous inert buildPanelEntry/toCanonicalPage fossil was deleted).
 const inertSavedViews: CollectionSavedViewDescriptor<CatalogCollectionQuery, CatalogPresentation> = {
   enabled: true,
   store: {
@@ -233,18 +235,6 @@ const inertSavedViews: CollectionSavedViewDescriptor<CatalogCollectionQuery, Cat
   buildSpec: () => { throw new Error('catalog has no persisted views') },
   parseAndValidate: () => ({ ok: false, issues: [] }),
   applySpec: () => { throw new Error('catalog has no persisted views') },
-}
-
-const inertViewer: RecordViewerOpeningContract<CatalogRow> = {
-  recordType: 'catalog',
-  buildPanelEntry: (row) => ({
-    key: `catalog:${row.id}`,
-    owner: 'shell',
-    tenant: 'record',
-    label: row.name,
-    content: null,
-  }),
-  toCanonicalPage: (recordId) => ({ pathname: `/work/${recordId}` }),
 }
 
 function makeCatalogDescriptor(config: {
@@ -291,7 +281,6 @@ function makeCatalogDescriptor(config: {
     getId: (row) => row.id,
     // The route is gated by RequireCapability (FR-424); a viewer who reaches the surface can manage it.
     getAccess: () => ({ mode: 'full', visibleActions: [] }),
-    viewer: inertViewer,
   }
 }
 

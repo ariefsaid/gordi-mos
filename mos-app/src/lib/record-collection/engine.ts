@@ -270,6 +270,7 @@ export function createRecordCollectionController<
       sourceBuilder = builder
     },
     openRecord(record, source) {
+      if (!descriptor.viewer) return // door-less collection (recordOpening: false) — no viewer seam
       const resolvedSource = source ?? sourceBuilder?.()
       if (!resolvedSource) return
       const entry = descriptor.viewer.buildPanelEntry(record, resolvedSource)

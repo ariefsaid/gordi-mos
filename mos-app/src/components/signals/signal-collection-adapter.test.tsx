@@ -137,11 +137,13 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
       collectionId: 'signals', presentation: 'table',
       pathname: '/work/signals', search: '?q=freezer&record=signal-1',
     }
-    const entry = signalCollectionDescriptor.viewer.buildPanelEntry(row({ id: 'signal-7' }), source)
+    const viewer = signalCollectionDescriptor.viewer
+    if (!viewer) throw new Error('the signals descriptor must define its opening seam')
+    const entry = viewer.buildPanelEntry(row({ id: 'signal-7' }), source)
     expect(entry.owner).toBe('signals')
     expect(entry.key).toBe('signal:signal-7')
     expect(entry.pageTo).toEqual({ pathname: '/work/signals/signal-7', search: '?q=freezer' })
-    const page = signalCollectionDescriptor.viewer.toCanonicalPage('signal-7', source)
+    const page = viewer.toCanonicalPage('signal-7', source)
     expect(page).toEqual({ pathname: '/work/signals/signal-7', search: '?q=freezer' })
   })
 })
