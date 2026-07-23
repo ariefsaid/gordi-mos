@@ -36,20 +36,20 @@ import { Select } from '@/components/ui/select'
 import { DateField } from '@/components/ui/date-field'
 
 // Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
-// persistence). The two stores name the same three panes differently, so map
-// between them explicitly (clearer than nested ternaries):
+// persistence). The two stores name the panes differently, so map between them
+// explicitly (clearer than nested ternaries):
 //   slot 'details'  ↔ feed 'activity' (the default pane)
 //   slot 'checklist'↔ feed 'checklist'
-//   slot 'activity' ↔ feed 'notes'    (the description pane)
+// The former slot 'activity' ↔ feed 'notes' pairing is gone — the Notes tab was removed
+// (owner-eyes item 11). A persisted slot 'activity' now falls back to the 'activity' feed tab.
 const SLOT_TO_FEED: Record<TabKey, FeedTab> = {
   details: 'activity',
   checklist: 'checklist',
-  activity: 'notes',
+  activity: 'activity',
 }
 const FEED_TO_SLOT: Record<FeedTab, TabKey> = {
   activity: 'details',
   checklist: 'checklist',
-  notes: 'activity',
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────

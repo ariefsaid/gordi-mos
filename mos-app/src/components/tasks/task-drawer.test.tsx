@@ -180,7 +180,7 @@ describe('TaskDrawer — expanded@split mounts the full-width record document (E
 
     // Goal-oracle: the FULL record shows — details on top AND the feed section below.
     expect(document.querySelector('.record-doc .record-feed-col')).toBeTruthy()
-    // The feed's tablist (Activity / Checklist / Notes) is present in the document.
+    // The feed's tablist (Activity / Checklist) is present in the document.
     expect(document.querySelector('.record-doc')!.querySelector('[role="tablist"]')).toBeTruthy()
 
     // Collapse stays reachable (no dead end): a collapse control returns to split.

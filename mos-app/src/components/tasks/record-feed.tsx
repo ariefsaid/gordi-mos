@@ -5,12 +5,15 @@ import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
 import { useT } from '@/i18n/use-t'
 
-// Feed tab vocabulary (ADR-0013 D3 right-feed). "Notes" maps to the existing
-// description pane — no new entity (Director resolution). Order: Activity first
-// (the manager-triage default), then Checklist, then Notes.
-export type FeedTab = 'activity' | 'checklist' | 'notes'
+// Feed tab vocabulary (ADR-0013 D3 right-feed). Order: Activity first (the manager-triage
+// default), then Checklist. The former "Notes" tab was REMOVED (owner-eyes item 11): it merely
+// re-rendered the Task's `description` as static text — dead content (no edit affordance) that
+// also duplicated the editable Description in the record's TASK DETAILS section. A Task has no
+// separate notes concept in the model (only `description`), so Description keeps its ONE canonical
+// home (the value-first field in TASK DETAILS) and no surface renders it a second time, read-only.
+export type FeedTab = 'activity' | 'checklist'
 
-const TAB_ORDER: FeedTab[] = ['activity', 'checklist', 'notes']
+const TAB_ORDER: FeedTab[] = ['activity', 'checklist']
 export type RecordFeedProps = {
   task: TaskListRow
   checklist: ChecklistItemRow[]
@@ -68,7 +71,7 @@ export function RecordFeed({
         onClick={() => onSelectTab(key)}
         onKeyDown={handleKey}
       >
-        {key === 'activity' ? t('tasks.feed.activity') : key === 'checklist' ? t('tasks.feed.checklist') : t('tasks.feed.notes')}
+        {key === 'activity' ? t('tasks.feed.activity') : t('tasks.feed.checklist')}
         {count !== null && <span className="rf-tcount tabular-nums">{count}</span>}
       </button>
     )
@@ -79,7 +82,6 @@ export function RecordFeed({
       <div className="rf-tabs" role="tablist" aria-label={t('tasks.feed.aria')}>
         {renderTab('activity', events.length > 0 ? `${events.length}` : null)}
         {renderTab('checklist', checklist.length > 0 ? `${done}/${checklist.length}` : null)}
-        {renderTab('notes', null)}
       </div>
 
       <div
@@ -105,14 +107,6 @@ export function RecordFeed({
             onReorder={onReorderChecklist}
             onDelete={onDeleteChecklist}
           />
-        )}
-        {activeTab === 'notes' && (
-          <section className="rf-notes" aria-label={t('tasks.feed.notes')}>
-            {task.description
-              ? <p className="desc-body">{task.description}</p>
-              : <p className="empty-substate">{t('tasks.notesEmpty')}</p>
-            }
-          </section>
         )}
       </div>
     </div>

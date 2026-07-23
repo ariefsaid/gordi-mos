@@ -67,11 +67,13 @@ describe('RecordFeed (AC-R03)', () => {
     expect(selected).toHaveLength(1)
     // active tab carries the underline class (2px border-primary, never color-alone)
     expect(selected[0]).toHaveClass('on')
-    // labels are Activity / Checklist / Notes
+    // labels are Activity / Checklist — the Notes tab was removed (owner-eyes item 11: it only
+    // re-rendered `description` read-only, duplicating the editable Description in TASK DETAILS).
     const labels = tabs.map(t => t.textContent)
     expect(labels.some(l => /activity/i.test(l ?? ''))).toBe(true)
     expect(labels.some(l => /checklist/i.test(l ?? ''))).toBe(true)
-    expect(labels.some(l => /notes/i.test(l ?? ''))).toBe(true)
+    expect(labels.some(l => /notes/i.test(l ?? ''))).toBe(false)
+    expect(tabs).toHaveLength(2)
   })
 
   it('AC-R03: arrow-key moves the active tab (roving)', () => {
@@ -87,15 +89,11 @@ describe('RecordFeed (AC-R03)', () => {
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
   })
 
-  it('AC-R03: Notes tab maps to the description pane (no new entity)', () => {
-    renderFeed({ activeTab: 'notes' })
-    expect(screen.getByRole('region', { name: /notes/i })).toBeInTheDocument()
-    expect(screen.getByText(/the espresso machine on floor 2 is broken/i)).toBeInTheDocument()
-  })
-
-  it('AC-R03: Notes tab shows an empty substate when there is no description', () => {
-    renderFeed({ activeTab: 'notes', task: makeTask({ description: null }) })
-    expect(screen.getByText(/no notes/i)).toBeInTheDocument()
+  it('owner-eyes item 11: there is no Notes tab, and the feed never re-renders the description read-only', () => {
+    // description text lives ONLY in the record's TASK DETAILS section (editable), never dead in the feed.
+    renderFeed({ activeTab: 'activity' })
+    expect(screen.queryByRole('tab', { name: /notes/i })).toBeNull()
+    expect(screen.queryByText(/the espresso machine on floor 2 is broken/i)).toBeNull()
   })
 
   it('AC-R03: Checklist tab renders the checklist', () => {
