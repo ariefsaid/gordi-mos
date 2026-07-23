@@ -51,6 +51,36 @@ describe('PlanQtyStepper — direct input + states', () => {
     expect(onSave).toHaveBeenCalledWith(17)
   })
 
+  // item 13 (OD-REDESIGN-22): the phone stepper now rides the shared useInlineCommit —
+  // same contract as its desktop sibling PlanQtyCell. Goal: the lead can abandon a typo
+  // and never write an unchanged value.
+  it('Enter commits the typed value', () => {
+    const onSave = vi.fn()
+    render(<PlanQtyStepper itemName="Ayam Bakar" qty={5} saving={false} disabled={false} onSave={onSave} />)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '9' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onSave).toHaveBeenCalledWith(9)
+  })
+
+  it('Escape discards the draft and restores the saved qty without committing', () => {
+    const onSave = vi.fn()
+    render(<PlanQtyStepper itemName="Ayam Bakar" qty={5} saving={false} disabled={false} onSave={onSave} />)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '17' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input).toHaveValue(5) // restored to the last saved value
+    expect(onSave).not.toHaveBeenCalled() // Escape never writes
+  })
+
+  it('blurring with an unchanged value does NOT commit (no needless upsert)', () => {
+    const onSave = vi.fn()
+    render(<PlanQtyStepper itemName="Ayam Bakar" qty={12} saving={false} disabled={false} onSave={onSave} />)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.blur(input) // blur with the same value 12
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
   it('shows an inline "Saving…" status while saving', () => {
     render(<PlanQtyStepper itemName="Ayam Bakar" qty={5} saving disabled={false} onSave={() => {}} />)
     expect(screen.getByText(/saving/i)).toHaveAttribute('role', 'status')

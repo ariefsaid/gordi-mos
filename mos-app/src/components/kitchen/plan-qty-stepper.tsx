@@ -3,8 +3,14 @@
 // (full-opacity 44px touch targets, not the desktop compact stepper). Lifted from the
 // prior inline PlanRow. role="spinbutton" min=0 + aria-label; ± are real <button>s.
 // Token-only (DESIGN.md); fresh .kps-* namespace. Spacing in px (sibling idiom).
+//
+// I5 inline-edit (OD-REDESIGN-22 / docs/interaction-contract.md, item 13): routed
+// through the one primitive (useInlineCommit) — same as its desktop sibling PlanQtyCell —
+// so phone gains Enter/Tab/blur COMMIT + Escape DISCARDS-and-restores, and an unchanged
+// blur is a no-op (no needless upsert). Previously it hand-rolled useState/useEffect and
+// fired onSave on every blur, with no Escape path — the one plan control off the contract.
 
-import { useState, useEffect } from 'react'
+import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import './plan-qty-stepper.css'
 
 interface PlanQtyStepperProps {
@@ -22,14 +28,11 @@ interface PlanQtyStepperProps {
 }
 
 export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disabled, onSave }: PlanQtyStepperProps) {
-  const [draft, setDraft] = useState<number>(qty)
-  useEffect(() => { setDraft(qty) }, [qty])
-
-  function commit(next: number) {
-    const clamped = Math.max(0, next)
-    setDraft(clamped)
-    onSave(clamped)
-  }
+  const { draft, setDraft, commit, onKeyDown, onBlur } = useInlineCommit<number>({
+    value: qty,
+    onCommit: onSave,
+    disabled,
+  })
 
   return (
     <div className="kps">
@@ -39,7 +42,7 @@ export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disab
         className="kps-step"
         data-touch-target="true"
         disabled={disabled || draft <= 0}
-        onClick={() => commit(draft - 1)}
+        onClick={() => commit(Math.max(0, draft - 1))}
       >
         −
       </button>
@@ -56,10 +59,8 @@ export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disab
           const v = parseInt(e.target.value, 10)
           setDraft(Number.isNaN(v) ? 0 : Math.max(0, v))
         }}
-        onBlur={e => {
-          const v = parseInt(e.target.value, 10)
-          onSave(Number.isNaN(v) ? 0 : Math.max(0, v))
-        }}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
       />
       <button
         type="button"
