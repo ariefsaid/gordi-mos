@@ -129,3 +129,45 @@ describe('InboxPage — shared state kit', () => {
     expect(document.querySelector('.record-panel-chrome')).toBeTruthy()
   })
 })
+
+// Census R2 DO-1 (F-INBOX-1): the `.record-split` grid reserves a 360px/44% right track the moment
+// it is applied, so it must exist only at >=1100px AND while a record is actually open — the same
+// gate Signals/Tasks use. At rest (or on phone/tablet) triage owns the full width: no resting dead
+// void, no ~80px crushed queue.
+describe('DO-1 — the triage list is never squashed by an empty record track', () => {
+  function stubMatchMedia(split: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes('1100') ? split : false,
+        media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    })
+  }
+
+  it('at rest (no record open) the page applies no .record-split track at any width', () => {
+    stubMatchMedia(true)
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    const { container } = renderHostedPage()
+    expect(container.querySelector('.record-split')).toBeNull()
+    // The dead companion class is gone too — it never had CSS.
+    expect(container.querySelector('.inbox-page-split')).toBeNull()
+  })
+
+  it('>=1100px with a record open: the split track appears so the record sits beside the list', () => {
+    stubMatchMedia(true)
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    const { container } = renderHostedPage()
+    fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
+    expect(container.querySelector('.record-split')).not.toBeNull()
+  })
+
+  it('below 1100px a record open never squashes the list — the host owns a modal instead', () => {
+    stubMatchMedia(false)
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    const { container } = renderHostedPage()
+    fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
+    expect(container.querySelector('.record-split')).toBeNull()
+  })
+})
