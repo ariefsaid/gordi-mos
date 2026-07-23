@@ -98,7 +98,12 @@ export function RecordPanelHost({
     const panel = panelRef.current
     if (!panel) return
 
-    const first = panel.querySelector<HTMLElement>(FOCUSABLE)
+    // DO-15(e) (census-sweep R2, task-create F8): open-focus lands on the CONTENT's first
+    // focusable (e.g. the create form's Title field, a record's first value control), not the
+    // chrome bar's ✕ — the chrome stays reachable by Tab. Chrome-only panels keep their first
+    // chrome control as the fallback so focus always enters the panel.
+    const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+    const first = focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
     first?.focus()
 
     return () => {

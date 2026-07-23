@@ -35,6 +35,7 @@ import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
+import { LoadingShell } from '@/components/ui/state-kit'
 
 // Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
 // persistence). The two stores name the panes differently, so map between them
@@ -1035,7 +1036,9 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
             {t('tasks.team')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
-            <div className="tc-loading-field">{t('tasks.loading')}</div>
+            /* DO-15(b,c) (census R2 F4/F5): the shared LoadingShell grammar (role=status +
+               skeleton), with the DIRECTORY-scoped noun — this field loads teams, not tasks. */
+            <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingTeams')} />
           ) : (
             <Select
               id="task-bu"
@@ -1067,7 +1070,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
             {t('tasks.pic')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
-            <div className="tc-loading-field">{t('tasks.loading')}</div>
+            <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingPeople')} />
           ) : (
             <Select
               id="task-responsible"
@@ -1092,7 +1095,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
             {t('tasks.supervisor')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
-            <div className="tc-loading-field">{t('tasks.loading')}</div>
+            <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingPeople')} />
           ) : (
             <Select
               id="task-accountable"

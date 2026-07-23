@@ -154,7 +154,11 @@ export const messages = {
     'tasks.create.teamRequired': 'Team is required',
     'tasks.create.submitting': 'Creating…',
     'tasks.create.submit': 'Create task',
-    'tasks.create.error': 'Something went wrong',
+    // DO-15(d) (census R2 task-create F6): name the problem + the recovery, never a bare shrug.
+    'tasks.create.error': 'The task couldn’t be created. Check your connection and try again.',
+    // DO-15(b) (F4): directory-scoped loading copy — these fields load people/teams, not tasks.
+    'tasks.create.loadingPeople': 'Loading people…',
+    'tasks.create.loadingTeams': 'Loading teams…',
     // Inline title edit (E7 collection promise). Double-click edits (mouse); F2 edits from a
     // keyboard-focused title. Enter is NOT an edit key (it opens the record — the existing opener
     // grammar). To keep the double-click from racing the title's single-click opener, the title's
@@ -902,7 +906,9 @@ export const messages = {
     'tasks.create.teamRequired': 'Tim wajib dipilih',
     'tasks.create.submitting': 'Membuat…',
     'tasks.create.submit': 'Buat tugas',
-    'tasks.create.error': 'Terjadi kesalahan',
+    'tasks.create.error': 'Tugas gagal dibuat. Periksa koneksi Anda lalu coba lagi.',
+    'tasks.create.loadingPeople': 'Memuat orang…',
+    'tasks.create.loadingTeams': 'Memuat tim…',
     'tasks.inlineEdit.hint': 'Klik dua kali judul untuk menyuntingnya · Enter menyimpan · Esc membatalkan',
     'tasks.inlineEdit.aria': 'Sunting judul tugas',
     'tasks.feedback.rollback': 'Gagal menyimpan — dikembalikan',

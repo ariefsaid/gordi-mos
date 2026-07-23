@@ -43,3 +43,10 @@
 }
 .mk-select--disabled .mk-select__box { background: var(--secondary); cursor: not-allowed; }
 .mk-select--disabled .mk-select__field { cursor: not-allowed; }
+
+/* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3) — one seam, every consumer.
+   The native select stretches with the box so the whole 44px area stays the hit target. */
+@media (max-width: 767.98px) {
+  .mk-select__box { min-height: 44px; }
+  .mk-select__field { min-height: 44px; }
+}

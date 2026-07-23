@@ -260,4 +260,28 @@ describe('RecordPanelHost — focus contract (FR-1)', () => {
     expect(document.activeElement).toBe(opener)
     opener.remove()
   })
+
+  // DO-15(e) (census-sweep R2, task-create F8): with the chrome bar present (title + ✕
+  // rendered BEFORE the content in the DOM), open-focus still lands on the CONTENT's first
+  // focusable — e.g. the create form's Title field — never the chrome's close button.
+  it('DO-15(e): open-focus lands on the content first focusable, not the chrome close', () => {
+    renderHost({
+      label: 'Create task',
+      title: 'Create task',
+      children: <input aria-label="Title" />,
+    })
+    // The chrome close exists and precedes the content…
+    expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument()
+    // …but focus enters on the content control.
+    expect(document.activeElement).toBe(screen.getByLabelText('Title'))
+  })
+
+  it('DO-15(e): a chrome-only panel falls back to the first chrome control so focus still enters', () => {
+    renderHost({
+      label: 'Read-only',
+      title: 'Read-only',
+      children: <p>nothing focusable here</p>,
+    })
+    expect(document.activeElement?.closest('.record-panel-chrome')).toBeTruthy()
+  })
 })

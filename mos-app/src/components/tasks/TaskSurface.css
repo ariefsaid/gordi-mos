@@ -397,9 +397,21 @@
    — those are non-text. */
 .tc-field-error { font-size: var(--font-size-label); color: var(--status-lost-text); }
 
+/* DO-15(c): hosts the shared LoadingShell (role=status + skeleton row) at the field's box
+   height, so a resolving directory swaps skeleton→control with no reflow pop. */
 .tc-loading-field {
-  height: 36px; display: flex; align-items: center;
-  font-size: 15px; color: var(--muted-foreground);
+  min-height: 36px; display: flex; flex-direction: column; justify-content: center;
+  color: var(--muted-foreground);
+}
+.tc-loading-field .skeleton-row { padding: 8px 0; border-bottom: 0; }
+.tc-loading-field .skeleton-bar--line { max-width: 220px; }
+
+/* DO-15(a) (census-sweep R2 task-create F3): phone ≥44px floor for the create form's
+   NON-primitive fields. The TextInput/Select/DateField boxes get the same floor at the
+   primitive seam (components/ui/*.css) so every consumer inherits it. */
+@media (max-width: 767.98px) {
+  .tc-textarea { min-height: 44px; }
+  .tc-loading-field { min-height: 44px; }
 }
 
 .tc-actions {

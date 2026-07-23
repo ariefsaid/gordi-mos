@@ -631,6 +631,36 @@ describe('TaskSurface — create mode', () => {
     expect(err).toHaveClass('tc-field-error')
   })
 
+  // DO-15(b,c) (census-sweep R2 task-create F4/F5): while the directory resolves, the
+  // Team/PIC/Supervisor fields render the shared LoadingShell grammar (role=status +
+  // skeleton) with DIRECTORY-scoped labels — these fields load teams/people, not tasks.
+  it('DO-15(b,c): resolving directory fields render LoadingShell with directory-scoped labels', async () => {
+    mockGetBusinessUnits.mockReturnValue(new Promise(() => {}))
+    mockGetPeople.mockReturnValue(new Promise(() => {}))
+    renderCreate()
+    const statuses = await screen.findAllByRole('status')
+    const labels = statuses.map((el) => el.getAttribute('aria-label'))
+    expect(labels).toContain('Loading teams…')
+    expect(labels.filter((l) => l === 'Loading people…')).toHaveLength(2)
+    // The shared skeleton grammar hosts the shell — no literal "Loading tasks" text.
+    expect(document.querySelector('.tc-loading-field .skeleton-bar')).toBeTruthy()
+    expect(screen.queryByText(/loading tasks/i)).toBeNull()
+  })
+
+  // DO-15(d) (census-sweep R2 task-create F6): the submit error names the problem and the
+  // recovery — never the bare "Something went wrong" shrug.
+  it('DO-15(d): failed submit shows an error naming the problem and the recovery', async () => {
+    mockCreateTask.mockRejectedValue(new Error('boom'))
+    renderCreate()
+    await waitFor(() => screen.getByLabelText(/title/i))
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Doomed task' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn.t be created/i)
+    expect(alert).toHaveTextContent(/try again/i)
+    expect(alert).not.toHaveTextContent(/something went wrong/i)
+  })
+
   it('AC-107 (create drawer): at drawer width renders a "Create task" bar with no double card frame', async () => {
     render(
       <AuthContext.Provider value={authedState}>

@@ -50,3 +50,9 @@
 }
 .mk-date--disabled .mk-date__box { background: var(--secondary); cursor: not-allowed; }
 .mk-date--disabled .mk-date__field { cursor: not-allowed; }
+
+/* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3) — one seam, every consumer.
+   The invisible native input already stretches over the box (inset: 0), so it grows with it. */
+@media (max-width: 767.98px) {
+  .mk-date__box { min-height: 44px; }
+}

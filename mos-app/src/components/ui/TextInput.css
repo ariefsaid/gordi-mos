@@ -34,3 +34,11 @@
 }
 .mk-textinput--disabled .mk-textinput__box { background: var(--secondary); cursor: not-allowed; }
 .mk-textinput--disabled .mk-textinput__field { cursor: not-allowed; }
+
+/* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3): the 32px box (and any
+   consumer height override, e.g. the create form's 36px rhythm) rises to the 44px touch
+   floor on phone. min-height beats a smaller height, so per-surface overrides stay intact
+   at desktop widths while every phone consumer inherits the floor from this one seam. */
+@media (max-width: 767.98px) {
+  .mk-textinput__box { min-height: 44px; }
+}
