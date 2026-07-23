@@ -526,7 +526,7 @@ export function KitchenLogPage() {
                   why Submit is disabled without having to attempt a click (Fix 3). */}
               {noteUnresolved && !hasBlockingError && (
                 <span className="kl-submit-reason" role="status" aria-live="polite">
-                  Isi catatan wajib untuk submit
+                  {t('kitchen.log.footer.noteRequired')}
                 </span>
               )}
               <button

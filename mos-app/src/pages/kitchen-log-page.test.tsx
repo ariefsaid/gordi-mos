@@ -286,10 +286,11 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
       await Promise.resolve()
     })
 
-    // Should show the ID note-required cue (NFR-012 content) on the row
-    // (VARIANCE_NOTE_CUE = "Catatan wajib — di luar rencana")
+    // Should show the note-required cue on the row, localized to the active session
+    // locale (cafe-1 fix — the i18n seam; default test locale is English, VARIANCE_NOTE_CUE's
+    // 'en' catalog rendering, not the raw ID gate-logic constant).
     await waitFor(() => {
-      expect(screen.getByText(/catatan wajib — di luar rencana/i)).toBeInTheDocument()
+      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     })
     // insertKitchenLogBatch should NOT have been called
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
@@ -311,8 +312,8 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
 
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: /note for nasi goreng/i })).toBeInTheDocument()
-      // Row-level note cue (VARIANCE_NOTE_CUE = "Catatan wajib — di luar rencana")
-      expect(screen.getByText(/catatan wajib — di luar rencana/i)).toBeInTheDocument()
+      // Row-level note cue, localized (cafe-1 fix — default test locale is English)
+      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     })
     // No submit attempt occurred
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
@@ -334,8 +335,8 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     })
 
     await waitFor(() => {
-      // Row-level note cue (VARIANCE_NOTE_CUE = "Catatan wajib — di luar rencana")
-      expect(screen.getByText(/catatan wajib — di luar rencana/i)).toBeInTheDocument()
+      // Row-level note cue, localized (cafe-1 fix — default test locale is English)
+      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     })
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -385,7 +386,7 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
 
 // ── F3b: disabled Submit shows an inline reason message (Fix 3) ──────────────
 describe('F3b: disabled Submit shows reason message when variance note is missing', () => {
-  it('shows "Isi catatan wajib" near the Submit button when a note is required and missing', async () => {
+  it('shows "Note required to submit" near the Submit button when a note is required and missing', async () => {
     // No plans → every staged item is off-target (needs a variance note)
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
@@ -401,7 +402,7 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
 
     // FIX 3: a visible inline reason message must appear near the Submit button
     // so the blocker is visible without clicking (not enabled-until-bounced).
-    expect(screen.getByText(/isi catatan wajib/i)).toBeInTheDocument()
+    expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
   })
 
   it('reason message disappears when the required note is filled', async () => {
@@ -413,7 +414,7 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     fireEvent.click(incBtn)
 
     // Reason message shows while note is empty
-    expect(screen.getByText(/isi catatan wajib/i)).toBeInTheDocument()
+    expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
 
     // Fill the required note
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
@@ -421,7 +422,7 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
 
     // Once the note is filled, Submit re-enables and the reason message disappears
     await waitFor(() => {
-      expect(screen.queryByText(/isi catatan wajib/i)).toBeNull()
+      expect(screen.queryByText(/note required to submit/i)).toBeNull()
     })
   })
 })
@@ -430,7 +431,7 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
 // Parity with the OLD app (app/main.py ~L618-661): an over-`tersedia` transfer is a
 // HARD STOP ("Produksi dulu sebelum transfer"), NOT a silent clamp. The typed qty is
 // kept; Submit is blocked + the offending line shows the produce-first cue.
-describe('AC-022: transfer over-availability rejects submit — "Stok kurang — produksi dulu" (FR-023)', () => {
+describe('AC-022: transfer over-availability rejects submit — "Insufficient stock — produce first" (FR-023)', () => {
   it('AC-022: an over-tersedia Transfer qty is NOT clamped — keeps the typed value + shows the cue', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -451,7 +452,7 @@ describe('AC-022: transfer over-availability rejects submit — "Stok kurang —
     })
 
     await waitFor(() => {
-      expect(screen.getByText(/stok kurang — produksi dulu/i)).toBeInTheDocument()
+      expect(screen.getByText(/insufficient stock — produce first/i)).toBeInTheDocument()
     })
     // NOT clamped: the input keeps the real typed value (10), unlike the old silent-cap behavior
     expect((qtyInput as HTMLInputElement).value).toBe('10')
@@ -495,7 +496,7 @@ describe('AC-022: transfer over-availability rejects submit — "Stok kurang —
       fireEvent.change(qtyInput, { target: { value: '9' } })
       await Promise.resolve()
     })
-    expect(screen.queryByText(/stok kurang/i)).toBeNull()
+    expect(screen.queryByText(/insufficient stock/i)).toBeNull()
     const note = screen.getByRole('textbox', { name: /note for ayam bakar/i })
     await act(async () => {
       fireEvent.change(note, { target: { value: 'extra ship' } })
@@ -531,8 +532,8 @@ describe('AC-022: transfer over-availability rejects submit — "Stok kurang —
     })
 
     expect((qtyInput as HTMLInputElement).value).toBe('7')
-    expect(screen.queryByText(/stok kurang/i)).toBeNull()
-    expect(screen.queryByText(/catatan wajib/i)).toBeNull()
+    expect(screen.queryByText(/insufficient stock/i)).toBeNull()
+    expect(screen.queryByText(/note required/i)).toBeNull()
   })
 })
 

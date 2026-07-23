@@ -414,6 +414,17 @@ export const messages = {
     'kitchen.stock.col.tersedia': 'Available',
     // Weekly update placeholder (audit D7 fix)
     'weekly.summaryPlaceholder': "This week's summary…",
+    // Café Log stepper meta/cues (sweep-cafe cafe-1 fix) — the plan·stok·tersedia
+    // caption, the variance-note placeholder/cue, and the transfer cap cue all
+    // route through here so a session never mixes locales in one string.
+    'kitchen.log.stepper.noPlan': 'no plan',
+    'kitchen.log.stepper.plan': 'plan',
+    'kitchen.log.stepper.stock': 'stock',
+    'kitchen.log.stepper.avail': 'avail',
+    'kitchen.log.stepper.notePlaceholder': 'Note required — off plan',
+    'kitchen.log.stepper.noteCue': 'Note required — off plan',
+    'kitchen.log.stepper.capCue': 'Insufficient stock — produce first',
+    'kitchen.log.footer.noteRequired': 'Note required to submit',
     // ── Redesign Step 2 — new rail/destination/job-sentence/stub keys (spec §3.1, Rule 1/3/7). ──
     'dest.events': 'Events',
     'dest.money': 'Money',
@@ -1127,6 +1138,15 @@ export const messages = {
     'kitchen.stock.col.tersedia': 'Tersedia',
     // Weekly update placeholder (audit D7 fix)
     'weekly.summaryPlaceholder': 'Ringkasan minggu ini…',
+    // Café Log stepper meta/cues (sweep-cafe cafe-1 fix)
+    'kitchen.log.stepper.noPlan': 'tanpa rencana',
+    'kitchen.log.stepper.plan': 'rencana',
+    'kitchen.log.stepper.stock': 'stok',
+    'kitchen.log.stepper.avail': 'tersedia',
+    'kitchen.log.stepper.notePlaceholder': 'Catatan wajib — di luar rencana',
+    'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
+    'kitchen.log.stepper.capCue': 'Stok kurang — produksi dulu',
+    'kitchen.log.footer.noteRequired': 'Isi catatan wajib untuk submit',
     // ── Redesign Step 2 — kunci rail/destinasi/kalimat-kerja/stub baru (spec §3.1, Rule 1/3/7). ──
     'dest.events': 'Acara',
     'dest.money': 'Keuangan',

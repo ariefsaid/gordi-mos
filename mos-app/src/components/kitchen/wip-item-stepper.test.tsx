@@ -48,15 +48,15 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByText(/12/)).toBeInTheDocument()
   })
 
-  it('shows stok + tersedia context only for transfer actions', () => {
+  it('shows stock + avail context only for transfer actions (cafe-1: English session → English labels)', () => {
     renderStepper({ line: { stok: 3, tersedia: 9 }, actionType: 'Transfer to Radiant' })
-    expect(screen.getByText(/stok/i)).toBeInTheDocument()
-    expect(screen.getByText(/tersedia/i)).toBeInTheDocument()
+    expect(screen.getByText(/stock/i)).toBeInTheDocument()
+    expect(screen.getByText(/avail/i)).toBeInTheDocument()
   })
 
-  it('hides stok/tersedia for Production', () => {
+  it('hides stock/avail for Production', () => {
     renderStepper({ line: { stok: 3, tersedia: 9 }, actionType: 'Production' })
-    expect(screen.queryByText(/tersedia/i)).toBeNull()
+    expect(screen.queryByText(/avail/i)).toBeNull()
   })
 
   it('calls onQtyChange(+1) when + button is clicked', () => {
@@ -78,18 +78,18 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByRole('button', { name: /decrease/i })).toBeDisabled()
   })
 
-  it('AC-020/021: shows note field when error is set', () => {
+  it('AC-020/021: shows note field when error is set (cafe-1: rendered localized, not the raw ID gate constant)', () => {
     renderStepper({ line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true } })
-    expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
+    expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: /note/i })).toBeInTheDocument()
   })
 
-  it('AC-022: shows the transfer-availability cap cue when capError is set', () => {
+  it('AC-022: shows the transfer-availability cap cue when capError is set (cafe-1: localized)', () => {
     renderStepper({
       line: { qty_porsi: 9, tersedia: 9, capError: 'Stok kurang — produksi dulu', dirty: true },
       actionType: 'Transfer to Radiant',
     })
-    expect(screen.getByText(/stok kurang — produksi dulu/i)).toBeInTheDocument()
+    expect(screen.getByText(/insufficient stock — produce first/i)).toBeInTheDocument()
   })
 
   it('calls onNotesChange when note input changes', () => {

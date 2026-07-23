@@ -5,7 +5,8 @@
 // Touch targets ≥44px (.kls-step / .kls-qty).
 
 import type { KitchenActionType, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
-import { isStockConsuming } from '@/lib/kitchen-gates'
+import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
+import { useT } from '@/i18n/use-t'
 import './wip-item-stepper.css'
 
 interface WipItemStepperProps {
@@ -30,10 +31,17 @@ export function WipItemStepper({
   disabled = false,
   hideName = false,
 }: WipItemStepperProps) {
+  const t = useT()
   const { qty_porsi, notes, plan_qty, stok, tersedia, error, capError, dirty } = line
   const showNote = error !== '' && dirty
   const invalid = (error !== '' || capError !== '') && dirty
   const transfer = isStockConsuming(actionType)
+  // The gate logic (kitchen-gates.ts) stamps the canonical ID cue strings onto
+  // `error`/`capError`; the display layer maps them through the i18n seam so an
+  // English session never mixes locales (cafe-1). Unrecognized values render as-is
+  // (defensive — should not occur given the two gate functions above).
+  const noteCueText = error === VARIANCE_NOTE_CUE ? t('kitchen.log.stepper.noteCue') : error
+  const capCueText = capError === TRANSFER_SHORT_CUE ? t('kitchen.log.stepper.capCue') : capError
 
   function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseInt(e.target.value, 10)
@@ -84,25 +92,25 @@ export function WipItemStepper({
       {/* plan · stok · tersedia context (FR-022/023 basis) */}
       <div className="kls-meta">
         {plan_qty > 0 ? (
-          <span>plan <strong>{plan_qty}</strong></span>
+          <span>{t('kitchen.log.stepper.plan')} <strong>{plan_qty}</strong></span>
         ) : (
-          <span>no plan</span>
+          <span>{t('kitchen.log.stepper.noPlan')}</span>
         )}
         {transfer && (
           <>
-            <span>stok <strong>{stok}</strong></span>
-            <span>tersedia <strong>{tersedia}</strong></span>
+            <span>{t('kitchen.log.stepper.stock')} <strong>{stok}</strong></span>
+            <span>{t('kitchen.log.stepper.avail')} <strong>{tersedia}</strong></span>
           </>
         )}
       </div>
 
       {/* Transfer-availability cap cue (FR-023 / AC-022) */}
-      {capError && <span role="alert" className="kls-cap">{capError}</span>}
+      {capError && <span role="alert" className="kls-cap">{capCueText}</span>}
 
       {/* Variance-note gate (FR-022 / AC-020/021) — revealed inline when qty != target */}
       {showNote && (
         <div className="kls-note-wrap">
-          <span className="kls-note-cue">{error}</span>
+          <span className="kls-note-cue">{noteCueText}</span>
           <textarea
             id={`note-${line.wip_item_id}`}
             aria-label={`Note for ${itemName}`}
@@ -111,7 +119,7 @@ export function WipItemStepper({
             onChange={e => onNotesChange(e.target.value)}
             disabled={disabled}
             rows={2}
-            placeholder="Catatan wajib — di luar rencana"
+            placeholder={t('kitchen.log.stepper.notePlaceholder')}
           />
         </div>
       )}
