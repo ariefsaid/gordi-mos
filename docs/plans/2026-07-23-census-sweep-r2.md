@@ -555,3 +555,8 @@ flagged (grill-corpus rule — never re-ask what the owner already ruled). Phras
 17. **Task-create optional fields when empty.** Project/Process and Objective pickers are hidden when
     their catalog is empty (no OD on create-form optional-field visibility) — hide-when-empty, or
     always-show-disabled so the field's existence is discoverable? *(task-create F11)*
+
+**FLAG-18 (post-census, Money lane 2026-07-23):** Budget/Pricing pages are gated behind
+`SHOW_PLAN_BUDGET` (default false → redirect Home). They now render fully against the seeded
+scenarios. One-line ruling: ship them enabled in this V3 cut, or keep gated until the plan
+destination work (ADR-0022) resumes?
