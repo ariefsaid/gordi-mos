@@ -4,6 +4,8 @@
 // (AC-PB-008), and the fail-loud badge on a stale cost basis.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { AuthContext, type AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PeopleRow } from '@/lib/database.types'
@@ -62,6 +64,28 @@ beforeEach(() => {
   vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true })
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Finance' }])
   vi.mocked(listBudgets).mockResolvedValue([])
+})
+
+describe('BudgetPage — phone table reflow (r5 F-7)', () => {
+  it('r5 F-7: every bp-table sits in a .bp-table-scroll wrapper + the phone overflow rule is pinned — the page body never scrolls sideways', async () => {
+    vi.mocked(listBomLines).mockResolvedValue([
+      { menu_item_esb_code: 'MENU-CAPPUC', ingredient_esb_code: 'ING-MILK', recipe_qty: 0.18, qty_unit: 'L' },
+    ])
+    vi.mocked(listIngredientCostLines).mockResolvedValue([
+      { ingredient_esb_code: 'ING-MILK', name: 'Fresh Milk', unit_cost: 18000, unit: 'L', as_of: FRESH },
+    ])
+    renderPage()
+    await screen.findAllByText(/Rp 3.240/)
+    const tables = Array.from(document.querySelectorAll('.bp-table'))
+    expect(tables.length).toBeGreaterThanOrEqual(2)
+    for (const table of tables) {
+      expect(table.parentElement?.classList.contains('bp-table-scroll')).toBe(true)
+    }
+    // Structural pin (jsdom computes no overflow layout — the stylesheet is the oracle).
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/budget-page.css'), 'utf8')
+    const phone = css.split('@media (max-width: 767px)')[1] ?? ''
+    expect(phone).toMatch(/\.bp-table-scroll\s*\{[^}]*overflow-x:\s*auto/)
+  })
 })
 
 describe('BudgetPage — head (r5 F-9)', () => {

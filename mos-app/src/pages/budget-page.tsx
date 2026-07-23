@@ -245,6 +245,7 @@ export function BudgetPage() {
           </p>
         )}
 
+        <div className="bp-table-scroll">
         <table className="bp-table">
           <caption>BOM × linked ingredient cost lines — the cost is resolved from the linked record, never copied</caption>
           <thead>
@@ -290,6 +291,7 @@ export function BudgetPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       <section className="bp-section bp-capture" aria-label="Capture budget scenario">
@@ -352,6 +354,7 @@ export function BudgetPage() {
         {budgets.length === 0 ? (
           <p className="bp-muted">No scenarios captured yet for this menu item.</p>
         ) : (
+          <div className="bp-table-scroll">
           <table className="bp-table">
             <caption>Scenario comparison — the certified baseline plus what-if captures, one linked record each</caption>
             <thead>
@@ -373,6 +376,7 @@ export function BudgetPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -384,6 +388,7 @@ export function BudgetPage() {
           Finance + Procurement own these. A budget links them by esb code; the unit cost shown is read
           from this record, never copied. (Trend + Normal-market-variation alerts are a deferred layer.)
         </p>
+        <div className="bp-table-scroll">
         <table className="bp-table">
           <caption>Ingredient cost lines (basis ESB last_hpp)</caption>
           <thead>
@@ -405,6 +410,7 @@ export function BudgetPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     </PageFamilyFrame>
   )

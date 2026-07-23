@@ -105,3 +105,19 @@
   color: var(--destructive);
   font-size: 13px;
 }
+
+/* r5 F-7 (census): the three semantic bp-tables (BOM × costs, cost lines,
+   scenarios) kept their desktop column set on phone and overflowed the page.
+   Sanctioned scroller path (DataTable card-reflow would re-port captions, row
+   headers, drill links, and testids — ballooning scope): each table sits in a
+   .bp-table-scroll wrapper that scrolls horizontally on phone; the page body
+   never scrolls sideways. */
+@media (max-width: 767px) {
+  .bp-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bp-table-scroll .bp-table {
+    min-width: max-content;
+  }
+}
