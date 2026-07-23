@@ -15,12 +15,14 @@ export interface SignalMentionPickerProps {
   query: string
   canMentionBu: boolean
   onSelect: (kind: MentionKind, option: MentionCandidate) => void
+  /** D-B2 isolation: Escape while focus is in the popover dismisses it locally, never the host. */
+  onDismiss?: () => void
 }
 
 const GROUP_LIMIT: Record<MentionKind, number> = { person: 5, team: 4, bu: 3 }
 
 export function SignalMentionPicker({
-  people, teams, businessUnits, query, canMentionBu, onSelect,
+  people, teams, businessUnits, query, canMentionBu, onSelect, onDismiss,
 }: SignalMentionPickerProps) {
   const t = useT()
   const peopleHits = filterMentionCandidates(query, people, GROUP_LIMIT.person)
@@ -53,7 +55,12 @@ export function SignalMentionPicker({
   }
 
   return (
-    <div role="listbox" aria-label={t('signals.mention.pickerLabel')} className="mention-pop">
+    <div
+      role="listbox"
+      aria-label={t('signals.mention.pickerLabel')}
+      className="mention-pop"
+      onKeyDown={(e) => { if (e.key === 'Escape' && onDismiss) { e.preventDefault(); e.stopPropagation(); onDismiss() } }}
+    >
       {noMatches ? (
         <div className="mention-empty">{t('signals.mention.noMatches')}</div>
       ) : (

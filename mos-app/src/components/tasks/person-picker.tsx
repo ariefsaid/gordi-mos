@@ -14,7 +14,14 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [] }: Person
   const t = useT()
   const available = people.filter(p => !exclude.includes(p.id))
   return (
-    <div role="listbox" aria-label={t('tasks.people.select')} className="person-picker">
+    <div
+      role="listbox"
+      aria-label={t('tasks.people.select')}
+      className="person-picker"
+      // D-B2 isolation: an Escape while focus is inside the picker dismisses the picker locally and
+      // is consumed here, so it never bubbles to a host panel and closes the whole surface.
+      onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose() } }}
+    >
       {available.map(p => (
         <div
           key={p.id}

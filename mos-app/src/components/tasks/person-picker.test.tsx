@@ -18,4 +18,19 @@ describe('PersonPicker', () => {
     expect(onSelect).toHaveBeenCalledWith('p1')
     expect(onClose).toHaveBeenCalled()
   })
+
+  // D-B2: Escape inside the picker dismisses it locally (and is consumed) so it never bubbles to
+  // a host panel and closes the whole surface.
+  it('Escape dismisses the picker via onClose and does not bubble to the host', () => {
+    const onClose = vi.fn()
+    const hostEscape = vi.fn()
+    render(
+      <div onKeyDown={(e) => { if (e.key === 'Escape') hostEscape() }}>
+        <PersonPicker people={people} onSelect={vi.fn()} onClose={onClose} />
+      </div>,
+    )
+    fireEvent.keyDown(screen.getByRole('listbox', { name: /select person/i }), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hostEscape).not.toHaveBeenCalled()
+  })
 })

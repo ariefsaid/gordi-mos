@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PersonOption } from '@/lib/db/directory'
 import { PersonPicker } from './person-picker'
 import { useT } from '@/i18n/use-t'
@@ -28,6 +28,13 @@ export type CommentThreadProps = {
    * entirely so the PARENT owns the empty messaging (owner-eyes item 5 — no orphan empty lines).
    */
   emptyLabel?: string | null
+  /**
+   * D-B2 (OD-REDESIGN-22 / I5): a typed-but-unposted comment is unsaved work. The tenant (the Task
+   * record) wires this to its host leave-guard so an Escape/close on a dirty composer prompts a
+   * discard confirm instead of silently dropping the comment. Reports `true` while the draft holds
+   * non-whitespace text, `false` once empty or posted.
+   */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 function personName(people: PersonOption[], id: string, fallback: string): string {
@@ -38,13 +45,18 @@ function mentionSlug(name: string): string {
   return name.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
 }
 
-export function CommentThread({ comments, people, canPost, onPost, heading = 'visible', emptyLabel }: CommentThreadProps) {
+export function CommentThread({ comments, people, canPost, onPost, heading = 'visible', emptyLabel, onDirtyChange }: CommentThreadProps) {
   const t = useT()
   // undefined → the default "No comments yet."; an explicit string overrides; null suppresses.
   const resolvedEmpty = emptyLabel === undefined ? t('tasks.commentsEmpty') : emptyLabel
   const [draft, setDraft] = useState('')
   const [posting, setPosting] = useState(false)
-  const showMentionPicker = canPost && /(^|\s)@[a-z0-9_.-]*$/i.test(draft)
+  // Escape dismisses the mention picker without losing the draft; a fresh keystroke re-opens it.
+  const [pickerDismissed, setPickerDismissed] = useState(false)
+  const showMentionPicker = canPost && !pickerDismissed && /(^|\s)@[a-z0-9_.-]*$/i.test(draft)
+
+  // A non-whitespace draft is unsaved work — bubble it so the host leave-guard can prompt (D-B2).
+  useEffect(() => { onDirtyChange?.(draft.trim().length > 0) }, [draft, onDirtyChange])
 
   async function submit() {
     const body = draft.trim()
@@ -99,7 +111,18 @@ export function CommentThread({ comments, people, canPost, onPost, heading = 'vi
           <textarea
             aria-label={t('tasks.comment.label')}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => { setDraft(event.target.value); setPickerDismissed(false) }}
+            onKeyDown={(event) => {
+              // D-B2 isolation: while the mention picker is open, Escape dismisses the PICKER only
+              // and is consumed here — it must not bubble to the record panel host and close the
+              // whole drawer, losing the comment. With no picker open, Escape bubbles so the host's
+              // (dirty-armed) leave-guard owns it — the composer never silently drops the draft.
+              if (event.key === 'Escape' && showMentionPicker) {
+                event.preventDefault()
+                event.stopPropagation()
+                setPickerDismissed(true)
+              }
+            }}
             className="comment-composer__input"
             placeholder={t('tasks.comment.placeholder')}
             rows={3}
@@ -108,7 +131,7 @@ export function CommentThread({ comments, people, canPost, onPost, heading = 'vi
             <PersonPicker
               people={people}
               onSelect={insertMention}
-              onClose={() => {}}
+              onClose={() => setPickerDismissed(true)}
             />
           )}
           <div className="comment-composer__actions">

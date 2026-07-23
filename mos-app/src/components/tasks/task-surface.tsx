@@ -324,9 +324,22 @@ function ViewSurface({
     }
   }
 
-  const handleDirtyChange = useCallback((dirty: boolean) => {
-    onDirtyChange?.(dirty)
+  // D-B2: the record has TWO unsaved-work sources — an in-flight RecordField edit AND a
+  // typed-but-unposted comment. The host leave-guard must fire if EITHER is dirty, so combine them
+  // (last-writer-wins would otherwise let a clean field report clobber a dirty comment).
+  const fieldDirtyRef = useRef(false)
+  const commentDirtyRef = useRef(false)
+  const reportDirty = useCallback(() => {
+    onDirtyChange?.(fieldDirtyRef.current || commentDirtyRef.current)
   }, [onDirtyChange])
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    fieldDirtyRef.current = dirty
+    reportDirty()
+  }, [reportDirty])
+  const handleCommentDirtyChange = useCallback((dirty: boolean) => {
+    commentDirtyRef.current = dirty
+    reportDirty()
+  }, [reportDirty])
 
   // The live Task surface uses the same RecordViewer anatomy in panel and page modes.
   // Domain-specific work remains a typed content slot (the existing Activity/Checklist/Notes
@@ -406,6 +419,7 @@ function ViewSurface({
           checklistError={checklistError
             ? { message: t('record.field.saveError'), onRetry: checklistError }
             : null}
+          onCommentDirtyChange={handleCommentDirtyChange}
         />
       ),
     }

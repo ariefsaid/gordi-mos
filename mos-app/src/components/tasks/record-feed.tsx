@@ -32,6 +32,8 @@ export type RecordFeedProps = {
   onPostComment: (body: string) => Promise<void> | void
   /** OD-REDESIGN-22 (D-C1): a failed checklist write → visible error + Retry (forwarded to ChecklistCard). */
   checklistError?: { message: string; onRetry: () => void } | null
+  /** D-B2: a typed-but-unposted comment feeds the host leave-guard (forwarded to CommentThread). */
+  onCommentDirtyChange?: (dirty: boolean) => void
 }
 
 // The right-hand record feed (ADR-0013 D3): a tab strip Activity / Checklist /
@@ -43,7 +45,7 @@ export function RecordFeed({
   task, checklist, events, comments, people, now, editable, viewerId,
   activeTab, onSelectTab,
   onAddChecklist, onToggleChecklist, onReorderChecklist, onDeleteChecklist,
-  onPostComment, checklistError = null,
+  onPostComment, checklistError = null, onCommentDirtyChange,
 }: RecordFeedProps) {
   const t = useT()
   const done = checklist.filter(i => i.is_done).length
@@ -119,6 +121,7 @@ export function RecordFeed({
                 onPost={onPostComment}
                 heading="srOnly"
                 emptyLabel={commentsEmptyLabel}
+                onDirtyChange={onCommentDirtyChange}
               />
             </>
           )

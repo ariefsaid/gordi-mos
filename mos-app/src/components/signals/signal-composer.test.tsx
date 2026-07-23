@@ -157,6 +157,29 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     expect(screen.getByText('Person')).toBeInTheDocument()
   })
 
+  // D-B2 (I5 / OD-83.1): Escape while the mention popover is open dismisses the PICKER only and is
+  // consumed — it must not bubble to the composer's ModalShell host and close it, losing the draft.
+  it('Escape dismisses the mention popover, preserves the draft, and does not bubble to the host', async () => {
+    const hostEscape = vi.fn()
+    render(
+      <I18nProvider>
+        <div onKeyDown={(e) => { if (e.key === 'Escape') hostEscape() }}>
+          <SignalComposer authorId={AUTHOR_ID} authorName="Cahya Cafe" canMentionBu />
+        </div>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+
+    await userEvent.type(body, '{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
+    expect(body).toHaveValue('Heads up @Pe') // draft intact
+    expect(hostEscape).not.toHaveBeenCalled() // isolation — the host never saw it
+  })
+
   it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
     const { unmount } = renderComposer({ canMentionBu: false })
     await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())

@@ -138,6 +138,16 @@ export function SignalComposer({
           placeholder={t('signals.composer.placeholder')}
           value={body}
           onChange={handleBodyChange}
+          onKeyDown={(e) => {
+            // D-B2 isolation: Escape while the mention popover is open dismisses the PICKER only and
+            // is consumed here — it must not bubble to the composer's ModalShell host and close it,
+            // losing the draft. With no popover open, Escape falls through to the host as usual.
+            if (e.key === 'Escape' && mentionToken) {
+              e.preventDefault()
+              e.stopPropagation()
+              setMentionToken(null)
+            }
+          }}
           rows={3}
         />
         {mentionToken && (
@@ -148,6 +158,7 @@ export function SignalComposer({
             query={mentionToken.query}
             canMentionBu={canMentionBu}
             onSelect={insertMention}
+            onDismiss={() => setMentionToken(null)}
           />
         )}
       </div>
