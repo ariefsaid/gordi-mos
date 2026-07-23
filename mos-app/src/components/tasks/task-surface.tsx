@@ -348,6 +348,7 @@ function ViewSurface({
         sourceAdHoc: t('tasks.adHoc'),
         noneMarker: '—',
         markComplete: t('tasks.markComplete'),
+        reopen: t('tasks.reopen'),
         archive: t('tasks.archive'),
         unarchive: t('tasks.unarchive'),
         readOnlyArchived: t('tasks.field.readOnlyArchived'),

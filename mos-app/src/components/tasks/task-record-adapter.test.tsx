@@ -119,6 +119,31 @@ describe('createTaskRecordAdapter', () => {
     expect(formatted.displayValue).toBe('fmt(2026-07-25)')
   })
 
+  it('owner-eyes item 10: a Done task offers Reopen (secondary), not a dead-end Mark complete', async () => {
+    const onUpdateStatus = vi.fn(async () => {})
+    const adapter = createTaskRecordAdapter(
+      makeInput({ detail: makeDetail(makeTask({ status: 'Done' })), onUpdateStatus }),
+    )
+    const ids = adapter.actions.map((a) => a.id)
+    expect(ids).toContain('reopen')
+    expect(ids).not.toContain('complete')
+    const reopen = adapter.actions.find((a) => a.id === 'reopen')!
+    expect(reopen.intent).toBe('secondary')
+    expect(reopen.label).toBe('Reopen')
+    await reopen.run()
+    expect(onUpdateStatus).toHaveBeenCalledWith('In Progress')
+  })
+
+  it('owner-eyes item 10: Open/In Progress/Blocked keep the Mark complete primary', () => {
+    for (const status of ['Open', 'In Progress', 'Blocked'] as const) {
+      const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(makeTask({ status })) }))
+      const ids = adapter.actions.map((a) => a.id)
+      expect(ids).toContain('complete')
+      expect(ids).not.toContain('reopen')
+      expect(adapter.actions.find((a) => a.id === 'complete')!.intent).toBe('primary')
+    }
+  })
+
   it('§Task-11: PIC/Supervisor labels, Business Unit present, NO Team field before Issue 8, no RACI, checklist inherits ownership', () => {
     const adapter = createTaskRecordAdapter(makeInput())
     const bu = fieldByKey(adapter, 'businessUnit')

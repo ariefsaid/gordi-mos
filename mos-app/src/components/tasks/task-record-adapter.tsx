@@ -151,6 +151,9 @@ export interface TaskRecordLabels {
   /** Visible null-indicator for a read-only catalog field with no value (em dash). */
   noneMarker: string
   markComplete: string
+  /** Lifecycle-aware secondary action shown IN PLACE of markComplete on an already-Done task
+   *  (owner-eyes item 10) — sending the task back to the active pool. */
+  reopen: string
   archive: string
   unarchive: string
   readOnlyArchived: string
@@ -178,6 +181,7 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
   sourceAdHoc: 'Ad hoc',
   noneMarker: '—',
   markComplete: 'Mark complete',
+  reopen: 'Reopen',
   archive: 'Archive task',
   unarchive: 'Unarchive',
   readOnlyArchived: 'This task is archived',
@@ -458,13 +462,27 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     }
   } else {
     if (editable) {
-      actions.push({
-        id: 'complete',
-        label: L.markComplete,
-        intent: 'primary',
-        run: () => input.onUpdateStatus('Done'),
-      })
-      allowedActionIds.push('complete')
+      // Lifecycle-aware lead action (owner-eyes item 10): a Task whose status is already Done must
+      // NOT offer a dead-end "Mark complete" primary. Reopening is a supported transition (the Status
+      // control freely moves Done → any state), so a Done task instead offers a quiet "Reopen"
+      // secondary that returns it to the active pool; every other state keeps "Mark complete".
+      if (task.status === 'Done') {
+        actions.push({
+          id: 'reopen',
+          label: L.reopen,
+          intent: 'secondary',
+          run: () => input.onUpdateStatus('In Progress'),
+        })
+        allowedActionIds.push('reopen')
+      } else {
+        actions.push({
+          id: 'complete',
+          label: L.markComplete,
+          intent: 'primary',
+          run: () => input.onUpdateStatus('Done'),
+        })
+        allowedActionIds.push('complete')
+      }
     }
     if (canArchiveTask) {
       actions.push({ id: 'archive', label: L.archive, intent: 'secondary', run: input.onArchive })
