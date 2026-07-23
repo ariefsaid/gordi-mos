@@ -1,16 +1,19 @@
 /* ════════════════════════════════════════════════════════════════════════════
    The ONE button hierarchy (IXD-4, PR-2; DESIGN.md §5 Buttons). 32px tall, 8px
-   radius, 13/600, 0 12px padding. Apply `.btn .btn-{variant}` to <button>,
+   radius, var(--font-size-control) (13.5px)/600, 0 12px padding. Apply `.btn .btn-{variant}` to <button>,
    <a>, or react-router <Link>. Replaces .tc-btn-*, .ops-add-btn, .retry-btn,
    .btn-outline-link, .confirm-cancel, and the per-surface re-implementations.
    ════════════════════════════════════════════════════════════════════════════ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control radius, OD-P3-10 */
-  font: inherit; font-size: 15px; font-weight: 600;
+  font: inherit; font-size: var(--font-size-control); font-weight: 600;
   cursor: pointer; text-decoration: none; border: 0; white-space: nowrap;
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* Pressed feedback — every variant (impeccable all-states; taste Rule 5). */
+.btn:active:not(:disabled):not([aria-disabled="true"]) { transform: translateY(1px); }
 .btn:disabled,
 .btn[aria-disabled="true"] {
   opacity: 0.5;
@@ -57,7 +60,7 @@
 
 /* Full-width mobile touch variant (44px) — pairs with any .btn-{variant}.
    Used by the phone submit bars where the action must span the viewport. */
-.btn-touch { width: 100%; min-height: 44px; font-size: 16px; }
+.btn-touch { width: 100%; min-height: 44px; font-size: var(--font-size-body); }
 
 @media (max-width: 767.98px) {
   .btn,
