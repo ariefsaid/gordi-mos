@@ -17,6 +17,7 @@
   display: flex;
   align-items: center;
   width: 100%;
+  min-height: 44px; /* P1-4: the "Share a Signal" row meets the 44px coarse-pointer tap floor */
   text-align: left;
   padding: 10px 12px;
   border-radius: var(--radius-lg, 12px);
@@ -55,6 +56,9 @@
 }
 
 .home-signal-main {
+  /* Positioned so the open-signal button's stretched hit-target (::after) is measured against the
+     whole main column, not just the 22px title line — P1-4 (c). */
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -75,14 +79,31 @@
   font-weight: 600;
   color: var(--foreground);
   cursor: pointer;
+  min-width: 0;
+}
+/* The truncation lives on the text span so the button itself is not overflow-clipped and its
+   stretched ::after hit-target can extend past the title line (P1-4 c). */
+.home-signal-body-text {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.home-signal-body:hover { text-decoration: underline; }
+/* P1-4 (c): the visible title line is only ~22px tall, well under the 44px tap floor. Expand the
+   real hit area to cover the whole record row (title + meta subline ≈ 50px) with a transparent
+   overlay — no visual bloat, and bounded to .home-signal-main so the tail's attention pill and
+   category control stay independently clickable. The vertical -3px reach stays inside the row's own
+   10px padding, so adjacent rows never steal each other's taps. Not applied to the static
+   (non-clickable) variant. */
+.home-signal-body:not(.home-signal-body--static)::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
+}
+.home-signal-body:hover .home-signal-body-text { text-decoration: underline; }
 .home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .home-signal-body--static { cursor: default; }
-.home-signal-body--static:hover { text-decoration: none; }
+.home-signal-body--static:hover .home-signal-body-text { text-decoration: none; }
 
 .home-signal-meta {
   display: flex;

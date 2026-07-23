@@ -71,7 +71,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px; /* P1-4: phone-only "View options" trigger meets the 44px coarse-pointer floor */
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;

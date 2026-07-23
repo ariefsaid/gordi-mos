@@ -87,10 +87,12 @@ export function SignalFeedRows({
                       onClick={() => onOpen(signal)}
                       aria-label={t('signals.card.openSignal', { body: signal.body })}
                     >
-                      {signal.body}
+                      <span className="home-signal-body-text">{signal.body}</span>
                     </button>
                   ) : (
-                    <span className="home-signal-body home-signal-body--static">{signal.body}</span>
+                    <span className="home-signal-body home-signal-body--static">
+                      <span className="home-signal-body-text">{signal.body}</span>
+                    </span>
                   )}
                   {/* Meta subline: author (avatar + name) · team · time. */}
                   <div className="home-signal-meta">
