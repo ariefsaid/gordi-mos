@@ -6,6 +6,7 @@ import { ContextRow } from './context-row'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
 import { useIsNarrow } from './use-is-narrow'
+import { useIsSplitWidth } from './use-is-split-width'
 import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
@@ -42,6 +43,14 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
 
 function ShellContent() {
   const isNarrow = useIsNarrow()
+  // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
+  // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
+  // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
+  // 1100px threshold record-panel-host/task-drawer already key their own regime off) rather
+  // than inventing a new query, so the rail's compact boundary tracks the app's one documented
+  // "narrow vs split" breakpoint set.
+  const isSplit = useIsSplitWidth()
+  const railCompact = !isNarrow && !isSplit
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerOpener, setDrawerOpener] = useState<'hamburger' | 'more'>('hamburger')
   const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
@@ -73,7 +82,9 @@ function ShellContent() {
           // minmax(0, 1fr) (not bare 1fr) so the content column can shrink below its
           // min-content — bare 1fr's implicit min-width:auto lets wide content (a dense
           // table/cards) stretch the track past the viewport → app-wide horizontal scroll.
-          gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'var(--rail-w) minmax(0, 1fr)',
+          gridTemplateColumns: isNarrow
+            ? 'minmax(0, 1fr)'
+            : `${railCompact ? 'var(--rail-w-compact)' : 'var(--rail-w)'} minmax(0, 1fr)`,
           gridTemplateRows: isNarrow
             ? 'var(--header-h) minmax(0, 1fr) var(--tabbar-h)'
             : 'var(--header-h) minmax(0, 1fr)',
@@ -91,8 +102,9 @@ function ShellContent() {
           onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
         />
 
-        {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav) */}
-        {!isNarrow && <Rail />}
+        {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
+            icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}
+        {!isNarrow && <Rail compact={railCompact} />}
 
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div

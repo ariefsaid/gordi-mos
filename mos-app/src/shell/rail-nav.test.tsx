@@ -38,7 +38,7 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderRailNav(initialPath: string) {
+function renderRailNav(initialPath: string, props: { compact?: boolean } = {}) {
   return render(
     <ThemeProvider>
       <I18nProvider>
@@ -48,7 +48,7 @@ function renderRailNav(initialPath: string) {
               path="*"
               element={
                 <>
-                  <RailNav />
+                  <RailNav {...props} />
                   <LocationDisplay />
                 </>
               }
@@ -428,5 +428,86 @@ describe('Rail count badges (Tasks · Signals)', () => {
     // Accessible name resolves to "Tasks" (the aria-hidden count is excluded).
     const tasks = screen.getByRole('link', { name: 'Tasks' })
     expect(within(tasks).getByText('7').getAttribute('aria-hidden')).toBe('true')
+  })
+})
+
+// OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon-only rail — icons stay, labels become
+// accessible-only, group overlines hide, count badges stay (repositioned/compact).
+describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
+  it('every destination + Work child link keeps its full accessible name (icon-only ≠ unreachable)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks', { compact: true })
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    for (const name of ['Home', 'Work', 'Tasks', 'Projects & Processes', 'Objectives', 'Signals', 'Events', 'Money', 'Inbox']) {
+      expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
+    }
+  })
+
+  it('hides the "Destinations" overline and every BU module overline', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/', { compact: true })
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByText('Destinations')).toBeNull()
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    // The Café link itself is still reachable — only the group eyebrow above it hides.
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+  })
+
+  it('visually hides each link label via sr-only (present in the DOM, not shown)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks', { compact: true })
+    const home = screen.getByRole('link', { name: 'Home' })
+    const label = within(home).getByText('Home')
+    expect(label.className).toMatch(/sr-only/)
+  })
+
+  it('a Work child renders its section icon in compact mode (none at full width, B2 unaffected)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    const { rerender } = renderRailNav('/work/tasks', { compact: false })
+    const tasksFull = screen.getByRole('link', { name: 'Tasks' })
+    expect(tasksFull.querySelector('svg')).toBeNull()
+
+    rerender(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <Routes>
+              <Route path="*" element={<RailNav compact />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    const tasksCompact = screen.getByRole('link', { name: 'Tasks' })
+    expect(tasksCompact.querySelector('svg')).not.toBeNull()
+  })
+
+  it('a positive count badge still renders (compact styling) and stays aria-hidden', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <Routes>
+              <Route path="*" element={<RailNav compact counts={{ openTasks: 4, attentionSignals: 0 }} />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    const tasks = screen.getByRole('link', { name: 'Tasks' })
+    const badge = within(tasks).getByText('4')
+    expect(badge.getAttribute('aria-hidden')).toBe('true')
+    expect(badge.className).toMatch(/rail-count-badge--compact/)
+  })
+
+  it('the account chip collapses to the avatar only (no visible name text)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks', { compact: true })
+    // The chip is still reachable by its accessible name...
+    const chip = screen.getByRole('button', { name: 'Cahya Cafe' })
+    expect(chip).toBeInTheDocument()
+    // ...but the visible name text node is gone (avatar-only).
+    expect(within(chip).queryByText('Cahya Cafe')).toBeNull()
   })
 })

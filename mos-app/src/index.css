@@ -51,6 +51,7 @@
 .light,
 .dark {
   --rail-w: 232px;     /* DESIGN.md authority (§Rail/§Density): 232px desktop rail (R-T-5 geometry parity) */
+  --rail-w-compact: 72px; /* OD-REDESIGN-84.2 (P1-1): 920–1099.98px icon-only rail (E7 tablet regime parity) */
   --header-h: 56px;
   --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
   --assistant-w: 400px; /* ADR-0018 P2: deputy slide-over drawer width (desktop right drawer) */

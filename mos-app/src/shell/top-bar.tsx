@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
 import { useIsNarrow } from './use-is-narrow'
+import { useIsSplitWidth } from './use-is-split-width'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
@@ -257,6 +258,11 @@ function CreateButton({ onOpenCreate }: { onOpenCreate?: () => void }) {
 export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onOpenCreate, onRegisterHamburgerFocus }: TopBarProps) {
   const t = useT()
   const isNarrow = useIsNarrow()
+  // OD-REDESIGN-84.2 (P1-1): the brand column's width must track the rail's own compact
+  // regime (920–1099.98px) so the divider still lands on the rail boundary; the wordmark
+  // text is dropped at that width too (72px only has room for the mark).
+  const isSplit = useIsSplitWidth()
+  const railCompact = !isNarrow && !isSplit
   const hamburgerRef = useRef<HTMLButtonElement>(null)
 
   // Register focus-return function so the mobile drawer can refocus hamburger on close.
@@ -291,11 +297,11 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onOpenC
           At <920px the rail is gone (drawer-nav), so the brand shrinks to content width (no 224px reserve)
           and drops the divider — otherwise it forces horizontal overflow on phones. */}
       <div
-        className={`flex items-center gap-2 px-3 flex-none${isNarrow ? '' : ' border-r border-border'}`}
-        style={{ width: isNarrow ? 'auto' : 'var(--rail-w)' }}
+        className={`flex items-center gap-2 px-3 flex-none${isNarrow ? '' : ' border-r border-border'}${railCompact ? ' justify-center px-0' : ''}`}
+        style={{ width: isNarrow ? 'auto' : railCompact ? 'var(--rail-w-compact)' : 'var(--rail-w)' }}
       >
         <GordiLogoMark />
-        {!isNarrow && (
+        {!isNarrow && !railCompact && (
           <span
             className="truncate font-semibold text-foreground"
             title="Gordi MOS"

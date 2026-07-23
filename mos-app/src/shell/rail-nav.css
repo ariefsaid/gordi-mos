@@ -1,0 +1,50 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Rail — compact icon-only regime (OD-REDESIGN-84.2 / P1-1, 920–1099.98px).
+   The rail item keeps its icon; its label moves to `.sr-only` (still the
+   element's accessible name) and this CSS-only tooltip surfaces it back on
+   hover/focus-visible via `attr(data-label)` — no extra DOM node, no JS state.
+   ════════════════════════════════════════════════════════════════════════════ */
+.rail-tooltip-target {
+  position: relative;
+}
+
+.rail-tooltip-target::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-font-color-primary) 14%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: var(--z-popover);
+  transition: opacity var(--dur-fast) ease;
+}
+
+.rail-tooltip-target:hover::after,
+.rail-tooltip-target:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Compact count badge — a small pill pinned to the icon's corner (no room beside a hidden
+   label). Same quiet neutral fill as the full-width badge, just smaller + repositioned. */
+.rail-count-badge--compact {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  height: 14px;
+  min-width: 14px;
+  padding: 0 4px;
+  font-size: 9px;
+}

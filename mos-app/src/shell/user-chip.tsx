@@ -4,7 +4,11 @@ import { useMenuPopover } from '@/lib/use-menu-popover'
 import { AppearanceControl } from './appearance-control'
 
 interface UserChipProps {
-  /** When true, hides name/role text (used at <920px per FR-020). */
+  /**
+   * When true, hides name/role text: the header variant uses this at <920px per FR-020; the
+   * rail/drawer variants use it in the OD-REDESIGN-84.2 (P1-1) 920–1099.98px icon-only rail,
+   * where the chip collapses to the avatar alone.
+   */
   compact?: boolean
   // 'header' = compact chip in the top bar; 'rail' = full-width row pinned to
   // the sidebar foot with an upward-opening menu; 'drawer' = full-width row at
@@ -48,7 +52,10 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
   const initials = getInitials(viewer.person.full_name)
   const primaryRole = viewer.roles[0]?.name
 
-  const showText = isFullWidth || !compact
+  // Was `isFullWidth || !compact` — the rail/drawer variants always showed text regardless of
+  // `compact`, so the prop was dead for them (P1-1: the compact icon rail needs the chip to
+  // actually collapse to the avatar). `compact` alone now governs text visibility for every variant.
+  const showText = !compact
 
   return (
     <div className={isFullWidth ? 'relative' : 'relative flex items-center gap-2'}>
@@ -59,9 +66,10 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={viewer.person.full_name}
+        title={isFullWidth && compact ? viewer.person.full_name : undefined}
         className={
           isFullWidth
-            ? 'flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer'
+            ? `flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer${compact ? ' justify-center px-0' : ''}`
             : `tap-target-phone${compact ? ' tap-target-phone--icon' : ''} flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer`
         }
         style={{ height: isFullWidth ? 40 : 36 }}

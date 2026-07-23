@@ -7,6 +7,7 @@ import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
+import './rail-nav.css'
 
 // E7 Work sub-section grammar (e7-views.js `workNavModel`) ported to our ratified IA: OD-REDESIGN-1
 // fixes WHICH Work children exist (do not add/remove); E7 fixes the sub-section overlines + order
@@ -37,6 +38,8 @@ type RailNavProps = {
   onNavigate?: () => void
   /** Rail badge counts (open Tasks · needs-attention Signals). Undefined/null → no badges. */
   counts?: RailCounts | null
+  /** OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon-only regime. Default false (full-width rail). */
+  compact?: boolean
 }
 
 // Rail item chrome. Active state ports e7's selected treatment (DESIGN-FIDELITY-1, 2026-07-18):
@@ -44,9 +47,14 @@ type RailNavProps = {
 // `bg-accent` resolved to --surface-secondary — the SAME warm-grey as the rail panel bg, so the
 // selection was invisible (zero contrast). Now a blue tint (--ds-color-blue3) on the panel + The
 // One Blue text. itemBase owns the active color so inner label spans don't re-set text-foreground.
-const itemBase = (isActive: boolean) =>
+// `compact` = the OD-REDESIGN-84.2 (P1-1) icon-only regime: center the icon, drop the
+// item's horizontal padding (the label collapses to zero visual width), and tag a
+// `rail-tooltip-target` class so the CSS-only hover/focus-visible tooltip (rail-nav.css)
+// can surface the label back via `data-label` — no extra DOM node.
+const itemBase = (isActive: boolean, compact = false) =>
   [
-    'flex items-center gap-[10px] h-9 rounded-sm px-2.5 no-underline text-sm',
+    'relative flex items-center gap-[10px] h-9 rounded-sm no-underline text-sm',
+    compact ? 'justify-center px-0 rail-tooltip-target' : 'px-2.5',
     isActive
       ? 'bg-[color:var(--ds-color-blue3)] font-semibold text-primary'
       : 'font-normal text-muted-foreground hover:bg-accent/60',
@@ -54,22 +62,24 @@ const itemBase = (isActive: boolean) =>
 
 // A destination rail item: NavLink to its primaryPath, labelled by the destination
 // labelKey (e.g. "Admin Settings", "Money"), default aria-current="page" (Rule 5).
-function DestLink({ d, onNavigate }: { d: Destination; onNavigate?: () => void }) {
+function DestLink({ d, onNavigate, compact = false }: { d: Destination; onNavigate?: () => void; compact?: boolean }) {
   const t = useT()
   const to = d.primaryPath ?? d.links[0].path
+  const label = t(d.labelKey)
   return (
     <NavLink
       to={to}
       end={to === '/'}
       onClick={onNavigate}
-      className={({ isActive }) => itemBase(isActive)}
+      data-label={compact ? label : undefined}
+      className={({ isActive }) => itemBase(isActive, compact)}
     >
       {({ isActive }) => (
         <>
           <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
             <d.Icon />
           </span>
-          <span>{t(d.labelKey)}</span>
+          <span className={compact ? 'sr-only' : undefined}>{label}</span>
         </>
       )}
     </NavLink>
@@ -114,11 +124,17 @@ function WorkSubLabel({ children }: { children: string }) {
 
 // A quiet E7 count badge (`.e7-nav-item .e7-count`): margin-left auto, pill, muted neutral fill,
 // tabular digits. Rendered ONLY for a positive count (zero/undefined → nothing, E7 quiet rule).
-function RailCountBadge({ count }: { count?: number }) {
+// `compact` (P1-1): no room beside a hidden label, so the badge pins to the icon's corner instead
+// (rail-count-badge--compact, rail-nav.css) — still quiet, still omitted at zero/undefined.
+function RailCountBadge({ count, compact = false }: { count?: number; compact?: boolean }) {
   if (count === undefined || count <= 0) return null
   return (
     <span
-      className="ml-auto inline-flex items-center h-[18px] px-[7px] rounded-full text-[11px] font-semibold text-muted-foreground bg-[color:var(--secondary)] tabular-nums"
+      className={
+        compact
+          ? 'rail-count-badge--compact inline-flex items-center justify-center rounded-full font-semibold text-muted-foreground bg-[color:var(--secondary)] tabular-nums'
+          : 'ml-auto inline-flex items-center h-[18px] px-[7px] rounded-full text-[11px] font-semibold text-muted-foreground bg-[color:var(--secondary)] tabular-nums'
+      }
       aria-hidden="true"
     >
       {count}
@@ -127,32 +143,42 @@ function RailCountBadge({ count }: { count?: number }) {
 }
 
 // A Work child (always expanded). Default aria-current="page" when active.
-function WorkChild({ section, onNavigate, badge }: { section: Section; onNavigate?: () => void; badge?: number }) {
+function WorkChild({ section, onNavigate, badge, compact = false }: { section: Section; onNavigate?: () => void; badge?: number; compact?: boolean }) {
   const t = useT()
+  const label = section.labelKey ? t(section.labelKey) : section.label
   return (
     <NavLink
       to={section.path}
       onClick={onNavigate}
-      className={({ isActive }) => itemBase(isActive)}
+      data-label={compact ? label : undefined}
+      className={({ isActive }) => itemBase(isActive, compact)}
     >
       {() => (
-        /* B2 (owner sketch, ratified 2026-07-18): Work children are PLAIN indented labels —
-           the sketch showed no icons; the icons were a builder default parked in a scorecard
-           footnote (parity-sweep axis-2 finding B2). Icon stays in the Section data for the
-           bottom-nav/⌘K; the rail child renders label-only. The optional count badge (Tasks ·
-           Signals) sits at the trailing edge (ml-auto). */
+        /* B2 (owner sketch, ratified 2026-07-18): at full width, Work children are PLAIN
+           indented labels — the sketch showed no icons; the icons were a builder default
+           parked in a scorecard footnote (parity-sweep axis-2 finding B2). That ratified
+           full-width treatment is UNCHANGED here. The compact icon rail (P1-1) is a
+           different regime with no room for a label at all — RATIFY-BEFORE-MERGE: it reuses
+           the SAME `section.Icon` already carried for the bottom-nav/⌘K (Rule 11), so a
+           Work child is reachable/identifiable in the 72px rail instead of an icon-less
+           blank row. The full-width rail never renders this icon — only the compact regime
+           does. The optional count badge (Tasks · Signals) sits at the trailing edge
+           (ml-auto) at full width, or pinned to the icon's corner when compact. */
         <>
-          <span>
-            {section.labelKey ? t(section.labelKey) : section.label}
-          </span>
-          <RailCountBadge count={badge} />
+          {compact && (
+            <span className="text-muted-foreground">
+              <section.Icon />
+            </span>
+          )}
+          <span className={compact ? 'sr-only' : undefined}>{label}</span>
+          <RailCountBadge count={badge} compact={compact} />
         </>
       )}
     </NavLink>
   )
 }
 
-export function RailNav({ onNavigate, counts }: RailNavProps) {
+export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
 
@@ -177,7 +203,7 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
   return (
     <>
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2 pt-3">
-        <RailGroupLabel>{t('rail.destinations')}</RailGroupLabel>
+        {!compact && <RailGroupLabel>{t('rail.destinations')}</RailGroupLabel>}
         <div className="flex flex-col gap-[2px]">
           {liveDestinations.map((d) => {
             if (d.id === 'work') {
@@ -185,20 +211,22 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
               // (Rule 5 — parent never carries "page"; the active child does). `to="/work"`
               // matches every /work/* descendant so the parent is "active" across all children.
               const children = (d.children ?? []).filter((c) => !c.capability || can(accessRoles, c.capability))
+              const workLabel = t(d.labelKey)
               return (
                 <div key={d.id}>
                   <NavLink
                     to="/work"
                     aria-current="location"
                     onClick={onNavigate}
-                    className={({ isActive }) => itemBase(isActive)}
+                    data-label={compact ? workLabel : undefined}
+                    className={({ isActive }) => itemBase(isActive, compact)}
                   >
                     {({ isActive }) => (
                       <>
                         <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
                           <d.Icon />
                         </span>
-                        <span>{t(d.labelKey)}</span>
+                        <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>
                       </>
                     )}
                   </NavLink>
@@ -214,16 +242,18 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
                       child stays one reachable link (the overline, when shown, is an aria-hidden
                       divider). A capability-gated child (Projects & Processes, Objectives) that
                       filters out empties its family, which then renders nothing. */}
-                  <div className="flex flex-col gap-[2px] pl-3">
+                  <div className={compact ? 'flex flex-col gap-[2px]' : 'flex flex-col gap-[2px] pl-3'}>
                     {WORK_SUBSECTIONS.map((sub) => {
                       const items = children.filter((c) => sub.paths.includes(c.path))
                       if (items.length === 0) return null
-                      const showOverline = items.length >= 2
+                      // Compact icon rail (P1-1): group overlines hide unconditionally — there is
+                      // no room for a sub-section eyebrow once the item itself is icon-only.
+                      const showOverline = !compact && items.length >= 2
                       return (
                         <div key={sub.labelKey} className="flex flex-col gap-[2px]">
                           {showOverline && <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>}
                           {items.map((c) => (
-                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} />
+                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} compact={compact} />
                           ))}
                         </div>
                       )
@@ -232,19 +262,19 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
                 </div>
               )
             }
-            return <DestLink key={d.id} d={d} onNavigate={onNavigate} />
+            return <DestLink key={d.id} d={d} onNavigate={onNavigate} compact={compact} />
           })}
         </div>
 
         {/* Your-work modules (F2 fix), grouped by BU overline (OD-REDESIGN-1: "Modules grouped
             by Business Unit") — only the modules whose BU matches the viewer's job role. Empty
-            for org-wide roles (no group renders at all). */}
+            for org-wide roles (no group renders at all). Compact (P1-1): group overlines hide. */}
         {myModuleGroups.map((g) => (
           <div key={g.bu} className="mt-3">
-            <RailGroupLabel>{t(g.bu)}</RailGroupLabel>
+            {!compact && <RailGroupLabel>{t(g.bu)}</RailGroupLabel>}
             <div className="flex flex-col gap-[2px]">
               {g.items.map((m) => (
-                <DestLink key={m.id} d={m} onNavigate={onNavigate} />
+                <DestLink key={m.id} d={m} onNavigate={onNavigate} compact={compact} />
               ))}
             </div>
           </div>
@@ -255,7 +285,7 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
             matches the group rhythm above (Destinations / BU module overlines). */}
         {liveUtility.map((u, i) => (
           <div key={u.id} className={i === 0 ? 'mt-3' : 'mt-1'}>
-            <DestLink d={u} onNavigate={onNavigate} />
+            <DestLink d={u} onNavigate={onNavigate} compact={compact} />
           </div>
         ))}
       </nav>
@@ -265,10 +295,12 @@ export function RailNav({ onNavigate, counts }: RailNavProps) {
           on shared café/kitchen terminals a stale session became invisible AND unterminable. Reuses
           the existing UserChip (Rule 11 — no new component): the 'rail' variant shows the viewer's
           full NAME + role and opens a menu with Sign out (handleSignOut is unchanged). /profile
-          itself moved to a normal Utility rail link above (see liveUtility). */}
+          itself moved to a normal Utility rail link above (see liveUtility). Compact (P1-1): the
+          chip collapses to the avatar only (UserChip's existing `compact` prop, previously only
+          wired for the <920px header variant). */}
       {viewer && (
         <div className="px-2 pb-1">
-          <UserChip variant="rail" />
+          <UserChip variant="rail" compact={compact} />
         </div>
       )}
     </>
