@@ -66,10 +66,18 @@ describe('GUARD H6/H8(a): Signal title identity clamps to 2 lines, never a nowra
     expect(body!).not.toMatch(/white-space:\s*nowrap/)
   })
 
-  it('GUARD: the title cell opts out of the table blanket nowrap so the clamp can wrap', () => {
-    const body = ruleBody(tableCss, /td\.signal-table-title-cell\s*\{/)
-    expect(body, 'the title cell must override the td nowrap').not.toBeNull()
-    expect(body!).toMatch(/white-space:\s*normal/)
+  it('GUARD: the title cell (a div in the td) + its message win the cascade with white-space:normal', () => {
+    // The title cell is a DIV inside an unclassed td, so the override must target the class, not a
+    // `td.` selector (which never matched — the original H6 bug: guard-on-file-text passed while the
+    // rendered title stayed a hard nowrap clip). Pin the cell opt-out AND the cascade-winning
+    // message rule that keeps white-space:normal authoritative over the shared grammar rule.
+    const cell = ruleBody(tableCss, /\.signal-collection-table \.signal-table-title-cell\s*\{/)
+    expect(cell, 'the title cell must override the td nowrap by class').not.toBeNull()
+    expect(cell!).toMatch(/white-space:\s*normal/)
+    const scoped = ruleBody(tableCss, /\.signal-collection-table \.signal-table-title-cell \.signal-table-message\s*\{/)
+    expect(scoped, 'the scoped message rule must win the cascade').not.toBeNull()
+    expect(scoped!).toMatch(/-webkit-line-clamp:\s*2/)
+    expect(scoped!).toMatch(/white-space:\s*normal/)
   })
 })
 

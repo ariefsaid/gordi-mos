@@ -32,9 +32,10 @@
   white-space: nowrap;
 }
 
-/* H6 (Luna floor): the title cell opts OUT of the table's blanket `white-space: nowrap` so its
-   message can wrap; every OTHER column stays single-line (Team / Occurred / Attention never grow). */
-.signal-collection-table td.signal-table-title-cell { white-space: normal; }
+/* H6 (Luna floor): the title cell (a DIV inside the td) opts OUT of the table's blanket
+   `white-space: nowrap` so its message can wrap; every OTHER column stays single-line (Team /
+   Occurred / Attention never grow). */
+.signal-collection-table .signal-table-title-cell { white-space: normal; }
 .signal-table-message {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -57,6 +58,17 @@
 }
 .signal-table-title-cell {
   min-width: 0;
+}
+/* H6 (Luna floor): win the cascade over the shared `.signal-collection-presentation
+   .signal-table-message` grammar rule (0,2,0) so the 2-line clamp actually WRAPS — a bare
+   `.signal-table-message` (0,1,0) lost, leaving the title a hard nowrap clip. This rule (0,3,0)
+   keeps `white-space: normal` + the -webkit-box clamp authoritative. */
+.signal-collection-table .signal-table-title-cell .signal-table-message {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
 }
 .signal-table-message-meta {
   display: block;
