@@ -438,12 +438,16 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
       // NOT offer a dead-end "Mark complete" primary. Reopening is a supported transition (the Status
       // control freely moves Done → any state), so a Done task instead offers a quiet "Reopen"
       // secondary that returns it to the active pool; every other state keeps "Mark complete".
+      // onUpdateStatus RE-THROWS on failure (so the Status FIELD surfaces its visible error/retry).
+      // A lifecycle-button trigger is fire-and-forget (`void action.run()` in RecordViewer), so the
+      // button swallows the rejection here — the optimistic rollback + sr-only announce it already
+      // performs is the button's feedback; without this catch a failed click is an unhandled rejection.
       if (task.status === 'Done') {
         actions.push({
           id: 'reopen',
           label: L.reopen,
           intent: 'secondary',
-          run: () => input.onUpdateStatus('In Progress'),
+          run: async () => { try { await input.onUpdateStatus('In Progress') } catch { /* surfaced via optimistic rollback */ } },
         })
         allowedActionIds.push('reopen')
       } else {
@@ -451,7 +455,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
           id: 'complete',
           label: L.markComplete,
           intent: 'primary',
-          run: () => input.onUpdateStatus('Done'),
+          run: async () => { try { await input.onUpdateStatus('Done') } catch { /* surfaced via optimistic rollback */ } },
         })
         allowedActionIds.push('complete')
       }

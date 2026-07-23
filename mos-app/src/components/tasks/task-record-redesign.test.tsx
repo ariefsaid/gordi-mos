@@ -172,3 +172,33 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByText('Grow direct orders')).toBeInTheDocument()
   })
 })
+
+// OD-REDESIGN-22 (D-C1 / DIV-G1): a FAILED status change must surface a VISIBLE error + retry.
+// Before the fix, TaskSurface.handleStatusChange swallowed the rejection (sr-only announce only),
+// so the Status RecordField saw the commit RESOLVE and wrongly showed "Saved" on a failed write.
+describe('OD-REDESIGN-22 — status change failure surfaces a visible error (D-C1)', () => {
+  it('a rejected Status commit shows the field error + Retry, never a false "Saved"', async () => {
+    const task = makeTask()
+    vi.mocked(getTask).mockResolvedValue({ task, checklist: [], events: [] })
+    vi.mocked(updateTaskStatus).mockRejectedValue(new Error('write failed'))
+
+    render(
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={['/work/tasks/task-typed']}>
+          <TaskSurface taskId={task.id} mode="view" width="full" />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
+    // Activate the Status field (value-first) then pick a new status.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Status' }))
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'Done' } })
+    await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(task.id, 'Open', 'Done', VIEWER_ID))
+    // The failure is VISIBLE (RecordField error + Retry), not a silent false success.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn.t save/i)
+    expect(within(alert).getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.queryByText('Saved')).toBeNull()
+  })
+})

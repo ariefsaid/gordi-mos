@@ -165,6 +165,10 @@ function ViewSurface({
     requestAnimationFrame(() => setLiveMessage(msg))
   }, [])
   const ROLLBACK_MSG = t('tasks.feedback.rollback')
+  // OD-REDESIGN-22 (D-C1): the last FAILED checklist write, held so RecordFeed/ChecklistCard can
+  // render a VISIBLE error + Retry (the optimistic rollback reverts the row, but a sighted user
+  // still needs a clickable way to re-send). The closure re-runs the exact failed operation.
+  const [checklistError, setChecklistError] = useState<(() => void) | null>(null)
 
   const now = useMemo(() => new Date(), [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -232,6 +236,11 @@ function ViewSurface({
   }, [localTask, viewerId, isManager, isArchived])
 
   // ── Status change ────────────────────────────────────────────────────────
+  // Optimistic + rollback, and — like handleUpdateField — RE-THROWS on failure so the Status
+  // RecordField shows its VISIBLE error + Retry (OD-REDESIGN-22 / D-C1). Swallowing the rejection
+  // here made the field's commit resolve, wrongly rendering "Saved" on a failed write. The lifecycle
+  // ACTION buttons (Mark complete / Reopen) wrap their call in a catch (see the adapter) so a status
+  // failure they trigger stays a benign optimistic rollback rather than an unhandled rejection.
   async function handleStatusChange(newStatus: TaskStatus) {
     if (!localTask) return
     const oldStatus = localTask.status
@@ -245,10 +254,11 @@ function ViewSurface({
       setLocalChecklist(refreshed.checklist)
       onTaskChanged?.(refreshed.task)
       announce(t('tasks.feedback.statusChanged', { status: newStatus === 'Open' ? t('tasks.status.open') : newStatus === 'In Progress' ? t('tasks.status.inProgress') : newStatus === 'Blocked' ? t('tasks.status.blocked') : t('tasks.status.done') }))
-    } catch {
+    } catch (err) {
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
       onTaskChanged?.({ ...localTask, status: oldStatus })
       announce(ROLLBACK_MSG)
+      throw err instanceof Error ? err : new Error('updateTaskStatus failed')
     }
   }
 
@@ -386,6 +396,9 @@ function ViewSurface({
           onReorderChecklist={handleReorder}
           onDeleteChecklist={handleDeleteChecklist}
           onPostComment={handlePostComment}
+          checklistError={checklistError
+            ? { message: t('record.field.saveError'), onRetry: checklistError }
+            : null}
         />
       ),
     }
@@ -395,6 +408,7 @@ function ViewSurface({
   }, [
     data, localTask, localChecklist, viewerId, isManager, peopleDirectory, busDirectory,
     objectivesDir, workLinesDir, generatedFromLabel, comments, now, editable, feedTab, setFeedTab, t, locale,
+    checklistError,
   ])
 
   const commitField = createTaskFieldCommit({
@@ -405,6 +419,7 @@ function ViewSurface({
   // ── Checklist add ────────────────────────────────────────────────────────
   async function handleAddChecklist(label: string) {
     if (!localTask) return
+    setChecklistError(null)
     const position = localChecklist.length
     const newItem: ChecklistItemRow = {
       id: `optimistic-${Date.now()}`, org_id: '', task_id: localTask.id,
@@ -419,12 +434,14 @@ function ViewSurface({
     } catch {
       setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
       announce(ROLLBACK_MSG)
+      setChecklistError(() => () => { void handleAddChecklist(label) })
     }
   }
 
   // ── Checklist toggle ─────────────────────────────────────────────────────
   async function handleToggle(itemId: string, isDone: boolean) {
     if (!localTask) return
+    setChecklistError(null)
     setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: isDone } : i))
     try {
       await toggleChecklistItem(itemId, isDone, localTask.id, viewerId)
@@ -433,6 +450,7 @@ function ViewSurface({
     } catch {
       setLocalChecklist(prev => prev.map(i => i.id === itemId ? { ...i, is_done: !isDone } : i))
       announce(ROLLBACK_MSG)
+      setChecklistError(() => () => { void handleToggle(itemId, isDone) })
     }
   }
 
@@ -460,6 +478,7 @@ function ViewSurface({
   // ── Checklist delete ─────────────────────────────────────────────────────
   async function handleDeleteChecklist(itemId: string) {
     if (!localTask) return
+    setChecklistError(null)
     const prev = localChecklist
     setLocalChecklist(p => p.filter(i => i.id !== itemId))
     try {
@@ -469,6 +488,7 @@ function ViewSurface({
     } catch {
       setLocalChecklist(prev)
       announce(ROLLBACK_MSG)
+      setChecklistError(() => () => { void handleDeleteChecklist(itemId) })
     }
   }
 
