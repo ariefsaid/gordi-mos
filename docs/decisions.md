@@ -2033,3 +2033,7 @@ lean + disclosure**: row 1 saved views + presentation; row 2 search + ONE labell
 directive is superseded. 2. **1024 compact icon rail**: ≤1100px the rail collapses to a
 ~72px icon rail (accessible labels), phone regime unchanged. Both are Luna-measured
 E7-floor items, owner-ratified.
+
+### OD-REDESIGN-85 — cockpit scaffold deleted (owner 2026-07-23)
+
+OD-DASH-2's "left untouched" hold is REVERSED by the owner's fossil directive ("remove fossil — that's what I've been pounding on"; "this is getting ridiculous, fossils being kept"). The stacked-union Home cockpit scaffold (SHOW_HOME_STACKED, stacked-union-home, home-stack/, weekly/, /__home-stacked) is deleted; the ranked-stream Home is the one Home. Revert path: git history.
