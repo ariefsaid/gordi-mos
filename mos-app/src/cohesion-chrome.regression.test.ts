@@ -172,7 +172,6 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
     for (const f of [
       'shell/signal-composer-host.tsx',
       'shell/mobile-drawer.tsx',
-      'components/tasks/task-drawer-header.tsx',
       'components/tasks/task-surface.tsx',
       // Deputy close chrome moved from AssistantPanel into the ONE shared host (3d6c39c —
       // the shared host owns panel chrome for records AND Deputy).

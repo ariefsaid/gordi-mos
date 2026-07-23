@@ -248,23 +248,9 @@
   font-size: 10px; font-weight: 700;
 }
 .person-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* ── Typed Task ownership ── */
-.task-ownership-card { margin: 0; }
-.task-ownership-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.task-owner-field { min-width: 0; position: relative; }
-.task-owner-label {
-  margin-bottom: 6px; font-size: 11px; font-weight: 600;
-  letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted-foreground);
-}
-.task-owner-value { min-height: 36px; display: flex; align-items: center; font-size: 15px; color: var(--foreground); }
-.task-owner-field .person-field,
-.task-owner-field .person-field-btn { min-width: 0; }
-.task-owner-field .person-field-btn { font-size: 15px; }
-.task-owner-field .person-name { min-width: 0; }
 .rd-source-value { font-weight: 500; }
 .task-mark-complete { align-self: flex-start; min-height: 36px; }
 @media (max-width: 767px) {
-  .task-ownership-grid { grid-template-columns: 1fr; }
   .task-mark-complete { width: 100%; min-height: 44px; }
 }
 
@@ -452,7 +438,6 @@
 }
 
 /* ── Utility bar (crumb-mini + expand + close) ── */
-.dw-head { flex: none; }
 .dw-bar {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 12px; border-bottom: 1px solid var(--border);
@@ -480,31 +465,6 @@
   .dw-iconbtn { width: 30px; height: 30px; }
 }
 
-/* ── Pinned action header — never scrolls ── */
-.dw-pinned { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); flex: none; }
-.dw-pinned-inner { min-width: 0; }
-.dw-titlewrap { min-width: 0; }
-.dw-title {
-  font-size: 19px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em;
-  color: var(--foreground);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.dw-unit { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
-.dw-statusrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.dw-activity { margin-left: 0; }
-.dw-ownership-summary {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px; margin-top: 12px;
-}
-.dw-owner-summary-item { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.dw-owner-summary-label {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
-  text-transform: uppercase; color: var(--muted-foreground);
-}
-.dw-owner-summary-value {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 13px; font-weight: 500; color: var(--foreground);
-}
 .dw-open-page {
   height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--status-open-text); font: inherit;
@@ -513,8 +473,6 @@
 .dw-open-page:hover { background: var(--accent); }
 .dw-open-page:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 @media (max-width: 767px) {
-  .dw-ownership-summary { grid-template-columns: 1fr 1fr; }
-  .dw-owner-summary-item:first-child { grid-column: 1 / -1; }
   .dw-open-page { min-height: 44px; }
 }
 
@@ -541,10 +499,6 @@
 .btn-ghost-danger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── Expanded (focus mode) reflow ── */
-.dw-surface-expanded .dw-title { font-size: 26px; letter-spacing: -0.01em; } /* OD-P3-9: Jakarta tracking relaxed */
-.dw-surface-expanded .dw-pinned { padding: 18px 28px 14px; }
-.dw-surface-expanded .dw-pinned-inner { max-width: 880px; margin: 0 auto; width: 100%; }
-.dw-surface-expanded .dw-head-expanded .dw-pinned-inner { }
 .dw-surface-expanded .dw-tabpane { max-width: 880px; margin: 0 auto; width: 100%; padding: 22px 28px 36px; }
 .dw-surface-expanded .desc-body { max-width: 62ch; }
 

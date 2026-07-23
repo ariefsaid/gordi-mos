@@ -31,10 +31,10 @@ export interface RecordViewerProps {
   headingLevel?: 1 | 2
   /**
    * Render the viewer's own identity header (eyebrow · type · title heading). Default true.
-   * A tenant whose surrounding chrome already owns the record name — e.g. the Task panel's
-   * TaskDrawerHeader / identity row — passes false so there is no duplicate heading. The section
-   * landmark stays accessible: when suppressed it is named by the adapter title via aria-label
-   * instead of aria-labelledby (ViewerIdentitySuppressionContract / no-duplicate-h1).
+   * A tenant whose surrounding chrome already owns the record name — e.g. a host-level page
+   * title — passes false so there is no duplicate heading. The section landmark stays
+   * accessible: when suppressed it is named by the adapter title via aria-label instead of
+   * aria-labelledby (ViewerIdentitySuppressionContract / no-duplicate-h1).
    */
   showIdentityHeader?: boolean
   /** Host-supplied loading gate (the adapter models ready/empty/error only). */

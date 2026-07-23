@@ -164,8 +164,8 @@ describe('RecordViewer', () => {
   })
 
   it('ViewerIdentitySuppressionContract: showIdentityHeader=false renders no heading but keeps an accessible landmark named by the title', () => {
-    // The tenant (e.g. the Task panel, whose TaskDrawerHeader/identity row already owns the
-    // record name) suppresses the viewer's own identity header so there is no duplicate heading.
+    // The tenant (e.g. the Task panel, whose surrounding chrome already owns the record name)
+    // suppresses the viewer's own identity header so there is no duplicate heading.
     // The landmark must still be reachable by its accessible name — via aria-label, not a heading.
     const { container } = renderViewer(taskAdapter(), { mode: 'panel', showIdentityHeader: false })
     expect(container.querySelectorAll('h1, h2, h3').length).toBeGreaterThanOrEqual(0)
