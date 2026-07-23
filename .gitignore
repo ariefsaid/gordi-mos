@@ -67,3 +67,8 @@ supabase/seed.production.sql
 # audit/agent runtime residue — never tracked (swept in once by a git add -A; audit F11)
 .pi-subagents/
 e11/
+
+# session capture debris — never commit
+.playwright-cli/
+output/
+mos-app/capture-*.mjs
