@@ -68,7 +68,7 @@ export function PasswordReveal({
         className="my-3 flex items-start gap-2 rounded-md px-3 py-2"
         style={{
           background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-          borderLeft: '3px solid var(--warning)',
+          border: '1px solid color-mix(in srgb, var(--warning) 45%, transparent)',
           color: 'var(--warning-foreground)',
         }}
         role="status"
