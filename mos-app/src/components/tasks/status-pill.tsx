@@ -63,7 +63,7 @@ export function StatusPill({ status, label, openTreatment = 'flagged' }: StatusP
   const neutralOpen = status === 'Open' && openTreatment === 'neutral'
   const color: TagColor = neutralOpen ? 'gray' : STATUS_COLOR[status]
   const textColor = neutralOpen ? 'var(--muted-foreground)' : STATUS_TEXT_COLOR[status]
-  // NO aria-label: the visible text IS the accessible name. StatusTrigger renders
+  // NO aria-label: the visible text IS the accessible name. Status pickers render
   // StatusPill inside a role=option / button, and an aria-label would override the
   // option's computed name, breaking status-change (AC-071/103/111).
   return (

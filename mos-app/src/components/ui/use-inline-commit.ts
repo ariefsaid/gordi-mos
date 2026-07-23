@@ -10,7 +10,7 @@
 //     uses — reused here, not re-invented; see task-surface.tsx `announce`).
 //
 // ── Native-select reading (why this hook is TEXT/NUMBER only) ──────────────────
-// A native <select> (and the equivalent listbox popovers — StatusTrigger, PersonPicker)
+// A native <select> (and the equivalent listbox popovers — e.g. PersonPicker)
 // has NO free-typing draft: picking an option IS the user's commit intent, so those
 // surfaces commit eagerly on change — that is the CORRECT I5 reading for a select, not
 // a violation. For a select, "Escape discards" means Escape-while-open closes the

@@ -152,8 +152,6 @@ export const messages = {
     'tasks.create.submitting': 'Creating…',
     'tasks.create.submit': 'Create task',
     'tasks.create.error': 'Something went wrong',
-    'tasks.status.change': 'Change status',
-    'tasks.status.select': 'Select status',
     // Inline title edit (E7 collection promise). Double-click edits (mouse); F2 edits from a
     // keyboard-focused title. Enter is NOT an edit key (it opens the record — the existing opener
     // grammar). To keep the double-click from racing the title's single-click opener, the title's
@@ -892,8 +890,6 @@ export const messages = {
     'tasks.create.submitting': 'Membuat…',
     'tasks.create.submit': 'Buat tugas',
     'tasks.create.error': 'Terjadi kesalahan',
-    'tasks.status.change': 'Ubah status',
-    'tasks.status.select': 'Pilih status',
     'tasks.inlineEdit.hint': 'Klik dua kali judul untuk menyuntingnya · Enter menyimpan · Esc membatalkan',
     'tasks.inlineEdit.aria': 'Sunting judul tugas',
     'tasks.feedback.rollback': 'Gagal menyimpan — dikembalikan',

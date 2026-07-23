@@ -5,8 +5,8 @@
  *   - Escape close (with focus returned to the trigger by the caller's `close`)
  *   - WAI-ARIA menu keyboard: focus moves to the first menuitem on open;
  *     ArrowDown/ArrowUp cycle; Home/End jump.
- * CommandMenu keeps its own richer combobox controller; StatusTrigger keeps its
- * listbox contract. This hook backs role="menu" popovers (UserChip, RowMenu).
+ * CommandMenu keeps its own richer combobox controller. This hook backs
+ * role="menu" popovers (UserChip, RowMenu).
  */
 import { useEffect } from 'react'
 

@@ -46,7 +46,6 @@
     flex-wrap: wrap; gap: 8px;
   }
   .actions-cluster > * { min-height: 44px; }
-  .status-trigger { height: 44px; width: 100%; justify-content: flex-start; }
   .btn-ghost { height: 44px; width: 100%; text-align: left; }
 }
 
@@ -144,32 +143,6 @@
 @media (prefers-reduced-motion: no-preference) {
   .rf-tab.on::after { transition: left var(--dur-med) ease, right var(--dur-med) ease; }
 }
-
-/* ── Status trigger ── */
-.status-trigger-wrap { position: relative; }
-.status-trigger {
-  height: 32px; padding: 0 10px; border: 1px solid var(--input);
-  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  background: var(--background); font: inherit;
-  font-size: 15px; cursor: pointer; display: inline-flex; align-items: center;
-  gap: 8px; color: var(--foreground);
-}
-.status-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.trigger-chev { color: var(--muted-foreground); font-size: var(--font-size-micro); }
-.status-popover {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: var(--z-popover);
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
-  padding: 4px; min-width: 140px;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--foreground) 10%, transparent);
-}
-.status-option {
-  padding: 6px 8px; border-radius: 6px; cursor: pointer;
-  display: flex; align-items: center;
-}
-.status-option:hover, .status-option:focus-visible { background: var(--accent); }
-.status-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
-.status-option-active { background: var(--accent); }
 
 /* ── Btn styles ── */
 /* IXD-4 (PR-2): the one button hierarchy lives in ui/Button.css (.btn .btn-{variant}).
