@@ -402,10 +402,10 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockCreateTask.mockResolvedValue('task-new')
     renderAt('/work/tasks/new')
     await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
-    // Initially the table is empty. UI-fidelity rework: the count lives in the
-    // content-header count pill (.ch-count) — read it there (was "N tasks" text).
+    // Initially the table is empty. R2 (owner review r2): the count reads inside the ONE muted
+    // meta sentence ("N tasks · M blocked") — the content-header count pill was removed.
     await waitFor(() => {
-      expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('0')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 tasks')
     })
 
     // Fill + submit the create form (title required; BU pre-fills from role)
@@ -417,7 +417,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
     })
     expect(screen.getByText('Freshly created')).toBeInTheDocument()
-    expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('1')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 tasks')
     // and the create task's row is the selected one (we navigated to /tasks/task-new)
     await waitFor(() => {
       const sel = document.querySelector('tr.task-row.row-selected')
@@ -539,7 +539,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('2'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 tasks'))
 
     // Archive from the drawer foot (collapsed split shows "Archive task")
     fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
@@ -558,7 +558,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('1')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 tasks')
   }, 10_000)
 })
 
