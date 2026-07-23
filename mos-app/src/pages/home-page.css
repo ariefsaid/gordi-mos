@@ -49,7 +49,7 @@
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--dur-fast, 120ms) ease, color var(--dur-fast, 120ms) ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .home-order-seg-opt:hover { color: var(--foreground); }
 .home-order-seg-opt.is-active {

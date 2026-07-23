@@ -104,7 +104,8 @@ describe('C4 — retirement: Home renders no residual Weekly Update / Daily Log 
       </I18nProvider>,
     )
 
-    await waitFor(() => expect(screen.getByText('My tasks')).toBeInTheDocument())
+    // Ranked-stream Home: the job question is the stable ready sentinel ('My tasks' band retired)
+    await waitFor(() => expect(screen.getByText(/What needs my attention/i)).toBeInTheDocument())
     for (const link of screen.queryAllByRole('link')) {
       expect(link.textContent ?? '').not.toMatch(FORBIDDEN)
     }
