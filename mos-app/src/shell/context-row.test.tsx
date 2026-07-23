@@ -146,7 +146,8 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     renderCtx('/admin/roles')
     const scope = screen.getByText('Café')
     expect(scope).toHaveStyle({ flex: 'none' })
-    const job = screen.getByText('What needs my attention right now?')
+    // /admin/* now carries its own job sentence (fa636b7), not Home's — locate by the admin copy.
+    const job = screen.getByText('Configure who can sign in and what they can do.')
     expect(job).toHaveStyle({ flex: '1 1 auto', minWidth: '0' })
   })
 
