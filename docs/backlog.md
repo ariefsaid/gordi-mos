@@ -1,5 +1,17 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
+> **REDESIGN CONVERGENCE QUEUE (2026-07-23, Director) — work these in order after the in-flight
+> lanes land:** ① merge `v3/owner-r2` + sweep fix lanes (`v3/sweep-*`) per the integration
+> protocol in `docs/agent-context.md` · ② execute `docs/plans/2026-07-23-component-interrogation.md`
+> (fossil-deletes → replaces → redesigns → Storybook coverage plan; only 7 stories exist for
+> ~109 components) · ③ post-cockpit orphan sweep (entry below) + DueRunsTrigger sweep (entry
+> below) · ④ P&P/Objectives record panels (deferred from the catalog rebuild — rows currently
+> manage inline only) · ⑤ full-suite + reseed + owner walkthrough (impeccable `live` ready) ·
+> ⑥ single Luna pass on owner request · ⑦ RATIFY register (ledger): pill radius rounded-rect vs
+> DESIGN.md 999px · A12 re-expression (attention-worthy Signals in the ranked stream) · OD-18
+> re-expression (ranking preference) · Signals feed-first default · phone View&filters wrapper
+> non-dedup rationale. Then feature work resumes.
+
 - **Post-cockpit orphan sweep (2026-07-23):** the OD-85 deletion orphaned `directory.ts
   getRoles()`, `use-company-finance-kpis.ts`, and the e2e `MEMBER` fixture + its global-setup
   seeding (sole consumers deleted; they live in shared files so the deletion lane correctly left

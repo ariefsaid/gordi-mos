@@ -2037,3 +2037,15 @@ E7-floor items, owner-ratified.
 ### OD-REDESIGN-85 — cockpit scaffold deleted (owner 2026-07-23)
 
 OD-DASH-2's "left untouched" hold is REVERSED by the owner's fossil directive ("remove fossil — that's what I've been pounding on"; "this is getting ridiculous, fossils being kept"). The stacked-union Home cockpit scaffold (SHOW_HOME_STACKED, stacked-union-home, home-stack/, weekly/, /__home-stacked) is deleted; the ranked-stream Home is the one Home. Revert path: git history.
+
+### OD-REDESIGN-86 — fossil law + Classification deletion (owner 2026-07-23)
+
+Owner verbatims now binding design law (also in CLAUDE.md): "remove fossil!!! REDESIGN, be
+brave, nothing sacred"; "remove when its needed. make it functional still. dont break. but if
+it can be better, remove, redesign, make it better"; "highest quality of UI, UX, IA and IxD".
+Applied: Notes tab deleted (re-rendered description); Classification row deleted (derived
+summary duplicating Generated-by/Project-Process relation rows — kept only because the E7
+mockup drew it; see the CLAUDE.md "mockup fidelity is not a data spec" rule this incident
+produced); cockpit scaffold deleted (OD-85). Fossil disposition discipline for all agents:
+DELETE (function served elsewhere) / REPLACE (rebuild better in V3 grammar, same slice) /
+FLAG (genuine ambiguity → owner).

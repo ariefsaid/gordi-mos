@@ -1606,3 +1606,16 @@ as-designed, then owner eyes (impeccable live mode ready).
 RATIFY-BEFORE-MERGE (kit-normalize, 2026-07-23): Pill renders as a rounded-rect (--radius-sm)
 while DESIGN.md §Shapes declares pills full-round (999px) — shipped v3 look kept, identity doc
 untouched; owner picks: ratify rounded-rect (edit DESIGN.md) or revert pills to full-round.
+
+## Owner-driven redesign wave — 2026-07-23 (evidence index)
+
+Tip at writing: `ebd02f8`+. Merged this wave (each verified per the integration protocol):
+kit normalization (semantic ladder + KIT-VOCAB guard) `e6c1382` · owner rounds 1-2 (items 1-12,
+16-19) `34a28c0` · audit-fix salvage (Signals attention treatment, quiet category, 44px)
+`ebd02f8` · cockpit deletion OD-85 (−2860) `e2fca7b` · catalog grammar rebuild `2d33247` ·
+fossil purge round 1 `41dfd8b` · doc rules (skills-are-the-method; mockup≠data-spec) `8b855e5`,
+`ff66f3f`. Root causes recorded: missing semantic type layer; condensed-mode never wired to the
+overlay drawer path; composer unstyled; PageFrame cap void; fossils kept by mockup-fidelity
+misreading. In-flight lanes + verdicts land in follow-up sections. Score state: Luna official
+26/40 · 6.5 · 8 floor violations at `61f6087` — floor violations since closed with measured px;
+re-score deferred by owner until requested.

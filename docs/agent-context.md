@@ -1,44 +1,63 @@
 # Agent context — read me first (owner prefs · hard rules · gotchas · pointers)
 
-> ## CANONICAL CURRENT STATE — 2026-07-22 (read this before any dated banner below)
+> ## CANONICAL CURRENT STATE — 2026-07-23 midday (supersedes every dated banner below)
 >
-> This block is the current-state register. It supersedes older score, tip, lane, and “gate met” prose
-> later in this file. The canonical V3 worktree is `/Users/ariefsaid/Coding/gordi-mos/.claude/worktrees/v3-redesign`,
-> branch `v3-redesign`, at the latest committed docs checkpoint with an **uncommitted local convergence slice**.
-> No push, merge, deploy, or Supabase start has occurred in this state.
+> **Branch `v3-redesign` = the integration branch** (worktree `.claude/worktrees/v3-redesign`,
+> dev server `mos-dev-v3` :5199, base path `/mos`). Every lane merges into it through the
+> Director gate (rebase → typecheck/lint/focused vitest → ff-merge → push). The ledger
+> `docs/reviews/v3-redesign.md` is evidence of record; `docs/backlog.md` holds open items.
 >
-> **Verified now (bounded, OOM-safe evidence):** the reconciled RecordViewer + collection/header smoke is
-> **143/143 tests passed across 9 focused files** covering TaskSurface/TasksLayout, the typed Task
-> adapter, RecordCollection/CollectionToolbar, Signals presentation/archive, and Inbox triage/page.
-> `npm run typecheck`, CSS lint, changed-file ESLint, and the refreshed live inventory all pass at
-> **58 routes / 13 shared jobs / 76 CSS families**. The earlier **25 failed / 77** TaskSurface/TasksLayout
-> run was a real pre-reconciliation integration failure; it is historical, not current, and is retained
-> only in the dated review section below. The earlier **126/126** viewer/collection run belongs to the
-> pre-header local slice and is also historical. The full Vitest suite and three-width browser acceptance
-> were not rerun here and must not be represented by historical full-suite numbers.
+> **Merged today (owner-driven "REDESIGN, remove fossils, be brave" wave):** E7-floor closure of
+> all 8 Luna violations · kit normalization (semantic `--font-size-*`/`--radius-*` ladder,
+> KIT-VOCAB guard, full state coverage — root cause of "untidy fonts" was a MISSING semantic
+> type layer + 15px drift) · owner screenshot rounds 1-2 (19+6 items: split-mode starvation
+> root-caused [condensed never fired on the overlay path], composer had NO css, Notes tab
+> fossil deleted, kv value-column alignment, dead void [PageFrame cap], lifecycle-aware
+> actions, locale "leak" = owner's browser locale=id, NOT a bug) · fossil purges (cockpit
+> scaffold −2860 lines OD-85; CatalogManager; Classification row [duplicated relation rows —
+> mockup-fidelity trap]) · catalogs rebuilt on the collection grammar · Signals attention-row
+> spec treatment + 44px targets.
 >
-> **What the local slice actually changes:** Task drawer/page content now composes the shared
-> `RecordViewer` adapter with a distinct Task template (ownership, status, details, provenance, and
-> lifecycle actions); Signal records render inside the shared viewer identity/section shell while
-> retaining typed Signal content. The shared host owns panel chrome and page promotion, avoiding nested
-> drawer controls. Tasks and Signals also expose a shared result header (`collection · view · count`)
-> and visible `Saved view` framing. These are source + bounded evidence, not acceptance: fresh
-> 1280/1024/390 renders of the current working tree are still required.
+> **Owner law (verbatim, binding):** "remove fossil!!! REDESIGN. be brave. nothing sacred" ·
+> "remove when its needed. make it functional still. dont break. but if it can be better,
+> remove, redesign, make it better" · "highest quality of UI, UX, IA and IxD" · skills are the
+> method (CLAUDE.md rule) · mockup fidelity is not a data spec (CLAUDE.md rule) · Luna
+> (gpt-5.6-luna) is the only accepted scorer, DEFERRED until owner asks; bar ≥32/40 · >8.5/10 ·
+> zero E7-floor violations, scope Home+Tasks+Signals. Don't spam Luna; sonnet/opus critics
+> in-loop only as finding-generators (their numbers never count).
 >
-> **Score truth:** the prior agent’s **34/40 · 9/10** claim at `59110f1` is historical evidence, not
-> current acceptance. The earlier rendered **28/40** checkpoint and pre-convergence **23/40** audit are
-> also historical strata. The latest independently rendered committed baseline was **26/40** and
-> approximately **6–6.5/10 structural anti-slop**; E7 is the comparison baseline at **27/40 / ~7/10**,
-> and the prior warmer prototype is **19/40 / ~4/10** (with its task-table title/subline as salvage).
-> Do not “fix” or re-litigate the 34/40 prose: it is preserved for provenance, explicitly non-current,
-> and cannot be used to close the owner-eyes gate. Do not promote the current local slice to a new score
-> until it has a fresh rendered comparison.
+> **IN FLIGHT (background, survive context compaction; completion notifications re-invoke the
+> Director):** ① route total-sweep workflow `wf_36ee7d41` (all routes × 3 personas × 5 widths ×
+> open-states; capture→inspect→fix lanes `v3/sweep-<route>`, OOM-leaned: fixers batch-4,
+> vitest --maxWorkers=2, APFS-cloned node_modules) ② component interrogation workflow
+> `wf_a893b30d` (18 clusters × ~109 components; existence/design/grammar/story verdicts via
+> impeccable critique+distill + ui-ux-pro-max db + design-system spec format; READ-ONLY →
+> writes `docs/plans/2026-07-23-component-interrogation.md`) ③ lane `v3/owner-r2` (agent
+> a1173cbb…: R1 drawer/table height · R2 head meta sentence · R3 saved-view spacing · R4
+> repetitive not-permitted lines · R5 DELETE Classification · R6 expand↔drawer round-trip +
+> ?record= URL door + dvh + document.title). **Integration protocol:** rebase lane onto
+> origin/v3-redesign in ITS worktree → verify → ff-merge → push → remove worktree + branch
+> (containment-check before -D).
 >
-> **Current verdict: NO-SHIP / owner-eyes pending.** Remaining acceptance work is the shared E7
-> collection result-header/toolbar convergence review, fresh three-width renders, RecordViewer anatomy review,
-> Inbox seeded Bell→queue→record→Back proof, Deputy browser-Back/one-session decision, I5 disposition,
-> and the owner’s holistic “one neat product” review. See the latest addendum in
-> `docs/reviews/v3-redesign.md`; if any older section disagrees with this block, this block wins.
+> **GOTCHAS (hard-won today):** agents stall silently (API stream) — resume with SendMessage
+> using their transcript, check liveness via worktree mtime/transcript size, never by waiting ·
+> fixers sometimes commit into the WRONG worktree — audit `git log` of every worktree before
+> merging · capture/critic screenshots MUST come from a fresh server started in the scored
+> worktree (stale-server contamination invalidated two scoring rounds) · long-running vite
+> serves a stale module graph after heavy git changes — kill + rm node_modules/.vite +
+> restart (the owner hit this on :5199) · e2e runs wipe demo data (global-teardown now
+> restores; reseed via supabase/seed.dev-tasks.sql through docker exec) · owner's browser
+> locale is `id` — "Indonesian chrome" is correct behavior · compound bash chains: grep -c
+> exits 1 on zero matches and kills && chains; never chain cleanup after a fallible merge ·
+> kill orphan dev servers after every lane (lsof -iTCP -sTCP:LISTEN).
+>
+> **NEXT STEPS (in order):** 1. merge in-flight lanes as they land (protocol above) · 2. execute
+> the interrogation work-order (fix lanes AFTER the route sweep merges — collision discipline) ·
+> 3. full suite + reseed · 4. owner walkthrough on :5199 (impeccable `live` variant mode for
+> taste calls) · 5. ONE Luna pass only when the owner asks · 6. RATIFY register in the ledger
+> (pill radius; A12 re-expression; OD-18 re-expression; Signals feed default; phone View&filters
+> non-dedup) · 7. feature work unblocks after convergence.
+
 
 Fast cold-start for a fresh agent (esp. post-compaction). This is the human/process layer; the
 authoritative product/decision docs are linked at the bottom. Keep this file updated as things change.
