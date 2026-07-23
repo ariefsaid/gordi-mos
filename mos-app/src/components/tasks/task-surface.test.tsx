@@ -189,8 +189,14 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
     expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
     expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
-    expect(screen.getByText('Aktivitas & pembaruan')).toBeInTheDocument()
-    expect(screen.getByText('Komentar')).toBeInTheDocument()
+    // Feed localization (owner-eyes items 5/6/11): the redundant "Aktivitas & pembaruan" heading is
+    // now sr-only and the Notes tab is gone, so assert the Indonesian feed via the live tab labels,
+    // the collapsed combined empty line, and the composer action.
+    expect(screen.getByRole('tab', { name: 'Aktivitas' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Checklist' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /catatan/i })).toBeNull()
+    expect(screen.getByText(/jadilah yang pertama berkomentar/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Kirim komentar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     expect(screen.queryByText('Task details')).toBeNull()
     localStorage.removeItem('mos.locale')
