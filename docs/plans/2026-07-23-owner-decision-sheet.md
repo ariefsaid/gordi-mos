@@ -77,6 +77,6 @@ surface and both pages passed their census.
 
 ## F · Pending slots (fill before the sitting closes)
 
-- Journey-audit flags (5 journeys in flight; Journey-A items already folded into C/D above).
+- ~~Journey-audit flags~~ — **CLOSED, no new owner flags**: all 6 journeys walked; findings were DO (JQ-1 cafe tab gating, JQ-3 onboarding login handoff, JQ-4 inbox door — fix lane v3/jq-fixes) or DEFER (JQ-5 drill-through → backlog); JQ-2 = GAP-4 above.
 - Backfill-batch flags (dark mode / id locale / finance persona / chrome surfaces — Step 2).
 - Deputy-bubble mockup cards (A1).
