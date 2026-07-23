@@ -133,13 +133,13 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'font-size: 14.5px': 1,
   },
   'src/components/tasks/TaskSurface.css': {
-    'font-size: 15px': 19,
+    'font-size: 15px': 16,
     'font-size: 26px': 3,
     // 16px on form inputs is deliberate (mobile-zoom floor); 7th added by the tc TextInput port.
     'font-size: 16px': 7,
     'font-size: 22px': 1,
     'border-radius: 2px': 1,
-    'border-radius: 6px': 4,
+    'border-radius: 6px': 3,
   },
   'src/components/tasks/TasksWorkspace.css': {
     'font-size: 15px': 15,

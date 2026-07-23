@@ -51,8 +51,8 @@ const SIGNAL_TABLE_CLASSES = [
 interface Suite { component: string; css: string[]; extraClasses?: string[]; ignoreClasses?: string[] }
 
 const SUITES: Suite[] = [
-  { component: 'src/components/signals/signal-card.tsx', css: ['src/components/signals/signal-card.css'], extraClasses: SIGNAL_ATTENTION_CLASSES },
-  { component: 'src/components/signals/signal-feed.tsx', css: ['src/components/signals/signal-feed.css'] },
+  // signal-card.tsx / signal-feed.tsx deleted as fossils (zero live consumers; interrogation
+  // fossil-delete list). Their CSS files remain — category-picker and signal-record share rules.
   { component: 'src/components/signals/signal-table-presentation.tsx', css: ['src/components/signals/signal-table-presentation.css'], extraClasses: SIGNAL_TABLE_CLASSES },
   { component: 'src/components/signals/signal-composer.tsx', css: ['src/components/signals/signal-composer.css'] },
   { component: 'src/components/signals/signal-mention-picker.tsx', css: ['src/components/signals/signal-mention-picker.css'], extraClasses: TYPE_BADGE_CLASSES },
