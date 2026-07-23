@@ -755,9 +755,15 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
-  // Primary-role BU: first role's business_unit_id (ordered by created_at asc from resolveViewer)
+  // Primary-role BU: the first role that actually carries a business unit (roles are
+  // ordered by created_at asc from resolveViewer). F3: an org-wide/admin role carries no
+  // business_unit_id, so `roles[0]` alone left the required Team empty for the Admin/Director
+  // persona while every branch persona got a pre-fill — the admin then hit the required-field
+  // error by default. Scanning for the first role WITH a unit pre-fills any admin who also
+  // holds a branch role; a pure org-wide viewer stays empty and must pick a team (correct —
+  // there is no sensible default), flagged by the Select's "Select team…" placeholder.
   const primaryRoleBU = auth.status === 'authenticated'
-    ? (auth.viewer.roles[0]?.business_unit_id ?? '')
+    ? (auth.viewer.roles.map(r => r.business_unit_id).find(Boolean) ?? '')
     : ''
 
   // Directory
