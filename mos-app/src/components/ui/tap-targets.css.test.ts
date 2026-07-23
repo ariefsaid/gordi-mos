@@ -9,6 +9,13 @@ const textInputCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Text
 const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.css'), 'utf8')
 const dateFieldCss = readFileSync(resolve(process.cwd(), 'src/components/ui/DateField.css'), 'utf8')
 const taskSurfaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TaskSurface.css'), 'utf8')
+// SYS-2 (census DO-3): the phone-floor guard was a hard-coded selector list, so every SYS-2
+// instance lived in a file this scan never opened. These are the files that carried the sub-44px
+// touch targets the gen-1 census found — the scan now covers them so a regression re-fails here.
+const iconButtonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/IconButton.css'), 'utf8')
+const commandMenuCss = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
+const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
+const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -67,5 +74,50 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     const body = mediaBody(taskSurfaceCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.tc-textarea[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.tc-loading-field[\s\S]*min-height:\s*44px/)
+  })
+
+  // ── SYS-2 (census DO-3): the surfaces the hard-coded list never scanned ──────────────────────
+  it('SYS-2: raises the icon-only button primitive (.mk-iconbtn — Signal-composer close et al.) to 44px on phone', () => {
+    const body = mediaBody(iconButtonCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.mk-iconbtn[\s\S]*min-width:\s*44px/)
+    expect(body).toMatch(/\.mk-iconbtn[\s\S]*min-height:\s*44px/)
+  })
+
+  it('SYS-2: raises the ⌘K command rows (.cm-item) to 44px on phone', () => {
+    const body = mediaBody(commandMenuCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.cm-item[\s\S]*min-height:\s*44px/)
+  })
+
+  it('SYS-2: raises the Signal-composer datetime control to 44px on phone', () => {
+    const body = mediaBody(signalComposerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-composer-datetime input[\s\S]*min-height:\s*44px/)
+  })
+
+  it('SYS-2: raises the Signal mention rows (.mention-row) to 44px on phone', () => {
+    const body = mediaBody(mentionPickerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.mention-row[\s\S]*min-height:\s*44px/)
+  })
+})
+
+// SYS-2 (census DO-3) — the inline/Tailwind touch surfaces the CSS-source scan structurally
+// cannot see: the phone More-drawer rows + the full-width UserChip + Sign-out carry the shared
+// `tap-target-phone` marker (whose 44px rule lives, and is asserted, in Button.css above). This
+// block closes the "lives in inline-styles the scan never sees" half of the census criticism by
+// asserting the MARKER is actually applied at each site.
+describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch sites', () => {
+  const drawerTsx = readFileSync(resolve(process.cwd(), 'src/shell/mobile-drawer.tsx'), 'utf8')
+  const userChipTsx = readFileSync(resolve(process.cwd(), 'src/shell/user-chip.tsx'), 'utf8')
+
+  it('the More-drawer destination rows carry the tap-target-phone marker', () => {
+    // The nav-link className string in the drawer includes the marker.
+    expect(drawerTsx).toMatch(/tap-target-phone flex items-center gap-\[10px\]/)
+  })
+
+  it('the full-width UserChip (rail foot + phone drawer) carries the tap-target-phone marker', () => {
+    expect(userChipTsx).toMatch(/tap-target-phone flex w-full items-center/)
+  })
+
+  it('the UserChip Sign-out row carries the tap-target-phone marker', () => {
+    expect(userChipTsx).toMatch(/tap-target-phone w-full text-left/)
   })
 })

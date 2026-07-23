@@ -56,3 +56,10 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .signal-composer-foot .muted-2 { flex: 1; min-width: 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
+
+/* SYS-2 phone tap-target floor: the datetime-local control is 32px tall (no styled-kit
+   primitive backs it, so it never inherited the DO-15(a) field floor). Raise it to the 44px
+   touch minimum on phone. */
+@media (max-width: 767.98px) {
+  .signal-composer-datetime input { min-height: 44px; }
+}

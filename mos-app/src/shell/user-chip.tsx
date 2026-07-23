@@ -68,8 +68,11 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
         aria-label={viewer.person.full_name}
         title={isFullWidth && compact ? viewer.person.full_name : undefined}
         className={
+          // SYS-2: the full-width chip (rail foot + phone More drawer) is 40px — the drawer
+          // variant is phone-reachable and falls below the 44px touch floor. tap-target-phone
+          // (Button.css) raises it on phone; the desktop rail is unaffected (>767px).
           isFullWidth
-            ? `flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer${compact ? ' justify-center px-0' : ''}`
+            ? `tap-target-phone flex w-full items-center gap-2 rounded-sm hover:bg-accent px-2 cursor-pointer${compact ? ' justify-center px-0' : ''}`
             : `tap-target-phone${compact ? ' tap-target-phone--icon' : ''} flex items-center gap-2 rounded-sm hover:bg-accent px-2 -mx-2 cursor-pointer`
         }
         style={{ height: isFullWidth ? 40 : 36 }}
@@ -133,7 +136,9 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           <button
             role="menuitem"
             type="button"
-            className="w-full text-left px-3 rounded-sm hover:bg-accent text-foreground"
+            // SYS-2: reachable on phone via the 'drawer' variant menu — raise the 32px row to the
+            // 44px touch floor on phone (tap-target-phone, Button.css). Desktop rhythm unchanged.
+            className="tap-target-phone w-full text-left px-3 rounded-sm hover:bg-accent text-foreground"
             style={{ height: 32, fontSize: 15 }}
             onClick={() => {
               close()

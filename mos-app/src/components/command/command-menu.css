@@ -138,3 +138,11 @@
   color: var(--text-tertiary);
 }
 .cm-foot-key { font-family: var(--ds-code-font-family); }
+
+/* SYS-2 phone tap-target floor: the command rows are the primary touch surface of the ⌘K
+   palette on phone; their 36px height is below the 44px touch minimum. min-height (not height)
+   raises the floor on phone without disturbing the desktop rhythm. Covers the record-search
+   skeleton row too (it shares .cm-item). */
+@media (max-width: 767.98px) {
+  .cm-item { min-height: 44px; }
+}

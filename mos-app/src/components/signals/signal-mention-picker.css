@@ -40,3 +40,9 @@
 .type-badge--bu { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
 
 .mention-empty { padding: 10px 12px; font-size: 12.5px; color: var(--muted-foreground); }
+
+/* SYS-2 phone tap-target floor: mention rows are 36px; raise to the 44px touch minimum on phone
+   (the picker is a primary touch surface while composing on a phone). */
+@media (max-width: 767.98px) {
+  .mention-row { min-height: 44px; }
+}

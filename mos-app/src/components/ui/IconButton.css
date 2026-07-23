@@ -43,3 +43,11 @@
   background: var(--destructive); color: var(--destructive-foreground);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--destructive) 25%, transparent);
 }
+
+/* SYS-2 phone tap-target floor at the PRIMITIVE seam (same strategy as DO-15(a) for the field
+   primitives): every icon-only button — the Signal-composer close, record chrome, toolbar icons —
+   inherits the 44px touch minimum on phone. min-width/min-height raise the floor without changing
+   the 32px desktop icon rhythm. The --small variant is opt-out (dense inline affordances). */
+@media (max-width: 767.98px) {
+  .mk-iconbtn:not(.mk-iconbtn--small) { min-width: 44px; min-height: 44px; }
+}

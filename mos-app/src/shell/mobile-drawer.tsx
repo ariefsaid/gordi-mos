@@ -141,7 +141,9 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                 key={d.id}
                 to={href}
                 onClick={closeAndReturn}
-                className="flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
+                // SYS-2: the More drawer is a phone-only surface, so its 36px rows fall below the
+                // 44px touch floor. The shared tap-target-phone marker (Button.css) raises them.
+                className="tap-target-phone flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
                 style={{ height: 36 }}
               >
                 <span className="text-muted-foreground">

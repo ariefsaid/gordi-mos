@@ -92,7 +92,7 @@ export function RecoveryPage() {
           <a
             href="/mos/login"
             className="text-primary font-medium hover:underline"
-            style={{ fontSize: 16 }}
+            style={{ fontSize: 16, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}
           >
             Back to sign in
           </a>
@@ -133,7 +133,7 @@ export function RecoveryPage() {
           <a
             href="/mos/login"
             className="text-primary font-medium hover:underline"
-            style={{ fontSize: 16 }}
+            style={{ fontSize: 16, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}
           >
             Back to sign in
           </a>

@@ -202,11 +202,12 @@ export function LoginPage() {
             </div>
           </div>
 
-          {/* Back to sign in — primary-text link (design-plan §3) */}
+          {/* Back to sign in — primary-text link (design-plan §3). SYS-2: ≥44px touch target on
+              phone, matching the magic-link / forgot-password links in this same file. */}
           <button
             type="button"
             className="text-primary font-medium hover:underline focus-visible:underline"
-            style={{ fontSize: 16 }}
+            style={{ fontSize: 16, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}
             onClick={() => {
               setMode('credentials')
               setError('')
